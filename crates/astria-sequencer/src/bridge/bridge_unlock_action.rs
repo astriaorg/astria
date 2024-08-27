@@ -114,6 +114,7 @@ mod tests {
 
         state.put_current_source(TransactionContext {
             address_bytes: [1; 20],
+            transaction_hash: "test_tx_hash".to_string(),
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
@@ -149,6 +150,7 @@ mod tests {
 
         state.put_current_source(TransactionContext {
             address_bytes: [1; 20],
+            transaction_hash: "test_tx_hash".to_string(),
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
@@ -187,6 +189,7 @@ mod tests {
         let bridge_address = astria_address(&[1; 20]);
         state.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
+            transaction_hash: "test_tx_hash".to_string(),
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
@@ -241,6 +244,7 @@ mod tests {
         let bridge_address = astria_address(&[1; 20]);
         state.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
+            transaction_hash: "test_tx_hash".to_string(),
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 

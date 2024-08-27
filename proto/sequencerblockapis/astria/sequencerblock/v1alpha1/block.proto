@@ -86,6 +86,11 @@ message Deposit {
   // the address on the destination chain which
   // will receive the bridged funds
   string destination_chain_address = 5;
+  // the hash of the transaction which initiated the deposit
+  string source_transaction_hash = 6;
+  // index for differentiating between multiple deposits
+  // with the same source transaction hash
+  uint32 source_transaction_index = 7;
 }
 
 // `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset

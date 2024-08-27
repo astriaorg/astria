@@ -1,4 +1,5 @@
 use anyhow::{
+    anyhow,
     ensure,
     Context as _,
     Result,
@@ -29,7 +30,10 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
+    transaction::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
 };
 
 #[async_trait::async_trait]
@@ -72,12 +76,24 @@ impl ActionHandler for BridgeLockAction {
             .await
             .context("failed to get transfer base fee")?;
 
+        let transaction_hash = state
+            .get_current_source()
+            .ok_or(anyhow!("expected current source to be `Some`"))?
+            .transaction_hash;
+        let source_transaction_index = state
+            .get_transaction_deposit_index()
+            .await
+            .context("failed to get transaction deposit index")?
+            .ok_or(anyhow!("expected transaction deposit index to be `Some`"))?;
+
         let deposit = Deposit::new(
             self.to,
             rollup_id,
             self.amount,
             self.asset.clone(),
             self.destination_chain_address.clone(),
+            transaction_hash.clone(),
+            source_transaction_index,
         );
 
         let byte_cost_multiplier = state
@@ -103,20 +119,6 @@ impl ActionHandler for BridgeLockAction {
         // to the transfer-action logic.
         execute_transfer(&transfer_action, from, &mut state).await?;
 
-        let rollup_id = state
-            .get_bridge_account_rollup_id(self.to)
-            .await
-            .context("failed to get bridge account rollup id")?
-            .expect("recipient must be a bridge account; this is a bug in check_stateful");
-
-        let deposit = Deposit::new(
-            self.to,
-            rollup_id,
-            self.amount,
-            self.asset.clone(),
-            self.destination_chain_address.clone(),
-        );
-
         // the transfer fee is already deducted in `execute_transfer() above,
         // so we just deduct the bridge lock byte multiplier fee.
         // FIXME: similar to what is mentioned there: this should be reworked so that
@@ -140,6 +142,9 @@ impl ActionHandler for BridgeLockAction {
             .put_deposit_event(deposit)
             .await
             .context("failed to put deposit event into state")?;
+        state.put_transaction_deposit_index(source_transaction_index.checked_add(1).ok_or(
+            anyhow!("transaction deposit index overflowed: too many deposits in one transaction"),
+        )?);
         Ok(())
     }
 }
@@ -167,10 +172,7 @@ mod tests {
             astria_address,
             ASTRIA_PREFIX,
         },
-        transaction::{
-            StateWriteExt as _,
-            TransactionContext,
-        },
+        transaction::TransactionContext,
     };
 
     fn test_asset() -> asset::Denom {
@@ -187,7 +189,9 @@ mod tests {
         let from_address = astria_address(&[2; 20]);
         state.put_current_source(TransactionContext {
             address_bytes: from_address.bytes(),
+            transaction_hash: "test_tx_hash".to_string(),
         });
+        state.put_transaction_deposit_index(0);
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         state.put_transfer_base_fee(transfer_fee).unwrap();
@@ -227,6 +231,8 @@ mod tests {
                 100,
                 asset.clone(),
                 "someaddress".to_string(),
+                "test_tx_hash".to_string(),
+                0,
             )) * 2;
         state
             .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)

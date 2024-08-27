@@ -100,6 +100,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .context("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
+    let mut tx_deposit_index = 0u32;
     for action in &tx.actions {
         match action {
             Action::Transfer(act) => {
@@ -119,12 +120,16 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     .and_modify(|amt| *amt = amt.saturating_add(init_bridge_account_fee))
                     .or_insert(init_bridge_account_fee);
             }
-            Action::BridgeLock(act) => bridge_lock_update_fees(
-                act,
-                &mut fees_by_asset,
-                transfer_fee,
-                bridge_lock_byte_cost_multiplier,
-            ),
+            Action::BridgeLock(act) => {
+                bridge_lock_update_fees(
+                    act,
+                    &mut fees_by_asset,
+                    transfer_fee,
+                    bridge_lock_byte_cost_multiplier,
+                    &mut tx_deposit_index,
+                    &state,
+                )?;
+            }
             Action::BridgeUnlock(act) => {
                 bridge_unlock_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
             }
@@ -256,13 +261,23 @@ fn ics20_withdrawal_updates_fees(
         .or_insert(ics20_withdrawal_fee);
 }
 
-fn bridge_lock_update_fees(
+fn bridge_lock_update_fees<S>(
     act: &BridgeLockAction,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     transfer_fee: u128,
     bridge_lock_byte_cost_multiplier: u128,
-) {
+    tx_deposit_index: &mut u32,
+    state: &S,
+) -> anyhow::Result<()>
+where
+    S: crate::transaction::StateReadExt,
+{
     use astria_core::sequencerblock::v1alpha1::block::Deposit;
+
+    let transaction_hash = state
+        .get_current_source()
+        .ok_or(anyhow::anyhow!("expected transaction source to be `Some`"))?
+        .transaction_hash;
 
     let expected_deposit_fee = transfer_fee.saturating_add(
         crate::bridge::get_deposit_byte_len(&Deposit::new(
@@ -272,14 +287,21 @@ fn bridge_lock_update_fees(
             act.amount,
             act.asset.clone(),
             act.destination_chain_address.clone(),
+            transaction_hash,
+            *tx_deposit_index,
         ))
         .saturating_mul(bridge_lock_byte_cost_multiplier),
     );
+
+    tx_deposit_index
+        .checked_add(1)
+        .ok_or(anyhow::anyhow!("deposit index overflow"))?;
 
     fees_by_asset
         .entry(act.asset.to_ibc_prefixed())
         .and_modify(|amt| *amt = amt.saturating_add(expected_deposit_fee))
         .or_insert(expected_deposit_fee);
+    Ok(())
 }
 
 fn bridge_unlock_update_fees(

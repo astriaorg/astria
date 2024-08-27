@@ -12,6 +12,7 @@
 use std::borrow::Cow;
 
 use anyhow::{
+    anyhow,
     bail,
     ensure,
     Context as _,
@@ -70,6 +71,10 @@ use crate::{
     },
     ibc,
     ibc::StateReadExt as _,
+    transaction::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
 };
 
 /// The maximum length of the encoded Ics20 `FungibleTokenPacketData` in bytes.
@@ -480,11 +485,9 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
             .put_ibc_channel_balance(
                 escrow_channel,
                 &denom_trace,
-                escrow_balance
-                    .checked_sub(packet_amount)
-                    .ok_or(anyhow::anyhow!(
-                        "insufficient balance in escrow account to transfer tokens"
-                    ))?,
+                escrow_balance.checked_sub(packet_amount).ok_or(anyhow!(
+                    "insufficient balance in escrow account to transfer tokens"
+                ))?,
             )
             .context("failed to update escrow account balance in execute_ics20_transfer")?;
 
@@ -625,12 +628,27 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         "asset ID is not authorized for transfer to bridge account",
     );
 
+    let transaction_hash = state
+        .get_current_source()
+        .ok_or(anyhow!("expected current source to be `Some`"))?
+        .transaction_hash;
+    let source_transaction_index = state
+        .get_transaction_deposit_index()
+        .await
+        .context("failed to get transaction deposit index for bridge account")?
+        .ok_or(anyhow!("expected transaction deposit index to be `Some`"))?;
+    state.put_transaction_deposit_index(source_transaction_index.checked_add(1).ok_or(anyhow!(
+        "transaction deposit index overflowed: too many deposits in one transaction"
+    ))?);
+
     let deposit = Deposit::new(
         bridge_address,
         rollup_id,
         amount,
         denom.into(),
         destination_address,
+        transaction_hash,
+        source_transaction_index,
     );
     state
         .put_deposit_event(deposit)
@@ -654,6 +672,7 @@ mod test {
             astria_address,
             astria_address_from_hex_string,
         },
+        transaction::TransactionContext,
     };
 
     #[tokio::test]
@@ -761,6 +780,12 @@ mod test {
         let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
+
+        state_tx.put_current_source(TransactionContext {
+            address_bytes: bridge_address.bytes(),
+            transaction_hash: "test_tx_hash".to_string(),
+        });
+        state_tx.put_transaction_deposit_index(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -997,6 +1022,12 @@ mod test {
             .parse::<TracePrefixed>()
             .unwrap();
 
+        state_tx.put_current_source(TransactionContext {
+            address_bytes: bridge_address.bytes(),
+            transaction_hash: "test_tx_hash".to_string(),
+        });
+        state_tx.put_transaction_deposit_index(0);
+
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
             .put_bridge_account_ibc_asset(bridge_address, &denom)
@@ -1037,6 +1068,12 @@ mod test {
         let destination_chain_address = bridge_address.to_string();
         let denom = "nootasset".parse::<Denom>().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+
+        state_tx.put_current_source(TransactionContext {
+            address_bytes: bridge_address.bytes(),
+            transaction_hash: "test_tx_hash".to_string(),
+        });
+        state_tx.put_transaction_deposit_index(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1092,6 +1129,8 @@ mod test {
             100,
             denom,
             destination_chain_address,
+            "test_tx_hash".to_string(),
+            0,
         );
         assert_eq!(deposit, &expected_deposit);
     }

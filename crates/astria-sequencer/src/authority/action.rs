@@ -180,6 +180,7 @@ mod test {
 
         state.put_current_source(TransactionContext {
             address_bytes: [1; 20],
+            transaction_hash: "test_tx_hash".to_string(),
         });
         state.put_sudo_address([1; 20]).unwrap();
 

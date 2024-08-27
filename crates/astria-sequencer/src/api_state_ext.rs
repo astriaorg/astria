@@ -412,6 +412,8 @@ mod test {
                 amount,
                 asset,
                 destination_chain_address,
+                "test_tx_hash".to_string(),
+                0,
             );
             deposits.push(deposit);
         }

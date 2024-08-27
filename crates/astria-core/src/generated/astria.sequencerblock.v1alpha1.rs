@@ -126,6 +126,13 @@ pub struct Deposit {
     /// will receive the bridged funds
     #[prost(string, tag = "5")]
     pub destination_chain_address: ::prost::alloc::string::String,
+    /// the hash of the transaction which initiated the deposit
+    #[prost(string, tag = "6")]
+    pub source_transaction_hash: ::prost::alloc::string::String,
+    /// index for differentiating between multiple deposits
+    /// with the same source transaction hash
+    #[prost(uint32, tag = "7")]
+    pub source_transaction_index: u32,
 }
 impl ::prost::Name for Deposit {
     const NAME: &'static str = "Deposit";

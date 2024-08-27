@@ -1298,6 +1298,10 @@ pub struct Deposit {
     asset: asset::Denom,
     // the address on the destination chain (rollup) which to send the bridged funds to
     destination_chain_address: String,
+    // the hash of the transaction which initiated the deposit
+    source_transaction_hash: String,
+    // index for differentiating between multiple deposits with the same source transaction hash
+    source_transaction_index: u32,
 }
 
 impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
@@ -1314,6 +1318,8 @@ impl Deposit {
         amount: u128,
         asset: asset::Denom,
         destination_chain_address: String,
+        source_transaction_hash: String,
+        source_transaction_index: u32,
     ) -> Self {
         Self {
             bridge_address,
@@ -1321,6 +1327,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
+            source_transaction_hash,
+            source_transaction_index,
         }
     }
 
@@ -1357,6 +1365,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
+            source_transaction_hash,
+            source_transaction_index,
         } = self;
         raw::Deposit {
             bridge_address: Some(bridge_address.into_raw()),
@@ -1364,6 +1374,8 @@ impl Deposit {
             amount: Some(amount.into()),
             asset: asset.to_string(),
             destination_chain_address,
+            source_transaction_hash,
+            source_transaction_index,
         }
     }
 
@@ -1382,6 +1394,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
+            source_transaction_hash,
+            source_transaction_index,
         } = raw;
         let Some(bridge_address) = bridge_address else {
             return Err(DepositError::field_not_set("bridge_address"));
@@ -1401,6 +1415,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
+            source_transaction_hash,
+            source_transaction_index,
         })
     }
 }

@@ -784,6 +784,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)] // allow: it's a test
     async fn get_deposit_events() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
@@ -800,6 +801,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            "text_tx_hash".to_string(),
+            1,
         );
 
         let mut deposits = vec![deposit.clone()];
@@ -835,6 +838,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            "text_tx_hash".to_string(),
+            2,
         );
         deposits.append(&mut vec![deposit.clone()]);
         state
@@ -869,6 +874,8 @@ mod test {
             amount,
             asset,
             destination_chain_address.to_string(),
+            "text_tx_hash".to_string(),
+            3,
         );
         let deposits_1 = vec![deposit.clone()];
         state
@@ -912,6 +919,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            "text_tx_hash".to_string(),
+            1,
         );
 
         // write same rollup id twice
@@ -934,6 +943,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            "text_tx_hash".to_string(),
+            2,
         );
         state
             .put_deposit_event(deposit)
@@ -983,6 +994,8 @@ mod test {
             amount,
             asset,
             destination_chain_address.to_string(),
+            "text_tx_hash".to_string(),
+            1,
         );
 
         let deposits = vec![deposit.clone()];
@@ -1038,6 +1051,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            "text_tx_hash".to_string(),
+            1,
         );
 
         // write to first
@@ -1054,6 +1069,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            "text_tx_hash".to_string(),
+            2,
         );
         let deposits_1 = vec![deposit.clone()];
 
@@ -1130,6 +1147,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            "text_tx_hash".to_string(),
+            1,
         );
 
         // write to first
@@ -1146,6 +1165,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            "text_tx_hash".to_string(),
+            2,
         );
         state
             .put_deposit_event(deposit)
