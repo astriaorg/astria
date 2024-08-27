@@ -424,7 +424,7 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),
         rollup_withdrawal_event_id: receipt.transaction_hash.to_string(),
-        memo: "".to_string(),
+        memo: String::new(),
         fee_asset: denom,
         bridge_address: default_bridge_address(),
     };

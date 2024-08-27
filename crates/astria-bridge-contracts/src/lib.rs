@@ -456,7 +456,7 @@ where
             amount,
             rollup_block_number,
             rollup_withdrawal_event_id,
-            memo: "".to_string(),
+            memo: String::new(),
             fee_asset: self.fee_asset.clone(),
             bridge_address: self.bridge_address,
         };
