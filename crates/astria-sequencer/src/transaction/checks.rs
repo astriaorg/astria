@@ -127,7 +127,6 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     transfer_fee,
                     bridge_lock_byte_cost_multiplier,
                     &mut tx_deposit_index,
-                    &state,
                 )?;
             }
             Action::BridgeUnlock(act) => {
@@ -261,23 +260,14 @@ fn ics20_withdrawal_updates_fees(
         .or_insert(ics20_withdrawal_fee);
 }
 
-fn bridge_lock_update_fees<S>(
+fn bridge_lock_update_fees(
     act: &BridgeLockAction,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     transfer_fee: u128,
     bridge_lock_byte_cost_multiplier: u128,
     tx_deposit_index: &mut u32,
-    state: &S,
-) -> anyhow::Result<()>
-where
-    S: crate::transaction::StateReadExt,
-{
+) -> anyhow::Result<()> {
     use astria_core::sequencerblock::v1alpha1::block::Deposit;
-
-    let transaction_hash = state
-        .get_current_source()
-        .ok_or(anyhow::anyhow!("expected transaction source to be `Some`"))?
-        .transaction_hash;
 
     let expected_deposit_fee = transfer_fee.saturating_add(
         crate::bridge::get_deposit_byte_len(&Deposit::new(
@@ -287,7 +277,7 @@ where
             act.amount,
             act.asset.clone(),
             act.destination_chain_address.clone(),
-            transaction_hash,
+            hex::encode([0u8, 32]),
             *tx_deposit_index,
         ))
         .saturating_mul(bridge_lock_byte_cost_multiplier),
