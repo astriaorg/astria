@@ -1,4 +1,4 @@
-global: 
+global:
   useTTY: true
   dev: true
   evmChainId: 1337
