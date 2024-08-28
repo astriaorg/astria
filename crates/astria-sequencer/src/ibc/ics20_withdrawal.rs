@@ -112,10 +112,7 @@ async fn establish_withdrawal_target<S: StateRead>(
 impl ActionHandler for action::Ics20Withdrawal {
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
-        ensure!(
-            self.amount() > 0,
-            "amount must be greater than zero",
-        );
+        ensure!(self.amount() > 0, "amount must be greater than zero",);
         if self.bridge_address.is_some() {
             let parsed_bridge_memo: Ics20WithdrawalFromRollupMemo =
                 serde_json::from_str(&self.memo)

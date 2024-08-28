@@ -324,10 +324,12 @@ mod tests {
             rollup_block_number: 10,
             rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
         };
-        
 
         // first should succeed, next should fail due to duplicate event.
-        bridge_unlock_first.check_and_execute(&mut state).await.unwrap();
+        bridge_unlock_first
+            .check_and_execute(&mut state)
+            .await
+            .unwrap();
         assert_anyhow_error(
             &bridge_unlock_second
                 .check_and_execute(&mut state)

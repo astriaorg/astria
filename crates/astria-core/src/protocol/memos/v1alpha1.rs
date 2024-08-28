@@ -9,7 +9,10 @@ use crate::{
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(into = "raw::Ics20WithdrawalFromRollup", try_from = "raw::Ics20WithdrawalFromRollup")
+    serde(
+        into = "raw::Ics20WithdrawalFromRollup",
+        try_from = "raw::Ics20WithdrawalFromRollup"
+    )
 )]
 pub struct Ics20WithdrawalFromRollup {
     pub rollup_block_number: u64,
