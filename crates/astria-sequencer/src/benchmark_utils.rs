@@ -82,11 +82,11 @@ fn sequence_actions() -> Vec<Arc<SignedTransaction>> {
             let (nonce, chain_id) = nonces_and_chain_ids
                 .entry(verification_key)
                 .or_insert_with(|| (0_u32, format!("chain-{}", signing_key.verification_key())));
-            *nonce = (*nonce).wrapping_add(1);
             let params = TransactionParams::builder()
                 .nonce(*nonce)
                 .chain_id(chain_id.as_str())
                 .build();
+            *nonce = (*nonce).wrapping_add(1);
             let sequence_action = SequenceAction {
                 rollup_id: RollupId::new([1; 32]),
                 data: vec![2; 1000].into(),

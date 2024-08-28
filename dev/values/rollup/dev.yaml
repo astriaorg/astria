@@ -118,9 +118,6 @@ evm-rollup:
         cpu: 2
         memory: 1Gi
 
-  celestia-node:
-    enabled: false
-
   storage:
     enabled: false
 
@@ -131,6 +128,9 @@ evm-rollup:
         enabled: true
       ws:
         enabled: true
+  
+celestia-node:
+  enabled: false
 
 composer:
   enabled: true
