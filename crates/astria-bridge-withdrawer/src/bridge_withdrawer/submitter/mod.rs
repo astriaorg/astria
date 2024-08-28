@@ -176,23 +176,19 @@ impl Submitter {
         .await
         .context("failed to submit transaction to cometbft")?;
         if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
-            Err(eyre!(format!(
-                "abci.code = {},
-                abci.log = {},
-                rollup.height = {},
-                check_tx failure upon submitting transaction to sequencer: transaction failed to \
-                 be included in the mempool, aborting.",
-                check_tx_code, rsp.check_tx.log, rollup_height
-            )))
+            Err(eyre!(
+                "check_tx failure upon submitting transaction to sequencer: transaction failed to \
+                 be included in the mempool, aborting. abci.code = {check_tx_code}, abci.log = \
+                 {}, rollup.height = {rollup_height}",
+                rsp.check_tx.log
+            ))
         } else if let tendermint::abci::Code::Err(deliver_tx_code) = rsp.tx_result.code {
-            Err(eyre!(format!(
-                "abci.code = {},
-                abci.log = {},
-                rollup.height = {},
-                deliver_tx failure upon submitting transaction to sequencer: transaction failed to \
-                 be executed in a block, aborting.",
-                deliver_tx_code, rsp.tx_result.log, rollup_height
-            )))
+            Err(eyre!(
+                "deliver_tx failure upon submitting transaction to sequencer: transaction failed \
+                 to be executed in a block, aborting. abci.code = {deliver_tx_code}, abci.log = \
+                 {}, rollup.height = {rollup_height}",
+                rsp.tx_result.log,
+            ))
         } else {
             // update state after successful submission
             info!(
