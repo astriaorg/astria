@@ -179,14 +179,18 @@ impl BridgeWithdrawer {
         // Separate the API shutdown signal from the cancellation token because we want it to live
         // until the very end.
         let (api_shutdown_signal, api_shutdown_signal_rx) = oneshot::channel::<()>();
-        let (mut api_task, mut startup_task, mut submitter_task, mut ethereum_watcher_task) =
-            spawn_tasks(
-                api_server,
-                api_shutdown_signal_rx,
-                startup,
-                submitter,
-                ethereum_watcher,
-            );
+        let TaskHandles {
+            mut api_task,
+            mut startup_task,
+            mut submitter_task,
+            mut ethereum_watcher_task,
+        } = spawn_tasks(
+            api_server,
+            api_shutdown_signal_rx,
+            startup,
+            submitter,
+            ethereum_watcher,
+        );
 
         let shutdown = loop {
             select!(
@@ -248,12 +252,12 @@ impl BridgeWithdrawer {
     }
 }
 
-type TaskHandles = (
-    JoinHandle<eyre::Result<()>>,
-    Option<JoinHandle<eyre::Result<()>>>,
-    JoinHandle<eyre::Result<()>>,
-    JoinHandle<eyre::Result<()>>,
-);
+pub struct TaskHandles {
+    api_task: JoinHandle<eyre::Result<()>>,
+    startup_task: Option<JoinHandle<eyre::Result<()>>>,
+    submitter_task: JoinHandle<eyre::Result<()>>,
+    ethereum_watcher_task: JoinHandle<eyre::Result<()>>,
+}
 
 #[instrument(skip_all)]
 fn spawn_tasks(
@@ -281,12 +285,12 @@ fn spawn_tasks(
     let ethereum_watcher_task = tokio::spawn(ethereum_watcher.run());
     info!("spawned ethereum watcher task");
 
-    (
+    TaskHandles {
         api_task,
         startup_task,
         submitter_task,
         ethereum_watcher_task,
-    )
+    }
 }
 
 /// A handle for instructing the [`Service`] to shut down.
