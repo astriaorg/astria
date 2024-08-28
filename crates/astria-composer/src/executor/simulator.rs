@@ -75,18 +75,14 @@ impl BundleSimulator {
         rollup_data: Vec<RollupData>,
         time: pbjson_types::Timestamp,
     ) -> eyre::Result<BundleSimulationResult> {
-        info!("Creating parent block!");
         // call GetCommitmentState to get the soft block
-        info!("Calling GetCommitmentState!");
         let commitment_state = self
             .execution_service_client
             .get_commitment_state_with_retry()
             .await
             .wrap_err("failed to get commitment state")?;
-        info!("Received CommitmentState of rollup");
 
         let soft_block = commitment_state.soft();
-        info!("Soft block hash is {:?}", soft_block.hash());
         // convert the sized bundle actions to a list of Vec<u8>
         let actions: Vec<Vec<u8>> = rollup_data
             .iter()
@@ -97,7 +93,6 @@ impl BundleSimulator {
             .filter(|data| !data.is_empty())
             .collect();
 
-        info!("Calling ExecuteBlock to simulate the bundle!");
         // as long as the timestamp > parent block timestamp, the block will be successfully
         // created. It doesn't matter what timestamp we use anyway since we are not going to
         // commit the block to the chain.
@@ -133,7 +128,6 @@ impl BundleSimulator {
         bundle: SizedBundle,
         block: Block,
     ) -> eyre::Result<BundleSimulationResult> {
-        info!("Simulating bundle on created parent block!");
         // convert the sized bundle actions to a list of Vec<u8>
         let actions: Vec<Vec<u8>> = bundle
             .into_actions()
