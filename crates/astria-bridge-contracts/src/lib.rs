@@ -404,7 +404,7 @@ where
                 rollup_return_address: event.sender.to_string(),
                 rollup_withdrawal_event_id,
             }
-            .to_raw(),
+            .into_raw(),
         )
         .map_err(GetWithdrawalActionsError::encode_memo)?;
 

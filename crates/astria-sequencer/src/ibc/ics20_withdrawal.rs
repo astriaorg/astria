@@ -123,20 +123,19 @@ impl ActionHandler for action::Ics20Withdrawal {
                 "rollup return address must be non-empty",
             );
             ensure!(
-                parsed_bridge_memo.rollup_return_address.into_bytes().len() <= 256,
+                parsed_bridge_memo.rollup_return_address.len() <= 256,
                 "rollup return address must be no more than 256 bytes",
             );
             ensure!(
                 !parsed_bridge_memo.rollup_withdrawal_event_id.is_empty(),
-                "rollup transaction hash must be non-empty",
+                "rollup withdrawal event id must be non-empty",
             );
             ensure!(
                 parsed_bridge_memo
                     .rollup_withdrawal_event_id
-                    .into_bytes()
                     .len()
                     <= 64,
-                "rollup transaction hash must be no more than 64 bytes",
+                "rollup withdrawal event id must be no more than 64 bytes",
             );
             ensure!(
                 parsed_bridge_memo.rollup_block_number != 0,
@@ -167,7 +166,7 @@ impl ActionHandler for action::Ics20Withdrawal {
             )?;
             let parsed_bridge_memo: Ics20WithdrawalFromRollupMemo =
                 serde_json::from_str(&self.memo)
-                    .context("failed to memo for ICS bound bridge withdrawal")?;
+                    .context("failed to parse memo for ICS bound bridge withdrawal")?;
 
             let rollup_withdrawal_height = state
                 .get_withdrawal_event_block_for_bridge_account(
@@ -176,10 +175,9 @@ impl ActionHandler for action::Ics20Withdrawal {
                 )
                 .await
                 .context("failed to get withdrawal event height")?;
-            ensure!(
-                rollup_withdrawal_height.is_none(),
-                "withdrawal event already processed",
-            );
+            if let Some(height) = rollup_withdrawal_height {
+                bail!("withdrawal event already processed at rollup height {height}");
+            };
 
             state.put_withdrawal_event_block_for_bridge_account(
                 self.bridge_address.map_or(from, Address::bytes),

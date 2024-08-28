@@ -34,11 +34,11 @@ impl ActionHandler for BridgeUnlockAction {
         ensure!(self.memo.len() <= 64, "memo must not be more than 64 bytes");
         ensure!(
             !self.rollup_withdrawal_event_id.is_empty(),
-            "rollup transaction hash must be non-empty",
+            "rollup withdrawal event id must be non-empty",
         );
         ensure!(
             self.rollup_withdrawal_event_id.len() <= 64,
-            "rollup transaction hash must not be more than 64 bytes",
+            "rollup withdrawal event id must not be more than 64 bytes",
         );
         ensure!(
             self.rollup_block_number > 0,
@@ -87,10 +87,9 @@ impl ActionHandler for BridgeUnlockAction {
             )
             .await
             .context("failed to get withdrawal event height")?;
-        ensure!(
-            rollup_withdrawal_height.is_none(),
-            "withdrawal event already processed",
-        );
+        if let Some(height) = rollup_withdrawal_height {
+            bail!("withdrawal event already processed at rollup height {height}");
+        }
 
         let transfer_action = TransferAction {
             to: self.to,
@@ -101,7 +100,7 @@ impl ActionHandler for BridgeUnlockAction {
 
         check_transfer(&transfer_action, self.bridge_address, &state).await?;
         state.put_withdrawal_event_block_for_bridge_account(
-            self.bridge_address.address_bytes(),
+            self.bridge_address,
             &self.rollup_withdrawal_event_id,
             self.rollup_block_number,
         );
