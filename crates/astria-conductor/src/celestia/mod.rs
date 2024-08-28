@@ -647,7 +647,7 @@ fn max_permitted_celestia_height(reference: u64, variance: u64) -> u64 {
 fn report_exit(exit_reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
     match exit_reason {
         Ok(reason) => {
-            info!(reason, message);
+            info!(%reason, message);
             Ok(())
         }
         Err(reason) => {

@@ -676,7 +676,7 @@ impl Executor {
 fn report_exit(reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
     match reason {
         Ok(reason) => {
-            info!(reason, message);
+            info!(%reason, message);
             Ok(())
         }
         Err(error) => {

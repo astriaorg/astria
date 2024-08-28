@@ -248,7 +248,7 @@ impl Conductor {
 #[instrument(skip_all)]
 fn report_exit(exit_reason: eyre::Result<&str>, message: &str) {
     match exit_reason {
-        Ok(reason) => info!(reason, message),
+        Ok(reason) => info!(%reason, message),
         Err(reason) => error!(%reason, message),
     }
 }
