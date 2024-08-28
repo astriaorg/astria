@@ -18,8 +18,7 @@ spec:
           secretName: github-pat
       requeueAfterSeconds: 60
   goTemplate: true
-  goTemplateOptions:
-  - missingkey=error
+  goTemplateOptions: ["missingkey=error"]
   template:
     metadata:
       name: pr-{{.number}}-sequencer-0
@@ -29,7 +28,34 @@ spec:
         server: https://kubernetes.default.svc
       project: default
       sources:
-      - helm:
+      - repoURL: https://github.com/astriaorg/astria.git
+        targetRevision: pull/{{.number}}/head
+        path: charts/sequencer
+        helm:
+          valueFiles:
+            - ../../dev/values/validators/all.yml
+            - ../../dev/values/validators/single.yml
+          valuesObject:
+            global:
+              dev: true
+            ingress:
+              grpc:
+                enabled: true
+            config:
+              sequencer:
+                metrics:
+                  enabled: true
+            serviceMonitor:
+              enabled: true
+            storage:
+              enabled: true
+              local: false
+              entities:
+                sequencerSharedStorage:
+                  size: 1Gi
+                  storageClassName: standard-rwo
+                  persistentVolumeName: "sequencer-shared-storage-pr-{{.number}}"
+                  path: "/data/sequencer-data"
           parameters:
           - name: global.namespaceOverride
             value: pr-{{.number}}
@@ -51,33 +77,25 @@ spec:
             value: sequencer.pr-{{.number}}.dev.astria.org
           - name: ingress.grpc.annotations\.external-dns\.alpha\.kubernetes\.io/hostname
             value: grpc.sequencer.pr-{{.number}}.dev.astria.org
-          valueFiles:
-          - ../../dev/values/validators/all.yml
-          - ../../dev/values/validators/single.yml
-          valuesObject:
-            config:
-              sequencer:
-                metrics:
-                  enabled: true
-            global:
-              dev: true
-            ingress:
-              grpc:
-                enabled: true
-            serviceMonitor:
-              enabled: true
-        path: charts/sequencer
-        repoURL: https://github.com/astriaorg/astria.git
+      - repoURL: https://github.com/astriaorg/astria.git
         targetRevision: pull/{{.number}}/head
-      - helm:
+        path: charts/celestia-local
+        helm:
+          valuesObject: 
+            storage:
+              enabled: true
+              local: false
+              entities:
+                celestiaSharedStorage:
+                  size: "1Gi"
+                  storageClassName: standard-rwo
+                  persistentVolumeName: "celestia-shared-storage-pr-{{.number}}"
+                  path: "/data/celestia-data"
           parameters:
           - name: global.namespace
             value: pr-{{.number}}
           - name: ingress.hostname
             value: pr-{{.number}}.dev.astria.org
-        path: charts/celestia-local
-        repoURL: https://github.com/astriaorg/astria.git
-        targetRevision: pull/{{.number}}/head
       syncPolicy:
         automated:
           allowEmpty: true
