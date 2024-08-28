@@ -286,6 +286,8 @@ async fn submit_tx(
 
     let tx_response = client.wait_for_tx_inclusion(check_tx.hash).await?;
 
+    ensure!(tx_response.tx_result.code.is_ok(), "deliver_tx failed: {}", tx_response.tx_result.log);
+
     Ok((check_tx, tx_response))
 }
 
