@@ -369,7 +369,11 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             return Ok(None);
         };
 
-        let block_num = u64::try_from_slice(&bytes).context("invalid block number bytes")?;
+        let block_num = u64::from_be_bytes(
+            bytes
+                .try_into()
+                .expect("all block numbers stored should be 8 bytes; this is a bug"),
+        );
         Ok(Some(block_num))
     }
 
