@@ -315,13 +315,8 @@ mod tests {
             rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
         };
         let bridge_unlock_second = BridgeUnlockAction {
-            to: to_address,
-            amount: transfer_amount,
-            fee_asset: asset.clone(),
-            memo: String::new(),
-            bridge_address,
             rollup_block_number: 10,
-            rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
+            ..bridge_unlock_first.clone()
         };
 
         // first should succeed, next should fail due to duplicate event.
