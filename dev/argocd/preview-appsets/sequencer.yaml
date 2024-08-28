@@ -54,7 +54,7 @@ spec:
                 sequencerSharedStorage:
                   size: 1Gi
                   storageClassName: standard-rwo
-                  persistentVolumeName: "sequencer-shared-storage-pr-{{.number}}"
+                  persistentVolumeName: "sequencer-shared-storage"
                   path: "/data/sequencer-data"
           parameters:
           - name: global.namespaceOverride
@@ -89,7 +89,7 @@ spec:
                 celestiaSharedStorage:
                   size: "1Gi"
                   storageClassName: standard-rwo
-                  persistentVolumeName: "celestia-shared-storage-pr-{{.number}}"
+                  persistentVolumeName: "celestia-shared-storage"
                   path: "/data/celestia-data"
           parameters:
           - name: global.namespace
