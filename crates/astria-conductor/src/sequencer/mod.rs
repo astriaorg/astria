@@ -224,14 +224,14 @@ impl RunningReader {
 
                 // Record the latest height of the Sequencer network, allowing `blocks_from_heights` to progress.
                 Some(res) = self.latest_height_stream.next() => {
-                    self.latest_height_stream_handler(res);
+                    self.handle_latest_height(res);
                 }
             }
         }
     }
 
     #[instrument(skip_all)]
-    fn latest_height_stream_handler(&mut self, res: Result<Height, tendermint_rpc::Error>) {
+    fn handle_latest_height(&mut self, res: Result<Height, tendermint_rpc::Error>) {
         match res {
             Ok(height) => {
                 debug!(%height, "received latest height from sequencer");

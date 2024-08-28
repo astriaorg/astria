@@ -360,7 +360,7 @@ impl RunningReader {
                 }
 
                 Some(res) = self.latest_heights.next() => {
-                    self.latest_height_handler(res);
+                    self.handle_latest_height(res);
                 }
 
             );
@@ -372,7 +372,7 @@ impl RunningReader {
     }
 
     #[instrument(skip_all)]
-    fn latest_height_handler(&mut self, res: eyre::Result<u64>) {
+    fn handle_latest_height(&mut self, res: eyre::Result<u64>) {
         match res {
             Ok(height) => {
                 info!(height, "observed latest height from Celestia");
