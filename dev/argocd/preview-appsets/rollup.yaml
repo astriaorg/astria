@@ -1,14 +1,15 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: pr-rollup
+  name: pr-preview-rollup
   namespace: argocd
 spec:
   generators:
   - pullRequest:
       github:
         labels:
-        - demo
+        - preview
+        # - demo
         - evm
         - docker-build
         owner: astriaorg
@@ -35,15 +36,16 @@ spec:
             valueFiles:
               - ../../dev/values/rollup/dev.yaml
             valuesObject:
-              storage:
-                enabled: true
-                local: false
-                entities:
-                  rollupSharedStorage:
-                    size: "1Gi"
-                    storageClassName: standard-rwo
-                    persistentVolumeName: "rollup-shared-storage"
-                    path: "/data/rollup-data"
+              config:
+                storage:
+                  enabled: true
+                  local: false
+                  entities:
+                    rollupSharedStorage:
+                      size: "1Gi"
+                      storageClassName: standard-rwo
+                      persistentVolumeName: "rollup-shared-storage"
+                      path: "/data/rollup-data"
             parameters:
               - name: global.namespaceOverride
                 value: pr-{{.number}}

@@ -1,14 +1,15 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: pr-sequencer-0
+  name: pr-preview-sequencer-0
   namespace: argocd
 spec:
   generators:
   - pullRequest:
       github:
         labels:
-        - demo
+        - preview
+        # - demo
         - sequencer
         - docker-build
         owner: astriaorg
