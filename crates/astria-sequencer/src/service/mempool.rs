@@ -273,11 +273,11 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
             return response::CheckTx {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 info: AbciErrorCode::INTERNAL_ERROR.info(),
-                log: format!("failed to generate address because: {err:#?}"),
+                log: format!("failed to generate address because: {err:#}"),
                 ..response::CheckTx::default()
             };
         }
-        Ok(nonce) => nonce,
+        Ok(address) => address,
     };
 
     // fetch current account
@@ -290,7 +290,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
             return response::CheckTx {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 info: AbciErrorCode::INTERNAL_ERROR.info(),
-                log: format!("failed to fetch account nonce because: {err:#?}"),
+                log: format!("failed to fetch account nonce because: {err:#}"),
                 ..response::CheckTx::default()
             };
         }
@@ -311,7 +311,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
             return response::CheckTx {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 info: AbciErrorCode::INTERNAL_ERROR.info(),
-                log: format!("failed to fetch cost of the transaction because: {err:#?}"),
+                log: format!("failed to fetch cost of the transaction because: {err:#}"),
                 ..response::CheckTx::default()
             };
         }
@@ -333,7 +333,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
             return response::CheckTx {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 info: AbciErrorCode::INTERNAL_ERROR.info(),
-                log: format!("failed to fetch account balances because: {err:#?}"),
+                log: format!("failed to fetch account balances because: {err:#}"),
                 ..response::CheckTx::default()
             };
         }
@@ -359,7 +359,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         return response::CheckTx {
             code: Code::Err(AbciErrorCode::TRANSACTION_INSERTION_FAILED.value()),
             info: "transaction insertion failed".into(),
-            log: format!("transaction insertion failed because: {err:#?}"),
+            log: format!("transaction insertion failed because: {err:#}"),
             ..response::CheckTx::default()
         };
     }
@@ -367,7 +367,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     let mempool_len = mempool.len().await;
 
     metrics
-        .record_check_tx_duration_seconds_insert_to_app_mempool(finished_fetch_tx_cost.elapsed());
+        .record_check_tx_duration_seconds_insert_to_app_mempool(finished_fetch_balances.elapsed());
     metrics.record_actions_per_transaction_in_mempool(actions_count);
     metrics.record_transaction_in_mempool_size_bytes(tx_len);
     metrics.set_transactions_in_mempool_total(mempool_len);

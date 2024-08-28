@@ -78,7 +78,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
             .get_account_balances_ibc(address)
             .await
             .context("failed to grab ibc balances for account")?;
-        let mut balances: Vec<AssetBalance> = Vec::new();
+        let mut balances: Vec<AssetBalance> = Vec::with_capacity(ibc_balances.len());
 
         for (asset, balance) in ibc_balances {
             let native_asset = self
@@ -651,17 +651,17 @@ mod tests {
             .expect("retrieving account balances should not fail");
 
         assert_eq!(
-            balances.get(&asset_0.into()).expect("x"),
+            balances.get(&asset_0.into()).unwrap(),
             &amount_expected_0,
             "returned value for ibc asset_0 does not match"
         );
         assert_eq!(
-            balances.get(&asset_1.into()).expect("x"),
+            balances.get(&asset_1.into()).unwrap(),
             &amount_expected_1,
             "returned value for ibc asset_1 does not match"
         );
         assert_eq!(
-            balances.get(&asset_2.into()).expect("x"),
+            balances.get(&asset_2.into()).unwrap(),
             &amount_expected_2,
             "returned value for ibc asset_2 does not match"
         );
