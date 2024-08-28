@@ -31,6 +31,7 @@ use tokio_util::{
 use tracing::{
     error,
     info,
+    instrument,
     warn,
 };
 
@@ -118,6 +119,7 @@ impl Composer {
     ///
     /// An error is returned if the composer fails to be initialized.
     /// See `[from_config]` for its error scenarios.
+    #[instrument(skip_all, err)]
     pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         static METRICS: OnceLock<Metrics> = OnceLock::new();
 
@@ -464,6 +466,7 @@ fn spawn_geth_collectors(
     }
 }
 
+#[instrument(skip_all, err)]
 async fn wait_for_executor(
     mut executor_status: watch::Receiver<executor::Status>,
     composer_status_sender: &mut watch::Sender<composer::Status>,
@@ -481,6 +484,7 @@ async fn wait_for_executor(
 }
 
 /// Waits for all collectors to come online.
+#[instrument(skip_all, err)]
 async fn wait_for_collectors(
     collector_statuses: &HashMap<String, watch::Receiver<collectors::geth::Status>>,
     composer_status_sender: &mut watch::Sender<composer::Status>,
