@@ -1,15 +1,16 @@
 pub use raw::Ics20TransferDeposit;
-use serde::{
-    Deserialize,
-    Serialize,
-};
 
 use crate::{
     generated::protocol::memos::v1alpha1 as raw,
     Protobuf,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "raw::Ics20WithdrawalFromRollup", try_from = "raw::Ics20WithdrawalFromRollup")
+)]
 pub struct Ics20WithdrawalFromRollup {
     pub rollup_block_number: u64,
     pub rollup_return_address: String,
@@ -18,7 +19,7 @@ pub struct Ics20WithdrawalFromRollup {
 }
 
 impl Protobuf for Ics20WithdrawalFromRollup {
-    type Error = prost::DecodeError;
+    type Error = ::std::convert::Infallible;
     type Raw = raw::Ics20WithdrawalFromRollup;
 
     fn try_from_raw_ref(proto: &raw::Ics20WithdrawalFromRollup) -> Result<Self, Self::Error> {
@@ -52,6 +53,20 @@ impl Protobuf for Ics20WithdrawalFromRollup {
             rollup_withdrawal_event_id: self.rollup_withdrawal_event_id,
             memo: self.memo,
         }
+    }
+}
+
+impl From<Ics20WithdrawalFromRollup> for raw::Ics20WithdrawalFromRollup {
+    fn from(value: Ics20WithdrawalFromRollup) -> Self {
+        value.into_raw()
+    }
+}
+
+impl TryFrom<raw::Ics20WithdrawalFromRollup> for Ics20WithdrawalFromRollup {
+    type Error = ::std::convert::Infallible;
+
+    fn try_from(value: raw::Ics20WithdrawalFromRollup) -> Result<Self, Self::Error> {
+        Self::try_from_raw(value)
     }
 }
 
