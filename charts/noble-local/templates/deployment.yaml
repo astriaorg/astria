@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: noble-local
+  labels:
+    app: noble-local-network
+  namespace: {{ include "noble-local.namespace" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: noble-local-network
+  template:
+    metadata:
+      name: noble-local
+      labels:
+        app: noble-local-network
+    spec:
+      securityContext:
+        runAsUser: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: "OnRootMismatch"
+      initContainers:
+        - name: init-noble
+          image: "{{ .Values.nobleImage }}"
+          command: ["/scripts/init-noble.sh"]
+          restartPolicy: Never
+          volumeMounts:
+            - mountPath: "{{ .Values.noble.homeDir }}"
+              name: noble-home-vol
+            - mountPath: /scripts/
+              name: noble-local-scripts-volume
+          envFrom:
+            - configMapRef:
+                name: noble-local-env
+      containers:
+        - name: noble-local
+          image: "{{ .Values.nobleImage }}"
+          command: ["/scripts/start-noble.sh"]
+          ports:
+            - name: noble-rest
+              containerPort: {{ .Values.ports.nobleRestPort }}
+            - name: noble-rpc
+              containerPort: {{ .Values.ports.nobleRpcPort }}
+            - name: noble-grpc
+              containerPort: {{ .Values.ports.nobleGrpcPort }}
+            - name: noble-grpc-web
+              containerPort: {{ .Values.ports.nobleGrpcWebPort }}
+            - name: noble-p2p
+              containerPort: {{ .Values.ports.nobleP2pPort }}
+          volumeMounts:
+            - mountPath: "{{ .Values.noble.homeDir }}"
+              name: noble-home-vol
+            - mountPath: /scripts/
+              name: noble-local-scripts-volume
+          envFrom:
+            - configMapRef:
+                name: noble-local-env
+      volumes:
+        - name: noble-home-vol
+          emptyDir: { }
+        - name: noble-local-scripts-volume
+          configMap:
+            name: noble-local-scripts
+            defaultMode: 0550

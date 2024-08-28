@@ -1,0 +1,38 @@
+# Default values for noble-local.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+global:
+  namespace: "astria-dev-cluster"
+  replicaCount: 1
+
+nobleImage: "ghcr.io/noble-assets/noble:v6.0.0"
+
+replicaCount: 1
+
+noble:
+  chainId: "noble-local-0"
+  homeDir: "/home/noble"
+  # signer info
+  keyringBackend: "test"
+  validatorKeyName: "validator"
+  validatorMnemonic: dinner voyage limit bulk fatigue tissue broom gesture chunk bleak shed around detect pipe minor flame volume abandon ill kitchen one absorb speak disease
+  tf1OwnerMnemonic: discover plastic cushion urge lumber cattle voyage penalty file around donkey broom relax tilt rely pass lyrics guard almost duck text coach atom weekend
+  tf2OwnerMnemonic: embark sand copper hurt height volume yellow carbon alpha bone public nerve pig runway nephew already tip need need leisure course outdoor media human
+  # genesis amount
+  coins: "100000000000stake,100000000000ustake"
+  # staking amount
+  validatorStake: "100000000000stake"
+  ibcAccountKeyName: "ibc_account"
+  # mnemonic for ibc account, so we can add its key and get them funded during genesis
+  ibcAccountMnemonic: toward theory gallery crane stem torch cheap main public figure boost episode garage cherry purpose naive vital unable minimum dance choose tuna blanket rifle
+  devAccountKeyName: "dev_account"
+  devAccountMnemonic: rough meat crash cause mother stuff rapid mistake erase sell drip trouble payment vapor adapt goat wine crater foil cereal undo bone foil praise
+
+ports:
+  nobleGrpcPort: 9090
+  nobleGrpcWebPort: 9091
+  # FIXME - does noble have a REST api?
+  nobleRestPort: 1317
+  nobleRpcPort: 26657
+  nobleP2pPort: 26656

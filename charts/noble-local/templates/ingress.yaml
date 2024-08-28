@@ -1,0 +1,56 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: noble-local-network-ingress
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    app: noble-local-network
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    # allow requests from bridge web app
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: rpc.noble.localdev.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: noble-local-service
+                port:
+                  name: noble-rpc
+    - host: rest.noble.localdev.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: noble-local-service
+                port:
+                  name: noble-rest
+    - host: grpc.noble.localdev.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: noble-local-service
+                port:
+                  name: noble-grpc
+    - host: grpc-web.noble.localdev.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: noble-local-service
+                port:
+                  name: noble-grpc-web
