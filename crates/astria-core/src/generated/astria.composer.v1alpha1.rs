@@ -367,7 +367,9 @@ impl ::prost::Name for BuilderBundle {
 pub struct BuilderBundlePacket {
     #[prost(message, optional, tag = "1")]
     pub bundle: ::core::option::Option<BuilderBundle>,
-    #[prost(string, tag = "2")]
+    #[prost(bytes = "vec", tag = "2")]
+    pub message_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "3")]
     pub signature: ::prost::alloc::string::String,
 }
 impl ::prost::Name for BuilderBundlePacket {
