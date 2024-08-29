@@ -10,9 +10,11 @@ use crate::{
             denom::ParseTracePrefixedError,
             ParseDenomError,
         },
+        try_construct_dummy_address_from_prefix,
         Address,
         AddressError,
-        ADDRESS_LEN,
+        Bech32,
+        Bech32m,
     },
     Protobuf,
 };
@@ -420,9 +422,26 @@ enum AccountErrorKind {
     FieldNotSet { name: &'static str },
 }
 
+/// The address prefixes used by the Sequencer.
+///
+/// All prefixes are guaranteed to be between 1 and 83 bech32 human readable
+/// characters in the ASCII range `[33, 126]`.
 #[derive(Clone, Debug)]
 pub struct AddressPrefixes {
-    pub base: String,
+    base: String,
+    ibc_compat: String,
+}
+
+impl AddressPrefixes {
+    #[must_use]
+    pub fn base(&self) -> &str {
+        &self.base
+    }
+
+    #[must_use]
+    pub fn ibc_compat(&self) -> &str {
+        &self.ibc_compat
+    }
 }
 
 impl Protobuf for AddressPrefixes {
@@ -432,19 +451,24 @@ impl Protobuf for AddressPrefixes {
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
             base,
+            ibc_compat,
         } = raw;
-        try_construct_dummy_address_from_prefix(base).map_err(Self::Error::base)?;
+        try_construct_dummy_address_from_prefix::<Bech32m>(base).map_err(Self::Error::base)?;
+        try_construct_dummy_address_from_prefix::<Bech32>(ibc_compat).map_err(Self::Error::base)?;
         Ok(Self {
             base: base.to_string(),
+            ibc_compat: ibc_compat.to_string(),
         })
     }
 
     fn to_raw(&self) -> Self::Raw {
         let Self {
             base,
+            ibc_compat,
         } = self;
         Self::Raw {
             base: base.clone(),
+            ibc_compat: ibc_compat.clone(),
         }
     }
 }
@@ -609,15 +633,6 @@ enum FeesErrorKind {
     FieldNotSet { name: &'static str },
 }
 
-/// Constructs a dummy address from a given `prefix`, otherwise fail.
-fn try_construct_dummy_address_from_prefix(prefix: &str) -> Result<(), AddressError> {
-    Address::builder()
-        .array([0u8; ADDRESS_LEN])
-        .prefix(prefix)
-        .try_build()
-        .map(|_| ())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -675,6 +690,7 @@ mod tests {
             ],
             address_prefixes: Some(raw::AddressPrefixes {
                 base: "astria".into(),
+                ibc_compat: "astriacompat".into(),
             }),
             authority_sudo_address: Some(alice().to_raw()),
             chain_id: "astria-1".to_string(),

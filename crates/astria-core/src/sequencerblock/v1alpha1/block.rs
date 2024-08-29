@@ -1281,7 +1281,7 @@ impl FilteredSequencerBlockError {
 ///
 /// A [`Deposit`] is constructed whenever a [`BridgeLockAction`] is executed
 /// and stored as part of the block's events.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(
     feature = "serde",

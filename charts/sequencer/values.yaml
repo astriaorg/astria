@@ -26,6 +26,7 @@ genesis:
   genesisTime: ""  # '2023-09-22T17:22:35.092832Z'
   addressPrefixes:
     base: "astria"
+    ibcCompat: "astriacompat"
   authoritySudoAddress: ""
   nativeAssetBaseDenomination: nria
   allowedFeeAssets: []
