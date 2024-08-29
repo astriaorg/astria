@@ -1,5 +1,4 @@
 use anyhow::{
-    anyhow,
     ensure,
     Context as _,
     Result,
@@ -30,10 +29,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
@@ -78,13 +74,13 @@ impl ActionHandler for BridgeLockAction {
 
         let transaction_hash = state
             .get_current_source()
-            .ok_or(anyhow!("expected current source to be `Some`"))?
+            .expect("current source should be `Some`")
             .transaction_hash;
         let source_transaction_index = state
-            .get_transaction_deposit_index()
+            .get_transaction_action_index()
             .await
-            .context("failed to get transaction deposit index")?
-            .ok_or(anyhow!("expected transaction deposit index to be `Some`"))?;
+            .context("failed to get transaction action index")?
+            .expect("deposit index should be `Some`");
 
         let deposit = Deposit::new(
             self.to,
@@ -142,9 +138,6 @@ impl ActionHandler for BridgeLockAction {
             .put_deposit_event(deposit)
             .await
             .context("failed to put deposit event into state")?;
-        state.put_transaction_deposit_index(source_transaction_index.checked_add(1).ok_or(
-            anyhow!("transaction deposit index overflowed: too many deposits in one transaction"),
-        )?);
         Ok(())
     }
 }
@@ -172,7 +165,10 @@ mod tests {
             astria_address,
             ASTRIA_PREFIX,
         },
-        transaction::TransactionContext,
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
     };
 
     fn test_asset() -> asset::Denom {
@@ -191,7 +187,7 @@ mod tests {
             address_bytes: from_address.bytes(),
             transaction_hash: "test_tx_hash".to_string(),
         });
-        state.put_transaction_deposit_index(0);
+        state.put_transaction_action_index(0);
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         state.put_transfer_base_fee(transfer_fee).unwrap();

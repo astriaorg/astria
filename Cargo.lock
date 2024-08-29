@@ -805,6 +805,7 @@ dependencies = [
  "bytes",
  "cnidarium",
  "divan",
+ "ethers",
  "futures",
  "hex",
  "ibc-proto",

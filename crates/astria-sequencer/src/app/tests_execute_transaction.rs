@@ -28,6 +28,7 @@ use astria_core::{
 };
 use bytes::Bytes;
 use cnidarium::StateDelta;
+use ethers::utils::hex::ToHexExt as _;
 
 use super::test_utils::get_alice_signing_key;
 use crate::{
@@ -740,7 +741,9 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         amount,
         nria().into(),
         "nootwashere".to_string(),
-        hex::encode(signed_tx.sha256_of_proto_encoding()),
+        signed_tx
+            .sha256_of_proto_encoding()
+            .encode_hex_with_prefix(),
         starting_deposit_index,
     );
 
@@ -771,7 +774,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     assert_eq!(deposits[0], expected_deposit);
     let current_deposit_index = app
         .state
-        .get_transaction_deposit_index()
+        .get_transaction_action_index()
         .await
         .unwrap()
         .expect("current_deposit_index should be `Some`");

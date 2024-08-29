@@ -10,10 +10,11 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
+use ethers::utils::hex::ToHexExt as _;
 use tracing::instrument;
 
-fn deposit_index_storage_key() -> &'static str {
-    "transaction/deposit_index"
+fn action_index_storage_key() -> &'static str {
+    "transaction/action_index"
 }
 
 fn current_source() -> &'static str {
@@ -36,7 +37,7 @@ impl From<&SignedTransaction> for TransactionContext {
     fn from(value: &SignedTransaction) -> Self {
         Self {
             address_bytes: value.address_bytes(),
-            transaction_hash: hex::encode(value.sha256_of_proto_encoding()),
+            transaction_hash: value.sha256_of_proto_encoding().encode_hex_with_prefix(),
         }
     }
 }
@@ -52,16 +53,30 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_transaction_deposit_index(&mut self, index: u32) {
+    fn put_transaction_action_index(&mut self, index: u32) {
         self.nonverifiable_put_raw(
-            deposit_index_storage_key().as_bytes().to_vec(),
+            action_index_storage_key().as_bytes().to_vec(),
             borsh::to_vec(&index).expect("serialize deposit index"),
         );
     }
 
     #[instrument(skip_all)]
-    fn clear_transaction_deposit_index(&mut self) {
-        self.nonverifiable_delete(deposit_index_storage_key().as_bytes().to_vec());
+    async fn increment_transaction_action_index(&mut self) -> Result<()> {
+        let index = self
+            .get_transaction_action_index()
+            .await?
+            .expect("action index should be `Some`");
+        let index = index.checked_add(1).expect("increment action index");
+        self.nonverifiable_put_raw(
+            action_index_storage_key().as_bytes().to_vec(),
+            borsh::to_vec(&index).expect("serialize action index"),
+        );
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn clear_transaction_action_index(&mut self) {
+        self.nonverifiable_delete(action_index_storage_key().as_bytes().to_vec());
     }
 }
 
@@ -71,9 +86,9 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_transaction_deposit_index(&self) -> Result<Option<u32>> {
+    async fn get_transaction_action_index(&self) -> Result<Option<u32>> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(deposit_index_storage_key().as_bytes())
+            .nonverifiable_get_raw(action_index_storage_key().as_bytes())
             .await
             .context("failed reading raw deposit index from state")?
         else {

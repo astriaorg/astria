@@ -71,10 +71,7 @@ use crate::{
     },
     ibc,
     ibc::StateReadExt as _,
-    transaction::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    transaction::StateReadExt as _,
 };
 
 /// The maximum length of the encoded Ics20 `FungibleTokenPacketData` in bytes.
@@ -633,13 +630,10 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         .ok_or(anyhow!("expected current source to be `Some`"))?
         .transaction_hash;
     let source_transaction_index = state
-        .get_transaction_deposit_index()
+        .get_transaction_action_index()
         .await
         .context("failed to get transaction deposit index for bridge account")?
-        .ok_or(anyhow!("expected transaction deposit index to be `Some`"))?;
-    state.put_transaction_deposit_index(source_transaction_index.checked_add(1).ok_or(anyhow!(
-        "transaction deposit index overflowed: too many deposits in one transaction"
-    ))?);
+        .expect("transaction action shoul be `Some`");
 
     let deposit = Deposit::new(
         bridge_address,
@@ -663,6 +657,7 @@ mod test {
     use astria_core::primitive::v1::RollupId;
     use cnidarium::StateDelta;
     use denom::TracePrefixed;
+    use ethers::utils::hex::ToHexExt as _;
 
     use super::*;
     use crate::{
@@ -672,7 +667,10 @@ mod test {
             astria_address,
             astria_address_from_hex_string,
         },
-        transaction::TransactionContext,
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
     };
 
     #[tokio::test]
@@ -785,7 +783,7 @@ mod test {
             address_bytes: bridge_address.bytes(),
             transaction_hash: "test_tx_hash".to_string(),
         });
-        state_tx.put_transaction_deposit_index(0);
+        state_tx.put_transaction_action_index(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1026,7 +1024,7 @@ mod test {
             address_bytes: bridge_address.bytes(),
             transaction_hash: "test_tx_hash".to_string(),
         });
-        state_tx.put_transaction_deposit_index(0);
+        state_tx.put_transaction_action_index(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1073,7 +1071,7 @@ mod test {
             address_bytes: bridge_address.bytes(),
             transaction_hash: "test_tx_hash".to_string(),
         });
-        state_tx.put_transaction_deposit_index(0);
+        state_tx.put_transaction_action_index(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1089,7 +1087,7 @@ mod test {
                 memo: String::new(),
                 rollup_block_number: 1,
                 rollup_return_address: "rollup-defined".to_string(),
-                rollup_transaction_hash: hex::encode([1u8; 32]),
+                rollup_transaction_hash: [1u8; 32].encode_hex_with_prefix(),
             })
             .unwrap(),
         };

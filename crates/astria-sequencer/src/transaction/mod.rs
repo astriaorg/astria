@@ -181,7 +181,7 @@ impl ActionHandler for SignedTransaction {
             );
         }
 
-        state.put_transaction_deposit_index(0);
+        state.put_transaction_action_index(0);
 
         // Should have enough balance to cover all actions.
         check_balance_for_total_fees_and_transfers(self, &state)
@@ -271,10 +271,15 @@ impl ActionHandler for SignedTransaction {
                     .await
                     .context("failed executing bridge sudo change")?,
             }
+            state
+                .increment_transaction_action_index()
+                .await
+                .context("failed to increment action index")?;
         }
 
         // XXX: Delete the current transaction data from the ephemeral state.
         state.delete_current_source();
+        state.clear_transaction_action_index();
         Ok(())
     }
 }
