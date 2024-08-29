@@ -8,6 +8,16 @@ global:
   sequencerChainId: sequencer-test-chain-0
 
 evm-rollup:
+  images:
+    geth:
+      repo: ghcr.io/astriaorg/astria-geth
+      tag: 0.14.0
+      devTag: latest
+      overrideTag: "pr-41"
+    conductor:
+      repo: ghcr.io/astriaorg/conductor
+      tag: "0.20.0"
+      devTag: latest
   genesis:
     ## These values are used to configure the genesis block of the rollup chain
     ## no defaults as they are unique to each chain
