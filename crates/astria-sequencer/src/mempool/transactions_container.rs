@@ -198,7 +198,7 @@ impl PendingTransactionsForAccount {
                     hash_map::Entry::Vacant(_) => {
                         // not enough balance, do not include
                         if *cost != 0 {
-                            break 'outer
+                            break 'outer;
                         }
                     }
                 }
@@ -281,7 +281,7 @@ impl TransactionsForAccount for PendingTransactionsForAccount {
         ttx: &TimemarkedTransaction,
         current_account_balances: &HashMap<IbcPrefixed, u128>,
     ) -> bool {
-        // build up transaction cost map 
+        // build up transaction cost map
         let mut transaction_costs = HashMap::<IbcPrefixed, u128>::new();
 
         for tx in self.txs.values().chain(std::iter::once(ttx)) {
@@ -325,11 +325,11 @@ pub(super) struct ParkedTransactionsForAccount<const MAX_TX_COUNT: usize> {
 }
 
 impl<const MAX_TX_COUNT: usize> ParkedTransactionsForAccount<MAX_TX_COUNT> {
-    /// Returns contiguous transactions from front of queue starting from `target_nonce`, removing the
-    /// transactions in the process. Will only return transactions if their cost is covered by the
-    /// `available_balances`. 
-    /// 
-    /// `target_nonce` should be the next nonce that the pending queue could add. 
+    /// Returns contiguous transactions from front of queue starting from `target_nonce`, removing
+    /// the transactions in the process. Will only return transactions if their cost is covered
+    /// by the `available_balances`.
+    ///
+    /// `target_nonce` should be the next nonce that the pending queue could add.
     ///
     /// Note: this function only operates on the front of the queue. If the target nonce is not at
     /// the front, nothing will be returned.
