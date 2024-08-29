@@ -1,6 +1,9 @@
 mod checks;
+mod fees;
 pub(crate) mod query;
 mod state_ext;
+#[cfg(test)]
+mod test_fees;
 
 use std::fmt;
 
@@ -15,7 +18,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 pub(crate) use checks::{
-    check_balance_for_total_fees_and_transfers,
+    check_balance_and_execute_fees,
     check_balance_mempool,
     check_chain_id_mempool,
     check_nonce_mempool,
@@ -45,6 +48,7 @@ use crate::{
         StateReadExt as _,
     },
     state_ext::StateReadExt as _,
+    transaction::fees::pay_fees,
     utils::anyhow_to_eyre,
 };
 
@@ -173,10 +177,16 @@ impl ActionHandler for SignedTransaction {
             .wrap_err("failed to get nonce for transaction signer")?;
         ensure!(curr_nonce == self.nonce(), InvalidNonce(self.nonce()));
 
-        // Should have enough balance to cover all actions.
-        check_balance_for_total_fees_and_transfers(self, &state)
+        // Check balance and accumulate fees
+        let payment_map = check_balance_and_execute_fees(self, &state, true)
             .await
-            .wrap_err("failed to check balance for total fees and transfers")?;
+            .wrap_err("failed to check balance for total fees and transfers")?
+            .expect("check_balance_and_execute_fees should return a payment map");
+
+        // Pay fees based on payment map
+        pay_fees(&mut state, payment_map)
+            .await
+            .wrap_err("failed to pay fees")?;
 
         if state
             .get_bridge_account_rollup_id(self)

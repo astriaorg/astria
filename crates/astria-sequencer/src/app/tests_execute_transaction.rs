@@ -28,12 +28,14 @@ use astria_core::{
 };
 use bytes::Bytes;
 use cnidarium::StateDelta;
+use tendermint::abci::EventAttributeIndexExt as _;
 
 use super::test_utils::get_alice_signing_key;
 use crate::{
     accounts::StateReadExt as _,
     app::{
         test_utils::{
+            calculate_fee_from_state,
             get_bridge_signing_key,
             initialize_app,
             BOB_ADDRESS,
@@ -48,7 +50,6 @@ use crate::{
         StateWriteExt as _,
     },
     ibc::StateReadExt as _,
-    sequence::calculate_fee_from_state,
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -1063,5 +1064,49 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
             .expect("executing bridge unlock action should succeed"),
         0,
         "bridge should've transferred out whole balance"
+    );
+}
+
+#[tokio::test]
+async fn transaction_execution_records_fee_event() {
+    let mut app = initialize_app(None, vec![]).await;
+
+    // transfer funds from Alice to Bob
+    let alice = get_alice_signing_key();
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+    let value = 333_333;
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions: vec![
+            TransferAction {
+                to: bob_address,
+                amount: value,
+                asset: nria().into(),
+                fee_asset: nria().into(),
+            }
+            .into(),
+        ],
+    };
+
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+
+    let events = app.execute_transaction(signed_tx).await.unwrap();
+    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    let event = events.first().unwrap();
+    assert_eq!(event.kind, "tx.fees");
+    assert_eq!(
+        event.attributes[0],
+        ("asset", nria().to_string()).index().into()
+    );
+    assert_eq!(
+        event.attributes[1],
+        ("feeAmount", transfer_fee.to_string()).index().into()
+    );
+    assert_eq!(
+        event.attributes[2],
+        ("actionType", "TransferAction").index().into()
     );
 }

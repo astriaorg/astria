@@ -4,7 +4,6 @@ use astria_core::{
         TransferAction,
     },
     sequencerblock::v1alpha1::block::Deposit,
-    Protobuf as _,
 };
 use astria_eyre::eyre::{
     ensure,
@@ -15,17 +14,12 @@ use astria_eyre::eyre::{
 use cnidarium::StateWrite;
 
 use crate::{
-    accounts::{
-        action::{
-            check_transfer,
-            execute_transfer,
-        },
-        StateReadExt as _,
-        StateWriteExt as _,
+    accounts::action::{
+        check_transfer,
+        execute_transfer,
     },
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::StateWriteExt as _,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -64,32 +58,6 @@ impl ActionHandler for BridgeLockAction {
             "asset ID is not authorized for transfer to bridge account",
         );
 
-        let from_balance = state
-            .get_account_balance(from, &self.fee_asset)
-            .await
-            .wrap_err("failed to get sender account balance")?;
-        let transfer_fee = state
-            .get_transfer_base_fee()
-            .await
-            .wrap_err("failed to get transfer base fee")?;
-
-        let deposit = Deposit::new(
-            self.to,
-            rollup_id,
-            self.amount,
-            self.asset.clone(),
-            self.destination_chain_address.clone(),
-        );
-
-        let byte_cost_multiplier = state
-            .get_bridge_lock_byte_cost_multiplier()
-            .await
-            .wrap_err("failed to get byte cost multiplier")?;
-        let fee = byte_cost_multiplier
-            .saturating_mul(get_deposit_byte_len(&deposit))
-            .saturating_add(transfer_fee);
-        ensure!(from_balance >= fee, "insufficient funds for fee payment");
-
         let transfer_action = TransferAction {
             to: self.to,
             asset: self.asset.clone(),
@@ -98,17 +66,7 @@ impl ActionHandler for BridgeLockAction {
         };
 
         check_transfer(&transfer_action, from, &state).await?;
-        // Executes the transfer and deducts transfer feeds.
-        // FIXME: This is a very roundabout way of paying for fees. IMO it would be
-        // better to just duplicate this entire logic here so that we don't call out
-        // to the transfer-action logic.
         execute_transfer(&transfer_action, from, &mut state).await?;
-
-        let rollup_id = state
-            .get_bridge_account_rollup_id(self.to)
-            .await
-            .wrap_err("failed to get bridge account rollup id")?
-            .expect("recipient must be a bridge account; this is a bug in check_stateful");
 
         let deposit = Deposit::new(
             self.to,
@@ -117,25 +75,6 @@ impl ActionHandler for BridgeLockAction {
             self.asset.clone(),
             self.destination_chain_address.clone(),
         );
-
-        // the transfer fee is already deducted in `execute_transfer() above,
-        // so we just deduct the bridge lock byte multiplier fee.
-        // FIXME: similar to what is mentioned there: this should be reworked so that
-        // the fee deducation logic for these actions are defined fully independently
-        // (even at the cost of duplicating code).
-        let byte_cost_multiplier = state
-            .get_bridge_lock_byte_cost_multiplier()
-            .await
-            .wrap_err("failed to get byte cost multiplier")?;
-        let fee = byte_cost_multiplier.saturating_mul(get_deposit_byte_len(&deposit));
-        state
-            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
-            .await
-            .wrap_err("failed to add to block fees")?;
-        state
-            .decrease_balance(from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to deduct fee from account balance")?;
 
         state
             .put_deposit_event(deposit)
@@ -162,7 +101,9 @@ mod tests {
 
     use super::*;
     use crate::{
+        accounts::StateWriteExt as _,
         address::StateWriteExt as _,
+        assets::StateWriteExt as _,
         test_utils::{
             assert_eyre_error,
             astria_address,

@@ -5,8 +5,6 @@ pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
 #[cfg(test)]
-mod tests_block_fees;
-#[cfg(test)]
 mod tests_breaking_changes;
 #[cfg(test)]
 mod tests_execute_transaction;
@@ -75,14 +73,10 @@ use crate::{
         self,
         component::AccountsComponent,
         StateReadExt,
-        StateWriteExt as _,
     },
     address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets::StateWriteExt as _,
     authority::{
         component::{
             AuthorityComponent,
@@ -777,11 +771,6 @@ impl App {
             .get_chain_id()
             .await
             .wrap_err("failed to get chain ID from state")?;
-        let sudo_address = self
-            .state
-            .get_sudo_address()
-            .await
-            .wrap_err("failed to get sudo address from state")?;
 
         // convert tendermint id to astria address; this assumes they are
         // the same address, as they are both ed25519 keys
@@ -863,7 +852,7 @@ impl App {
             tx_results.extend(execution_results);
         };
 
-        let end_block = self.end_block(height.value(), sudo_address).await?;
+        let end_block = self.end_block(height.value()).await?;
 
         // get and clear block deposits from state
         let mut state_tx = StateDelta::new(self.state.clone());
@@ -1017,11 +1006,7 @@ impl App {
     }
 
     #[instrument(name = "App::end_block", skip_all)]
-    async fn end_block(
-        &mut self,
-        height: u64,
-        fee_recipient: [u8; 20],
-    ) -> Result<abci::response::EndBlock> {
+    async fn end_block(&mut self, height: u64) -> Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
@@ -1060,23 +1045,6 @@ impl App {
 
         // clear validator updates
         state_tx.clear_validator_updates();
-
-        // gather block fees and transfer them to the block proposer
-        let fees = self
-            .state
-            .get_block_fees()
-            .await
-            .wrap_err("failed to get block fees")?;
-
-        for (asset, amount) in fees {
-            state_tx
-                .increase_balance(fee_recipient, asset, amount)
-                .await
-                .wrap_err("failed to increase fee recipient balance")?;
-        }
-
-        // clear block fees
-        state_tx.clear_block_fees().await;
 
         let events = self.apply(state_tx);
         Ok(abci::response::EndBlock {

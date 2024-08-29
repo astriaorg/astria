@@ -278,7 +278,6 @@ async fn app_transfer_block_fees_to_sudo() {
             .unwrap(),
         transfer_fee,
     );
-    assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
 }
 
 #[tokio::test]
@@ -702,7 +701,6 @@ async fn app_end_block_validator_updates() {
     ];
 
     let mut app = initialize_app(None, initial_validator_set).await;
-    let proposer_address = [0u8; 20];
 
     let validator_updates = vec![
         ValidatorUpdate {
@@ -725,7 +723,7 @@ async fn app_end_block_validator_updates() {
         .unwrap();
     app.apply(state_tx);
 
-    let resp = app.end_block(1, proposer_address).await.unwrap();
+    let resp = app.end_block(1).await.unwrap();
     // we only assert length here as the ordering of the updates is not guaranteed
     // and validator::Update does not implement Ord
     assert_eq!(resp.validator_updates.len(), validator_updates.len());

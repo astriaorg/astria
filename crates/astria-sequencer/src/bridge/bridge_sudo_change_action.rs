@@ -1,7 +1,4 @@
-use astria_core::{
-    protocol::transaction::v1alpha1::action::BridgeSudoChangeAction,
-    Protobuf as _,
-};
+use astria_core::protocol::transaction::v1alpha1::action::BridgeSudoChangeAction;
 use astria_eyre::eyre::{
     bail,
     ensure,
@@ -11,13 +8,9 @@ use astria_eyre::eyre::{
 use cnidarium::StateWrite;
 
 use crate::{
-    accounts::StateWriteExt as _,
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets::StateReadExt as _,
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -76,19 +69,6 @@ impl ActionHandler for BridgeSudoChangeAction {
             "unauthorized for bridge sudo change action",
         );
 
-        let fee = state
-            .get_bridge_sudo_change_base_fee()
-            .await
-            .wrap_err("failed to get bridge sudo change fee")?;
-        state
-            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
-            .await
-            .wrap_err("failed to add to block fees")?;
-        state
-            .decrease_balance(self.bridge_address, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to decrease balance for bridge sudo change fee")?;
-
         if let Some(sudo_address) = self.new_sudo_address {
             state.put_bridge_account_sudo_address(self.bridge_address, sudo_address);
         }
@@ -108,7 +88,9 @@ mod tests {
 
     use super::*;
     use crate::{
+        accounts::StateWriteExt as _,
         address::StateWriteExt as _,
+        assets::StateWriteExt as _,
         test_utils::{
             astria_address,
             ASTRIA_PREFIX,

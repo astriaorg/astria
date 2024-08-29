@@ -4,7 +4,6 @@ use astria_core::{
         Address,
     },
     protocol::transaction::v1alpha1::action,
-    Protobuf as _,
 };
 use astria_eyre::eyre::{
     bail,
@@ -35,7 +34,6 @@ use crate::{
     },
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::StateWriteExt as _,
     bridge::StateReadExt as _,
     ibc::{
         StateReadExt as _,
@@ -70,7 +68,7 @@ fn withdrawal_to_unchecked_ibc_packet(
 ///    stored withdrawer address.
 /// 3. `action.bridge_address` if `action.bridge_address` is set and a bridge account and `from` is
 ///    its stored withdrawer address.
-async fn establish_withdrawal_target<S: StateRead>(
+pub(crate) async fn establish_withdrawal_target<S: StateRead>(
     action: &action::Ics20Withdrawal,
     state: &S,
     from: [u8; 20],
@@ -136,11 +134,6 @@ impl ActionHandler for action::Ics20Withdrawal {
             .await
             .wrap_err("failed establishing which account to withdraw funds from")?;
 
-        let fee = state
-            .get_ics20_withdrawal_base_fee()
-            .await
-            .wrap_err("failed to get ics20 withdrawal base fee")?;
-
         let current_timestamp = state
             .get_block_timestamp()
             .await
@@ -155,19 +148,9 @@ impl ActionHandler for action::Ics20Withdrawal {
         };
 
         state
-            .get_and_increase_block_fees(self.fee_asset(), fee, Self::full_name())
-            .await
-            .wrap_err("failed to get and increase block fees")?;
-
-        state
             .decrease_balance(withdrawal_target, self.denom(), self.amount())
             .await
             .wrap_err("failed to decrease sender or bridge balance")?;
-
-        state
-            .decrease_balance(from, self.fee_asset(), fee)
-            .await
-            .wrap_err("failed to subtract fee from sender balance")?;
 
         // if we're the source, move tokens to the escrow account,
         // otherwise the tokens are just burned

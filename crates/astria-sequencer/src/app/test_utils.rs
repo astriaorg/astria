@@ -21,6 +21,11 @@ use astria_core::{
     },
     Protobuf,
 };
+use astria_eyre::eyre::{
+    OptionExt as _,
+    Result,
+    WrapErr as _,
+};
 use bytes::Bytes;
 use cnidarium::Storage;
 
@@ -28,6 +33,7 @@ use crate::{
     app::App,
     mempool::Mempool,
     metrics::Metrics,
+    sequence,
     test_utils::astria_address_from_hex_string,
 };
 
@@ -183,4 +189,22 @@ pub(crate) fn mock_tx(
     };
 
     Arc::new(tx.into_signed(signer))
+}
+
+/// Calculates the fee for a sequence `Action` based on the length of the `data`.
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) async fn calculate_fee_from_state<S: sequence::StateReadExt>(
+    data: &[u8],
+    state: &S,
+) -> Result<u128> {
+    let base_fee = state
+        .get_sequence_action_base_fee()
+        .await
+        .wrap_err("failed to get base fee")?;
+    let fee_per_byte = state
+        .get_sequence_action_byte_cost_multiplier()
+        .await
+        .wrap_err("failed to get fee per byte")?;
+    crate::sequence::action::calculate_fee(data, fee_per_byte, base_fee)
+        .ok_or_eyre("calculated fee overflows u128")
 }

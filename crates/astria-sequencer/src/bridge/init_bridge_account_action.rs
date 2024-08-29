@@ -1,7 +1,6 @@
 use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
-    Protobuf as _,
 };
 use astria_eyre::eyre::{
     bail,
@@ -12,16 +11,9 @@ use astria_eyre::eyre::{
 use cnidarium::StateWrite;
 
 use crate::{
-    accounts::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets::StateReadExt as _,
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -58,11 +50,6 @@ impl ActionHandler for InitBridgeAccountAction {
             "invalid fee asset",
         );
 
-        let fee = state
-            .get_init_bridge_account_base_fee()
-            .await
-            .wrap_err("failed to get base fee for initializing bridge account")?;
-
         // this prevents the address from being registered as a bridge account
         // if it's been previously initialized as a bridge account.
         //
@@ -83,16 +70,6 @@ impl ActionHandler for InitBridgeAccountAction {
             bail!("bridge account already exists");
         }
 
-        let balance = state
-            .get_account_balance(from, &self.fee_asset)
-            .await
-            .wrap_err("failed getting `from` account balance for fee payment")?;
-
-        ensure!(
-            balance >= fee,
-            "insufficient funds for bridge account initialization",
-        );
-
         state.put_bridge_account_rollup_id(from, &self.rollup_id);
         state
             .put_bridge_account_ibc_asset(from, &self.asset)
@@ -102,14 +79,6 @@ impl ActionHandler for InitBridgeAccountAction {
             from,
             self.withdrawer_address.map_or(from, Address::bytes),
         );
-        state
-            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
-            .await
-            .wrap_err("failed to get and increase block fees")?;
-        state
-            .decrease_balance(from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to deduct fee from account balance")?;
         Ok(())
     }
 }
