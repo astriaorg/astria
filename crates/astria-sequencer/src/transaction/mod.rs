@@ -18,7 +18,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 pub(crate) use checks::{
-    check_balance_and_execute_fees,
+    check_balance_and_get_fees,
     check_balance_mempool,
     check_chain_id_mempool,
     check_nonce_mempool,
@@ -178,7 +178,7 @@ impl ActionHandler for SignedTransaction {
         ensure!(curr_nonce == self.nonce(), InvalidNonce(self.nonce()));
 
         // Check balance and accumulate fees
-        let payment_map = check_balance_and_execute_fees(self, &state, true)
+        let payment_map = check_balance_and_get_fees(self, &state, true)
             .await
             .wrap_err("failed to check balance for total fees and transfers")?
             .expect("check_balance_and_execute_fees should return a payment map");

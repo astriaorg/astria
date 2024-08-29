@@ -66,7 +66,7 @@ pub(crate) async fn check_balance_mempool<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
 ) -> Result<()> {
-    check_balance_and_execute_fees(tx, state, false)
+    check_balance_and_get_fees(tx, state, false)
         .await
         .wrap_err("failed to check balance for total fees and transfers")
         .map_err(|e| astria_eyre::eyre::eyre!(format!("{:?}", e)))?;
@@ -76,7 +76,7 @@ pub(crate) async fn check_balance_mempool<S: StateRead>(
 // Checks that the account has enough balance to cover the total fees and transferred values
 // for all actions in the transaction.
 #[instrument(skip_all)]
-pub(crate) async fn check_balance_and_execute_fees<S: StateRead>(
+pub(crate) async fn check_balance_and_get_fees<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
     return_payment_map: bool,
