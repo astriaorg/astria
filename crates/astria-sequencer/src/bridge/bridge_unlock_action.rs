@@ -11,12 +11,9 @@ use astria_core::protocol::transaction::v1alpha1::action::{
 use cnidarium::StateWrite;
 
 use crate::{
-    accounts::{
-        action::{
-            check_transfer,
-            execute_transfer,
-        },
-        AddressBytes,
+    accounts::action::{
+        check_transfer,
+        execute_transfer,
     },
     address::StateReadExt as _,
     app::ActionHandler,
