@@ -105,7 +105,7 @@ async fn establish_withdrawal_target<S: StateRead>(
     if state
         .is_a_bridge_account(from)
         .await
-        .context("failed to get bridge account rollup id")?
+        .context("failed to establish whether the sender is a bridge account")?
     {
         bail!("sender cannot be a bridge address if bridge address is not set");
     }

@@ -5,6 +5,7 @@ use std::collections::{
 
 use anyhow::{
     anyhow,
+    bail,
     Context,
     Result,
 };
@@ -454,10 +455,10 @@ pub(crate) trait StateWriteExt: StateWrite {
                     .expect("all block numbers stored should be 8 bytes; this is a bug"),
             );
 
-            return Err(anyhow!(
+            bail!(
                 "withdrawal event ID {withdrawal_event_id} used by block number \
                  {existing_block_num}"
-            ));
+            );
         }
 
         self.put_raw(key, block_num.to_be_bytes().to_vec());
