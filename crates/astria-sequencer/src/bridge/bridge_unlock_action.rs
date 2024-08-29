@@ -85,7 +85,7 @@ impl ActionHandler for BridgeUnlockAction {
             .await
             .context("failed to get withdrawal event height")?;
         if let Some(height) = rollup_withdrawal_height {
-            bail!("withdrawal event already processed at rollup height {height}");
+            bail!("a withdrawal event with ID `{}` was already processed at rollup height {height}", self.rollup_withdrawal_event_id);
         }
 
         let transfer_action = TransferAction {
