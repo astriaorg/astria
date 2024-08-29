@@ -279,7 +279,6 @@ impl ActionHandler for SignedTransaction {
 
         // XXX: Delete the current transaction data from the ephemeral state.
         state.delete_current_source();
-        state.clear_transaction_action_index();
         Ok(())
     }
 }
