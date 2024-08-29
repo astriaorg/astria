@@ -325,6 +325,8 @@ async fn full_bundle() {
     let shutdown_token = CancellationToken::new();
     let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.as_str())));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
+    let (_filtered_block_sender, filtered_block_receiver) = tokio::sync::mpsc::channel(1);
+    let (_finalized_hash_sender, finalized_hash_receiver) = tokio::sync::mpsc::channel(1);
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
@@ -338,6 +340,8 @@ async fn full_bundle() {
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset,
         max_bundle_size: cfg.max_bundle_size,
+        filtered_block_receiver,
+        finalized_block_hash_receiver: finalized_hash_receiver,
         metrics,
     }
     .build()
@@ -472,6 +476,8 @@ async fn bundle_triggered_by_block_timer() {
     let shutdown_token = CancellationToken::new();
     let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.as_str())));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
+    let (_filtered_block_sender, filtered_block_receiver) = tokio::sync::mpsc::channel(1);
+    let (_finalized_hash_sender, finalized_hash_receiver) = tokio::sync::mpsc::channel(1);
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
@@ -485,6 +491,8 @@ async fn bundle_triggered_by_block_timer() {
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset.clone(),
         max_bundle_size: cfg.max_bundle_size,
+        filtered_block_receiver,
+        finalized_block_hash_receiver: finalized_hash_receiver,
         metrics,
     }
     .build()
@@ -623,6 +631,8 @@ async fn two_seq_actions_single_bundle() {
     let shutdown_token = CancellationToken::new();
     let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.as_str())));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
+    let (_filtered_block_sender, filtered_block_receiver) = tokio::sync::mpsc::channel(1);
+    let (_finalized_hash_sender, finalized_hash_receiver) = tokio::sync::mpsc::channel(1);
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
@@ -636,6 +646,8 @@ async fn two_seq_actions_single_bundle() {
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset.clone(),
         max_bundle_size: cfg.max_bundle_size,
+        filtered_block_receiver,
+        finalized_block_hash_receiver: finalized_hash_receiver,
         metrics,
     }
     .build()
@@ -776,6 +788,8 @@ async fn chain_id_mismatch_returns_error() {
     let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.as_str())));
     let rollup_name = RollupId::new([0; ROLLUP_ID_LEN]);
 
+    let (_filtered_block_sender, filtered_block_receiver) = tokio::sync::mpsc::channel(1);
+    let (_finalized_hash_sender, finalized_hash_receiver) = tokio::sync::mpsc::channel(1);
     // mount a status response with an incorrect chain_id
     mount_genesis(&sequencer, "bad-chain-id").await;
 
@@ -793,6 +807,8 @@ async fn chain_id_mismatch_returns_error() {
         chain_name: rollup_name.to_string(),
         fee_asset: cfg.fee_asset,
         max_bundle_size: cfg.max_bundle_size,
+        filtered_block_receiver,
+        finalized_block_hash_receiver: finalized_hash_receiver,
         metrics,
     }
     .build()

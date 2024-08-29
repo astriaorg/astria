@@ -8,6 +8,7 @@ pub(crate) mod authority;
 pub(crate) mod benchmark_utils;
 pub(crate) mod bridge;
 mod build_info;
+pub(crate) mod client;
 pub(crate) mod component;
 pub mod config;
 pub(crate) mod fee_asset_change;

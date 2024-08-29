@@ -83,7 +83,7 @@ impl Sequencer {
         let snapshot = storage.latest_snapshot();
 
         let mempool = Mempool::new();
-        let app = App::new(snapshot, mempool.clone(), metrics)
+        let app = App::new(snapshot, mempool.clone(), config.composer_hook, metrics)
             .await
             .context("failed to initialize app")?;
 

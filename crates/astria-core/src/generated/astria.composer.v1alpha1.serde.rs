@@ -387,6 +387,119 @@ impl<'de> serde::Deserialize<'de> for SendFinalizedHashResponse {
         deserializer.deserialize_struct("astria.composer.v1alpha1.SendFinalizedHashResponse", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for SendOptimisticBlockRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.block_hash.is_empty() {
+            len += 1;
+        }
+        if !self.seq_action.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.composer.v1alpha1.SendOptimisticBlockRequest", len)?;
+        if !self.block_hash.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
+        }
+        if !self.seq_action.is_empty() {
+            struct_ser.serialize_field("seqAction", &self.seq_action)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for SendOptimisticBlockRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "block_hash",
+            "blockHash",
+            "seq_action",
+            "seqAction",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BlockHash,
+            SeqAction,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "blockHash" | "block_hash" => Ok(GeneratedField::BlockHash),
+                            "seqAction" | "seq_action" => Ok(GeneratedField::SeqAction),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = SendOptimisticBlockRequest;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.composer.v1alpha1.SendOptimisticBlockRequest")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SendOptimisticBlockRequest, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut block_hash__ = None;
+                let mut seq_action__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BlockHash => {
+                            if block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("blockHash"));
+                            }
+                            block_hash__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::SeqAction => {
+                            if seq_action__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("seqAction"));
+                            }
+                            seq_action__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(SendOptimisticBlockRequest {
+                    block_hash: block_hash__.unwrap_or_default(),
+                    seq_action: seq_action__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.composer.v1alpha1.SendOptimisticBlockRequest", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for SendOptimisticBlockResponse {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>

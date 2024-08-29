@@ -16,8 +16,14 @@ use astria_core::{
         composer::v1alpha1::{
             BuilderBundle,
             BuilderBundlePacket,
+            SendFinalizedHashRequest,
+            SendOptimisticBlockRequest,
         },
-        sequencerblock::v1alpha1::RollupData,
+        execution::v1alpha1::FinalizeBlockRequest,
+        sequencerblock::v1alpha1::{
+            FilteredSequencerBlock,
+            RollupData,
+        },
     },
     primitive::v1::{
         asset,
@@ -90,7 +96,6 @@ use tracing::{
     Instrument,
     Span,
 };
-use astria_core::generated::sequencerblock::v1alpha1::FilteredSequencerBlock;
 
 use self::bundle_factory::SizedBundle;
 use crate::{
@@ -166,8 +171,8 @@ pub(super) struct Executor {
     fee_asset: asset::Denom,
     // The maximum possible size for a bundle so that it can fit into a block
     max_bundle_size: usize,
-    filtered_block_receiver: mpsc::Receiver<FilteredSequencerBlock>,
-    finalized_block_hash_receiver: mpsc::Receiver<Bytes>,
+    filtered_block_receiver: mpsc::Receiver<SendOptimisticBlockRequest>,
+    finalized_block_hash_receiver: mpsc::Receiver<SendFinalizedHashRequest>,
     metrics: &'static Metrics,
 }
 
@@ -357,15 +362,15 @@ impl Executor {
                 }
 
                 Some(finalized_block_hash) = self.finalized_block_hash_receiver.recv() => {
-                    info!("received finalized block hash {:?}", finalized_block_hash.to_ascii_lowercase());
+                    info!("received finalized block hash {:?}", finalized_block_hash.block_hash.to_ascii_lowercase());
                 }
 
-                // Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
-                //     let bundle = next_bundle.pop();
-                //     if !bundle.is_empty() {
-                //         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
-                //     }
-                // }
+                Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
+                    let bundle = next_bundle.pop();
+                    if !bundle.is_empty() {
+                        submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
+                    }
+                }
 
                 // receive new seq_action and bundle it. will not pull from the channel if `bundle_factory` is full
                 Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.is_full() => {
@@ -373,18 +378,18 @@ impl Executor {
                 }
 
                 // try to preempt current bundle if the timer has ticked without submitting the next bundle
-                // () = &mut block_timer, if submission_fut.is_terminated() => {
-                //     let bundle = bundle_factory.pop_now();
-                //     if bundle.is_empty() {
-                //         debug!("block timer ticked, but no bundle to submit to sequencer");
-                //         block_timer.as_mut().reset(reset_time());
-                //     } else {
-                //         debug!(
-                //             "forcing bundle submission to sequencer due to block timer"
-                //         );
-                //         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
-                //     }
-                // }
+                () = &mut block_timer, if submission_fut.is_terminated() => {
+                    let bundle = bundle_factory.pop_now();
+                    if bundle.is_empty() {
+                        debug!("block timer ticked, but no bundle to submit to sequencer");
+                        block_timer.as_mut().reset(reset_time());
+                    } else {
+                        debug!(
+                            "forcing bundle submission to sequencer due to block timer"
+                        );
+                        submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
+                    }
+                }
             }
         };
 
