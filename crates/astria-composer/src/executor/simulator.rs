@@ -1,3 +1,4 @@
+use std::time::{SystemTime, UNIX_EPOCH};
 use astria_core::{
     sequencerblock::v1alpha1::block::RollupData,
     Protobuf,
@@ -57,14 +58,12 @@ impl BundleSimulator {
         bundle: SizedBundle,
     ) -> eyre::Result<BundleSimulationResult> {
         // call GetCommitmentState to get the soft block
-        println!("IN MAIN CODE: CALLING GET COMMITMENT STATE");
         let commitment_state = self
             .execution_service_client
             .get_commitment_state_with_retry()
             .await
             .wrap_err("failed to get commitment state")?;
 
-        println!("IN MAIN CODE: CALLED GET COMMITMENT STATE!");
         let soft_block = commitment_state.soft();
         // convert the sized bundle actions to a list of list of u8s
         // TODO - bharath - revisit this and make the code better. The else stmt is a bit weird
@@ -85,20 +84,23 @@ impl BundleSimulator {
             .filter(|data| !data.is_empty())
             .collect();
 
-        println!("IN MAIN CODE: CALLING EXECUTE_BLOCK");
         // call execute block with the bundle to get back the included transactions
+        let timestamp = Timestamp {
+            seconds: soft_block.timestamp().seconds + 3,
+            nanos: 0
+        };
         let execute_block_response = self
             .execution_service_client
             .execute_block_with_retry(
                 soft_block.hash().clone(),
                 actions,
-                Timestamp::from(soft_block.timestamp()),
+                // use current timestamp
+                timestamp,
                 true,
             )
             .await
             .wrap_err("failed to execute block")?;
 
-        println!("IN MAIN CODE: CALLED EXECUTE BLOCK!!");
         Ok(BundleSimulationResult::new(
             execute_block_response.included_transactions().to_vec(),
             execute_block_response.block().parent_block_hash().clone(),
