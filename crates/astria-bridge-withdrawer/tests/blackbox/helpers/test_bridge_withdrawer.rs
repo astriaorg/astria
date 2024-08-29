@@ -27,7 +27,10 @@ use astria_core::{
         },
     },
 };
-use ethers::types::TransactionReceipt;
+use ethers::{
+    types::TransactionReceipt,
+    utils::hex::ToHexExt,
+};
 use futures::Future;
 use ibc_types::core::{
     channel::ChannelId,
@@ -421,7 +424,7 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),
-        rollup_withdrawal_event_id: receipt.transaction_hash.to_string(),
+        rollup_withdrawal_event_id: receipt.transaction_hash.encode_hex_with_prefix(),
         memo: String::new(),
         fee_asset: denom,
         bridge_address: default_bridge_address(),
@@ -443,7 +446,7 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
             memo: "nootwashere".to_string(),
             rollup_return_address: receipt.from.to_string(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
-            rollup_withdrawal_event_id: receipt.transaction_hash.to_string(),
+            rollup_withdrawal_event_id: receipt.transaction_hash.encode_hex_with_prefix(),
         })
         .unwrap(),
         fee_asset: denom,
