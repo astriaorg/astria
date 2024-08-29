@@ -15,7 +15,7 @@ macro_rules! block {
 
 #[macro_export]
 macro_rules! execute_block_response {
-    (number: $number:expr,hash: $hash:expr,parent: $parent:expr $(,)?, included_transactions:expr $(,)?) => {
+    (number: $number:expr,hash: $hash:expr,parent: $parent:expr) => {
         ::astria_core::generated::execution::v1alpha2::ExecuteBlockResponse {
             block: Some($crate::block!(
                 number: $number,
@@ -261,7 +261,7 @@ macro_rules! mount_executed_block {
             $crate::execute_block_response!(
                 number: $number,
                 hash: $hash,
-                parent: $parent,
+                parent: $parent
             )
         )
         .await

@@ -7,15 +7,11 @@ use astria_composer::{
 use astria_core::{
     generated::protocol::accounts::v1alpha1::NonceResponse,
     primitive::v1::RollupId,
-    protocol::transaction::v1alpha1::action::SequenceAction,
     sequencerblock::v1alpha1::block::RollupData,
     Protobuf,
 };
 use ethers::types::Transaction;
-use futures::{
-    future::join,
-    join,
-};
+use futures::future::join;
 
 use crate::helper::{
     mount_broadcast_tx_sync_invalid_nonce_mock,
@@ -123,7 +119,7 @@ async fn collector_restarts_after_exit() {
     let data = tx.rlp().to_vec();
     let rollup_data = vec![RollupData::SequencedData(data).to_raw()];
 
-    let execute_block = mount_executed_block!(test_executor,
+    let _execute_block = mount_executed_block!(test_executor,
         mock_name: "execute_block",
         number: soft_block_number,
         hash: soft_block_hash,
@@ -198,7 +194,7 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
     let data = tx.rlp().to_vec();
     let rollup_data = vec![RollupData::SequencedData(data).to_raw()];
 
-    let execute_block = mount_executed_block!(test_executor,
+    let _execute_block = mount_executed_block!(test_executor,
         mock_name: "execute_block",
         number: soft_block_number,
         hash: soft_block_hash,

@@ -1,4 +1,3 @@
-use std::str::FromStr;
 /// ! The `Executor` is responsible for:
 /// - Nonce management
 /// - Transaction signing
@@ -10,7 +9,6 @@ use std::{
     task::Poll,
     time::Duration,
 };
-use ethers::abi::AbiEncode;
 
 use astria_core::{
     crypto::SigningKey,
@@ -36,7 +34,11 @@ use astria_core::{
     },
     Protobuf,
 };
-use astria_eyre::eyre::{self, eyre, WrapErr as _};
+use astria_eyre::eyre::{
+    self,
+    eyre,
+    WrapErr as _,
+};
 use futures::{
     future::{
         self,
@@ -161,6 +163,8 @@ pub(super) struct Executor {
     rollup_id: RollupId,
     // The asset used for sequencer fees
     fee_asset: asset::Denom,
+    // The maximum possible size for a bundle so that it can fit into a block
+    max_bundle_size: usize,
     metrics: &'static Metrics,
 }
 
@@ -236,8 +240,10 @@ impl Executor {
             parent_hash: bundle_simulation_result.parent_hash().to_vec(),
         };
 
+        // TODO - bundle signing
+
         // create a top of block bundle
-        let mut builder_bundle_packet = BuilderBundlePacket {
+        let builder_bundle_packet = BuilderBundlePacket {
             bundle: Some(builder_bundle),
             signature: vec![],
         };
@@ -245,8 +251,7 @@ impl Executor {
 
         // we can give the BuilderBundlePacket the highest bundle max size possible
         // since this is the only sequence action we are sending
-        // TODO - parameterize the max bundle size
-        let mut final_bundle = SizedBundle::new(200000);
+        let mut final_bundle = SizedBundle::new(self.max_bundle_size);
         if let Err(e) = final_bundle.try_push(SequenceAction {
             rollup_id: self.rollup_id,
             data: encoded_builder_bundle_packet.into(),
