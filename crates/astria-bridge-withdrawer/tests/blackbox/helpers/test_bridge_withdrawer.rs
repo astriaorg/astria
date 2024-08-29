@@ -29,7 +29,7 @@ use astria_core::{
 };
 use ethers::{
     types::TransactionReceipt,
-    utils::hex::ToHexExt,
+    utils::hex::ToHexExt as _,
 };
 use futures::Future;
 use ibc_types::core::{
