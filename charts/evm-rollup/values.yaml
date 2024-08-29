@@ -183,24 +183,6 @@ config:
     rpc: ""
     token: ""
 
-celestia-node:
-  # Strongly recommend leaving enabled when not doing `SoftOnly` execution
-  enabled: true
-  # By default the celestia node deploys on top of the Celestia testnet mocha network
-  config:
-    labelPrefix: astria
-    type: light
-    tokenAuthLevel: false  # Set to false to disable auth
-    # You can deploy on top of a custom celestia network, uncomment below and
-    # update fields with notes
-    # network: custom
-    # chainId: test
-    # # The below information will depend on your local celestia deployment,
-    # # using the default generated when deploying "celestia-local" chart
-    # coreIp: celestia-service.astria-dev-cluster.svc.cluster.local
-    # # The custom info below must be grabbed from the custom network bridge on startup
-    # customInfo: "<GENESIS_HASH>:<BRIDGE_MULTIADDRESS>"
-
 metrics:
   # set to enable prometheus metrics
   enabled: false

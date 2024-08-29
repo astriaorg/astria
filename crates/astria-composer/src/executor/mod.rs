@@ -24,7 +24,6 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     WrapErr as _,
 };
 use futures::{
@@ -63,6 +62,7 @@ use tokio::{
     time::{
         self,
         Instant,
+        Sleep,
     },
 };
 use tokio_util::sync::CancellationToken;
@@ -85,6 +85,7 @@ use crate::{
         SizedBundleReport,
     },
     metrics::Metrics,
+    utils::report_exit_reason,
 };
 
 mod bundle_factory;
@@ -154,6 +155,7 @@ impl Handle {
         }
     }
 
+    #[instrument(skip_all, err)]
     pub(super) async fn send_timeout(
         &self,
         sequence_action: SequenceAction,
@@ -214,23 +216,19 @@ impl Executor {
     ///
     /// # Errors
     /// An error is returned if connecting to the sequencer fails.
-    #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        select!(
+        let mut nonce = select!(
             biased;
             () = self.shutdown_token.cancelled() => {
-                info!("received shutdown signal while running initialization routines; exiting");
-                return Ok(());
+                report_exit_reason(Ok("received shutdown signal while running initialization routines; exiting"));
+                return Ok(())
             }
 
-            res = self.pre_run_checks() => {
-                res.wrap_err("required pre-run checks failed")?;
+            nonce = self.init() => {
+                nonce.wrap_err("initialization failed").inspect_err(|err| report_exit_reason(Err(err)))?
             }
         );
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
-        let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address, self.metrics)
-            .await
-            .wrap_err("failed getting initial nonce from sequencer")?;
 
         self.metrics.set_current_nonce(nonce);
 
@@ -256,14 +254,9 @@ impl Executor {
                 }
                 // process submission result and update nonce
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
-                    match rsp {
-                        Ok(new_nonce) => nonce = new_nonce,
-                        Err(error) => {
-                            error!(%error, "failed submitting bundle to sequencer; aborting executor");
-                            break Err(error).wrap_err("failed submitting bundle to sequencer");
-                        }
-                    }
-                    block_timer.as_mut().reset(reset_time());
+                    if let Err(err) = process_result_update_nonce(&mut nonce, rsp, &mut block_timer, reset_time) {
+                        break Err(err).wrap_err("failed submitting bundle to sequencer");
+                    };
                 }
 
                 Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
@@ -275,28 +268,15 @@ impl Executor {
 
                 // receive new seq_action and bundle it. will not pull from the channel if `bundle_factory` is full
                 Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.is_full() => {
-                    let rollup_id = seq_action.rollup_id;
-
-                    if let Err(e) = bundle_factory.try_push(seq_action) {
-                        self.metrics.increment_txs_dropped_too_large(&rollup_id);
-                        warn!(
-                            rollup_id = %rollup_id,
-                            error = &e as &StdError,
-                            "failed to bundle transaction, dropping it."
-                        );
-                    }
+                    self.bundle_seq_action(seq_action, &mut bundle_factory);
                 }
 
                 // try to preempt current bundle if the timer has ticked without submitting the next bundle
                 () = &mut block_timer, if submission_fut.is_terminated() => {
                     let bundle = bundle_factory.pop_now();
                     if bundle.is_empty() {
-                        debug!("block timer ticked, but no bundle to submit to sequencer");
                         block_timer.as_mut().reset(reset_time());
                     } else {
-                        debug!(
-                            "forcing bundle submission to sequencer due to block timer"
-                        );
                         submission_fut = self.submit_bundle(nonce, bundle, self.metrics);
                     }
                 }
@@ -310,35 +290,17 @@ impl Executor {
         // sequence actions
         self.serialized_rollup_transactions.close();
 
-        match &reason {
-            Ok(reason) => {
-                info!(reason, "starting shutdown process");
-            }
-            Err(reason) => {
-                error!(%reason, "executor exited with error");
-                // we error out because of a failure to submit a bundle to the sequencer
-                // we do not want to proceed with the shutdown process in this case
-                return Err(eyre!(reason.to_string()));
-            }
-        };
+        report_exit_reason(reason.as_deref());
+        if let Err(err) = reason {
+            return Err(err).wrap_err("failed to submit bundle to sequencer, aborting");
+        }
 
         let mut bundles_to_drain: VecDeque<SizedBundle> = VecDeque::new();
         let mut bundles_drained: Option<u64> = Some(0);
 
-        info!("draining already received transactions");
-
         // drain the receiver channel
         while let Ok(seq_action) = self.serialized_rollup_transactions.try_recv() {
-            let rollup_id = seq_action.rollup_id;
-
-            if let Err(e) = bundle_factory.try_push(seq_action) {
-                self.metrics.increment_txs_dropped_too_large(&rollup_id);
-                warn!(
-                    rollup_id = %rollup_id,
-                    error = &e as &StdError,
-                    "failed to bundle transaction, dropping it."
-                );
-            }
+            self.bundle_seq_action(seq_action, &mut bundle_factory);
         }
 
         // when shutting down, drain all the remaining bundles and submit to the sequencer
@@ -352,107 +314,34 @@ impl Executor {
             bundles_to_drain.push_back(bundle);
         }
 
-        info!(
-            no_of_bundles_to_drain = bundles_to_drain.len(),
-            "submitting remaining transaction bundles to sequencer"
+        let shutdown_logic = self.run_shutdown_logic(
+            submission_fut,
+            nonce,
+            &mut bundles_to_drain,
+            &mut bundles_drained,
         );
 
-        let shutdown_logic = async {
-            // wait for the last bundle to be submitted
-            if !submission_fut.is_terminated() {
-                info!(
-                    "waiting for the last bundle of transactions to be submitted to the sequencer"
-                );
-                match submission_fut.await {
-                    Ok(new_nonce) => {
-                        debug!(
-                            new_nonce = new_nonce,
-                            "successfully submitted bundle of transactions"
-                        );
+        bundle_drain_timeout_handler(shutdown_logic).await;
 
-                        nonce = new_nonce;
-                    }
-                    Err(error) => {
-                        error!(%error, "failed submitting bundle to sequencer during shutdown; \
-                                aborting shutdown");
-
-                        return Err(error);
-                    }
-                }
-            }
-
-            while let Some(bundle) = bundles_to_drain.pop_front() {
-                match self
-                    .submit_bundle(nonce, bundle.clone(), self.metrics)
-                    .await
-                {
-                    Ok(new_nonce) => {
-                        debug!(
-                            bundle = %telemetry::display::json(&SizedBundleReport(&bundle)),
-                            new_nonce = new_nonce,
-                            "successfully submitted transaction bundle"
-                        );
-
-                        nonce = new_nonce;
-                        bundles_drained = bundles_drained.and_then(|value| value.checked_add(1));
-                    }
-                    Err(error) => {
-                        error!(
-                            bundle =  %telemetry::display::json(&SizedBundleReport(&bundle)),
-                            %error,
-                            "failed submitting bundle to sequencer during shutdown; \
-                                aborting shutdown"
-                        );
-                        // if we can't submit a bundle after multiple retries, we can abort
-                        // the shutdown process
-
-                        return Err(error);
-                    }
-                }
-            }
-
-            Ok(())
-        };
-
-        match tokio::time::timeout(BUNDLE_DRAINING_DURATION, shutdown_logic).await {
-            Ok(Ok(())) => info!("executor shutdown tasks completed successfully"),
-            Ok(Err(error)) => error!(%error, "executor shutdown tasks failed"),
-            Err(error) => error!(%error, "executor shutdown tasks failed to complete in time"),
-        }
-
-        let number_of_submitted_bundles = if let Some(value) = bundles_drained {
-            value.to_string()
-        } else {
-            format!("more than {}", u64::MAX)
-        };
-        if bundles_to_drain.is_empty() {
-            info!(
-                %number_of_submitted_bundles,
-                "submitted all outstanding bundles to sequencer during shutdown"
-            );
-        } else {
-            // log all the bundles that have not been drained
-            let report: Vec<SizedBundleReport> =
-                bundles_to_drain.iter().map(SizedBundleReport).collect();
-
-            warn!(
-                %number_of_submitted_bundles,
-                number_of_missing_bundles = report.len(),
-                missing_bundles = %telemetry::display::json(&report),
-                "unable to drain all bundles within the allocated time"
-            );
-        }
+        report_if_bundles_drained(&mut bundles_to_drain, &mut bundles_drained);
 
         reason.map(|_| ())
     }
 
     /// Performs initialization checks prior to running the executor
-    async fn pre_run_checks(&self) -> eyre::Result<()> {
-        self.ensure_chain_id_is_correct().await?;
-        Ok(())
+    #[instrument(skip_all, err)]
+    async fn init(&self) -> eyre::Result<u32> {
+        self.ensure_chain_id_is_correct()
+            .await
+            .wrap_err("failed to validate chain id")?;
+        let nonce = get_latest_nonce(self.sequencer_client.clone(), self.address, self.metrics)
+            .await
+            .wrap_err("failed getting initial nonce from sequencer")?;
+        Ok(nonce)
     }
 
     /// Performs check to ensure the configured chain ID matches the remote chain ID
+    #[instrument(skip_all, err)]
     pub(crate) async fn ensure_chain_id_is_correct(&self) -> Result<(), EnsureChainIdError> {
         let remote_chain_id = self
             .get_sequencer_chain_id()
@@ -468,6 +357,7 @@ impl Executor {
     }
 
     /// Fetch chain id from the sequencer client
+    #[instrument(skip_all, err)]
     async fn get_sequencer_chain_id(
         &self,
     ) -> Result<tendermint::chain::Id, sequencer_client::tendermint_rpc::Error> {
@@ -496,10 +386,84 @@ impl Executor {
                 .await?;
         Ok(client_genesis.chain_id)
     }
+
+    /// Creates shutdown logic for submitting remaining bundles to the sequencer.
+    #[instrument(skip_all, err)]
+    async fn run_shutdown_logic(
+        &self,
+        submission_fut: Fuse<Instrumented<SubmitFut>>,
+        mut nonce: u32,
+        bundles_to_drain: &mut VecDeque<SizedBundle>,
+        bundles_drained: &mut Option<u64>,
+    ) -> eyre::Result<()> {
+        info!(
+            no_of_bundles_to_drain = bundles_to_drain.len(),
+            "submitting remaining transaction bundles to sequencer"
+        );
+
+        // wait for the last bundle to be submitted
+        if !submission_fut.is_terminated() {
+            info!("waiting for the last bundle of transactions to be submitted to the sequencer");
+            match submission_fut.await {
+                Ok(new_nonce) => {
+                    debug!(new_nonce, "successfully submitted bundle of transactions");
+
+                    nonce = new_nonce;
+                }
+                Err(error) => {
+                    return Err(error.wrap_err(
+                        "failed submitting bundle to sequencer during shutdown; aborting shutdown",
+                    ));
+                }
+            }
+        }
+        while let Some(bundle) = bundles_to_drain.pop_front() {
+            match self
+                .submit_bundle(nonce, bundle.clone(), self.metrics)
+                .await
+            {
+                Ok(new_nonce) => {
+                    debug!(
+                        bundle = %telemetry::display::json(&SizedBundleReport(&bundle)),
+                        new_nonce,
+                        "successfully submitted transaction bundle"
+                    );
+
+                    nonce = new_nonce;
+                    *bundles_drained = bundles_drained.and_then(|value| value.checked_add(1));
+                }
+                Err(error) => {
+                    // if we can't submit a bundle after multiple retries, we can abort
+                    // the shutdown process
+                    return Err(error.wrap_err(format!(
+                        "failed submitting bundle to sequencer during shutdown; aborting \
+                         shutdown. bundle = {}",
+                        telemetry::display::json(&SizedBundleReport(&bundle))
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Pushes sequence action into current bundle, warning and dropping on failure.
+    #[instrument(skip_all)]
+    fn bundle_seq_action(&self, seq_action: SequenceAction, bundle_factory: &mut BundleFactory) {
+        let rollup_id = seq_action.rollup_id;
+
+        if let Err(e) = bundle_factory.try_push(seq_action) {
+            self.metrics.increment_txs_dropped_too_large(&rollup_id);
+            warn!(
+                rollup_id = %rollup_id,
+                error = &e as &StdError,
+                "failed to bundle transaction, dropping it."
+            );
+        }
+    }
 }
 
 /// Queries the sequencer for the latest nonce with an exponential backoff
-#[instrument(name = "get latest nonce", skip_all, fields(%address))]
+#[instrument(name = "get latest nonce", skip_all, fields(%address), err)]
 async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
     address: Address,
@@ -551,7 +515,8 @@ async fn get_latest_nonce(
     fields(
         nonce = tx.nonce(),
         transaction.hash = hex::encode(sha256(&tx.to_raw().encode_to_vec())),
-    )
+    ),
+    err,
 )]
 async fn submit_tx(
     client: sequencer_client::HttpClient,
@@ -601,6 +566,66 @@ async fn submit_tx(
     metrics.record_sequencer_submission_latency(start.elapsed());
 
     res
+}
+
+/// Handles timeout of shutdown process
+#[instrument(skip_all)]
+async fn bundle_drain_timeout_handler(shutdown_logic: impl Future<Output = eyre::Result<()>>) {
+    match tokio::time::timeout(BUNDLE_DRAINING_DURATION, shutdown_logic).await {
+        Ok(Ok(())) => info!("executor shutdown tasks completed successfully"),
+        Ok(Err(error)) => error!(%error, "executor shutdown tasks failed"),
+        Err(_) => error!("executor shutdown tasks failed to complete in time"),
+    }
+}
+
+/// Processes the result of bundle submission and updates nonce
+#[instrument(skip_all, err)]
+fn process_result_update_nonce(
+    nonce: &mut u32,
+    rsp: eyre::Result<u32>,
+    block_timer: &mut Pin<&mut Sleep>,
+    reset_time: impl Fn() -> Instant,
+) -> eyre::Result<()> {
+    block_timer.as_mut().reset(reset_time());
+    match rsp {
+        Ok(new_nonce) => {
+            *nonce = new_nonce;
+            Ok(())
+        }
+        Err(error) => {
+            Err(error).wrap_err("failed submitting bundle to sequencer; aborting executor")
+        }
+    }
+}
+
+/// Checks if all bundles have been drained, warning if not
+#[instrument(skip_all)]
+fn report_if_bundles_drained(
+    bundles_to_drain: &mut VecDeque<SizedBundle>,
+    bundles_drained: &mut Option<u64>,
+) {
+    let number_of_submitted_bundles = if let Some(value) = bundles_drained {
+        value.to_string()
+    } else {
+        format!("more than {}", u64::MAX)
+    };
+    if bundles_to_drain.is_empty() {
+        info!(
+            %number_of_submitted_bundles,
+            "submitted all outstanding bundles to sequencer during shutdown"
+        );
+    } else {
+        // log all the bundles that have not been drained
+        let report: Vec<SizedBundleReport> =
+            bundles_to_drain.iter().map(SizedBundleReport).collect();
+
+        warn!(
+            %number_of_submitted_bundles,
+            number_of_missing_bundles = report.len(),
+            missing_bundles = %telemetry::display::json(&report),
+            "unable to drain all bundles within the allocated time"
+        );
+    }
 }
 
 pin_project! {
