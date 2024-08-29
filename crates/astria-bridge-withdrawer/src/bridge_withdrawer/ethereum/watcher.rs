@@ -7,9 +7,12 @@ use astria_bridge_contracts::{
     GetWithdrawalActions,
     GetWithdrawalActionsBuilder,
 };
-use astria_core::primitive::v1::{
-    asset,
-    Address,
+use astria_core::{
+    primitive::v1::{
+        asset,
+        Address,
+    },
+    protocol::transaction::v1alpha1::Action,
 };
 use astria_eyre::{
     eyre::{
@@ -348,10 +351,21 @@ async fn get_and_forward_block_events(
         .number
         .ok_or_eyre("block did not contain a rollup height")?
         .as_u64();
-    let actions = actions_fetcher
+    let actions: Vec<Action> = actions_fetcher
         .get_for_block_hash(block_hash)
         .await
-        .wrap_err("failed getting actions for block")?;
+        .wrap_err("failed getting actions for block")?
+        .into_iter()
+        .filter_map(|r| {
+            r.map_err(|e| {
+                warn!(
+                    error = %eyre::Report::new(e),
+                    "failed to convert rollup withdrawal event to sequencer action; dropping"
+                );
+            })
+            .ok()
+        })
+        .collect();
 
     if actions.is_empty() {
         info!(
