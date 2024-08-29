@@ -178,41 +178,32 @@ impl PendingTransactionsForAccount {
     /// Removes and returns transactions that exceed the balances in `available_balances`.
     fn find_demotables(
         &mut self,
-        available_balances: &HashMap<IbcPrefixed, u128>,
+        mut available_balances: HashMap<IbcPrefixed, u128>,
     ) -> Vec<TimemarkedTransaction> {
         let mut split_at = 0;
-        let mut break_flag = false;
-        let mut available_balances = available_balances.clone();
 
-        for (nonce, tx) in &self.txs {
+        'outer: for (nonce, tx) in &self.txs {
             // ensure we have enough balance to cover inclusion
             for (denom, cost) in tx.cost() {
                 match available_balances.entry(*denom) {
                     hash_map::Entry::Occupied(mut entry) => {
                         if cost <= entry.get() {
                             // subtract cost
-                            let current_cost = entry.get_mut();
-                            *current_cost = current_cost.saturating_sub(*cost);
+                            let current_balance = entry.get_mut();
+                            *current_balance = current_balance.saturating_sub(*cost);
                         } else {
-                            // not enough balance, do not include
-                            break_flag = true;
-                            break;
+                            break 'outer;
                         }
                     }
                     hash_map::Entry::Vacant(_) => {
                         // not enough balance, do not include
                         if *cost != 0 {
-                            break_flag = true;
-                            break;
+                            break 'outer
                         }
                     }
                 }
             }
 
-            // break if we're out of funds for one since this is a `SequentialNonce` container
-            if break_flag {
-                break;
-            }
             split_at = nonce.saturating_add(1);
         }
 
@@ -222,7 +213,7 @@ impl PendingTransactionsForAccount {
 
     /// Returns remaining balances after accounting for costs of contained transactions.
     ///
-    /// Note: assumes that the balances in `current_account_balance` are large enough
+    /// Note: assumes that the balances in `current_account_balances` are large enough
     /// to cover costs for contained transactions. Will log an error if this is not true
     /// but will not fail.
     fn get_remaining_balances(
@@ -290,27 +281,38 @@ impl TransactionsForAccount for PendingTransactionsForAccount {
         ttx: &TimemarkedTransaction,
         current_account_balances: &HashMap<IbcPrefixed, u128>,
     ) -> bool {
-        let mut remaining_account_balances = current_account_balances.clone();
+        // build up transaction cost map 
+        let mut transaction_costs = HashMap::<IbcPrefixed, u128>::new();
 
-        // deduct costs from current account balances and return false if missing funds for any
         for tx in self.txs.values().chain(std::iter::once(ttx)) {
             for (denom, cost) in &tx.cost {
-                match remaining_account_balances.entry(*denom) {
+                match transaction_costs.entry(*denom) {
                     hash_map::Entry::Occupied(mut entry) => {
-                        if entry.get() < cost {
-                            return false;
-                        }
                         let current_cost = entry.get_mut();
-                        *current_cost = current_cost.saturating_sub(*cost);
+                        *current_cost = current_cost.saturating_add(*cost);
                     }
-                    hash_map::Entry::Vacant(_) => {
+                    hash_map::Entry::Vacant(entry) => {
                         if *cost != 0 {
-                            return false;
+                            entry.insert(*cost);
                         }
                     }
                 }
             }
         }
+
+        // check enough balance exists
+        for (denom, cost) in transaction_costs {
+            if let Some(balance) = current_account_balances.get(&denom) {
+                if cost > *balance {
+                    // not enough balance
+                    return false;
+                }
+            } else {
+                // not enough balance
+                return false;
+            }
+        }
+
         true
     }
 }
@@ -323,9 +325,11 @@ pub(super) struct ParkedTransactionsForAccount<const MAX_TX_COUNT: usize> {
 }
 
 impl<const MAX_TX_COUNT: usize> ParkedTransactionsForAccount<MAX_TX_COUNT> {
-    /// Returns contiguous transactions from front of queue starting from target nonce, removing the
+    /// Returns contiguous transactions from front of queue starting from `target_nonce`, removing the
     /// transactions in the process. Will only return transactions if their cost is covered by the
-    /// `available_balances`.
+    /// `available_balances`. 
+    /// 
+    /// `target_nonce` should be the next nonce that the pending queue could add. 
     ///
     /// Note: this function only operates on the front of the queue. If the target nonce is not at
     /// the front, nothing will be returned.
@@ -335,8 +339,7 @@ impl<const MAX_TX_COUNT: usize> ParkedTransactionsForAccount<MAX_TX_COUNT> {
         mut available_balances: HashMap<IbcPrefixed, u128>,
     ) -> impl Iterator<Item = TimemarkedTransaction> {
         let mut split_at: u32 = 0;
-        let mut break_flag = false;
-        for nonce in self.txs.keys() {
+        'outer: for nonce in self.txs.keys() {
             if *nonce == target_nonce {
                 // ensure we have enough balance to cover promotions
                 for (denom, cost) in self.txs.get(nonce).unwrap().cost() {
@@ -347,21 +350,16 @@ impl<const MAX_TX_COUNT: usize> ParkedTransactionsForAccount<MAX_TX_COUNT> {
                                 *remaining_balance = remaining_balance.saturating_sub(*cost);
                             } else {
                                 // not enough balance, do not include
-                                break_flag = true;
-                                break;
+                                break 'outer;
                             }
                         }
                         hash_map::Entry::Vacant(_) => {
                             // not enough balance, do not return transaction
                             if *cost != 0 {
-                                break_flag = true;
-                                break;
+                                break 'outer;
                             }
                         }
                     }
-                }
-                if break_flag {
-                    break;
                 }
                 let Some(next_target) = target_nonce.checked_add(1) else {
                     // We've got contiguous nonces up to `u32::MAX`; return everything.
@@ -670,7 +668,7 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
             return Vec::<TimemarkedTransaction>::new();
         };
 
-        let demoted = account.find_demotables(current_balances);
+        let demoted = account.find_demotables(current_balances.clone());
 
         // Re-add the collection to `self` if it's not empty.
         if !account.txs().is_empty() {

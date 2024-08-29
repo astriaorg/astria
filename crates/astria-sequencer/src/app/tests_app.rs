@@ -485,7 +485,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // run maintence to clear out transactions
     let current_account_nonce_getter = |address: [u8; 20]| (app.state.get_account_nonce(address));
     let current_account_balance_getter =
-        |address: [u8; 20]| (app.state.get_account_balances_ibc(address));
+        |address: [u8; 20]| (app.state.get_account_balances_ibc_prefixed(address));
     app.mempool
         .run_maintenance(current_account_nonce_getter, current_account_balance_getter)
         .await;
@@ -617,7 +617,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     // run maintence to clear out transactions
     let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
     let current_account_balance_getter =
-        |address: [u8; 20]| (app.state.get_account_balances_ibc(address));
+        |address: [u8; 20]| (app.state.get_account_balances_ibc_prefixed(address));
     app.mempool
         .run_maintenance(current_account_nonce_getter, current_account_balance_getter)
         .await;
@@ -714,7 +714,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     // run maintence to clear out transactions
     let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
     let current_account_balance_getter =
-        |address: [u8; 20]| (app.state.get_account_balances_ibc(address));
+        |address: [u8; 20]| (app.state.get_account_balances_ibc_prefixed(address));
     app.mempool
         .run_maintenance(current_account_nonce_getter, current_account_balance_getter)
         .await;

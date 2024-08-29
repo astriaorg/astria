@@ -1131,7 +1131,7 @@ async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
 ) {
     let current_account_nonce_getter = |address: [u8; 20]| state.get_account_nonce(address);
     let current_account_balances_getter =
-        |address: [u8; 20]| state.get_account_balances_ibc(address);
+        |address: [u8; 20]| state.get_account_balances_ibc_prefixed(address);
     mempool
         .run_maintenance(
             current_account_nonce_getter,

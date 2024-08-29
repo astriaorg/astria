@@ -74,13 +74,13 @@ fn nonce_storage_key<T: AddressBytes>(address: T) -> String {
 pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     #[instrument(skip_all)]
     async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
-        let ibc_balances = self
-            .get_account_balances_ibc(address)
+        let ibc_prefixed_balances = self
+            .get_account_balances_ibc_prefixed(address)
             .await
             .context("failed to grab ibc balances for account")?;
-        let mut balances: Vec<AssetBalance> = Vec::with_capacity(ibc_balances.len());
+        let mut balances: Vec<AssetBalance> = Vec::with_capacity(ibc_prefixed_balances.len());
 
-        for (asset, balance) in ibc_balances {
+        for (asset, balance) in ibc_prefixed_balances {
             let native_asset = self
                 .get_native_asset()
                 .await
@@ -109,7 +109,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_account_balances_ibc<T: AddressBytes>(
+    async fn get_account_balances_ibc_prefixed<T: AddressBytes>(
         &self,
         address: T,
     ) -> Result<HashMap<IbcPrefixed, u128>> {
@@ -605,7 +605,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_account_balances_ibc() {
+    async fn get_account_balances_ibc_prefixed() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -646,7 +646,7 @@ mod tests {
             .expect("putting an account balance should not fail");
 
         let balances = state
-            .get_account_balances_ibc(address)
+            .get_account_balances_ibc_prefixed(address)
             .await
             .expect("retrieving account balances should not fail");
 
