@@ -32,6 +32,7 @@ use ethers::{
         Log,
         H256,
     },
+    utils::hex::ToHexExt,
 };
 pub use generated::*;
 
@@ -381,7 +382,7 @@ where
         let rollup_withdrawal_event_id = log
             .transaction_hash
             .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .to_string();
+            .encode_hex_with_prefix();
 
         let event = decode_log::<Ics20WithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
@@ -436,7 +437,7 @@ where
         let rollup_withdrawal_event_id = log
             .transaction_hash
             .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .to_string();
+            .encode_hex_with_prefix();
 
         let event = decode_log::<SequencerWithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
