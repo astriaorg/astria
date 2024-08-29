@@ -345,3 +345,35 @@ pub mod grpc_collector_service_server {
         const NAME: &'static str = "astria.composer.v1alpha1.GrpcCollectorService";
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BuilderBundle {
+    #[prost(message, repeated, tag = "1")]
+    pub transactions: ::prost::alloc::vec::Vec<
+        super::super::sequencerblock::v1alpha1::RollupData,
+    >,
+    #[prost(bytes = "vec", tag = "2")]
+    pub parent_hash: ::prost::alloc::vec::Vec<u8>,
+}
+impl ::prost::Name for BuilderBundle {
+    const NAME: &'static str = "BuilderBundle";
+    const PACKAGE: &'static str = "astria.composer.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.composer.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BuilderBundlePacket {
+    #[prost(message, optional, tag = "1")]
+    pub bundle: ::core::option::Option<BuilderBundle>,
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+}
+impl ::prost::Name for BuilderBundlePacket {
+    const NAME: &'static str = "BuilderBundlePacket";
+    const PACKAGE: &'static str = "astria.composer.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.composer.v1alpha1.{}", Self::NAME)
+    }
+}
