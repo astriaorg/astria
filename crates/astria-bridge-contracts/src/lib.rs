@@ -378,7 +378,7 @@ where
             .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
             .as_u64();
 
-        let rollup_transaction_hash = log
+        let rollup_withdrawal_event_id = log
             .transaction_hash
             .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
             .to_string();
@@ -400,7 +400,7 @@ where
             memo: event.memo.clone(),
             rollup_block_number,
             rollup_return_address: event.sender.to_string(),
-            rollup_transaction_hash,
+            rollup_withdrawal_event_id,
         })
         .map_err(GetWithdrawalActionsError::encode_memo)?;
 
@@ -433,19 +433,13 @@ where
             .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
             .as_u64();
 
-        let rollup_transaction_hash = log
+        let rollup_withdrawal_event_id = log
             .transaction_hash
             .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
             .to_string();
 
         let event = decode_log::<SequencerWithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
-
-        let memo = memo_to_json(&memos::v1alpha1::BridgeUnlock {
-            rollup_block_number,
-            rollup_transaction_hash,
-        })
-        .map_err(GetWithdrawalActionsError::encode_memo)?;
 
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
@@ -456,7 +450,9 @@ where
         let action = astria_core::protocol::transaction::v1alpha1::action::BridgeUnlockAction {
             to,
             amount,
-            memo,
+            rollup_block_number,
+            rollup_withdrawal_event_id,
+            memo: String::new(),
             fee_asset: self.fee_asset.clone(),
             bridge_address: self.bridge_address,
         };

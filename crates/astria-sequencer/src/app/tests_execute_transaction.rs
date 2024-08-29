@@ -1042,6 +1042,8 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         fee_asset: nria().into(),
         memo: "{ \"msg\": \"lilywashere\" }".into(),
         bridge_address,
+        rollup_block_number: 1,
+        rollup_withdrawal_event_id: "id-from-rollup".to_string(),
     };
 
     let tx = UnsignedTransaction {

@@ -4,7 +4,7 @@ expression: memo
 ---
 {
   "rollupBlockNumber": "1",
-  "rollupTransactionHash": "a-rollup-defined-hash",
+  "rollupWithdrawalEventId": "a-rollup-defined-hash",
   "rollupReturnAddress": "a-rollup-defined-address",
   "memo": "hello"
 }
