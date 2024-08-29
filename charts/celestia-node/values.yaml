@@ -19,7 +19,7 @@ config:
 
 images:
   pullPolicy: IfNotPresent
-  node: ghcr.io/celestiaorg/celestia-node:v0.14.1
+  node: ghcr.io/celestiaorg/celestia-node:v0.16.0-rc0
 
 ports:
   celestia:
