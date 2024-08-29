@@ -1,5 +1,5 @@
 
-use crate::generated::protocol::transaction::v1alpha1;
+use crate::generated::v1alpha1;
 
 /// SubmitRollupTransactionRequest contains a rollup transaction to be submitted to the Shared Sequencer Network
 /// via the Composer
@@ -41,6 +41,8 @@ pub struct SendOptimisticBlockRequest {
     pub seq_action: ::prost::alloc::vec::Vec<
         v1alpha1::SequenceAction,
     >,
+    #[prost(message, optional, tag = "3")]
+    pub time: ::core::option::Option<::pbjson_types::Timestamp>,
 }
 impl ::prost::Name for SendOptimisticBlockRequest {
     const NAME: &'static str = "SendOptimisticBlockRequest";

@@ -1,19 +1,31 @@
 # Override value example for second validator from main chart
+
+
+images:
+  cometBFT:
+    repo: docker.io/cometbft/cometbft
+    tag: v0.38.8
+    devTag: v0.38.8
+  sequencer:
+    repo: astria-sequencer
+    tag: "0.14.0"
+    devTag: tb
+
 moniker: 'node2'
 genesis:
   validators:
-    - name: node0
-      power: '1'
-      address: 091E47761C58C474534F4D414AF104A6CAF90C22
-      pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+#    - name: node0
+#      power: '1'
+#      address: 091E47761C58C474534F4D414AF104A6CAF90C22
+#      pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
     - name: node1
       address: E82D827830B163D5179291FB27BB58E605DF2FA2
       pubKey: NDE9F44v3l4irmkZxNmrZkywoGmggLlaBo5rE/Cis8M=
       power: '1'
-    - name: node2
-      power: '1'
-      address: 8C17BBDC7C350C83C550163458FC9B7A5B54A64E
-      pubKey: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
+#    - name: node2
+#      power: '1'
+#      address: 8C17BBDC7C350C83C550163458FC9B7A5B54A64E
+#      pubKey: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
 
 cometbft:
   secrets:
@@ -40,4 +52,8 @@ ingress:
   rpc:
     enabled: false
   grpc:
+    enabled: false
+
+sequencer:
+  composerHook:
     enabled: false

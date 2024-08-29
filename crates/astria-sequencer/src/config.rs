@@ -32,6 +32,7 @@ pub struct Config {
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
     pub composer_hook: String,
+    pub composer_hook_enabled: bool,
 }
 
 impl config::Config for Config {

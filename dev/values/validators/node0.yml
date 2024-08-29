@@ -2,21 +2,31 @@
 global:
   namespaceOverride: astria-dev-cluster
 
+images:
+  cometBFT:
+    repo: docker.io/cometbft/cometbft
+    tag: v0.38.8
+    devTag: v0.38.8
+  sequencer:
+    repo: astria-sequencer
+    tag: "0.14.0"
+    devTag: tb
+
 moniker: node0
 genesis:
   validators:
-    - name: node0
-      power: '1'
-      address: 091E47761C58C474534F4D414AF104A6CAF90C22
-      pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+#    - name: node0
+#      power: '1'
+#      address: 091E47761C58C474534F4D414AF104A6CAF90C22
+#      pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
     - name: node1
       address: E82D827830B163D5179291FB27BB58E605DF2FA2
       pubKey: NDE9F44v3l4irmkZxNmrZkywoGmggLlaBo5rE/Cis8M=
       power: '1'
-    - name: node2
-      power: '1'
-      address: 8C17BBDC7C350C83C550163458FC9B7A5B54A64E
-      pubKey: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
+#    - name: node2
+#      power: '1'
+#      address: 8C17BBDC7C350C83C550163458FC9B7A5B54A64E
+#      pubKey: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
 
 cometbft:
   secrets:
@@ -38,6 +48,10 @@ cometbft:
         - 2490c1fc41736a357c523fe049c319386d59d759@node0-sequencer-p2p-service.astria-dev-cluster.svc.cluster.local:26656
         - 96c652f63b5d5d5027b42e9af906082ee7c598d9@node1-sequencer-p2p-service.astria-validator-node1.svc.cluster.local:26656
         - 4a4345939744d64ca370dff266e2913dd41b4e88@node2-sequencer-p2p-service.astria-validator-node2.svc.cluster.local:26656
+
+sequencer:
+  composerHook:
+    enabled: true
 
 ingress:
   rpc:

@@ -69,6 +69,7 @@ use tendermint::{
 };
 use tracing::{
     debug,
+    error,
     info,
     instrument,
 };
@@ -187,6 +188,7 @@ impl App {
         snapshot: Snapshot,
         mempool: Mempool,
         composer_uri: String,
+        composer_hook_enabled: bool,
         metrics: &'static Metrics,
     ) -> anyhow::Result<Self> {
         debug!("initializing App instance");
@@ -204,8 +206,9 @@ impl App {
         // there should be no unexpected copies elsewhere.
         let state = Arc::new(StateDelta::new(snapshot));
 
-        let sequencer_hooks_client = SequencerHooksClient::connect_lazy(&composer_uri)
-            .context("failed to connect to sequencer hooks service")?;
+        let sequencer_hooks_client =
+            SequencerHooksClient::connect_lazy(&composer_uri, composer_hook_enabled)
+                .context("failed to connect to sequencer hooks service")?;
 
         Ok(Self {
             state,
@@ -478,15 +481,23 @@ impl App {
             .filter_map(Action::as_sequence)
             .map(|seq| seq.to_raw().clone())
             .collect::<Vec<_>>();
+        let time = process_proposal.time;
 
         info!("BHARATH: Sending optimistic block to composer!");
-        self.sequencer_hooks_client
+        if let Err(e) = self
+            .sequencer_hooks_client
             .send_optimistic_block(
                 Bytes::from(block_hash.as_bytes().to_vec()),
                 sequence_actions,
+                time,
             )
             .await
-            .context("failed to send optimistic block to composer")?;
+            .context("failed to send optimistic block to composer")
+        {
+            error!(error = %e, "failed to send optimistic block to composer");
+        } else {
+            info!("Sent optimistic block to composer!");
+        }
 
         Ok(())
     }
@@ -943,10 +954,17 @@ impl App {
             .await
             .context("failed to update mempool after finalization")?;
 
-        self.sequencer_hooks_client
+        if let Err(e) = self
+            .sequencer_hooks_client
             .send_finalized_block_hash(Bytes::from(block_hash.to_vec()))
             .await
-            .context("failed to send finalized block hash to composer")?;
+            .context("failed to send finalized block hash to composer")
+        {
+            // do not fail the entire method if this fails
+            error!(error = %e, "failed to send finalized block hash to composer");
+        } else {
+            info!("Sent finalized block hash to composer!");
+        }
 
         Ok(abci::response::FinalizeBlock {
             events: end_block.events,

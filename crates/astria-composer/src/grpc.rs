@@ -24,7 +24,7 @@ use tokio::{
     net::TcpListener,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use crate::{
     collectors,
@@ -88,6 +88,7 @@ impl GrpcServer {
     }
 
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
+        info!("launching grpc server with grpc collector and sequencer hooks!");
         let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
 
         let composer_service = GrpcCollectorServiceServer::new(self.grpc_collector);

@@ -816,6 +816,7 @@ dependencies = [
  "insta",
  "matchit",
  "metrics",
+ "pbjson-types",
  "penumbra-ibc",
  "penumbra-proto",
  "penumbra-tower-trace",

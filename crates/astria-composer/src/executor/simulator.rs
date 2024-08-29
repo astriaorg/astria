@@ -73,7 +73,9 @@ impl BundleSimulator {
     pub(crate) async fn simulate_parent_bundle(
         self,
         rollup_data: Vec<RollupData>,
+        time: pbjson_types::Timestamp,
     ) -> eyre::Result<BundleSimulationResult> {
+        info!("Creating parent block!");
         // call GetCommitmentState to get the soft block
         info!("Calling GetCommitmentState!");
         let commitment_state = self
@@ -99,10 +101,6 @@ impl BundleSimulator {
         // as long as the timestamp > parent block timestamp, the block will be successfully
         // created. It doesn't matter what timestamp we use anyway since we are not going to
         // commit the block to the chain.
-        let timestamp = Timestamp {
-            seconds: soft_block.timestamp().seconds + 3,
-            nanos: 0,
-        };
         // call execute block with the bundle to get back the included transactions
         let execute_block_response = self
             .execution_service_client
@@ -110,7 +108,7 @@ impl BundleSimulator {
                 soft_block.hash().clone(),
                 actions,
                 // use current timestamp
-                timestamp,
+                time,
                 false,
             )
             .await
@@ -118,7 +116,7 @@ impl BundleSimulator {
 
         let included_transactions = execute_block_response.included_transactions();
         info!(
-            "Bundle simulated on top of {:?} and {:?} transactions were included",
+            "Parent block created on top of {:?} and {:?} transactions were included",
             soft_block.hash(),
             included_transactions.len()
         );
@@ -129,11 +127,13 @@ impl BundleSimulator {
         ))
     }
 
+    #[instrument(skip_all, fields(uri=self.execution_service_client.uri()), err)]
     pub(crate) async fn simulate_bundle_on_block(
         self,
         bundle: SizedBundle,
         block: Block,
     ) -> eyre::Result<BundleSimulationResult> {
+        info!("Simulating bundle on created parent block!");
         // convert the sized bundle actions to a list of Vec<u8>
         let actions: Vec<Vec<u8>> = bundle
             .into_actions()

@@ -3,6 +3,7 @@ syntax = 'proto3';
 package astria.composer.v1alpha1;
 
 import "astria/protocol/transactions/v1alpha1/types.proto";
+import "google/protobuf/timestamp.proto";
 
 // SubmitRollupTransactionRequest contains a rollup transaction to be submitted to the Shared Sequencer Network
 // via the Composer
@@ -20,6 +21,7 @@ message SubmitRollupTransactionResponse {}
 message SendOptimisticBlockRequest {
   bytes block_hash = 1;
   repeated astria.protocol.transactions.v1alpha1.SequenceAction seq_action = 2;
+  google.protobuf.Timestamp time = 3;
 }
 
 message SendOptimisticBlockResponse {}

@@ -26,6 +26,7 @@ merkle = { package = "astria-merkle", path = "../astria-merkle" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
+pbjson-types = { workspace = true }
 
 anyhow = "1"
 borsh = { version = "1", features = ["derive"] }

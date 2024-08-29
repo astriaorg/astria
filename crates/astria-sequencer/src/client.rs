@@ -10,6 +10,8 @@ use astria_core::generated::{
     protocol::transaction::v1alpha1::SequenceAction,
 };
 use bytes::Bytes;
+use tendermint::Time;
+use tendermint_proto::google::protobuf::Timestamp;
 use tonic::transport::{
     Channel,
     Endpoint,
@@ -26,11 +28,12 @@ use tracing::{
 #[derive(Clone)]
 pub(crate) struct SequencerHooksClient {
     uri: Uri,
+    enabled: bool,
     inner: SequencerHooksServiceClient<Channel>,
 }
 
 impl SequencerHooksClient {
-    pub(crate) fn connect_lazy(uri: &str) -> anyhow::Result<Self> {
+    pub(crate) fn connect_lazy(uri: &str, enabled: bool) -> anyhow::Result<Self> {
         let uri: Uri = uri
             .parse()
             .context("failed to parse provided string as uri")?;
@@ -38,6 +41,7 @@ impl SequencerHooksClient {
         let inner = SequencerHooksServiceClient::new(endpoint);
         Ok(Self {
             uri,
+            enabled,
             inner,
         })
     }
@@ -51,15 +55,31 @@ impl SequencerHooksClient {
         &self,
         block_hash: Bytes,
         seq_actions: Vec<SequenceAction>,
+        time: Time,
     ) -> anyhow::Result<SendOptimisticBlockResponse> {
+        if !self.enabled {
+            info!("BHARATH: optimistic block sending is disabled");
+            return Ok(SendOptimisticBlockResponse::default());
+        }
         info!(
             "BHARATH: sending optimistic block hash to {:?}",
             self.uri.to_string()
         );
 
+        let Timestamp {
+            seconds,
+            nanos,
+        } = time.into();
+
+        info!("BHARATH: seconds: {:?}, nanos: {:?}", seconds, nanos);
+
         let request = SendOptimisticBlockRequest {
             block_hash,
             seq_action: seq_actions,
+            time: Some(pbjson_types::Timestamp {
+                seconds,
+                nanos,
+            }),
         };
 
         let mut client = self.inner.clone();
@@ -73,6 +93,10 @@ impl SequencerHooksClient {
         &self,
         finalized_block_hash: Bytes,
     ) -> anyhow::Result<SendFinalizedHashResponse> {
+        if !self.enabled {
+            info!("BHARATH: finalized block hash sending is disabled");
+            return Ok(SendFinalizedHashResponse::default());
+        }
         info!(
             "BHARATH: sending finalized block hash to {:?}",
             self.uri.to_string()

@@ -10,6 +10,7 @@ use astria_core::generated::composer::v1alpha1::{
     SendOptimisticBlockRequest,
     SendOptimisticBlockResponse,
 };
+use astria_eyre::eyre::WrapErr;
 use tokio::sync::{
     mpsc,
     mpsc::error::SendTimeoutError,
@@ -19,6 +20,7 @@ use tonic::{
     Response,
     Status,
 };
+use tracing::info;
 
 const SEND_TIMEOUT: u64 = 2;
 
@@ -64,7 +66,17 @@ impl SequencerHooksService for SequencerHooks {
         request: Request<SendOptimisticBlockRequest>,
     ) -> Result<Response<SendOptimisticBlockResponse>, Status> {
         let inner = request.into_inner();
-        todo!()
+        return match self
+            .send_optimistic_block_with_timeout(inner)
+            .await
+            .wrap_err("unable to send optimistic block to executor")
+        {
+            Ok(()) => Ok(Response::new(SendOptimisticBlockResponse {})),
+            Err(e) => {
+                info!("Failed to send optimistic block: {:?}", e);
+                return Err(Status::internal("Failed to send optimistic block"));
+            }
+        };
     }
 
     async fn send_finalized_hash(
@@ -72,6 +84,17 @@ impl SequencerHooksService for SequencerHooks {
         request: Request<SendFinalizedHashRequest>,
     ) -> Result<Response<SendFinalizedHashResponse>, Status> {
         let inner = request.into_inner();
-        todo!()
+
+        return match self
+            .send_finalized_hash_with_timeout(inner)
+            .await
+            .wrap_err("unable to send finalized block hash to executor")
+        {
+            Ok(()) => Ok(Response::new(SendFinalizedHashResponse {})),
+            Err(e) => {
+                info!("Failed to send finalized_block hash: {:?}", e);
+                return Err(Status::internal("Failed to send finalized block hash"));
+            }
+        };
     }
 }

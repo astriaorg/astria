@@ -83,9 +83,15 @@ impl Sequencer {
         let snapshot = storage.latest_snapshot();
 
         let mempool = Mempool::new();
-        let app = App::new(snapshot, mempool.clone(), config.composer_hook, metrics)
-            .await
-            .context("failed to initialize app")?;
+        let app = App::new(
+            snapshot,
+            mempool.clone(),
+            config.composer_hook,
+            config.composer_hook_enabled,
+            metrics,
+        )
+        .await
+        .context("failed to initialize app")?;
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
