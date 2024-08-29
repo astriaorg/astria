@@ -5,13 +5,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::{
-    generated::composer::v1alpha1::{
-        SendFinalizedHashRequest,
-        SendOptimisticBlockRequest,
-    },
-    primitive::v1::asset,
-};
+use astria_core::primitive::v1::asset;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -57,7 +51,11 @@ use crate::{
     grpc,
     grpc::GrpcServer,
     metrics::Metrics,
-    sequencer_hooks::SequencerHooks,
+    sequencer_hooks::{
+        FinalizedHashInfo,
+        OptimisticBlockInfo,
+        SequencerHooks,
+    },
     Config,
 };
 
@@ -139,9 +137,9 @@ impl Composer {
         let shutdown_token = CancellationToken::new();
 
         let (filtered_sequencer_block_sender, filtered_sequencer_block_receiver) =
-            mpsc::channel::<SendOptimisticBlockRequest>(1000);
+            mpsc::channel::<OptimisticBlockInfo>(1000);
         let (finalized_hash_sender, finalized_hash_receiver) =
-            mpsc::channel::<SendFinalizedHashRequest>(1000);
+            mpsc::channel::<FinalizedHashInfo>(1000);
 
         let (executor, executor_handle) = executor::Builder {
             sequencer_url: cfg.sequencer_url.clone(),

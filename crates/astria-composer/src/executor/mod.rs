@@ -10,18 +10,10 @@ use std::{
 /// - Transaction signing
 /// - Managing the connection to the sequencer
 /// - Submitting transactions to the sequencer
-use astria_core::Protobuf;
+use astria_core::sequencerblock::v1alpha1::block::RollupData;
 use astria_core::{
     crypto::SigningKey,
-    generated::{
-        composer::v1alpha1::{
-            BuilderBundle,
-            BuilderBundlePacket,
-            SendFinalizedHashRequest,
-            SendOptimisticBlockRequest,
-        },
-        sequencerblock::v1alpha1::RollupData,
-    },
+    generated as raw,
     primitive::v1::{
         asset,
         RollupId,
@@ -112,9 +104,15 @@ mod tests;
 
 pub(crate) use builder::Builder;
 
-use crate::executor::simulator::{
-    BundleSimulationResult,
-    BundleSimulator,
+use crate::{
+    executor::simulator::{
+        BundleSimulationResult,
+        BundleSimulator,
+    },
+    sequencer_hooks::{
+        FinalizedHashInfo,
+        OptimisticBlockInfo,
+    },
 };
 
 // Duration to wait for the executor to drain all the remaining bundles before shutting down.
@@ -169,8 +167,8 @@ pub(super) struct Executor {
     fee_asset: asset::Denom,
     // The maximum possible size for a bundle so that it can fit into a block
     max_bundle_size: usize,
-    filtered_block_receiver: mpsc::Receiver<SendOptimisticBlockRequest>,
-    finalized_block_hash_receiver: mpsc::Receiver<SendFinalizedHashRequest>,
+    filtered_block_receiver: mpsc::Receiver<OptimisticBlockInfo>,
+    finalized_block_hash_receiver: mpsc::Receiver<FinalizedHashInfo>,
     metrics: &'static Metrics,
 }
 
@@ -226,34 +224,26 @@ impl Executor {
     async fn simulate_bundle(
         &self,
         bundle: SizedBundle,
-        parent_block: Vec<astria_core::generated::protocol::transactions::v1alpha1::SequenceAction>,
-        time: Option<pbjson_types::Timestamp>,
+        parent_block: Vec<SequenceAction>,
+        time: pbjson_types::Timestamp,
     ) -> eyre::Result<(SizedBundle, BundleSimulationResult)> {
-        let bundle_simulator = self.bundle_simulator.clone();
-        // convert the sequence actions to RollupData
-        // TODO - clean up this code
-        let sequence_actions: Vec<SequenceAction> = parent_block
-            .iter()
-            .map(|action| SequenceAction::try_from_raw_ref(action).unwrap())
-            .collect();
-        let filtered_sequence_actions: Vec<SequenceAction> = sequence_actions
+        let filtered_sequence_actions: Vec<SequenceAction> = parent_block
             .iter()
             .filter(|action| action.rollup_id == self.rollup_id)
             .cloned()
             .collect();
         let mut parent_block_rollup_data_items = vec![];
         for seq_action in filtered_sequence_actions {
-            let rollup_data =
-                astria_core::sequencerblock::v1alpha1::block::RollupData::SequencedData(
-                    seq_action.data,
-                );
+            let rollup_data = RollupData::SequencedData(seq_action.data);
             parent_block_rollup_data_items.push(rollup_data);
         }
+
+        let bundle_simulator = self.bundle_simulator.clone();
 
         info!("Creating the parent block for simulating the bundle");
         let parent_bundle_simulation_result = bundle_simulator
             .clone()
-            .simulate_parent_bundle(parent_block_rollup_data_items, time.unwrap())
+            .create_parent_block(parent_block_rollup_data_items, time)
             .await
             .wrap_err("failed to simulate bundle")?;
         info!("Created the parent block!");
@@ -263,24 +253,29 @@ impl Executor {
         info!("Simulating the bundle on top of the created parent block!");
         let bundle_simulation_result = bundle_simulator
             .clone()
-            .simulate_bundle_on_block(bundle, parent_bundle_simulation_result.block().clone())
+            .simulate_bundle_on_block(
+                bundle,
+                parent_bundle_simulation_result.block().clone(),
+                None,
+            )
             .await
             .wrap_err("failed to simulate bundle")?;
         info!("Simulation done!");
 
-        let rollup_data_items: Vec<RollupData> = bundle_simulation_result
-            .included_actions()
-            .iter()
-            .map(astria_core::Protobuf::to_raw)
-            .collect();
+        let rollup_data_items: Vec<raw::sequencerblock::v1alpha1::RollupData> =
+            bundle_simulation_result
+                .included_actions()
+                .iter()
+                .map(astria_core::Protobuf::to_raw)
+                .collect();
 
         info!("Creating a Builder Bundle Packet");
-        let builder_bundle = BuilderBundle {
+        let builder_bundle = raw::composer::v1alpha1::BuilderBundle {
             transactions: rollup_data_items,
             parent_hash: bundle_simulation_result.parent_hash(),
         };
 
-        let builder_bundle_packet = BuilderBundlePacket {
+        let builder_bundle_packet = raw::composer::v1alpha1::BuilderBundlePacket {
             bundle: Some(builder_bundle),
             signature: Bytes::from(vec![]),
         };
@@ -379,12 +374,12 @@ impl Executor {
                     // and cache the simulated bundle and the block_hash
                     let bundle = bundle_factory.pop_now();
                     if !bundle.is_empty() {
-                        info!("received {:?} sequence actions from process_proposal", filtered_sequencer_block.seq_action.len());
-                        match self.simulate_bundle(bundle, filtered_sequencer_block.seq_action, filtered_sequencer_block.time)
+                        info!("received {:?} sequence actions from process_proposal", filtered_sequencer_block.seq_actions().len());
+                        match self.simulate_bundle(bundle, filtered_sequencer_block.seq_actions(), filtered_sequencer_block.time())
                                                                         .await.wrap_err("failed to simulate bundle on top of received parent block") {
                             Ok(res) => {
                                 pending_builder_bundle_packet = Some(res.0);
-                                current_finalized_block_hash = Some(filtered_sequencer_block.block_hash.clone());
+                                current_finalized_block_hash = Some(filtered_sequencer_block.block_hash().clone());
                             },
                             Err(e) => {
                                 error!(%e, "failed to simulate bundle on top of received parent block");
@@ -397,7 +392,7 @@ impl Executor {
                 // from finalize_block
                 Some(finalized_block_hash) = self.finalized_block_hash_receiver.recv(), if submission_fut.is_terminated() => {
                     if let Some(block_hash) = current_finalized_block_hash.take() {
-                        if block_hash == finalized_block_hash.block_hash {
+                        if block_hash == finalized_block_hash.block_hash() {
                             // we can submit the pending builder bundle packet
                             if let Some(builder_bundle_packet) = pending_builder_bundle_packet.take() {
                                 info!("received finalized block hash matches that of process_proposal, submitting pending builder bundle packet");
