@@ -3,6 +3,7 @@ use std::{
     path::Path,
     time::Duration,
 };
+use bytes::Bytes;
 
 use astria_core::{
     crypto::SigningKey,
@@ -18,9 +19,10 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
+use astria_core::generated::sequencerblock::v1alpha1::FilteredSequencerBlock;
 
 use crate::{
     executor,
@@ -44,6 +46,8 @@ pub(crate) struct Builder {
     pub(crate) chain_name: String,
     pub(crate) fee_asset: asset::Denom,
     pub(crate) max_bundle_size: usize,
+    pub(crate) filtered_block_receiver: mpsc::Receiver<FilteredSequencerBlock>,
+    pub(crate) finalized_block_hash_receiver: mpsc::Receiver<Bytes>,
     pub(crate) metrics: &'static Metrics,
 }
 
@@ -62,6 +66,8 @@ impl Builder {
             chain_name,
             fee_asset,
             max_bundle_size,
+            filtered_block_receiver,
+            finalized_block_hash_receiver,
             metrics,
         } = self;
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
@@ -105,6 +111,8 @@ impl Builder {
                 rollup_id,
                 fee_asset,
                 max_bundle_size,
+                filtered_block_receiver,
+                finalized_block_hash_receiver,
                 metrics,
             },
             executor::Handle::new(serialized_rollup_transaction_tx),

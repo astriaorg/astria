@@ -47,6 +47,7 @@ mod executor;
 mod grpc;
 pub(crate) mod metrics;
 mod mock_grpc;
+pub(crate) mod sequencer_hooks;
 #[cfg(test)]
 pub(crate) mod test_utils;
 pub(crate) mod utils;

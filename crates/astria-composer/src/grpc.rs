@@ -9,7 +9,10 @@
 use std::net::SocketAddr;
 
 use astria_core::{
-    generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer,
+    generated::composer::v1alpha1::{
+        grpc_collector_service_server::GrpcCollectorServiceServer,
+        sequencer_hooks_service_server::SequencerHooksServiceServer,
+    },
     primitive::v1::asset,
 };
 use astria_eyre::{
@@ -27,6 +30,7 @@ use crate::{
     collectors,
     executor,
     metrics::Metrics,
+    sequencer_hooks::SequencerHooks,
 };
 
 /// Listens for incoming gRPC requests and sends the Rollup transactions to the
@@ -36,6 +40,7 @@ use crate::{
 pub(crate) struct GrpcServer {
     listener: TcpListener,
     grpc_collector: collectors::Grpc,
+    sequencer_hooks: SequencerHooks,
     shutdown_token: CancellationToken,
 }
 
@@ -45,6 +50,7 @@ pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
     pub(crate) metrics: &'static Metrics,
     pub(crate) fee_asset: asset::Denom,
+    pub(crate) sequencer_hooks: SequencerHooks,
 }
 
 impl Builder {
@@ -56,6 +62,7 @@ impl Builder {
             shutdown_token,
             metrics,
             fee_asset,
+            sequencer_hooks,
         } = self;
 
         let listener = TcpListener::bind(grpc_addr)
@@ -67,6 +74,7 @@ impl Builder {
             listener,
             grpc_collector,
             shutdown_token,
+            sequencer_hooks,
         })
     }
 }
@@ -83,12 +91,17 @@ impl GrpcServer {
         let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
 
         let composer_service = GrpcCollectorServiceServer::new(self.grpc_collector);
+        let sequencer_hooks_service = SequencerHooksServiceServer::new(self.sequencer_hooks);
         let grpc_server = tonic::transport::Server::builder()
             .add_service(health_service)
-            .add_service(composer_service);
+            .add_service(composer_service)
+            .add_service(sequencer_hooks_service);
 
         health_reporter
             .set_serving::<GrpcCollectorServiceServer<collectors::Grpc>>()
+            .await;
+        health_reporter
+            .set_serving::<SequencerHooksServiceServer<SequencerHooks>>()
             .await;
 
         grpc_server
