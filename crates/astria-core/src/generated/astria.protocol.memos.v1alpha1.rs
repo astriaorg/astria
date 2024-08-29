@@ -7,7 +7,7 @@ pub struct Ics20WithdrawalFromRollup {
     /// this ics20 withdrawal memo.
     #[prost(uint64, tag = "1")]
     pub rollup_block_number: u64,
-    /// The hash of the original rollup withdrawal event that triggered this ics20
+    /// An identifier of the original rollup withdrawal event that triggered this ics20
     /// withdrawal and that is underlying this bridge unlock memo. For general EVM
     /// this is typically a transaction hash.
     ///
