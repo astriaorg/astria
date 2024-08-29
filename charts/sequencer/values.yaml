@@ -228,7 +228,7 @@ ports:
   cometbftRpc: 26657
   cometbftMetrics: 26660
   sequencerABCI: 26658
-  # TODO: change to 9090 if running with oracle sidecar
+  # note: the oracle sidecar also uses 8080 by default but can be changed with --port
   sequencerGrpc: 8080
   relayerRpc: 2450
   sequencerMetrics: 9000

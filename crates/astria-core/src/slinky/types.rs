@@ -1,7 +1,11 @@
 pub mod v1 {
     use crate::generated::astria_vendored::slinky::types::v1 as raw;
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(from = "raw::CurrencyPair", into = "raw::CurrencyPair")
+    )]
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub struct CurrencyPair {
         base: String,
@@ -9,14 +13,6 @@ pub mod v1 {
     }
 
     impl CurrencyPair {
-        #[must_use]
-        pub fn new(base: String, quote: String) -> Self {
-            Self {
-                base,
-                quote,
-            }
-        }
-
         #[must_use]
         pub fn base(&self) -> &str {
             &self.base
@@ -44,6 +40,18 @@ pub mod v1 {
         }
     }
 
+    impl From<raw::CurrencyPair> for CurrencyPair {
+        fn from(raw: raw::CurrencyPair) -> Self {
+            Self::from_raw(raw)
+        }
+    }
+
+    impl From<CurrencyPair> for raw::CurrencyPair {
+        fn from(currency_pair: CurrencyPair) -> Self {
+            currency_pair.into_raw()
+        }
+    }
+
     impl std::fmt::Display for CurrencyPair {
         fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
             write!(f, "{}/{}", self.base, self.quote)
@@ -55,7 +63,12 @@ pub mod v1 {
 
         fn from_str(s: &str) -> Result<Self, Self::Err> {
             s.split_once('/')
-                .map(|(base, quote)| Self::new(base.to_string(), quote.to_string()))
+                .map(|(base, quote)| {
+                    Self::from_raw(raw::CurrencyPair {
+                        base: base.to_string(),
+                        quote: quote.to_string(),
+                    })
+                })
                 .ok_or_else(|| CurrencyPairParseError::invalid_currency_pair_string(s))
         }
     }

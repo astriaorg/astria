@@ -83,7 +83,7 @@ fn insert_app_state_and_chain_id(dst: &mut Value, app_state: &Value, chain_id: S
     dst.get_mut("consensus_params")
         .expect("consensus_params field exists in cometbft genesis")
         .as_object_mut()
-        .expect("consensus_params field is an object")
+        .expect("consensus_params field is a JSON object")
         .insert(
             "abci".to_string(),
             serde_json::json!({ "vote_extensions_enable_height": "1" }),

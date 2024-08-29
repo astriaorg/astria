@@ -50,7 +50,6 @@ ibc-types = { workspace = true, features = ["with_serde"] }
 indexmap = { workspace = true }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 metrics = { workspace = true }
-pbjson-types = { workspace = true }
 penumbra-proto = { workspace = true }
 penumbra-tower-trace = { workspace = true }
 prost = { workspace = true }

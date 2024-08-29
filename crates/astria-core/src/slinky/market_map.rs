@@ -14,12 +14,30 @@ pub mod v1 {
         Protobuf,
     };
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(try_from = "raw::GenesisState", into = "raw::GenesisState")
+    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct GenesisState {
         pub market_map: MarketMap,
         pub last_updated: u64,
         pub params: Params,
+    }
+
+    impl TryFrom<raw::GenesisState> for GenesisState {
+        type Error = GenesisStateError;
+
+        fn try_from(raw: raw::GenesisState) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw)
+        }
+    }
+
+    impl From<GenesisState> for raw::GenesisState {
+        fn from(genesis_state: GenesisState) -> Self {
+            genesis_state.into_raw()
+        }
     }
 
     impl Protobuf for GenesisState {

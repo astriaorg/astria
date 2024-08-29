@@ -1,3 +1,4 @@
+// source: https://github.com/skip-mev/connect/blob/158cde8a4b774ac4eec5c6d1a2c16de6a8c6abb5/proto/slinky/marketmap/v1/market.proto
 syntax = "proto3";
 package astria_vendored.slinky.marketmap.v1;
 

@@ -434,7 +434,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
     for (currency_pair, price) in prices {
         let price = QuotePrice {
             price,
-            block_timestamp: pbjson_types::Timestamp {
+            block_timestamp: astria_core::Timestamp {
                 seconds: timestamp.seconds,
                 nanos: timestamp.nanos,
             },
@@ -517,7 +517,25 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
 
 #[cfg(test)]
 mod test {
+    use astria_core::{
+        crypto::SigningKey,
+        protocol::transaction::v1alpha1::action::ValidatorUpdate,
+    };
+    use cnidarium::StateDelta;
+    use tendermint::abci::types::{
+        ExtendedVoteInfo,
+        Validator,
+    };
+
     use super::*;
+    use crate::{
+        address::StateWriteExt as _,
+        authority::{
+            StateWriteExt as _,
+            ValidatorSet,
+        },
+        state_ext::StateWriteExt as _,
+    };
 
     #[tokio::test]
     async fn verify_vote_extension_proposal_phase_ok() {
@@ -533,6 +551,42 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         verify_vote_extension(&snapshot, vec![].into(), true)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn validate_vote_extensions_insufficient_voting_power() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(&snapshot);
+        state.put_chain_id_and_revision_number("test-0".try_into().unwrap());
+        let validator_set = ValidatorSet::new_from_updates(vec![
+            ValidatorUpdate {
+                power: 1u16.into(),
+                verification_key: SigningKey::from([0; 32]).verification_key(),
+            },
+            ValidatorUpdate {
+                power: 2u16.into(),
+                verification_key: SigningKey::from([1; 32]).verification_key(),
+            },
+        ]);
+        state.put_validator_set(validator_set).unwrap();
+        state.put_base_prefix("astria").unwrap();
+
+        let extended_commit_info = ExtendedCommitInfo {
+            round: 1u16.into(),
+            votes: vec![ExtendedVoteInfo {
+                validator: Validator {
+                    address: SigningKey::from([0; 32]).verification_key().address_bytes(),
+                    power: 1u16.into(),
+                },
+                sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
+                extension_signature: None,
+                vote_extension: vec![].into(),
+            }],
+        };
+        validate_vote_extensions(&state, 1, &extended_commit_info)
             .await
             .unwrap();
     }

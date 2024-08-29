@@ -63,12 +63,12 @@ fn main() {
         .build_client(true)
         .build_server(true)
         .emit_rerun_if_changed(false)
+        .btree_map([".astria_vendored.slinky"])
         .bytes([
             ".astria",
             ".astria_vendored.slinky",
             ".celestia",
             ".cosmos",
-            ".slinky",
             ".tendermint",
         ])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")

@@ -6,7 +6,10 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::genesis::v1alpha1::IbcParameters,
+    generated::{
+        astria_vendored::slinky::types::v1::CurrencyPair as RawCurrencyPair,
+        protocol::genesis::v1alpha1::IbcParameters,
+    },
     primitive::v1::Address,
     protocol::genesis::v1alpha1::{
         Account,
@@ -28,7 +31,6 @@ use astria_core::{
             GenesisState as OracleGenesisState,
             QuotePrice,
         },
-        types::v1::CurrencyPair,
     },
     Protobuf,
 };
@@ -69,7 +71,11 @@ fn genesis_state_markets() -> HashMap<String, Market> {
         "BTC/USD".to_string(),
         Market {
             ticker: Ticker {
-                currency_pair: CurrencyPair::new("BTC".to_string(), "USD".to_string()),
+                currency_pair: RawCurrencyPair {
+                    base: "BTC".to_string(),
+                    quote: "USD".to_string(),
+                }
+                .into(),
                 decimals: 8,
                 min_provider_count: 3,
                 enabled: true,
@@ -78,7 +84,11 @@ fn genesis_state_markets() -> HashMap<String, Market> {
             provider_configs: vec![ProviderConfig {
                 name: "coingecko_api".to_string(),
                 off_chain_ticker: "bitcoin/usd".to_string(),
-                normalize_by_pair: CurrencyPair::new("USDT".to_string(), "USD".to_string()),
+                normalize_by_pair: RawCurrencyPair {
+                    base: "USDT".to_string(),
+                    quote: "USD".to_string(),
+                }
+                .into(),
                 invert: false,
                 metadata_json: String::new(),
             }],
@@ -88,7 +98,11 @@ fn genesis_state_markets() -> HashMap<String, Market> {
         "ETH/USD".to_string(),
         Market {
             ticker: Ticker {
-                currency_pair: CurrencyPair::new("ETH".to_string(), "USD".to_string()),
+                currency_pair: RawCurrencyPair {
+                    base: "ETH".to_string(),
+                    quote: "USD".to_string(),
+                }
+                .into(),
                 decimals: 8,
                 min_provider_count: 3,
                 enabled: true,
@@ -97,7 +111,11 @@ fn genesis_state_markets() -> HashMap<String, Market> {
             provider_configs: vec![ProviderConfig {
                 name: "coingecko_api".to_string(),
                 off_chain_ticker: "ethereum/usd".to_string(),
-                normalize_by_pair: CurrencyPair::new("USDT".to_string(), "USD".to_string()),
+                normalize_by_pair: RawCurrencyPair {
+                    base: "USDT".to_string(),
+                    quote: "USD".to_string(),
+                }
+                .into(),
                 invert: false,
                 metadata_json: String::new(),
             }],
@@ -185,10 +203,11 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
                                         nanos: 0,
                                     },
                                 },
-                                currency_pair: CurrencyPair::new(
-                                    "BTC".to_string(),
-                                    "USD".to_string(),
-                                ),
+                                currency_pair: RawCurrencyPair {
+                                    base: "BTC".to_string(),
+                                    quote: "USD".to_string(),
+                                }
+                                .into(),
                             },
                             CurrencyPairGenesis {
                                 id: 1,
@@ -201,10 +220,11 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
                                         nanos: 0,
                                     },
                                 },
-                                currency_pair: CurrencyPair::new(
-                                    "ETH".to_string(),
-                                    "USD".to_string(),
-                                ),
+                                currency_pair: RawCurrencyPair {
+                                    base: "ETH".to_string(),
+                                    quote: "USD".to_string(),
+                                }
+                                .into(),
                             },
                         ],
                         next_id: 2,

@@ -1,3 +1,4 @@
+pub use pbjson_types::Timestamp;
 use prost::Name;
 
 #[cfg(not(target_pointer_width = "64"))]

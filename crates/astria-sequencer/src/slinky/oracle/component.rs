@@ -35,10 +35,6 @@ impl Component for OracleComponent {
             state
                 .put_currency_pair_state(currency_pair.currency_pair(), currency_pair_state)
                 .context("failed to put currency pair")?;
-            tracing::info!(
-                "put currency pair: {}",
-                currency_pair.currency_pair().to_string()
-            );
         }
 
         state
