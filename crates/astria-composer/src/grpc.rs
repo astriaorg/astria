@@ -24,7 +24,10 @@ use tokio::{
     net::TcpListener,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{info, instrument};
+use tracing::{
+    info,
+    instrument,
+};
 
 use crate::{
     collectors,

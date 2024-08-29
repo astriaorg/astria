@@ -5,14 +5,17 @@ use astria_core::{
         asset::TracePrefixed,
         RollupId,
     },
-    protocol::transaction::v1alpha1::{
-        action::{
-            BridgeLockAction,
-            SequenceAction,
-            TransferAction,
+    protocol::{
+        genesis::v1alpha1::Account,
+        transaction::v1alpha1::{
+            action::{
+                BridgeLockAction,
+                SequenceAction,
+                TransferAction,
+            },
+            TransactionParams,
+            UnsignedTransaction,
         },
-        TransactionParams,
-        UnsignedTransaction,
     },
     sequencerblock::v1alpha1::block::Deposit,
     Protobuf,
@@ -39,7 +42,6 @@ use tendermint::{
     Hash,
     Time,
 };
-use astria_core::protocol::genesis::v1alpha1::Account;
 
 use super::*;
 use crate::{

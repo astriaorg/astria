@@ -24,6 +24,12 @@ use tracing::info;
 
 const SEND_TIMEOUT: u64 = 2;
 
+// pub(crate) struct OptimisticBlockInfo {
+//     block_hash: Bytes,
+//     seq_actions: Vec<SequenceAction>,
+//     time: Timestamp,
+// }
+
 pub(crate) struct SequencerHooks {
     filtered_block_sender: mpsc::Sender<SendOptimisticBlockRequest>,
     finalized_hash_sender: mpsc::Sender<SendFinalizedHashRequest>,

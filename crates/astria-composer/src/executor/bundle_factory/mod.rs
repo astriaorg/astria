@@ -234,6 +234,7 @@ impl BundleFactory {
     ///
     /// The bundle is only removed from the factory on calling [`NextFinishedBundle::pop`].
     /// This method primarily exists to work around async cancellation.
+    #[allow(dead_code)]
     pub(super) fn next_finished(&mut self) -> Option<NextFinishedBundle> {
         if self.finished.is_empty() {
             None
@@ -259,11 +260,13 @@ impl BundleFactory {
     }
 }
 
+#[allow(dead_code)]
 pub(super) struct NextFinishedBundle<'a> {
     bundle_factory: &'a mut BundleFactory,
 }
 
 impl<'a> NextFinishedBundle<'a> {
+    #[allow(dead_code)]
     pub(super) fn pop(self) -> SizedBundle {
         self.bundle_factory
             .finished

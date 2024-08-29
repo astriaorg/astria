@@ -20,11 +20,7 @@ use astria_core::{
             SendFinalizedHashRequest,
             SendOptimisticBlockRequest,
         },
-        execution::v1alpha1::FinalizeBlockRequest,
-        sequencerblock::v1alpha1::{
-            FilteredSequencerBlock,
-            RollupData,
-        },
+        sequencerblock::v1alpha1::RollupData,
     },
     primitive::v1::{
         asset,
@@ -42,13 +38,11 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     WrapErr as _,
 };
 use bytes::Bytes;
 use futures::{
     future::{
-        self,
         Fuse,
         FusedFuture as _,
         FutureExt as _,
@@ -232,8 +226,8 @@ impl Executor {
     async fn simulate_bundle(
         &self,
         bundle: SizedBundle,
-        parent_block: Vec<astria_core::generated::protocol::transaction::v1alpha1::SequenceAction>,
-        time: Option<pbjson_types::Timestamp>
+        parent_block: Vec<astria_core::generated::protocol::transactions::v1alpha1::SequenceAction>,
+        time: Option<pbjson_types::Timestamp>,
     ) -> eyre::Result<(SizedBundle, BundleSimulationResult)> {
         let bundle_simulator = self.bundle_simulator.clone();
         // convert the sequence actions to RollupData
@@ -305,70 +299,6 @@ impl Executor {
             .wrap_err("couldn't push sequence action to bundle")?;
 
         Ok((final_bundle, bundle_simulation_result))
-    }
-
-    #[instrument(skip_all, fields(nonce.initial = %nonce))]
-    async fn simulate_and_submit_bundle(
-        &self,
-        nonce: u32,
-        bundle: SizedBundle,
-        metrics: &'static Metrics,
-    ) -> eyre::Result<Fuse<Instrumented<SubmitFut>>> {
-        let bundle_simulator = self.bundle_simulator.clone();
-
-        // simulate the bundle
-        let bundle_simulation_result = bundle_simulator
-            .simulate_bundle(bundle.clone())
-            .await
-            .wrap_err("failed to simulate bundle")?;
-
-        let rollup_data_items: Vec<RollupData> = bundle_simulation_result
-            .included_actions()
-            .iter()
-            .map(astria_core::Protobuf::to_raw)
-            .collect();
-
-        info!("Creating BuilderBundlePacket");
-        let builder_bundle = BuilderBundle {
-            transactions: rollup_data_items,
-            parent_hash: bundle_simulation_result.parent_hash(),
-        };
-
-        // TODO - bundle signing
-
-        // create a top of block bundle
-        let builder_bundle_packet = BuilderBundlePacket {
-            bundle: Some(builder_bundle),
-            signature: Bytes::from(vec![]),
-        };
-        let encoded_builder_bundle_packet = builder_bundle_packet.encode_to_vec();
-
-        info!("Created builder bundle packet: {:?}", builder_bundle_packet);
-        // we can give the BuilderBundlePacket the highest bundle max size possible
-        // since this is the only sequence action we are sending
-        let mut final_bundle = SizedBundle::new(self.max_bundle_size);
-        final_bundle
-            .try_push(SequenceAction {
-                rollup_id: self.rollup_id,
-                data: encoded_builder_bundle_packet.into(),
-                fee_asset: self.fee_asset.clone(),
-            })
-            .wrap_err("couldn't push sequence action to bundle")?;
-
-        info!("Submitting the builder bundle packet to sequencer!");
-
-        Ok(SubmitFut {
-            client: self.sequencer_client.clone(),
-            address: self.address,
-            nonce,
-            chain_id: self.sequencer_chain_id.clone(),
-            signing_key: self.sequencer_key.clone(),
-            state: SubmitState::NotStarted,
-            bundle: final_bundle,
-            metrics,
-        }
-        .in_current_span()
-        .fuse())
     }
 
     /// Create a future to submit a bundle to the sequencer.
@@ -448,62 +378,41 @@ impl Executor {
                     // we need to simulate the bundle
                     // and cache the simulated bundle and the block_hash
                     let bundle = bundle_factory.pop_now();
-                    if bundle.is_empty() {
-                        debug!("no bundle to simulate")
-                    } else {
+                    if !bundle.is_empty() {
                         info!("received {:?} sequence actions from process_proposal", filtered_sequencer_block.seq_action.len());
-                        // TODO - we should throw an error log when simulation fails rather than escaping the application
-                        let res = self.simulate_bundle(bundle, filtered_sequencer_block.seq_action, filtered_sequencer_block.time)
-                                                                        .await.wrap_err("failed to simulate bundle on top of received parent block")?;
-                        pending_builder_bundle_packet = Some(res.0);
+                        match self.simulate_bundle(bundle, filtered_sequencer_block.seq_action, filtered_sequencer_block.time)
+                                                                        .await.wrap_err("failed to simulate bundle on top of received parent block") {
+                            Ok(res) => {
+                                pending_builder_bundle_packet = Some(res.0);
+                                current_finalized_block_hash = Some(filtered_sequencer_block.block_hash.clone());
+                            },
+                            Err(e) => {
+                                error!(%e, "failed to simulate bundle on top of received parent block");
+                            }
+                        }
                         info!("simulation done on transactions received from process_proposal!");
                     }
-                    current_finalized_block_hash = Some(filtered_sequencer_block.block_hash.clone());
                 }
 
                 // from finalize_block
                 Some(finalized_block_hash) = self.finalized_block_hash_receiver.recv(), if submission_fut.is_terminated() => {
-                    if let Some(block_hash) = current_finalized_block_hash.clone() {
+                    if let Some(block_hash) = current_finalized_block_hash.take() {
                         if block_hash == finalized_block_hash.block_hash {
                             // we can submit the pending builder bundle packet
-                            if let Some(builder_bundle_packet) = pending_builder_bundle_packet.clone() {
+                            if let Some(builder_bundle_packet) = pending_builder_bundle_packet.take() {
                                 info!("received finalized block hash matches that of process_proposal, submitting pending builder bundle packet");
                                 if !builder_bundle_packet.is_empty() {
                                     submission_fut = self.submit_bundle(nonce, builder_bundle_packet, self.metrics);
                                 }
-                                // TODO - ideally we need to use take() here
-                                pending_builder_bundle_packet = None;
-                                current_finalized_block_hash = None;
                             }
                         }
                     }
                 }
 
-                // Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
-                //     let bundle = next_bundle.pop();
-                //     if !bundle.is_empty() {
-                //         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
-                //     }
-                // }
-
                 // receive new seq_action and bundle it. will not pull from the channel if `bundle_factory` is full
                 Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.is_full() => {
                     self.bundle_seq_action(seq_action, &mut bundle_factory);
                 }
-
-                // // try to preempt current bundle if the timer has ticked without submitting the next bundle
-                // () = &mut block_timer, if submission_fut.is_terminated() => {
-                //     let bundle = bundle_factory.pop_now();
-                //     if bundle.is_empty() {
-                //         debug!("block timer ticked, but no bundle to submit to sequencer");
-                //         block_timer.as_mut().reset(reset_time());
-                //     } else {
-                //         debug!(
-                //             "forcing bundle submission to sequencer due to block timer"
-                //         );
-                //         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
-                //     }
-                // }
             }
         };
 
