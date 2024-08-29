@@ -145,7 +145,7 @@ cometbft:
       timeoutPrevoteDelta: 500ms
       timeoutPrecommit: 1s
       timeoutPrecommitDelta: 500ms
-      timeoutCommit: 4000ms
+      timeoutCommit: 1500ms
 
     instrumentation:
       namespace: "astria_cometbft"

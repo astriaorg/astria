@@ -268,24 +268,24 @@ ingress:
       #  - secretName: chart-example-tls
       #    hosts:
       #      - chart-example.local
-    exec-api:
-      enabled: true
-      hosts:
-        - exec-executor.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}
-      path: /
-      pathType: Prefix
-      service:
-        name: '{{ include "rollup.name" . }}-evm-service'
-        port:
-          name: exec-grpc-svc
-      annotations: {}
-        # kubernetes.io/ingress.class: nginx
-      # kubernetes.io/tls-acme: "true"
-      labels: {}
-      tls: {}
-      #  - secretName: chart-example-tls
-      #    hosts:
-      #      - chart-example.local
+#    exec-api:
+#      enabled: true
+#      hosts:
+#        - exec-executor.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}
+#      path: /
+#      pathType: Prefix
+#      service:
+#        name: '{{ include "rollup.name" . }}-evm-service'
+#        port:
+#          name: exec-grpc-svc
+#      annotations: {}
+#        # kubernetes.io/ingress.class: nginx
+#      # kubernetes.io/tls-acme: "true"
+#      labels: {}
+#      tls: {}
+#      #  - secretName: chart-example-tls
+#      #    hosts:
+#      #      - chart-example.local
 
 # Default persistent storage values
 # NOTE - `rollupName` will be used with `persistentVolumeName` to generate names for kubernetes resources.
