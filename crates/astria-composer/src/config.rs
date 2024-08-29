@@ -1,15 +1,11 @@
 use std::{
-    collections::HashMap,
     net::SocketAddr,
 };
 
-use astria_eyre::eyre::WrapErr;
 use serde::{
     Deserialize,
     Serialize,
 };
-
-use crate::rollup::Rollup;
 
 // this is a config, may have many boolean values
 #[allow(clippy::struct_excessive_bools)]
@@ -28,8 +24,11 @@ pub struct Config {
     /// The chain ID of the sequencer chain
     pub sequencer_chain_id: String,
 
-    /// A list of `<rollup_name>::<url>` pairs
-    pub rollups: String,
+    /// The rollup name
+    pub rollup: String,
+
+    /// The URL of the websocket server for the rollup chain
+    pub rollup_websocket_url: String,
 
     /// Path to private key for the sequencer account used for signing transactions
     pub private_key_file: String,
@@ -73,16 +72,16 @@ pub struct Config {
     pub execution_api_url: String,
 }
 
-impl Config {
-    pub(crate) fn parse_rollups(&self) -> astria_eyre::eyre::Result<HashMap<String, String>> {
-        self.rollups
-            .split(',')
-            .filter(|s| !s.is_empty())
-            .map(|s| Rollup::parse(s).map(Rollup::into_parts))
-            .collect::<Result<HashMap<_, _>, _>>()
-            .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")
-    }
-}
+// impl Config {
+//     pub(crate) fn parse_rollups(&self) -> astria_eyre::eyre::Result<HashMap<String, String>> {
+//         self.rollups
+//             .split(',')
+//             .filter(|s| !s.is_empty())
+//             .map(|s| Rollup::parse(s).map(Rollup::into_parts))
+//             .collect::<Result<HashMap<_, _>, _>>()
+//             .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")
+//     }
+// }
 
 impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_COMPOSER_";
