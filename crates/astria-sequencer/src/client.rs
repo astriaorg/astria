@@ -7,7 +7,7 @@ use astria_core::generated::{
         SendOptimisticBlockRequest,
         SendOptimisticBlockResponse,
     },
-    protocol::transaction::v1alpha1::SequenceAction,
+    protocol::transactions::v1alpha1::SequenceAction,
 };
 use bytes::Bytes;
 use tendermint::Time;
@@ -20,7 +20,6 @@ use tonic::transport::{
 use tracing::{
     info,
     instrument,
-    Instrument,
 };
 
 /// A newtype wrapper around [`SequencerHooksServiceClient`] to work with
@@ -46,9 +45,9 @@ impl SequencerHooksClient {
         })
     }
 
-    pub(crate) fn uri(&self) -> String {
-        self.uri.to_string()
-    }
+    // pub(crate) fn uri(&self) -> String {
+    //     self.uri.to_string()
+    // }
 
     #[instrument(skip_all, fields(uri = % self.uri), err)]
     pub(super) async fn send_optimistic_block(

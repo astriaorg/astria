@@ -6,12 +6,9 @@ use std::{
 };
 
 use astria_core::{
-    generated::{
-        composer::v1alpha1::{
-            SendFinalizedHashRequest,
-            SendOptimisticBlockRequest,
-        },
-        sequencerblock::v1alpha1::FilteredSequencerBlock,
+    generated::composer::v1alpha1::{
+        SendFinalizedHashRequest,
+        SendOptimisticBlockRequest,
     },
     primitive::v1::asset,
 };
@@ -19,7 +16,6 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use bytes::Bytes;
 use itertools::Itertools as _;
 use tokio::{
     io,

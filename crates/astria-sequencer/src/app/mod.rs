@@ -24,11 +24,7 @@ use anyhow::{
     Context,
 };
 use astria_core::{
-    generated::{
-        composer::v1alpha1::sequencer_hooks_service_client::SequencerHooksServiceClient,
-        protocol::transactions::v1alpha1 as raw,
-    },
-    primitive::v1::Address,
+    generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1alpha1::GenesisAppState,
@@ -950,9 +946,7 @@ impl App {
             .context("failed to prepare commit")?;
 
         // update the priority of any txs in the mempool based on the updated app state
-        update_mempool_after_finalization(&mut self.mempool, self.state.as_ref())
-            .await
-            .context("failed to update mempool after finalization")?;
+        update_mempool_after_finalization(&mut self.mempool, self.state.as_ref()).await;
 
         if let Err(e) = self
             .sequencer_hooks_client
