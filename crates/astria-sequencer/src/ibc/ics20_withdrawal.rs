@@ -10,7 +10,7 @@ use astria_core::{
         Address,
     },
     protocol::{
-        memos::v1alpha1::Ics20WithdrawalFromRollup as Ics20WithdrawalFromRollupMemo,
+        memos::v1alpha1::Ics20WithdrawalFromRollup,
         transaction::v1alpha1::action,
     },
     Protobuf as _,
@@ -120,7 +120,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
         ensure!(self.amount() > 0, "amount must be greater than zero",);
         if self.bridge_address.is_some() {
-            let parsed_bridge_memo: Ics20WithdrawalFromRollupMemo =
+            let parsed_bridge_memo: Ics20WithdrawalFromRollup =
                 serde_json::from_str(&self.memo)
                     .context("failed to parse memo for ICS bound bridge withdrawal")?;
 
@@ -167,7 +167,7 @@ impl ActionHandler for action::Ics20Withdrawal {
             state.ensure_base_prefix(bridge_address).await.context(
                 "failed to verify that bridge address address has permitted base prefix",
             )?;
-            let parsed_bridge_memo: Ics20WithdrawalFromRollupMemo =
+            let parsed_bridge_memo: Ics20WithdrawalFromRollup =
                 serde_json::from_str(&self.memo)
                     .context("failed to parse memo for ICS bound bridge withdrawal")?;
 
