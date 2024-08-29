@@ -19,7 +19,6 @@ use astria_core::{
             Action,
         },
     },
-    Protobuf as _,
 };
 use astria_withdrawer::{
     Ics20WithdrawalFilter,
@@ -404,7 +403,6 @@ where
                 rollup_return_address: event.sender.to_string(),
                 rollup_withdrawal_event_id,
             }
-            .into_raw(),
         )
         .map_err(GetWithdrawalActionsError::encode_memo)?;
 
