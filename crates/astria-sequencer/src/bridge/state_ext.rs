@@ -355,29 +355,6 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
-        &self,
-        address: T,
-        withdrawal_event_id: &str,
-    ) -> Result<Option<u64>> {
-        let key = bridge_account_withdrawal_event_storage_key(&address, withdrawal_event_id);
-        let Some(bytes) = self
-            .get_raw(&key)
-            .await
-            .context("failed reading raw withdrawal event from state")?
-        else {
-            return Ok(None);
-        };
-
-        let block_num = u64::from_be_bytes(
-            bytes
-                .try_into()
-                .expect("all block numbers stored should be 8 bytes; this is a bug"),
-        );
-        Ok(Some(block_num))
-    }
-
-    #[instrument(skip_all)]
     async fn get_last_transaction_hash_for_bridge_account(
         &self,
         address: &Address,
@@ -457,14 +434,34 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
+    async fn check_and_set_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
         &mut self,
         address: T,
         withdrawal_event_id: &str,
         block_num: u64,
-    ) {
+    ) -> Result<()> {
         let key = bridge_account_withdrawal_event_storage_key(&address, withdrawal_event_id);
+
+        // Check if the withdrawal ID has already been used, if so return an error.
+        let bytes = self
+            .get_raw(&key)
+            .await
+            .context("failed reading raw withdrawal event from state")?;
+        if let Some(bytes) = bytes {
+            let existing_block_num = u64::from_be_bytes(
+                bytes
+                    .try_into()
+                    .expect("all block numbers stored should be 8 bytes; this is a bug"),
+            );
+
+            return Err(anyhow!(
+                "withdrawal event ID {withdrawal_event_id} used by block number \
+                 {existing_block_num}"
+            ));
+        }
+
         self.put_raw(key, block_num.to_be_bytes().to_vec());
+        Ok(())
     }
 
     // the deposit "nonce" for a given rollup ID during a given block.

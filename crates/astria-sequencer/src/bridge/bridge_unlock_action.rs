@@ -26,6 +26,7 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeUnlockAction {
+    // TODO(https://github.com/astriaorg/astria/issues/1430): move checks to the `BridgeUnlock` parsing.
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.amount > 0, "amount must be greater than zero",);
         ensure!(self.memo.len() <= 64, "memo must not be more than 64 bytes");
@@ -77,17 +78,6 @@ impl ActionHandler for BridgeUnlockAction {
             "unauthorized to unlock bridge account",
         );
 
-        let rollup_withdrawal_height = state
-            .get_withdrawal_event_block_for_bridge_account(
-                self.bridge_address,
-                &self.rollup_withdrawal_event_id,
-            )
-            .await
-            .context("failed to get withdrawal event height")?;
-        if let Some(height) = rollup_withdrawal_height {
-            bail!("a withdrawal event with ID `{}` was already processed at rollup height {height}", self.rollup_withdrawal_event_id);
-        }
-
         let transfer_action = TransferAction {
             to: self.to,
             asset: asset.into(),
@@ -96,11 +86,14 @@ impl ActionHandler for BridgeUnlockAction {
         };
 
         check_transfer(&transfer_action, self.bridge_address, &state).await?;
-        state.put_withdrawal_event_block_for_bridge_account(
-            self.bridge_address,
-            &self.rollup_withdrawal_event_id,
-            self.rollup_block_number,
-        );
+        state
+            .check_and_set_withdrawal_event_block_for_bridge_account(
+                self.bridge_address,
+                &self.rollup_withdrawal_event_id,
+                self.rollup_block_number,
+            )
+            .await
+            .context("withdrawal event already processed")?;
         execute_transfer(&transfer_action, self.bridge_address, state).await?;
 
         Ok(())

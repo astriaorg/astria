@@ -69,47 +69,53 @@ fn withdrawal_to_unchecked_ibc_packet(
 /// Establishes the withdrawal target.
 ///
 /// The function returns the following addresses under the following conditions:
-/// 1. `from` if `action.bridge_address` is unset and `from` is *not* a bridge account;
-/// 2. `from` if `action.bridge_address` is unset and `from` is a bridge account and `from` is its
-///    stored withdrawer address.
-/// 3. `action.bridge_address` if `action.bridge_address` is set and a bridge account and `from` is
-///    its stored withdrawer address.
+/// 1. `action.bridge_address` if `action.bridge_address` is set and `from` is its stored withdrawer
+///    address.
+/// 2. `from` if `action.bridge_address` is unset and `from` is *not* a bridge account.
+///
+/// Errors if:
+/// 1. Errors reading from DB
+/// 2. `action.bridge_address` is set, but `from` is not the withdrawer address.
+/// 3. `action.bridge_address` is unset, but `from` is a bridge account.
 async fn establish_withdrawal_target<S: StateRead>(
     action: &action::Ics20Withdrawal,
     state: &S,
     from: [u8; 20],
 ) -> Result<[u8; 20]> {
-    if action.bridge_address.is_none()
-        && !state
-            .is_a_bridge_account(from)
+    // If the bridge address is set, the withdrawer on that address must match
+    // the from address.
+    if let Some(bridge_address) = action.bridge_address {
+        let Some(withdrawer) = state
+            .get_bridge_account_withdrawer_address(bridge_address)
             .await
-            .context("failed to get bridge account rollup id")?
-    {
-        return Ok(from);
+            .context("failed to get bridge withdrawer")?
+        else {
+            bail!("bridge address must have a withdrawer address set");
+        };
+
+        ensure!(
+            withdrawer == from.address_bytes(),
+            "sender does not match bridge withdrawer address; unauthorized"
+        );
+
+        return Ok(bridge_address.address_bytes());
     }
 
-    // if `action.bridge_address` is set, but it's not a valid bridge account,
-    // the `get_bridge_account_withdrawer_address` step will fail.
-    let bridge_address = action.bridge_address.map_or(from, Address::bytes);
-
-    let Some(withdrawer) = state
-        .get_bridge_account_withdrawer_address(bridge_address)
+    // If the bridge address is not set, the sender must not be a bridge account.
+    if state
+        .is_a_bridge_account(from)
         .await
-        .context("failed to get bridge withdrawer")?
-    else {
-        bail!("bridge address must have a withdrawer address set");
-    };
+        .context("failed to get bridge account rollup id")?
+    {
+        bail!("sender cannot be a bridge address if bridge address is not set");
+    }
 
-    ensure!(
-        withdrawer == from.address_bytes(),
-        "sender does not match bridge withdrawer address; unauthorized"
-    );
-
-    Ok(bridge_address)
+    Ok(from)
 }
 
 #[async_trait::async_trait]
 impl ActionHandler for action::Ics20Withdrawal {
+    // TODO(https://github.com/astriaorg/astria/issues/1430): move checks to the `Ics20Withdrawal` parsing.
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
         ensure!(self.amount() > 0, "amount must be greater than zero",);
@@ -165,22 +171,14 @@ impl ActionHandler for action::Ics20Withdrawal {
                 serde_json::from_str(&self.memo)
                     .context("failed to parse memo for ICS bound bridge withdrawal")?;
 
-            let rollup_withdrawal_height = state
-                .get_withdrawal_event_block_for_bridge_account(
+            state
+                .check_and_set_withdrawal_event_block_for_bridge_account(
                     self.bridge_address.map_or(from, Address::bytes),
                     &parsed_bridge_memo.rollup_withdrawal_event_id,
+                    parsed_bridge_memo.rollup_block_number,
                 )
                 .await
-                .context("failed to get withdrawal event height")?;
-            if let Some(height) = rollup_withdrawal_height {
-                bail!("withdrawal event already processed at rollup height {height}");
-            };
-
-            state.put_withdrawal_event_block_for_bridge_account(
-                self.bridge_address.map_or(from, Address::bytes),
-                &parsed_bridge_memo.rollup_withdrawal_event_id,
-                parsed_bridge_memo.rollup_block_number,
-            );
+                .context("withdrawal event already processed")?;
         }
 
         let withdrawal_target = establish_withdrawal_target(self, &state, from)
@@ -326,11 +324,11 @@ mod tests {
             memo: String::new(),
         };
 
-        assert_eq!(
-            establish_withdrawal_target(&action, &state, bridge_address)
+        assert_anyhow_error(
+            &establish_withdrawal_target(&action, &state, bridge_address)
                 .await
-                .unwrap(),
-            bridge_address,
+                .unwrap_err(),
+            "sender cannot be a bridge address if bridge address is not set",
         );
     }
 
@@ -383,13 +381,6 @@ mod tests {
                     .unwrap_err(),
                 "sender does not match bridge withdrawer address; unauthorized",
             );
-        }
-
-        #[tokio::test]
-        async fn bridge_unset() {
-            let mut action = action();
-            action.bridge_address = None;
-            run_test(action).await;
         }
 
         #[tokio::test]
