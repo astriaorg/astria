@@ -16,6 +16,7 @@ use tonic::transport::{
     Uri,
 };
 use tracing::{
+    info,
     instrument,
     Instrument,
 };
@@ -51,6 +52,11 @@ impl SequencerHooksClient {
         block_hash: Bytes,
         seq_actions: Vec<SequenceAction>,
     ) -> anyhow::Result<SendOptimisticBlockResponse> {
+        info!(
+            "BHARATH: sending optimistic block hash to {:?}",
+            self.uri.to_string()
+        );
+
         let request = SendOptimisticBlockRequest {
             block_hash,
             seq_action: seq_actions,
@@ -67,6 +73,10 @@ impl SequencerHooksClient {
         &self,
         finalized_block_hash: Bytes,
     ) -> anyhow::Result<SendFinalizedHashResponse> {
+        info!(
+            "BHARATH: sending finalized block hash to {:?}",
+            self.uri.to_string()
+        );
         let request = SendFinalizedHashRequest {
             block_hash: finalized_block_hash,
         };

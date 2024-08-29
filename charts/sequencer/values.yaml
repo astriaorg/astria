@@ -7,7 +7,7 @@ global:
   # Whether to use tty readable logging for astria services, when false use json.
   # Best to be false in production environments, true for clean logs on local dev.
   useTTY: true
-  dev: false
+  dev: true
 
 # sequencer core images
 images:
@@ -16,9 +16,9 @@ images:
     tag: v0.38.8
     devTag: v0.38.8
   sequencer:
-    repo: ghcr.io/astriaorg/sequencer
-    tag: "0.16.0"
-    devTag: latest
+    repo: astria-sequencer
+    tag: "0.14.0"
+    devTag: tb
 
 moniker: ""
 genesis:
