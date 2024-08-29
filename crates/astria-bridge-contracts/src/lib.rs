@@ -32,7 +32,7 @@ use ethers::{
         Log,
         H256,
     },
-    utils::hex::ToHexExt,
+    utils::hex::ToHexExt as _,
 };
 pub use generated::*;
 
