@@ -112,7 +112,7 @@ impl BuilderBundlePacketError {
 )]
 pub struct BuilderBundlePacket {
     bundle: BuilderBundle,
-    signature: Bytes,
+    signature: String,
 }
 
 impl BuilderBundlePacket {
@@ -120,7 +120,7 @@ impl BuilderBundlePacket {
         &self.bundle
     }
 
-    pub fn signature(&self) -> Bytes {
+    pub fn signature(&self) -> String {
         self.signature.clone()
     }
 }
@@ -152,14 +152,14 @@ impl Protobuf for BuilderBundlePacket {
 
         Ok(BuilderBundlePacket {
             bundle,
-            signature: Bytes::from(signature.clone()),
+            signature: signature.clone(),
         })
     }
 
     fn to_raw(&self) -> Self::Raw {
         crate::generated::composer::v1alpha1::BuilderBundlePacket {
             bundle: Some(self.bundle.to_raw()),
-            signature: self.signature.clone().to_vec(),
+            signature: self.signature.clone(),
         }
     }
 }

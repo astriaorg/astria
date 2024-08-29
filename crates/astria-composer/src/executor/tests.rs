@@ -7,6 +7,7 @@ use astria_core::{
     generated::{
         composer::v1alpha1::BuilderBundlePacket,
         protocol::account::v1alpha1::NonceResponse,
+        sequencerblock::v1alpha1 as raw_sequencer,
     },
     primitive::v1::{
         asset,
@@ -18,6 +19,10 @@ use astria_core::{
     Protobuf,
 };
 use astria_eyre::eyre;
+use base64::{
+    prelude::BASE64_STANDARD,
+    Engine,
+};
 use futures::future::join;
 use once_cell::sync::Lazy;
 use prost::{
@@ -64,14 +69,12 @@ use wiremock::{
 
 use crate::{
     executor,
-    executor::{
-        mock_grpc::{
-            MockGrpc,
-            TestExecutor,
-        },
-        EnsureChainIdError,
-    },
+    executor::EnsureChainIdError,
     metrics::Metrics,
+    mock_grpc::{
+        MockGrpc,
+        TestExecutor,
+    },
     mount_executed_block,
     mount_get_commitment_state,
     test_utils::sequence_action_of_max_size,
@@ -337,7 +340,6 @@ async fn full_bundle() {
         execution_api_url: cfg.execution_api_url,
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset,
-        websocket_url: cfg.rollup_websocket_url.clone(),
         metrics,
     }
     .build()
@@ -378,12 +380,10 @@ async fn full_bundle() {
         ..sequence_action_of_max_size(cfg.max_bytes_per_bundle)
     };
 
-    // TODO - type declaration looks weird, fix it
-    let rollup_data: Vec<astria_core::generated::sequencerblock::v1alpha1::RollupData> =
-        vec![seq0.clone()]
-            .iter()
-            .map(|item| RollupData::SequencedData(item.clone().data).to_raw())
-            .collect();
+    let rollup_data: Vec<raw_sequencer::RollupData> = vec![seq0.clone()]
+        .iter()
+        .map(|item| RollupData::SequencedData(item.clone().data).to_raw())
+        .collect();
 
     let execute_block = mount_executed_block!(test_executor,
         mock_name: "execute_block",
@@ -486,7 +486,6 @@ async fn bundle_triggered_by_block_timer() {
         execution_api_url: cfg.execution_api_url,
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset.clone(),
-        websocket_url: cfg.rollup_websocket_url.clone(),
         metrics,
     }
     .build()
@@ -511,11 +510,10 @@ async fn bundle_triggered_by_block_timer() {
         ..sequence_action(rollup_id.clone(), cfg.fee_asset.clone())
     };
 
-    let rollup_data: Vec<astria_core::generated::sequencerblock::v1alpha1::RollupData> =
-        vec![seq0.clone()]
-            .iter()
-            .map(|item| RollupData::SequencedData(item.clone().data).to_raw())
-            .collect();
+    let rollup_data: Vec<raw_sequencer::RollupData> = vec![seq0.clone()]
+        .iter()
+        .map(|item| RollupData::SequencedData(item.clone().data).to_raw())
+        .collect();
 
     let soft_parent_hash = [1; 64];
     let soft_block_number = 1;
@@ -583,8 +581,8 @@ async fn bundle_triggered_by_block_timer() {
         soft_block_hash.to_vec()
     );
 
-    // ensure that the seq_action of the BuilderBundlePacket and the expected sequence actions have the same
-    // rollup id and fee asset
+    // ensure that the seq_action of the BuilderBundlePacket and the expected sequence actions have
+    // the same rollup id and fee asset
 
     for (action, expected_action) in expected_seq_actions.iter().zip(actions) {
         let expected_seq_action = expected_action.as_sequence().unwrap();
@@ -598,7 +596,6 @@ async fn bundle_triggered_by_block_timer() {
         .iter()
         .zip(expected_seq_actions.iter())
     {
-
         match action.clone() {
             RollupData::SequencedData(data) => {
                 assert_eq!(
@@ -639,7 +636,6 @@ async fn two_seq_actions_single_bundle() {
         execution_api_url: cfg.execution_api_url,
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset.clone(),
-        websocket_url: cfg.rollup_websocket_url.clone(),
         metrics,
     }
     .build()
@@ -668,11 +664,10 @@ async fn two_seq_actions_single_bundle() {
         ..sequence_action(rollup_id.clone(), cfg.fee_asset.clone())
     };
 
-    let rollup_data: Vec<astria_core::generated::sequencerblock::v1alpha1::RollupData> =
-        vec![seq0.clone(), seq1.clone()]
-            .iter()
-            .map(|item| RollupData::SequencedData(item.clone().data).to_raw())
-            .collect();
+    let rollup_data: Vec<raw_sequencer::RollupData> = vec![seq0.clone(), seq1.clone()]
+        .iter()
+        .map(|item| RollupData::SequencedData(item.clone().data).to_raw())
+        .collect();
 
     let soft_parent_hash = [1; 64];
     let soft_block_number = 1;
@@ -713,7 +708,7 @@ async fn two_seq_actions_single_bundle() {
         join(
             response_guard.wait_until_satisfied(),
             execute_block.wait_until_satisfied(),
-        )
+        ),
     )
     .await
     .unwrap();
@@ -797,7 +792,6 @@ async fn chain_id_mismatch_returns_error() {
         execution_api_url: cfg.execution_api_url,
         chain_name: rollup_name.to_string(),
         fee_asset: cfg.fee_asset,
-        websocket_url: cfg.rollup_websocket_url.clone(),
         metrics,
     }
     .build()
