@@ -466,7 +466,7 @@ impl App {
             "chain IDs commitment does not match expected",
         );
 
-        let block_hash = process_proposal.hash.clone();
+        let block_hash = process_proposal.hash;
         self.executed_proposal_hash = block_hash;
 
         // get a list of sequence actions from the signed_txs

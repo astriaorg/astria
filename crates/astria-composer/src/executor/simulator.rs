@@ -67,10 +67,8 @@ impl BundleSimulator {
         })
     }
 
-    // TODO - the interfaces below are weird but they work for now
-    // have cleaner interfaces
     #[instrument(skip_all, fields(uri=self.execution_service_client.uri()))]
-    pub(crate) async fn simulate_parent_bundle(
+    pub(crate) async fn create_parent_block(
         self,
         rollup_data: Vec<RollupData>,
         time: pbjson_types::Timestamp,
@@ -88,90 +86,13 @@ impl BundleSimulator {
             .iter()
             .map(|action| match action.clone() {
                 RollupData::SequencedData(data) => data.to_vec(),
-                _ => vec![],
+                RollupData::Deposit(_) => vec![],
             })
             .filter(|data| !data.is_empty())
             .collect();
 
-        // as long as the timestamp > parent block timestamp, the block will be successfully
-        // created. It doesn't matter what timestamp we use anyway since we are not going to
-        // commit the block to the chain.
-        // call execute block with the bundle to get back the included transactions
-        let execute_block_response = self
-            .execution_service_client
-            .execute_block_with_retry(
-                soft_block.hash().clone(),
-                actions,
-                // use current timestamp
-                time,
-                false,
-            )
+        self.inner_simulate_bundle_on_block(actions, soft_block.clone(), Some(time))
             .await
-            .wrap_err("failed to execute block")?;
-
-        let included_transactions = execute_block_response.included_transactions();
-        info!(
-            "Parent block created on top of {:?} and {:?} transactions were included",
-            soft_block.hash(),
-            included_transactions.len()
-        );
-        Ok(BundleSimulationResult::new(
-            included_transactions.to_vec(),
-            execute_block_response.block().clone(),
-            soft_block.hash().clone(),
-        ))
-    }
-
-    #[instrument(skip_all, fields(uri=self.execution_service_client.uri()), err)]
-    pub(crate) async fn simulate_bundle_on_block(
-        self,
-        bundle: SizedBundle,
-        block: Block,
-    ) -> eyre::Result<BundleSimulationResult> {
-        // convert the sized bundle actions to a list of Vec<u8>
-        let actions: Vec<Vec<u8>> = bundle
-            .into_actions()
-            .iter()
-            .map(|action| match action.as_sequence() {
-                Some(seq_action) => RollupData::SequencedData(seq_action.clone().data)
-                    .to_raw()
-                    .encode_to_vec(),
-                None => vec![],
-            })
-            .filter(|data| !data.is_empty())
-            .collect();
-
-        // as long as the timestamp > parent block timestamp, the block will be successfully
-        // created. It doesn't matter what timestamp we use anyway since we are not going to
-        // commit the block to the chain.
-        let timestamp = Timestamp {
-            seconds: block.timestamp().seconds + 3,
-            nanos: 0,
-        };
-        // call execute block with the bundle to get back the included transactions
-        let execute_block_response = self
-            .execution_service_client
-            .execute_block_with_retry(
-                block.hash().clone(),
-                actions,
-                // use current timestamp
-                timestamp,
-                true,
-            )
-            .await
-            .wrap_err("failed to execute block")?;
-
-        let included_transactions = execute_block_response.included_transactions();
-        info!(
-            "Bundle simulated on top of {:?} and {:?} transactions were included",
-            block.hash().clone(),
-            included_transactions.len()
-        );
-        Ok(BundleSimulationResult::new(
-            included_transactions.to_vec(),
-            execute_block_response.block().clone(),
-            block.hash().clone(),
-        ))
     }
 
     #[instrument(skip_all, fields(uri=self.execution_service_client.uri()))]
@@ -190,33 +111,46 @@ impl BundleSimulator {
 
         let soft_block = commitment_state.soft();
         info!("Soft block hash is {:?}", soft_block.hash());
-        // convert the sized bundle actions to a list of Vec<u8>
-        let actions: Vec<Vec<u8>> = bundle
-            .into_actions()
-            .iter()
-            .map(|action| match action.as_sequence() {
-                Some(seq_action) => RollupData::SequencedData(seq_action.clone().data)
-                    .to_raw()
-                    .encode_to_vec(),
-                None => vec![],
-            })
-            .filter(|data| !data.is_empty())
-            .collect();
 
-        info!("Calling ExecuteBlock to simulate the bundle!");
+        let actions = convert_bundle_to_byte_array(bundle);
+
+        self.inner_simulate_bundle_on_block(actions, soft_block.clone(), None)
+            .await
+    }
+
+    #[instrument(skip_all, fields(uri=self.execution_service_client.uri()))]
+    pub(crate) async fn simulate_bundle_on_block(
+        self,
+        bundle: SizedBundle,
+        block: Block,
+        timestamp: Option<Timestamp>,
+    ) -> eyre::Result<BundleSimulationResult> {
+        let actions = convert_bundle_to_byte_array(bundle);
+        self.inner_simulate_bundle_on_block(actions, block, timestamp)
+            .await
+    }
+
+    #[instrument(skip_all, fields(uri=self.execution_service_client.uri()), err)]
+    async fn inner_simulate_bundle_on_block(
+        self,
+        bundle: Vec<Vec<u8>>,
+        block: Block,
+        timestamp: Option<Timestamp>,
+    ) -> eyre::Result<BundleSimulationResult> {
+        // convert the sized bundle actions to a list of Vec<u8>
         // as long as the timestamp > parent block timestamp, the block will be successfully
         // created. It doesn't matter what timestamp we use anyway since we are not going to
         // commit the block to the chain.
-        let timestamp = Timestamp {
-            seconds: soft_block.timestamp().seconds + 3,
+        let timestamp = timestamp.unwrap_or(Timestamp {
+            seconds: block.timestamp().seconds + 3,
             nanos: 0,
-        };
+        });
         // call execute block with the bundle to get back the included transactions
         let execute_block_response = self
             .execution_service_client
             .execute_block_with_retry(
-                soft_block.hash().clone(),
-                actions,
+                block.hash().clone(),
+                bundle,
                 // use current timestamp
                 timestamp,
                 true,
@@ -227,13 +161,27 @@ impl BundleSimulator {
         let included_transactions = execute_block_response.included_transactions();
         info!(
             "Bundle simulated on top of {:?} and {:?} transactions were included",
-            soft_block.hash(),
+            block.hash().clone(),
             included_transactions.len()
         );
         Ok(BundleSimulationResult::new(
             included_transactions.to_vec(),
             execute_block_response.block().clone(),
-            soft_block.hash().clone(),
+            block.hash().clone(),
         ))
     }
+}
+
+fn convert_bundle_to_byte_array(bundle: SizedBundle) -> Vec<Vec<u8>> {
+    bundle
+        .into_actions()
+        .iter()
+        .map(|action| match action.as_sequence() {
+            Some(seq_action) => RollupData::SequencedData(seq_action.clone().data)
+                .to_raw()
+                .encode_to_vec(),
+            None => vec![],
+        })
+        .filter(|data| !data.is_empty())
+        .collect()
 }

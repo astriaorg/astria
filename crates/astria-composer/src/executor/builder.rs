@@ -5,11 +5,8 @@ use std::{
 };
 
 use astria_core::{
+    self,
     crypto::SigningKey,
-    generated::composer::v1alpha1::{
-        SendFinalizedHashRequest,
-        SendOptimisticBlockRequest,
-    },
     primitive::v1::{
         asset,
         Address,
@@ -36,6 +33,10 @@ use crate::{
         Status,
     },
     metrics::Metrics,
+    sequencer_hooks::{
+        FinalizedHashInfo,
+        OptimisticBlockInfo,
+    },
 };
 
 pub(crate) struct Builder {
@@ -51,8 +52,8 @@ pub(crate) struct Builder {
     pub(crate) chain_name: String,
     pub(crate) fee_asset: asset::Denom,
     pub(crate) max_bundle_size: usize,
-    pub(crate) filtered_block_receiver: mpsc::Receiver<SendOptimisticBlockRequest>,
-    pub(crate) finalized_block_hash_receiver: mpsc::Receiver<SendFinalizedHashRequest>,
+    pub(crate) filtered_block_receiver: mpsc::Receiver<OptimisticBlockInfo>,
+    pub(crate) finalized_block_hash_receiver: mpsc::Receiver<FinalizedHashInfo>,
     pub(crate) metrics: &'static Metrics,
 }
 

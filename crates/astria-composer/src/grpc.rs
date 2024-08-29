@@ -76,8 +76,8 @@ impl Builder {
         Ok(GrpcServer {
             listener,
             grpc_collector,
-            shutdown_token,
             sequencer_hooks,
+            shutdown_token,
         })
     }
 }
