@@ -332,7 +332,7 @@ where
     pub async fn get_for_block_hash(
         &self,
         block_hash: H256,
-    ) -> Result<Vec<Action>, GetWithdrawalActionsError> {
+    ) -> Result<Vec<Result<Action, GetWithdrawalActionsError>>, GetWithdrawalActionsError> {
         use futures::FutureExt as _;
         let get_ics20_logs = if self.configured_for_ics20_withdrawals() {
             get_logs::<Ics20WithdrawalFilter, _>(&self.provider, self.contract_address, block_hash)
@@ -358,7 +358,7 @@ where
         // XXX: The calls to `log_to_*_action` rely on only be called if `GetWithdrawalActions`
         // is configured for either ics20 or sequencer withdrawals (or both). They would panic
         // otherwise.
-        ics20_logs
+        Ok(ics20_logs
             .into_iter()
             .map(|log| self.log_to_ics20_withdrawal_action(log))
             .chain(
@@ -366,7 +366,7 @@ where
                     .into_iter()
                     .map(|log| self.log_to_sequencer_withdrawal_action(log)),
             )
-            .collect()
+            .collect())
     }
 
     fn log_to_ics20_withdrawal_action(
