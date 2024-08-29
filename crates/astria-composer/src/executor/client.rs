@@ -93,7 +93,10 @@ impl Client {
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();
             let request = request.clone();
-            async move { client.execute_block(request).await}
+            async move {
+                let res = client.execute_block(request).await;
+                res
+            }
         })
         .with_config(retry_config())
         .in_current_span()
@@ -117,7 +120,6 @@ impl Client {
             async move {
                 let request = raw::GetCommitmentStateRequest {};
                 let res = client.get_commitment_state(request).await;
-                println!("IN CLIENT CODE: CALLED GET COMMITMENT STATE {:?}", res);
                 res
             }
         })
