@@ -465,7 +465,14 @@ mod test {
         let mempool = Mempool::new();
         let metrics = Box::leak(Box::new(Metrics::new()));
         // TODO - temp addr
-        let mut app = App::new(snapshot, mempool.clone(), "127.0.0.1:34".to_string(), metrics).await.unwrap();
+        let mut app = App::new(
+            snapshot,
+            mempool.clone(),
+            "127.0.0.1:34".to_string(),
+            metrics,
+        )
+        .await
+        .unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();

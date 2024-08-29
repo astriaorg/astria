@@ -136,7 +136,9 @@ pub(crate) async fn initialize_app_with_storage(
     let mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::new()));
     // TODO - temp addr
-    let mut app = App::new(snapshot, mempool, "127.0.0.1:232".to_string(), metrics).await.unwrap();
+    let mut app = App::new(snapshot, mempool, "127.0.0.1:232".to_string(), metrics)
+        .await
+        .unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
 

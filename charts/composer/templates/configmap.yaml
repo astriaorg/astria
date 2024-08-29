@@ -11,7 +11,7 @@ data:
   ASTRIA_COMPOSER_SEQUENCER_URL: "{{ tpl .Values.config.sequencerRpc . }}"
   ASTRIA_COMPOSER_ROLLUP: "{{ .Values.config.rollupName }}"
   ASTRIA_COMPOSER_ROLLUP_WEBSOCKET_URL: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8546"
-  ASTRIA_COMPOSER_EXECUTION_API_URL: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:50051"
+  ASTRIA_COMPOSER_EXECUTION_API_URL: "http://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:50051"
   ASTRIA_COMPOSER_PRIVATE_KEY_FILE: "/var/secrets/{{ .Values.config.privateKey.secret.filename }}"
   ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE: "{{ .Values.config.maxBytesPerBundle }}"
   ASTRIA_COMPOSER_MAX_BUNDLE_SIZE: "{{ .Values.config.maxBundleSize }}"
