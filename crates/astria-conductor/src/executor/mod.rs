@@ -4,6 +4,7 @@ use astria_core::{
     execution::v1alpha2::{
         Block,
         CommitmentState,
+        ExecuteBlockResponse,
     },
     primitive::v1::RollupId,
     sequencerblock::v1alpha1::block::{
@@ -437,15 +438,15 @@ impl Executor {
             .await
             .wrap_err("failed to execute block")?;
 
-        self.does_block_response_fulfill_contract(ExecutionKind::Soft, &executed_block)
+        self.does_block_response_fulfill_contract(ExecutionKind::Soft, &executed_block.block())
             .wrap_err("execution API server violated contract")?;
 
-        self.update_commitment_state(Update::OnlySoft(executed_block.clone()))
+        self.update_commitment_state(Update::OnlySoft(executed_block.block().clone()))
             .await
             .wrap_err("failed to update soft commitment state")?;
 
         self.blocks_pending_finalization
-            .insert(block_number, executed_block);
+            .insert(block_number, executed_block.block().clone());
 
         // XXX: We set an absolute number value here to avoid any potential issues of the remote
         // rollup state and the local state falling out of lock-step.
@@ -488,9 +489,9 @@ impl Executor {
                 .execute_block(parent_hash, executable_block)
                 .await
                 .wrap_err("failed to execute block")?;
-            self.does_block_response_fulfill_contract(ExecutionKind::Firm, &executed_block)
+            self.does_block_response_fulfill_contract(ExecutionKind::Firm, &executed_block.block())
                 .wrap_err("execution API server violated contract")?;
-            Update::ToSame(executed_block, celestia_height)
+            Update::ToSame(executed_block.block().clone(), celestia_height)
         } else if let Some(block) = self.blocks_pending_finalization.remove(&block_number) {
             debug!(
                 block_number,
@@ -546,7 +547,7 @@ impl Executor {
         &mut self,
         parent_hash: Bytes,
         block: ExecutableBlock,
-    ) -> eyre::Result<Block> {
+    ) -> eyre::Result<ExecuteBlockResponse> {
         let ExecutableBlock {
             transactions,
             timestamp,
@@ -565,8 +566,8 @@ impl Executor {
             .record_transactions_per_executed_block(n_transactions);
 
         info!(
-            executed_block.hash = %telemetry::display::base64(&executed_block.hash()),
-            executed_block.number = executed_block.number(),
+            executed_block.hash = %telemetry::display::base64(&executed_block.block().hash()),
+            executed_block.number = executed_block.block().number(),
             "executed block",
         );
 
