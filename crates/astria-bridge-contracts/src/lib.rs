@@ -396,14 +396,12 @@ where
                 .expect("must be set if this method is entered"),
         );
 
-        let memo = memo_to_json(
-            &memos::v1alpha1::Ics20WithdrawalFromRollup {
-                memo: event.memo.clone(),
-                rollup_block_number,
-                rollup_return_address: event.sender.to_string(),
-                rollup_withdrawal_event_id,
-            }
-        )
+        let memo = memo_to_json(&memos::v1alpha1::Ics20WithdrawalFromRollup {
+            memo: event.memo.clone(),
+            rollup_block_number,
+            rollup_return_address: event.sender.to_string(),
+            rollup_withdrawal_event_id,
+        })
         .map_err(GetWithdrawalActionsError::encode_memo)?;
 
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
