@@ -215,19 +215,19 @@ mod tests {
 
         // not enough balance; should fail
         state
-            .put_account_balance(bridge_address, &asset, transfer_amount)
+            .put_account_balance(bridge_address, &asset, 0)
             .unwrap();
         assert_eyre_error(
             &bridge_unlock
                 .check_and_execute(&mut state)
                 .await
                 .unwrap_err(),
-            "insufficient funds for transfer and fee payment",
+            "insufficient funds for transfer",
         );
 
         // enough balance; should pass
         state
-            .put_account_balance(bridge_address, &asset, transfer_amount + transfer_fee)
+            .put_account_balance(bridge_address, &asset, transfer_amount)
             .unwrap();
         bridge_unlock.check_and_execute(&mut state).await.unwrap();
     }
@@ -269,19 +269,19 @@ mod tests {
 
         // not enough balance; should fail
         state
-            .put_account_balance(bridge_address, &asset, transfer_amount)
+            .put_account_balance(bridge_address, &asset, 0)
             .unwrap();
         assert_eyre_error(
             &bridge_unlock
                 .check_and_execute(&mut state)
                 .await
                 .unwrap_err(),
-            "insufficient funds for transfer and fee payment",
+            "insufficient funds for transfer",
         );
 
         // enough balance; should pass
         state
-            .put_account_balance(bridge_address, &asset, transfer_amount + transfer_fee)
+            .put_account_balance(bridge_address, &asset, transfer_amount)
             .unwrap();
         bridge_unlock.check_and_execute(&mut state).await.unwrap();
     }

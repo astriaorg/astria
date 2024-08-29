@@ -69,8 +69,8 @@ pub(crate) struct FeeInfo {
 }
 
 struct PaymentInfo<'a> {
-    from: [u8; 20],
-    to: [u8; 20],
+    from: Option<[u8; 20]>,
+    to: Option<[u8; 20]>,
     allowed_fee_assets: &'a mut Vec<IbcPrefixed>,
     fee_asset: asset::Denom,
     fees_by_asset: &'a mut HashMap<asset::IbcPrefixed, u128>,
@@ -86,14 +86,25 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
     let mut current_fees = get_fees_from_state(state)
         .await
         .wrap_err("failed to get fees from state")?;
-    let mut to = state
-        .get_sudo_address()
-        .await
-        .wrap_err("failed to get sudo address")?;
-    let from = state
-        .get_current_source()
-        .ok_or_eyre("failed to get payer address")?
-        .address_bytes();
+    let mut to;
+    let from;
+    if return_payment_map {
+        to = Some(
+            state
+                .get_sudo_address()
+                .await
+                .wrap_err("failed to get sudo address")?,
+        );
+        from = Some(
+            state
+                .get_current_source()
+                .ok_or_eyre("failed to get payer address")?
+                .address_bytes(),
+        );
+    } else {
+        to = None;
+        from = None;
+    }
     let mut allowed_fee_assets = state
         .get_allowed_fee_assets()
         .await
@@ -136,7 +147,9 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
             .wrap_err("failed to increase transaction fees for sequence action")?,
 
             Action::Ics20Withdrawal(act) => {
-                let from = establish_withdrawal_target(act, state, from).await?;
+                if let Some(from) = from {
+                    establish_withdrawal_target(act, state, from).await?;
+                }
                 ics20_withdrawal_updates_fees(
                     &mut PaymentInfo {
                         from,
@@ -215,7 +228,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
             )
             .wrap_err("failed to increase transaction fees for bridge sudo change action")?,
 
-            Action::SudoAddressChange(act) => to = act.new_address.address_bytes(),
+            Action::SudoAddressChange(act) => to = Some(act.new_address.address_bytes()),
             Action::FeeAssetChange(act) => handle_fee_asset_change(act, &mut allowed_fee_assets),
             Action::FeeChange(act) => handle_fee_change(act, &mut current_fees),
             Action::ValidatorUpdate(_) | Action::Ibc(_) | Action::IbcRelayerChange(_) => {
@@ -279,8 +292,8 @@ fn transfer_update_fees(
     if add_to_payment_map {
         err_if_asset_type_not_allowed(fee_asset, allowed_fee_assets)?;
         increase_fees(
-            *from,
-            *to,
+            from.expect("from address should be `Some`"),
+            to.expect("to address should be `Some`"),
             fee_asset,
             transfer_base_fee,
             fee_payment_map,
@@ -322,8 +335,8 @@ fn sequence_update_fees(
     if add_to_payment_map {
         err_if_asset_type_not_allowed(fee_asset, allowed_fee_assets)?;
         increase_fees(
-            *from,
-            *to,
+            from.expect("from address should be `Some`"),
+            to.expect("to address should be `Some`"),
             fee_asset,
             fee,
             fee_payment_map,
@@ -358,8 +371,8 @@ fn ics20_withdrawal_updates_fees(
     if add_to_payment_map {
         err_if_asset_type_not_allowed(fee_asset, allowed_fee_assets)?;
         increase_fees(
-            *from,
-            *to,
+            from.expect("from address should be `Some`"),
+            to.expect("to address should be `Some`"),
             fee_asset,
             ics20_withdrawal_base_fee,
             fee_payment_map,
@@ -394,8 +407,8 @@ fn init_bridge_account_update_fees(
     if add_to_payment_map {
         err_if_asset_type_not_allowed(fee_asset, allowed_fee_assets)?;
         increase_fees(
-            *from,
-            *to,
+            from.expect("from address should be `Some`"),
+            to.expect("to address should be `Some`"),
             fee_asset,
             init_bridge_account_base_fee,
             fee_payment_map,
@@ -444,8 +457,8 @@ fn bridge_lock_update_fees(
     if add_to_payment_map {
         err_if_asset_type_not_allowed(fee_asset, allowed_fee_assets)?;
         increase_fees(
-            *from,
-            *to,
+            from.expect("from address should be `Some`"),
+            to.expect("to address should be `Some`"),
             fee_asset,
             expected_deposit_fee,
             fee_payment_map,
@@ -480,8 +493,8 @@ fn bridge_unlock_update_fees(
     if add_to_payment_map {
         err_if_asset_type_not_allowed(fee_asset, allowed_fee_assets)?;
         increase_fees(
-            *from,
-            *to,
+            from.expect("from address should be `Some`"),
+            to.expect("to address should be `Some`"),
             fee_asset,
             transfer_base_fee,
             fee_payment_map,
@@ -516,8 +529,8 @@ fn bridge_sudo_change_update_fees(
     if add_to_payment_map {
         err_if_asset_type_not_allowed(fee_asset, allowed_fee_assets)?;
         increase_fees(
-            *from,
-            *to,
+            from.expect("from address should be `Some`"),
+            to.expect("to address should be `Some`"),
             fee_asset,
             bridge_sudo_change_base_fee,
             fee_payment_map,

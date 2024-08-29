@@ -1,7 +1,6 @@
 use astria_core::protocol::transaction::v1alpha1::action::TransferAction;
 use astria_eyre::eyre::{
     ensure,
-    OptionExt as _,
     Result,
     WrapErr as _,
 };
@@ -18,7 +17,6 @@ use crate::{
     },
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::StateReadExt as _,
     bridge::StateReadExt as _,
     transaction::StateReadExt as _,
 };
@@ -84,54 +82,17 @@ where
     state.ensure_base_prefix(&action.to).await.wrap_err(
         "failed ensuring that the destination address matches the permitted base prefix",
     )?;
-    ensure!(
-        state
-            .is_allowed_fee_asset(&action.fee_asset)
-            .await
-            .wrap_err("failed to check allowed fee assets in state")?,
-        "invalid fee asset",
-    );
 
-    let fee = state
-        .get_transfer_base_fee()
-        .await
-        .wrap_err("failed to get transfer base fee")?;
     let transfer_asset = action.asset.clone();
 
-    let from_fee_balance = state
-        .get_account_balance(&from, &action.fee_asset)
+    let from_transfer_balance = state
+        .get_account_balance(from, transfer_asset)
         .await
-        .wrap_err("failed getting `from` account balance for fee payment")?;
-
-    // if fee asset is same as transfer asset, ensure accounts has enough funds
-    // to cover both the fee and the amount transferred
-    if action.fee_asset.to_ibc_prefixed() == transfer_asset.to_ibc_prefixed() {
-        let payment_amount = action
-            .amount
-            .checked_add(fee)
-            .ok_or_eyre("transfer amount plus fee overflowed")?;
-
-        ensure!(
-            from_fee_balance >= payment_amount,
-            "insufficient funds for transfer and fee payment"
-        );
-    } else {
-        // otherwise, check the fee asset account has enough to cover the fees,
-        // and the transfer asset account has enough to cover the transfer
-        ensure!(
-            from_fee_balance >= fee,
-            "insufficient funds for fee payment"
-        );
-
-        let from_transfer_balance = state
-            .get_account_balance(from, transfer_asset)
-            .await
-            .wrap_err("failed to get account balance in transfer check")?;
-        ensure!(
-            from_transfer_balance >= action.amount,
-            "insufficient funds for transfer"
-        );
-    }
+        .wrap_err("failed to get account balance in transfer check")?;
+    ensure!(
+        from_transfer_balance >= action.amount,
+        "insufficient funds for transfer"
+    );
 
     Ok(())
 }

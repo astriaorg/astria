@@ -1,6 +1,9 @@
 use astria_core::{
     primitive::v1::{
-        asset::Denom,
+        asset::{
+            Denom,
+            TracePrefixed,
+        },
         Address,
         RollupId,
     },
@@ -11,6 +14,7 @@ use astria_core::{
                 BridgeLockAction,
                 BridgeSudoChangeAction,
                 BridgeUnlockAction,
+                FeeAssetChangeAction,
                 FeeChange,
                 FeeChangeAction,
                 Ics20Withdrawal,
@@ -926,7 +930,114 @@ async fn handles_mid_tx_sudo_change() {
     );
 }
 
-// TODO: fee asset change
+#[tokio::test]
+async fn handles_mid_tx_fee_asset_change() {
+    let mut state_tx = new_state_tx().await;
+
+    let alice = get_alice_signing_key();
+    let alice_address = astria_address_from_hex_string(ALICE_ADDRESS);
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+
+    let fees = put_all_base_fees(&mut state_tx);
+    initialize_default_state(&mut state_tx, alice_address, bob_address);
+    let mock_asset: TracePrefixed = "mock_asset".parse().unwrap();
+    state_tx
+        .put_account_balance(alice_address, mock_asset.clone(), 10000)
+        .unwrap();
+
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions: vec![
+            TransferAction {
+                to: bob_address,
+                amount: 1,
+                asset: nria().into(),
+                fee_asset: nria().into(),
+            }
+            .into(),
+            FeeAssetChangeAction::Addition(mock_asset.clone().into()).into(),
+            TransferAction {
+                to: bob_address,
+                amount: 1,
+                asset: nria().into(),
+                fee_asset: mock_asset.clone().into(),
+            }
+            .into(),
+        ],
+    };
+
+    let signed_tx = tx.clone().into_signed(&alice);
+    state_tx.put_current_source(&signed_tx);
+
+    let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
+    let fee_payment_map = fee_payment_map.unwrap();
+
+    // Check nria fee payment
+    let key = (
+        alice.address_bytes(),
+        bob_address.address_bytes(),
+        Denom::from(nria()),
+    );
+    let fee_info = fee_payment_map.get(&key).unwrap();
+    assert_eq!(fee_info.amt, fees.transfer_base_fee);
+    let expected_fee_event_nria = construct_tx_fee_event(
+        &nria(),
+        fees.transfer_base_fee,
+        "TransferAction".to_string(),
+        0,
+    );
+    assert_eq!(fee_info.events[0], expected_fee_event_nria);
+
+    // Check mock_asset fee payment
+    let key = (
+        alice.address_bytes(),
+        bob_address.address_bytes(),
+        Denom::from(mock_asset.clone()),
+    );
+    let fee_info = fee_payment_map.get(&key).unwrap();
+    assert_eq!(fee_info.amt, fees.transfer_base_fee);
+    let expected_fee_event_mock_asset = construct_tx_fee_event(
+        &mock_asset,
+        fees.transfer_base_fee,
+        "TransferAction".to_string(),
+        2,
+    );
+    assert_eq!(fee_info.events[0], expected_fee_event_mock_asset);
+
+    pay_fees(&mut state_tx, fee_payment_map).await.unwrap();
+
+    assert_eq!(
+        state_tx
+            .get_account_balance(alice_address, nria())
+            .await
+            .unwrap(),
+        10000 - fees.transfer_base_fee
+    );
+    assert_eq!(
+        state_tx
+            .get_account_balance(alice_address, mock_asset.clone())
+            .await
+            .unwrap(),
+        10000 - fees.transfer_base_fee
+    );
+    assert_eq!(
+        state_tx
+            .get_account_balance(bob_address, nria())
+            .await
+            .unwrap(),
+        fees.transfer_base_fee
+    );
+    assert_eq!(
+        state_tx
+            .get_account_balance(bob_address, mock_asset)
+            .await
+            .unwrap(),
+        fees.transfer_base_fee
+    );
+}
 
 fn put_all_base_fees<S: StateWrite>(state: &mut S) -> Fees {
     state.put_transfer_base_fee(1).unwrap();

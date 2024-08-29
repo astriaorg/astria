@@ -68,7 +68,8 @@ pub(crate) async fn check_balance_mempool<S: StateRead>(
 ) -> Result<()> {
     check_balance_and_execute_fees(tx, state, false)
         .await
-        .wrap_err("failed to check balance for total fees and transfers")?;
+        .wrap_err("failed to check balance for total fees and transfers")
+        .map_err(|e| astria_eyre::eyre::eyre!(format!("{:?}", e)))?;
     Ok(())
 }
 
