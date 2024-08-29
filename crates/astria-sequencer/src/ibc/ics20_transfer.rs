@@ -1052,7 +1052,7 @@ mod test {
                 memo: String::new(),
                 rollup_block_number: 1,
                 rollup_return_address: "rollup-defined".to_string(),
-                rollup_transaction_hash: hex::encode([1u8; 32]),
+                rollup_withdrawal_event_id: "a-rollup-defined-id".into(),
             })
             .unwrap(),
         };
