@@ -461,11 +461,7 @@ fn rollup_height_from_signed_transaction(
         .ok_or_eyre("last transaction by the bridge account did not contain a withdrawal action")?;
 
     let last_batch_rollup_height = match withdrawal_action {
-        Action::BridgeUnlock(action) => {
-            let memo: memos::v1alpha1::BridgeUnlock = serde_json::from_str(&action.memo)
-                .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.rollup_block_number)
-        }
+        Action::BridgeUnlock(action) => Some(action.rollup_block_number),
         Action::Ics20Withdrawal(action) => {
             let memo: memos::v1alpha1::Ics20WithdrawalFromRollup =
                 serde_json::from_str(&action.memo)

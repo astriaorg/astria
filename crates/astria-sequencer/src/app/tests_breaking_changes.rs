@@ -271,8 +271,10 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 to: bob_address,
                 amount: 10,
                 fee_asset: nria().into(),
-                memo: "{}".into(),
+                memo: String::new(),
                 bridge_address: astria_address(&bridge.address_bytes()),
+                rollup_block_number: 1,
+                rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
             }
             .into(),
             BridgeSudoChangeAction {
