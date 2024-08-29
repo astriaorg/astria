@@ -399,10 +399,10 @@ pub struct BridgeUnlockAction {
     /// this bridge unlock memo.
     #[prost(uint64, tag = "6")]
     pub rollup_block_number: u64,
-    /// An identifier of the original rollup event <etc>
-    /// instance, that triggered a bridge unlock and that is underlying this bridge
-    /// unlock memo. This can be utilized for tracing from the bridge back to
-    /// distinct rollup transactions.
+    /// An identifier of the original rollup event, such as a transaction hash which
+    /// triggered a bridge unlock and is underlying event that led to this bridge
+    /// unlock. This can be utilized for tracing from the bridge back to
+    /// distinct rollup events.
     ///
     /// This field is of type `string` so that it can be formatted in the preferred
     /// format of the rollup when targeting plain text encoding.
