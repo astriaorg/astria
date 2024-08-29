@@ -359,7 +359,7 @@ async fn get_and_forward_block_events(
         .filter_map(|r| {
             r.map_err(|e| {
                 warn!(
-                    error = &e as &dyn std::error::Error,
+                    error = %eyre::Report::new(error),
                     "failed to convert withdrawal event to sequecner action"
                 );
             })
