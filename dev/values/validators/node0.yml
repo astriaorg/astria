@@ -23,10 +23,10 @@ genesis:
       address: E82D827830B163D5179291FB27BB58E605DF2FA2
       pubKey: NDE9F44v3l4irmkZxNmrZkywoGmggLlaBo5rE/Cis8M=
       power: '1'
-#    - name: node2
-#      power: '1'
-#      address: 8C17BBDC7C350C83C550163458FC9B7A5B54A64E
-#      pubKey: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
+    - name: node2
+      power: '1'
+      address: 8C17BBDC7C350C83C550163458FC9B7A5B54A64E
+      pubKey: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
 
 cometbft:
   secrets:
