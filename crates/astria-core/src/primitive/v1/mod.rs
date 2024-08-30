@@ -502,7 +502,7 @@ impl TransactionId {
     /// ```
     /// use astria_core::primitive::v1::TransactionId;
     /// let hash = hex::encode([0u8; 32]);
-    /// let transaction_id = TransactionId::new(hash);
+    /// let transaction_id = TransactionId::new(hash.clone());
     /// assert_eq!(hash, transaction_id.get());
     /// ```
     #[must_use]
@@ -518,7 +518,7 @@ impl TransactionId {
     /// ```
     /// use astria_core::primitive::v1::TransactionId;
     /// let hash = hex::encode([0u8; 32]);
-    /// let transaction_id = TransactionId::new(hash);
+    /// let transaction_id = TransactionId::new(hash.clone());
     /// assert_eq!(hash, transaction_id.get());
     /// ```
     #[must_use]
