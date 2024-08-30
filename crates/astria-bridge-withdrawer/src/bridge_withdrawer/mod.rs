@@ -1,9 +1,6 @@
 use std::{
     net::SocketAddr,
-    sync::{
-        Arc,
-        OnceLock,
-    },
+    sync::Arc,
     time::Duration,
 };
 
@@ -72,10 +69,7 @@ impl BridgeWithdrawer {
     /// # Errors
     ///
     /// - If the provided `api_addr` string cannot be parsed as a socket address.
-    pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
-        static METRICS: OnceLock<Metrics> = OnceLock::new();
-        let metrics = METRICS.get_or_init(Metrics::new);
-
+    pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let Config {
             api_addr,

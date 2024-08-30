@@ -1,11 +1,19 @@
 use std::{
     io::Write,
+    net::{
+        IpAddr,
+        SocketAddr,
+    },
     time::Duration,
 };
 
 use astria_core::{
     generated::protocol::accounts::v1alpha1::NonceResponse,
     primitive::v1::{
+        asset::{
+            Denom,
+            IbcPrefixed,
+        },
         RollupId,
         ROLLUP_ID_LEN,
     },
@@ -19,6 +27,7 @@ use prost::{
 };
 use sequencer_client::SignedTransaction;
 use serde_json::json;
+use telemetry::Metrics as _;
 use tempfile::NamedTempFile;
 use tendermint::{
     consensus::{
@@ -64,19 +73,40 @@ use crate::{
 };
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
+    // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
+    // haven't configured telemetry to provide metrics here.
+    let config = Config {
+        log: String::new(),
+        api_listen_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
+        sequencer_url: String::new(),
+        sequencer_chain_id: String::new(),
+        rollups: String::new(),
+        private_key_file: String::new(),
+        sequencer_address_prefix: String::new(),
+        block_time_ms: 0,
+        max_bytes_per_bundle: 0,
+        bundle_queue_capacity: 0,
+        force_stdout: false,
+        no_otel: false,
+        no_metrics: false,
+        metrics_http_listener_addr: String::new(),
+        pretty_print: false,
+        grpc_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
+        fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([0; 32])),
+    };
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::stdout)
-            .filter_directives(&filter_directives)
-            .try_init()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::stdout)
+            .set_filter_directives(&filter_directives)
+            .try_init::<Metrics>(&config)
             .unwrap();
     } else {
         telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::sink)
-            .try_init()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::sink)
+            .try_init::<Metrics>(&config)
             .unwrap();
     }
 });
@@ -294,7 +324,7 @@ async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -385,7 +415,7 @@ async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -473,7 +503,7 @@ async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -572,7 +602,7 @@ async fn chain_id_mismatch_returns_error() {
     // set up sequencer mock
     let (sequencer, cfg, _keyfile) = setup().await;
     let shutdown_token = CancellationToken::new();
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.parse_rollups().unwrap().keys())));
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
 
     // mount a status response with an incorrect chain_id
     mount_genesis(&sequencer, "bad-chain-id").await;

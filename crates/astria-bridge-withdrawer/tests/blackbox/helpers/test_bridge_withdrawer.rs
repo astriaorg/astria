@@ -9,6 +9,7 @@ use astria_bridge_withdrawer::{
     bridge_withdrawer::ShutdownHandle,
     BridgeWithdrawer,
     Config,
+    Metrics,
 };
 use astria_core::{
     primitive::v1::asset::{
@@ -41,6 +42,7 @@ use sequencer_client::{
     Address,
     NonceResponse,
 };
+use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tokio::task::JoinHandle;
 use tracing::{
@@ -76,17 +78,17 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::stdout)
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::stdout)
             .set_pretty_print(true)
-            .filter_directives(&filter_directives)
-            .try_init()
+            .set_filter_directives(&filter_directives)
+            .try_init::<Metrics>(&())
             .unwrap();
     } else {
         telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::sink)
-            .try_init()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::sink)
+            .try_init::<Metrics>(&())
             .unwrap();
     }
 });
@@ -112,6 +114,9 @@ pub struct TestBridgeWithdrawer {
 
     /// The config used to initialize the bridge withdrawer.
     pub config: Config,
+
+    /// A handle to the metrics.
+    pub metrics_handle: metrics::Handle,
 }
 
 impl Drop for TestBridgeWithdrawer {
@@ -285,8 +290,15 @@ impl TestBridgeWithdrawerConfig {
         };
 
         info!(config = serde_json::to_string(&config).unwrap());
+
+        let (metrics, metrics_handle) = metrics::ConfigBuilder::new()
+            .set_global_recorder(false)
+            .build(&())
+            .unwrap();
+        let metrics = Box::leak(Box::new(metrics));
+
         let (bridge_withdrawer, bridge_withdrawer_shutdown_handle) =
-            BridgeWithdrawer::new(config.clone()).unwrap();
+            BridgeWithdrawer::new(config.clone(), metrics).unwrap();
         let api_address = bridge_withdrawer.local_addr();
         let bridge_withdrawer = tokio::task::spawn(bridge_withdrawer.run());
 
@@ -298,6 +310,7 @@ impl TestBridgeWithdrawerConfig {
             bridge_withdrawer_shutdown_handle: Some(bridge_withdrawer_shutdown_handle),
             bridge_withdrawer,
             config,
+            metrics_handle,
         };
 
         test_bridge_withdrawer.mount_startup_responses().await;
