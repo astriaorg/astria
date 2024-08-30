@@ -1,6 +1,5 @@
 use std::{
     future::Future,
-    sync::OnceLock,
     time::Duration,
 };
 
@@ -97,10 +96,7 @@ impl Conductor {
     /// Returns an error in the following cases if one of its constituent
     /// actors could not be spawned (executor, sequencer reader, or data availability reader).
     /// This usually happens if the actors failed to connect to their respective endpoints.
-    pub fn new(cfg: Config) -> eyre::Result<Self> {
-        static METRICS: OnceLock<Metrics> = OnceLock::new();
-        let metrics = METRICS.get_or_init(Metrics::new);
-
+    pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let mut tasks = JoinMap::new();
 
         let sequencer_cometbft_client = HttpClient::new(&*cfg.sequencer_cometbft_url)
