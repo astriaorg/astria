@@ -220,6 +220,7 @@ mod test {
     use bytes::Bytes;
     use prost::Message as _;
     use rand::rngs::OsRng;
+    use telemetry::Metrics as _;
     use tendermint::{
         account::Id,
         Hash,
@@ -463,7 +464,7 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mempool = Mempool::new();
-        let metrics = Box::leak(Box::new(Metrics::new()));
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
