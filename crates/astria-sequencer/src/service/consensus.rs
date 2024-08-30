@@ -469,6 +469,7 @@ mod test {
             snapshot,
             mempool.clone(),
             "127.0.0.1:34".to_string(),
+            false,
             metrics,
         )
         .await
