@@ -27,7 +27,7 @@ use prost::{
 };
 use sequencer_client::SignedTransaction;
 use serde_json::json;
-use telemetry::metrics::Metrics as _;
+use telemetry::Metrics as _;
 use tempfile::NamedTempFile;
 use tendermint::{
     consensus::{

@@ -220,7 +220,7 @@ mod test {
     use bytes::Bytes;
     use prost::Message as _;
     use rand::rngs::OsRng;
-    use telemetry::metrics::Metrics as _;
+    use telemetry::Metrics as _;
     use tendermint::{
         account::Id,
         Hash,

@@ -19,7 +19,7 @@
 //! ```
 use std::io::IsTerminal as _;
 
-use metrics::Metrics;
+pub use metrics::Metrics;
 use opentelemetry::{
     global,
     trace::TracerProvider as _,
@@ -181,8 +181,8 @@ impl Config {
     #[must_use = "telemetry must be initialized to be useful"]
     pub fn set_metrics(mut self, listening_addr: &str, service_name: &str) -> Self {
         let config_builder = metrics::ConfigBuilder::new()
-            .with_service_name(service_name)
-            .with_listening_address(listening_addr);
+            .set_service_name(service_name)
+            .set_listening_address(listening_addr);
         self.metrics_config_builder = Some(config_builder);
         self
     }

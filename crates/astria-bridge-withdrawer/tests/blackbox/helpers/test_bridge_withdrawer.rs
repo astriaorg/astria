@@ -289,7 +289,7 @@ impl TestBridgeWithdrawerConfig {
         info!(config = serde_json::to_string(&config).unwrap());
 
         let (metrics, metrics_handle) = metrics::ConfigBuilder::new()
-            .with_global_recorder(false)
+            .set_global_recorder(false)
             .build(&())
             .unwrap();
         let metrics = Box::leak(Box::new(metrics));

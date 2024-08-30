@@ -7,7 +7,6 @@ use astria_core::primitive::v1::RollupId;
 use telemetry::{
     metric_names,
     metrics::{
-        self,
         Counter,
         Error,
         Gauge,
@@ -98,19 +97,15 @@ impl Metrics {
     }
 
     pub(crate) fn record_txs_per_submission(&self, count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.txs_per_submission.record(count as f64);
+        self.txs_per_submission.record(count);
     }
 
     pub(crate) fn record_bytes_per_submission(&self, byte_count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.bytes_per_submission.record(byte_count as f64);
+        self.bytes_per_submission.record(byte_count);
     }
 }
 
-impl metrics::Metrics for Metrics {
+impl telemetry::Metrics for Metrics {
     type Config = crate::Config;
 
     fn register(builder: &mut RegisteringBuilder, config: &Self::Config) -> Result<Self, Error>

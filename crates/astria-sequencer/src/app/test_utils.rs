@@ -23,7 +23,7 @@ use astria_core::{
 };
 use bytes::Bytes;
 use cnidarium::Storage;
-use telemetry::metrics::Metrics as _;
+use telemetry::Metrics as _;
 
 use crate::{
     app::App,

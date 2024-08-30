@@ -144,7 +144,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     };
 
     let (metrics, metrics_handle) = metrics::ConfigBuilder::new()
-        .with_global_recorder(false)
+        .set_global_recorder(false)
         .build(&config)
         .unwrap();
     let metrics = Box::leak(Box::new(metrics));

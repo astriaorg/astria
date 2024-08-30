@@ -57,3 +57,11 @@ impl IntoF64 for f32 {
         f64::from(self)
     }
 }
+
+impl IntoF64 for usize {
+    // allow: precision loss is unlikely (values too small) but also unimportant in metrics.
+    #[allow(clippy::cast_precision_loss)]
+    fn into_f64(self) -> f64 {
+        self as f64
+    }
+}

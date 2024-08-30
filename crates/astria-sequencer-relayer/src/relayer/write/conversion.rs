@@ -487,7 +487,7 @@ mod tests {
         ChaChaRng,
     };
     use sequencer_client::SequencerBlock;
-    use telemetry::metrics::Metrics as _;
+    use telemetry::Metrics as _;
 
     use super::{
         Input,

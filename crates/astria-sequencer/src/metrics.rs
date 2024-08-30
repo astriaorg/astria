@@ -3,7 +3,6 @@ use std::time::Duration;
 use telemetry::{
     metric_names,
     metrics::{
-        self,
         Counter,
         Gauge,
         Histogram,
@@ -56,21 +55,15 @@ impl Metrics {
     }
 
     pub(crate) fn set_prepare_proposal_excluded_transactions(&self, count: usize) {
-        #[allow(clippy::cast_precision_loss)]
-        self.prepare_proposal_excluded_transactions
-            .set(count as f64);
+        self.prepare_proposal_excluded_transactions.set(count);
     }
 
     pub(crate) fn record_proposal_deposits(&self, count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.proposal_deposits.record(count as f64);
+        self.proposal_deposits.record(count);
     }
 
     pub(crate) fn record_proposal_transactions(&self, count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.proposal_transactions.record(count as f64);
+        self.proposal_transactions.record(count);
     }
 
     pub(crate) fn increment_process_proposal_skipped_proposal(&self) {
@@ -138,24 +131,19 @@ impl Metrics {
     }
 
     pub(crate) fn record_actions_per_transaction_in_mempool(&self, count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.actions_per_transaction_in_mempool.record(count as f64);
+        self.actions_per_transaction_in_mempool.record(count);
     }
 
     pub(crate) fn record_transaction_in_mempool_size_bytes(&self, count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.transaction_in_mempool_size_bytes.record(count as f64);
+        self.transaction_in_mempool_size_bytes.record(count);
     }
 
     pub(crate) fn set_transactions_in_mempool_total(&self, count: usize) {
-        #[allow(clippy::cast_precision_loss)]
-        self.transactions_in_mempool_total.set(count as f64);
+        self.transactions_in_mempool_total.set(count);
     }
 }
 
-impl metrics::Metrics for Metrics {
+impl telemetry::Metrics for Metrics {
     type Config = ();
 
     // allow: this is reasonable as we have a lot of metrics to register; the function is not
@@ -164,7 +152,7 @@ impl metrics::Metrics for Metrics {
     fn register(
         builder: &mut RegisteringBuilder,
         _config: &Self::Config,
-    ) -> Result<Self, metrics::Error> {
+    ) -> Result<Self, telemetry::metrics::Error> {
         let prepare_proposal_excluded_transactions_cometbft_space = builder
             .new_counter_factory(
                 PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,

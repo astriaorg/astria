@@ -60,21 +60,21 @@ impl ConfigBuilder {
     ///
     /// If `service_name` is empty, the label is not applied.
     #[must_use]
-    pub fn with_service_name(mut self, service_name: &str) -> Self {
+    pub fn set_service_name(mut self, service_name: &str) -> Self {
         self.service_name = service_name.to_string();
         self
     }
 
     /// Sets the listening address of the exporter server.
     #[must_use]
-    pub fn with_listening_address(mut self, listening_address: &str) -> Self {
+    pub fn set_listening_address(mut self, listening_address: &str) -> Self {
         self.listening_address = Some(listening_address.to_string());
         self
     }
 
     /// Enables or disables setting the global metrics recorder.
     #[must_use]
-    pub fn with_global_recorder(mut self, use_global_recorder: bool) -> Self {
+    pub fn set_global_recorder(mut self, use_global_recorder: bool) -> Self {
         self.use_global_recorder = use_global_recorder;
         self
     }

@@ -1,7 +1,6 @@
 use telemetry::{
     metric_names,
     metrics::{
-        self,
         Counter,
         Histogram,
         RegisteringBuilder,
@@ -25,17 +24,11 @@ pub struct Metrics {
 
 impl Metrics {
     pub(crate) fn record_metadata_blobs_per_celestia_fetch(&self, blob_count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.metadata_blobs_per_celestia_fetch
-            .record(blob_count as f64);
+        self.metadata_blobs_per_celestia_fetch.record(blob_count);
     }
 
     pub(crate) fn record_rollup_data_blobs_per_celestia_fetch(&self, blob_count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.rollup_data_blobs_per_celestia_fetch
-            .record(blob_count as f64);
+        self.rollup_data_blobs_per_celestia_fetch.record(blob_count);
     }
 
     pub(crate) fn increment_celestia_blob_fetch_error_count(&self) {
@@ -43,37 +36,29 @@ impl Metrics {
     }
 
     pub(crate) fn record_decoded_metadata_items_per_celestia_fetch(&self, item_count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
         self.decoded_metadata_items_per_celestia_fetch
-            .record(item_count as f64);
+            .record(item_count);
     }
 
     pub(crate) fn record_decoded_rollup_data_items_per_celestia_fetch(&self, item_count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
         self.decoded_rollup_data_items_per_celestia_fetch
-            .record(item_count as f64);
+            .record(item_count);
     }
 
     pub(crate) fn record_sequencer_blocks_metadata_verified_per_celestia_fetch(
         &self,
         block_count: usize,
     ) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
         self.sequencer_blocks_metadata_verified_per_celestia_fetch
-            .record(block_count as f64);
+            .record(block_count);
     }
 
     pub(crate) fn record_sequencer_block_information_reconstructed_per_celestia_fetch(
         &self,
         block_count: usize,
     ) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
         self.sequencer_block_information_reconstructed_per_celestia_fetch
-            .record(block_count as f64);
+            .record(block_count);
     }
 
     pub(crate) fn absolute_set_executed_firm_block_number(&self, block_number: u32) {
@@ -87,19 +72,17 @@ impl Metrics {
     }
 
     pub(crate) fn record_transactions_per_executed_block(&self, tx_count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.transactions_per_executed_block.record(tx_count as f64);
+        self.transactions_per_executed_block.record(tx_count);
     }
 }
 
-impl metrics::Metrics for Metrics {
+impl telemetry::Metrics for Metrics {
     type Config = ();
 
     fn register(
         builder: &mut RegisteringBuilder,
         _config: &Self::Config,
-    ) -> Result<Self, metrics::Error> {
+    ) -> Result<Self, telemetry::metrics::Error> {
         let metadata = "metadata".to_string();
         let rollup_data = "rollup_data".to_string();
 

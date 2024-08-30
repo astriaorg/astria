@@ -3,7 +3,6 @@ use std::time::Duration;
 use telemetry::{
     metric_names,
     metrics::{
-        self,
         Counter,
         Gauge,
         Histogram,
@@ -40,21 +39,15 @@ impl Metrics {
     }
 
     pub(crate) fn record_blocks_per_celestia_tx(&self, block_count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.blocks_per_celestia_tx.record(block_count as f64);
+        self.blocks_per_celestia_tx.record(block_count);
     }
 
     pub(crate) fn record_blobs_per_celestia_tx(&self, blob_count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.blobs_per_celestia_tx.record(blob_count as f64);
+        self.blobs_per_celestia_tx.record(blob_count);
     }
 
     pub(crate) fn record_bytes_per_celestia_tx(&self, byte_count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.bytes_per_celestia_tx.record(byte_count as f64);
+        self.bytes_per_celestia_tx.record(byte_count);
     }
 
     pub(crate) fn record_celestia_payload_creation_latency(&self, latency: Duration) {
@@ -82,13 +75,13 @@ impl Metrics {
     }
 }
 
-impl metrics::Metrics for Metrics {
+impl telemetry::Metrics for Metrics {
     type Config = ();
 
     fn register(
         builder: &mut RegisteringBuilder,
         _config: &Self::Config,
-    ) -> Result<Self, metrics::Error> {
+    ) -> Result<Self, telemetry::metrics::Error> {
         let celestia_submission_height = builder
             .new_counter_factory(
                 CELESTIA_SUBMISSION_HEIGHT,
