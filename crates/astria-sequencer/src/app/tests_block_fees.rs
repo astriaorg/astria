@@ -16,7 +16,6 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
-use ethers::utils::hex::ToHexExt as _;
 use tendermint::abci::EventAttributeIndexExt as _;
 
 use crate::{
@@ -269,9 +268,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
         1,
         nria().into(),
         rollup_id.to_string(),
-        signed_tx
-            .sha256_of_proto_encoding()
-            .encode_hex_with_prefix(),
+        hex::encode(signed_tx.sha256_of_proto_encoding()),
         starting_deposit_index,
     );
 

@@ -37,7 +37,6 @@ use astria_core::{
     Protobuf,
 };
 use cnidarium::StateDelta;
-use ethers::utils::hex::ToHexExt as _;
 use prost::{
     bytes::Bytes,
     Message as _,
@@ -127,9 +126,7 @@ async fn app_finalize_block_snapshot() {
         amount,
         nria().into(),
         "nootwashere".to_string(),
-        signed_tx
-            .sha256_of_proto_encoding()
-            .encode_hex_with_prefix(),
+        hex::encode(signed_tx.sha256_of_proto_encoding()),
         starting_deposit_index,
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);

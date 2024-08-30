@@ -28,7 +28,6 @@ use astria_core::{
 };
 use bytes::Bytes;
 use cnidarium::StateDelta;
-use ethers::utils::hex::ToHexExt as _;
 
 use super::test_utils::get_alice_signing_key;
 use crate::{
@@ -741,9 +740,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         amount,
         nria().into(),
         "nootwashere".to_string(),
-        signed_tx
-            .sha256_of_proto_encoding()
-            .encode_hex_with_prefix(),
+        hex::encode(signed_tx.sha256_of_proto_encoding()),
         starting_deposit_index,
     );
 

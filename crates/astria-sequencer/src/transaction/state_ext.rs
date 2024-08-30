@@ -10,7 +10,6 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use ethers::utils::hex::ToHexExt as _;
 use tracing::instrument;
 
 fn action_index_storage_key() -> &'static str {
@@ -37,7 +36,7 @@ impl From<&SignedTransaction> for TransactionContext {
     fn from(value: &SignedTransaction) -> Self {
         Self {
             address_bytes: value.address_bytes(),
-            transaction_hash: value.sha256_of_proto_encoding().encode_hex_with_prefix(),
+            transaction_hash: hex::encode(value.sha256_of_proto_encoding()),
         }
     }
 }

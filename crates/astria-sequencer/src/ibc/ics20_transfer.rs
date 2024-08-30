@@ -657,7 +657,6 @@ mod test {
     use astria_core::primitive::v1::RollupId;
     use cnidarium::StateDelta;
     use denom::TracePrefixed;
-    use ethers::utils::hex::ToHexExt as _;
 
     use super::*;
     use crate::{
@@ -1087,7 +1086,7 @@ mod test {
                 memo: String::new(),
                 rollup_block_number: 1,
                 rollup_return_address: "rollup-defined".to_string(),
-                rollup_transaction_hash: [1u8; 32].encode_hex_with_prefix(),
+                rollup_transaction_hash: hex::encode([1u8; 32]),
             })
             .unwrap(),
         };

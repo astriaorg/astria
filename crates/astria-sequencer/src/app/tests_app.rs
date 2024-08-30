@@ -20,7 +20,6 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
-use ethers::utils::hex::ToHexExt as _;
 use prost::{
     bytes::Bytes,
     Message as _,
@@ -336,9 +335,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         amount,
         nria().into(),
         "nootwashere".to_string(),
-        signed_tx
-            .sha256_of_proto_encoding()
-            .encode_hex_with_prefix(),
+        hex::encode(signed_tx.sha256_of_proto_encoding()),
         starting_deposit_index,
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
@@ -431,9 +428,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         amount,
         nria().into(),
         "nootwashere".to_string(),
-        signed_tx
-            .sha256_of_proto_encoding()
-            .encode_hex_with_prefix(),
+        hex::encode(signed_tx.sha256_of_proto_encoding()),
         starting_deposit_index,
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
