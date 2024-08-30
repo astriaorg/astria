@@ -361,6 +361,7 @@ impl App {
         process_proposal: abci::request::ProcessProposal,
         storage: Storage,
     ) -> anyhow::Result<()> {
+        info!("BHARATH: Processing proposal!");
         // if we proposed this block (ie. prepare_proposal was called directly before this), then
         // we skip execution for this `process_proposal` call.
         //
