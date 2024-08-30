@@ -80,7 +80,7 @@ impl ActionHandler for BridgeLockAction {
             .get_transaction_action_index()
             .await
             .context("failed to get transaction action index")?
-            .expect("deposit index should be `Some`");
+            .expect("action index should be `Some`");
 
         let deposit = Deposit::new(
             self.to,

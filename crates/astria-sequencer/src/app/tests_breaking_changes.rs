@@ -83,7 +83,7 @@ async fn app_finalize_block_snapshot() {
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let starting_deposit_index = 0;
+    let starting_action_index = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
@@ -127,7 +127,7 @@ async fn app_finalize_block_snapshot() {
         nria().into(),
         "nootwashere".to_string(),
         hex::encode(signed_tx.sha256_of_proto_encoding()),
-        starting_deposit_index,
+        starting_action_index,
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());

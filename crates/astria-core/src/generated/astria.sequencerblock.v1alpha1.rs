@@ -129,8 +129,7 @@ pub struct Deposit {
     /// the hash of the transaction which initiated the deposit
     #[prost(string, tag = "6")]
     pub source_transaction_hash: ::prost::alloc::string::String,
-    /// index for differentiating between multiple deposits
-    /// with the same source transaction hash
+    /// index of the deposit's source action within its transaction
     #[prost(uint32, tag = "7")]
     pub source_transaction_index: u32,
 }

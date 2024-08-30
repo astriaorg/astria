@@ -627,13 +627,13 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
 
     let transaction_hash = state
         .get_current_source()
-        .ok_or(anyhow!("expected current source to be `Some`"))?
+        .expect("current source should be `Some`")
         .transaction_hash;
     let source_transaction_index = state
         .get_transaction_action_index()
         .await
-        .context("failed to get transaction deposit index for bridge account")?
-        .expect("transaction action shoul be `Some`");
+        .context("failed to get transaction action index")?
+        .expect("transaction action should be `Some`");
 
     let deposit = Deposit::new(
         bridge_address,

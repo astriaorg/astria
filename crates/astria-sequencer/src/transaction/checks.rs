@@ -100,7 +100,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .context("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
-    let mut tx_deposit_index = 0;
+    let mut tx_action_index = 0;
     for action in &tx.actions {
         match action {
             Action::Transfer(act) => {
@@ -126,8 +126,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     &mut fees_by_asset,
                     transfer_fee,
                     bridge_lock_byte_cost_multiplier,
-                    &mut tx_deposit_index,
-                )?;
+                    &mut tx_action_index,
+                );
             }
             Action::BridgeUnlock(act) => {
                 bridge_unlock_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
@@ -147,6 +147,9 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 continue;
             }
         }
+        tx_action_index
+            .checked_add(1)
+            .expect("increment tx action index");
     }
     Ok(fees_by_asset)
 }
@@ -265,8 +268,8 @@ fn bridge_lock_update_fees(
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     transfer_fee: u128,
     bridge_lock_byte_cost_multiplier: u128,
-    tx_deposit_index: &mut u32,
-) -> anyhow::Result<()> {
+    tx_action_index: &mut u32,
+) {
     use astria_core::sequencerblock::v1alpha1::block::Deposit;
 
     let expected_deposit_fee = transfer_fee.saturating_add(
@@ -278,20 +281,15 @@ fn bridge_lock_update_fees(
             act.asset.clone(),
             act.destination_chain_address.clone(),
             hex::encode([0u8, 32]),
-            *tx_deposit_index,
+            *tx_action_index,
         ))
         .saturating_mul(bridge_lock_byte_cost_multiplier),
     );
-
-    tx_deposit_index.checked_add(1).ok_or(anyhow::anyhow!(
-        "deposit index overflow: too many deposits in transaction"
-    ))?;
 
     fees_by_asset
         .entry(act.asset.to_ibc_prefixed())
         .and_modify(|amt| *amt = amt.saturating_add(expected_deposit_fee))
         .or_insert(expected_deposit_fee);
-    Ok(())
 }
 
 fn bridge_unlock_update_fees(

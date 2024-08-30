@@ -693,7 +693,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let starting_deposit_index = 0;
+    let starting_action_index = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
@@ -741,7 +741,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         nria().into(),
         "nootwashere".to_string(),
         hex::encode(signed_tx.sha256_of_proto_encoding()),
-        starting_deposit_index,
+        starting_action_index,
     );
 
     let fee = transfer_fee
@@ -769,13 +769,13 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
     assert_eq!(deposits.len(), 1);
     assert_eq!(deposits[0], expected_deposit);
-    let current_deposit_index = app
+    let current_action_index = app
         .state
         .get_transaction_action_index()
         .await
         .unwrap()
-        .expect("current_deposit_index should be `Some`");
-    assert_eq!(current_deposit_index, starting_deposit_index + 1);
+        .expect("current_action_index should be `Some`");
+    assert_eq!(current_action_index, starting_action_index + 1);
 }
 
 #[tokio::test]

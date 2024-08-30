@@ -88,8 +88,7 @@ message Deposit {
   string destination_chain_address = 5;
   // the hash of the transaction which initiated the deposit
   string source_transaction_hash = 6;
-  // index for differentiating between multiple deposits
-  // with the same source transaction hash
+  // index of the deposit's source action within its transaction
   uint32 source_transaction_index = 7;
 }
 

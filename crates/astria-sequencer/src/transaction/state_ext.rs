@@ -55,7 +55,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_transaction_action_index(&mut self, index: u32) {
         self.nonverifiable_put_raw(
             action_index_storage_key().as_bytes().to_vec(),
-            borsh::to_vec(&index).expect("serialize deposit index"),
+            borsh::to_vec(&index).expect("serialize action index"),
         );
     }
 
@@ -89,7 +89,7 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .nonverifiable_get_raw(action_index_storage_key().as_bytes())
             .await
-            .context("failed reading raw deposit index from state")?
+            .context("failed reading raw action index from state")?
         else {
             return Ok(None);
         };
