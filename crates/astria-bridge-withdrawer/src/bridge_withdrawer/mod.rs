@@ -252,6 +252,7 @@ impl BridgeWithdrawer {
     }
 }
 
+#[allow(clippy::struct_field_names)] // allow: for parity with the `Shutdown` struct.
 struct TaskHandles {
     api_task: JoinHandle<eyre::Result<()>>,
     startup_task: Option<JoinHandle<eyre::Result<()>>>,
