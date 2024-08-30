@@ -106,10 +106,6 @@ impl TimemarkedTransaction {
         &self.address
     }
 
-    pub(super) fn cost(&self) -> &HashMap<IbcPrefixed, u128> {
-        &self.cost
-    }
-
     pub(super) fn id(&self) -> [u8; 32] {
         self.tx_hash
     }
@@ -217,28 +213,11 @@ impl PendingTransactionsForAccount {
     ) -> Vec<TimemarkedTransaction> {
         let mut split_at = 0;
 
-        'outer: for (nonce, tx) in &self.txs {
+        for (nonce, tx) in &self.txs {
             // ensure we have enough balance to cover inclusion
-            for (denom, cost) in tx.cost() {
-                if *cost == 0 {
-                    continue;
-                }
-                match available_balances.entry(*denom) {
-                    hash_map::Entry::Occupied(mut entry) => {
-                        // try to subtract cost, if not enough balance, do not include
-                        let current_balance = entry.get_mut();
-                        *current_balance = match current_balance.checked_sub(*cost) {
-                            None => break 'outer,
-                            Some(new_value) => new_value,
-                        };
-                    }
-                    hash_map::Entry::Vacant(_) => {
-                        // not enough balance, do not include
-                        break 'outer;
-                    }
-                }
+            if tx.deduct_costs(&mut available_balances).is_err() {
+                break;
             }
-
             split_at = nonce.saturating_add(1);
         }
 
@@ -1712,7 +1691,7 @@ mod tests {
                 .txs
                 .get(&0)
                 .unwrap()
-                .cost()
+                .cost
                 .get(&denom_0().to_ibc_prefixed())
                 .unwrap(),
             &0,
@@ -1737,7 +1716,7 @@ mod tests {
                 .txs
                 .get(&0)
                 .unwrap()
-                .cost()
+                .cost
                 .get(&denom_0().to_ibc_prefixed())
                 .unwrap(),
             &MOCK_SEQUENCE_FEE,

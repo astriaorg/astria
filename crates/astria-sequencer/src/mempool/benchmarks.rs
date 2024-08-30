@@ -100,42 +100,79 @@ fn transactions() -> &'static Vec<Arc<Transaction>> {
 /// Returns a new `Mempool` initialized with the number of transactions specified by `T::size()`
 /// taken from the static `transactions()`, and with a full `comet_bft_removal_cache`.
 fn init_mempool<T: MempoolSize>() -> Mempool {
+    static CELL_100: std::sync::OnceLock<Mempool> = std::sync::OnceLock::new();
+    static CELL_1_000: std::sync::OnceLock<Mempool> = std::sync::OnceLock::new();
+    static CELL_10_000: std::sync::OnceLock<Mempool> = std::sync::OnceLock::new();
+    static CELL_100_000: std::sync::OnceLock<Mempool> = std::sync::OnceLock::new();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
-    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mempool = Mempool::new(metrics, T::size());
-    let account_mock_balance = mock_balances(0, 0);
-    let tx_mock_cost = mock_tx_cost(0, 0, 0);
-    runtime.block_on(async {
-        for tx in transactions().iter().take(T::checked_size()) {
-            mempool
-                .insert(
-                    tx.clone(),
-                    0,
-                    account_mock_balance.clone(),
-                    tx_mock_cost.clone(),
-                )
-                .await
-                .unwrap();
-        }
-        for i in 0..super::REMOVAL_CACHE_SIZE {
-            let hash = Sha256::digest(i.to_le_bytes()).into();
-            mempool
-                .comet_bft_removal_cache
-                .write()
-                .await
-                .add(hash, RemovalReason::Expired);
-        }
-    });
-    mempool
+    let init = || {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, T::size());
+        runtime.block_on(async {
+            let account_mock_balance = mock_balances(0, 0);
+            let tx_mock_cost = mock_tx_cost(0, 0, 0);
+            for tx in transactions().iter().take(T::checked_size()) {
+                mempool
+                    .insert(
+                        tx.clone(),
+                        0,
+                        account_mock_balance.clone(),
+                        tx_mock_cost.clone(),
+                    )
+                    .await
+                    .unwrap();
+            }
+            for i in 0..super::REMOVAL_CACHE_SIZE {
+                let hash = Sha256::digest(i.to_le_bytes()).into();
+                mempool
+                    .comet_bft_removal_cache
+                    .write()
+                    .await
+                    .add(hash, RemovalReason::Expired);
+            }
+        });
+        mempool
+    };
+    let mempool = match T::checked_size() {
+        100 => CELL_100.get_or_init(init),
+        1_000 => CELL_1_000.get_or_init(init),
+        10_000 => CELL_10_000.get_or_init(init),
+        100_000 => CELL_100_000.get_or_init(init),
+        _ => unreachable!(),
+    };
+    runtime.block_on(async { mempool.deep_clone().await })
 }
 
 /// Returns the first transaction from the static `transactions()` not included in the initialized
 /// mempool, i.e. the one at index `T::size()`.
 fn get_unused_tx<T: MempoolSize>() -> Arc<Transaction> {
     transactions().get(T::checked_size()).unwrap().clone()
+}
+
+/// This is not really a benchmark test, rather a means to memoize the data used in the "real"
+/// benchmark tests below.
+///
+/// It should always be named so that it is alphabetically first in the suite of tests, since the
+/// tests are run in that order.
+///
+/// This means that all the real tests are able to have a meaningful number of iterations, making
+/// the results more accurate, rather than one test only having a single iteration due to the time
+/// taken to memoize the data.
+#[divan::bench(
+    max_time = MAX_TIME,
+    types = [
+        mempool_with_100_txs,
+        mempool_with_1000_txs,
+        mempool_with_10000_txs,
+        mempool_with_100000_txs
+    ]
+)]
+fn a_warmup<T: MempoolSize>(bencher: divan::Bencher) {
+    init_mempool::<T>();
+    bencher.bench(|| ());
 }
 
 /// Benchmarks `Mempool::insert` for a single new transaction on a mempool with the given number of

@@ -497,6 +497,19 @@ impl Mempool {
         let parked = self.parked.write().await;
         (pending, parked)
     }
+
+    #[cfg(feature = "benchmark")]
+    pub(crate) async fn deep_clone(&self) -> Self {
+        Mempool {
+            pending: Arc::new(RwLock::new(self.pending.read().await.clone())),
+            parked: Arc::new(RwLock::new(self.parked.read().await.clone())),
+            comet_bft_removal_cache: Arc::new(RwLock::new(
+                self.comet_bft_removal_cache.read().await.clone(),
+            )),
+            contained_txs: Arc::new(RwLock::new(self.contained_txs.read().await.clone())),
+            metrics: self.metrics,
+        }
+    }
 }
 
 #[cfg(test)]
