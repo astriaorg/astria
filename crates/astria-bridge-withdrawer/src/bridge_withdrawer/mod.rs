@@ -11,9 +11,20 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use axum::{
+    routing::IntoMakeService,
+    Router,
+    Server,
+};
+use ethereum::watcher::Watcher;
+use hyper::server::conn::AddrIncoming;
+use startup::Startup;
 use tokio::{
     select,
-    sync::oneshot,
+    sync::oneshot::{
+        self,
+        Receiver,
+    },
     task::{
         JoinError,
         JoinHandle,
@@ -24,6 +35,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{
     error,
     info,
+    instrument,
 };
 
 pub(crate) use self::state::StateSnapshot;
@@ -167,34 +179,29 @@ impl BridgeWithdrawer {
         // Separate the API shutdown signal from the cancellation token because we want it to live
         // until the very end.
         let (api_shutdown_signal, api_shutdown_signal_rx) = oneshot::channel::<()>();
-        let mut api_task = tokio::spawn(async move {
-            api_server
-                .with_graceful_shutdown(async move {
-                    let _ = api_shutdown_signal_rx.await;
-                })
-                .await
-                .wrap_err("api server ended unexpectedly")
-        });
-        info!("spawned API server");
-
-        let mut startup_task = Some(tokio::spawn(startup.run()));
-        info!("spawned startup task");
-
-        let mut submitter_task = tokio::spawn(submitter.run());
-        info!("spawned submitter task");
-        let mut ethereum_watcher_task = tokio::spawn(ethereum_watcher.run());
-        info!("spawned ethereum watcher task");
+        let TaskHandles {
+            mut api_task,
+            mut startup_task,
+            mut submitter_task,
+            mut ethereum_watcher_task,
+        } = spawn_tasks(
+            api_server,
+            api_shutdown_signal_rx,
+            startup,
+            submitter,
+            ethereum_watcher,
+        );
 
         let shutdown = loop {
             select!(
                 o = async { startup_task.as_mut().unwrap().await }, if startup_task.is_none() => {
                     match o {
                         Ok(_) => {
-                            info!(task = "startup", "task has exited");
+                            report_exit("startup", Ok(Ok(())));
                             startup_task = None;
                         },
                         Err(error) => {
-                            error!(task = "startup", %error, "task returned with error");
+                            report_exit("startup", Err(error));
                             break Shutdown {
                                 api_task: Some(api_task),
                                 submitter_task: Some(submitter_task),
@@ -245,6 +252,48 @@ impl BridgeWithdrawer {
     }
 }
 
+#[allow(clippy::struct_field_names)] // allow: for parity with the `Shutdown` struct.
+struct TaskHandles {
+    api_task: JoinHandle<eyre::Result<()>>,
+    startup_task: Option<JoinHandle<eyre::Result<()>>>,
+    submitter_task: JoinHandle<eyre::Result<()>>,
+    ethereum_watcher_task: JoinHandle<eyre::Result<()>>,
+}
+
+#[instrument(skip_all)]
+fn spawn_tasks(
+    api_server: Server<AddrIncoming, IntoMakeService<Router>>,
+    api_shutdown_signal_rx: Receiver<()>,
+    startup: Startup,
+    submitter: Submitter,
+    ethereum_watcher: Watcher,
+) -> TaskHandles {
+    let api_task = tokio::spawn(async move {
+        api_server
+            .with_graceful_shutdown(async move {
+                let _ = api_shutdown_signal_rx.await;
+            })
+            .await
+            .wrap_err("api server ended unexpectedly")
+    });
+    info!("spawned API server");
+
+    let startup_task = Some(tokio::spawn(startup.run()));
+    info!("spawned startup task");
+
+    let submitter_task = tokio::spawn(submitter.run());
+    info!("spawned submitter task");
+    let ethereum_watcher_task = tokio::spawn(ethereum_watcher.run());
+    info!("spawned ethereum watcher task");
+
+    TaskHandles {
+        api_task,
+        startup_task,
+        submitter_task,
+        ethereum_watcher_task,
+    }
+}
+
 /// A handle for instructing the [`Service`] to shut down.
 ///
 /// It is returned along with its related `Service` from [`Service::new`].  The
@@ -275,6 +324,7 @@ impl ShutdownHandle {
 }
 
 impl Drop for ShutdownHandle {
+    #[instrument(skip_all)]
     fn drop(&mut self) {
         if !self.token.is_cancelled() {
             info!("shutdown handle dropped, issuing shutdown to all services");
@@ -283,6 +333,7 @@ impl Drop for ShutdownHandle {
     }
 }
 
+#[instrument(skip_all)]
 fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
     match outcome {
         Ok(Ok(())) => info!(task = task_name, "task has exited"),
@@ -314,6 +365,7 @@ impl Shutdown {
     const STARTUP_SHUTDOWN_TIMEOUT_SECONDS: u64 = 1;
     const SUBMITTER_SHUTDOWN_TIMEOUT_SECONDS: u64 = 19;
 
+    #[instrument(skip_all)]
     async fn run(self) {
         let Self {
             api_task,

@@ -41,6 +41,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     info,
+    info_span,
     instrument,
     warn,
 };
@@ -296,11 +297,13 @@ async fn watch_for_blocks(
         bail!("current rollup block missing block number")
     };
 
-    info!(
-        block.height = current_rollup_block_height.as_u64(),
-        block.hash = current_rollup_block.hash.map(tracing::field::display),
-        "got current block"
-    );
+    info_span!("watch_for_blocks").in_scope(|| {
+        info!(
+            block.height = current_rollup_block_height.as_u64(),
+            block.hash = current_rollup_block.hash.map(tracing::field::display),
+            "got current block"
+        );
+    });
 
     // sync any blocks missing between `next_rollup_block_height` and the current latest
     // (inclusive).
@@ -317,7 +320,7 @@ async fn watch_for_blocks(
     loop {
         select! {
             () = shutdown_token.cancelled() => {
-                info!("block watcher shutting down");
+                info_span!("watch_for_blocks").in_scope(|| info!("block watcher shutting down"));
                 return Ok(());
             }
             block = block_rx.next() => {

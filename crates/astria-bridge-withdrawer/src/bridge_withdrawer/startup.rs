@@ -47,6 +47,7 @@ use tracing::{
     instrument,
     warn,
     Instrument as _,
+    Level,
     Span,
 };
 use tryhard::backoff_strategies::ExponentialBackoff;
@@ -120,6 +121,7 @@ impl InfoHandle {
         }
     }
 
+    #[instrument(skip_all, err)]
     pub(super) async fn get_info(&mut self) -> eyre::Result<Info> {
         let state = self
             .rx
@@ -202,6 +204,7 @@ impl Startup {
     /// - `self.chain_id` does not match the value returned from the sequencer node
     /// - `self.fee_asset` is not a valid fee asset on the sequencer node
     /// - `self.sequencer_bridge_address` does not have a sufficient balance of `self.fee_asset`.
+    #[instrument(skip_all, err)]
     async fn confirm_sequencer_config(&self) -> eyre::Result<()> {
         // confirm the sequencer chain id
         let actual_chain_id =
@@ -250,6 +253,7 @@ impl Startup {
     ///   in the sequencer logic).
     /// 5. Failing to convert the transaction data from bytes to proto.
     /// 6. Failing to convert the transaction data from proto to `SignedTransaction`.
+    #[instrument(skip_all, err)]
     async fn get_last_transaction(&self) -> eyre::Result<Option<SignedTransaction>> {
         // get last transaction hash by the bridge account, if it exists
         let last_transaction_hash_resp = get_bridge_account_last_transaction_hash(
@@ -323,6 +327,7 @@ impl Startup {
     ///    the sequencer logic)
     /// 3. The last transaction by the bridge account did not contain a withdrawal action
     /// 4. The memo of the last transaction by the bridge account could not be parsed
+    #[instrument(skip_all, err)]
     async fn get_starting_rollup_height(&mut self) -> eyre::Result<u64> {
         let signed_transaction = self
             .get_last_transaction()
@@ -347,6 +352,7 @@ impl Startup {
     }
 }
 
+#[instrument(skip_all, err(level = Level::WARN))]
 async fn ensure_mempool_empty(
     cometbft_client: sequencer_client::HttpClient,
     sequencer_client: sequencer_service_client::SequencerServiceClient<Channel>,
@@ -391,6 +397,7 @@ async fn ensure_mempool_empty(
 /// 2. Failing to get the latest nonce from cometBFT's mempool.
 /// 3. The pending nonce from the Sequencer's app-side mempool does not match the latest nonce from
 ///    cometBFT's mempool after the exponential backoff times out.
+#[instrument(skip_all, err)]
 async fn wait_for_empty_mempool(
     cometbft_client: sequencer_client::HttpClient,
     sequencer_grpc_endpoint: String,
@@ -481,7 +488,7 @@ fn rollup_height_from_signed_transaction(
     Ok(last_batch_rollup_height)
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 async fn get_bridge_account_last_transaction_hash(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
@@ -503,7 +510,7 @@ async fn get_bridge_account_last_transaction_hash(
     res
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 async fn get_sequencer_transaction_at_hash(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
@@ -521,7 +528,7 @@ async fn get_sequencer_transaction_at_hash(
     res
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 async fn get_sequencer_chain_id(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
@@ -538,7 +545,7 @@ async fn get_sequencer_chain_id(
     Ok(genesis.chain_id)
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 async fn get_allowed_fee_assets(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
@@ -555,7 +562,7 @@ async fn get_allowed_fee_assets(
     res
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 async fn get_latest_nonce(
     client: sequencer_client::HttpClient,
     state: Arc<State>,
