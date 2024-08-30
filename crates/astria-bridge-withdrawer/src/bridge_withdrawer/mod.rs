@@ -252,7 +252,7 @@ impl BridgeWithdrawer {
     }
 }
 
-pub struct TaskHandles {
+struct TaskHandles {
     api_task: JoinHandle<eyre::Result<()>>,
     startup_task: Option<JoinHandle<eyre::Result<()>>>,
     submitter_task: JoinHandle<eyre::Result<()>>,
