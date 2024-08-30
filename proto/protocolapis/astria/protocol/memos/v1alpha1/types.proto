@@ -9,30 +9,19 @@ syntax = "proto3";
 
 package astria.protocol.memos.v1alpha1;
 
-message BridgeUnlock {
-  // The block number on the rollup that triggered the transaction underlying
-  // this bridge unlock memo.
-  uint64 rollup_block_number = 1;
-  // The hash of the original rollup transaction that triggered a bridge unlock
-  // and that is underlying this bridge unlock memo.
-  //
-  // This field is of type `string` so that it can be formatted in the preferred
-  // format of the rollup when targeting plain text encoding.
-  string rollup_transaction_hash = 2;
-}
-
 // Memo for an ICS20 withdrawal from the rollup which is sent to
 // an external IBC-enabled chain.
 message Ics20WithdrawalFromRollup {
   // The block number on the rollup that triggered the transaction underlying
   // this ics20 withdrawal memo.
   uint64 rollup_block_number = 1;
-  // The hash of the original rollup transaction that triggered this ics20
-  // withdrawal and that is underlying this bridge unlock memo.
+  // An identifier of the original rollup withdrawal event that triggered this ics20
+  // withdrawal and that is underlying this bridge unlock memo. For general EVM
+  // this is typically a transaction hash.
   //
   // This field is of type `string` so that it can be formatted in the preferred
   // format of the rollup when targeting plain text encoding.
-  string rollup_transaction_hash = 2;
+  string rollup_withdrawal_event_id = 2;
   // The return address on the rollup to which funds should returned in case of
   // failure. This field exists so that the rollup can identify which account
   // the returned funds originated from.

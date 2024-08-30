@@ -1,5 +1,4 @@
 pub use crate::generated::protocol::memos::v1alpha1::{
-    BridgeUnlock,
     Ics20TransferDeposit,
     Ics20WithdrawalFromRollup,
 };
@@ -9,21 +8,11 @@ mod test {
     use super::*;
 
     #[test]
-    fn bridge_unlock_memo_snapshot() {
-        let memo = BridgeUnlock {
-            rollup_block_number: 42,
-            rollup_transaction_hash: "a-rollup-defined-hash".to_string(),
-        };
-
-        insta::assert_json_snapshot!(memo);
-    }
-
-    #[test]
     fn ics20_withdrawal_from_rollup_memo_snapshot() {
         let memo = Ics20WithdrawalFromRollup {
             rollup_block_number: 1,
             rollup_return_address: "a-rollup-defined-address".to_string(),
-            rollup_transaction_hash: "a-rollup-defined-hash".to_string(),
+            rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
             memo: "hello".to_string(),
         };
 
