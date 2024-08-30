@@ -38,6 +38,7 @@ use tracing::{
     instrument,
     warn,
     Instrument,
+    Level,
 };
 use tryhard::{
     backoff_strategies::BackoffStrategy,
@@ -206,6 +207,7 @@ struct VerificationMeta {
 }
 
 impl VerificationMeta {
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn fetch(
         client: RateLimitedVerificationClient,
         height: SequencerHeight,
@@ -298,6 +300,7 @@ impl BlobVerifier {
     }
 }
 
+#[instrument(skip_all, err)]
 async fn fetch_commit_with_retry(
     client: SequencerClient,
     height: SequencerHeight,
@@ -332,6 +335,7 @@ async fn fetch_commit_with_retry(
     })
 }
 
+#[instrument(skip_all, err)]
 async fn fetch_validators_with_retry(
     client: SequencerClient,
     prev_height: SequencerHeight,
@@ -447,6 +451,7 @@ struct RateLimitedVerificationClient {
 }
 
 impl RateLimitedVerificationClient {
+    #[instrument(skip_all, err)]
     async fn get_commit(
         mut self,
         height: SequencerHeight,
@@ -468,6 +473,7 @@ impl RateLimitedVerificationClient {
         }
     }
 
+    #[instrument(skip_all, err)]
     async fn get_validators(
         mut self,
         prev_height: SequencerHeight,

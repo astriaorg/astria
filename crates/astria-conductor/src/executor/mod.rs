@@ -32,6 +32,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
+    debug_span,
     error,
     info,
     instrument,
@@ -142,6 +143,7 @@ impl<T: Clone> Handle<T> {
 }
 
 impl Handle<StateIsInit> {
+    #[instrument(skip_all, err)]
     pub(crate) async fn send_firm_block(
         self,
         block: ReconstructedBlock,
@@ -162,6 +164,7 @@ impl Handle<StateIsInit> {
         Ok(())
     }
 
+    #[instrument(skip_all, err)]
     pub(crate) async fn send_soft_block_owned(
         self,
         block: FilteredSequencerBlock,
@@ -197,6 +200,7 @@ impl Handle<StateIsInit> {
         self.state.next_expected_soft_sequencer_height()
     }
 
+    #[instrument(skip_all)]
     pub(crate) async fn next_expected_soft_height_if_changed(
         &mut self,
     ) -> Result<SequencerHeight, RecvError> {
@@ -252,15 +256,13 @@ pub(crate) struct Executor {
 }
 
 impl Executor {
-    #[instrument(skip_all, err)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         select!(
             () = self.shutdown.clone().cancelled_owned() => {
-                info!(
+                return report_exit(Ok(
                     "received shutdown signal while initializing task; \
                     aborting intialization and exiting"
-                );
-                return Ok(());
+                ), "");
             }
             res = self.init() => {
                 res.wrap_err("initialization failed")?;
@@ -285,11 +287,11 @@ impl Executor {
                 Some(block) = async { self.firm_blocks.as_mut().unwrap().recv().await },
                               if self.firm_blocks.is_some() =>
                 {
-                    debug!(
+                    debug_span!("conductor::Executor::run_until_stopped").in_scope(||debug!(
                         block.height = %block.sequencer_height(),
                         block.hash = %telemetry::display::base64(&block.block_hash),
                         "received block from celestia reader",
-                    );
+                    ));
                     if let Err(error) = self.execute_firm(block).await {
                         break Err(error).wrap_err("failed executing firm block");
                     }
@@ -298,11 +300,11 @@ impl Executor {
                 Some(block) = async { self.soft_blocks.as_mut().unwrap().recv().await },
                               if self.soft_blocks.is_some() && spread_not_too_large =>
                 {
-                    debug!(
+                    debug_span!("conductor::Executor::run_until_stopped").in_scope(||debug!(
                         block.height = %block.height(),
                         block.hash = %telemetry::display::base64(&block.block_hash()),
                         "received block from sequencer reader",
-                    );
+                    ));
                     if let Err(error) = self.execute_soft(block).await {
                         break Err(error).wrap_err("failed executing soft block");
                     }
@@ -312,19 +314,11 @@ impl Executor {
 
         // XXX: explicitly setting the message (usually implicitly set by tracing)
         let message = "shutting down";
-        match reason {
-            Ok(reason) => {
-                info!(reason, message);
-                Ok(())
-            }
-            Err(reason) => {
-                error!(%reason, message);
-                Err(reason)
-            }
-        }
+        report_exit(reason, message)
     }
 
     /// Runs the init logic that needs to happen before [`Executor`] can enter its main loop.
+    #[instrument(skip_all, err)]
     async fn init(&mut self) -> eyre::Result<()> {
         self.set_initial_node_state()
             .await
@@ -400,6 +394,7 @@ impl Executor {
     #[instrument(skip_all, fields(
         block.hash = %telemetry::display::base64(&block.block_hash()),
         block.height = block.height().value(),
+        err,
     ))]
     async fn execute_soft(&mut self, block: FilteredSequencerBlock) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
@@ -463,6 +458,7 @@ impl Executor {
     #[instrument(skip_all, fields(
         block.hash = %telemetry::display::base64(&block.block_hash),
         block.height = block.sequencer_height().value(),
+        err,
     ))]
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
@@ -544,6 +540,7 @@ impl Executor {
         block.height = block.height.value(),
         block.num_of_transactions = block.transactions.len(),
         rollup.parent_hash = %telemetry::display::base64(&parent_hash),
+        err
     ))]
     async fn execute_block(
         &mut self,
@@ -576,7 +573,7 @@ impl Executor {
         Ok(executed_block)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn set_initial_node_state(&mut self) -> eyre::Result<()> {
         let genesis_info = {
             async {
@@ -613,7 +610,7 @@ impl Executor {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn update_commitment_state(&mut self, update: Update) -> eyre::Result<()> {
         use Update::{
             OnlyFirm,
@@ -672,6 +669,20 @@ impl Executor {
             self.state.next_expected_soft_sequencer_height().value(),
             self.mode,
         )
+    }
+}
+
+#[instrument(skip_all)]
+fn report_exit(reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
+    match reason {
+        Ok(reason) => {
+            info!(%reason, message);
+            Ok(())
+        }
+        Err(error) => {
+            error!(%error, message);
+            Err(error)
+        }
     }
 }
 
