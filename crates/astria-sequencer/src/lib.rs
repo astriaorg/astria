@@ -28,5 +28,6 @@ mod utils;
 
 pub use build_info::BUILD_INFO;
 pub use config::Config;
+pub use metrics::Metrics;
 pub use sequencer::Sequencer;
 pub use telemetry;

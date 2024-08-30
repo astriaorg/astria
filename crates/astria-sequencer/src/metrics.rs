@@ -1,22 +1,18 @@
 use std::time::Duration;
 
-use metrics::{
-    counter,
-    describe_counter,
-    describe_gauge,
-    describe_histogram,
-    gauge,
-    histogram,
-    Counter,
-    Gauge,
-    Histogram,
-    Unit,
+use telemetry::{
+    metric_names,
+    metrics::{
+        Counter,
+        Gauge,
+        Histogram,
+        RegisteringBuilder,
+    },
 };
-use telemetry::metric_names;
 
 const CHECK_TX_STAGE: &str = "stage";
 
-pub(crate) struct Metrics {
+pub struct Metrics {
     prepare_proposal_excluded_transactions_cometbft_space: Counter,
     prepare_proposal_excluded_transactions_sequencer_space: Counter,
     prepare_proposal_excluded_transactions_failed_execution: Counter,
@@ -43,195 +39,6 @@ pub(crate) struct Metrics {
 }
 
 impl Metrics {
-    #[must_use]
-    #[allow(clippy::too_many_lines)]
-    pub(crate) fn new() -> Self {
-        describe_counter!(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
-            Unit::Count,
-            "The number of transactions that have been excluded from blocks due to running out of \
-             space in the cometbft block"
-        );
-        let prepare_proposal_excluded_transactions_cometbft_space =
-            counter!(PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE);
-
-        describe_counter!(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
-            Unit::Count,
-            "The number of transactions that have been excluded from blocks due to running out of \
-             space in the sequencer block"
-        );
-        let prepare_proposal_excluded_transactions_sequencer_space =
-            counter!(PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE);
-
-        describe_counter!(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
-            Unit::Count,
-            "The number of transactions that have been excluded from blocks due to failing to \
-             execute"
-        );
-        let prepare_proposal_excluded_transactions_failed_execution =
-            counter!(PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION);
-
-        describe_gauge!(
-            PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
-            Unit::Count,
-            "The number of excluded transactions in a proposal being prepared"
-        );
-        let prepare_proposal_excluded_transactions = gauge!(PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS);
-
-        describe_histogram!(
-            PROPOSAL_DEPOSITS,
-            Unit::Count,
-            "The number of deposits in a proposal"
-        );
-        let proposal_deposits = histogram!(PROPOSAL_DEPOSITS);
-
-        describe_histogram!(
-            PROPOSAL_TRANSACTIONS,
-            Unit::Count,
-            "The number of transactions in a proposal"
-        );
-        let proposal_transactions = histogram!(PROPOSAL_TRANSACTIONS);
-
-        describe_counter!(
-            PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
-            Unit::Count,
-            "The number of times our submitted prepared proposal was skipped in process proposal"
-        );
-        let process_proposal_skipped_proposal = counter!(PROCESS_PROPOSAL_SKIPPED_PROPOSAL);
-
-        describe_counter!(
-            CHECK_TX_REMOVED_TOO_LARGE,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to being too \
-             large"
-        );
-        let check_tx_removed_too_large = counter!(CHECK_TX_REMOVED_TOO_LARGE);
-
-        describe_counter!(
-            CHECK_TX_REMOVED_FAILED_STATELESS,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to failing \
-             the stateless check"
-        );
-        let check_tx_removed_failed_stateless = counter!(CHECK_TX_REMOVED_FAILED_STATELESS);
-
-        describe_counter!(
-            CHECK_TX_REMOVED_STALE_NONCE,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to having a \
-             stale nonce"
-        );
-        let check_tx_removed_stale_nonce = counter!(CHECK_TX_REMOVED_STALE_NONCE);
-
-        describe_counter!(
-            CHECK_TX_REMOVED_ACCOUNT_BALANCE,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to having not \
-             enough account balance"
-        );
-        let check_tx_removed_account_balance = counter!(CHECK_TX_REMOVED_ACCOUNT_BALANCE);
-
-        describe_counter!(
-            CHECK_TX_REMOVED_FAILED_EXECUTION,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to failing \
-             execution in prepare_proposal()"
-        );
-        let check_tx_removed_failed_execution = counter!(CHECK_TX_REMOVED_FAILED_EXECUTION);
-
-        describe_counter!(
-            CHECK_TX_REMOVED_EXPIRED,
-            Unit::Count,
-            "The number of transactions that have been removed from the mempool due to expiring \
-             in the app's mempool"
-        );
-        let check_tx_removed_expired = counter!(CHECK_TX_REMOVED_EXPIRED);
-
-        describe_histogram!(
-            CHECK_TX_DURATION_SECONDS,
-            Unit::Seconds,
-            "The amount of time taken in seconds to successfully complete the various stages of \
-             check_tx"
-        );
-        let check_tx_duration_seconds_parse_tx = histogram!(
-            CHECK_TX_DURATION_SECONDS,
-            CHECK_TX_STAGE => "length check and parse raw tx"
-        );
-        let check_tx_duration_seconds_check_stateless = histogram!(
-            CHECK_TX_DURATION_SECONDS,
-            CHECK_TX_STAGE => "stateless check"
-        );
-        let check_tx_duration_seconds_check_nonce = histogram!(
-            CHECK_TX_DURATION_SECONDS,
-            CHECK_TX_STAGE => "nonce check"
-        );
-        let check_tx_duration_seconds_check_chain_id = histogram!(
-            CHECK_TX_DURATION_SECONDS,
-            CHECK_TX_STAGE => "chain id check"
-        );
-        let check_tx_duration_seconds_check_balance = histogram!(
-            CHECK_TX_DURATION_SECONDS,
-            CHECK_TX_STAGE => "balance check"
-        );
-        let check_tx_duration_seconds_check_removed = histogram!(
-            CHECK_TX_DURATION_SECONDS,
-            CHECK_TX_STAGE => "check for removal"
-        );
-        let check_tx_duration_seconds_insert_to_app_mempool = histogram!(
-            CHECK_TX_DURATION_SECONDS,
-            CHECK_TX_STAGE => "insert to app mempool"
-        );
-
-        describe_histogram!(
-            ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
-            Unit::Count,
-            "The number of actions in a transaction added to the app mempool"
-        );
-        let actions_per_transaction_in_mempool = histogram!(ACTIONS_PER_TRANSACTION_IN_MEMPOOL);
-
-        describe_histogram!(
-            TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
-            Unit::Bytes,
-            "The number of bytes in a transaction added to the app mempool"
-        );
-        let transaction_in_mempool_size_bytes = histogram!(TRANSACTION_IN_MEMPOOL_SIZE_BYTES);
-
-        describe_gauge!(
-            TRANSACTIONS_IN_MEMPOOL_TOTAL,
-            Unit::Count,
-            "The number of transactions in the app mempool"
-        );
-        let transactions_in_mempool_total = gauge!(TRANSACTIONS_IN_MEMPOOL_TOTAL);
-
-        Self {
-            prepare_proposal_excluded_transactions_cometbft_space,
-            prepare_proposal_excluded_transactions_sequencer_space,
-            prepare_proposal_excluded_transactions_failed_execution,
-            prepare_proposal_excluded_transactions,
-            proposal_deposits,
-            proposal_transactions,
-            process_proposal_skipped_proposal,
-            check_tx_removed_too_large,
-            check_tx_removed_expired,
-            check_tx_removed_failed_execution,
-            check_tx_removed_failed_stateless,
-            check_tx_removed_stale_nonce,
-            check_tx_removed_account_balance,
-            check_tx_duration_seconds_parse_tx,
-            check_tx_duration_seconds_check_stateless,
-            check_tx_duration_seconds_check_nonce,
-            check_tx_duration_seconds_check_chain_id,
-            check_tx_duration_seconds_check_balance,
-            check_tx_duration_seconds_check_removed,
-            check_tx_duration_seconds_insert_to_app_mempool,
-            actions_per_transaction_in_mempool,
-            transaction_in_mempool_size_bytes,
-            transactions_in_mempool_total,
-        }
-    }
-
     pub(crate) fn increment_prepare_proposal_excluded_transactions_cometbft_space(&self) {
         self.prepare_proposal_excluded_transactions_cometbft_space
             .increment(1);
@@ -248,21 +55,15 @@ impl Metrics {
     }
 
     pub(crate) fn set_prepare_proposal_excluded_transactions(&self, count: usize) {
-        #[allow(clippy::cast_precision_loss)]
-        self.prepare_proposal_excluded_transactions
-            .set(count as f64);
+        self.prepare_proposal_excluded_transactions.set(count);
     }
 
     pub(crate) fn record_proposal_deposits(&self, count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.proposal_deposits.record(count as f64);
+        self.proposal_deposits.record(count);
     }
 
     pub(crate) fn record_proposal_transactions(&self, count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.proposal_transactions.record(count as f64);
+        self.proposal_transactions.record(count);
     }
 
     pub(crate) fn increment_process_proposal_skipped_proposal(&self) {
@@ -330,24 +131,197 @@ impl Metrics {
     }
 
     pub(crate) fn record_actions_per_transaction_in_mempool(&self, count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.actions_per_transaction_in_mempool.record(count as f64);
+        self.actions_per_transaction_in_mempool.record(count);
     }
 
     pub(crate) fn record_transaction_in_mempool_size_bytes(&self, count: usize) {
-        // allow: precision loss is unlikely (values too small) but also unimportant in histograms.
-        #[allow(clippy::cast_precision_loss)]
-        self.transaction_in_mempool_size_bytes.record(count as f64);
+        self.transaction_in_mempool_size_bytes.record(count);
     }
 
     pub(crate) fn set_transactions_in_mempool_total(&self, count: usize) {
-        #[allow(clippy::cast_precision_loss)]
-        self.transactions_in_mempool_total.set(count as f64);
+        self.transactions_in_mempool_total.set(count);
     }
 }
 
-metric_names!(pub const METRICS_NAMES:
+impl telemetry::Metrics for Metrics {
+    type Config = ();
+
+    // allow: this is reasonable as we have a lot of metrics to register; the function is not
+    // complex, just long.
+    #[allow(clippy::too_many_lines)]
+    fn register(
+        builder: &mut RegisteringBuilder,
+        _config: &Self::Config,
+    ) -> Result<Self, telemetry::metrics::Error> {
+        let prepare_proposal_excluded_transactions_cometbft_space = builder
+            .new_counter_factory(
+                PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
+                "The number of transactions that have been excluded from blocks due to running \
+                 out of space in the cometbft block",
+            )?
+            .register()?;
+
+        let prepare_proposal_excluded_transactions_sequencer_space = builder
+            .new_counter_factory(
+                PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
+                "The number of transactions that have been excluded from blocks due to running \
+                 out of space in the sequencer block",
+            )?
+            .register()?;
+
+        let prepare_proposal_excluded_transactions_failed_execution = builder
+            .new_counter_factory(
+                PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
+                "The number of transactions that have been excluded from blocks due to failing to \
+                 execute",
+            )?
+            .register()?;
+
+        let prepare_proposal_excluded_transactions = builder
+            .new_gauge_factory(
+                PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
+                "The number of excluded transactions in a proposal being prepared",
+            )?
+            .register()?;
+
+        let proposal_deposits = builder
+            .new_histogram_factory(PROPOSAL_DEPOSITS, "The number of deposits in a proposal")?
+            .register()?;
+
+        let proposal_transactions = builder
+            .new_histogram_factory(
+                PROPOSAL_TRANSACTIONS,
+                "The number of transactions in a proposal",
+            )?
+            .register()?;
+
+        let process_proposal_skipped_proposal = builder
+            .new_counter_factory(
+                PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
+                "The number of times our submitted prepared proposal was skipped in process \
+                 proposal",
+            )?
+            .register()?;
+
+        let check_tx_removed_too_large = builder
+            .new_counter_factory(
+                CHECK_TX_REMOVED_TOO_LARGE,
+                "The number of transactions that have been removed from the mempool due to being \
+                 too large",
+            )?
+            .register()?;
+
+        let check_tx_removed_expired = builder
+            .new_counter_factory(
+                CHECK_TX_REMOVED_EXPIRED,
+                "The number of transactions that have been removed from the mempool due to \
+                 expiring in the app's mempool",
+            )?
+            .register()?;
+
+        let check_tx_removed_failed_execution = builder
+            .new_counter_factory(
+                CHECK_TX_REMOVED_FAILED_EXECUTION,
+                "The number of transactions that have been removed from the mempool due to \
+                 failing execution in prepare_proposal",
+            )?
+            .register()?;
+
+        let check_tx_removed_failed_stateless = builder
+            .new_counter_factory(
+                CHECK_TX_REMOVED_FAILED_STATELESS,
+                "The number of transactions that have been removed from the mempool due to \
+                 failing the stateless check",
+            )?
+            .register()?;
+
+        let check_tx_removed_stale_nonce = builder
+            .new_counter_factory(
+                CHECK_TX_REMOVED_STALE_NONCE,
+                "The number of transactions that have been removed from the mempool due to having \
+                 a stale nonce",
+            )?
+            .register()?;
+
+        let check_tx_removed_account_balance = builder
+            .new_counter_factory(
+                CHECK_TX_REMOVED_ACCOUNT_BALANCE,
+                "The number of transactions that have been removed from the mempool due to having \
+                 not enough account balance",
+            )?
+            .register()?;
+
+        let mut check_tx_duration_factory = builder.new_histogram_factory(
+            CHECK_TX_DURATION_SECONDS,
+            "The amount of time taken in seconds to successfully complete the various stages of \
+             check_tx",
+        )?;
+        let check_tx_duration_seconds_parse_tx = check_tx_duration_factory.register_with_labels(
+            &[(CHECK_TX_STAGE, "length check and parse raw tx".to_string())],
+        )?;
+        let check_tx_duration_seconds_check_stateless = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "stateless check".to_string())])?;
+        let check_tx_duration_seconds_check_nonce = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "nonce check".to_string())])?;
+        let check_tx_duration_seconds_check_chain_id = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "chain id check".to_string())])?;
+        let check_tx_duration_seconds_check_balance = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "balance check".to_string())])?;
+        let check_tx_duration_seconds_check_removed = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "check for removal".to_string())])?;
+        let check_tx_duration_seconds_insert_to_app_mempool = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "insert to app mempool".to_string())])?;
+
+        let actions_per_transaction_in_mempool = builder
+            .new_histogram_factory(
+                ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
+                "The number of actions in a transaction added to the app mempool",
+            )?
+            .register()?;
+
+        let transaction_in_mempool_size_bytes = builder
+            .new_histogram_factory(
+                TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
+                "The number of bytes in a transaction added to the app mempool",
+            )?
+            .register()?;
+
+        let transactions_in_mempool_total = builder
+            .new_gauge_factory(
+                TRANSACTIONS_IN_MEMPOOL_TOTAL,
+                "The number of transactions in the app mempool",
+            )?
+            .register()?;
+
+        Ok(Self {
+            prepare_proposal_excluded_transactions_cometbft_space,
+            prepare_proposal_excluded_transactions_sequencer_space,
+            prepare_proposal_excluded_transactions_failed_execution,
+            prepare_proposal_excluded_transactions,
+            proposal_deposits,
+            proposal_transactions,
+            process_proposal_skipped_proposal,
+            check_tx_removed_too_large,
+            check_tx_removed_expired,
+            check_tx_removed_failed_execution,
+            check_tx_removed_failed_stateless,
+            check_tx_removed_stale_nonce,
+            check_tx_removed_account_balance,
+            check_tx_duration_seconds_parse_tx,
+            check_tx_duration_seconds_check_stateless,
+            check_tx_duration_seconds_check_nonce,
+            check_tx_duration_seconds_check_chain_id,
+            check_tx_duration_seconds_check_balance,
+            check_tx_duration_seconds_check_removed,
+            check_tx_duration_seconds_insert_to_app_mempool,
+            actions_per_transaction_in_mempool,
+            transaction_in_mempool_size_bytes,
+            transactions_in_mempool_total,
+        })
+    }
+}
+
+metric_names!(const METRICS_NAMES:
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
     PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
