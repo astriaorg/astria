@@ -130,7 +130,7 @@ mod tests {
 
         state.put_current_source(TransactionContext {
             address_bytes: [1; 20],
-            transaction_hash: "test_tx_hash".to_string(),
+            transaction_id: "test_tx_hash".to_string().into(),
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
@@ -167,7 +167,7 @@ mod tests {
         let sudo_address = astria_address(&[98; 20]);
         state.put_current_source(TransactionContext {
             address_bytes: sudo_address.bytes(),
-            transaction_hash: "test_tx_hash".to_string(),
+            transaction_id: "test_tx_hash".to_string().into(),
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
         state.put_bridge_sudo_change_base_fee(10);

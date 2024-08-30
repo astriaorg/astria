@@ -72,15 +72,15 @@ impl ActionHandler for BridgeLockAction {
             .await
             .context("failed to get transfer base fee")?;
 
-        let transaction_hash = state
+        let transaction_id = state
             .get_current_source()
             .expect("current source should be `Some`")
-            .transaction_hash;
-        let source_transaction_index = state
-            .get_transaction_action_index()
+            .transaction_id;
+        let index_of_action = state
+            .get_transaction_index_of_action()
             .await
-            .context("failed to get transaction action index")?
-            .expect("action index should be `Some`");
+            .context("failed to get transaction index of action")?
+            .expect("index_of_action should be `Some`");
 
         let deposit = Deposit::new(
             self.to,
@@ -88,8 +88,8 @@ impl ActionHandler for BridgeLockAction {
             self.amount,
             self.asset.clone(),
             self.destination_chain_address.clone(),
-            transaction_hash.clone(),
-            source_transaction_index,
+            transaction_id,
+            index_of_action,
         );
 
         let byte_cost_multiplier = state
@@ -185,9 +185,9 @@ mod tests {
         let from_address = astria_address(&[2; 20]);
         state.put_current_source(TransactionContext {
             address_bytes: from_address.bytes(),
-            transaction_hash: "test_tx_hash".to_string(),
+            transaction_id: "test_tx_hash".to_string().into(),
         });
-        state.put_transaction_action_index(0);
+        state.put_transaction_index_of_action(0);
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         state.put_transfer_base_fee(transfer_fee).unwrap();
@@ -227,7 +227,7 @@ mod tests {
                 100,
                 asset.clone(),
                 "someaddress".to_string(),
-                "test_tx_hash".to_string(),
+                "test_tx_hash".to_string().into(),
                 0,
             )) * 2;
         state

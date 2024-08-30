@@ -625,15 +625,15 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         "asset ID is not authorized for transfer to bridge account",
     );
 
-    let transaction_hash = state
+    let transaction_id = state
         .get_current_source()
         .expect("current source should be `Some`")
-        .transaction_hash;
-    let source_transaction_index = state
-        .get_transaction_action_index()
+        .transaction_id;
+    let index_of_action = state
+        .get_transaction_index_of_action()
         .await
-        .context("failed to get transaction action index")?
-        .expect("transaction action should be `Some`");
+        .context("failed to get transaction index of action")?
+        .expect("index_of_action should be `Some`");
 
     let deposit = Deposit::new(
         bridge_address,
@@ -641,8 +641,8 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         amount,
         denom.into(),
         destination_address,
-        transaction_hash,
-        source_transaction_index,
+        transaction_id,
+        index_of_action,
     );
     state
         .put_deposit_event(deposit)
@@ -780,9 +780,9 @@ mod test {
 
         state_tx.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
-            transaction_hash: "test_tx_hash".to_string(),
+            transaction_id: "test_tx_hash".to_string().into(),
         });
-        state_tx.put_transaction_action_index(0);
+        state_tx.put_transaction_index_of_action(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1021,9 +1021,9 @@ mod test {
 
         state_tx.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
-            transaction_hash: "test_tx_hash".to_string(),
+            transaction_id: "test_tx_hash".to_string().into(),
         });
-        state_tx.put_transaction_action_index(0);
+        state_tx.put_transaction_index_of_action(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1068,9 +1068,9 @@ mod test {
 
         state_tx.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
-            transaction_hash: "test_tx_hash".to_string(),
+            transaction_id: "test_tx_hash".to_string().into(),
         });
-        state_tx.put_transaction_action_index(0);
+        state_tx.put_transaction_index_of_action(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1126,7 +1126,7 @@ mod test {
             100,
             denom,
             destination_chain_address,
-            "test_tx_hash".to_string(),
+            "test_tx_hash".to_string().into(),
             0,
         );
         assert_eq!(deposit, &expected_deposit);

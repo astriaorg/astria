@@ -225,7 +225,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let bridge = get_bridge_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let starting_action_index = 0;
+    let starting_index_of_action = 0;
 
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
@@ -268,8 +268,8 @@ async fn ensure_correct_block_fees_bridge_lock() {
         1,
         nria().into(),
         rollup_id.to_string(),
-        hex::encode(signed_tx.sha256_of_proto_encoding()),
-        starting_action_index,
+        signed_tx.id(),
+        starting_index_of_action,
     );
 
     let total_block_fees: u128 = app

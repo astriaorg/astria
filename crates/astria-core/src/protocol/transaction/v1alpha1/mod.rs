@@ -14,6 +14,7 @@ use crate::{
     },
     primitive::v1::{
         asset,
+        TransactionId,
         ADDRESS_LEN,
     },
     Protobuf as _,
@@ -100,6 +101,11 @@ impl SignedTransaction {
         };
         let bytes = self.to_raw().encode_to_vec();
         Sha256::digest(bytes).into()
+    }
+
+    #[must_use]
+    pub fn id(&self) -> TransactionId {
+        hex::encode(self.sha256_of_proto_encoding()).into()
     }
 
     #[must_use]

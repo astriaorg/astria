@@ -100,7 +100,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .context("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
-    let mut tx_action_index = 0;
+    let mut tx_index_of_action = 0;
     for action in &tx.actions {
         match action {
             Action::Transfer(act) => {
@@ -126,7 +126,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     &mut fees_by_asset,
                     transfer_fee,
                     bridge_lock_byte_cost_multiplier,
-                    &mut tx_action_index,
+                    &mut tx_index_of_action,
                 );
             }
             Action::BridgeUnlock(act) => {
@@ -147,9 +147,9 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 continue;
             }
         }
-        tx_action_index
+        tx_index_of_action
             .checked_add(1)
-            .expect("increment tx action index");
+            .expect("increment index of action");
     }
     Ok(fees_by_asset)
 }
@@ -268,7 +268,7 @@ fn bridge_lock_update_fees(
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     transfer_fee: u128,
     bridge_lock_byte_cost_multiplier: u128,
-    tx_action_index: &mut u32,
+    tx_index_of_action: &mut u32,
 ) {
     use astria_core::sequencerblock::v1alpha1::block::Deposit;
 
@@ -280,8 +280,8 @@ fn bridge_lock_update_fees(
             act.amount,
             act.asset.clone(),
             act.destination_chain_address.clone(),
-            hex::encode([0u8, 32]),
-            *tx_action_index,
+            hex::encode([0u8, 32]).into(),
+            *tx_index_of_action,
         ))
         .saturating_mul(bridge_lock_byte_cost_multiplier),
     );

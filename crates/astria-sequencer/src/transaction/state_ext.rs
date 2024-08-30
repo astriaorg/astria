@@ -3,7 +3,10 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    primitive::v1::ADDRESS_LEN,
+    primitive::v1::{
+        TransactionId,
+        ADDRESS_LEN,
+    },
     protocol::transaction::v1alpha1::SignedTransaction,
 };
 use cnidarium::{
@@ -12,8 +15,8 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-fn action_index_storage_key() -> &'static str {
-    "transaction/action_index"
+fn index_of_action_storage_key() -> &'static str {
+    "transaction/index_of_action"
 }
 
 fn current_source() -> &'static str {
@@ -23,7 +26,7 @@ fn current_source() -> &'static str {
 #[derive(Clone)]
 pub(crate) struct TransactionContext {
     pub(crate) address_bytes: [u8; ADDRESS_LEN],
-    pub(crate) transaction_hash: String,
+    pub(crate) transaction_id: TransactionId,
 }
 
 impl TransactionContext {
@@ -36,7 +39,7 @@ impl From<&SignedTransaction> for TransactionContext {
     fn from(value: &SignedTransaction) -> Self {
         Self {
             address_bytes: value.address_bytes(),
-            transaction_hash: hex::encode(value.sha256_of_proto_encoding()),
+            transaction_id: value.id(),
         }
     }
 }
@@ -52,30 +55,30 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_transaction_action_index(&mut self, index: u32) {
+    fn put_transaction_index_of_action(&mut self, index: u32) {
         self.nonverifiable_put_raw(
-            action_index_storage_key().as_bytes().to_vec(),
-            borsh::to_vec(&index).expect("serialize action index"),
+            index_of_action_storage_key().as_bytes().to_vec(),
+            borsh::to_vec(&index).expect("serialize index of action"),
         );
     }
 
     #[instrument(skip_all)]
-    async fn increment_transaction_action_index(&mut self) -> Result<()> {
+    async fn increment_transaction_index_of_action(&mut self) -> Result<()> {
         let index = self
-            .get_transaction_action_index()
+            .get_transaction_index_of_action()
             .await?
-            .expect("action index should be `Some`");
-        let index = index.checked_add(1).expect("increment action index");
+            .expect("index of action should be `Some`");
+        let index = index.checked_add(1).expect("increment index of action");
         self.nonverifiable_put_raw(
-            action_index_storage_key().as_bytes().to_vec(),
-            borsh::to_vec(&index).expect("serialize action index"),
+            index_of_action_storage_key().as_bytes().to_vec(),
+            borsh::to_vec(&index).expect("serialize index of action"),
         );
         Ok(())
     }
 
     #[instrument(skip_all)]
-    fn clear_transaction_action_index(&mut self) {
-        self.nonverifiable_delete(action_index_storage_key().as_bytes().to_vec());
+    fn clear_transaction_index_of_action(&mut self) {
+        self.nonverifiable_delete(index_of_action_storage_key().as_bytes().to_vec());
     }
 }
 
@@ -85,11 +88,11 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_transaction_action_index(&self) -> Result<Option<u32>> {
+    async fn get_transaction_index_of_action(&self) -> Result<Option<u32>> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(action_index_storage_key().as_bytes())
+            .nonverifiable_get_raw(index_of_action_storage_key().as_bytes())
             .await
-            .context("failed reading raw action index from state")?
+            .context("failed reading raw index of action from state")?
         else {
             return Ok(None);
         };

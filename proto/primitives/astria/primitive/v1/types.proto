@@ -55,3 +55,10 @@ message Address {
   reserved 1;
   reserved "inner";
 }
+
+// A `TransactionId` is a unique identifier for a transaction.
+// It contains the hash of the transaction, to be included in
+// rollup deposit events for source tracking.
+message TransactionId {
+  string hash = 1;
+}

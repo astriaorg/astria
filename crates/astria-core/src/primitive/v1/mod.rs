@@ -488,6 +488,103 @@ where
     tree
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
+pub struct TransactionId {
+    hash: String,
+}
+
+impl TransactionId {
+    /// Creates a new transaction ID from a hash of type `String`.
+    ///
+    /// # Examples
+    /// ```
+    /// use astria_core::primitive::v1::TransactionId;
+    /// let hash = hex::encode([0u8; 32]);
+    /// let transaction_id = TransactionId::new(hash);
+    /// assert_eq!(hash, transaction_id.get());
+    /// ```
+    #[must_use]
+    pub const fn new(hash: String) -> Self {
+        Self {
+            hash,
+        }
+    }
+
+    /// Returns the hex-encoded string hash of the given transaction.
+    ///
+    /// # Examples
+    /// ```
+    /// use astria_core::primitive::v1::TransactionId;
+    /// let hash = hex::encode([0u8; 32]);
+    /// let transaction_id = TransactionId::new(hash);
+    /// assert_eq!(hash, transaction_id.get());
+    /// ```
+    #[must_use]
+    pub fn get(&self) -> String {
+        self.hash.clone()
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::TransactionId {
+        raw::TransactionId {
+            hash: self.hash.clone(),
+        }
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> raw::TransactionId {
+        raw::TransactionId {
+            hash: self.hash,
+        }
+    }
+
+    /// Converts from protobuf type to rust type for a transaction ID.
+    #[must_use]
+    pub fn from_raw(raw: &raw::TransactionId) -> Self {
+        Self {
+            hash: raw.hash.clone(),
+        }
+    }
+}
+
+impl AsRef<String> for TransactionId {
+    fn as_ref(&self) -> &String {
+        &self.hash
+    }
+}
+
+impl From<String> for TransactionId {
+    fn from(hash: String) -> Self {
+        Self {
+            hash,
+        }
+    }
+}
+
+impl From<&String> for TransactionId {
+    fn from(hash: &String) -> Self {
+        Self {
+            hash: hash.clone(),
+        }
+    }
+}
+
+impl From<&TransactionId> for TransactionId {
+    fn from(value: &TransactionId) -> Self {
+        Self {
+            hash: value.hash.clone(),
+        }
+    }
+}
+
+impl std::fmt::Display for TransactionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.hash)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

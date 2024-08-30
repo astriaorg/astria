@@ -847,7 +847,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            "text_tx_hash".to_string(),
+            "text_tx_hash".to_string().into(),
             0,
         );
 
@@ -884,7 +884,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            "text_tx_hash".to_string(),
+            "text_tx_hash".to_string().into(),
             1,
         );
         deposits.append(&mut vec![deposit.clone()]);
@@ -920,7 +920,7 @@ mod test {
             amount,
             asset,
             destination_chain_address.to_string(),
-            "text_tx_hash".to_string(),
+            "text_tx_hash".to_string().into(),
             2,
         );
         let deposits_1 = vec![deposit.clone()];
@@ -965,7 +965,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            "text_tx_hash".to_string(),
+            "text_tx_hash".to_string().into(),
             0,
         );
 
@@ -989,7 +989,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            "text_tx_hash".to_string(),
+            "text_tx_hash".to_string().into(),
             1,
         );
         state
@@ -1040,7 +1040,7 @@ mod test {
             amount,
             asset,
             destination_chain_address.to_string(),
-            "text_tx_hash".to_string(),
+            "text_tx_hash".to_string().into(),
             0,
         );
 
@@ -1097,7 +1097,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            "text_tx_hash".to_string(),
+            "text_tx_hash".to_string().into(),
             0,
         );
 
@@ -1115,7 +1115,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            "text_tx_hash".to_string(),
+            "text_tx_hash".to_string().into(),
             1,
         );
         let deposits_1 = vec![deposit.clone()];
@@ -1193,7 +1193,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            "text_tx_hash".to_string(),
+            "text_tx_hash".to_string().into(),
             0,
         );
 
@@ -1211,7 +1211,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            "text_tx_hash".to_string(),
+            "text_tx_hash".to_string().into(),
             1,
         );
         state
