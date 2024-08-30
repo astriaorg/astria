@@ -3,7 +3,7 @@ global:
   replicaCount: 1
   # Whether to use tty readable logging for astria services, when false use json.
   useTTY: false
-  dev: tb
+  dev: true
 
 images:
   composer:
