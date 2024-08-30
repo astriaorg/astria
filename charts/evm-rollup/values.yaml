@@ -8,14 +8,14 @@ global:
 
 images:
   geth:
-    repo: ghcr.io/astriaorg/astria-geth
+    repo: ghcr.io/astriaorg/go-ethereum
     tag: 0.14.0
-    devTag: latest
+    devTag: tb
     overrideTag: ""
   conductor:
-    repo: ghcr.io/astriaorg/conductor
+    repo: astria-conductor
     tag: "0.20.0"
-    devTag: latest
+    devTag: tb
 
 
 genesis:

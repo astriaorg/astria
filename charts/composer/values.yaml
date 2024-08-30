@@ -3,13 +3,13 @@ global:
   replicaCount: 1
   # Whether to use tty readable logging for astria services, when false use json.
   useTTY: false
-  dev: false
+  dev: tb
 
 images:
   composer:
-    repo: ghcr.io/astriaorg/composer
+    repo: astria-composer
     tag: "0.8.2"
-    devTag: latest
+    devTag: tb
 
 config:
   logLevel: "info"
