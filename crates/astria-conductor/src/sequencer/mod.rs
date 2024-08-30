@@ -28,10 +28,13 @@ use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
+    debug_span,
     error,
     info,
+    instrument,
     trace,
     warn,
+    warn_span,
 };
 
 use crate::{
@@ -82,8 +85,7 @@ impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         let executor = select!(
             () = self.shutdown.clone().cancelled_owned() => {
-                info!("received shutdown signal while waiting for Sequencer reader task to initialize");
-                return Ok(());
+                return report_exit(Ok("received shutdown signal while waiting for Sequencer reader task to initialize"), "");
             }
             res = self.initialize() => {
                 res?
@@ -95,6 +97,7 @@ impl Reader {
             .await
     }
 
+    #[instrument(skip_all, err)]
     async fn initialize(&mut self) -> eyre::Result<executor::Handle<StateIsInit>> {
         self.executor
             .wait_for_init()
@@ -174,16 +177,7 @@ impl RunningReader {
 
         // XXX: explicitly setting the message (usually implicitly set by tracing)
         let message = "shutting down";
-        match stop_reason {
-            Ok(stop_reason) => {
-                info!(stop_reason, message);
-                Ok(())
-            }
-            Err(stop_reason) => {
-                error!(%stop_reason, message);
-                Err(stop_reason)
-            }
-        }
+        report_exit(stop_reason, message)
     }
 
     async fn run_loop(&mut self) -> eyre::Result<&'static str> {
@@ -200,7 +194,9 @@ impl RunningReader {
                 // Process block execution which was enqueued due to executor channel being full.
                 res = &mut self.enqueued_block, if !self.enqueued_block.is_terminated() => {
                     res.wrap_err("failed sending enqueued block to executor")?;
-                    debug!("submitted enqueued block to executor, resuming normal operation");
+                    debug_span!("conductor::sequencer::RunningReader::run_loop").in_scope(||
+                        debug!("submitted enqueued block to executor, resuming normal operation")
+                    );
                 }
 
                 // Skip heights that executor has already executed (e.g. firm blocks from Celestia)
@@ -220,25 +216,33 @@ impl RunningReader {
                     // otherwise recover from a failed block fetch.
                     let block = block.wrap_err("the stream of new blocks returned a catastrophic error")?;
                     if let Err(error) = self.block_cache.insert(block) {
-                        warn!(%error, "failed pushing block into sequential cache, dropping it");
+                        warn_span!("conductor::sequencer::RunningReader::run_loop").in_scope(||
+                            warn!(%error, "failed pushing block into sequential cache, dropping it")
+                        );
                     }
                 }
 
                 // Record the latest height of the Sequencer network, allowing `blocks_from_heights` to progress.
                 Some(res) = self.latest_height_stream.next() => {
-                    match res {
-                        Ok(height) => {
-                            debug!(%height, "received latest height from sequencer");
-                            self.blocks_from_heights.set_latest_observed_height_if_greater(height);
-                        }
-                        Err(error) => {
-                            warn!(
-                                error = %Report::new(error),
-                                "failed fetching latest height from sequencer; waiting until next tick",
-                            );
-                        }
-                    }
+                    self.handle_latest_height(res);
                 }
+            }
+        }
+    }
+
+    #[instrument(skip_all)]
+    fn handle_latest_height(&mut self, res: Result<Height, tendermint_rpc::Error>) {
+        match res {
+            Ok(height) => {
+                debug!(%height, "received latest height from sequencer");
+                self.blocks_from_heights
+                    .set_latest_observed_height_if_greater(height);
+            }
+            Err(error) => {
+                warn!(
+                    error = %Report::new(error),
+                    "failed fetching latest height from sequencer; waiting until next tick",
+                );
             }
         }
     }
@@ -293,5 +297,19 @@ impl RunningReader {
         self.blocks_from_heights
             .set_next_expected_height_if_greater(next_height);
         self.block_cache.drop_obsolete(next_height);
+    }
+}
+
+#[instrument(skip_all)]
+fn report_exit(reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
+    match reason {
+        Ok(reason) => {
+            info!(%reason, message);
+            Ok(())
+        }
+        Err(reason) => {
+            error!(%reason, message);
+            Err(reason)
+        }
     }
 }
