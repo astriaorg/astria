@@ -17,10 +17,7 @@ use astria_core::{
     },
     protocol::{
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
-        memos::v1alpha1::{
-            BridgeUnlock,
-            Ics20WithdrawalFromRollup,
-        },
+        memos::v1alpha1::Ics20WithdrawalFromRollup,
         transaction::v1alpha1::{
             action::{
                 BridgeUnlockAction,
@@ -423,11 +420,9 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
     let inner = BridgeUnlockAction {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
-        memo: serde_json::to_string(&BridgeUnlock {
-            rollup_block_number: receipt.block_number.unwrap().as_u64(),
-            rollup_transaction_hash: receipt.transaction_hash.to_string(),
-        })
-        .unwrap(),
+        rollup_block_number: receipt.block_number.unwrap().as_u64(),
+        rollup_withdrawal_event_id: receipt.transaction_hash.to_string(),
+        memo: String::new(),
         fee_asset: denom,
         bridge_address: default_bridge_address(),
     };
@@ -448,7 +443,7 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
             memo: "nootwashere".to_string(),
             rollup_return_address: receipt.from.to_string(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
-            rollup_transaction_hash: receipt.transaction_hash.to_string(),
+            rollup_withdrawal_event_id: receipt.transaction_hash.to_string(),
         })
         .unwrap(),
         fee_asset: denom,

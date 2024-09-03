@@ -386,7 +386,8 @@ pub struct BridgeUnlockAction {
     /// the asset used to pay the transaction fee
     #[prost(string, tag = "3")]
     pub fee_asset: ::prost::alloc::string::String,
-    /// memo for double spend prevention
+    /// The memo field can be used to provide unique identifying additional
+    /// information about the bridge unlock transaction.
     #[prost(string, tag = "4")]
     pub memo: ::prost::alloc::string::String,
     /// the address of the bridge account to transfer from
@@ -394,6 +395,19 @@ pub struct BridgeUnlockAction {
     pub bridge_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
     >,
+    /// The block number on the rollup that triggered the transaction underlying
+    /// this bridge unlock memo.
+    #[prost(uint64, tag = "6")]
+    pub rollup_block_number: u64,
+    /// An identifier of the original rollup event, such as a transaction hash which
+    /// triggered a bridge unlock and is underlying event that led to this bridge
+    /// unlock. This can be utilized for tracing from the bridge back to
+    /// distinct rollup events.
+    ///
+    /// This field is of type `string` so that it can be formatted in the preferred
+    /// format of the rollup when targeting plain text encoding.
+    #[prost(string, tag = "7")]
+    pub rollup_withdrawal_event_id: ::prost::alloc::string::String,
 }
 impl ::prost::Name for BridgeUnlockAction {
     const NAME: &'static str = "BridgeUnlockAction";

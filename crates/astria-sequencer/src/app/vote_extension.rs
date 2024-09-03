@@ -581,13 +581,17 @@ mod test {
                     address: SigningKey::from([0; 32]).verification_key().address_bytes(),
                     power: 1u16.into(),
                 },
-                sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
+                sig_info: Flag(tendermint::block::BlockIdFlag::Nil),
                 extension_signature: None,
                 vote_extension: vec![].into(),
             }],
         };
-        validate_vote_extensions(&state, 1, &extended_commit_info)
-            .await
-            .unwrap();
+        assert!(
+            validate_vote_extensions(&state, 1, &extended_commit_info)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("submitted voting power is less than required voting power")
+        );
     }
 }
