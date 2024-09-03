@@ -20,13 +20,3 @@ data:
 ---
 {{- end }}
 {{- end }}
-{{- if .Values.createChannel.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: hermes-create-channel-script
-  namespace: {{ include "hermes.namespace" . }}
-data:
-  create_channel.sh: |
-    {{- tpl (.Files.Get "files/create_channel.sh") $ | nindent 4 }}
-{{- end }}

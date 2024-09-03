@@ -1,11 +1,11 @@
 image: "ghcr.io/astriaorg/hermes:0.2.0"
 
-createChannel:
-  enabled: true
-  chainA: sequencer-test-chain-0
-  portA: transfer
-  chainB: celestia-local-0
-  portB: transfer
+createChannels:
+  - enabled: true
+    chainA: sequencer-test-chain-0
+    portA: transfer
+    chainB: celestia-local-0
+    portB: transfer
 
 secretProvider:
   enabled: false
