@@ -322,7 +322,7 @@ impl<'de> serde::Deserialize<'de> for QueryPricesResponse {
                                 return Err(serde::de::Error::duplicate_field("prices"));
                             }
                             prices__ = Some(
-                                map_.next_value::<std::collections::HashMap<_, _>>()?
+                                map_.next_value::<std::collections::BTreeMap<_, _>>()?
                             );
                         }
                         GeneratedField::Timestamp => {

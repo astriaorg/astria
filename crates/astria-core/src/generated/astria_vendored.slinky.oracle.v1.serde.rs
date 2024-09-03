@@ -707,7 +707,7 @@ impl<'de> serde::Deserialize<'de> for GetCurrencyPairMappingResponse {
                                 return Err(serde::de::Error::duplicate_field("currencyPairMapping"));
                             }
                             currency_pair_mapping__ = Some(
-                                map_.next_value::<std::collections::HashMap<::pbjson::private::NumberDeserialize<u64>, _>>()?
+                                map_.next_value::<std::collections::BTreeMap<::pbjson::private::NumberDeserialize<u64>, _>>()?
                                     .into_iter().map(|(k,v)| (k.0, v)).collect()
                             );
                         }

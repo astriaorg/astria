@@ -95,6 +95,7 @@ fn main() {
     pbjson_build::Builder::new()
         .register_descriptors(&descriptor_set)
         .unwrap()
+        .btree_map([".astria_vendored.slinky"])
         .out_dir(&out_dir)
         .build(&[
             ".astria",

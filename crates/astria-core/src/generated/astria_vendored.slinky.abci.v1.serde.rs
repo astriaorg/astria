@@ -80,7 +80,7 @@ impl<'de> serde::Deserialize<'de> for OracleVoteExtension {
                                 return Err(serde::de::Error::duplicate_field("prices"));
                             }
                             prices__ = Some(
-                                map_.next_value::<std::collections::HashMap<::pbjson::private::NumberDeserialize<u64>, ::pbjson::private::BytesDeserialize<_>>>()?
+                                map_.next_value::<std::collections::BTreeMap<::pbjson::private::NumberDeserialize<u64>, ::pbjson::private::BytesDeserialize<_>>>()?
                                     .into_iter().map(|(k,v)| (k.0, v.0)).collect()
                             );
                         }

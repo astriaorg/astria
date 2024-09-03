@@ -483,7 +483,7 @@ impl<'de> serde::Deserialize<'de> for MarketMap {
                                 return Err(serde::de::Error::duplicate_field("markets"));
                             }
                             markets__ = Some(
-                                map_.next_value::<std::collections::HashMap<_, _>>()?
+                                map_.next_value::<std::collections::BTreeMap<_, _>>()?
                             );
                         }
                     }
