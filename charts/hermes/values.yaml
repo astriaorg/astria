@@ -13,15 +13,15 @@ nameOverride: ""
 # the destination chain assets
 createChannels:
   - enabled: false
-    chainA: "" # For local test is sequencer-test-chain-0
-    portA: "" # likely "transfer"
-    chainB: "" # For default local test celestia-local-0
-    portB: "" # likely "transfer"
+    chainA: ""  # For local test is sequencer-test-chain-0
+    portA: ""  # likely "transfer"
+    chainB: ""  # For default local test celestia-local-0
+    portB: ""  # likely "transfer"
   - enabled: false
-    chainA: "" # For local test is sequencer-test-chain-0
-    portA: "" # likely "transfer"
-    chainB: "" # For default local test celestia-local-0
-    portB: "" # likely "transfer"
+    chainA: ""  # For local test is sequencer-test-chain-0
+    portA: ""  # likely "transfer"
+    chainB: ""  # For default local test celestia-local-0
+    portB: ""  # likely "transfer"
 
 rest:
   enabled: false
