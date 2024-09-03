@@ -195,7 +195,7 @@ impl Relayer {
                 }
 
                 Some(res) = latest_height_stream.next() => {
-                    self.latest_height_stream_handler(res, &mut block_stream);
+                    self.handle_latest_height(res, &mut block_stream);
                 }
 
                 Some((height, fetch_result)) = block_stream.next() => {
@@ -228,7 +228,7 @@ impl Relayer {
 
         report_shutdown(&reason);
 
-        self.submitter_shutdown_handler(submitter_task).await;
+        self.handle_submitter_shutdown(submitter_task).await;
 
         reason.map(|_| ())
     }
