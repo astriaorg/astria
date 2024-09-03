@@ -6,7 +6,10 @@ use astria_eyre::eyre::{
 };
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{
+    info,
+    instrument,
+};
 
 use super::state::State;
 use crate::{
@@ -30,6 +33,7 @@ impl Handle {
         }
     }
 
+    #[instrument(skip_all, err)]
     pub(crate) async fn send_batch(&self, batch: Batch) -> eyre::Result<()> {
         self.batches_tx
             .send(batch)

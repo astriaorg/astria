@@ -74,7 +74,7 @@ impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         let (sequencer_chain_id, sequencer_grpc_client) = select! {
             () = self.shutdown_token.cancelled() => {
-                info!("submitter received shutdown signal while waiting for startup");
+                report_exit(Ok("submitter received shutdown signal while waiting for startup"));
                 return Ok(());
             }
 
@@ -96,7 +96,6 @@ impl Submitter {
                 biased;
 
                 () = self.shutdown_token.cancelled() => {
-                    info!("received shutdown signal");
                     break Ok("shutdown requested");
                 }
 
@@ -124,17 +123,12 @@ impl Submitter {
         // close the channel to signal to batcher that the submitter is shutting down
         self.batches_rx.close();
 
-        match reason {
-            Ok(reason) => info!(reason, "submitter shutting down"),
-            Err(reason) => {
-                error!(%reason, "submitter shutting down");
-            }
-        }
+        report_exit(reason);
 
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn process_batch(
         &self,
         sequencer_grpc_client: SequencerServiceClient<Channel>,
@@ -182,24 +176,18 @@ impl Submitter {
         .await
         .context("failed to submit transaction to cometbft")?;
         if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
-            error!(
-                abci.code = check_tx_code,
-                abci.log = rsp.check_tx.log,
-                rollup.height = rollup_height,
-                "transaction failed to be included in the mempool, aborting."
-            );
             Err(eyre!(
-                "check_tx failure upon submitting transaction to sequencer"
+                "check_tx failure upon submitting transaction to sequencer: transaction failed to \
+                 be included in the mempool, aborting. abci.code = {check_tx_code}, abci.log = \
+                 {}, rollup.height = {rollup_height}",
+                rsp.check_tx.log
             ))
         } else if let tendermint::abci::Code::Err(deliver_tx_code) = rsp.tx_result.code {
-            error!(
-                abci.code = deliver_tx_code,
-                abci.log = rsp.tx_result.log,
-                rollup.height = rollup_height,
-                "transaction failed to be executed in a block, aborting."
-            );
             Err(eyre!(
-                "deliver_tx failure upon submitting transaction to sequencer"
+                "deliver_tx failure upon submitting transaction to sequencer: transaction failed \
+                 to be executed in a block, aborting. abci.code = {deliver_tx_code}, abci.log = \
+                 {}, rollup.height = {rollup_height}",
+                rsp.tx_result.log,
             ))
         } else {
             // update state after successful submission
@@ -217,6 +205,16 @@ impl Submitter {
     }
 }
 
+#[instrument(skip_all)]
+fn report_exit(reason: eyre::Result<&str>) {
+    match reason {
+        Ok(reason) => info!(%reason, "submitter shutting down"),
+        Err(reason) => {
+            error!(%reason, "submitter shutting down");
+        }
+    }
+}
+
 /// Submits a `SignedTransaction` to the sequencer with an exponential backoff
 #[instrument(
     name = "submit_tx",
@@ -224,7 +222,8 @@ impl Submitter {
     fields(
         nonce = tx.nonce(),
         transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
-    )
+    ),
+    err
 )]
 async fn submit_tx(
     client: sequencer_client::HttpClient,
@@ -279,6 +278,7 @@ async fn submit_tx(
     res
 }
 
+#[instrument(skip_all, err)]
 pub(crate) async fn get_pending_nonce(
     client: sequencer_service_client::SequencerServiceClient<Channel>,
     address: Address,

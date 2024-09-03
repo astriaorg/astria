@@ -49,7 +49,6 @@ hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
 indexmap = { workspace = true }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
-metrics = { workspace = true }
 penumbra-proto = { workspace = true }
 penumbra-tower-trace = { workspace = true }
 prost = { workspace = true }
