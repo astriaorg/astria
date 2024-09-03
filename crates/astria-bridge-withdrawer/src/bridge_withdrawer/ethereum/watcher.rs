@@ -7,9 +7,12 @@ use astria_bridge_contracts::{
     GetWithdrawalActions,
     GetWithdrawalActionsBuilder,
 };
-use astria_core::primitive::v1::{
-    asset,
-    Address,
+use astria_core::{
+    primitive::v1::{
+        asset,
+        Address,
+    },
+    protocol::transaction::v1alpha1::Action,
 };
 use astria_eyre::{
     eyre::{
@@ -38,6 +41,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     info,
+    info_span,
     instrument,
     warn,
 };
@@ -293,11 +297,13 @@ async fn watch_for_blocks(
         bail!("current rollup block missing block number")
     };
 
-    info!(
-        block.height = current_rollup_block_height.as_u64(),
-        block.hash = current_rollup_block.hash.map(tracing::field::display),
-        "got current block"
-    );
+    info_span!("watch_for_blocks").in_scope(|| {
+        info!(
+            block.height = current_rollup_block_height.as_u64(),
+            block.hash = current_rollup_block.hash.map(tracing::field::display),
+            "got current block"
+        );
+    });
 
     // sync any blocks missing between `next_rollup_block_height` and the current latest
     // (inclusive).
@@ -314,7 +320,7 @@ async fn watch_for_blocks(
     loop {
         select! {
             () = shutdown_token.cancelled() => {
-                info!("block watcher shutting down");
+                info_span!("watch_for_blocks").in_scope(|| info!("block watcher shutting down"));
                 return Ok(());
             }
             block = block_rx.next() => {
@@ -348,10 +354,21 @@ async fn get_and_forward_block_events(
         .number
         .ok_or_eyre("block did not contain a rollup height")?
         .as_u64();
-    let actions = actions_fetcher
+    let actions: Vec<Action> = actions_fetcher
         .get_for_block_hash(block_hash)
         .await
-        .wrap_err("failed getting actions for block")?;
+        .wrap_err("failed getting actions for block")?
+        .into_iter()
+        .filter_map(|r| {
+            r.map_err(|e| {
+                warn!(
+                    error = %eyre::Report::new(e),
+                    "failed to convert rollup withdrawal event to sequencer action; dropping"
+                );
+            })
+            .ok()
+        })
+        .collect();
 
     if actions.is_empty() {
         info!(

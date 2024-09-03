@@ -24,7 +24,6 @@ images:
 ports:
   celestia:
     rpc: 26658
-  tokenServer: 5353
 
 resources:
   requests:

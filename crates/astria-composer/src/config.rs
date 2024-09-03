@@ -3,13 +3,15 @@ use std::{
     net::SocketAddr,
 };
 
-use astria_eyre::eyre::WrapErr;
 use serde::{
     Deserialize,
     Serialize,
 };
 
-use crate::rollup::Rollup;
+use crate::rollup::{
+    ParseError,
+    Rollup,
+};
 
 // this is a config, may have many boolean values
 #[allow(clippy::struct_excessive_bools)]
@@ -34,7 +36,7 @@ pub struct Config {
     /// Path to private key for the sequencer account used for signing transactions
     pub private_key_file: String,
 
-    // The address prefix to use when constructing sequencer addresses using the signing key.
+    /// The address prefix to use when constructing sequencer addresses using the signing key.
     pub sequencer_address_prefix: String,
 
     /// Sequencer block time in milliseconds
@@ -71,13 +73,17 @@ pub struct Config {
 }
 
 impl Config {
-    pub(crate) fn parse_rollups(&self) -> astria_eyre::eyre::Result<HashMap<String, String>> {
+    /// Returns a map of rollup names to rollup URLs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if parsing fails.
+    pub fn parse_rollups(&self) -> Result<HashMap<String, String>, ParseError> {
         self.rollups
             .split(',')
             .filter(|s| !s.is_empty())
             .map(|s| Rollup::parse(s).map(Rollup::into_parts))
             .collect::<Result<HashMap<_, _>, _>>()
-            .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")
     }
 }
 

@@ -5,6 +5,7 @@ use std::collections::{
 
 use anyhow::{
     anyhow,
+    bail,
     Context,
     Result,
 };
@@ -132,6 +133,20 @@ fn bridge_account_withdrawer_address_storage_key<T: AddressBytes>(address: &T) -
             prefix: BRIDGE_ACCOUNT_WITHDRAWER_PREFIX,
             address
         }
+    )
+}
+
+fn bridge_account_withdrawal_event_storage_key<T: AddressBytes>(
+    address: &T,
+    withdrawal_event_id: &str,
+) -> String {
+    format!(
+        "{}/withdrawalevent/{}",
+        BridgeAccountKey {
+            prefix: BRIDGE_ACCOUNT_PREFIX,
+            address
+        },
+        withdrawal_event_id
     )
 }
 
@@ -417,6 +432,37 @@ pub(crate) trait StateWriteExt: StateWrite {
             bridge_account_withdrawer_address_storage_key(&bridge_address),
             withdrawer_address.address_bytes().to_vec(),
         );
+    }
+
+    #[instrument(skip_all)]
+    async fn check_and_set_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
+        &mut self,
+        address: T,
+        withdrawal_event_id: &str,
+        block_num: u64,
+    ) -> Result<()> {
+        let key = bridge_account_withdrawal_event_storage_key(&address, withdrawal_event_id);
+
+        // Check if the withdrawal ID has already been used, if so return an error.
+        let bytes = self
+            .get_raw(&key)
+            .await
+            .context("failed reading raw withdrawal event from state")?;
+        if let Some(bytes) = bytes {
+            let existing_block_num = u64::from_be_bytes(
+                bytes
+                    .try_into()
+                    .expect("all block numbers stored should be 8 bytes; this is a bug"),
+            );
+
+            bail!(
+                "withdrawal event ID {withdrawal_event_id} used by block number \
+                 {existing_block_num}"
+            );
+        }
+
+        self.put_raw(key, block_num.to_be_bytes().to_vec());
+        Ok(())
     }
 
     // the deposit "nonce" for a given rollup ID during a given block.

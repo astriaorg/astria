@@ -487,6 +487,7 @@ mod tests {
         ChaChaRng,
     };
     use sequencer_client::SequencerBlock;
+    use telemetry::Metrics as _;
 
     use super::{
         Input,
@@ -506,7 +507,7 @@ mod tests {
     }
 
     fn metrics() -> &'static Metrics {
-        Box::leak(Box::new(Metrics::new()))
+        Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()))
     }
 
     fn block(height: u32) -> SequencerBlock {

@@ -51,6 +51,7 @@ use tracing::{
     info_span,
     instrument,
     trace,
+    trace_span,
     warn,
 };
 
@@ -148,7 +149,9 @@ impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         let (executor, sequencer_chain_id) = select!(
             () = self.shutdown.clone().cancelled_owned() => {
-                info!("received shutdown signal while waiting for Celestia reader task to initialize");
+                info_span!("conductor::celestia::Reader::run_until_stopped").in_scope(||
+                    info!("received shutdown signal while waiting for Celestia reader task to initialize")
+                );
                 return Ok(());
             }
 
@@ -163,6 +166,7 @@ impl Reader {
             .await
     }
 
+    #[instrument(skip_all, err)]
     async fn initialize(
         &mut self,
     ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
@@ -303,18 +307,19 @@ impl RunningReader {
         })
     }
 
-    #[instrument(skip(self))]
     async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        info!(
-            initial_celestia_height = self.celestia_next_height,
-            initial_max_celestia_height = self.max_permitted_celestia_height(),
-            celestia_variance = self.celestia_variance,
-            rollup_namespace = %base64(&self.rollup_namespace.as_bytes()),
-            rollup_id = %self.rollup_id,
-            sequencer_chain_id = %self.sequencer_chain_id,
-            sequencer_namespace = %base64(&self.sequencer_namespace.as_bytes()),
-            "starting firm block read loop",
-        );
+        info_span!("conductor::celestia::RunningReader::run_until_stopped").in_scope(|| {
+            info!(
+                initial_celestia_height = self.celestia_next_height,
+                initial_max_celestia_height = self.max_permitted_celestia_height(),
+                celestia_variance = self.celestia_variance,
+                rollup_namespace = %base64(&self.rollup_namespace.as_bytes()),
+                rollup_id = %self.rollup_id,
+                sequencer_chain_id = %self.sequencer_chain_id,
+                sequencer_namespace = %base64(&self.sequencer_namespace.as_bytes()),
+                "starting firm block read loop",
+            );
+        });
 
         let reason = loop {
             self.schedule_new_blobs();
@@ -329,7 +334,9 @@ impl RunningReader {
                 res = &mut self.enqueued_block, if self.waiting_for_executor_capacity() => {
                     match res {
                         Ok(celestia_height_of_forwarded_block) => {
-                            trace!("submitted enqueued block to executor, resuming normal operation");
+                            trace_span!("conductor::celestia::RunningReader::run_until_stopped")
+                                .in_scope(||
+                            trace!("submitted enqueued block to executor, resuming normal operation"));
                             self.advance_reference_celestia_height(celestia_height_of_forwarded_block);
                         }
                         Err(err) => break Err(err).wrap_err("failed sending enqueued block to executor"),
@@ -353,18 +360,7 @@ impl RunningReader {
                 }
 
                 Some(res) = self.latest_heights.next() => {
-                    match res {
-                        Ok(height) => {
-                            info!(height, "observed latest height from Celestia");
-                            self.record_latest_celestia_height(height);
-                        }
-                        Err(error) => {
-                            warn!(
-                                %error,
-                                "failed fetching latest height from sequencer; waiting until next tick",
-                            );
-                        }
-                    }
+                    self.handle_latest_height(res);
                 }
 
             );
@@ -372,18 +368,26 @@ impl RunningReader {
 
         // XXX: explicitly setting the event message (usually implicitly set by tracing)
         let message = "shutting down";
-        match reason {
-            Ok(reason) => {
-                info!(reason, message);
-                Ok(())
+        report_exit(reason, message)
+    }
+
+    #[instrument(skip_all)]
+    fn handle_latest_height(&mut self, res: eyre::Result<u64>) {
+        match res {
+            Ok(height) => {
+                info!(height, "observed latest height from Celestia");
+                self.record_latest_celestia_height(height);
             }
-            Err(reason) => {
-                error!(%reason, message);
-                Err(reason)
+            Err(error) => {
+                warn!(
+                    %error,
+                    "failed fetching latest height from sequencer; waiting until next tick",
+                );
             }
         }
     }
 
+    #[instrument(skip_all)]
     fn cache_reconstructed_blocks(&mut self, reconstructed: ReconstructedBlocks) {
         for block in reconstructed.blocks {
             let block_hash = block.block_hash;
@@ -413,6 +417,7 @@ impl RunningReader {
         is_next_below_head && is_next_in_window && is_capacity_in_task_set
     }
 
+    #[instrument(skip_all)]
     fn schedule_new_blobs(&mut self) {
         let mut scheduled = vec![];
         while self.can_schedule_blobs() {
@@ -444,6 +449,7 @@ impl RunningReader {
         *reference_height = max(*reference_height, candidate);
     }
 
+    #[instrument(skip_all)]
     fn forward_block_to_executor(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
         match self.executor.try_send_firm_block(block) {
@@ -507,6 +513,7 @@ impl FetchConvertVerifyAndReconstruct {
         celestia_height = self.celestia_height,
         rollup_namespace = %base64(self.rollup_namespace.as_bytes()),
         sequencer_namespace = %base64(self.sequencer_namespace.as_bytes()),
+        err,
     ))]
     async fn execute(self) -> eyre::Result<ReconstructedBlocks> {
         let Self {
@@ -592,6 +599,7 @@ impl FetchConvertVerifyAndReconstruct {
     }
 }
 
+#[instrument(skip_all, err)]
 async fn enqueue_block(
     executor: executor::Handle<StateIsInit>,
     block: ReconstructedBlock,
@@ -601,6 +609,7 @@ async fn enqueue_block(
     Ok(celestia_height)
 }
 
+#[instrument(skip_all, err)]
 async fn get_sequencer_chain_id(client: SequencerClient) -> eyre::Result<tendermint::chain::Id> {
     use sequencer_client::Client as _;
 
@@ -632,4 +641,18 @@ async fn get_sequencer_chain_id(client: SequencerClient) -> eyre::Result<tenderm
 
 fn max_permitted_celestia_height(reference: u64, variance: u64) -> u64 {
     reference.saturating_add(variance.saturating_mul(6))
+}
+
+#[instrument(skip_all)]
+fn report_exit(exit_reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
+    match exit_reason {
+        Ok(reason) => {
+            info!(%reason, message);
+            Ok(())
+        }
+        Err(reason) => {
+            error!(%reason, message);
+            Err(reason)
+        }
+    }
 }
