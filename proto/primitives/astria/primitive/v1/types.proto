@@ -57,8 +57,8 @@ message Address {
 }
 
 // A `TransactionId` is a unique identifier for a transaction.
-// It contains the hash of the transaction, which must be 32 bytes long, to be included in
+// It contains the hash of the transaction, to be included in
 // rollup deposit events for source tracking.
 message TransactionId {
-  bytes inner = 1;
+  string hash = 1;
 }

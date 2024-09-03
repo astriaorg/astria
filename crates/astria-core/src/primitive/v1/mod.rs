@@ -497,52 +497,38 @@ where
     serde(try_from = "raw::TransactionId", into = "raw::TransactionId")
 )]
 pub struct TransactionId {
-    inner: [u8; TRANSACTION_ID_LENGTH],
+    hash: String,
 }
 
 impl TransactionId {
-    /// Returns the 32-byte hash representing the transaction for the given ID.
     #[must_use]
-    pub fn get(&self) -> [u8; TRANSACTION_ID_LENGTH] {
-        self.inner
+    pub fn get(&self) -> String {
+        self.hash.clone()
     }
 
     #[must_use]
     pub fn to_raw(&self) -> raw::TransactionId {
         raw::TransactionId {
-            inner: Bytes::copy_from_slice(&self.inner),
+            hash: self.hash.clone(),
         }
     }
 
     #[must_use]
     pub fn into_raw(self) -> raw::TransactionId {
         raw::TransactionId {
-            inner: Bytes::copy_from_slice(&self.inner),
+            hash: self.hash.clone(),
         }
     }
 
-    /// Converts from protobuf type to rust type for a transaction ID.
+    /// Returns a copy of the transaction hash as a 32-byte array.
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// Returns an error if the raw byte slice was not 32 bytes long.
-    pub fn try_from_raw(raw: &raw::TransactionId) -> Result<Self, IncorrectTransactionIdLength> {
-        let inner = <[u8; TRANSACTION_ID_LENGTH]>::try_from(raw.inner.as_ref()).map_err(|_| {
-            IncorrectTransactionIdLength {
-                received: raw.inner.len(),
-            }
-        })?;
-        Ok(Self {
-            inner,
-        })
-    }
-}
-
-impl TryFrom<raw::TransactionId> for TransactionId {
-    type Error = IncorrectTransactionIdLength;
-
-    fn try_from(value: raw::TransactionId) -> Result<Self, Self::Error> {
-        Self::try_from_raw(&value)
+    /// Panics if the transaction ID is not 32 bytes long. This should never happen, as the
+    /// transaction ID can only be created from a 32-byte array.
+    #[must_use]
+    pub fn as_bytes(&self) -> [u8; TRANSACTION_ID_LENGTH] {
+        hex::decode(self.hash.clone()).unwrap().try_into().unwrap()
     }
 }
 
@@ -552,38 +538,53 @@ impl From<TransactionId> for raw::TransactionId {
     }
 }
 
-impl AsRef<[u8]> for TransactionId {
-    fn as_ref(&self) -> &[u8] {
-        &self.inner
+impl TryFrom<raw::TransactionId> for TransactionId {
+    type Error = TransactionIdError;
+
+    fn try_from(raw: raw::TransactionId) -> Result<Self, Self::Error> {
+        Self::try_from(raw.hash)
+    }
+}
+
+impl TryFrom<String> for TransactionId {
+    type Error = TransactionIdError;
+
+    fn try_from(hash: String) -> Result<Self, Self::Error> {
+        let inner =
+            hex::decode(hash.clone()).map_err(|err| TransactionIdError::HexDecodeError {
+                source: err,
+            })?;
+        if inner.len() != TRANSACTION_ID_LENGTH {
+            return Err(TransactionIdError::IncorrectTransactionIdLength {
+                received: inner.len(),
+            });
+        }
+        Ok(Self {
+            hash: hex::encode(inner),
+        })
     }
 }
 
 impl From<[u8; TRANSACTION_ID_LENGTH]> for TransactionId {
-    fn from(inner: [u8; ROLLUP_ID_LEN]) -> Self {
+    fn from(inner: [u8; TRANSACTION_ID_LENGTH]) -> Self {
         Self {
-            inner,
-        }
-    }
-}
-
-impl From<&[u8; TRANSACTION_ID_LENGTH]> for TransactionId {
-    fn from(inner: &[u8; ROLLUP_ID_LEN]) -> Self {
-        Self {
-            inner: *inner,
+            hash: hex::encode(inner),
         }
     }
 }
 
 impl std::fmt::Display for TransactionId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.inner))
+        write!(f, "{}", self.hash)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("expected 32 bytes, got {received}")]
-pub struct IncorrectTransactionIdLength {
-    received: usize,
+pub enum TransactionIdError {
+    #[error("expected 32 bytes, got {received}")]
+    IncorrectTransactionIdLength { received: usize },
+    #[error("error decoding hex string: {source}")]
+    HexDecodeError { source: hex::FromHexError },
 }
 
 #[cfg(test)]

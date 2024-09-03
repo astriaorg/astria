@@ -610,7 +610,7 @@ mod test {
             transaction_bytes: unsigned.to_raw().encode_to_vec().into(),
         };
 
-        insta::assert_json_snapshot!(tx.id().get());
+        insta::assert_json_snapshot!(tx.id().as_bytes());
     }
 
     #[test]

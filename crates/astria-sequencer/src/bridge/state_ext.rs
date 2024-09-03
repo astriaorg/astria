@@ -545,7 +545,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) {
         self.nonverifiable_put_raw(
             last_transaction_id_for_bridge_account_storage_key(&address),
-            tx_id.get().to_vec(),
+            tx_id.as_bytes().to_vec(),
         );
     }
 }

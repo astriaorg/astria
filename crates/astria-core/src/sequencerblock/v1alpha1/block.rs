@@ -28,9 +28,9 @@ use crate::{
         Address,
         AddressError,
         IncorrectRollupIdLength,
-        IncorrectTransactionIdLength,
         RollupId,
         TransactionId,
+        TransactionIdError,
     },
     protocol::transaction::v1alpha1::{
         action,
@@ -1415,8 +1415,8 @@ impl Deposit {
         let Some(id_of_source_transaction) = id_of_source_transaction else {
             return Err(DepositError::field_not_set("transaction_id"));
         };
-        let id_of_source_transaction = TransactionId::try_from_raw(&id_of_source_transaction)
-            .map_err(DepositError::incorrect_transaction_id_length)?;
+        let id_of_source_transaction = TransactionId::try_from(id_of_source_transaction)
+            .map_err(DepositError::transaction_id_error)?;
         Ok(Self {
             bridge_address,
             rollup_id,
@@ -1452,8 +1452,8 @@ impl DepositError {
         Self(DepositErrorKind::IncorrectAsset(source))
     }
 
-    fn incorrect_transaction_id_length(source: IncorrectTransactionIdLength) -> Self {
-        Self(DepositErrorKind::IncorrectTransactionIdLength(source))
+    fn transaction_id_error(source: TransactionIdError) -> Self {
+        Self(DepositErrorKind::TransactionIdError(source))
     }
 }
 
@@ -1467,8 +1467,8 @@ enum DepositErrorKind {
     IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the `asset` field could not be parsed")]
     IncorrectAsset(#[source] asset::ParseDenomError),
-    #[error("the transaction ID length is not 32 bytes")]
-    IncorrectTransactionIdLength(#[source] IncorrectTransactionIdLength),
+    #[error("error converting to `TransactionId`")]
+    TransactionIdError(#[source] TransactionIdError),
 }
 
 /// A piece of data that is sent to a rollup execution node.

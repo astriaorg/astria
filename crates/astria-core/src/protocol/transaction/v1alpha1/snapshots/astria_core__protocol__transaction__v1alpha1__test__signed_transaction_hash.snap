@@ -1,6 +1,6 @@
 ---
 source: crates/astria-core/src/protocol/transaction/v1alpha1/mod.rs
-expression: tx.sha256_of_proto_encoding()
+expression: tx.id().as_bytes()
 ---
 [
   69,
