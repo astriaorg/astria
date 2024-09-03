@@ -222,7 +222,7 @@ _forge-ibc-withdraw:
 # FIXME - delete after development
 cb address=celestia_dev_account_address namespace=defaultNamespace:
   kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
-  'celestia-appd query bank balances {{address}}'
+    'celestia-appd query bank balances {{address}}'
 
 # init sequencer bridge account
 init-bridge-acct:
