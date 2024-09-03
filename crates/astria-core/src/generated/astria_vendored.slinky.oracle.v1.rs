@@ -208,8 +208,8 @@ impl ::prost::Name for GetCurrencyPairMappingRequest {
 pub struct GetCurrencyPairMappingResponse {
     /// currency_pair_mapping is a mapping of the id representing the currency pair
     /// to the currency pair itself.
-    #[prost(map = "uint64, message", tag = "1")]
-    pub currency_pair_mapping: ::std::collections::HashMap<
+    #[prost(btree_map = "uint64, message", tag = "1")]
+    pub currency_pair_mapping: ::prost::alloc::collections::BTreeMap<
         u64,
         super::super::types::v1::CurrencyPair,
     >,

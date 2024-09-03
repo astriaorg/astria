@@ -5,8 +5,8 @@ pub struct OracleVoteExtension {
     /// Prices defines a map of id(CurrencyPair) -> price.Bytes() . i.e. 1 ->
     /// 0x123.. (bytes). Notice the `id` function is determined by the
     /// `CurrencyPairIDStrategy` used in the VoteExtensionHandler.
-    #[prost(map = "uint64, bytes", tag = "1")]
-    pub prices: ::std::collections::HashMap<u64, ::prost::bytes::Bytes>,
+    #[prost(btree_map = "uint64, bytes", tag = "1")]
+    pub prices: ::prost::alloc::collections::BTreeMap<u64, ::prost::bytes::Bytes>,
 }
 impl ::prost::Name for OracleVoteExtension {
     const NAME: &'static str = "OracleVoteExtension";

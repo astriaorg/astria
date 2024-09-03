@@ -91,8 +91,11 @@ impl ::prost::Name for ProviderConfig {
 pub struct MarketMap {
     /// Markets is the full list of tickers and their associated configurations
     /// to be stored on-chain.
-    #[prost(map = "string, message", tag = "1")]
-    pub markets: ::std::collections::HashMap<::prost::alloc::string::String, Market>,
+    #[prost(btree_map = "string, message", tag = "1")]
+    pub markets: ::prost::alloc::collections::BTreeMap<
+        ::prost::alloc::string::String,
+        Market,
+    >,
 }
 impl ::prost::Name for MarketMap {
     const NAME: &'static str = "MarketMap";

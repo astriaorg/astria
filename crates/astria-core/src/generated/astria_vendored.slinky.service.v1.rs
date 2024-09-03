@@ -14,8 +14,8 @@ impl ::prost::Name for QueryPricesRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryPricesResponse {
     /// prices defines the list of prices.
-    #[prost(map = "string, string", tag = "1")]
-    pub prices: ::std::collections::HashMap<
+    #[prost(btree_map = "string, string", tag = "1")]
+    pub prices: ::prost::alloc::collections::BTreeMap<
         ::prost::alloc::string::String,
         ::prost::alloc::string::String,
     >,
