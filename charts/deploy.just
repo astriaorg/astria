@@ -79,8 +79,8 @@ deploy-sequencer name=validatorName:
     -f dev/values/validators/{{name}}.yml \
     -n astria-validator-{{name}} --create-namespace \
     {{name}}-sequencer-chart ./charts/sequencer
-#deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy-sequencer "node2")
-deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1")
+deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy-sequencer "node2")
+#deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1")
 
 
 deploy-hermes-local:
