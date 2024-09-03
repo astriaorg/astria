@@ -20,6 +20,7 @@ colour = "2.1.0"
 ethers-core = "2.0.14"
 hex = { workspace = true }
 indenter = "0.3.3"
+indexmap = { workspace = true }
 itertools = { workspace = true }
 pbjson-types = { workspace = true }
 prost = { workspace = true }

@@ -23,6 +23,7 @@ use astria_core::{
 };
 use bytes::Bytes;
 use cnidarium::Storage;
+use indexmap::IndexMap;
 use telemetry::Metrics as _;
 
 use crate::{
@@ -138,7 +139,7 @@ pub(crate) fn proto_genesis_state()
             market_map: Some(
                 MarketMapGenesisState {
                     market_map: MarketMap {
-                        markets: std::collections::HashMap::new(),
+                        markets: IndexMap::new(),
                     },
                     last_updated: 0,
                     params: Params {

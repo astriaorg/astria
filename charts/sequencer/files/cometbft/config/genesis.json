@@ -50,7 +50,7 @@
       "params": {
         "market_authorities": [],
         "admin": {
-          "bech32m": {{ include "sequencer.address" .Values.genesis.authoritySudoAddress }}
+          "bech32m": {{ include "sequencer.address" .Values.genesis.marketAdminAddress }}
         }
       }
     },

@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fs::File,
     io::Write,
     path::PathBuf,
@@ -38,6 +37,7 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use indexmap::IndexMap;
 
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
@@ -65,8 +65,8 @@ fn charlie() -> Address {
         .unwrap()
 }
 
-fn genesis_state_markets() -> HashMap<String, Market> {
-    let mut markets = HashMap::new();
+fn genesis_state_markets() -> IndexMap<String, Market> {
+    let mut markets = IndexMap::new();
     markets.insert(
         "BTC/USD".to_string(),
         Market {
