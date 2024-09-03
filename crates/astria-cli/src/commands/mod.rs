@@ -46,7 +46,7 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                 SequencerCommand::Account {
                     command,
                 } => match command {
-                    AccountCommand::Create => sequencer::create_account(),
+                    AccountCommand::Create(args) => sequencer::create_account(args)?,
                     AccountCommand::Balance(args) => sequencer::get_balance(&args).await?,
                     AccountCommand::Nonce(args) => sequencer::get_nonce(&args).await?,
                 },
