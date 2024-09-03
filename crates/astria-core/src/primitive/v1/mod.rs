@@ -501,6 +501,7 @@ pub struct TransactionId {
 }
 
 impl TransactionId {
+    /// Returns the hex-encoded 32-byte transaction hash as a string.
     #[must_use]
     pub fn get(&self) -> String {
         self.hash.clone()
