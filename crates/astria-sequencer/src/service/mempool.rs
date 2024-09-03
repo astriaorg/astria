@@ -371,6 +371,7 @@ mod tests {
         StateDelta,
         TempStorage,
     };
+    use telemetry::Metrics;
     use tendermint::abci::Code;
 
     use super::*;
@@ -387,7 +388,7 @@ mod tests {
         let storage = TempStorage::new().await.unwrap();
         let mempool = AppMempool::new();
         let cached_immutable_checks = Arc::new(Cache::new(CACHE_SIZE));
-        let metrics = Box::leak(Box::new(Metrics::new()));
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let request = request::CheckTx {
             tx: Bytes::new(),
             kind: request::CheckTxKind::New,
@@ -431,7 +432,7 @@ mod tests {
         state_delta.put_base_prefix("a").unwrap();
         let mempool = AppMempool::new();
         let cached_immutable_checks = Arc::new(Cache::new(CACHE_SIZE));
-        let metrics = Box::leak(Box::new(Metrics::new()));
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let signing_key = SigningKey::from([1; 32]);
         let action = ValidatorUpdate {
             power: 0,

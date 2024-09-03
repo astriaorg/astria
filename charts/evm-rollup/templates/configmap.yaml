@@ -5,13 +5,8 @@ metadata:
   namespace: {{ include "rollup.namespace" . }}
 data:
   ASTRIA_CONDUCTOR_LOG: "astria_conductor={{ .Values.config.logLevel }}"
-  {{- if (index .Values "celestia-node").enabled }}
-  TOKEN_SERVER_URL: "{{ include "celestiaNode.service.addresses.token" (index .Subcharts "celestia-node") }}"
-  ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ include "celestiaNode.service.addresses.rpc" (index .Subcharts "celestia-node") }}"
-  {{- else }}
-  TOKEN_SERVER_URL: "{{ .Values.config.celestia.token }}"
   ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestia.rpc }}"
-  {{- end }}
+  ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
   ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "12000"
   ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
   ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.config.conductor.executionCommitLevel }}"
