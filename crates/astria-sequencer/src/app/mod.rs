@@ -906,8 +906,7 @@ impl App {
         ensure!(
             finalize_block.txs.len() >= 3,
             "block must contain at least three transactions: the extended commit info, the rollup \
-             transactions commitment and
-             rollup IDs commitment"
+             transactions commitment and rollup IDs commitment"
         );
 
         let extended_commit_info_bytes = &finalize_block.txs[0];

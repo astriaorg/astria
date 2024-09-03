@@ -62,14 +62,23 @@ pub mod v1 {
         type Err = CurrencyPairParseError;
 
         fn from_str(s: &str) -> Result<Self, Self::Err> {
-            s.split_once('/')
-                .map(|(base, quote)| {
-                    Self::from_raw(raw::CurrencyPair {
-                        base: base.to_string(),
-                        quote: quote.to_string(),
-                    })
-                })
-                .ok_or_else(|| CurrencyPairParseError::invalid_currency_pair_string(s))
+            let re = regex::Regex::new(r"^([a-zA-Z]+)/([a-zA-Z]+)$").expect("valid regex");
+            let caps = re
+                .captures(s)
+                .ok_or_else(|| CurrencyPairParseError::invalid_currency_pair_string(s))?;
+            let base = caps
+                .get(1)
+                .expect("must have base string, as regex captured it")
+                .as_str();
+            let quote = caps
+                .get(2)
+                .expect("must have quote string, as regex captured it")
+                .as_str();
+
+            Ok(Self {
+                base: base.to_string(),
+                quote: quote.to_string(),
+            })
         }
     }
 
@@ -90,5 +99,24 @@ pub mod v1 {
                 s.to_string(),
             ))
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::v1::CurrencyPair;
+
+    #[test]
+    fn currency_pair_parse() {
+        let currency_pair = "ETH/USD".parse::<CurrencyPair>().unwrap();
+        assert_eq!(currency_pair.base(), "ETH");
+        assert_eq!(currency_pair.quote(), "USD");
+        assert_eq!(currency_pair.to_string(), "ETH/USD");
+    }
+
+    #[test]
+    fn test_currency_pair_parse_invalid() {
+        let currency_pair = "ETHUSD".parse::<CurrencyPair>();
+        assert!(currency_pair.is_err());
     }
 }

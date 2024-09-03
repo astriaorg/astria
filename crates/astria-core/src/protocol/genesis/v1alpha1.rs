@@ -810,6 +810,8 @@ fn try_construct_dummy_address_from_prefix(prefix: &str) -> Result<(), AddressEr
 
 #[cfg(test)]
 mod tests {
+    use indexmap::IndexMap;
+
     use super::*;
     use crate::{
         primitive::v1::Address,
@@ -896,7 +898,7 @@ mod tests {
                 SlinkyGenesis {
                     market_map: MarketMapGenesisState {
                         market_map: MarketMap {
-                            markets: std::collections::HashMap::new(),
+                            markets: IndexMap::new(),
                         },
                         last_updated: 0,
                         params: Params {

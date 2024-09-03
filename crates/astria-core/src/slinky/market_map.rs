@@ -1,8 +1,7 @@
 pub mod v1 {
-    use std::{
-        collections::HashMap,
-        str::FromStr,
-    };
+    use std::str::FromStr;
+
+    use indexmap::IndexMap;
 
     use crate::{
         generated::astria_vendored::slinky::marketmap::v1 as raw,
@@ -133,11 +132,29 @@ pub mod v1 {
         ParamsParseError(#[from] ParamsError),
     }
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(try_from = "raw::Params", into = "raw::Params")
+    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Params {
         pub market_authorities: Vec<Address>,
         pub admin: Address,
+    }
+
+    impl TryFrom<raw::Params> for Params {
+        type Error = ParamsError;
+
+        fn try_from(raw: raw::Params) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw)
+        }
+    }
+
+    impl From<Params> for raw::Params {
+        fn from(params: Params) -> Self {
+            params.into_raw()
+        }
     }
 
     impl Params {
@@ -198,11 +215,29 @@ pub mod v1 {
         AdminParseError(#[source] AddressError),
     }
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(try_from = "raw::Market", into = "raw::Market")
+    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Market {
         pub ticker: Ticker,
         pub provider_configs: Vec<ProviderConfig>,
+    }
+
+    impl TryFrom<raw::Market> for Market {
+        type Error = MarketError;
+
+        fn try_from(raw: raw::Market) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw)
+        }
+    }
+
+    impl From<Market> for raw::Market {
+        fn from(market: Market) -> Self {
+            market.into_raw()
+        }
     }
 
     impl Market {
@@ -279,7 +314,11 @@ pub mod v1 {
         ProviderConfigParseError(#[from] ProviderConfigError),
     }
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(try_from = "raw::Ticker", into = "raw::Ticker")
+    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Ticker {
         pub currency_pair: CurrencyPair,
@@ -287,6 +326,20 @@ pub mod v1 {
         pub min_provider_count: u64,
         pub enabled: bool,
         pub metadata_json: String,
+    }
+
+    impl TryFrom<raw::Ticker> for Ticker {
+        type Error = TickerError;
+
+        fn try_from(raw: raw::Ticker) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw)
+        }
+    }
+
+    impl From<Ticker> for raw::Ticker {
+        fn from(ticker: Ticker) -> Self {
+            ticker.into_raw()
+        }
     }
 
     impl Ticker {
@@ -300,6 +353,7 @@ pub mod v1 {
             let Some(currency_pair) = raw.currency_pair.map(CurrencyPair::from_raw) else {
                 return Err(TickerError::missing_currency_pair());
             };
+
             Ok(Self {
                 currency_pair,
                 decimals: raw.decimals,
@@ -338,7 +392,11 @@ pub mod v1 {
         MissingCurrencyPair,
     }
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(try_from = "raw::ProviderConfig", into = "raw::ProviderConfig")
+    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ProviderConfig {
         pub name: String,
@@ -346,6 +404,20 @@ pub mod v1 {
         pub normalize_by_pair: CurrencyPair,
         pub invert: bool,
         pub metadata_json: String,
+    }
+
+    impl TryFrom<raw::ProviderConfig> for ProviderConfig {
+        type Error = ProviderConfigError;
+
+        fn try_from(raw: raw::ProviderConfig) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw)
+        }
+    }
+
+    impl From<ProviderConfig> for raw::ProviderConfig {
+        fn from(provider_config: ProviderConfig) -> Self {
+            provider_config.into_raw()
+        }
     }
 
     impl ProviderConfig {
@@ -396,10 +468,28 @@ pub mod v1 {
         MissingNormalizeByPair,
     }
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(try_from = "raw::MarketMap", into = "raw::MarketMap")
+    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct MarketMap {
-        pub markets: HashMap<String, Market>,
+        pub markets: IndexMap<String, Market>,
+    }
+
+    impl TryFrom<raw::MarketMap> for MarketMap {
+        type Error = MarketMapError;
+
+        fn try_from(raw: raw::MarketMap) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw)
+        }
+    }
+
+    impl From<MarketMap> for raw::MarketMap {
+        fn from(market_map: MarketMap) -> Self {
+            market_map.into_raw()
+        }
     }
 
     impl MarketMap {
@@ -410,7 +500,7 @@ pub mod v1 {
         /// - if any of the markets are invalid
         /// - if any of the market names are invalid
         pub fn try_from_raw(raw: raw::MarketMap) -> Result<Self, MarketMapError> {
-            let mut markets = HashMap::new();
+            let mut markets = IndexMap::new();
             for (k, v) in raw.markets {
                 let market = Market::try_from_raw(v)
                     .map_err(|e| MarketMapError::invalid_market(k.clone(), e))?;
@@ -441,13 +531,16 @@ pub mod v1 {
     impl MarketMapError {
         #[must_use]
         pub fn invalid_market(name: String, err: MarketError) -> Self {
-            Self(MarketMapErrorKind::InvalidMarket(name, err))
+            Self(MarketMapErrorKind::InvalidMarket {
+                name,
+                source: err,
+            })
         }
     }
 
     #[derive(Debug, thiserror::Error)]
     enum MarketMapErrorKind {
-        #[error("invalid market {0}")]
-        InvalidMarket(String, #[source] MarketError),
+        #[error("invalid market `{name}`")]
+        InvalidMarket { name: String, source: MarketError },
     }
 }

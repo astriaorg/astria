@@ -7,12 +7,30 @@ pub mod v1 {
         Protobuf,
     };
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(try_from = "raw::QuotePrice", into = "raw::QuotePrice")
+    )]
     #[derive(Debug, Clone)]
     pub struct QuotePrice {
         pub price: u128,
         pub block_timestamp: Timestamp,
         pub block_height: u64,
+    }
+
+    impl TryFrom<raw::QuotePrice> for QuotePrice {
+        type Error = QuotePriceError;
+
+        fn try_from(raw: raw::QuotePrice) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw)
+        }
+    }
+
+    impl From<QuotePrice> for raw::QuotePrice {
+        fn from(quote_price: QuotePrice) -> Self {
+            quote_price.into_raw()
+        }
     }
 
     impl QuotePrice {
@@ -72,12 +90,30 @@ pub mod v1 {
         MissingBlockTimestamp,
     }
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(try_from = "raw::CurrencyPairState", into = "raw::CurrencyPairState")
+    )]
     #[derive(Debug, Clone)]
     pub struct CurrencyPairState {
         pub price: QuotePrice,
         pub nonce: u64,
         pub id: u64,
+    }
+
+    impl TryFrom<raw::CurrencyPairState> for CurrencyPairState {
+        type Error = CurrencyPairStateError;
+
+        fn try_from(raw: raw::CurrencyPairState) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw)
+        }
+    }
+
+    impl From<CurrencyPairState> for raw::CurrencyPairState {
+        fn from(currency_pair_state: CurrencyPairState) -> Self {
+            currency_pair_state.into_raw()
+        }
     }
 
     impl CurrencyPairState {
@@ -139,13 +175,34 @@ pub mod v1 {
         QuotePriceParseError(#[source] QuotePriceError),
     }
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(
+            try_from = "raw::CurrencyPairGenesis",
+            into = "raw::CurrencyPairGenesis"
+        )
+    )]
     #[derive(Debug, Clone)]
     pub struct CurrencyPairGenesis {
         pub currency_pair: CurrencyPair,
         pub currency_pair_price: QuotePrice,
         pub id: u64,
         pub nonce: u64,
+    }
+
+    impl TryFrom<raw::CurrencyPairGenesis> for CurrencyPairGenesis {
+        type Error = CurrencyPairGenesisError;
+
+        fn try_from(raw: raw::CurrencyPairGenesis) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw)
+        }
+    }
+
+    impl From<CurrencyPairGenesis> for raw::CurrencyPairGenesis {
+        fn from(currency_pair_genesis: CurrencyPairGenesis) -> Self {
+            currency_pair_genesis.into_raw()
+        }
     }
 
     impl CurrencyPairGenesis {
@@ -244,11 +301,29 @@ pub mod v1 {
         QuotePriceParseError(#[source] QuotePriceError),
     }
 
-    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+    #[cfg_attr(
+        feature = "serde",
+        derive(serde::Deserialize, serde::Serialize),
+        serde(try_from = "raw::GenesisState", into = "raw::GenesisState")
+    )]
     #[derive(Debug, Clone)]
     pub struct GenesisState {
         pub currency_pair_genesis: Vec<CurrencyPairGenesis>,
         pub next_id: u64,
+    }
+
+    impl TryFrom<raw::GenesisState> for GenesisState {
+        type Error = GenesisStateError;
+
+        fn try_from(raw: raw::GenesisState) -> Result<Self, Self::Error> {
+            Self::try_from_raw(raw)
+        }
+    }
+
+    impl From<GenesisState> for raw::GenesisState {
+        fn from(genesis_state: GenesisState) -> Self {
+            genesis_state.into_raw()
+        }
     }
 
     impl Protobuf for GenesisState {
