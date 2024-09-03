@@ -234,7 +234,7 @@ impl Relayer {
     }
 
     #[instrument(skip_all)]
-    fn latest_height_stream_handler(
+    fn handle_latest_height(
         &self,
         res: Result<SequencerHeight, Error>,
         block_stream: &mut read::BlockStream,
@@ -259,7 +259,7 @@ impl Relayer {
     }
 
     #[instrument(skip_all)]
-    async fn submitter_shutdown_handler(&self, submitter_task: Fuse<JoinHandle<eyre::Result<()>>>) {
+    async fn handle_submitter_shutdown(&self, submitter_task: Fuse<JoinHandle<eyre::Result<()>>>) {
         if !submitter_task.is_terminated() {
             debug!("waiting for Celestia submission task to exit");
             self.submitter_shutdown_token.cancel();
