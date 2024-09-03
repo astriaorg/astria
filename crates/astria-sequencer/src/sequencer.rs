@@ -114,7 +114,7 @@ impl Sequencer {
             .context("failed to parse grpc_addr address")?;
         let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
 
-        info!(config.listen_addr, "starting sequencer");
+        info!(config.listen_addr, "starting sequencer <josh change>");
         let server_handle = tokio::spawn(async move {
             match server.listen_tcp(&config.listen_addr).await {
                 Ok(()) => {
