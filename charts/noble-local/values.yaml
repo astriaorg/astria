@@ -6,7 +6,8 @@ global:
   namespace: "astria-dev-cluster"
   replicaCount: 1
 
-nobleImage: "ghcr.io/noble-assets/noble:v6.0.0"
+# nobleImage: "ghcr.io/noble-assets/noble:v6.0.0"
+nobleImage: "noble-dev:local"
 
 replicaCount: 1
 

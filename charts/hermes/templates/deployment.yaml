@@ -16,25 +16,29 @@ spec:
       labels:
         app: astria-dev-cluster
     spec:
-      {{- if .Values.createChannel.enabled }}
+      {{- if .Values.createChannels }}
       initContainers:
-      - name: create-channel
-        image: {{ .Values.image }}
+      {{- range $index, $channel := .Values.createChannels }}
+      {{- if $channel.enabled }}
+      - name: create-channel-{{ $index }}
+        image: {{ $.Values.image }}
         command: [ "hermes",  "create", "channel" ]
         args:
           - --new-client-connection
           - --yes
-          - --a-chain={{ .Values.createChannel.chainA }}
-          - --b-chain={{ .Values.createChannel.chainB }}
-          - --a-port={{ .Values.createChannel.portA }}
-          - --b-port={{ .Values.createChannel.portB }}
+          - --a-chain={{ $channel.chainA }}
+          - --b-chain={{ $channel.chainB }}
+          - --a-port={{ $channel.portA }}
+          - --b-port={{ $channel.portB }}
         volumeMounts:
         - mountPath: /home/hermes/.hermes
-          name: {{ include "hermes.fullname" . }}-config-volume
-        {{- range $chainId, $chain := .Values.chains }}
+          name: {{ include "hermes.fullname" $ }}-config-volume
+        {{- range $chainId, $chain := $.Values.chains }}
         - mountPath: "/home/hermes/.hermes/keys/{{ $chainId }}/keyring-test"
           name: {{ include "hermes.fullname" $ }}-{{$chainId}}-key-volume
         {{- end }}
+      {{- end }}
+      {{- end }}
       {{- end }}
       containers:
         - name: hermes

@@ -88,6 +88,12 @@ deploy-hermes-local:
 delete-hermes-local:
   @just delete chart hermes-local
 
+deploy-noble-local:
+  helm install noble-local-chart ./charts/noble-local \
+    -n astria-dev-cluster
+delete-noble-local:
+  @just delete chart noble-local
+
 delete-sequencer name=validatorName:
   @just delete chart {{name}}-sequencer astria-validator-{{name}}
 delete-sequencers: (delete-sequencer "node0") (delete-sequencer "node1") (delete-sequencer "node2")

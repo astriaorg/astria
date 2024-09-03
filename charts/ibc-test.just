@@ -5,6 +5,7 @@ defaultTag := ""
 
 delete:
   -just delete celestia-local
+  -just delete noble-local
   -just delete sequencer
   -just delete hermes-local
   -just delete rollup
@@ -13,6 +14,7 @@ delete:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
   echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  echo "Deploying local noble instance..." && just deploy noble-local > /dev/null
   helm dependency update ./sequencer > /dev/null
   helm dependency update ./evm-stack > /dev/null
   echo "Setting up single astria sequencer..." && helm install \
@@ -225,3 +227,12 @@ cb address=celestia_dev_account_address namespace=defaultNamespace:
 # init sequencer bridge account
 init-bridge-acct:
   just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria
+
+defaultNobleTag := "local"
+# build custom noble image
+build-noble tag=defaultNobleTag:
+  docker buildx build \
+    -f ./noble-local/containerfiles/noble.Dockerfile \
+    -t noble-dev:{{tag}} \
+    ./noble-local
+  just load-image noble-dev:{{tag}}

@@ -11,12 +11,17 @@ nameOverride: ""
 # For local testing purposes may want to create a channel on startup
 # this is not recommended for production since channel updates change
 # the destination chain assets
-createChannel:
-  enabled: false
-  chainA: ''  # For local test is sequencer-test-chain-0
-  portA: ''   # likely "transfer"
-  chainB: ''  # For default local test celestia-local-0
-  portB: ''   # likely "transfer"
+createChannels:
+  - enabled: false
+    chainA: "" # For local test is sequencer-test-chain-0
+    portA: "" # likely "transfer"
+    chainB: "" # For default local test celestia-local-0
+    portB: "" # likely "transfer"
+  - enabled: false
+    chainA: "" # For local test is sequencer-test-chain-0
+    portA: "" # likely "transfer"
+    chainB: "" # For default local test celestia-local-0
+    portB: "" # likely "transfer"
 
 rest:
   enabled: false
@@ -144,8 +149,9 @@ ingress:
       pathType: Prefix
       service:
         name: '{{ include "hermes.fullname" . }}-service'
-        port: '{{ .Values.ports.rest }}'
-      annotations: {}
+        port: "{{ .Values.ports.rest }}"
+      annotations:
+        {}
         # kubernetes.io/ingress.class: nginx
         # kubernetes.io/tls-acme: "true"
       labels: {}
@@ -161,8 +167,9 @@ ingress:
       pathType: Prefix
       service:
         name: '{{ include "hermes.fullname" . }}-service'
-        port: '{{ .Values.ports.telemetry }}'
-      annotations: {}
+        port: "{{ .Values.ports.telemetry }}"
+      annotations:
+        {}
         # kubernetes.io/ingress.class: nginx
         # kubernetes.io/tls-acme: "true"
       labels: {}
@@ -178,8 +185,9 @@ ingress:
       pathType: Prefix
       service:
         name: '{{ include "hermes.fullname" . }}-service'
-        port: '{{ .Values.ports.tracingServer }}'
-      annotations: {}
+        port: "{{ .Values.ports.tracingServer }}"
+      annotations:
+        {}
         # kubernetes.io/ingress.class: nginx
         # kubernetes.io/tls-acme: "true"
       labels: {}
