@@ -3,9 +3,9 @@ global:
   dev: true
   evmChainId: 1337
   rollupName: astria
-  sequencerRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
-  sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
-  sequencerChainId: sequencer-test-chain-0
+  sequencerRpc: https://rpc.sequencer.dusk-10.devnet.astria.org/
+  sequencerGrpc: https://grpc.sequencer.dusk-10.devnet.astria.org/
+  sequencerChainId: astria-dusk-10
 
 evm-rollup:
   images:
@@ -22,7 +22,7 @@ evm-rollup:
     ## no defaults as they are unique to each chain
 
     # Block height to start syncing rollup from, lowest possible is 2
-    sequencerInitialHeight: 2
+    sequencerInitialHeight: 264188
     # The first Celestia height to utilize when looking for rollup data
     celestiaInitialHeight: 2
     # The variance in Celestia height to allow before halting the chain
@@ -154,7 +154,7 @@ evm-rollup:
         enabled: true
       ws:
         enabled: true
-  
+
 celestia-node:
   enabled: false
 

@@ -9,7 +9,7 @@ images:
     devTag: v0.38.8
   sequencer:
     repo: astria-sequencer
-    tag: "0.14.0"
+    tag: "0.16.0"
     devTag: tb
 
 moniker: node0

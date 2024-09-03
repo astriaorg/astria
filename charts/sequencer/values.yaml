@@ -16,9 +16,9 @@ images:
     tag: v0.38.8
     devTag: v0.38.8
   sequencer:
-    repo: ghcr.io/astriaorg/sequencer
+    repo: astria-sequencer
     tag: "0.16.0"
-    devTag: latest
+    devTag: tb
 
 moniker: ""
 genesis:
@@ -110,7 +110,12 @@ cometbft:
       # List of seeds to connect to
       seeds: []
       # List of nodes to keep persistent connections to
-      persistentPeers: []
+      persistentPeers: [
+          "f4b8a8dcfc5a142bd00aadab71f39dbfe7091d13@35.236.107.39:26656",
+          "ca3bc3562919b82575fe3ac5b11fa5962ce8cd3b@34.118.249.169:26656",
+          "4418000e355967ecc8e03004f5850dfde51c410b@34.94.177.254:26656",
+          "7a117e7906d8428ad20341aca94af03c980c11d8@34.102.55.164:26656",
+      ]
       # List of node IDs, to which a connection will be (re)established ignoring any existing limits
       unconditionalPeers: []
       # Maximum pause when redialing a persistent peer (if zero, exponential backoff is used)
@@ -121,7 +126,7 @@ cometbft:
       allowDuplicateIP: false
       # Seed mode, in which node constantly crawls the network and looks for
       # peers. If another node asks it for addresses, it responds and disconnects.
-      seedMode: false
+      seedMode: true
       # Maximum number of inbound and outbound peers
       maxInboundPeers: 100
       maxOutboundPeers: 40
