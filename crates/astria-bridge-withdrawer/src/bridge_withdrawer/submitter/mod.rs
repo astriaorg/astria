@@ -284,7 +284,7 @@ async fn submit_tx(
 
     ensure!(check_tx.code.is_ok(), "check_tx failed: {}", check_tx.log);
 
-    let tx_response = client.wait_for_tx_inclusion(check_tx.hash).await?;
+    let tx_response = client.wait_for_tx_inclusion(check_tx.hash).await;
 
     ensure!(
         tx_response.tx_result.code.is_ok(),

@@ -58,9 +58,6 @@ pub use astria_core::{
         SequencerBlock,
     },
 };
-use astria_eyre::eyre::{
-    self,
-};
 use async_trait::async_trait;
 use futures::Stream;
 use prost::{
@@ -676,11 +673,11 @@ pub trait SequencerClientExt: Client {
     /// - If the transaction execution failed.
     /// - If the transaction proof is missing.
     #[allow(clippy::blocks_in_conditions)] // Allow: erroneous clippy warning. Should be fixed in Rust 1.81
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all)]
     async fn wait_for_tx_inclusion(
         &self,
         tx_hash: tendermint::hash::Hash,
-    ) -> eyre::Result<tendermint_rpc::endpoint::tx::Response> {
+    ) -> tendermint_rpc::endpoint::tx::Response {
         use std::time::Duration;
 
         use tokio::time::Instant;
@@ -714,7 +711,7 @@ pub trait SequencerClientExt: Client {
         loop {
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
             match self.tx(tx_hash, false).await {
-                Ok(tx) => return Ok(tx),
+                Ok(tx) => return tx,
                 Err(error) => {
                     sleep_millis =
                         std::cmp::min(sleep_millis.saturating_mul(2), MAX_POLL_INTERVAL_MILLIS);
