@@ -627,13 +627,13 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
 
     let transaction_id = state
         .get_current_source()
-        .expect("current source should be `Some`")
+        .expect("current source should be set before executing action")
         .transaction_id;
     let index_of_action = state
         .get_transaction_index_of_action()
         .await
         .context("failed to get transaction index of action")?
-        .expect("index_of_action should be `Some`");
+        .expect("index of action should be set before executing action");
 
     let deposit = Deposit::new(
         bridge_address,
@@ -780,7 +780,7 @@ mod test {
 
         state_tx.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
-            transaction_id: "test_tx_hash".to_string().into(),
+            transaction_id: [0; 32].into(),
         });
         state_tx.put_transaction_index_of_action(0);
 
@@ -1021,7 +1021,7 @@ mod test {
 
         state_tx.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
-            transaction_id: "test_tx_hash".to_string().into(),
+            transaction_id: [0; 32].into(),
         });
         state_tx.put_transaction_index_of_action(0);
 
@@ -1068,7 +1068,7 @@ mod test {
 
         state_tx.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
-            transaction_id: "test_tx_hash".to_string().into(),
+            transaction_id: [0; 32].into(),
         });
         state_tx.put_transaction_index_of_action(0);
 
@@ -1126,7 +1126,7 @@ mod test {
             100,
             denom,
             destination_chain_address,
-            "test_tx_hash".to_string().into(),
+            [0; 32].into(),
             0,
         );
         assert_eq!(deposit, &expected_deposit);

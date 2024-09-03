@@ -268,7 +268,7 @@ fn bridge_lock_update_fees(
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     transfer_fee: u128,
     bridge_lock_byte_cost_multiplier: u128,
-    tx_index_of_action: &mut u32,
+    tx_index_of_action: &mut u64,
 ) {
     use astria_core::sequencerblock::v1alpha1::block::Deposit;
 
@@ -280,7 +280,7 @@ fn bridge_lock_update_fees(
             act.amount,
             act.asset.clone(),
             act.destination_chain_address.clone(),
-            hex::encode([0u8, 32]).into(),
+            [0; 32].into(),
             *tx_index_of_action,
         ))
         .saturating_mul(bridge_lock_byte_cost_multiplier),

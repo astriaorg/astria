@@ -28,6 +28,7 @@ use crate::{
         Address,
         AddressError,
         IncorrectRollupIdLength,
+        IncorrectTransactionIdLength,
         RollupId,
         TransactionId,
     },
@@ -1301,9 +1302,9 @@ pub struct Deposit {
     destination_chain_address: String,
     // the transaction ID of the source action for the deposit, consisting
     // of the transaction hash.
-    transaction_id: TransactionId,
+    id_of_source_transaction: TransactionId,
     // index of the deposit's source action within its transaction
-    index_of_action: u32,
+    position_in_source_transaction: u64,
 }
 
 impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
@@ -1320,8 +1321,8 @@ impl Deposit {
         amount: u128,
         asset: asset::Denom,
         destination_chain_address: String,
-        transaction_id: TransactionId,
-        index_of_action: u32,
+        id_of_source_transaction: TransactionId,
+        position_in_source_transaction: u64,
     ) -> Self {
         Self {
             bridge_address,
@@ -1329,8 +1330,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
-            transaction_id,
-            index_of_action,
+            id_of_source_transaction,
+            position_in_source_transaction,
         }
     }
 
@@ -1367,8 +1368,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
-            transaction_id,
-            index_of_action,
+            id_of_source_transaction,
+            position_in_source_transaction,
         } = self;
         raw::Deposit {
             bridge_address: Some(bridge_address.into_raw()),
@@ -1376,8 +1377,8 @@ impl Deposit {
             amount: Some(amount.into()),
             asset: asset.to_string(),
             destination_chain_address,
-            transaction_id: Some(transaction_id.into_raw()),
-            index_of_action,
+            id_of_source_transaction: Some(id_of_source_transaction.into_raw()),
+            position_in_source_transaction,
         }
     }
 
@@ -1396,8 +1397,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
-            transaction_id,
-            index_of_action,
+            id_of_source_transaction,
+            position_in_source_transaction,
         } = raw;
         let Some(bridge_address) = bridge_address else {
             return Err(DepositError::field_not_set("bridge_address"));
@@ -1411,18 +1412,19 @@ impl Deposit {
         let rollup_id =
             RollupId::try_from_raw(&rollup_id).map_err(DepositError::incorrect_rollup_id_length)?;
         let asset = asset.parse().map_err(DepositError::incorrect_asset)?;
-        let Some(transaction_id) = transaction_id else {
+        let Some(id_of_source_transaction) = id_of_source_transaction else {
             return Err(DepositError::field_not_set("transaction_id"));
         };
-        let transaction_id = TransactionId::from_raw(&transaction_id);
+        let id_of_source_transaction = TransactionId::try_from_raw(&id_of_source_transaction)
+            .map_err(DepositError::incorrect_transaction_id_length)?;
         Ok(Self {
             bridge_address,
             rollup_id,
             amount,
             asset,
             destination_chain_address,
-            transaction_id,
-            index_of_action,
+            id_of_source_transaction,
+            position_in_source_transaction,
         })
     }
 }
@@ -1449,6 +1451,10 @@ impl DepositError {
     fn incorrect_asset(source: asset::ParseDenomError) -> Self {
         Self(DepositErrorKind::IncorrectAsset(source))
     }
+
+    fn incorrect_transaction_id_length(source: IncorrectTransactionIdLength) -> Self {
+        Self(DepositErrorKind::IncorrectTransactionIdLength(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1461,6 +1467,8 @@ enum DepositErrorKind {
     IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the `asset` field could not be parsed")]
     IncorrectAsset(#[source] asset::ParseDenomError),
+    #[error("the transaction ID length is not 32 bytes")]
+    IncorrectTransactionIdLength(#[source] IncorrectTransactionIdLength),
 }
 
 /// A piece of data that is sent to a rollup execution node.

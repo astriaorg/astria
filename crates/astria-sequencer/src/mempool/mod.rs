@@ -231,7 +231,7 @@ impl Mempool {
         signed_tx: Arc<SignedTransaction>,
         reason: RemovalReason,
     ) {
-        let tx_hash = signed_tx.sha256_of_proto_encoding();
+        let tx_hash = signed_tx.id().get();
         let address = signed_tx.verification_key().address_bytes();
 
         // Try to remove from pending.
@@ -524,33 +524,23 @@ mod test {
         // assert that all were added to the cometbft removal cache
         // and the expected reasons were tracked
         assert!(matches!(
-            mempool
-                .check_removed_comet_bft(tx0.sha256_of_proto_encoding())
-                .await,
+            mempool.check_removed_comet_bft(tx0.id().get()).await,
             Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
-            mempool
-                .check_removed_comet_bft(tx1.sha256_of_proto_encoding())
-                .await,
+            mempool.check_removed_comet_bft(tx1.id().get()).await,
             Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
-            mempool
-                .check_removed_comet_bft(tx3.sha256_of_proto_encoding())
-                .await,
+            mempool.check_removed_comet_bft(tx3.id().get()).await,
             Some(RemovalReason::LowerNonceInvalidated)
         ));
         assert!(matches!(
-            mempool
-                .check_removed_comet_bft(tx4.sha256_of_proto_encoding())
-                .await,
+            mempool.check_removed_comet_bft(tx4.id().get()).await,
             Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
-            mempool
-                .check_removed_comet_bft(tx5.sha256_of_proto_encoding())
-                .await,
+            mempool.check_removed_comet_bft(tx5.id().get()).await,
             Some(RemovalReason::LowerNonceInvalidated)
         ));
     }

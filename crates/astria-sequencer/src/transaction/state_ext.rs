@@ -55,7 +55,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_transaction_index_of_action(&mut self, index: u32) {
+    fn put_transaction_index_of_action(&mut self, index: u64) {
         self.nonverifiable_put_raw(
             index_of_action_storage_key().as_bytes().to_vec(),
             borsh::to_vec(&index).expect("serialize index of action"),
@@ -67,7 +67,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let index = self
             .get_transaction_index_of_action()
             .await?
-            .expect("index of action should be `Some`");
+            .expect("index of action should be set before incrementing it");
         let index = index.checked_add(1).expect("increment index of action");
         self.nonverifiable_put_raw(
             index_of_action_storage_key().as_bytes().to_vec(),
@@ -88,7 +88,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_transaction_index_of_action(&self) -> Result<Option<u32>> {
+    async fn get_transaction_index_of_action(&self) -> Result<Option<u64>> {
         let Some(bytes) = self
             .nonverifiable_get_raw(index_of_action_storage_key().as_bytes())
             .await

@@ -88,9 +88,9 @@ message Deposit {
   string destination_chain_address = 5;
   // the transaction ID of the source action for the deposit, consisting
   // of the transaction hash.
-  astria.primitive.v1.TransactionId transaction_id = 6;
+  astria.primitive.v1.TransactionId id_of_source_transaction = 6;
   // index of the deposit's source action within its transaction
-  uint32 index_of_action = 7;
+  uint64 position_in_source_transaction = 7;
 }
 
 // `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset

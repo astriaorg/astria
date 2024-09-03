@@ -22,6 +22,8 @@ pub const ADDRESS_LEN: usize = 20;
 
 pub const ROLLUP_ID_LEN: usize = 32;
 
+pub const TRANSACTION_ID_LENGTH: usize = 32;
+
 impl Protobuf for merkle::Proof {
     type Error = merkle::audit::InvalidProof;
     type Raw = raw::Proof;
@@ -489,100 +491,99 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(transparent))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(try_from = "raw::TransactionId", into = "raw::TransactionId")
+)]
 pub struct TransactionId {
-    hash: String,
+    inner: [u8; TRANSACTION_ID_LENGTH],
 }
 
 impl TransactionId {
-    /// Creates a new transaction ID from a hash of type `String`.
-    ///
-    /// # Examples
-    /// ```
-    /// use astria_core::primitive::v1::TransactionId;
-    /// let hash = hex::encode([0u8; 32]);
-    /// let transaction_id = TransactionId::new(hash.clone());
-    /// assert_eq!(hash, transaction_id.get());
-    /// ```
+    /// Returns the 32-byte hash representing the transaction for the given ID.
     #[must_use]
-    pub const fn new(hash: String) -> Self {
-        Self {
-            hash,
-        }
-    }
-
-    /// Returns the hex-encoded string hash of the given transaction.
-    ///
-    /// # Examples
-    /// ```
-    /// use astria_core::primitive::v1::TransactionId;
-    /// let hash = hex::encode([0u8; 32]);
-    /// let transaction_id = TransactionId::new(hash.clone());
-    /// assert_eq!(hash, transaction_id.get());
-    /// ```
-    #[must_use]
-    pub fn get(&self) -> String {
-        self.hash.clone()
+    pub fn get(&self) -> [u8; TRANSACTION_ID_LENGTH] {
+        self.inner
     }
 
     #[must_use]
     pub fn to_raw(&self) -> raw::TransactionId {
         raw::TransactionId {
-            hash: self.hash.clone(),
+            inner: Bytes::copy_from_slice(&self.inner),
         }
     }
 
     #[must_use]
     pub fn into_raw(self) -> raw::TransactionId {
         raw::TransactionId {
-            hash: self.hash,
+            inner: Bytes::copy_from_slice(&self.inner),
         }
     }
 
     /// Converts from protobuf type to rust type for a transaction ID.
-    #[must_use]
-    pub fn from_raw(raw: &raw::TransactionId) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the raw byte slice was not 32 bytes long.
+    pub fn try_from_raw(raw: &raw::TransactionId) -> Result<Self, IncorrectTransactionIdLength> {
+        let inner = <[u8; TRANSACTION_ID_LENGTH]>::try_from(raw.inner.as_ref()).map_err(|_| {
+            IncorrectTransactionIdLength {
+                received: raw.inner.len(),
+            }
+        })?;
+        Ok(Self {
+            inner,
+        })
+    }
+}
+
+impl TryFrom<raw::TransactionId> for TransactionId {
+    type Error = IncorrectTransactionIdLength;
+
+    fn try_from(value: raw::TransactionId) -> Result<Self, Self::Error> {
+        Self::try_from_raw(&value)
+    }
+}
+
+impl From<TransactionId> for raw::TransactionId {
+    fn from(val: TransactionId) -> Self {
+        val.into_raw()
+    }
+}
+
+impl AsRef<[u8]> for TransactionId {
+    fn as_ref(&self) -> &[u8] {
+        &self.inner
+    }
+}
+
+impl From<[u8; TRANSACTION_ID_LENGTH]> for TransactionId {
+    fn from(inner: [u8; ROLLUP_ID_LEN]) -> Self {
         Self {
-            hash: raw.hash.clone(),
+            inner,
         }
     }
 }
 
-impl AsRef<String> for TransactionId {
-    fn as_ref(&self) -> &String {
-        &self.hash
-    }
-}
-
-impl From<String> for TransactionId {
-    fn from(hash: String) -> Self {
+impl From<&[u8; TRANSACTION_ID_LENGTH]> for TransactionId {
+    fn from(inner: &[u8; ROLLUP_ID_LEN]) -> Self {
         Self {
-            hash,
-        }
-    }
-}
-
-impl From<&String> for TransactionId {
-    fn from(hash: &String) -> Self {
-        Self {
-            hash: hash.clone(),
-        }
-    }
-}
-
-impl From<&TransactionId> for TransactionId {
-    fn from(value: &TransactionId) -> Self {
-        Self {
-            hash: value.hash.clone(),
+            inner: *inner,
         }
     }
 }
 
 impl std::fmt::Display for TransactionId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.hash)
+        write!(f, "{}", hex::encode(self.inner))
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("expected 32 bytes, got {received}")]
+pub struct IncorrectTransactionIdLength {
+    received: usize,
 }
 
 #[cfg(test)]

@@ -21,10 +21,10 @@ impl serde::Serialize for Deposit {
         if !self.destination_chain_address.is_empty() {
             len += 1;
         }
-        if self.transaction_id.is_some() {
+        if self.id_of_source_transaction.is_some() {
             len += 1;
         }
-        if self.index_of_action != 0 {
+        if self.position_in_source_transaction != 0 {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.Deposit", len)?;
@@ -43,11 +43,12 @@ impl serde::Serialize for Deposit {
         if !self.destination_chain_address.is_empty() {
             struct_ser.serialize_field("destinationChainAddress", &self.destination_chain_address)?;
         }
-        if let Some(v) = self.transaction_id.as_ref() {
-            struct_ser.serialize_field("transactionId", v)?;
+        if let Some(v) = self.id_of_source_transaction.as_ref() {
+            struct_ser.serialize_field("idOfSourceTransaction", v)?;
         }
-        if self.index_of_action != 0 {
-            struct_ser.serialize_field("indexOfAction", &self.index_of_action)?;
+        if self.position_in_source_transaction != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("positionInSourceTransaction", ToString::to_string(&self.position_in_source_transaction).as_str())?;
         }
         struct_ser.end()
     }
@@ -67,10 +68,10 @@ impl<'de> serde::Deserialize<'de> for Deposit {
             "asset",
             "destination_chain_address",
             "destinationChainAddress",
-            "transaction_id",
-            "transactionId",
-            "index_of_action",
-            "indexOfAction",
+            "id_of_source_transaction",
+            "idOfSourceTransaction",
+            "position_in_source_transaction",
+            "positionInSourceTransaction",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -80,8 +81,8 @@ impl<'de> serde::Deserialize<'de> for Deposit {
             Amount,
             Asset,
             DestinationChainAddress,
-            TransactionId,
-            IndexOfAction,
+            IdOfSourceTransaction,
+            PositionInSourceTransaction,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -108,8 +109,8 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                             "amount" => Ok(GeneratedField::Amount),
                             "asset" => Ok(GeneratedField::Asset),
                             "destinationChainAddress" | "destination_chain_address" => Ok(GeneratedField::DestinationChainAddress),
-                            "transactionId" | "transaction_id" => Ok(GeneratedField::TransactionId),
-                            "indexOfAction" | "index_of_action" => Ok(GeneratedField::IndexOfAction),
+                            "idOfSourceTransaction" | "id_of_source_transaction" => Ok(GeneratedField::IdOfSourceTransaction),
+                            "positionInSourceTransaction" | "position_in_source_transaction" => Ok(GeneratedField::PositionInSourceTransaction),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -134,8 +135,8 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                 let mut amount__ = None;
                 let mut asset__ = None;
                 let mut destination_chain_address__ = None;
-                let mut transaction_id__ = None;
-                let mut index_of_action__ = None;
+                let mut id_of_source_transaction__ = None;
+                let mut position_in_source_transaction__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::BridgeAddress => {
@@ -168,17 +169,17 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                             }
                             destination_chain_address__ = Some(map_.next_value()?);
                         }
-                        GeneratedField::TransactionId => {
-                            if transaction_id__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transactionId"));
+                        GeneratedField::IdOfSourceTransaction => {
+                            if id_of_source_transaction__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("idOfSourceTransaction"));
                             }
-                            transaction_id__ = map_.next_value()?;
+                            id_of_source_transaction__ = map_.next_value()?;
                         }
-                        GeneratedField::IndexOfAction => {
-                            if index_of_action__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("indexOfAction"));
+                        GeneratedField::PositionInSourceTransaction => {
+                            if position_in_source_transaction__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("positionInSourceTransaction"));
                             }
-                            index_of_action__ = 
+                            position_in_source_transaction__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -190,8 +191,8 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                     amount: amount__,
                     asset: asset__.unwrap_or_default(),
                     destination_chain_address: destination_chain_address__.unwrap_or_default(),
-                    transaction_id: transaction_id__,
-                    index_of_action: index_of_action__.unwrap_or_default(),
+                    id_of_source_transaction: id_of_source_transaction__,
+                    position_in_source_transaction: position_in_source_transaction__.unwrap_or_default(),
                 })
             }
         }

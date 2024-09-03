@@ -74,13 +74,13 @@ impl ActionHandler for BridgeLockAction {
 
         let transaction_id = state
             .get_current_source()
-            .expect("current source should be `Some`")
+            .expect("current source should be set before executing action")
             .transaction_id;
-        let index_of_action = state
+        let position_in_source_transaction = state
             .get_transaction_index_of_action()
             .await
             .context("failed to get transaction index of action")?
-            .expect("index_of_action should be `Some`");
+            .expect("index of action should be set before executing action");
 
         let deposit = Deposit::new(
             self.to,
@@ -89,7 +89,7 @@ impl ActionHandler for BridgeLockAction {
             self.asset.clone(),
             self.destination_chain_address.clone(),
             transaction_id,
-            index_of_action,
+            position_in_source_transaction,
         );
 
         let byte_cost_multiplier = state
@@ -185,7 +185,7 @@ mod tests {
         let from_address = astria_address(&[2; 20]);
         state.put_current_source(TransactionContext {
             address_bytes: from_address.bytes(),
-            transaction_id: "test_tx_hash".to_string().into(),
+            transaction_id: [0; 32].into(),
         });
         state.put_transaction_index_of_action(0);
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
@@ -227,7 +227,7 @@ mod tests {
                 100,
                 asset.clone(),
                 "someaddress".to_string(),
-                "test_tx_hash".to_string().into(),
+                [0; 32].into(),
                 0,
             )) * 2;
         state

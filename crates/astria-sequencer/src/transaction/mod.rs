@@ -175,10 +175,7 @@ impl ActionHandler for SignedTransaction {
             .context("failed to check account rollup id")?
             .is_some()
         {
-            state.put_last_transaction_hash_for_bridge_account(
-                self,
-                &self.sha256_of_proto_encoding(),
-            );
+            state.put_last_transaction_id_for_bridge_account(self, &self.id());
         }
 
         state.put_transaction_index_of_action(0);

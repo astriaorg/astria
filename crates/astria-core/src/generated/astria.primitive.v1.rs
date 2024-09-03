@@ -99,13 +99,13 @@ impl ::prost::Name for Address {
     }
 }
 /// A `TransactionId` is a unique identifier for a transaction.
-/// It contains the hash of the transaction, to be included in
+/// It contains the hash of the transaction, which must be 32 bytes long, to be included in
 /// rollup deposit events for source tracking.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TransactionId {
-    #[prost(string, tag = "1")]
-    pub hash: ::prost::alloc::string::String,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub inner: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for TransactionId {
     const NAME: &'static str = "TransactionId";
