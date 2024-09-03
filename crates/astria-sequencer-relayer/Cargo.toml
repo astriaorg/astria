@@ -28,7 +28,6 @@ humantime = { workspace = true }
 humantime-serde = "1.1.1"
 hyper = { workspace = true }
 itoa = { workspace = true }
-metrics = { workspace = true }
 pbjson-types = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }

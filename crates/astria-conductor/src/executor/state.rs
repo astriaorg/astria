@@ -20,6 +20,7 @@ use tokio::sync::watch::{
     self,
     error::RecvError,
 };
+use tracing::instrument;
 
 pub(super) fn channel() -> (StateSender, StateReceiver) {
     let (tx, rx) = watch::channel(None);
@@ -50,6 +51,7 @@ pub(super) struct StateReceiver {
 }
 
 impl StateReceiver {
+    #[instrument(skip_all, err)]
     pub(super) async fn wait_for_init(&mut self) -> eyre::Result<()> {
         self.inner
             .wait_for(Option::is_some)
@@ -82,6 +84,7 @@ impl StateReceiver {
             )
     }
 
+    #[instrument(skip_all)]
     pub(crate) async fn next_expected_soft_height_if_changed(
         &mut self,
     ) -> Result<SequencerHeight, RecvError> {

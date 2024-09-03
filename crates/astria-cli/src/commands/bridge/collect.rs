@@ -202,7 +202,10 @@ async fn block_to_actions(
                 "failed getting actions for block; block hash: `{block_hash}`, block height: \
                  `{rollup_height}`"
             )
-        })?;
+        })?
+        .into_iter()
+        .collect::<Result<_, _>>()?;
+
     actions_by_rollup_height.insert(rollup_height, actions)
 }
 

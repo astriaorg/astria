@@ -17,17 +17,35 @@ use crate::{
     },
     address::StateReadExt as _,
     app::ActionHandler,
-    bridge::StateReadExt as _,
+    bridge::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeUnlockAction {
+    // TODO(https://github.com/astriaorg/astria/issues/1430): move checks to the `BridgeUnlock` parsing.
     async fn check_stateless(&self) -> Result<()> {
+        ensure!(self.amount > 0, "amount must be greater than zero",);
+        ensure!(self.memo.len() <= 64, "memo must not be more than 64 bytes");
+        ensure!(
+            !self.rollup_withdrawal_event_id.is_empty(),
+            "rollup withdrawal event id must be non-empty",
+        );
+        ensure!(
+            self.rollup_withdrawal_event_id.len() <= 64,
+            "rollup withdrawal event id must not be more than 64 bytes",
+        );
+        ensure!(
+            self.rollup_block_number > 0,
+            "rollup block number must be greater than zero",
+        );
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, state: S) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_current_source()
             .expect("transaction source must be present in state when executing an action")
@@ -68,6 +86,14 @@ impl ActionHandler for BridgeUnlockAction {
         };
 
         check_transfer(&transfer_action, self.bridge_address, &state).await?;
+        state
+            .check_and_set_withdrawal_event_block_for_bridge_account(
+                self.bridge_address,
+                &self.rollup_withdrawal_event_id,
+                self.rollup_block_number,
+            )
+            .await
+            .context("withdrawal event already processed")?;
         execute_transfer(&transfer_action, self.bridge_address, state).await?;
 
         Ok(())
@@ -130,8 +156,10 @@ mod tests {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: "{}".into(),
+            memo: String::new(),
             bridge_address,
+            rollup_block_number: 1,
+            rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
         };
 
         // invalid sender, doesn't match action's `from`, should fail
@@ -167,8 +195,10 @@ mod tests {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset,
-            memo: "{}".into(),
+            memo: String::new(),
             bridge_address,
+            rollup_block_number: 1,
+            rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
         };
 
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
@@ -176,60 +206,6 @@ mod tests {
             &bridge_unlock.check_and_execute(state).await.unwrap_err(),
             "unauthorized to unlock bridge account",
         );
-    }
-
-    #[tokio::test]
-    async fn execute_with_bridge_address_unset() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let bridge_address = astria_address(&[1; 20]);
-        state.put_current_source(TransactionContext {
-            address_bytes: bridge_address.bytes(),
-        });
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
-
-        let asset = test_asset();
-        let transfer_fee = 10;
-        let transfer_amount = 100;
-        state.put_transfer_base_fee(transfer_fee).unwrap();
-
-        let to_address = astria_address(&[2; 20]);
-        let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
-
-        state.put_bridge_account_rollup_id(bridge_address, &rollup_id);
-        state
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
-            .unwrap();
-        state.put_bridge_account_withdrawer_address(bridge_address, bridge_address);
-        state.put_allowed_fee_asset(&asset);
-
-        let bridge_unlock = BridgeUnlockAction {
-            to: to_address,
-            amount: transfer_amount,
-            fee_asset: asset.clone(),
-            memo: "{}".into(),
-            bridge_address,
-        };
-
-        // not enough balance; should fail
-        state
-            .put_account_balance(bridge_address, &asset, transfer_amount)
-            .unwrap();
-        assert_anyhow_error(
-            &bridge_unlock
-                .check_and_execute(&mut state)
-                .await
-                .unwrap_err(),
-            "insufficient funds for transfer and fee payment",
-        );
-
-        // enough balance; should pass
-        state
-            .put_account_balance(bridge_address, &asset, transfer_amount + transfer_fee)
-            .unwrap();
-        bridge_unlock.check_and_execute(&mut state).await.unwrap();
     }
 
     #[tokio::test]
@@ -263,8 +239,10 @@ mod tests {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: "{}".into(),
+            memo: String::new(),
             bridge_address,
+            rollup_block_number: 1,
+            rollup_withdrawal_event_id: "a-rollup-defined-hash-3".to_string(),
         };
 
         // not enough balance; should fail
@@ -284,5 +262,64 @@ mod tests {
             .put_account_balance(bridge_address, &asset, transfer_amount + transfer_fee)
             .unwrap();
         bridge_unlock.check_and_execute(&mut state).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn execute_with_duplicated_withdrawal_event_id() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let bridge_address = astria_address(&[1; 20]);
+        state.put_current_source(TransactionContext {
+            address_bytes: bridge_address.bytes(),
+        });
+        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+
+        let asset = test_asset();
+        let transfer_fee = 10;
+        let transfer_amount = 100;
+        state.put_transfer_base_fee(transfer_fee).unwrap();
+
+        let to_address = astria_address(&[2; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
+
+        state.put_bridge_account_rollup_id(bridge_address, &rollup_id);
+        state
+            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .unwrap();
+        state.put_bridge_account_withdrawer_address(bridge_address, bridge_address);
+        state.put_allowed_fee_asset(&asset);
+        // Put plenty of balance
+        state
+            .put_account_balance(bridge_address, &asset, 3 * transfer_amount)
+            .unwrap();
+
+        let bridge_unlock_first = BridgeUnlockAction {
+            to: to_address,
+            amount: transfer_amount,
+            fee_asset: asset.clone(),
+            memo: String::new(),
+            bridge_address,
+            rollup_block_number: 1,
+            rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
+        };
+        let bridge_unlock_second = BridgeUnlockAction {
+            rollup_block_number: 10,
+            ..bridge_unlock_first.clone()
+        };
+
+        // first should succeed, next should fail due to duplicate event.
+        bridge_unlock_first
+            .check_and_execute(&mut state)
+            .await
+            .unwrap();
+        assert_anyhow_error(
+            &bridge_unlock_second
+                .check_and_execute(&mut state)
+                .await
+                .unwrap_err(),
+            "withdrawal event already processed",
+        );
     }
 }
