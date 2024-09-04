@@ -77,13 +77,31 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         &self,
         address: Address,
     ) -> Result<Vec<AssetBalance>> {
-        let ibc_prefixed_balances = self
-            .get_account_balances(address)
-            .await
-            .context("failed to grab ibc balances for account")?;
-        let mut balances: Vec<AssetBalance> = Vec::with_capacity(ibc_prefixed_balances.len());
+        let prefix = format!("{}/balance/", StorageKey(&address));
+        let mut balances: Vec<AssetBalance> = Vec::new();
 
-        for (asset, balance) in ibc_prefixed_balances {
+        let mut stream = std::pin::pin!(self.prefix_keys(&prefix));
+        while let Some(Ok(key)) = stream.next().await {
+            let Some(value) = self
+                .get_raw(&key)
+                .await
+                .context("failed reading raw account balance from state")?
+            else {
+                // we shouldn't receive a key in the stream with no value,
+                // so this shouldn't happen
+                continue;
+            };
+
+            let asset = key
+                .strip_prefix(&prefix)
+                .context("failed to strip prefix from account balance key")?
+                .parse::<crate::storage_keys::hunks::Asset>()
+                .context("failed to parse storage key suffix as address hunk")?
+                .get();
+
+            let Balance(balance) =
+                Balance::try_from_slice(&value).context("invalid balance bytes")?;
+
             let native_asset = self
                 .get_native_asset()
                 .await
@@ -107,10 +125,6 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
                 balance,
             });
         }
-
-        // sort balances for deterministic return
-        balances.sort_by_key(|b| b.denom.to_string());
-
         Ok(balances)
     }
 
