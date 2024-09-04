@@ -180,7 +180,10 @@ impl ActionHandler for SignedTransaction {
             .context("failed to check account rollup id")?
             .is_some()
         {
-            state.put_last_transaction_id_for_bridge_account(self, &self.id());
+            state.put_last_transaction_id_for_bridge_account(
+                self,
+                &transaction_context.transaction_id,
+            );
         }
 
         let from_nonce = state

@@ -625,14 +625,11 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         "asset ID is not authorized for transfer to bridge account",
     );
 
-    let transaction_id = state
-        .get_current_source()
-        .expect("current source should be set before executing action")
-        .transaction_id;
-    let index_of_action = state
-        .get_current_source()
-        .expect("current source should be set before executing action")
-        .position_in_source_transaction;
+    let transaction_context = state
+        .get_transaction_context()
+        .expect("transaction source should be present in state when executing an action");
+    let transaction_id = transaction_context.transaction_id;
+    let index_of_action = transaction_context.position_in_source_transaction;
 
     let deposit = Deposit::new(
         bridge_address,

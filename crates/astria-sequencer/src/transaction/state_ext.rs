@@ -1,7 +1,3 @@
-use anyhow::{
-    Context as _,
-    Result,
-};
 use astria_core::{
     primitive::v1::{
         TransactionId,
@@ -13,10 +9,9 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use tracing::instrument;
 
-fn current_source() -> &'static str {
-    "transaction/current_source"
+fn transaction_context() -> &'static str {
+    "transaction/context"
 }
 
 #[derive(Clone, Copy)]
@@ -48,28 +43,18 @@ pub(crate) trait StateWriteExt: StateWrite {
         transaction: impl Into<TransactionContext>,
     ) -> TransactionContext {
         let context: TransactionContext = transaction.into();
-        self.object_put(current_source(), context);
+        self.object_put(transaction_context(), context);
         context
     }
 
     fn delete_current_source(&mut self) {
-        self.object_delete(current_source());
-    }
-
-    #[instrument(skip_all)]
-    fn set_position_in_source_transaction(&mut self, val: u64) -> Result<()> {
-        let mut context = self
-            .get_current_source()
-            .context("failed to get current source")?;
-        context.position_in_source_transaction = val;
-        self.object_put(current_source(), context);
-        Ok(())
+        self.object_delete(transaction_context());
     }
 }
 
 pub(crate) trait StateReadExt: StateRead {
-    fn get_current_source(&self) -> Option<TransactionContext> {
-        self.object_get(current_source())
+    fn get_transaction_context(&self) -> Option<TransactionContext> {
+        self.object_get(transaction_context())
     }
 }
 

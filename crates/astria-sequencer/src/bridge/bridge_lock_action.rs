@@ -40,7 +40,7 @@ impl ActionHandler for BridgeLockAction {
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         state
@@ -73,11 +73,11 @@ impl ActionHandler for BridgeLockAction {
             .context("failed to get transfer base fee")?;
 
         let transaction_id = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("current source should be set before executing action")
             .transaction_id;
         let position_in_source_transaction = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("current source should be set before executing action")
             .position_in_source_transaction;
 
