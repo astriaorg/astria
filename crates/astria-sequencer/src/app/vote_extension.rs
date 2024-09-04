@@ -298,7 +298,7 @@ async fn validate_vote_extensions<S: StateReadExt>(
         submitted_voting_power =
             submitted_voting_power.saturating_add(vote.validator.power.value());
 
-        let verification_key = validator_set
+        let verification_key = &validator_set
             .get(vote.validator.address)
             .context("validator not found")?
             .verification_key;
