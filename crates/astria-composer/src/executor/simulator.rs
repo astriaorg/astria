@@ -91,7 +91,7 @@ impl BundleSimulator {
             .filter(|data| !data.is_empty())
             .collect();
 
-        self.inner_simulate_bundle_on_block(actions, soft_block.clone(), Some(time))
+        self.inner_simulate_bundle_on_block(actions, soft_block.clone(), Some(time), false)
             .await
     }
 
@@ -114,7 +114,7 @@ impl BundleSimulator {
 
         let actions = convert_bundle_to_byte_array(bundle);
 
-        self.inner_simulate_bundle_on_block(actions, soft_block.clone(), None)
+        self.inner_simulate_bundle_on_block(actions, soft_block.clone(), None, true)
             .await
     }
 
@@ -126,7 +126,7 @@ impl BundleSimulator {
         timestamp: Option<Timestamp>,
     ) -> eyre::Result<BundleSimulationResult> {
         let actions = convert_bundle_to_byte_array(bundle);
-        self.inner_simulate_bundle_on_block(actions, block, timestamp)
+        self.inner_simulate_bundle_on_block(actions, block, timestamp, true)
             .await
     }
 
@@ -136,6 +136,7 @@ impl BundleSimulator {
         bundle: Vec<Vec<u8>>,
         block: Block,
         timestamp: Option<Timestamp>,
+        simulate_only: bool
     ) -> eyre::Result<BundleSimulationResult> {
         // convert the sized bundle actions to a list of Vec<u8>
         // as long as the timestamp > parent block timestamp, the block will be successfully
@@ -153,7 +154,7 @@ impl BundleSimulator {
                 bundle,
                 // use current timestamp
                 timestamp,
-                true,
+                simulate_only,
             )
             .await
             .wrap_err("failed to execute block")?;
