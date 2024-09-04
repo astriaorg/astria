@@ -455,9 +455,11 @@ pub(crate) trait StateWriteExt: StateWrite {
         let key = bridge_account_withdrawal_event_storage_key(&address, withdrawal_event_id);
 
         // Check if the withdrawal ID has already been used, if so return an error.
-        let bytes = self.get_raw(&key).await.map_err(|e| {
-            anyhow_to_eyre(e).wrap_err("failed reading raw withdrawal event from state")
-        })?;
+        let bytes = self
+            .get_raw(&key)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw withdrawal event from state")?;
         if let Some(bytes) = bytes {
             let existing_block_num = u64::from_be_bytes(
                 bytes

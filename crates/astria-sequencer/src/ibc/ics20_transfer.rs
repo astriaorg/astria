@@ -26,7 +26,6 @@ use astria_core::{
 use astria_eyre::eyre::{
     bail,
     ensure,
-    eyre,
     OptionExt as _,
     Result,
     WrapErr as _,
@@ -507,9 +506,9 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
             .put_ibc_channel_balance(
                 escrow_channel,
                 &denom_trace,
-                escrow_balance.checked_sub(packet_amount).ok_or(eyre!(
-                    "insufficient balance in escrow account to transfer tokens"
-                ))?,
+                escrow_balance
+                    .checked_sub(packet_amount)
+                    .ok_or_eyre("insufficient balance in escrow account to transfer tokens")?,
             )
             .wrap_err("failed to update escrow account balance in execute_ics20_transfer")?;
 

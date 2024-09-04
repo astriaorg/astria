@@ -114,7 +114,9 @@ mod test {
     #[test]
     fn eyre_to_anyhow_preserves_source_chain() {
         let mut errs = ["foo", "bar", "baz", "qux"];
-        let eyre_error = astria_eyre::eyre::eyre!(errs[0]).wrap_err(errs[1]).wrap_err(errs[2]);
+        let eyre_error = astria_eyre::eyre::eyre!(errs[0])
+            .wrap_err(errs[1])
+            .wrap_err(errs[2]);
         let anyhow_from_eyre = super::eyre_to_anyhow(eyre_error).context(errs[3]);
 
         errs.reverse();
