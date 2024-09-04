@@ -530,16 +530,6 @@ impl TransactionId {
         }
     }
 
-    /// Convert from a raw protobuf type to a rust type for a transaction ID.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the transaction ID buffer was not 32 bytes long or if it was not hex
-    /// encoded.
-    pub fn try_from_raw(raw: raw::TransactionId) -> Result<Self, TransactionIdError> {
-        Self::try_from_raw_ref(&raw)
-    }
-
     /// Convert from a reference to raw protobuf type to a rust type for a transaction ID.
     ///
     /// # Errors
@@ -568,7 +558,7 @@ impl TryFrom<raw::TransactionId> for TransactionId {
     type Error = TransactionIdError;
 
     fn try_from(value: raw::TransactionId) -> Result<Self, Self::Error> {
-        Self::try_from_raw(value)
+        Self::try_from_raw_ref(&value)
     }
 }
 
