@@ -538,7 +538,7 @@ impl TransactionId {
     /// encoded.
     pub fn try_from_raw_ref(raw: &raw::TransactionId) -> Result<Self, TransactionIdError> {
         let inner = <[u8; TRANSACTION_ID_LEN]>::from_hex(&raw.inner).map_err(|err| {
-            TransactionIdError(TransactionIdErrorKind::HexDecodeError {
+            TransactionIdError(TransactionIdErrorKind::HexDecode {
                 source: err,
             })
         })?;
@@ -578,7 +578,7 @@ pub struct TransactionIdError(TransactionIdErrorKind);
 #[derive(Debug, thiserror::Error)]
 enum TransactionIdErrorKind {
     #[error("error decoding hex string `inner` to bytes")]
-    HexDecodeError { source: hex::FromHexError },
+    HexDecode { source: hex::FromHexError },
 }
 
 #[cfg(test)]

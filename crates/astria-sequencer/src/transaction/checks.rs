@@ -101,12 +101,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .context("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
-    let mut tx_index_iter = tx.actions.iter().enumerate();
-    for action in &tx.actions {
-        let tx_index_of_action = tx_index_iter
-            .next()
-            .context("tx index iterator should not have ended")?
-            .0 as u64;
+    for (i, action) in tx.actions.iter().enumerate() {
         match action {
             Action::Transfer(act) => {
                 transfer_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
@@ -131,7 +126,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     &mut fees_by_asset,
                     transfer_fee,
                     bridge_lock_byte_cost_multiplier,
-                    tx_index_of_action,
+                    i as u64,
                 );
             }
             Action::BridgeUnlock(act) => {

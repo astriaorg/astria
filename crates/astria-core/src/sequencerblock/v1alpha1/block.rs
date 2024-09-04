@@ -1420,7 +1420,7 @@ impl Deposit {
         let Some(id_of_source_transaction) = id_of_source_transaction else {
             return Err(DepositError::field_not_set("transaction_id"));
         };
-        let id_of_source_transaction = TransactionId::try_from(id_of_source_transaction)
+        let id_of_source_transaction = TransactionId::try_from_raw_ref(&id_of_source_transaction)
             .map_err(DepositError::transaction_id_error)?;
         Ok(Self {
             bridge_address,
