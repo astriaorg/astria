@@ -1361,6 +1361,11 @@ impl Deposit {
     }
 
     #[must_use]
+    pub fn position_in_source_transaction(&self) -> u64 {
+        self.position_in_source_transaction
+    }
+
+    #[must_use]
     pub fn into_raw(self) -> raw::Deposit {
         let Self {
             bridge_address,
@@ -1467,7 +1472,7 @@ enum DepositErrorKind {
     IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the `asset` field could not be parsed")]
     IncorrectAsset(#[source] asset::ParseDenomError),
-    #[error("error converting to `TransactionId`")]
+    #[error("field `id_of_source_transaction` was invalid")]
     TransactionIdError(#[source] TransactionIdError),
 }
 

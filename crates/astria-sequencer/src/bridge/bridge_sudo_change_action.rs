@@ -102,7 +102,10 @@ impl ActionHandler for BridgeSudoChangeAction {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::asset;
+    use astria_core::primitive::v1::{
+        asset,
+        TransactionId,
+    };
     use cnidarium::StateDelta;
 
     use super::*;
@@ -130,7 +133,8 @@ mod tests {
 
         state.put_current_source(TransactionContext {
             address_bytes: [1; 20],
-            transaction_id: [0; 32].into(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_source_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
@@ -167,7 +171,8 @@ mod tests {
         let sudo_address = astria_address(&[98; 20]);
         state.put_current_source(TransactionContext {
             address_bytes: sudo_address.bytes(),
-            transaction_id: [0; 32].into(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_source_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
         state.put_bridge_sudo_change_base_fee(10);

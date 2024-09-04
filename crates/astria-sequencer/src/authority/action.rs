@@ -157,6 +157,7 @@ impl ActionHandler for FeeChangeAction {
 
 #[cfg(test)]
 mod test {
+    use astria_core::primitive::v1::TransactionId;
     use cnidarium::StateDelta;
 
     use super::*;
@@ -180,7 +181,8 @@ mod test {
 
         state.put_current_source(TransactionContext {
             address_bytes: [1; 20],
-            transaction_id: [0; 32].into(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_source_transaction: 0,
         });
         state.put_sudo_address([1; 20]).unwrap();
 

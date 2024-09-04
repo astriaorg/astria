@@ -100,7 +100,7 @@ impl SignedTransaction {
             Sha256,
         };
         let bytes = self.to_raw().encode_to_vec();
-        <[u8; 32]>::from(Sha256::digest(bytes)).into()
+        TransactionId::new(Sha256::digest(bytes).into())
     }
 
     #[must_use]
@@ -610,7 +610,7 @@ mod test {
             transaction_bytes: unsigned.to_raw().encode_to_vec().into(),
         };
 
-        insta::assert_json_snapshot!(tx.id().as_bytes());
+        insta::assert_json_snapshot!(tx.id());
     }
 
     #[test]

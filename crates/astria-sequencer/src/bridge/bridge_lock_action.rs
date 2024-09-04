@@ -77,10 +77,9 @@ impl ActionHandler for BridgeLockAction {
             .expect("current source should be set before executing action")
             .transaction_id;
         let position_in_source_transaction = state
-            .get_transaction_index_of_action()
-            .await
-            .context("failed to get transaction index of action")?
-            .expect("index of action should be set before executing action");
+            .get_current_source()
+            .expect("current source should be set before executing action")
+            .position_in_source_transaction;
 
         let deposit = Deposit::new(
             self.to,
@@ -154,6 +153,7 @@ mod tests {
     use astria_core::primitive::v1::{
         asset,
         RollupId,
+        TransactionId,
     };
     use cnidarium::StateDelta;
 
@@ -183,11 +183,12 @@ mod tests {
         let transfer_fee = 12;
 
         let from_address = astria_address(&[2; 20]);
+        let transaction_id = TransactionId::new([0; 32]);
         state.put_current_source(TransactionContext {
             address_bytes: from_address.bytes(),
-            transaction_id: [0; 32].into(),
+            transaction_id,
+            position_in_source_transaction: 0,
         });
-        state.put_transaction_index_of_action(0);
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
         state.put_transfer_base_fee(transfer_fee).unwrap();
@@ -227,7 +228,7 @@ mod tests {
                 100,
                 asset.clone(),
                 "someaddress".to_string(),
-                [0; 32].into(),
+                transaction_id,
                 0,
             )) * 2;
         state

@@ -15,10 +15,6 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-fn index_of_action_storage_key() -> &'static str {
-    "transaction/index_of_action"
-}
-
 fn current_source() -> &'static str {
     "transaction/current_source"
 }
@@ -27,6 +23,7 @@ fn current_source() -> &'static str {
 pub(crate) struct TransactionContext {
     pub(crate) address_bytes: [u8; ADDRESS_LEN],
     pub(crate) transaction_id: TransactionId,
+    pub(crate) position_in_source_transaction: u64,
 }
 
 impl TransactionContext {
@@ -40,6 +37,7 @@ impl From<&SignedTransaction> for TransactionContext {
         Self {
             address_bytes: value.address_bytes(),
             transaction_id: value.id(),
+            position_in_source_transaction: 0,
         }
     }
 }
@@ -55,50 +53,22 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_transaction_index_of_action(&mut self, index: u64) {
-        self.nonverifiable_put_raw(
-            index_of_action_storage_key().as_bytes().to_vec(),
-            borsh::to_vec(&index).expect("serialize index of action"),
-        );
-    }
-
-    #[instrument(skip_all)]
-    async fn increment_transaction_index_of_action(&mut self) -> Result<()> {
-        let index = self
-            .get_transaction_index_of_action()
-            .await?
-            .expect("index of action should be set before incrementing it");
-        let index = index.checked_add(1).expect("increment index of action");
-        self.nonverifiable_put_raw(
-            index_of_action_storage_key().as_bytes().to_vec(),
-            borsh::to_vec(&index).expect("serialize index of action"),
-        );
+    fn increment_position_in_source_transaction(&mut self) -> Result<()> {
+        let mut context = self
+            .get_current_source()
+            .context("failed to get current source")?;
+        context.position_in_source_transaction = context
+            .position_in_source_transaction
+            .checked_add(1)
+            .context("position in source transaction overflowed")?;
+        self.object_put(current_source(), context);
         Ok(())
-    }
-
-    #[instrument(skip_all)]
-    fn clear_transaction_index_of_action(&mut self) {
-        self.nonverifiable_delete(index_of_action_storage_key().as_bytes().to_vec());
     }
 }
 
 pub(crate) trait StateReadExt: StateRead {
     fn get_current_source(&self) -> Option<TransactionContext> {
         self.object_get(current_source())
-    }
-
-    #[instrument(skip_all)]
-    async fn get_transaction_index_of_action(&self) -> Result<Option<u64>> {
-        let Some(bytes) = self
-            .nonverifiable_get_raw(index_of_action_storage_key().as_bytes())
-            .await
-            .context("failed reading raw index of action from state")?
-        else {
-            return Ok(None);
-        };
-
-        let index = borsh::from_slice(&bytes).context("failed to deserialize index bytes")?;
-        Ok(Some(index))
     }
 }
 

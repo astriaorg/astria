@@ -373,7 +373,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .try_into()
             .expect("all transaction hashes stored should be 32 bytes; this is a bug");
 
-        Ok(Some(tx_hash.into()))
+        Ok(Some(TransactionId::new(tx_hash)))
     }
 }
 
@@ -545,7 +545,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) {
         self.nonverifiable_put_raw(
             last_transaction_id_for_bridge_account_storage_key(&address),
-            tx_id.as_bytes().to_vec(),
+            tx_id.get().to_vec(),
         );
     }
 }
@@ -559,6 +559,7 @@ mod test {
             asset,
             Address,
             RollupId,
+            TransactionId,
         },
         sequencerblock::v1alpha1::block::Deposit,
     };
@@ -847,7 +848,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             0,
         );
 
@@ -884,7 +885,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             1,
         );
         deposits.append(&mut vec![deposit.clone()]);
@@ -920,7 +921,7 @@ mod test {
             amount,
             asset,
             destination_chain_address.to_string(),
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             2,
         );
         let deposits_1 = vec![deposit.clone()];
@@ -965,7 +966,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             0,
         );
 
@@ -989,7 +990,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             1,
         );
         state
@@ -1040,7 +1041,7 @@ mod test {
             amount,
             asset,
             destination_chain_address.to_string(),
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             0,
         );
 
@@ -1097,7 +1098,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             0,
         );
 
@@ -1115,7 +1116,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             1,
         );
         let deposits_1 = vec![deposit.clone()];
@@ -1193,7 +1194,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             0,
         );
 
@@ -1211,7 +1212,7 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             1,
         );
         state

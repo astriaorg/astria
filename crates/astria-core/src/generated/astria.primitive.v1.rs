@@ -104,8 +104,10 @@ impl ::prost::Name for Address {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TransactionId {
+    /// The hash of the transaction which the ID represents.
+    /// It must be a lower hex-encoded 32-byte hash.
     #[prost(string, tag = "1")]
-    pub hash: ::prost::alloc::string::String,
+    pub inner: ::prost::alloc::string::String,
 }
 impl ::prost::Name for TransactionId {
     const NAME: &'static str = "TransactionId";

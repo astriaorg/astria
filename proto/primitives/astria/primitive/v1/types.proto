@@ -60,5 +60,7 @@ message Address {
 // It contains the hash of the transaction, to be included in
 // rollup deposit events for source tracking.
 message TransactionId {
-  string hash = 1;
+  // The hash of the transaction which the ID represents.
+  // It must be a lower hex-encoded 32-byte hash.
+  string inner = 1;
 }

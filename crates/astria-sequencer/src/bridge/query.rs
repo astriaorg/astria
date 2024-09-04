@@ -238,7 +238,7 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
     {
         Ok(Some(tx_id)) => BridgeAccountLastTxHashResponse {
             height,
-            tx_hash: Some(tx_id.as_bytes()),
+            tx_hash: Some(tx_id.get()),
         },
         Ok(None) => BridgeAccountLastTxHashResponse {
             height,

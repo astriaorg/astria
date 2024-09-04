@@ -8,6 +8,7 @@ use base64::{
     prelude::BASE64_STANDARD,
 };
 use bytes::Bytes;
+use hex::FromHex;
 use sha2::{
     Digest as _,
     Sha256,
@@ -22,7 +23,7 @@ pub const ADDRESS_LEN: usize = 20;
 
 pub const ROLLUP_ID_LEN: usize = 32;
 
-pub const TRANSACTION_ID_LENGTH: usize = 32;
+pub const TRANSACTION_ID_LEN: usize = 32;
 
 impl Protobuf for merkle::Proof {
     type Error = merkle::audit::InvalidProof;
@@ -490,46 +491,83 @@ where
     tree
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "serde",
     serde(try_from = "raw::TransactionId", into = "raw::TransactionId")
 )]
 pub struct TransactionId {
-    hash: String,
+    inner: [u8; TRANSACTION_ID_LEN],
 }
 
 impl TransactionId {
-    /// Returns the hex-encoded 32-byte transaction hash as a string.
+    /// Constructs a new `TransactionId` from a 32-byte array.
     #[must_use]
-    pub fn get(&self) -> String {
-        self.hash.clone()
+    pub const fn new(inner: [u8; TRANSACTION_ID_LEN]) -> Self {
+        Self {
+            inner,
+        }
+    }
+
+    /// Returns the 32-byte transaction hash.
+    #[must_use]
+    pub fn get(self) -> [u8; TRANSACTION_ID_LEN] {
+        self.inner
     }
 
     #[must_use]
     pub fn to_raw(&self) -> raw::TransactionId {
         raw::TransactionId {
-            hash: self.hash.clone(),
+            inner: hex::encode(self.inner),
         }
     }
 
     #[must_use]
     pub fn into_raw(self) -> raw::TransactionId {
         raw::TransactionId {
-            hash: self.hash.clone(),
+            inner: hex::encode(self.inner),
         }
     }
 
-    /// Returns a copy of the transaction hash as a 32-byte array.
+    /// Convert from a raw protobuf type to a rust type for a transaction ID.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the transaction ID is not 32 bytes long. This should never happen, as the
-    /// transaction ID can only be created from a 32-byte array.
+    /// Returns an error if the transaction ID buffer was not 32 bytes long or if it was not hex
+    /// encoded.
+    pub fn try_from_raw(raw: raw::TransactionId) -> Result<Self, TransactionIdError> {
+        let inner = <[u8; TRANSACTION_ID_LEN]>::from_hex(raw.inner).map_err(|err| {
+            TransactionIdError(TransactionIdErrorKind::HexDecodeError {
+                source: err,
+            })
+        })?;
+        Ok(Self {
+            inner,
+        })
+    }
+
+    /// Convert from a reference to raw protobuf type to a rust type for a transaction ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the transaction ID buffer was not 32 bytes long or if it was not hex
+    /// encoded.
+    pub fn try_from_raw_ref(raw: &raw::TransactionId) -> Result<Self, TransactionIdError> {
+        let inner = <[u8; TRANSACTION_ID_LEN]>::from_hex(&raw.inner).map_err(|err| {
+            TransactionIdError(TransactionIdErrorKind::HexDecodeError {
+                source: err,
+            })
+        })?;
+        Ok(Self {
+            inner,
+        })
+    }
+
+    /// Returns a copy of the 32-byte transaction hash as a hex-encoded string.
     #[must_use]
-    pub fn as_bytes(&self) -> [u8; TRANSACTION_ID_LENGTH] {
-        hex::decode(self.hash.clone()).unwrap().try_into().unwrap()
+    pub fn as_hex(&self) -> String {
+        hex::encode(self.inner)
     }
 }
 
@@ -542,49 +580,27 @@ impl From<TransactionId> for raw::TransactionId {
 impl TryFrom<raw::TransactionId> for TransactionId {
     type Error = TransactionIdError;
 
-    fn try_from(raw: raw::TransactionId) -> Result<Self, Self::Error> {
-        Self::try_from(raw.hash)
-    }
-}
-
-impl TryFrom<String> for TransactionId {
-    type Error = TransactionIdError;
-
-    fn try_from(hash: String) -> Result<Self, Self::Error> {
-        let inner =
-            hex::decode(hash.clone()).map_err(|err| TransactionIdError::HexDecodeError {
-                source: err,
-            })?;
-        if inner.len() != TRANSACTION_ID_LENGTH {
-            return Err(TransactionIdError::IncorrectTransactionIdLength {
-                received: inner.len(),
-            });
-        }
-        Ok(Self {
-            hash: hex::encode(inner),
-        })
-    }
-}
-
-impl From<[u8; TRANSACTION_ID_LENGTH]> for TransactionId {
-    fn from(inner: [u8; TRANSACTION_ID_LENGTH]) -> Self {
-        Self {
-            hash: hex::encode(inner),
-        }
+    fn try_from(value: raw::TransactionId) -> Result<Self, Self::Error> {
+        Self::try_from_raw(value)
     }
 }
 
 impl std::fmt::Display for TransactionId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.hash)
+        for byte in self.inner {
+            write!(f, "{byte:02x}")?;
+        }
+        Ok(())
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum TransactionIdError {
-    #[error("expected 32 bytes, got {received}")]
-    IncorrectTransactionIdLength { received: usize },
-    #[error("error decoding hex string: {source}")]
+#[error(transparent)]
+pub struct TransactionIdError(TransactionIdErrorKind);
+
+#[derive(Debug, thiserror::Error)]
+enum TransactionIdErrorKind {
+    #[error("error decoding hex string `inner` to bytes")]
     HexDecodeError { source: hex::FromHexError },
 }
 

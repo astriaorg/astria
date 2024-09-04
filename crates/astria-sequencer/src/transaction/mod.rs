@@ -169,6 +169,11 @@ impl ActionHandler for SignedTransaction {
             .context("failed to get nonce for transaction signer")?;
         ensure!(curr_nonce == self.nonce(), InvalidNonce(self.nonce()));
 
+        // Should have enough balance to cover all actions.
+        check_balance_for_total_fees_and_transfers(self, &state)
+            .await
+            .context("failed to check balance for total fees and transfers")?;
+
         if state
             .get_bridge_account_rollup_id(self)
             .await
@@ -177,13 +182,6 @@ impl ActionHandler for SignedTransaction {
         {
             state.put_last_transaction_id_for_bridge_account(self, &self.id());
         }
-
-        state.put_transaction_index_of_action(0);
-
-        // Should have enough balance to cover all actions.
-        check_balance_for_total_fees_and_transfers(self, &state)
-            .await
-            .context("failed to check balance for total fees and transfers")?;
 
         let from_nonce = state
             .get_account_nonce(self)
@@ -269,9 +267,8 @@ impl ActionHandler for SignedTransaction {
                     .context("failed executing bridge sudo change")?,
             }
             state
-                .increment_transaction_index_of_action()
-                .await
-                .context("failed to increment index of action")?;
+                .increment_position_in_source_transaction()
+                .context("failed to increment position in source transaction")?;
         }
 
         // XXX: Delete the current transaction data from the ephemeral state.

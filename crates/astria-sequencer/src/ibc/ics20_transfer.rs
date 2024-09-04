@@ -630,10 +630,9 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         .expect("current source should be set before executing action")
         .transaction_id;
     let index_of_action = state
-        .get_transaction_index_of_action()
-        .await
-        .context("failed to get transaction index of action")?
-        .expect("index of action should be set before executing action");
+        .get_current_source()
+        .expect("current source should be set before executing action")
+        .position_in_source_transaction;
 
     let deposit = Deposit::new(
         bridge_address,
@@ -654,7 +653,10 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::RollupId;
+    use astria_core::primitive::v1::{
+        RollupId,
+        TransactionId,
+    };
     use cnidarium::StateDelta;
     use denom::TracePrefixed;
 
@@ -780,9 +782,9 @@ mod test {
 
         state_tx.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
-            transaction_id: [0; 32].into(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_source_transaction: 0,
         });
-        state_tx.put_transaction_index_of_action(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1021,9 +1023,9 @@ mod test {
 
         state_tx.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
-            transaction_id: [0; 32].into(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_source_transaction: 0,
         });
-        state_tx.put_transaction_index_of_action(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1068,9 +1070,9 @@ mod test {
 
         state_tx.put_current_source(TransactionContext {
             address_bytes: bridge_address.bytes(),
-            transaction_id: [0; 32].into(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_source_transaction: 0,
         });
-        state_tx.put_transaction_index_of_action(0);
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1126,7 +1128,7 @@ mod test {
             100,
             denom,
             destination_chain_address,
-            [0; 32].into(),
+            TransactionId::new([0; 32]),
             0,
         );
         assert_eq!(deposit, &expected_deposit);
