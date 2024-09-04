@@ -56,12 +56,12 @@
       },
       "oracle": {
         "currencyPairGenesis": [],
-        "nextId": "0",
+        "nextId": "0"
       }
-      {{- if not .Values.global.dev }}
-      {{- else }}
-      {{- end}}
     }
+    {{- if not .Values.global.dev }}
+    {{- else }}
+    {{- end}}
   },
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
