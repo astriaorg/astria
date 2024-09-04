@@ -23,7 +23,7 @@ fn current_source() -> &'static str {
 pub(crate) struct TransactionContext {
     pub(crate) address_bytes: [u8; ADDRESS_LEN],
     pub(crate) transaction_id: TransactionId,
-    pub(crate) position_in_source_transaction: Option<u64>,
+    pub(crate) position_in_source_transaction: u64,
 }
 
 impl TransactionContext {
@@ -37,7 +37,7 @@ impl From<&SignedTransaction> for TransactionContext {
         Self {
             address_bytes: value.address_bytes(),
             transaction_id: value.id(),
-            position_in_source_transaction: Some(0),
+            position_in_source_transaction: 0,
         }
     }
 }
@@ -61,7 +61,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let mut context = self
             .get_current_source()
             .context("failed to get current source")?;
-        context.position_in_source_transaction = Some(val);
+        context.position_in_source_transaction = val;
         self.object_put(current_source(), context);
         Ok(())
     }

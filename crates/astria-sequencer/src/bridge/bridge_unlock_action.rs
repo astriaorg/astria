@@ -142,7 +142,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: Some(0),
+            position_in_source_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
@@ -181,7 +181,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: Some(0),
+            position_in_source_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
@@ -223,7 +223,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: Some(0),
+            position_in_source_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
@@ -281,7 +281,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: Some(0),
+            position_in_source_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
