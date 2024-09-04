@@ -1,6 +1,6 @@
 [package]
 name = "astria-conductor"
-version = "0.19.0"
+version = "0.20.0"
 edition = "2021"
 rust-version = "1.76"
 license = "MIT OR Apache-2.0"
@@ -69,7 +69,6 @@ tower = { version = "0.4.13", features = ["limit"] }
 celestia-rpc = "0.1.1"
 celestia-types = { workspace = true }
 jsonrpsee = { version = "0.20", features = ["client-core", "macros"] }
-metrics.workspace = true
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [

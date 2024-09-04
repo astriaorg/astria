@@ -29,21 +29,23 @@ async fn main() -> ExitCode {
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
         .set_pretty_print(cfg.pretty_print)
-        .filter_directives(&cfg.log);
+        .set_filter_directives(&cfg.log);
 
     if !cfg.no_metrics {
-        telemetry_conf = telemetry_conf
-            .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"));
+        telemetry_conf =
+            telemetry_conf.set_metrics(&cfg.metrics_http_listener_addr, env!("CARGO_PKG_NAME"));
     }
 
-    if let Err(e) = telemetry_conf
-        .try_init()
+    let (metrics, _telemetry_guard) = match telemetry_conf
+        .try_init(&())
         .wrap_err("failed to setup telemetry")
     {
-        eprintln!("initializing conductor failed:\n{e:?}");
-        return ExitCode::FAILURE;
-    }
+        Err(e) => {
+            eprintln!("initializing conductor failed:\n{e:?}");
+            return ExitCode::FAILURE;
+        }
+        Ok(metrics_and_guard) => metrics_and_guard,
+    };
 
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
@@ -52,7 +54,7 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (withdrawer, shutdown_handle) = match BridgeWithdrawer::new(cfg) {
+    let (withdrawer, shutdown_handle) = match BridgeWithdrawer::new(cfg, metrics) {
         Err(error) => {
             error!(%error, "failed initializing bridge withdrawer");
             return ExitCode::FAILURE;

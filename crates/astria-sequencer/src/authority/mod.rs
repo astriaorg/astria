@@ -31,8 +31,8 @@ impl From<[u8; ADDRESS_LEN]> for ValidatorSetKey {
     }
 }
 
-impl From<VerificationKey> for ValidatorSetKey {
-    fn from(value: VerificationKey) -> Self {
+impl From<&VerificationKey> for ValidatorSetKey {
+    fn from(value: &VerificationKey) -> Self {
         Self(value.address_bytes())
     }
 }
@@ -48,7 +48,7 @@ impl ValidatorSet {
         Self(
             updates
                 .into_iter()
-                .map(|update| (update.verification_key.into(), update))
+                .map(|update| ((&update.verification_key).into(), update))
                 .collect::<BTreeMap<_, _>>(),
         )
     }
@@ -62,7 +62,7 @@ impl ValidatorSet {
     }
 
     pub(super) fn push_update(&mut self, update: ValidatorUpdate) {
-        self.0.insert(update.verification_key.into(), update);
+        self.0.insert((&update.verification_key).into(), update);
     }
 
     pub(super) fn remove<T: Into<ValidatorSetKey>>(&mut self, address: T) {

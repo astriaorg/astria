@@ -1,8 +1,0 @@
----
-source: crates/astria-core/src/protocol/memos/v1alpha1.rs
-expression: memo
----
-{
-  "rollupBlockNumber": "42",
-  "rollupTransactionHash": "a-rollup-defined-hash"
-}

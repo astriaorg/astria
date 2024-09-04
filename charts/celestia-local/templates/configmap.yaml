@@ -6,6 +6,7 @@ metadata:
 data:
   home_dir: "/home/celestia"
   coins: "{{ .Values.coins }}"
+  fees: "{{ .Values.fees }}"
   validator_stake: "{{ .Values.validatorStake }}"
   validator_mnemonic: "{{ .Values.validatorMnemonic }}"
   chainid: "{{ .Values.chainId }}"
