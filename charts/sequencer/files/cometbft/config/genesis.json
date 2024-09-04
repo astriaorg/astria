@@ -49,7 +49,7 @@
         },
         "params": {
           "marketAuthorities": [],
-          "admin": {{ include "sequencer.address" .Values.genesis.marketAdminAddress }}
+          "admin": "{{ .Values.genesis.marketAdminAddress }}"
         }
       },
       "oracle": {
