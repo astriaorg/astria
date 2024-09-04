@@ -46,7 +46,7 @@ use crate::{
     },
     assets::{
         StateReadExt as _,
-        StateWriteExt,
+        StateWriteExt as _,
     },
     authority::StateReadExt as _,
     bridge::{
