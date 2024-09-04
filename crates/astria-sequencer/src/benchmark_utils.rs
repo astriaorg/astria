@@ -74,6 +74,8 @@ pub(crate) fn transactions(tx_types: TxTypes) -> &'static Vec<Arc<SignedTransact
     .unwrap()
 }
 
+// allow: false-positive as described in "Known problems" of lint.
+#[allow(clippy::mutable_key_type)]
 fn sequence_actions() -> Vec<Arc<SignedTransaction>> {
     let mut nonces_and_chain_ids = HashMap::new();
     signing_keys()

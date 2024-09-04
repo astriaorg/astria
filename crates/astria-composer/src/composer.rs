@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     net::SocketAddr,
-    sync::OnceLock,
     time::Duration,
 };
 
@@ -120,12 +119,7 @@ impl Composer {
     /// An error is returned if the composer fails to be initialized.
     /// See `[from_config]` for its error scenarios.
     #[instrument(skip_all, err)]
-    pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
-        static METRICS: OnceLock<Metrics> = OnceLock::new();
-
-        let rollups = cfg.parse_rollups()?;
-        let metrics = METRICS.get_or_init(|| Metrics::new(rollups.keys()));
-
+    pub async fn from_config(cfg: &Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let (composer_status_sender, _) = watch::channel(Status::default());
         let shutdown_token = CancellationToken::new();
 
@@ -166,6 +160,7 @@ impl Composer {
             "API server listening"
         );
 
+        let rollups = cfg.parse_rollups()?;
         let geth_collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
