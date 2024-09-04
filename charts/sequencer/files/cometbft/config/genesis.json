@@ -49,9 +49,7 @@
         },
         "params": {
           "marketAuthorities": [],
-          "admin": {
-            "bech32m": "{{ .Values.genesis.marketAdminAddress }}"
-          }
+          "admin": {{ include "sequencer.address" .Values.genesis.marketAdminAddress }}
         }
       },
       "oracle": {
