@@ -43,21 +43,20 @@
       {{- end }}
     ],
     "slinky": {
-      "market_map": {
-        "market_map": {
+      "marketMap": {
+        "marketMap": {
           "markets": {}
         },
-        "last_updated": 0,
         "params": {
-          "market_authorities": [],
+          "marketAuthorities": [],
           "admin": {
             "bech32m": {{ include "sequencer.address" .Values.genesis.marketAdminAddress }}
           }
         }
       },
       "oracle": {
-        "currency_pair_genesis": [],
-        "next_id": 0
+        "currencyPairGenesis": [],
+        "nextId": "0",
       }
       {{- if not .Values.global.dev }}
       {{- else }}
