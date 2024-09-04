@@ -325,7 +325,7 @@ mod tests {
             memo: String::new(),
         };
 
-        assert_anyhow_error(
+        assert_eyre_error(
             &establish_withdrawal_target(&action, &state, bridge_address)
                 .await
                 .unwrap_err(),

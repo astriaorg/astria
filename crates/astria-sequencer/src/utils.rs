@@ -21,23 +21,13 @@ impl<'a> std::fmt::Display for Hex<'a> {
 }
 
 pub(crate) fn anyhow_to_eyre(anyhow_error: anyhow::Error) -> astria_eyre::eyre::Report {
-    let anyhow_result = Err::<(), _>(anyhow_error);
-    let boxed: Result<(), Box<dyn std::error::Error + Send + Sync>> =
-        anyhow_result.map_err(std::convert::Into::into);
-    let Err(err) = boxed else {
-        panic!("anyhow_to_eyre called on `Ok`")
-    };
-    eyre!(err)
+    let boxed: Box<dyn std::error::Error + Send + Sync> = anyhow_error.into();
+    eyre!(boxed)
 }
 
 pub(crate) fn eyre_to_anyhow(eyre_error: astria_eyre::eyre::Report) -> anyhow::Error {
-    let eyre_result = Err::<(), _>(eyre_error);
-    let boxed: Result<(), Box<dyn std::error::Error + Send + Sync>> =
-        eyre_result.map_err(std::convert::Into::into);
-    let Err(err) = boxed else {
-        panic!("eyre_to_anyhow called on `Ok`")
-    };
-    anyhow::anyhow!(err)
+    let boxed: Box<dyn std::error::Error + Send + Sync> = eyre_error.into();
+    anyhow::anyhow!(boxed)
 }
 
 pub(crate) fn cometbft_to_sequencer_validator(
@@ -104,6 +94,32 @@ mod pubkey {
         };
         AstriaKey {
             sum,
+        }
+    }
+}
+
+mod test {
+    #[test]
+    fn anyhow_to_eyre_preserves_source_chain() {
+        let mut errs = ["foo", "bar", "baz", "qux"];
+        let anyhow_error = anyhow::anyhow!(errs[0]).context(errs[1]).context(errs[2]);
+        let eyre_from_anyhow = super::anyhow_to_eyre(anyhow_error).wrap_err(errs[3]);
+
+        errs.reverse();
+        for (i, err) in eyre_from_anyhow.chain().enumerate() {
+            assert_eq!(errs[i], &err.to_string());
+        }
+    }
+
+    #[test]
+    fn eyre_to_anyhow_preserves_source_chain() {
+        let mut errs = ["foo", "bar", "baz", "qux"];
+        let eyre_error = astria_eyre::eyre::eyre!(errs[0]).wrap_err(errs[1]).wrap_err(errs[2]);
+        let anyhow_from_eyre = super::eyre_to_anyhow(eyre_error).context(errs[3]);
+
+        errs.reverse();
+        for (i, err) in anyhow_from_eyre.chain().enumerate() {
+            assert_eq!(errs[i], &err.to_string());
         }
     }
 }

@@ -315,7 +315,7 @@ mod tests {
             .await
             .unwrap();
         assert_eyre_error(
-            &bridge_unlock
+            &bridge_unlock_second
                 .check_and_execute(&mut state)
                 .await
                 .unwrap_err(),

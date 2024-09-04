@@ -11,7 +11,7 @@
 //! [`AppHandlerExecute`] is used for execution.
 use std::borrow::Cow;
 
-use anyhow::Context;
+use anyhow::Context as _;
 use astria_core::{
     primitive::v1::{
         asset::{
