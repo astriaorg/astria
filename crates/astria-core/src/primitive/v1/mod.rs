@@ -8,7 +8,6 @@ use base64::{
     prelude::BASE64_STANDARD,
 };
 use bytes::Bytes;
-use hex::FromHex;
 use sha2::{
     Digest as _,
     Sha256,
@@ -537,6 +536,8 @@ impl TransactionId {
     /// Returns an error if the transaction ID buffer was not 32 bytes long or if it was not hex
     /// encoded.
     pub fn try_from_raw_ref(raw: &raw::TransactionId) -> Result<Self, TransactionIdError> {
+        use hex::FromHex as _;
+
         let inner = <[u8; TRANSACTION_ID_LEN]>::from_hex(&raw.inner).map_err(|err| {
             TransactionIdError(TransactionIdErrorKind::HexDecode {
                 source: err,
