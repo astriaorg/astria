@@ -928,6 +928,7 @@ dependencies = [
  "ethers-core",
  "hex",
  "indenter",
+ "indexmap 2.4.0",
  "itertools 0.12.1",
  "pbjson-types",
  "predicates",

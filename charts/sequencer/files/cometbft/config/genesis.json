@@ -42,25 +42,27 @@
       {{ include "sequencer.address" $value }}
       {{- end }}
     ],
-    "market_map": {
+    "slinky": {
       "market_map": {
-        "markets": {}
-      },
-      "last_updated": 0,
-      "params": {
-        "market_authorities": [],
-        "admin": {
-          "bech32m": {{ include "sequencer.address" .Values.genesis.marketAdminAddress }}
+        "market_map": {
+          "markets": {}
+        },
+        "last_updated": 0,
+        "params": {
+          "market_authorities": [],
+          "admin": {
+            "bech32m": {{ include "sequencer.address" .Values.genesis.marketAdminAddress }}
+          }
         }
+      },
+      "oracle": {
+        "currency_pair_genesis": [],
+        "next_id": 0
       }
-    },
-    "oracle": {
-      "currency_pair_genesis": [],
-      "next_id": 0
+      {{- if not .Values.global.dev }}
+      {{- else }}
+      {{- end}}
     }
-    {{- if not .Values.global.dev }}
-    {{- else }}
-    {{- end}}
   },
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
