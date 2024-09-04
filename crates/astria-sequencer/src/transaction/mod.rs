@@ -152,7 +152,7 @@ impl ActionHandler for SignedTransaction {
         // Add the current signed transaction into the ephemeral state in case
         // downstream actions require access to it.
         // XXX: This must be deleted at the end of `check_stateful`.
-        state.put_current_source(self);
+        let mut transaction_context = state.put_transaction_context(self);
 
         // Transactions must match the chain id of the node.
         let chain_id = state.get_chain_id().await?;
@@ -195,7 +195,10 @@ impl ActionHandler for SignedTransaction {
             .context("failed updating `from` nonce")?;
 
         // FIXME: this should create one span per `check_and_execute`
-        for action in self.actions() {
+        for (i, action) in (0..).zip(self.actions().iter()) {
+            transaction_context.position_in_source_transaction = Some(i);
+            state.put_transaction_context(transaction_context);
+
             match action {
                 Action::Transfer(act) => act
                     .check_and_execute(&mut state)
@@ -266,9 +269,6 @@ impl ActionHandler for SignedTransaction {
                     .await
                     .context("failed executing bridge sudo change")?,
             }
-            state
-                .increment_position_in_source_transaction()
-                .context("failed to increment position in source transaction")?;
         }
 
         // XXX: Delete the current transaction data from the ephemeral state.

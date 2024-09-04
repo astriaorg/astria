@@ -131,10 +131,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: 0,
+            position_in_source_transaction: Some(0),
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
@@ -169,10 +169,10 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let sudo_address = astria_address(&[98; 20]);
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: sudo_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: 0,
+            position_in_source_transaction: Some(0),
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
         state.put_bridge_sudo_change_base_fee(10);

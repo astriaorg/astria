@@ -179,10 +179,10 @@ mod test {
         let mut state = StateDelta::new(snapshot);
         let transfer_fee = 12;
 
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: 0,
+            position_in_source_transaction: Some(0),
         });
         state.put_sudo_address([1; 20]).unwrap();
 

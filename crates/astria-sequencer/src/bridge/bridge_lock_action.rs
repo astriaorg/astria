@@ -79,7 +79,8 @@ impl ActionHandler for BridgeLockAction {
         let position_in_source_transaction = state
             .get_current_source()
             .expect("current source should be set before executing action")
-            .position_in_source_transaction;
+            .position_in_source_transaction
+            .context("position in source transaction should be set")?;
 
         let deposit = Deposit::new(
             self.to,
@@ -184,10 +185,10 @@ mod tests {
 
         let from_address = astria_address(&[2; 20]);
         let transaction_id = TransactionId::new([0; 32]);
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: from_address.bytes(),
             transaction_id,
-            position_in_source_transaction: 0,
+            position_in_source_transaction: Some(0),
         });
         state.put_base_prefix(ASTRIA_PREFIX).unwrap();
 
