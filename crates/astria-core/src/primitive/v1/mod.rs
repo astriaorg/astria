@@ -537,14 +537,7 @@ impl TransactionId {
     /// Returns an error if the transaction ID buffer was not 32 bytes long or if it was not hex
     /// encoded.
     pub fn try_from_raw(raw: raw::TransactionId) -> Result<Self, TransactionIdError> {
-        let inner = <[u8; TRANSACTION_ID_LEN]>::from_hex(raw.inner).map_err(|err| {
-            TransactionIdError(TransactionIdErrorKind::HexDecodeError {
-                source: err,
-            })
-        })?;
-        Ok(Self {
-            inner,
-        })
+        Self::try_from_raw_ref(&raw)
     }
 
     /// Convert from a reference to raw protobuf type to a rust type for a transaction ID.
@@ -562,12 +555,6 @@ impl TransactionId {
         Ok(Self {
             inner,
         })
-    }
-
-    /// Returns a copy of the 32-byte transaction hash as a hex-encoded string.
-    #[must_use]
-    pub fn as_hex(&self) -> String {
-        hex::encode(self.inner)
     }
 }
 
