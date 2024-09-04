@@ -200,7 +200,7 @@ impl Mempool {
                         .nonce()
                         .checked_add(1)
                         .expect("failed to increment nonce in promotion"),
-                    &pending.remaining_account_balances(
+                    &pending.subtract_contained_costs(
                         *timemarked_tx.address(),
                         current_account_balances.clone(),
                     ),
@@ -355,8 +355,9 @@ impl Mempool {
                 let highest_pending_nonce = pending
                     .pending_nonce(address)
                     .map_or(current_nonce, |nonce| nonce.saturating_add(1));
+
                 let remaining_balances =
-                    pending.remaining_account_balances(address, current_balances.clone());
+                    pending.subtract_contained_costs(address, current_balances.clone());
                 let promtion_txs =
                     parked.find_promotables(&address, highest_pending_nonce, &remaining_balances);
 

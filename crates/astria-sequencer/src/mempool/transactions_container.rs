@@ -235,20 +235,17 @@ impl PendingTransactionsForAccount {
 
     /// Returns remaining balances after accounting for costs of contained transactions.
     ///
-    /// Note: assumes that the balances in `current_account_balances` are large enough
+    /// Note: assumes that the balances in `account_balances` are large enough
     /// to cover costs for contained transactions. Will log an error if this is not true
     /// but will not fail.
-    fn get_remaining_balances(
-        &self,
-        mut remaining_account_balances: HashMap<IbcPrefixed, u128>,
-    ) -> HashMap<IbcPrefixed, u128> {
+    fn subtract_contained_costs(&self, account_balances: &mut HashMap<IbcPrefixed, u128>) {
         // deduct costs from current account balances
         self.txs.values().for_each(|tx| {
             tx.cost.iter().for_each(|(denom, cost)| {
                 if *cost == 0 {
                     return;
                 }
-                let Some(current_balance) = remaining_account_balances.get_mut(denom) else {
+                let Some(current_balance) = account_balances.get_mut(denom) else {
                     error!("pending transactions has cost not in account balances");
                     return;
                 };
@@ -259,7 +256,6 @@ impl PendingTransactionsForAccount {
                 *current_balance = new_balance;
             });
         });
-        remaining_account_balances
     }
 }
 
@@ -648,15 +644,15 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
 
     /// Returns remaining balances for an account after accounting for contained
     /// transactions' costs.
-    pub(super) fn remaining_account_balances(
+    pub(super) fn subtract_contained_costs(
         &self,
         address: [u8; 20],
-        current_balances: HashMap<IbcPrefixed, u128>,
+        mut current_balances: HashMap<IbcPrefixed, u128>,
     ) -> HashMap<IbcPrefixed, u128> {
-        let Some(account) = self.txs.get(&address) else {
-            return current_balances;
+        if let Some(account) = self.txs.get(&address) {
+            account.subtract_contained_costs(&mut current_balances);
         };
-        account.get_remaining_balances(current_balances)
+        current_balances
     }
 
     /// Returns the highest nonce for an account.
@@ -1071,7 +1067,9 @@ mod test {
         assert_eq!(pending_txs.txs().len(), 4);
 
         // check that remaining balances are zero
-        let remaining_balances = pending_txs.get_remaining_balances(account_balances.clone());
+        let mut remaining_balances = account_balances.clone();
+        pending_txs.subtract_contained_costs(&mut remaining_balances);
+
         for (asset, balance) in remaining_balances {
             if asset != IbcPrefixed::new(DENOM_3) {
                 assert_eq!(balance, 0, "balance should have been consumed");
@@ -1760,7 +1758,7 @@ mod test {
 
         // get balances
         let remaining_balances =
-            pending_txs.remaining_account_balances(signing_address, account_balances_full);
+            pending_txs.subtract_contained_costs(signing_address, account_balances_full);
         assert_eq!(
             remaining_balances.get(&IbcPrefixed::new(DENOM_0)).unwrap(),
             &88

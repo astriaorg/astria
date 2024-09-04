@@ -73,9 +73,12 @@ fn nonce_storage_key<T: AddressBytes>(address: T) -> String {
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     #[instrument(skip_all)]
-    async fn get_account_balances(&self, address: Address) -> Result<Vec<AssetBalance>> {
+    async fn get_account_balances_traced_prefixed(
+        &self,
+        address: Address,
+    ) -> Result<Vec<AssetBalance>> {
         let ibc_prefixed_balances = self
-            .get_account_balances_ibc_prefixed(address)
+            .get_account_balances(address)
             .await
             .context("failed to grab ibc balances for account")?;
         let mut balances: Vec<AssetBalance> = Vec::with_capacity(ibc_prefixed_balances.len());
@@ -105,11 +108,14 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
             });
         }
 
+        // sort balances for deterministic return
+        balances.sort_by_key(|b| b.denom.to_string());
+
         Ok(balances)
     }
 
     #[instrument(skip_all)]
-    async fn get_account_balances_ibc_prefixed<T: AddressBytes>(
+    async fn get_account_balances<T: AddressBytes>(
         &self,
         address: T,
     ) -> Result<HashMap<IbcPrefixed, u128>> {
@@ -598,14 +604,14 @@ mod tests {
 
         // see that call was ok
         let balances = state
-            .get_account_balances(address)
+            .get_account_balances_traced_prefixed(address)
             .await
             .expect("retrieving account balances should not fail");
         assert_eq!(balances, vec![]);
     }
 
     #[tokio::test]
-    async fn get_account_balances_ibc_prefixed() {
+    async fn get_account_balances() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -646,7 +652,7 @@ mod tests {
             .expect("putting an account balance should not fail");
 
         let balances = state
-            .get_account_balances_ibc_prefixed(address)
+            .get_account_balances(address)
             .await
             .expect("retrieving account balances should not fail");
 
@@ -669,7 +675,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_account_balances() {
+    async fn get_account_balances_traced_prefixed() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -710,7 +716,7 @@ mod tests {
             .expect("putting an account balance should not fail");
 
         let mut balances = state
-            .get_account_balances(address)
+            .get_account_balances_traced_prefixed(address)
             .await
             .expect("retrieving account balances should not fail");
         balances.sort_by(|a, b| a.balance.cmp(&b.balance));

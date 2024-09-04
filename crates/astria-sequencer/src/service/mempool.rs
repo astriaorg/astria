@@ -325,7 +325,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     // grab current account's balances
     let current_account_balance: HashMap<IbcPrefixed, u128> = match state
-        .get_account_balances_ibc_prefixed(address)
+        .get_account_balances(address)
         .await
         .context("failed fetching balances for account")
     {
