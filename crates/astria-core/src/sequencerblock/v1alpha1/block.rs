@@ -1361,6 +1361,11 @@ impl Deposit {
     }
 
     #[must_use]
+    pub fn id_of_source_transaction(&self) -> &TransactionId {
+        &self.id_of_source_transaction
+    }
+
+    #[must_use]
     pub fn position_in_source_transaction(&self) -> u64 {
         self.position_in_source_transaction
     }
