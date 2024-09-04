@@ -627,7 +627,7 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
 
     let transaction_context = state
         .get_transaction_context()
-        .expect("transaction source should be present in state when executing an action");
+        .context("transaction source should be present in state when executing an action")?;
     let transaction_id = transaction_context.transaction_id;
     let index_of_action = transaction_context.position_in_source_transaction;
 
