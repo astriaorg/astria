@@ -15,8 +15,8 @@ storage:
       persistentVolumeName: "celestia-shared-storage"
       path: "/data/celestia-data"
 
-celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v1.9.0"
-celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.14.1"
+celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v2.0.0"
+celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.16.0-rc0"
 
 podSecurityContext:
   runAsUser: 10001
@@ -35,6 +35,8 @@ validatorKeyName: "validator"
 validatorMnemonic: connect soon random stable toddler tired glove drastic comfort donor struggle island cactus pole shell alpha taste able story business cross dismiss book brass
 # Genesis amount
 coins: "10000000000000000000000000utia"
+# Default fee for genTx
+fees: "1utia"
 # Staking amount
 validatorStake: "5000000000utia"
 # ibc account
