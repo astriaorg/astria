@@ -25,11 +25,25 @@ ingress:
     enabled: true
     annotations:
       external-dns.alpha.kubernetes.io/hostname: grpc.sequencer.pr-{{.number}}.dev.astria.org
+      external-dns.alpha.kubernetes.io/ttl: "120"
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      cert-manager.io/cluster-issuer: "cloudflare-issuer"
     hostname: sequencer.pr-{{.number}}.dev.astria.org
+    hosts:
+      - sequencer.pr-{{.number}}.dev.astria.org
   rpc: 
     annotations:
       external-dns.alpha.kubernetes.io/hostname: rpc.sequencer.pr-{{.number}}.dev.astria.org
+      external-dns.alpha.kubernetes.io/ttl: "120"
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      cert-manager.io/cluster-issuer: "cloudflare-issuer"
     hostname: sequencer.pr-{{.number}}.dev.astria.org
+    hosts:
+      - sequencer.pr-{{.number}}.dev.astria.org
 
 
 sequencer-relayer: 
