@@ -74,7 +74,6 @@ pub(crate) async fn balance_request(
         Err(err_rsp) => return err_rsp,
     };
 
-    // let balances = match snapshot.get_account_balances_traced_prefixed(address).await {
     let balances = match get_trace_prefixed_account_balances(&snapshot, address).await {
         Ok(balance) => balance,
         Err(err) => {
