@@ -618,11 +618,11 @@ mod test {
         state.put_base_prefix("astria");
 
         let round = 1u16;
-        let vote_extension_height = 1;
+        let vote_extension_height = 1u64;
         let vote_extension_message = b"noot".to_vec();
         let vote_extension = CanonicalVoteExtension {
             extension: vote_extension_message.clone(),
-            height: vote_extension_height,
+            height: vote_extension_height.try_into().unwrap(),
             round: i64::from(round),
             chain_id: chain_id.to_string(),
         };
@@ -642,12 +642,8 @@ mod test {
                 vote_extension: vote_extension_message.into(),
             }],
         };
-        validate_vote_extensions(
-            &state,
-            vote_extension_height as u64 + 1,
-            &extended_commit_info,
-        )
-        .await
-        .unwrap()
+        validate_vote_extensions(&state, vote_extension_height + 1, &extended_commit_info)
+            .await
+            .unwrap();
     }
 }
