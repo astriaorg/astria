@@ -513,7 +513,7 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
 /// A withdrawal of tokens from a rollup to a remote IBC chain is started with a
 /// `Ics20Withdrawal` action via a (rollup's) bridge account on the sequencer.
 ///
-/// This functions then sends the tokens back to the rollup via a `Deposit` event,
+/// This function then sends the tokens back to the rollup via a `Deposit` event,
 /// and again locks the tokens in the specified bridge account.
 ///
 /// This function must only be called if the following conditions hold:
