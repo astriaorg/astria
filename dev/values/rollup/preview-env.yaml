@@ -20,17 +20,40 @@ evm-faucet:
 
 
 evm-rollup:
-  config:
-   celestia:
-    rpc: http://celestia-service.pr-{{.number}}.svc.cluster.local:26658
-    token: http://celestia-service.pr-{{.number}}.svc.cluster.local:5353
+  config: 
+    celestia:
+      rpc: http://celestia-service.pr-{{.number}}.svc.cluster.local:26658
+      token: http://celestia-service.pr-{{.number}}.svc.cluster.local:5353
   images: 
     composer: 
       devTag: pr-{{.number}}
     conductor: 
       devTag: pr-{{.number}}
   ingress:
-    hostname: pr-{{.number}}.dev.astria.org
+    # hostname: evm.pr-{{.number}}.dev.astria.org
+    services: 
+      rpc:
+        annotations:
+          external-dns.alpha.kubernetes.io/hostname: rpc.evm.pr-{{.number}}.dev.astria.org
+          external-dns.alpha.kubernetes.io/ttl: "120"
+          external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+          nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+          # Rate limiting
+          nginx.ingress.kubernetes.io/limit-connections: '2'
+          nginx.ingress.kubernetes.io/limit-rpm: '60'
+        hosts:
+          - rpc.evm.pr-{{"{{.number}}"}}.dev.astria.org
+      ws:
+        annotations:
+          external-dns.alpha.kubernetes.io/hostname: ws.evm.pr-{{.number}}.dev.astria.org
+          external-dns.alpha.kubernetes.io/ttl: "120"
+          external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+          nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+          # Rate limiting
+          nginx.ingress.kubernetes.io/limit-connections: '2'
+          nginx.ingress.kubernetes.io/limit-rpm: '60'
+        hosts:
+          - ws.evm.pr-{{.number}}.dev.astria.org
   resources:
     conductor: 
       requests:
