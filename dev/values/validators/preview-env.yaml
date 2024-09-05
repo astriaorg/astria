@@ -1,0 +1,61 @@
+
+# Intended to be used with ArgoCD Pull-Request Preview Environment
+# This values files provided overrides that can be utilized by the ArgoCD ApplicationSet Manifest
+# These overrides assume that the manifest will deploy a helm chart with the following values files in this order:
+#
+#   - all.yml
+#   - single.yml
+#   - preview-env.yml
+# 
+# The generated helm chart may be incorrect if the values files are provided in the wrong order.
+
+global:
+  dev: true
+  namespaceOverride: pr-{{.number}}
+
+
+images: 
+  sequencer: 
+    devTag: pr-{{.number}}
+
+
+ingress:
+  hostname: pr-{{.number}}.dev.astria.org
+  grpc:
+    enabled: true
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: grpc.sequencer.pr-{{.number}}.dev.astria.org
+    hostname: sequencer.pr-{{.number}}.dev.astria.org
+  rpc: 
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: rpc.sequencer.pr-{{.number}}.dev.astria.org
+    hostname: sequencer.pr-{{.number}}.dev.astria.org
+
+
+sequencer-relayer: 
+  config: 
+    relayer: 
+      celestiaAppGrpc: http://celestia-app-service.pr-{{.number}}.svc.cluster.local:9090
+      cometbftRpc: http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657
+      sequencerGrpc: http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080
+
+
+storage:
+  enabled: true
+  local: false
+  entities:
+    sequencerSharedStorage:
+      size: 1Gi
+      storageClassName: standard-rwo
+      persistentVolumeName: "sequencer-shared-storage"
+      path: "/data/sequencer-data"
+
+
+config:
+  sequencer:
+    metrics:
+      enabled: true
+
+
+serviceMonitor:
+  enabled: true
