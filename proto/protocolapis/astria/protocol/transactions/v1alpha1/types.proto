@@ -130,6 +130,11 @@ message Ics20Withdrawal {
   // if unset, and the transaction sender is a bridge account, the withdrawal is
   // treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
   astria.primitive.v1.Address bridge_address = 10;
+
+  // whether to use a bech32-compatible format of the `.return_address` when generating
+  // fungible token packets (as opposed to Astria-native bech32m addresses). This is
+  // necessary for chains like noble which enforce a strict bech32 format.
+  bool use_compat_address = 11;
 }
 
 message IbcHeight {

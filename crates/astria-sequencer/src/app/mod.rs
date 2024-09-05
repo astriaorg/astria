@@ -74,7 +74,7 @@ use crate::{
         StateReadExt,
         StateWriteExt as _,
     },
-    address::StateWriteExt as _,
+    address::StateWriteExt,
     api_state_ext::StateWriteExt as _,
     assets::{
         StateReadExt as _,
@@ -219,9 +219,8 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
-        state_tx
-            .put_base_prefix(&genesis_state.address_prefixes().base)
-            .context("failed to write base prefix to state")?;
+        state_tx.put_base_prefix(genesis_state.address_prefixes().base());
+        state_tx.put_ibc_compat_prefix(genesis_state.address_prefixes().ibc_compat());
 
         let native_asset = genesis_state.native_asset_base_denomination();
         state_tx.put_native_asset(native_asset);

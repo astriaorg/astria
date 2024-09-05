@@ -5,7 +5,8 @@ expression: genesis_state()
 {
   "chainId": "astria-1",
   "addressPrefixes": {
-    "base": "astria"
+    "base": "astria",
+    "ibcCompat": "astriacompat"
   },
   "accounts": [
     {

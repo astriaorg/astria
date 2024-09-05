@@ -53,8 +53,13 @@ impl ::prost::Name for Account {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AddressPrefixes {
+    /// The base prefix used for most Astria Sequencer addresses.
     #[prost(string, tag = "1")]
     pub base: ::prost::alloc::string::String,
+    /// The prefix used for sending ics20 transfers to IBC chains
+    /// that enforce a bech32 format of the packet sender.
+    #[prost(string, tag = "2")]
+    pub ibc_compat: ::prost::alloc::string::String,
 }
 impl ::prost::Name for AddressPrefixes {
     const NAME: &'static str = "AddressPrefixes";
