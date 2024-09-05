@@ -1,11 +1,8 @@
 use std::collections::HashMap;
 
-use astria_core::{
-    primitive::v1::asset,
-    protocol::transaction::v1alpha1::{
-        action::Action,
-        SignedTransaction,
-    },
+use astria_core::protocol::transaction::v1alpha1::{
+    action::Action,
+    SignedTransaction,
 };
 use astria_eyre::eyre::{
     ensure,
@@ -23,10 +20,11 @@ use crate::{
     transaction::fees::{
         get_and_report_tx_fees,
         FeeInfo,
+        PaymentMapKey,
     },
 };
 
-pub(crate) type PaymentMap = HashMap<([u8; 20], [u8; 20], asset::Denom), FeeInfo>;
+pub(crate) type PaymentMap = HashMap<PaymentMapKey, FeeInfo>;
 
 #[instrument(skip_all)]
 pub(crate) async fn check_nonce_mempool<S: StateRead>(

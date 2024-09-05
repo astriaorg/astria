@@ -68,13 +68,20 @@ pub(crate) struct FeeInfo {
     pub(crate) events: Vec<Event>,
 }
 
+#[derive(Eq, Hash, PartialEq, Debug)]
+pub(crate) struct PaymentMapKey {
+    pub(crate) from: [u8; 20],
+    pub(crate) to: [u8; 20],
+    pub(crate) asset: asset::Denom,
+}
+
 struct PaymentInfo<'a> {
     from: Option<[u8; 20]>,
     to: Option<[u8; 20]>,
     allowed_fee_assets: &'a mut Vec<IbcPrefixed>,
     fee_asset: asset::Denom,
     fees_by_asset: &'a mut HashMap<asset::IbcPrefixed, u128>,
-    fee_payment_map: &'a mut HashMap<([u8; 20], [u8; 20], asset::Denom), FeeInfo>,
+    fee_payment_map: &'a mut HashMap<PaymentMapKey, FeeInfo>,
 }
 
 #[instrument(skip_all, err)]
@@ -110,10 +117,9 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
         .await
         .wrap_err("failed to get allowed fee assets")?;
 
-    let mut action_index = 0;
     let mut fees_by_asset = HashMap::new();
     let mut fee_payment_map = HashMap::new();
-    for action in &tx.actions {
+    for (index, action) in tx.actions.iter().enumerate() {
         match action {
             Action::Transfer(act) => transfer_update_fees(
                 &mut PaymentInfo {
@@ -126,7 +132,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.transfer_base_fee,
                 return_payment_map,
-                action_index,
+                index as u32,
             )
             .wrap_err("failed to increase transaction fees for transfer action")?,
 
@@ -142,7 +148,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 &act.data,
                 return_payment_map,
-                action_index,
+                index as u32,
             )
             .wrap_err("failed to increase transaction fees for sequence action")?,
 
@@ -161,7 +167,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                     },
                     current_fees.ics20_withdrawal_base_fee,
                     return_payment_map,
-                    action_index,
+                    index as u32,
                 )
                 .wrap_err("failed to increase transaction fees for ics20 withdrawal action")?;
             }
@@ -177,7 +183,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.init_bridge_account_base_fee,
                 return_payment_map,
-                action_index,
+                index as u32,
             )
             .wrap_err("failed to increase transaction fees for init bridge account action")?,
 
@@ -194,7 +200,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 current_fees.transfer_base_fee,
                 current_fees.bridge_lock_byte_cost_multiplier,
                 return_payment_map,
-                action_index,
+                index as u32,
             )
             .wrap_err("failed to increase transaction fees for bridge lock action")?,
 
@@ -209,7 +215,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.transfer_base_fee,
                 return_payment_map,
-                action_index,
+                index as u32,
             )
             .wrap_err("failed to increase transaction fees for bridge unlock action")?,
 
@@ -224,7 +230,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.bridge_sudo_change_fee,
                 return_payment_map,
-                action_index,
+                index as u32,
             )
             .wrap_err("failed to increase transaction fees for bridge sudo change action")?,
 
@@ -235,9 +241,6 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 continue;
             }
         }
-        action_index = action_index
-            .checked_add(1)
-            .expect("action index overflowed");
     }
     if return_payment_map {
         Ok((fees_by_asset, Some(fee_payment_map)))
@@ -251,19 +254,27 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
 #[instrument(skip_all, err)]
 pub(crate) async fn pay_fees<S: StateWrite>(
     state: &mut S,
-    fee_payment_map: HashMap<([u8; 20], [u8; 20], asset::Denom), FeeInfo>,
+    fee_payment_map: HashMap<PaymentMapKey, FeeInfo>,
 ) -> Result<()> {
-    for ((from, to, fee_asset), fee_info) in &fee_payment_map {
+    for (
+        PaymentMapKey {
+            from,
+            to,
+            asset,
+        },
+        fee_info,
+    ) in fee_payment_map
+    {
         state
-            .decrease_balance(*from, fee_asset, fee_info.amt)
+            .decrease_balance(from, &asset, fee_info.amt)
             .await
             .wrap_err("failed to decrease from balance")?;
         state
-            .increase_balance(*to, fee_asset, fee_info.amt)
+            .increase_balance(to, &asset, fee_info.amt)
             .await
             .wrap_err("failed to increase to balance")?;
-        for event in &fee_info.events {
-            state.record(event.clone());
+        for event in fee_info.events {
+            state.record(event);
         }
     }
     Ok(())
@@ -628,13 +639,18 @@ fn increase_fees(
     to: [u8; 20],
     fee_asset: &asset::Denom,
     amount: u128,
-    fee_payment_map: &mut HashMap<([u8; 20], [u8; 20], asset::Denom), FeeInfo>,
+    fee_payment_map: &mut HashMap<PaymentMapKey, FeeInfo>,
     action_type: String,
     action_index: u32,
 ) {
     let fee_event = construct_tx_fee_event(fee_asset, amount, action_type, action_index);
+    let key = PaymentMapKey {
+        from,
+        to,
+        asset: fee_asset.clone(),
+    };
     fee_payment_map
-        .entry((from, to, fee_asset.clone()))
+        .entry(key)
         .and_modify(|fee_info| {
             fee_info.amt = fee_info.amt.saturating_add(amount);
             fee_info.events.push(fee_event.clone());

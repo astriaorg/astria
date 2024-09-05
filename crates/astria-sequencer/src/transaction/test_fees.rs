@@ -66,6 +66,7 @@ use crate::{
             construct_tx_fee_event,
             get_and_report_tx_fees,
             pay_fees,
+            PaymentMapKey,
         },
         StateWriteExt as _,
     },
@@ -113,11 +114,11 @@ async fn correct_transfer_fee_payment_and_event_with_fee_change() {
     let fee_info = fee_payment_map.get(key).unwrap();
     assert_eq!(
         *key,
-        (
-            alice.address_bytes(),
-            bob_address.address_bytes(),
-            Denom::from(nria())
-        )
+        PaymentMapKey {
+            from: alice.address_bytes(),
+            to: bob_address.address_bytes(),
+            asset: Denom::from(nria())
+        }
     );
     assert_eq!(fee_info.amt, fees.transfer_base_fee * 2 + 1);
 
@@ -213,11 +214,11 @@ async fn correct_sequence_fee_payment_and_event_with_fee_change() {
 
     assert_eq!(
         *key,
-        (
-            alice.address_bytes(),
-            bob_address.address_bytes(),
-            Denom::from(nria())
-        )
+        PaymentMapKey {
+            from: alice.address_bytes(),
+            to: bob_address.address_bytes(),
+            asset: Denom::from(nria())
+        }
     );
     assert_eq!(
         fee_info.amt,
@@ -306,11 +307,11 @@ async fn correct_ics20_withdrawal_fee_payment_and_event_with_fee_change() {
 
     assert_eq!(
         *key,
-        (
-            alice.address_bytes(),
-            bob_address.address_bytes(),
-            Denom::from(nria())
-        )
+        PaymentMapKey {
+            from: alice.address_bytes(),
+            to: bob_address.address_bytes(),
+            asset: Denom::from(nria())
+        }
     );
     assert_eq!(fee_info.amt, fees.ics20_withdrawal_base_fee * 2 + 1);
 
@@ -391,11 +392,11 @@ async fn correct_init_bridge_account_fee_payment_and_event_with_fee_change() {
 
     assert_eq!(
         *key,
-        (
-            alice.address_bytes(),
-            bob_address.address_bytes(),
-            Denom::from(nria())
-        )
+        PaymentMapKey {
+            from: alice.address_bytes(),
+            to: bob_address.address_bytes(),
+            asset: Denom::from(nria())
+        }
     );
     assert_eq!(fee_info.amt, fees.init_bridge_account_base_fee * 2 + 1);
 
@@ -492,11 +493,11 @@ async fn correct_bridge_lock_fee_payment_and_event_with_fee_change() {
 
     assert_eq!(
         *key,
-        (
-            alice.address_bytes(),
-            bob_address.address_bytes(),
-            Denom::from(nria())
-        )
+        PaymentMapKey {
+            from: alice.address_bytes(),
+            to: bob_address.address_bytes(),
+            asset: Denom::from(nria())
+        }
     );
     assert_eq!(
         fee_info.amt,
@@ -580,11 +581,11 @@ async fn correct_bridge_unlock_fee_payment_and_event_with_fee_change() {
 
     assert_eq!(
         *key,
-        (
-            alice.address_bytes(),
-            bob_address.address_bytes(),
-            Denom::from(nria())
-        )
+        PaymentMapKey {
+            from: alice.address_bytes(),
+            to: bob_address.address_bytes(),
+            asset: Denom::from(nria())
+        }
     );
     assert_eq!(fee_info.amt, fees.transfer_base_fee * 2 + 1);
 
@@ -664,11 +665,11 @@ async fn correct_bridge_sudo_change_fee_payment_and_event_with_fee_change() {
 
     assert_eq!(
         *key,
-        (
-            alice.address_bytes(),
-            bob_address.address_bytes(),
-            Denom::from(nria())
-        )
+        PaymentMapKey {
+            from: alice.address_bytes(),
+            to: bob_address.address_bytes(),
+            asset: Denom::from(nria())
+        }
     );
     assert_eq!(fee_info.amt, fees.bridge_sudo_change_fee * 2 + 1);
 
@@ -871,7 +872,7 @@ async fn handles_mid_tx_sudo_change() {
 
     // Test first fee payment
     let key = keys.next().unwrap();
-    let (_, cur_to_address, _) = key;
+    let cur_to_address = key.to;
     let fee_info = fee_payment_map.get(key).unwrap();
 
     // Sometimes, the order of the keys is different. This doesn't impact calculating fees, but we
@@ -892,7 +893,11 @@ async fn handles_mid_tx_sudo_change() {
         };
     assert_eq!(
         *key,
-        (alice.address_bytes(), *cur_to_address, Denom::from(nria()))
+        PaymentMapKey {
+            from: alice.address_bytes(),
+            to: cur_to_address,
+            asset: Denom::from(nria())
+        }
     );
     assert_eq!(fee_info.amt, fees.transfer_base_fee);
     assert_eq!(fee_info.events[0], *cur_expected_fee_event);
@@ -901,7 +906,11 @@ async fn handles_mid_tx_sudo_change() {
     let fee_info = fee_payment_map.get(key).unwrap();
     assert_eq!(
         *key,
-        (alice.address_bytes(), next_address, Denom::from(nria()))
+        PaymentMapKey {
+            from: alice.address_bytes(),
+            to: next_address,
+            asset: Denom::from(nria())
+        }
     );
     assert_eq!(fee_info.amt, fees.transfer_base_fee);
     assert_eq!(fee_info.events[0], *next_expected_fee_event);
@@ -976,11 +985,11 @@ async fn handles_mid_tx_fee_asset_change() {
     let fee_payment_map = fee_payment_map.unwrap();
 
     // Check nria fee payment
-    let key = (
-        alice.address_bytes(),
-        bob_address.address_bytes(),
-        Denom::from(nria()),
-    );
+    let key = PaymentMapKey {
+        from: alice.address_bytes(),
+        to: bob_address.address_bytes(),
+        asset: Denom::from(nria()),
+    };
     let fee_info = fee_payment_map.get(&key).unwrap();
     assert_eq!(fee_info.amt, fees.transfer_base_fee);
     let expected_fee_event_nria = construct_tx_fee_event(
@@ -992,11 +1001,12 @@ async fn handles_mid_tx_fee_asset_change() {
     assert_eq!(fee_info.events[0], expected_fee_event_nria);
 
     // Check mock_asset fee payment
-    let key = (
-        alice.address_bytes(),
-        bob_address.address_bytes(),
-        Denom::from(mock_asset.clone()),
-    );
+    // Check nria fee payment
+    let key = PaymentMapKey {
+        from: alice.address_bytes(),
+        to: bob_address.address_bytes(),
+        asset: Denom::from(mock_asset.clone()),
+    };
     let fee_info = fee_payment_map.get(&key).unwrap();
     assert_eq!(fee_info.amt, fees.transfer_base_fee);
     let expected_fee_event_mock_asset = construct_tx_fee_event(
