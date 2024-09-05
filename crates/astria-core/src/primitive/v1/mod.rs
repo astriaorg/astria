@@ -1,7 +1,10 @@
 pub mod asset;
 pub mod u128;
 
-use std::str::FromStr;
+use std::{
+    marker::PhantomData,
+    str::FromStr,
+};
 
 use base64::{
     display::Base64Display,
@@ -241,8 +244,8 @@ pub struct IncorrectRollupIdLength {
 pub struct AddressError(AddressErrorKind);
 
 impl AddressError {
-    fn bech32m_decode(source: bech32::DecodeError) -> Self {
-        Self(AddressErrorKind::Bech32mDecode {
+    fn decode(source: bech32::primitives::decode::CheckedHrpstringError) -> Self {
+        Self(AddressErrorKind::Decode {
             source,
         })
     }
@@ -262,8 +265,10 @@ impl AddressError {
 
 #[derive(Debug, thiserror::Error, PartialEq)]
 enum AddressErrorKind {
-    #[error("failed decoding provided bech32m string")]
-    Bech32mDecode { source: bech32::DecodeError },
+    #[error("failed decoding provided string")]
+    Decode {
+        source: bech32::primitives::decode::CheckedHrpstringError,
+    },
     #[error("expected an address of 20 bytes, got `{received}`")]
     IncorrectAddressLength { received: usize },
     #[error("the provided prefix was not a valid bech32 human readable prefix")]
@@ -274,33 +279,50 @@ enum AddressErrorKind {
 
 pub struct NoBytes;
 pub struct NoPrefix;
-pub struct WithBytes<'a>(BytesInner<'a>);
-enum BytesInner<'a> {
+pub struct WithBytes<'a, I>(WithBytesInner<'a, I>);
+enum WithBytesInner<'a, I> {
     Array([u8; ADDRESS_LEN]),
+    Iter(I),
     Slice(std::borrow::Cow<'a, [u8]>),
 }
 pub struct WithPrefix<'a>(std::borrow::Cow<'a, str>);
 
-pub struct AddressBuilder<TBytes = NoBytes, TPrefix = NoPrefix> {
-    bytes: TBytes,
-    prefix: TPrefix,
+pub struct NoBytesIter;
+
+impl Iterator for NoBytesIter {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
 }
 
-impl AddressBuilder {
+pub struct AddressBuilder<TFormat, TBytes = NoBytes, TPrefix = NoPrefix> {
+    bytes: TBytes,
+    prefix: TPrefix,
+    format: PhantomData<TFormat>,
+}
+
+impl<TFormat> AddressBuilder<TFormat, NoBytes, NoPrefix> {
     const fn new() -> Self {
         Self {
             bytes: NoBytes,
             prefix: NoPrefix,
+            format: PhantomData,
         }
     }
 }
 
-impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
+impl<TFormat, TBytes, TPrefix> AddressBuilder<TFormat, TBytes, TPrefix> {
     #[must_use = "the builder must be built to construct an address to be useful"]
-    pub fn array(self, array: [u8; ADDRESS_LEN]) -> AddressBuilder<WithBytes<'static>, TPrefix> {
+    pub fn array(
+        self,
+        array: [u8; ADDRESS_LEN],
+    ) -> AddressBuilder<TFormat, WithBytes<'static, NoBytesIter>, TPrefix> {
         AddressBuilder {
-            bytes: WithBytes(BytesInner::Array(array)),
+            bytes: WithBytes(WithBytesInner::Array(array)),
             prefix: self.prefix,
+            format: self.format,
         }
     }
 
@@ -308,10 +330,23 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
     pub fn slice<'a, T: Into<std::borrow::Cow<'a, [u8]>>>(
         self,
         bytes: T,
-    ) -> AddressBuilder<WithBytes<'a>, TPrefix> {
+    ) -> AddressBuilder<TFormat, WithBytes<'a, NoBytesIter>, TPrefix> {
         AddressBuilder {
-            bytes: WithBytes(BytesInner::Slice(bytes.into())),
+            bytes: WithBytes(WithBytesInner::Slice(bytes.into())),
             prefix: self.prefix,
+            format: self.format,
+        }
+    }
+
+    #[must_use = "the builder must be built to construct an address to be useful"]
+    pub fn with_iter<T: IntoIterator<Item = u8>>(
+        self,
+        iter: T,
+    ) -> AddressBuilder<TFormat, WithBytes<'static, T>, TPrefix> {
+        AddressBuilder {
+            bytes: WithBytes(WithBytesInner::Iter(iter)),
+            prefix: self.prefix,
+            format: self.format,
         }
     }
 
@@ -324,7 +359,7 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
     pub fn verification_key(
         self,
         key: &crate::crypto::VerificationKey,
-    ) -> AddressBuilder<WithBytes<'static>, TPrefix> {
+    ) -> AddressBuilder<TFormat, WithBytes<'static, NoBytesIter>, TPrefix> {
         let hash = Sha256::digest(key.as_bytes());
         let array: [u8; ADDRESS_LEN] = hash[0..ADDRESS_LEN]
             .try_into()
@@ -336,15 +371,19 @@ impl<TBytes, TPrefix> AddressBuilder<TBytes, TPrefix> {
     pub fn prefix<'a, T: Into<std::borrow::Cow<'a, str>>>(
         self,
         prefix: T,
-    ) -> AddressBuilder<TBytes, WithPrefix<'a>> {
+    ) -> AddressBuilder<TFormat, TBytes, WithPrefix<'a>> {
         AddressBuilder {
             bytes: self.bytes,
             prefix: WithPrefix(prefix.into()),
+            format: self.format,
         }
     }
 }
 
-impl<'a, 'b> AddressBuilder<WithBytes<'a>, WithPrefix<'b>> {
+impl<'a, 'b, TFormat, TBytesIter> AddressBuilder<TFormat, WithBytes<'a, TBytesIter>, WithPrefix<'b>>
+where
+    TBytesIter: IntoIterator<Item = u8>,
+{
     /// Attempts to build an address from the configured prefix and bytes.
     ///
     /// # Errors
@@ -352,39 +391,132 @@ impl<'a, 'b> AddressBuilder<WithBytes<'a>, WithPrefix<'b>> {
     /// + if the prefix shorter than 1 or longer than 83 characters, or contains characters outside
     ///   33-126 of ASCII characters.
     /// + if the provided bytes are not exactly 20 bytes.
-    pub fn try_build(self) -> Result<Address, AddressError> {
+    pub fn try_build(self) -> Result<Address<TFormat>, AddressError> {
         let Self {
             bytes: WithBytes(bytes),
             prefix: WithPrefix(prefix),
+            format,
         } = self;
         let bytes = match bytes {
-            BytesInner::Array(bytes) => bytes,
-            BytesInner::Slice(bytes) => <[u8; ADDRESS_LEN]>::try_from(bytes.as_ref())
+            WithBytesInner::Array(bytes) => bytes,
+            WithBytesInner::Iter(bytes) => try_collect_to_array(bytes)?,
+            WithBytesInner::Slice(bytes) => <[u8; ADDRESS_LEN]>::try_from(bytes.as_ref())
                 .map_err(|_| AddressError::incorrect_address_length(bytes.len()))?,
         };
         let prefix = bech32::Hrp::parse(&prefix).map_err(AddressError::invalid_prefix)?;
         Ok(Address {
             bytes,
             prefix,
+            format,
         })
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(into = "raw::Address", try_from = "raw::Address")
-)]
-pub struct Address {
-    bytes: [u8; ADDRESS_LEN],
-    prefix: bech32::Hrp,
+fn try_collect_to_array<I: IntoIterator<Item = u8>>(
+    iter: I,
+) -> Result<[u8; ADDRESS_LEN], AddressError> {
+    let mut arr = [0; ADDRESS_LEN];
+    let mut iter = iter.into_iter();
+    let mut i = 0;
+    loop {
+        if i >= ADDRESS_LEN {
+            break;
+        }
+        let Some(byte) = iter.next() else {
+            break;
+        };
+        arr[i] = byte;
+        i = i.saturating_add(1);
+    }
+    let items_in_iterator = i.saturating_add(iter.count());
+    if items_in_iterator != ADDRESS_LEN {
+        return Err(AddressError::incorrect_address_length(items_in_iterator));
+    }
+    Ok(arr)
 }
 
-impl Address {
+#[derive(Clone, Copy, Debug)]
+pub enum Bech32m {}
+#[derive(Clone, Copy, Debug)]
+pub enum Bech32 {}
+#[derive(Clone, Copy, Debug)]
+pub enum NoFormat {}
+
+pub trait Format: private::Sealed {
+    type Checksum: bech32::Checksum;
+}
+
+impl Format for Bech32m {
+    type Checksum = bech32::Bech32m;
+}
+
+impl Format for Bech32 {
+    type Checksum = bech32::Bech32;
+}
+
+impl Format for NoFormat {
+    type Checksum = bech32::NoChecksum;
+}
+
+mod private {
+    pub trait Sealed {}
+    impl Sealed for super::Bech32m {}
+    impl Sealed for super::Bech32 {}
+    impl Sealed for super::NoFormat {}
+}
+
+#[derive(Debug, Hash)]
+pub struct Address<T = Bech32m> {
+    bytes: [u8; ADDRESS_LEN],
+    prefix: bech32::Hrp,
+    format: PhantomData<T>,
+}
+
+// The serde impls need to be manually implemented for Address because they
+// only work for Address<Bech32m> which cannot be expressed using serde
+// attributes.
+#[cfg(feature = "serde")]
+mod _serde_impls {
+    use serde::de::Error as _;
+    impl serde::Serialize for super::Address<super::Bech32m> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            self.to_raw().serialize(serializer)
+        }
+    }
+    impl<'de> serde::Deserialize<'de> for super::Address<super::Bech32m> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            super::raw::Address::deserialize(deserializer)
+                .and_then(|raw| raw.try_into().map_err(D::Error::custom))
+        }
+    }
+}
+
+impl<TFormat> Clone for Address<TFormat> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<TFormat> Copy for Address<TFormat> {}
+
+impl<TFormat> PartialEq for Address<TFormat> {
+    fn eq(&self, other: &Self) -> bool {
+        self.bytes.eq(&other.bytes) && self.prefix.eq(&other.prefix)
+    }
+}
+
+impl<TFormat> Eq for Address<TFormat> {}
+
+impl<TFormat> Address<TFormat> {
     #[must_use = "the builder must be used to construct an address to be useful"]
-    pub fn builder() -> AddressBuilder {
-        AddressBuilder::new()
+    pub fn builder() -> AddressBuilder<TFormat> {
+        AddressBuilder::<TFormat>::new()
     }
 
     #[must_use]
@@ -397,13 +529,42 @@ impl Address {
         self.prefix.as_str()
     }
 
+    /// Converts to a new address with the given `prefix`.
+    ///
+    /// # Errors
+    /// Returns an error if an address with `prefix` cannot be constructed.
+    /// The error conditions for this are the same as for [`AddressBuilder::try_build`].
+    pub fn to_prefix(&self, prefix: &str) -> Result<Self, AddressError> {
+        Self::builder()
+            .array(self.bytes())
+            .prefix(prefix)
+            .try_build()
+    }
+
+    /// Converts to a new address with the type argument `OtherFormat`.
+    ///
+    /// `OtherFormat` is usually [`Bech32`] or [`Bech32m`].
+    #[must_use]
+    pub fn to_format<OtherFormat>(&self) -> Address<OtherFormat> {
+        Address {
+            bytes: self.bytes,
+            prefix: self.prefix,
+            format: PhantomData,
+        }
+    }
+}
+
+impl Address<Bech32m> {
     /// Convert [`Address`] to a [`raw::Address`].
     // allow: panics are checked to not happen
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn to_raw(&self) -> raw::Address {
-        let bech32m = bech32::encode_lower::<bech32::Bech32m>(self.prefix, &self.bytes())
-            .expect("should not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH");
+        let bech32m =
+            bech32::encode_lower::<<Bech32m as Format>::Checksum>(self.prefix, &self.bytes())
+                .expect(
+                    "should not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH",
+                );
         // allow: the field is deprecated, but we must still fill it in
         #[allow(deprecated)]
         raw::Address {
@@ -429,25 +590,27 @@ impl Address {
     }
 }
 
-impl From<Address> for raw::Address {
-    fn from(value: Address) -> Self {
+impl From<Address<Bech32m>> for raw::Address {
+    fn from(value: Address<Bech32m>) -> Self {
         value.into_raw()
     }
 }
 
-impl FromStr for Address {
+impl<T: Format> FromStr for Address<T> {
     type Err = AddressError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (hrp, bytes) = bech32::decode(s).map_err(AddressError::bech32m_decode)?;
+        let checked = bech32::primitives::decode::CheckedHrpstring::new::<T::Checksum>(s)
+            .map_err(Self::Err::decode)?;
+        let hrp = checked.hrp();
         Self::builder()
-            .slice(bytes)
+            .with_iter(checked.byte_iter())
             .prefix(hrp.as_str())
             .try_build()
     }
 }
 
-impl TryFrom<raw::Address> for Address {
+impl TryFrom<raw::Address> for Address<Bech32m> {
     type Error = AddressError;
 
     fn try_from(value: raw::Address) -> Result<Self, Self::Error> {
@@ -455,19 +618,29 @@ impl TryFrom<raw::Address> for Address {
     }
 }
 
-impl std::fmt::Display for Address {
+impl<T: Format> std::fmt::Display for Address<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use bech32::EncodeError;
-        match bech32::encode_lower_to_fmt::<bech32::Bech32m, _>(f, self.prefix, &self.bytes()) {
+        match bech32::encode_lower_to_fmt::<T::Checksum, _>(f, self.prefix, &self.bytes()) {
             Ok(()) => Ok(()),
             Err(EncodeError::Fmt(err)) => Err(err),
             Err(err) => panic!(
                 "only formatting errors are valid when encoding astria addresses; all other error \
-                 variants (only TooLong at of bech32-0.11.0) are guaranteed to not \
-                 happen:\n{err:?}",
+                 variants (only TooLong as of bech32-0.11.0) are guaranteed to not happen because \
+                 `Address` is length checked:\n{err:?}",
             ),
         }
     }
+}
+/// Constructs a dummy address from a given `prefix`, otherwise fail.
+pub(crate) fn try_construct_dummy_address_from_prefix<T: Format>(
+    prefix: &str,
+) -> Result<(), AddressError> {
+    Address::<T::Checksum>::builder()
+        .array([0u8; ADDRESS_LEN])
+        .prefix(prefix)
+        .try_build()
+        .map(|_| ())
 }
 
 /// Derive a [`merkle::Tree`] from an iterable.
@@ -494,13 +667,16 @@ mod tests {
         Address,
         AddressError,
         AddressErrorKind,
+        Bech32m,
         ADDRESS_LEN,
     };
+    use crate::primitive::v1::Bech32;
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
+    const ASTRIA_COMPAT_ADDRESS_PREFIX: &str = "astriacompat";
 
     #[track_caller]
     fn assert_wrong_address_bytes(bad_account: &[u8]) {
-        let error = Address::builder()
+        let error = Address::<Bech32m>::builder()
             .slice(bad_account)
             .prefix(ASTRIA_ADDRESS_PREFIX)
             .try_build()
@@ -528,12 +704,90 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn snapshots() {
-        let address = Address::builder()
+        use crate::primitive::v1::Bech32;
+
+        let main_address = Address::builder()
             .array([42; 20])
             .prefix(ASTRIA_ADDRESS_PREFIX)
             .try_build()
             .unwrap();
-        insta::assert_json_snapshot!(address);
+        insta::assert_json_snapshot!(&main_address);
+
+        let compat_address = main_address
+            .to_prefix(ASTRIA_COMPAT_ADDRESS_PREFIX)
+            .unwrap()
+            .to_format::<Bech32>();
+        // We don't allow serializing non bech32m addresses due to
+        // its impl via the protobuf type.
+        insta::assert_snapshot!(&compat_address);
+    }
+
+    #[test]
+    fn parse_bech32m_address() {
+        let expected = Address::builder()
+            .array([42; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
+        let actual = expected.to_string().parse::<Address>().unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn parse_bech32_address() {
+        let expected = Address::<Bech32>::builder()
+            .array([42; 20])
+            .prefix(ASTRIA_COMPAT_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
+        let actual = expected.to_string().parse::<Address<Bech32>>().unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn parsing_bech32_address_as_bech32m_fails() {
+        let expected = Address::<Bech32>::builder()
+            .array([42; 20])
+            .prefix(ASTRIA_COMPAT_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
+        let err = expected
+            .to_string()
+            .parse::<Address<Bech32m>>()
+            .expect_err("this must not work");
+        match err {
+            AddressError(AddressErrorKind::Decode {
+                ..
+            }) => {}
+            other => {
+                panic!(
+                    "expected AddressError(AddressErrorKind::Decode {{ .. }}), but got {other:?}"
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn parsing_bech32m_address_as_bech32_fails() {
+        let expected = Address::<Bech32m>::builder()
+            .array([42; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
+        let err = expected
+            .to_string()
+            .parse::<Address<Bech32>>()
+            .expect_err("this must not work");
+        match err {
+            AddressError(AddressErrorKind::Decode {
+                ..
+            }) => {}
+            other => {
+                panic!(
+                    "expected AddressError(AddressErrorKind::Decode {{ .. }}), but got {other:?}"
+                )
+            }
+        }
     }
 
     #[test]

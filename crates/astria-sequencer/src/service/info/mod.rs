@@ -216,7 +216,7 @@ mod test {
         let mut state = StateDelta::new(storage.latest_snapshot());
         state.put_storage_version_by_height(height, version);
 
-        state.put_base_prefix("astria").unwrap();
+        state.put_base_prefix("astria");
         state.put_native_asset(&crate::test_utils::nria());
 
         let address = state
