@@ -24,6 +24,8 @@ use astria_core::{
             Denom,
         },
         Address,
+        Bech32,
+        Bech32m,
     },
     protocol::memos,
     sequencerblock::v1alpha1::block::Deposit,
@@ -57,9 +59,12 @@ use penumbra_ibc::component::app_handler::{
     AppHandlerExecute,
 };
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
+use tokio::try_join;
+use tracing::instrument;
 
 use crate::{
     accounts::StateWriteExt as _,
+    address::StateReadExt as _,
     assets::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -376,16 +381,27 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
 ) -> Result<()> {
     let packet_data: FungibleTokenPacketData =
         serde_json::from_slice(data).context("failed to decode FungibleTokenPacketData")?;
+
+    // if the memo deserializes into an `Ics20WithdrawalFromRollupMemo`,
+    // we can assume this is a refund from an attempted withdrawal from
+    // a rollup directly to another IBC chain via the sequencer.
+    //
+    // in this case, we lock the tokens back in the bridge account and
+    // emit a `Deposit` event to send the tokens back to the rollup.
+    if is_refund
+        && serde_json::from_str::<memos::v1alpha1::Ics20WithdrawalFromRollup>(&packet_data.memo)
+            .is_ok()
+    {
+        execute_withdrawal_refund_to_rollup(state, packet_data)
+            .await
+            .context("failed to execute rollup withdrawal refund")?;
+        return Ok(());
+    }
+
     let packet_amount: u128 = packet_data
         .amount
         .parse()
         .context("failed to parse packet data amount to u128")?;
-    let recipient = if is_refund {
-        packet_data.sender.clone()
-    } else {
-        packet_data.receiver
-    };
-
     let mut denom_trace = {
         let denom = packet_data
             .denom
@@ -398,33 +414,12 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
             .context("failed to convert denomination if ibc/ prefixed")?
     };
 
-    // if the memo deserializes into an `Ics20WithdrawalFromRollupMemo`,
-    // we can assume this is a refund from an attempted withdrawal from
-    // a rollup directly to another IBC chain via the sequencer.
-    //
-    // in this case, we lock the tokens back in the bridge account and
-    // emit a `Deposit` event to send the tokens back to the rollup.
-    if is_refund
-        && serde_json::from_str::<memos::v1alpha1::Ics20WithdrawalFromRollup>(&packet_data.memo)
-            .is_ok()
-    {
-        let bridge_account = packet_data.sender.parse().context(
-            "sender not an Astria Address: for refunds of ics20 withdrawals that came from a \
-             rollup, the sender must be a valid Astria Address (usually the bridge account)",
-        )?;
-        execute_rollup_withdrawal_refund(
-            state,
-            bridge_account,
-            &denom_trace,
-            packet_amount,
-            recipient,
-        )
-        .await
-        .context("failed to execute rollup withdrawal refund")?;
-        return Ok(());
-    }
-
     // the IBC packet should have the address as a bech32 string
+    let recipient = if is_refund {
+        packet_data.sender.clone()
+    } else {
+        packet_data.receiver
+    };
     let recipient = recipient.parse().context("invalid recipient address")?;
 
     let is_prefixed = denom_trace.starts_with_str(&format!("{source_port}/{source_channel}"));
@@ -513,29 +508,107 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
     Ok(())
 }
 
-/// execute a refund of tokens that were withdrawn from a rollup to another
-/// IBC-enabled chain via the sequencer using an `Ics20Withdrawal`, but were not
-/// transferred to the destination IBC chain successfully.
+/// Execute a refund for a failed ics20 transfer from a rollup to a remote IBC chain.
 ///
-/// this functions sends the tokens back to the rollup via a `Deposit` event,
-/// and locks the tokens back in the specified bridge account.
-async fn execute_rollup_withdrawal_refund<S: ibc::StateWriteExt>(
+/// A withdrawal of tokens from a rollup to a remote IBC chain is started with a
+/// `Ics20Withdrawal` action via a (rollup's) bridge account on the sequencer.
+///
+/// This function then sends the tokens back to the rollup via a `Deposit` event,
+/// and again locks the tokens in the specified bridge account.
+///
+/// This function must only be called if the following conditions hold:
+/// 1. The ics20 tranfer is a refund;
+/// 2. The memo contained in the ics20 transfer packet can be parsed as a Ics20WithdrawalFromRollup.
+///
+/// The function then assumes that the `packet_data.sender` is the bridge account, and
+/// attempts to parse it as either a base-prefixed bech32m address, or as an ibc-compat-prefixed
+/// bech32 address. If the sender is an ibc-compat address, then it will be converted to its
+/// base-prefixed version.
+///
+/// The emitted deposit as seen by the rollup will *never* be the ibc-compat prefixed version.
+// TODO: Add `err` with https://github.com/astriaorg/astria/issues/1386 being done
+#[instrument(skip_all)]
+async fn execute_withdrawal_refund_to_rollup<S: StateWrite>(
     state: &mut S,
-    bridge_address: Address,
-    denom: &denom::TracePrefixed,
-    amount: u128,
-    destination_address: String,
+    packet_data: FungibleTokenPacketData,
 ) -> Result<()> {
-    execute_deposit(state, bridge_address, denom, amount, destination_address).await?;
+    let amount: u128 = packet_data
+        .amount
+        .parse()
+        .context("failed to parse packet data amount to u128")?;
+    let denom = {
+        let denom = packet_data
+            .denom
+            .parse::<Denom>()
+            .context("failed parsing denom in packet data as Denom")?;
+        // convert denomination if it's prefixed with `ibc/`
+        // note: this denomination might have a prefix, but it wasn't prefixed by us right now.
+        convert_denomination_if_ibc_prefixed(state, denom)
+            .await
+            .context("failed to convert denomination if ibc/ prefixed")?
+    };
+    let bridge_address = parse_refund_sender(&*state, &packet_data.sender)
+        .await
+        .context("failed to parse ibc packet sender as the refund target address")?;
+    execute_deposit(
+        state,
+        bridge_address,
+        &denom,
+        amount,
+        bridge_address.to_string(),
+    )
+    .await
+    .context("failed to emit deposit")?;
 
     state
         .increase_balance(bridge_address, denom, amount)
         .await
-        .context(
-            "failed to update bridge account account balance in execute_rollup_withdrawal_refund",
-        )?;
+        .context("failed to update bridge account account balance")?;
 
     Ok(())
+}
+
+async fn parse_refund_sender<S: StateRead>(state: &S, sender: &str) -> anyhow::Result<Address> {
+    use futures::TryFutureExt as _;
+    let (base_prefix, compat_prefix) = match try_join!(
+        state
+            .get_base_prefix()
+            .map_err(|e| e.context("failed to read base prefix from state")),
+        state
+            .get_ibc_compat_prefix()
+            .map_err(|e| e.context("failed to read ibc compat prefix from state"))
+    ) {
+        Ok(prefixes) => prefixes,
+        Err(err) => return Err(err),
+    };
+    sender
+        .parse::<Address<Bech32m>>()
+        .context("failed to parse address in bech32m format")
+        .and_then(|addr| {
+            ensure!(
+                addr.prefix() == base_prefix,
+                "address prefix is not base prefix stored in state"
+            );
+            Ok(addr)
+        })
+        .or_else(|_| {
+            sender
+                .parse::<Address<Bech32>>()
+                .context("failed to parse address in bech32/compat format")
+                .and_then(|addr| {
+                    ensure!(
+                        addr.prefix() == compat_prefix,
+                        "address prefix is not base prefix stored in state"
+                    );
+                    addr.to_prefix(&base_prefix)
+                        .context(
+                            "failed to convert ibc compat prefixed address to standard base \
+                             prefixed address",
+                        )
+                        .map(|addr| addr.to_format::<Bech32m>())
+                })
+        })
+    // "sender address was neither base nor ibc-compat prefixed; returning last error",
 }
 
 /// execute an ics20 transfer where the recipient is a bridge account.
@@ -649,10 +722,14 @@ mod test {
     use super::*;
     use crate::{
         accounts::StateReadExt as _,
+        address::StateWriteExt,
         ibc::StateWriteExt as _,
         test_utils::{
             astria_address,
             astria_address_from_hex_string,
+            astria_compat_address,
+            ASTRIA_COMPAT_PREFIX,
+            ASTRIA_PREFIX,
         },
     };
 
@@ -991,7 +1068,11 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
+        state_tx.put_base_prefix(ASTRIA_PREFIX);
+        state_tx.put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX);
+
         let bridge_address = astria_address(&[99u8; 20]);
+
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom = "dest_port/dest_channel/nootasset"
             .parse::<TracePrefixed>()
@@ -1003,16 +1084,18 @@ mod test {
             .unwrap();
 
         let amount = 100;
-        let destination_address = "destinationaddress".to_string();
-        execute_rollup_withdrawal_refund(
-            &mut state_tx,
-            bridge_address,
-            &denom,
-            amount,
-            destination_address,
-        )
-        .await
-        .expect("valid rollup withdrawal refund");
+        let address_on_rollup = "address_on_rollup".to_string();
+
+        let packet = FungibleTokenPacketData {
+            denom: denom.to_string(),
+            sender: bridge_address.to_string(),
+            amount: amount.to_string(),
+            receiver: address_on_rollup.to_string(),
+            memo: String::new(),
+        };
+        execute_withdrawal_refund_to_rollup(&mut state_tx, packet)
+            .await
+            .expect("valid rollup withdrawal refund");
 
         let balance = state_tx
             .get_account_balance(bridge_address, denom)
@@ -1028,10 +1111,13 @@ mod test {
     }
 
     #[tokio::test]
-    async fn execute_ics20_transfer_rollup_withdrawal_refund() {
+    async fn rollup_withdrawal_refund_succeeds() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
+
+        state_tx.put_base_prefix(ASTRIA_PREFIX);
+        state_tx.put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX);
 
         let bridge_address = astria_address(&[99u8; 20]);
         let destination_chain_address = bridge_address.to_string();
@@ -1092,6 +1178,81 @@ mod test {
             100,
             denom,
             destination_chain_address,
+        );
+        assert_eq!(deposit, &expected_deposit);
+    }
+
+    #[tokio::test]
+    async fn rollup_withdrawal_refund_with_compat_address_succeeds() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        state_tx.put_base_prefix(ASTRIA_PREFIX);
+        state_tx.put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX);
+
+        let bridge_address = astria_address(&[99u8; 20]);
+        let bridge_address_compat = astria_compat_address(&[99u8; 20]);
+        let denom = "nootasset".parse::<Denom>().unwrap();
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+
+        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_ibc_asset(bridge_address, &denom)
+            .unwrap();
+
+        let packet = FungibleTokenPacketData {
+            denom: denom.to_string(),
+            sender: bridge_address_compat.to_string(),
+            amount: "100".to_string(),
+            receiver: "other-chain-address".to_string(),
+            memo: serde_json::to_string(&memos::v1alpha1::Ics20WithdrawalFromRollup {
+                memo: String::new(),
+                rollup_block_number: 1,
+                rollup_return_address: "rollup-defined".to_string(),
+                rollup_withdrawal_event_id: hex::encode([1u8; 32]),
+            })
+            .unwrap(),
+        };
+        let packet_bytes = serde_json::to_vec(&packet).unwrap();
+
+        execute_ics20_transfer(
+            &mut state_tx,
+            &packet_bytes,
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            &"source_port".to_string().parse().unwrap(),
+            &"source_channel".to_string().parse().unwrap(),
+            true,
+        )
+        .await
+        .expect("valid ics20 transfer refund; recipient, memo, and asset ID are valid");
+
+        let balance = state_tx
+            .get_account_balance(bridge_address, &denom)
+            .await
+            .expect(
+                "ics20 transfer refunding to rollup should succeed and balance should be added to \
+                 the bridge account",
+            );
+        assert_eq!(balance, 100);
+
+        let deposits = state_tx
+            .get_block_deposits()
+            .await
+            .expect("a deposit should exist as a result of the rollup withdrawal refund");
+        assert_eq!(deposits.len(), 1);
+
+        let deposit = deposits.get(&rollup_id).unwrap().first().unwrap();
+        let expected_deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            100,
+            denom,
+            bridge_address.to_string(), /* NOTE: this is the non-compat address because it will
+                                         * be converted from the compat bech32 to the
+                                         * standard/non-compat bech32m version before emitting
+                                         * the deposit event */
         );
         assert_eq!(deposit, &expected_deposit);
     }

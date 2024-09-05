@@ -526,6 +526,7 @@ mod test {
         ExtendedVoteInfo,
         Validator,
     };
+    use tendermint_proto::types::CanonicalVoteExtension;
 
     use super::*;
     use crate::{
@@ -572,7 +573,7 @@ mod test {
             },
         ]);
         state.put_validator_set(validator_set).unwrap();
-        state.put_base_prefix("astria").unwrap();
+        state.put_base_prefix("astria");
 
         let extended_commit_info = ExtendedCommitInfo {
             round: 1u16.into(),
@@ -593,5 +594,59 @@ mod test {
                 .to_string()
                 .contains("submitted voting power is less than required voting power")
         );
+    }
+
+    #[tokio::test]
+    async fn validate_vote_extensions_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(&snapshot);
+
+        let chain_id: tendermint::chain::Id = "test-0".try_into().unwrap();
+        state.put_chain_id_and_revision_number(chain_id.clone());
+        let validator_set = ValidatorSet::new_from_updates(vec![
+            ValidatorUpdate {
+                power: 1u16.into(),
+                verification_key: SigningKey::from([0; 32]).verification_key(),
+            },
+            ValidatorUpdate {
+                power: 2u16.into(),
+                verification_key: SigningKey::from([1; 32]).verification_key(),
+            },
+        ]);
+        state.put_validator_set(validator_set).unwrap();
+        state.put_base_prefix("astria");
+
+        let round = 1u16;
+        let vote_extension_height = 1;
+        let vote_extension = CanonicalVoteExtension {
+            extension: vec![],
+            height: vote_extension_height,
+            round: i64::from(round),
+            chain_id: chain_id.to_string(),
+        };
+
+        let message = vote_extension.encode_length_delimited_to_vec();
+        let signature = SigningKey::from([0; 32]).sign(&message);
+
+        let extended_commit_info = ExtendedCommitInfo {
+            round: round.into(),
+            votes: vec![ExtendedVoteInfo {
+                validator: Validator {
+                    address: SigningKey::from([0; 32]).verification_key().address_bytes(),
+                    power: 1u16.into(),
+                },
+                sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
+                extension_signature: Some(signature.to_bytes().to_vec().try_into().unwrap()),
+                vote_extension: message.into(),
+            }],
+        };
+        validate_vote_extensions(
+            &state,
+            vote_extension_height as u64 + 1,
+            &extended_commit_info,
+        )
+        .await
+        .unwrap()
     }
 }
