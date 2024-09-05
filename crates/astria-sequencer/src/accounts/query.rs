@@ -1,12 +1,20 @@
 use anyhow::Context as _;
 use astria_core::{
-    primitive::v1::Address,
-    protocol::abci::AbciErrorCode,
+    primitive::v1::{
+        asset,
+        Address,
+    },
+    protocol::{
+        abci::AbciErrorCode,
+        account::v1alpha1::AssetBalance,
+    },
 };
 use cnidarium::{
     Snapshot,
+    StateRead,
     Storage,
 };
+use futures::TryStreamExt as _;
 use prost::Message as _;
 use tendermint::{
     abci::{
@@ -16,11 +24,44 @@ use tendermint::{
     },
     block::Height,
 };
+use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::StateReadExt as _,
+    accounts::StateReadExt as _,
+    assets::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
+
+async fn ibc_to_trace<S: StateRead>(
+    state: S,
+    asset: asset::IbcPrefixed,
+) -> anyhow::Result<asset::TracePrefixed> {
+    state
+        .map_ibc_to_trace_prefixed_asset(asset)
+        .await
+        .context("failed to get ibc asset denom")?
+        .context("asset not found when user has balance of it; this is a bug")
+}
+
+#[instrument(skip_all, fields(%address))]
+async fn get_trace_prefixed_account_balances<S: StateRead>(
+    state: &S,
+    address: Address,
+) -> anyhow::Result<Vec<AssetBalance>> {
+    let stream = state
+        .account_asset_balances(address)
+        .map_ok(|asset_balance| async move {
+            let trace_prefixed = ibc_to_trace(state, asset_balance.asset)
+                .await
+                .context("failed to map ibc prefixed asset to trace prefixed")?;
+            Ok(AssetBalance {
+                denom: trace_prefixed.into(),
+                balance: asset_balance.balance,
+            })
+        })
+        .try_buffered(16);
+    stream.try_collect::<Vec<_>>().await
+}
 
 pub(crate) async fn balance_request(
     storage: Storage,
@@ -33,7 +74,8 @@ pub(crate) async fn balance_request(
         Err(err_rsp) => return err_rsp,
     };
 
-    let balances = match snapshot.get_account_balances_traced_prefixed(address).await {
+    // let balances = match snapshot.get_account_balances_traced_prefixed(address).await {
+    let balances = match get_trace_prefixed_account_balances(&snapshot, address).await {
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {

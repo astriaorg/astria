@@ -1,19 +1,17 @@
-use std::collections::HashMap;
+use std::{
+    pin::Pin,
+    task::{
+        ready,
+        Context,
+        Poll,
+    },
+};
 
 use anyhow::{
-    Context,
+    Context as _,
     Result,
 };
-use astria_core::{
-    primitive::v1::{
-        asset::{
-            self,
-            IbcPrefixed,
-        },
-        Address,
-    },
-    protocol::account::v1alpha1::AssetBalance,
-};
+use astria_core::primitive::v1::asset;
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize,
@@ -23,7 +21,8 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use futures::StreamExt;
+use futures::Stream;
+use pin_project_lite::pin_project;
 use tracing::instrument;
 
 use super::AddressBytes;
@@ -70,97 +69,130 @@ fn nonce_storage_key<T: AddressBytes>(address: T) -> String {
     format!("{}/nonce", StorageKey(&address))
 }
 
+pin_project! {
+    /// A stream of IBC prefixed assets for a given account.
+    pub(crate) struct AccountAssetsStream<St> {
+        #[pin]
+        pub(crate) underlying: St,
+    }
+}
+
+impl<St> Stream for AccountAssetsStream<St>
+where
+    St: Stream<Item = Result<String>>,
+{
+    type Item = Result<asset::IbcPrefixed>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        let key = match ready!(this.underlying.as_mut().poll_next(cx)) {
+            Some(Ok(key)) => key,
+            Some(Err(err)) => {
+                return Poll::Ready(Some(Err(err).context("failed reading from state")));
+            }
+            None => return Poll::Ready(None),
+        };
+        Poll::Ready(Some(extract_asset_from_key(&key).with_context(|| {
+            format!("failed to extract IBC prefixed asset from key `{key}`")
+        })))
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AssetBalance {
+    pub(crate) asset: asset::IbcPrefixed,
+    pub(crate) balance: u128,
+}
+
+pin_project! {
+    /// A stream of IBC prefixed assets for a given account.
+    pub(crate) struct AccountAssetBalancesStream<St> {
+        #[pin]
+        pub(crate) underlying: St,
+    }
+}
+
+impl<St> Stream for AccountAssetBalancesStream<St>
+where
+    St: Stream<Item = Result<(String, Vec<u8>)>>,
+{
+    type Item = Result<AssetBalance>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        let (key, bytes) = match ready!(this.underlying.as_mut().poll_next(cx)) {
+            Some(Ok(tup)) => tup,
+            Some(Err(err)) => {
+                return Poll::Ready(Some(Err(err).context("failed reading from state")));
+            }
+            None => return Poll::Ready(None),
+        };
+        let asset = match extract_asset_from_key(&key)
+            .with_context(|| format!("failed to extract IBC prefixed asset from key `{key}`"))
+        {
+            Err(e) => return Poll::Ready(Some(Err(e))),
+            Ok(asset) => asset,
+        };
+        let Balance(balance) = match Balance::try_from_slice(&bytes).with_context(|| {
+            format!("failed decoding bytes read from state as balance for key `{key}`")
+        }) {
+            Err(e) => return Poll::Ready(Some(Err(e))),
+            Ok(balance) => balance,
+        };
+        Poll::Ready(Some(Ok(AssetBalance {
+            asset,
+            balance,
+        })))
+    }
+}
+
+fn extract_asset_from_key(s: &str) -> Result<asset::IbcPrefixed> {
+    Ok(s.strip_prefix(s)
+        .context("failed to strip prefix from account balance key")?
+        .parse::<crate::storage_keys::hunks::Asset>()
+        .context("failed to parse storage key suffix as address hunk")?
+        .get())
+}
+
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     #[instrument(skip_all)]
-    async fn get_account_balances_traced_prefixed(
+    fn account_asset_keys(
         &self,
-        address: Address,
-    ) -> Result<Vec<AssetBalance>> {
+        address: impl AddressBytes,
+    ) -> AccountAssetsStream<Self::PrefixKeysStream> {
         let prefix = format!("{}/balance/", StorageKey(&address));
-        let mut balances: Vec<AssetBalance> = Vec::new();
-
-        let mut stream = std::pin::pin!(self.prefix_keys(&prefix));
-        while let Some(Ok(key)) = stream.next().await {
-            let Some(value) = self
-                .get_raw(&key)
-                .await
-                .context("failed reading raw account balance from state")?
-            else {
-                // we shouldn't receive a key in the stream with no value,
-                // so this shouldn't happen
-                continue;
-            };
-
-            let asset = key
-                .strip_prefix(&prefix)
-                .context("failed to strip prefix from account balance key")?
-                .parse::<crate::storage_keys::hunks::Asset>()
-                .context("failed to parse storage key suffix as address hunk")?
-                .get();
-
-            let Balance(balance) =
-                Balance::try_from_slice(&value).context("invalid balance bytes")?;
-
-            let native_asset = self
-                .get_native_asset()
-                .await
-                .context("failed to read native asset from state")?;
-            if asset == native_asset.to_ibc_prefixed() {
-                balances.push(AssetBalance {
-                    denom: native_asset.into(),
-                    balance,
-                });
-                continue;
-            }
-
-            let denom = self
-                .map_ibc_to_trace_prefixed_asset(asset)
-                .await
-                .context("failed to get ibc asset denom")?
-                .context("asset denom not found when user has balance of it; this is a bug")?
-                .into();
-            balances.push(AssetBalance {
-                denom,
-                balance,
-            });
+        AccountAssetsStream {
+            underlying: self.prefix_keys(&prefix),
         }
-        Ok(balances)
     }
 
     #[instrument(skip_all)]
-    async fn get_account_balances<T: AddressBytes>(
+    fn account_asset_balances(
         &self,
-        address: T,
-    ) -> Result<HashMap<IbcPrefixed, u128>> {
+        address: impl AddressBytes,
+    ) -> AccountAssetBalancesStream<Self::PrefixRawStream> {
         let prefix = format!("{}/balance/", StorageKey(&address));
-        let mut balances: HashMap<IbcPrefixed, u128> = HashMap::new();
-
-        let mut stream = std::pin::pin!(self.prefix_keys(&prefix));
-        while let Some(Ok(key)) = stream.next().await {
-            let Some(value) = self
-                .get_raw(&key)
-                .await
-                .context("failed reading raw account balance from state")?
-            else {
-                // we shouldn't receive a key in the stream with no value,
-                // so this shouldn't happen
-                continue;
-            };
-
-            let asset = key
-                .strip_prefix(&prefix)
-                .context("failed to strip prefix from account balance key")?
-                .parse::<crate::storage_keys::hunks::Asset>()
-                .context("failed to parse storage key suffix as address hunk")?
-                .get();
-
-            let Balance(balance) =
-                Balance::try_from_slice(&value).context("invalid balance bytes")?;
-
-            balances.insert(asset, balance);
+        AccountAssetBalancesStream {
+            underlying: self.prefix_raw(&prefix),
         }
-        Ok(balances)
+    }
+
+    #[instrument(skip_all)]
+    async fn get_account_balances(
+        &self,
+        address: impl AddressBytes,
+    ) -> anyhow::Result<std::collections::HashMap<asset::IbcPrefixed, u128>> {
+        use futures::TryStreamExt as _;
+        self.account_asset_balances(address)
+            .map_ok(
+                |crate::accounts::AssetBalance {
+                     asset,
+                     balance,
+                 }| (asset, balance),
+            )
+            .try_collect::<std::collections::HashMap<_, _>>()
+            .await
     }
 
     #[instrument(skip_all)]
@@ -307,11 +339,9 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use astria_core::{
-        primitive::v1::Address,
-        protocol::account::v1alpha1::AssetBalance,
-    };
+    use astria_core::primitive::v1::Address;
     use cnidarium::StateDelta;
+    use futures::TryStreamExt;
     use insta::assert_snapshot;
 
     use super::{
@@ -608,7 +638,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_account_balances_uninitialized_ok() {
+    async fn account_asset_balances_uninitialized_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
@@ -617,15 +647,23 @@ mod tests {
         let address = astria_address(&[42u8; 20]);
 
         // see that call was ok
-        let balances = state
-            .get_account_balances_traced_prefixed(address)
+        let stream = state.account_asset_balances(address);
+
+        // Collect the stream into a vector
+        let balances: Vec<_> = stream
+            .try_collect()
             .await
-            .expect("retrieving account balances should not fail");
-        assert_eq!(balances, vec![]);
+            .expect("Stream collection should not fail");
+
+        // Assert that the vector is empty
+        assert!(
+            balances.is_empty(),
+            "Expected no balances for uninitialized account"
+        );
     }
 
     #[tokio::test]
-    async fn get_account_balances() {
+    async fn account_asset_balances_from_get_account_balances() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -668,7 +706,7 @@ mod tests {
         let balances = state
             .get_account_balances(address)
             .await
-            .expect("retrieving account balances should not fail");
+            .expect("should not fail");
 
         assert_eq!(
             balances.get(&asset_0.into()).unwrap(),
@@ -686,71 +724,6 @@ mod tests {
             "returned value for ibc asset_2 does not match"
         );
         assert_eq!(balances.len(), 3, "should only return existing values");
-    }
-
-    #[tokio::test]
-    async fn get_account_balances_traced_prefixed() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // need to set native asset in order to use `get_account_balances()`
-        state.put_native_asset(&nria());
-
-        let asset_0 = state.get_native_asset().await.unwrap();
-        let asset_1 = asset_1();
-        let asset_2 = asset_2();
-
-        // also need to add assets to the ibc state
-        state
-            .put_ibc_asset(&asset_0.clone())
-            .expect("should be able to call other trait method on state object");
-        state
-            .put_ibc_asset(&asset_1.clone().unwrap_trace_prefixed())
-            .expect("should be able to call other trait method on state object");
-        state
-            .put_ibc_asset(&asset_2.clone().unwrap_trace_prefixed())
-            .expect("should be able to call other trait method on state object");
-
-        // create needed variables
-        let address = astria_address(&[42u8; 20]);
-        let amount_expected_0 = 1u128;
-        let amount_expected_1 = 2u128;
-        let amount_expected_2 = 3u128;
-
-        // add balances to the account
-        state
-            .put_account_balance(address, asset_0.clone(), amount_expected_0)
-            .expect("putting an account balance should not fail");
-        state
-            .put_account_balance(address, &asset_1, amount_expected_1)
-            .expect("putting an account balance should not fail");
-        state
-            .put_account_balance(address, &asset_2, amount_expected_2)
-            .expect("putting an account balance should not fail");
-
-        let mut balances = state
-            .get_account_balances_traced_prefixed(address)
-            .await
-            .expect("retrieving account balances should not fail");
-        balances.sort_by(|a, b| a.balance.cmp(&b.balance));
-        assert_eq!(
-            balances,
-            vec![
-                AssetBalance {
-                    denom: asset_0.into(),
-                    balance: amount_expected_0,
-                },
-                AssetBalance {
-                    denom: asset_1.clone(),
-                    balance: amount_expected_1,
-                },
-                AssetBalance {
-                    denom: asset_2.clone(),
-                    balance: amount_expected_2,
-                },
-            ]
-        );
     }
 
     #[tokio::test]

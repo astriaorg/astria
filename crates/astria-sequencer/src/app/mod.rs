@@ -36,6 +36,7 @@ use cnidarium::{
     Snapshot,
     StagedWriteBatch,
     StateDelta,
+    StateRead,
     Storage,
 };
 use prost::Message as _;
@@ -64,7 +65,6 @@ use tracing::{
 
 use crate::{
     accounts::{
-        self,
         component::AccountsComponent,
         StateReadExt,
         StateWriteExt as _,
@@ -1125,10 +1125,7 @@ impl App {
 // NOTE: this function locks the mempool until every tx has been checked.
 // this could potentially stall consensus from moving to the next round if
 // the mempool is large.
-async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
-    mempool: &mut Mempool,
-    state: &S,
-) {
+async fn update_mempool_after_finalization<S: StateRead>(mempool: &mut Mempool, state: &S) {
     let current_account_nonce_getter = |address: [u8; 20]| state.get_account_nonce(address);
     let current_account_balances_getter = |address: [u8; 20]| state.get_account_balances(address);
     mempool

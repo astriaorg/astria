@@ -327,7 +327,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     let current_account_balance: HashMap<IbcPrefixed, u128> = match state
         .get_account_balances(address)
         .await
-        .context("failed fetching balances for account")
+        .with_context(|| "failed fetching balances for account `{address}`")
     {
         Err(err) => {
             return response::CheckTx {
