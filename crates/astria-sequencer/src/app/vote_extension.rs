@@ -606,7 +606,7 @@ mod test {
         state.put_chain_id_and_revision_number(chain_id.clone());
         let validator_set = ValidatorSet::new_from_updates(vec![
             ValidatorUpdate {
-                power: 1u16.into(),
+                power: 5u16.into(),
                 verification_key: SigningKey::from([0; 32]).verification_key(),
             },
             ValidatorUpdate {
@@ -619,8 +619,9 @@ mod test {
 
         let round = 1u16;
         let vote_extension_height = 1;
+        let vote_extension_message = b"noot".to_vec();
         let vote_extension = CanonicalVoteExtension {
-            extension: vec![],
+            extension: vote_extension_message.clone(),
             height: vote_extension_height,
             round: i64::from(round),
             chain_id: chain_id.to_string(),
@@ -638,7 +639,7 @@ mod test {
                 },
                 sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
                 extension_signature: Some(signature.to_bytes().to_vec().try_into().unwrap()),
-                vote_extension: message.into(),
+                vote_extension: vote_extension_message.into(),
             }],
         };
         validate_vote_extensions(
