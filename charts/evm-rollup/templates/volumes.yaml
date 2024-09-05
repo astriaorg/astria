@@ -6,7 +6,7 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: {{ include "rollup.name" . }}-{{ $value.persistentVolumeName }}-geth-pv
+  name: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-geth-pv
 spec:
   capacity:
     storage: {{ $value.size }}
@@ -14,7 +14,7 @@ spec:
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: {{ include "rollup.name" . }}-{{ $value.persistentVolumeName }}-geth-local
+  storageClassName: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-geth-local
   local:
     path: {{ $value.path }}
   nodeAffinity:
@@ -31,7 +31,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: {{ include "rollup.name" . }}-{{ $value.persistentVolumeName }}-blockscout-pv
+  name: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-blockscout-pv
 spec:
   capacity:
     storage: {{ $value.size }}
@@ -39,7 +39,7 @@ spec:
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: {{ include "rollup.name" . }}-{{ $value.persistentVolumeName }}-blockscout-local
+  storageClassName: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-blockscout-local
   local:
     path: {{ $value.path }}
   nodeAffinity:
@@ -60,7 +60,7 @@ metadata:
   name: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-pvc-geth
   namespace: {{ include "rollup.namespace" $ }}
   labels:
-    "app.kubernetes.io/name": "{{ include "rollup.name" . }}-{{ $.Chart.Name }}"
+    "app.kubernetes.io/name": "{{ include "rollup.name" $ }}-{{ $.Chart.Name }}"
     "app.kubernetes.io/managed-by": {{ $.Release.Service | quote }}
     "helm.sh/chart": {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
 spec:
@@ -80,15 +80,15 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "rollup.name" . }}-{{ $value.persistentVolumeName }}-pvc-blockscout
+  name: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-pvc-blockscout
   namespace: {{ include "rollup.namespace" $ }}
   labels:
-    "app.kubernetes.io/name": {{ include "rollup.name" . }}-{{ $.Chart.Name }}
+    "app.kubernetes.io/name": {{ include "rollup.name" $ }}-{{ $.Chart.Name }}
     "app.kubernetes.io/managed-by": {{ $.Release.Service | quote }}
     "helm.sh/chart": {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
 spec:
     {{- if $.Values.storage.local }}
-  storageClassName: {{ include "rollup.name" . }}-{{ $value.persistentVolumeName }}-blockscout-local
+  storageClassName: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-blockscout-local
     {{- end }}
     {{- if $value.storageClassName }}
   storageClassName: {{ $value.storageClassName }}
