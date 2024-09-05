@@ -188,7 +188,7 @@ mod tests {
         state.put_current_source(TransactionContext {
             address_bytes: from_address.bytes(),
         });
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         state.put_transfer_base_fee(transfer_fee).unwrap();
         state.put_bridge_lock_byte_cost_multiplier(2);
