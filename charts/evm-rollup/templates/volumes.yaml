@@ -57,7 +57,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "rollup.name" . }}-{{ $value.persistentVolumeName }}-pvc-geth
+  name: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-pvc-geth
   namespace: {{ include "rollup.namespace" $ }}
   labels:
     "app.kubernetes.io/name": "{{ include "rollup.name" . }}-{{ $.Chart.Name }}"
@@ -65,7 +65,7 @@ metadata:
     "helm.sh/chart": {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
 spec:
   {{- if $.Values.storage.local }}
-  storageClassName: {{ include "rollup.name" . }}-{{ $value.persistentVolumeName }}-geth-local
+  storageClassName: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-geth-local
   {{- end }}
   {{- if $value.storageClassName }}
   storageClassName: {{ $value.storageClassName }}
