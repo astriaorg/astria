@@ -44,6 +44,16 @@ use crate::{
 pub struct Sequencer;
 
 impl Sequencer {
+    /// Run the sequencer until a stop signal is received.
+    ///
+    /// # Errors
+    ///
+    /// - If database or storage fail to load.
+    /// - If the app or info service fail to initialize.
+    /// - If server builder does not return a server.
+    /// - If parcing of the configured gRPC address fails.
+    /// - If sequencer fails to send shutdown signal to gRPC server.
+    /// - If server task or gRPC server fail.
     pub async fn run_until_stopped(config: Config, metrics: &'static Metrics) -> Result<()> {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
