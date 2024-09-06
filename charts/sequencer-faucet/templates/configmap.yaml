@@ -8,7 +8,10 @@ data:
   SEQUENCER_FAUCET_PROXYCOUNT: "{{ .Values.config.proxyCount }}"
   SEQUENCER_FAUCET_SEQUENCER_RPC_URL: "{{ .Values.config.sequencerRpcUrl}}"
   SEQUENCER_FAUCET_AMOUNT: "{{ .Values.config.amount }}"
+  SEQUENCER_FAUCET_MINUTE: "{{ .Values.config.minutesBetweenRequests }}"
   SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencerChainId }}"
+  SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.addressPrefix }}"
+  SEQUENCER_NATIVE_DENOM: "{{ .Values.config.sequencerNativeDenom }}"
   {{- if not .Values.secretProvider.enabled }}
   SEQUENCER_FAUCET_PRIVATE_KEY: "{{ .Values.config.fundingPrivateKey.devContent }}"
   {{- end }}

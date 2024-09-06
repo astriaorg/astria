@@ -2,6 +2,7 @@ use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
         Address,
+        Bech32m,
         ADDRESS_LEN,
     },
     protocol::transaction::v1alpha1::{
@@ -167,7 +168,7 @@ pub(crate) fn make_bech32m(args: &Bech32mAddressArgs) -> eyre::Result<()> {
     use hex::FromHex as _;
     let bytes = <[u8; ADDRESS_LEN]>::from_hex(&args.bytes)
         .wrap_err("failed decoding provided hex bytes")?;
-    let address = Address::builder()
+    let address = Address::<Bech32m>::builder()
         .array(bytes)
         .prefix(&args.prefix)
         .try_build()

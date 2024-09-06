@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use anyhow::{
     anyhow,
     Context as _,
@@ -10,6 +8,7 @@ use penumbra_tower_trace::{
     trace::request_span,
     v038::RequestExt as _,
 };
+use telemetry::metrics::register_histogram_global;
 use tendermint::v0_38::abci::ConsensusRequest;
 use tokio::{
     select,
@@ -45,22 +44,10 @@ use crate::{
 pub struct Sequencer;
 
 impl Sequencer {
-    /// # Errors
-    ///
-    ///
-    /// Will return `Error` if any of the following occur:
-    ///     - Fails to load storage backing chain state
-    ///     - Fails to initialize app
-    ///     - Fails to initialize info service
-    ///     - Fails to parse `grpc_addr` address
-    ///     - Fails to send shutdown signal to grpc server
-    ///     - Grpc server task fails
-    pub async fn run_until_stopped(config: Config) -> Result<()> {
-        static METRICS: OnceLock<Metrics> = OnceLock::new();
-        let metrics = METRICS.get_or_init(Metrics::new);
+    pub async fn run_until_stopped(config: Config, metrics: &'static Metrics) -> Result<()> {
         cnidarium::register_metrics();
-        metrics::histogram!("cnidarium_get_raw_duration_seconds");
-        metrics::histogram!("cnidarium_nonverifiable_get_raw_duration_seconds");
+        register_histogram_global("cnidarium_get_raw_duration_seconds");
+        register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
 
         db_open_or_create_from_config(&config)?;
 

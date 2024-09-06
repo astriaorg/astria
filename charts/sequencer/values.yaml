@@ -17,7 +17,7 @@ images:
     devTag: v0.38.8
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
-    tag: "0.14.0"
+    tag: "0.16.0"
     devTag: latest
 
 moniker: ""
@@ -26,6 +26,7 @@ genesis:
   genesisTime: ""  # '2023-09-22T17:22:35.092832Z'
   addressPrefixes:
     base: "astria"
+    ibcCompat: "astriacompat"
   authoritySudoAddress: ""
   nativeAssetBaseDenomination: nria
   allowedFeeAssets: []

@@ -26,7 +26,10 @@ use serde::{
     Serialize,
 };
 use tendermint::block::Height as SequencerHeight;
-use tracing::debug;
+use tracing::{
+    debug,
+    instrument,
+};
 
 use super::BlobTxHash;
 
@@ -104,6 +107,7 @@ impl State {
     }
 
     /// Constructs an instance of `State` by parsing from `source`: a JSON-encoded file.
+    #[instrument(skip_all, err)]
     async fn read(source: &StateFilePath) -> eyre::Result<Self> {
         let contents = tokio::fs::read_to_string(&source.0)
             .await
@@ -140,6 +144,7 @@ impl State {
     }
 
     /// Writes JSON-encoded `self` to `temp_file`, then renames `temp_file` to `destination`.
+    #[instrument(skip_all, err)]
     async fn write(
         &self,
         destination: &StateFilePath,
@@ -210,6 +215,7 @@ pub(super) struct StartedSubmission {
 
 impl StartedSubmission {
     /// Constructs a new `StartedSubmission` and writes the state to disk.
+    #[instrument(skip_all, err)]
     async fn construct_and_write(
         last_submission: CompletedSubmission,
         state_file_path: StateFilePath,
@@ -239,6 +245,7 @@ impl StartedSubmission {
     }
 
     /// Converts `self` into a `PreparedSubmission` and writes the new state to disk.
+    #[instrument(skip_all, err)]
     pub(super) async fn into_prepared(
         self,
         new_sequencer_height: SequencerHeight,
@@ -280,6 +287,7 @@ pub(super) struct PreparedSubmission {
 
 impl PreparedSubmission {
     /// Constructs a new `PreparedSubmission` and writes the state to disk.
+    #[instrument(skip_all, err)]
     async fn construct_and_write(
         sequencer_height: SequencerHeight,
         last_submission: CompletedSubmission,
@@ -328,6 +336,7 @@ impl PreparedSubmission {
 
     /// Converts `self` into a `StartedSubmission` with last submission being recorded using the
     /// provided celestia height and the sequencer height from `self`. Writes the new state to disk.
+    #[instrument(skip_all, err)]
     pub(super) async fn into_started(
         self,
         celestia_height: u64,
@@ -343,6 +352,7 @@ impl PreparedSubmission {
 
     /// Reverts `self` into a `StartedSubmission` retaining the last submission from `self` as the
     /// last submission. Writes the new state to disk.
+    #[instrument(skip_all, err)]
     pub(super) async fn revert(self) -> eyre::Result<StartedSubmission> {
         StartedSubmission::construct_and_write(
             self.last_submission,
@@ -380,6 +390,7 @@ impl SubmissionStateAtStartup {
     /// Constructs a new `SubmissionStateAtStartup` by reading from the given `source`.
     ///
     /// `source` should be a JSON-encoded `State`, and should be writable.
+    #[instrument(skip_all, err)]
     pub(super) async fn new_from_path<P: AsRef<Path>>(source: P) -> eyre::Result<Self> {
         let file_path = source.as_ref();
         let state_file_path = StateFilePath(file_path.to_path_buf());

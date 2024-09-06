@@ -14,16 +14,3 @@ spec:
       targetPort: {{ $name }}
   {{- end }}
 ---
-kind: Service
-apiVersion: v1
-metadata:
-  name: {{ include "celestiaNode.service.token.name" . }}
-  namespace: {{ include "celestiaNode.namespace" . }}
-spec:
-  selector:
-    app: {{ $label }}
-  ports:
-    - name: token-svc
-      port: {{ .Values.ports.tokenServer }}
-      targetPort: token-svc
----

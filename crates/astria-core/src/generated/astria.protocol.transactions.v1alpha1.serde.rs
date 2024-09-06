@@ -593,6 +593,12 @@ impl serde::Serialize for BridgeUnlockAction {
         if self.bridge_address.is_some() {
             len += 1;
         }
+        if self.rollup_block_number != 0 {
+            len += 1;
+        }
+        if !self.rollup_withdrawal_event_id.is_empty() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeUnlockAction", len)?;
         if let Some(v) = self.to.as_ref() {
             struct_ser.serialize_field("to", v)?;
@@ -608,6 +614,13 @@ impl serde::Serialize for BridgeUnlockAction {
         }
         if let Some(v) = self.bridge_address.as_ref() {
             struct_ser.serialize_field("bridgeAddress", v)?;
+        }
+        if self.rollup_block_number != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("rollupBlockNumber", ToString::to_string(&self.rollup_block_number).as_str())?;
+        }
+        if !self.rollup_withdrawal_event_id.is_empty() {
+            struct_ser.serialize_field("rollupWithdrawalEventId", &self.rollup_withdrawal_event_id)?;
         }
         struct_ser.end()
     }
@@ -626,6 +639,10 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
             "memo",
             "bridge_address",
             "bridgeAddress",
+            "rollup_block_number",
+            "rollupBlockNumber",
+            "rollup_withdrawal_event_id",
+            "rollupWithdrawalEventId",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -635,6 +652,8 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
             FeeAsset,
             Memo,
             BridgeAddress,
+            RollupBlockNumber,
+            RollupWithdrawalEventId,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -661,6 +680,8 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
                             "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
                             "memo" => Ok(GeneratedField::Memo),
                             "bridgeAddress" | "bridge_address" => Ok(GeneratedField::BridgeAddress),
+                            "rollupBlockNumber" | "rollup_block_number" => Ok(GeneratedField::RollupBlockNumber),
+                            "rollupWithdrawalEventId" | "rollup_withdrawal_event_id" => Ok(GeneratedField::RollupWithdrawalEventId),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -685,6 +706,8 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
                 let mut fee_asset__ = None;
                 let mut memo__ = None;
                 let mut bridge_address__ = None;
+                let mut rollup_block_number__ = None;
+                let mut rollup_withdrawal_event_id__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::To => {
@@ -717,6 +740,20 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
                             }
                             bridge_address__ = map_.next_value()?;
                         }
+                        GeneratedField::RollupBlockNumber => {
+                            if rollup_block_number__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupBlockNumber"));
+                            }
+                            rollup_block_number__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::RollupWithdrawalEventId => {
+                            if rollup_withdrawal_event_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupWithdrawalEventId"));
+                            }
+                            rollup_withdrawal_event_id__ = Some(map_.next_value()?);
+                        }
                     }
                 }
                 Ok(BridgeUnlockAction {
@@ -725,6 +762,8 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
                     fee_asset: fee_asset__.unwrap_or_default(),
                     memo: memo__.unwrap_or_default(),
                     bridge_address: bridge_address__,
+                    rollup_block_number: rollup_block_number__.unwrap_or_default(),
+                    rollup_withdrawal_event_id: rollup_withdrawal_event_id__.unwrap_or_default(),
                 })
             }
         }
@@ -1282,6 +1321,9 @@ impl serde::Serialize for Ics20Withdrawal {
         if self.bridge_address.is_some() {
             len += 1;
         }
+        if self.use_compat_address {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Ics20Withdrawal", len)?;
         if let Some(v) = self.amount.as_ref() {
             struct_ser.serialize_field("amount", v)?;
@@ -1314,6 +1356,9 @@ impl serde::Serialize for Ics20Withdrawal {
         if let Some(v) = self.bridge_address.as_ref() {
             struct_ser.serialize_field("bridgeAddress", v)?;
         }
+        if self.use_compat_address {
+            struct_ser.serialize_field("useCompatAddress", &self.use_compat_address)?;
+        }
         struct_ser.end()
     }
 }
@@ -1341,6 +1386,8 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
             "memo",
             "bridge_address",
             "bridgeAddress",
+            "use_compat_address",
+            "useCompatAddress",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -1355,6 +1402,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
             FeeAsset,
             Memo,
             BridgeAddress,
+            UseCompatAddress,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -1386,6 +1434,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                             "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
                             "memo" => Ok(GeneratedField::Memo),
                             "bridgeAddress" | "bridge_address" => Ok(GeneratedField::BridgeAddress),
+                            "useCompatAddress" | "use_compat_address" => Ok(GeneratedField::UseCompatAddress),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1415,6 +1464,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                 let mut fee_asset__ = None;
                 let mut memo__ = None;
                 let mut bridge_address__ = None;
+                let mut use_compat_address__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Amount => {
@@ -1479,6 +1529,12 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                             }
                             bridge_address__ = map_.next_value()?;
                         }
+                        GeneratedField::UseCompatAddress => {
+                            if use_compat_address__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("useCompatAddress"));
+                            }
+                            use_compat_address__ = Some(map_.next_value()?);
+                        }
                     }
                 }
                 Ok(Ics20Withdrawal {
@@ -1492,6 +1548,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                     fee_asset: fee_asset__.unwrap_or_default(),
                     memo: memo__.unwrap_or_default(),
                     bridge_address: bridge_address__,
+                    use_compat_address: use_compat_address__.unwrap_or_default(),
                 })
             }
         }
