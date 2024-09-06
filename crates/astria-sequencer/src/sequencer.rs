@@ -1,16 +1,18 @@
-use std::sync::OnceLock;
-
 use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer;
-use astria_eyre::eyre::{
-    eyre,
-    OptionExt as _,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        eyre,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use penumbra_tower_trace::{
     trace::request_span,
     v038::RequestExt as _,
 };
+use telemetry::metrics::register_histogram_global;
 use tendermint::v0_38::abci::ConsensusRequest;
 use tokio::{
     select,
@@ -39,19 +41,16 @@ use crate::{
     mempool::Mempool,
     metrics::Metrics,
     service,
-    utils::anyhow_to_eyre,
 };
 
 pub struct Sequencer;
 
 impl Sequencer {
     #[instrument(skip_all)]
-    pub async fn run_until_stopped(config: Config) -> Result<()> {
-        static METRICS: OnceLock<Metrics> = OnceLock::new();
-        let metrics = METRICS.get_or_init(Metrics::new);
+    pub async fn run_until_stopped(config: Config, metrics: &'static Metrics) -> Result<()> {
         cnidarium::register_metrics();
-        metrics::histogram!("cnidarium_get_raw_duration_seconds");
-        metrics::histogram!("cnidarium_nonverifiable_get_raw_duration_seconds");
+        register_histogram_global("cnidarium_get_raw_duration_seconds");
+        register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
 
         if config
             .db_filepath

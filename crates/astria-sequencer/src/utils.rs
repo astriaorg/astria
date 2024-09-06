@@ -4,7 +4,6 @@ use astria_core::{
     Protobuf as _,
 };
 use astria_eyre::eyre::{
-    eyre,
     Result,
     WrapErr as _,
 };
@@ -18,26 +17,6 @@ impl<'a> std::fmt::Display for Hex<'a> {
         }
         Ok(())
     }
-}
-
-pub(crate) fn anyhow_to_eyre(anyhow_error: anyhow::Error) -> astria_eyre::eyre::Report {
-    let anyhow_result = Err::<(), _>(anyhow_error);
-    let boxed: Result<(), Box<dyn std::error::Error + Send + Sync>> =
-        anyhow_result.map_err(std::convert::Into::into);
-    let Err(err) = boxed else {
-        panic!("anyhow_to_eyre called on `Ok`")
-    };
-    eyre!(err)
-}
-
-pub(crate) fn eyre_to_anyhow(eyre_error: astria_eyre::eyre::Report) -> anyhow::Error {
-    let eyre_result = Err::<(), _>(eyre_error);
-    let boxed: Result<(), Box<dyn std::error::Error + Send + Sync>> =
-        eyre_result.map_err(std::convert::Into::into);
-    let Err(err) = boxed else {
-        panic!("eyre_to_anyhow called on `Ok`")
-    };
-    anyhow::anyhow!(err)
 }
 
 pub(crate) fn cometbft_to_sequencer_validator(

@@ -5,11 +5,13 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::genesis::v1alpha1::IbcParameters,
+    generated::protocol::genesis::v1alpha1::{
+        AddressPrefixes,
+        IbcParameters,
+    },
     primitive::v1::Address,
     protocol::genesis::v1alpha1::{
         Account,
-        AddressPrefixes,
         Fees,
         GenesisAppState,
     },
@@ -66,13 +68,14 @@ fn accounts() -> Vec<Account> {
 fn address_prefixes() -> AddressPrefixes {
     AddressPrefixes {
         base: "astria".into(),
+        ibc_compat: "astriacompat".into(),
     }
 }
 
 fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
     astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
         accounts: accounts().into_iter().map(Protobuf::into_raw).collect(),
-        address_prefixes: Some(address_prefixes().into_raw()),
+        address_prefixes: Some(address_prefixes()),
         authority_sudo_address: Some(alice().to_raw()),
         chain_id: "test-1".into(),
         ibc_sudo_address: Some(alice().to_raw()),

@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 eyre = "0.6"
 itoa = "1.0.10"
+anyhow = "1"
 
 [dev-dependencies]
 tracing = { workspace = true }

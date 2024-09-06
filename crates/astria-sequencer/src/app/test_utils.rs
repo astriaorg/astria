@@ -28,6 +28,7 @@ use astria_eyre::eyre::{
 };
 use bytes::Bytes;
 use cnidarium::Storage;
+use telemetry::Metrics as _;
 
 use crate::{
     app::App,
@@ -95,9 +96,13 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::Fees {
 }
 
 pub(crate) fn address_prefixes() -> AddressPrefixes {
-    AddressPrefixes {
-        base: crate::test_utils::ASTRIA_PREFIX.into(),
-    }
+    AddressPrefixes::try_from_raw(
+        astria_core::generated::protocol::genesis::v1alpha1::AddressPrefixes {
+            base: crate::test_utils::ASTRIA_PREFIX.into(),
+            ibc_compat: crate::test_utils::ASTRIA_COMPAT_PREFIX.into(),
+        },
+    )
+    .unwrap()
 }
 
 pub(crate) fn proto_genesis_state()
@@ -140,7 +145,7 @@ pub(crate) async fn initialize_app_with_storage(
         .expect("failed to create temp storage backing chain state");
     let snapshot = storage.latest_snapshot();
     let mempool = Mempool::new();
-    let metrics = Box::leak(Box::new(Metrics::new()));
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);

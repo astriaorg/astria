@@ -29,13 +29,16 @@ use astria_core::{
     },
     sequencerblock::v1alpha1::block::SequencerBlock,
 };
-use astria_eyre::eyre::{
-    bail,
-    ensure,
-    eyre,
-    OptionExt as _,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        ensure,
+        eyre,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use cnidarium::{
     ArcStateDeltaExt,
@@ -74,7 +77,7 @@ use crate::{
         component::AccountsComponent,
         StateReadExt,
     },
-    address::StateWriteExt as _,
+    address::StateWriteExt,
     api_state_ext::StateWriteExt as _,
     assets::StateWriteExt as _,
     authority::{
@@ -110,7 +113,6 @@ use crate::{
         StateWriteExt as _,
     },
     transaction::InvalidNonce,
-    utils::anyhow_to_eyre,
 };
 
 /// The inter-block state being written to by the application.
@@ -218,9 +220,8 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
-        state_tx
-            .put_base_prefix(&genesis_state.address_prefixes().base)
-            .wrap_err("failed to write base prefix to state")?;
+        state_tx.put_base_prefix(genesis_state.address_prefixes().base());
+        state_tx.put_ibc_compat_prefix(genesis_state.address_prefixes().ibc_compat());
 
         let native_asset = genesis_state.native_asset_base_denomination();
         state_tx.put_native_asset(native_asset);

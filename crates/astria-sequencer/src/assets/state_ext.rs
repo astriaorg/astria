@@ -1,8 +1,12 @@
 use astria_core::primitive::v1::asset;
-use astria_eyre::eyre::{
-    bail,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -15,8 +19,6 @@ use cnidarium::{
 };
 use futures::StreamExt as _;
 use tracing::instrument;
-
-use crate::utils::anyhow_to_eyre;
 
 /// Newtype wrapper to read and write a denomination trace from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]

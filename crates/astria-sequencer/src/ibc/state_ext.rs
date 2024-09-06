@@ -2,10 +2,13 @@ use astria_core::primitive::v1::{
     asset,
     ADDRESS_LEN,
 };
-use astria_eyre::eyre::{
-    bail,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -22,10 +25,7 @@ use tracing::{
     instrument,
 };
 
-use crate::{
-    accounts::AddressBytes,
-    utils::anyhow_to_eyre,
-};
+use crate::accounts::AddressBytes;
 
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -234,7 +234,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         // can write new
         let mut address = [42u8; 20];
@@ -271,7 +271,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         // unset address returns false
         let address = astria_address(&[42u8; 20]);
@@ -290,7 +290,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         // can write
         let address = astria_address(&[42u8; 20]);
@@ -320,7 +320,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         // can write
         let address = astria_address(&[42u8; 20]);

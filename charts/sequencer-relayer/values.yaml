@@ -13,7 +13,7 @@ global:
 images:
   sequencerRelayer:
     repo: ghcr.io/astriaorg/sequencer-relayer
-    tag: "0.15.0"
+    tag: "0.16.1"
     devTag: latest
 
 config:

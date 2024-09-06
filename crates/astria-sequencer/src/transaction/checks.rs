@@ -178,6 +178,7 @@ mod tests {
         bridge::StateWriteExt as _,
         ibc::StateWriteExt as _,
         sequence::StateWriteExt as _,
+        test_utils::ASTRIA_PREFIX,
     };
 
     #[tokio::test]
@@ -186,7 +187,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
-        state_tx.put_base_prefix("astria").unwrap();
+        state_tx.put_base_prefix("astria");
         state_tx.put_native_asset(&crate::test_utils::nria());
         state_tx.put_transfer_base_fee(12).unwrap();
         state_tx.put_sequence_action_base_fee(0);
@@ -260,7 +261,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
-        state_tx.put_base_prefix("nria").unwrap();
+        state_tx.put_base_prefix(ASTRIA_PREFIX);
         state_tx.put_native_asset(&crate::test_utils::nria());
         state_tx.put_transfer_base_fee(12).unwrap();
         state_tx.put_sequence_action_base_fee(0);

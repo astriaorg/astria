@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer-relayer"
-version = "0.16.0"
+version = "0.16.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.76"
@@ -28,7 +28,6 @@ humantime = { workspace = true }
 humantime-serde = "1.1.1"
 hyper = { workspace = true }
 itoa = { workspace = true }
-metrics = { workspace = true }
 pbjson-types = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }

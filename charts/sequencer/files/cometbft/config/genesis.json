@@ -23,7 +23,8 @@
       "outbound_ics20_transfers_enabled": {{ .Values.genesis.ibc.outboundEnabled }}
     },
     "address_prefixes": {
-      "base": "{{ .Values.genesis.addressPrefixes.base }}"
+      "base": "{{ .Values.genesis.addressPrefixes.base }}",
+      "ibcCompat": "{{ .Values.genesis.addressPrefixes.ibcCompat }}"
     },
     "accounts": [
       {{- range $index, $value := .Values.genesis.genesisAccounts }}

@@ -1,16 +1,26 @@
 use std::{
     collections::HashMap,
     io::Write,
-    net::SocketAddr,
+    net::{
+        IpAddr,
+        SocketAddr,
+    },
     time::Duration,
 };
 
 use astria_composer::{
     config::Config,
     Composer,
+    Metrics,
 };
 use astria_core::{
-    primitive::v1::RollupId,
+    primitive::v1::{
+        asset::{
+            Denom,
+            IbcPrefixed,
+        },
+        RollupId,
+    },
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::SignedTransaction,
@@ -19,6 +29,7 @@ use astria_core::{
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
 use once_cell::sync::Lazy;
+use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
@@ -40,19 +51,42 @@ use wiremock::{
 pub mod mock_sequencer;
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
+    // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
+    // haven't configured telemetry to provide metrics here.
+    let config = Config {
+        log: String::new(),
+        api_listen_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
+        sequencer_url: String::new(),
+        sequencer_chain_id: String::new(),
+        rollups: String::new(),
+        private_key_file: String::new(),
+        sequencer_address_prefix: String::new(),
+        block_time_ms: 0,
+        max_bytes_per_bundle: 0,
+        bundle_queue_capacity: 0,
+        force_stdout: false,
+        no_otel: false,
+        no_metrics: false,
+        metrics_http_listener_addr: String::new(),
+        pretty_print: false,
+        grpc_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
+        fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([0; 32])),
+    };
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::stdout)
-            .filter_directives(&filter_directives)
-            .try_init()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::stdout)
+            .set_force_stdout(true)
+            .set_pretty_print(true)
+            .set_filter_directives(&filter_directives)
+            .try_init::<Metrics>(&config)
             .unwrap();
     } else {
         telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::sink)
-            .try_init()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::sink)
+            .try_init::<Metrics>(&config)
             .unwrap();
     }
 });
@@ -64,6 +98,7 @@ pub struct TestComposer {
     pub sequencer: wiremock::MockServer,
     pub setup_guard: MockGuard,
     pub grpc_collector_addr: SocketAddr,
+    pub metrics_handle: metrics::Handle,
 }
 
 /// Spawns composer in a test environment.
@@ -107,8 +142,15 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
         fee_asset: "nria".parse().unwrap(),
     };
+
+    let (metrics, metrics_handle) = metrics::ConfigBuilder::new()
+        .set_global_recorder(false)
+        .build(&config)
+        .unwrap();
+    let metrics = Box::leak(Box::new(metrics));
+
     let (composer_addr, grpc_collector_addr, composer_handle) = {
-        let composer = Composer::from_config(&config).await.unwrap();
+        let composer = Composer::from_config(&config, metrics).await.unwrap();
         let composer_addr = composer.local_addr();
         let grpc_collector_addr = composer.grpc_local_addr().unwrap();
         let task = tokio::spawn(composer.run_until_stopped());
@@ -123,6 +165,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         sequencer,
         setup_guard: sequencer_setup_guard,
         grpc_collector_addr,
+        metrics_handle,
     }
 }
 

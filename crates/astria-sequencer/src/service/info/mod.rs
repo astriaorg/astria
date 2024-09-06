@@ -32,12 +32,12 @@ use tracing::{
 
 mod abci_query_router;
 
-use astria_eyre::eyre::Result;
-
-use crate::{
-    state_ext::StateReadExt,
-    utils::anyhow_to_eyre,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::Result,
 };
+
+use crate::state_ext::StateReadExt;
 
 #[derive(Clone)]
 pub(crate) struct Info {
@@ -222,7 +222,7 @@ mod test {
         let mut state = StateDelta::new(storage.latest_snapshot());
         state.put_storage_version_by_height(height, version);
 
-        state.put_base_prefix("astria").unwrap();
+        state.put_base_prefix("astria");
         state.put_native_asset(&crate::test_utils::nria());
 
         let address = state

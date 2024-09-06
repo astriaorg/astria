@@ -20,6 +20,7 @@ use http::status::StatusCode;
 use hyper::server::conn::AddrIncoming;
 use serde::Serialize;
 use tokio::sync::watch;
+use tracing::instrument;
 
 use crate::bridge_withdrawer::StateSnapshot;
 
@@ -51,6 +52,7 @@ pub(crate) fn start(socket_addr: SocketAddr, withdrawer_state: WithdrawerState) 
 }
 
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
+#[instrument(skip_all)]
 async fn get_healthz(State(withdrawer_state): State<WithdrawerState>) -> Healthz {
     if withdrawer_state.borrow().is_healthy() {
         Healthz::Ok
@@ -66,6 +68,7 @@ async fn get_healthz(State(withdrawer_state): State<WithdrawerState>) -> Healthz
 /// + there is a current sequencer height (implying a block from sequencer was received)
 /// + there is a current data availability height (implying a height was received from the DA)
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
+#[instrument(skip_all)]
 async fn get_readyz(State(withdrawer_state): State<WithdrawerState>) -> Readyz {
     let is_withdrawer_online = withdrawer_state.borrow().is_ready();
     if is_withdrawer_online {
@@ -76,6 +79,7 @@ async fn get_readyz(State(withdrawer_state): State<WithdrawerState>) -> Readyz {
 }
 
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
+#[instrument(skip_all)]
 async fn get_status(State(withdrawer_state): State<WithdrawerState>) -> Json<StateSnapshot> {
     Json(withdrawer_state.borrow().clone())
 }

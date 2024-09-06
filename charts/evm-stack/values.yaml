@@ -39,6 +39,9 @@ evm-rollup:
     otlpHeaders: "{{ .Values.global.otel.otlpHeaders }}"
     traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
 
+celestia-node:
+  enabled: false
+
 composer:
   enabled: false
   config:

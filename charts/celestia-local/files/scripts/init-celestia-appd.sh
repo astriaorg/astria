@@ -27,6 +27,7 @@ celestia-appd gentx \
   "$validator_stake" \
   --keyring-backend="$keyring_backend" \
   --chain-id "$chainid" \
+  --fees "$fees" \
   --home "$home_dir"
 
 # add ibc account

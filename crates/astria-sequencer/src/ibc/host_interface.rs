@@ -1,10 +1,8 @@
+use astria_eyre::eyre_to_anyhow;
 use cnidarium::StateRead;
 use penumbra_ibc::component::HostInterface;
 
-use crate::{
-    state_ext::StateReadExt as _,
-    utils::eyre_to_anyhow,
-};
+use crate::state_ext::StateReadExt as _;
 
 #[derive(Clone)]
 pub(crate) struct AstriaHost;

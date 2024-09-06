@@ -1,7 +1,10 @@
-use astria_eyre::eyre::{
-    OptionExt as _,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -13,8 +16,6 @@ use cnidarium::{
     StateWrite,
 };
 use tracing::instrument;
-
-use crate::utils::anyhow_to_eyre;
 
 const SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY: &str = "seqbasefee";
 const SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "seqmultiplier";
