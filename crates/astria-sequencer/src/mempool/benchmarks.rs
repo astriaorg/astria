@@ -16,6 +16,10 @@ use sha2::{
 };
 
 use crate::{
+    app::test_utils::{
+        mock_balances,
+        mock_tx_cost,
+    },
     benchmark_utils::SIGNER_COUNT,
     mempool::{
         Mempool,
@@ -94,9 +98,19 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         .build()
         .unwrap();
     let mempool = Mempool::new();
+    let account_mock_balance = mock_balances(0, 0);
+    let tx_mock_cost = mock_tx_cost(0, 0, 0);
     runtime.block_on(async {
         for tx in transactions().iter().take(T::checked_size()) {
-            mempool.insert(tx.clone(), 0).await.unwrap();
+            mempool
+                .insert(
+                    tx.clone(),
+                    0,
+                    account_mock_balance.clone(),
+                    tx_mock_cost.clone(),
+                )
+                .await
+                .unwrap();
         }
         for i in 0..super::REMOVAL_CACHE_SIZE {
             let hash = Sha256::digest(i.to_le_bytes()).into();
@@ -132,11 +146,23 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
         .enable_all()
         .build()
         .unwrap();
+    let mock_balances = mock_balances(0, 0);
+    let mock_tx_cost = mock_tx_cost(0, 0, 0);
     bencher
-        .with_inputs(|| (init_mempool::<T>(), get_unused_tx::<T>()))
-        .bench_values(move |(mempool, tx)| {
+        .with_inputs(|| {
+            (
+                init_mempool::<T>(),
+                get_unused_tx::<T>(),
+                mock_balances.clone(),
+                mock_tx_cost.clone(),
+            )
+        })
+        .bench_values(move |(mempool, tx, mock_balances, mock_tx_cost)| {
             runtime.block_on(async {
-                mempool.insert(tx, 0).await.unwrap();
+                mempool
+                    .insert(tx, 0, mock_balances, mock_tx_cost)
+                    .await
+                    .unwrap();
             });
         });
 }
@@ -253,12 +279,19 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
     // Although in production this getter will be hitting the state store and will be slower than
     // this test one, it's probably insignificant as the getter is only called once per address,
     // and we don't expect a high number of discrete addresses in the mempool entries.
+    let mock_balances = mock_balances(0, 0);
     let current_account_nonce_getter = |_: [u8; 20]| async { Ok(new_nonce) };
+    let current_account_balances_getter = |_: [u8; 20]| async { Ok(mock_balances.clone()) };
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.run_maintenance(current_account_nonce_getter).await;
+                mempool
+                    .run_maintenance(
+                        current_account_nonce_getter,
+                        current_account_balances_getter,
+                    )
+                    .await;
             });
         });
 }

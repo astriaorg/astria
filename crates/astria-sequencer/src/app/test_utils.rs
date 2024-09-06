@@ -1,8 +1,14 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use astria_core::{
     crypto::SigningKey,
-    primitive::v1::RollupId,
+    primitive::v1::{
+        asset::IbcPrefixed,
+        RollupId,
+    },
     protocol::{
         genesis::v1alpha1::{
             Account,
@@ -188,4 +194,48 @@ pub(crate) fn mock_tx(
     };
 
     Arc::new(tx.into_signed(signer))
+}
+
+pub(crate) const DENOM_0: [u8; 32] = [1u8; 32];
+pub(crate) const DENOM_1: [u8; 32] = [2u8; 32];
+const DENOM_2: [u8; 32] = [3u8; 32];
+pub(crate) const DENOM_3: [u8; 32] = [4u8; 32];
+const DENOM_4: [u8; 32] = [5u8; 32];
+const DENOM_5: [u8; 32] = [6u8; 32];
+const DENOM_6: [u8; 32] = [7u8; 32];
+
+pub(crate) fn mock_balances(
+    denom_0_balance: u128,
+    denom_1_balance: u128,
+) -> HashMap<IbcPrefixed, u128> {
+    let mut balances = HashMap::<IbcPrefixed, u128>::new();
+    if denom_0_balance != 0 {
+        balances.insert(IbcPrefixed::new(DENOM_0), denom_0_balance);
+    }
+    if denom_1_balance != 0 {
+        balances.insert(IbcPrefixed::new(DENOM_1), denom_1_balance);
+    }
+    // we don't sanitize the balance inputs
+    balances.insert(IbcPrefixed::new(DENOM_3), 100); // balance transaction costs won't have entry for
+    balances.insert(IbcPrefixed::new(DENOM_4), 0); // zero balance not in transaction
+    balances.insert(IbcPrefixed::new(DENOM_5), 0); // zero balance with corresponding zero cost 
+
+    balances
+}
+
+pub(crate) fn mock_tx_cost(
+    denom_0_cost: u128,
+    denom_1_cost: u128,
+    denom_2_cost: u128,
+) -> HashMap<IbcPrefixed, u128> {
+    let mut costs = HashMap::<IbcPrefixed, u128>::new();
+    costs.insert(IbcPrefixed::new(DENOM_0), denom_0_cost);
+    costs.insert(IbcPrefixed::new(DENOM_1), denom_1_cost);
+    costs.insert(IbcPrefixed::new(DENOM_2), denom_2_cost); // not present in balances
+
+    // we don't santize the cost inputs
+    costs.insert(IbcPrefixed::new(DENOM_5), 0); // zero in balances also 
+    costs.insert(IbcPrefixed::new(DENOM_6), 0); // not present in balances 
+
+    costs
 }
