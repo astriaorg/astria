@@ -15,7 +15,11 @@ name = "astria-sequencer"
 benchmark = ["divan"]
 
 [dependencies]
-astria-core = { path = "../astria-core", features = ["server", "serde"] }
+astria-core = { path = "../astria-core", features = [
+  "client",
+  "server",
+  "serde",
+] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
@@ -59,6 +63,7 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [
+  "client",
   "server",
   "serde",
   "test-utils",

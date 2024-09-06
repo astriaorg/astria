@@ -24,7 +24,11 @@ use anyhow::{
     Context,
 };
 use astria_core::{
-    generated::protocol::transactions::v1alpha1 as raw,
+    generated::{
+        composer::v1alpha1::sequencer_hooks_service_client::SequencerHooksServiceClient,
+        protocol::transactions::v1alpha1 as raw,
+    },
+    primitive::v1::Address,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1alpha1::GenesisAppState,
@@ -35,7 +39,9 @@ use astria_core::{
         },
     },
     sequencerblock::v1alpha1::block::SequencerBlock,
+    Protobuf,
 };
+use bytes::Bytes;
 use cnidarium::{
     ArcStateDeltaExt,
     Snapshot,
@@ -93,6 +99,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    client::SequencerHooksClient,
     component::Component as _,
     ibc::component::IbcComponent,
     mempool::{
@@ -170,6 +177,8 @@ pub(crate) struct App {
     #[allow(clippy::struct_field_names)]
     app_hash: AppHash,
 
+    sequencer_hooks_client: SequencerHooksClient,
+
     metrics: &'static Metrics,
 }
 
@@ -177,6 +186,7 @@ impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
+        composer_uri: String,
         metrics: &'static Metrics,
     ) -> anyhow::Result<Self> {
         debug!("initializing App instance");
@@ -194,6 +204,9 @@ impl App {
         // there should be no unexpected copies elsewhere.
         let state = Arc::new(StateDelta::new(snapshot));
 
+        let sequencer_hooks_client = SequencerHooksClient::connect_lazy(&composer_uri)
+            .context("failed to connect to sequencer hooks service")?;
+
         Ok(Self {
             state,
             mempool,
@@ -203,6 +216,7 @@ impl App {
             write_batch: None,
             app_hash,
             metrics,
+            sequencer_hooks_client,
         })
     }
 
@@ -453,7 +467,25 @@ impl App {
             "chain IDs commitment does not match expected",
         );
 
-        self.executed_proposal_hash = process_proposal.hash;
+        let block_hash = process_proposal.hash.clone();
+        self.executed_proposal_hash = block_hash;
+
+        // get a list of sequence actions from the signed_txs
+        let sequence_actions = signed_txs
+            .iter()
+            .flat_map(|tx| tx.unsigned_transaction().actions.iter())
+            .filter_map(Action::as_sequence)
+            .map(|seq| seq.to_raw().clone())
+            .collect::<Vec<_>>();
+
+        info!("BHARATH: Sending optimistic block to composer!");
+        self.sequencer_hooks_client
+            .send_optimistic_block(
+                Bytes::from(block_hash.as_bytes().to_vec()),
+                sequence_actions,
+            )
+            .await
+            .context("failed to send optimistic block to composer")?;
 
         Ok(())
     }
@@ -904,6 +936,16 @@ impl App {
             .prepare_commit(storage.clone())
             .await
             .context("failed to prepare commit")?;
+
+        // update the priority of any txs in the mempool based on the updated app state
+        update_mempool_after_finalization(&mut self.mempool, self.state.as_ref())
+            .await
+            .context("failed to update mempool after finalization")?;
+
+        self.sequencer_hooks_client
+            .send_finalized_block_hash(Bytes::from(block_hash.to_vec()))
+            .await
+            .context("failed to send finalized block hash to composer")?;
 
         Ok(abci::response::FinalizeBlock {
             events: end_block.events,

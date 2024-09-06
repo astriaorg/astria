@@ -5,7 +5,13 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::FilteredSequencerBlock,
+    generated::{
+        composer::v1alpha1::{
+            SendFinalizedHashRequest,
+            SendOptimisticBlockRequest,
+        },
+        sequencerblock::v1alpha1::FilteredSequencerBlock,
+    },
     primitive::v1::asset,
 };
 use astria_eyre::eyre::{
@@ -20,14 +26,16 @@ use tokio::{
         signal,
         SignalKind,
     },
-    sync::watch,
+    sync::{
+        mpsc,
+        watch,
+    },
     task::{
         JoinError,
         JoinHandle,
     },
     time::timeout,
 };
-use tokio::sync::mpsc;
 use tokio_util::{
     sync::CancellationToken,
     task::JoinMap,
@@ -130,8 +138,9 @@ impl Composer {
         let shutdown_token = CancellationToken::new();
 
         let (filtered_sequencer_block_sender, filtered_sequencer_block_receiver) =
-            mpsc::channel::<FilteredSequencerBlock>(1000);
-        let (finalized_hash_sender, finalized_hash_receiver) = mpsc::channel::<Bytes>(1000);
+            mpsc::channel::<SendOptimisticBlockRequest>(1000);
+        let (finalized_hash_sender, finalized_hash_receiver) =
+            mpsc::channel::<SendFinalizedHashRequest>(1000);
 
         let (executor, executor_handle) = executor::Builder {
             sequencer_url: cfg.sequencer_url.clone(),

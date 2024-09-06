@@ -3,10 +3,16 @@ use std::{
     path::Path,
     time::Duration,
 };
-use bytes::Bytes;
 
 use astria_core::{
     crypto::SigningKey,
+    generated::{
+        composer::v1alpha1::{
+            SendFinalizedHashRequest,
+            SendOptimisticBlockRequest,
+        },
+        sequencerblock::v1alpha1::FilteredSequencerBlock,
+    },
     primitive::v1::{
         asset,
         Address,
@@ -19,10 +25,13 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
-use tokio::sync::{mpsc, watch};
+use bytes::Bytes;
+use tokio::sync::{
+    mpsc,
+    watch,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
-use astria_core::generated::sequencerblock::v1alpha1::FilteredSequencerBlock;
 
 use crate::{
     executor,
@@ -46,8 +55,8 @@ pub(crate) struct Builder {
     pub(crate) chain_name: String,
     pub(crate) fee_asset: asset::Denom,
     pub(crate) max_bundle_size: usize,
-    pub(crate) filtered_block_receiver: mpsc::Receiver<FilteredSequencerBlock>,
-    pub(crate) finalized_block_hash_receiver: mpsc::Receiver<Bytes>,
+    pub(crate) filtered_block_receiver: mpsc::Receiver<SendOptimisticBlockRequest>,
+    pub(crate) finalized_block_hash_receiver: mpsc::Receiver<SendFinalizedHashRequest>,
     pub(crate) metrics: &'static Metrics,
 }
 

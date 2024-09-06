@@ -1,3 +1,6 @@
+
+use crate::generated::protocol::transaction::v1alpha1;
+
 /// SubmitRollupTransactionRequest contains a rollup transaction to be submitted to the Shared Sequencer Network
 /// via the Composer
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -24,6 +27,23 @@ impl ::prost::Name for SubmitRollupTransactionRequest {
 pub struct SubmitRollupTransactionResponse {}
 impl ::prost::Name for SubmitRollupTransactionResponse {
     const NAME: &'static str = "SubmitRollupTransactionResponse";
+    const PACKAGE: &'static str = "astria.composer.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.composer.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SendOptimisticBlockRequest {
+    #[prost(bytes = "bytes", tag = "1")]
+    pub block_hash: ::prost::bytes::Bytes,
+    #[prost(message, repeated, tag = "2")]
+    pub seq_action: ::prost::alloc::vec::Vec<
+        v1alpha1::SequenceAction,
+    >,
+}
+impl ::prost::Name for SendOptimisticBlockRequest {
+    const NAME: &'static str = "SendOptimisticBlockRequest";
     const PACKAGE: &'static str = "astria.composer.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.composer.v1alpha1.{}", Self::NAME)
@@ -271,9 +291,7 @@ pub mod sequencer_hooks_service_client {
         }
         pub async fn send_optimistic_block(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::super::sequencerblock::v1alpha1::FilteredSequencerBlock,
-            >,
+            request: impl tonic::IntoRequest<super::SendOptimisticBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::SendOptimisticBlockResponse>,
             tonic::Status,
@@ -538,9 +556,7 @@ pub mod sequencer_hooks_service_server {
     pub trait SequencerHooksService: Send + Sync + 'static {
         async fn send_optimistic_block(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<
-                super::super::super::sequencerblock::v1alpha1::FilteredSequencerBlock,
-            >,
+            request: tonic::Request<super::SendOptimisticBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::SendOptimisticBlockResponse>,
             tonic::Status,
@@ -638,9 +654,8 @@ pub mod sequencer_hooks_service_server {
                     struct SendOptimisticBlockSvc<T: SequencerHooksService>(pub Arc<T>);
                     impl<
                         T: SequencerHooksService,
-                    > tonic::server::UnaryService<
-                        super::super::super::sequencerblock::v1alpha1::FilteredSequencerBlock,
-                    > for SendOptimisticBlockSvc<T> {
+                    > tonic::server::UnaryService<super::SendOptimisticBlockRequest>
+                    for SendOptimisticBlockSvc<T> {
                         type Response = super::SendOptimisticBlockResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
@@ -648,9 +663,7 @@ pub mod sequencer_hooks_service_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::super::sequencerblock::v1alpha1::FilteredSequencerBlock,
-                            >,
+                            request: tonic::Request<super::SendOptimisticBlockRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
