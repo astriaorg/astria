@@ -8,9 +8,12 @@ edition = "2021"
 [dependencies]
 eyre = "0.6"
 itoa = "1.0.10"
-anyhow = "1"
+anyhow = {version = "1", optional = true}
 
 [dev-dependencies]
 tracing = { workspace = true }
 tokio-test = { workspace = true }
 tracing-subscriber = "0.3.18"
+
+[features]
+anyhow_support = ["anyhow"]

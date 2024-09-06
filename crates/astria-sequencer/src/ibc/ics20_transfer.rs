@@ -11,7 +11,6 @@
 //! [`AppHandlerExecute`] is used for execution.
 use std::borrow::Cow;
 
-use anyhow::Context as _;
 use astria_core::{
     primitive::v1::{
         asset::{
@@ -26,6 +25,10 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use astria_eyre::{
+    anyhow::{
+        self,
+        Context as _,
+    },
     eyre::{
         bail,
         ensure,
