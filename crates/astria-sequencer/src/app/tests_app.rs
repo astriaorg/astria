@@ -460,7 +460,15 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // don't commit the result, now call prepare_proposal with the same data.
     // this will reset the app state.
     // this simulates executing the same block as a validator (specifically the proposer).
-    app.mempool.insert(Arc::new(signed_tx), 0).await.unwrap();
+    app.mempool
+        .insert(
+            Arc::new(signed_tx),
+            0,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
+        .await
+        .unwrap();
 
     let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
     let prepare_proposal = PrepareProposal {
@@ -481,10 +489,13 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
     assert_eq!(app.executed_proposal_hash, Hash::default());
     assert_eq!(app.validator_address.unwrap(), proposer_address);
+
     // run maintence to clear out transactions
-    let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
+    let current_account_nonce_getter = |address: [u8; 20]| (app.state.get_account_nonce(address));
+    let current_account_balance_getter =
+        |address: [u8; 20]| (get_account_balances(&app.state, address));
     app.mempool
-        .run_maintenance(current_account_nonce_getter)
+        .run_maintenance(current_account_nonce_getter, current_account_balance_getter)
         .await;
 
     assert_eq!(app.mempool.len().await, 0);
@@ -575,8 +586,24 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     }
     .into_signed(&alice);
 
-    app.mempool.insert(Arc::new(tx_pass), 0).await.unwrap();
-    app.mempool.insert(Arc::new(tx_overflow), 0).await.unwrap();
+    app.mempool
+        .insert(
+            Arc::new(tx_pass),
+            0,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
+        .await
+        .unwrap();
+    app.mempool
+        .insert(
+            Arc::new(tx_overflow),
+            0,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
+        .await
+        .unwrap();
 
     // send to prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
@@ -597,8 +624,10 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     // run maintence to clear out transactions
     let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
+    let current_account_balance_getter =
+        |address: [u8; 20]| (get_account_balances(&app.state, address));
     app.mempool
-        .run_maintenance(current_account_nonce_getter)
+        .run_maintenance(current_account_nonce_getter, current_account_balance_getter)
         .await;
 
     // see only first tx made it in
@@ -654,8 +683,24 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     }
     .into_signed(&alice);
 
-    app.mempool.insert(Arc::new(tx_pass), 0).await.unwrap();
-    app.mempool.insert(Arc::new(tx_overflow), 0).await.unwrap();
+    app.mempool
+        .insert(
+            Arc::new(tx_pass),
+            0,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
+        .await
+        .unwrap();
+    app.mempool
+        .insert(
+            Arc::new(tx_overflow),
+            0,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
+        .await
+        .unwrap();
 
     // send to prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
@@ -676,8 +721,10 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
     // run maintence to clear out transactions
     let current_account_nonce_getter = |address: [u8; 20]| app.state.get_account_nonce(address);
+    let current_account_balance_getter =
+        |address: [u8; 20]| (get_account_balances(&app.state, address));
     app.mempool
-        .run_maintenance(current_account_nonce_getter)
+        .run_maintenance(current_account_nonce_getter, current_account_balance_getter)
         .await;
 
     // see only first tx made it in
