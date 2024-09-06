@@ -427,17 +427,17 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
     let packet_amount: u128 = packet_data
         .amount
         .parse()
-        .context("failed to parse packet data amount to u128")?;
+        .wrap_err("failed to parse packet data amount to u128")?;
     let mut denom_trace = {
         let denom = packet_data
             .denom
             .parse::<Denom>()
-            .context("failed parsing denom in packet data as Denom")?;
+            .wrap_err("failed parsing denom in packet data as Denom")?;
         // convert denomination if it's prefixed with `ibc/`
         // note: this denomination might have a prefix, but it wasn't prefixed by us right now.
         convert_denomination_if_ibc_prefixed(state, denom)
             .await
-            .context("failed to convert denomination if ibc/ prefixed")?
+            .wrap_err("failed to convert denomination if ibc/ prefixed")?
     };
 
     // if the memo deserializes into an `Ics20WithdrawalFromRollupMemo`,
@@ -575,12 +575,12 @@ async fn execute_withdrawal_refund_to_rollup<S: StateWrite>(
     let amount: u128 = packet_data
         .amount
         .parse()
-        .context("failed to parse packet data amount to u128")?;
+        .wrap_err("failed to parse packet data amount to u128")?;
     let denom = {
         let denom = packet_data
             .denom
             .parse::<Denom>()
-            .context("failed parsing denom in packet data as Denom")?;
+            .wrap_err("failed parsing denom in packet data as Denom")?;
         // convert denomination if it's prefixed with `ibc/`
         // note: this denomination might have a prefix, but it wasn't prefixed by us right now.
         convert_denomination_if_ibc_prefixed(state, denom)
@@ -608,22 +608,22 @@ async fn execute_withdrawal_refund_to_rollup<S: StateWrite>(
     Ok(())
 }
 
-async fn parse_refund_sender<S: StateRead>(state: &S, sender: &str) -> anyhow::Result<Address> {
+async fn parse_refund_sender<S: StateRead>(state: &S, sender: &str) -> Result<Address> {
     use futures::TryFutureExt as _;
     let (base_prefix, compat_prefix) = match try_join!(
         state
             .get_base_prefix()
-            .map_err(|e| e.context("failed to read base prefix from state")),
+            .map_err(|e| e.wrap_err("failed to read base prefix from state")),
         state
             .get_ibc_compat_prefix()
-            .map_err(|e| e.context("failed to read ibc compat prefix from state"))
+            .map_err(|e| e.wrap_err("failed to read ibc compat prefix from state"))
     ) {
         Ok(prefixes) => prefixes,
         Err(err) => return Err(err),
     };
     sender
         .parse::<Address<Bech32m>>()
-        .context("failed to parse address in bech32m format")
+        .wrap_err("failed to parse address in bech32m format")
         .and_then(|addr| {
             ensure!(
                 addr.prefix() == base_prefix,
@@ -634,14 +634,14 @@ async fn parse_refund_sender<S: StateRead>(state: &S, sender: &str) -> anyhow::R
         .or_else(|_| {
             sender
                 .parse::<Address<Bech32>>()
-                .context("failed to parse address in bech32/compat format")
+                .wrap_err("failed to parse address in bech32/compat format")
                 .and_then(|addr| {
                     ensure!(
                         addr.prefix() == compat_prefix,
                         "address prefix is not base prefix stored in state"
                     );
                     addr.to_prefix(&base_prefix)
-                        .context(
+                        .wrap_err(
                             "failed to convert ibc compat prefixed address to standard base \
                              prefixed address",
                         )

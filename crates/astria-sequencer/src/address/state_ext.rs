@@ -1,13 +1,12 @@
-use astria_core::primitive::v1::Address;
+use astria_core::primitive::v1::{
+    Address,
+    Bech32m,
+};
 use astria_eyre::eyre::{
     bail,
     ensure,
     Result,
     WrapErr as _,
-};
-use astria_core::primitive::v1::{
-    Address,
-    Bech32m,
 };
 use async_trait::async_trait;
 use cnidarium::{
@@ -28,7 +27,7 @@ fn ibc_compat_prefix_key() -> &'static str {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    async fn ensure_base_prefix(&self, address: &Address<Bech32m>) -> anyhow::Result<()> {
+    async fn ensure_base_prefix(&self, address: &Address<Bech32m>) -> Result<()> {
         let prefix = self
             .get_base_prefix()
             .await
@@ -71,7 +70,8 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(ibc_compat_prefix_key())
             .await
-            .context("failed reading address ibc compat prefix from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading address ibc compat prefix from state")?
         else {
             bail!("no ibc compat prefix found in state")
         };

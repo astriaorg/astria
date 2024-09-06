@@ -57,7 +57,7 @@ use crate::{
 async fn create_ibc_packet_from_withdrawal<S: StateRead>(
     withdrawal: &action::Ics20Withdrawal,
     state: S,
-) -> anyhow::Result<IBCPacket<Unchecked>> {
+) -> Result<IBCPacket<Unchecked>> {
     let sender = if withdrawal.use_compat_address {
         let ibc_compat_prefix = state.get_ibc_compat_prefix().await.context(
             "need to construct bech32 compatible address for IBC communication but failed reading \
