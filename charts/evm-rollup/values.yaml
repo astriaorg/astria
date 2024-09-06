@@ -36,8 +36,8 @@ genesis:
 
   ## These are general configuration values with some recommended defaults
 
-  # Configure the gas Limit
-  gasLimit: "50000000"
+  # Configure the gas Limit for rpc read only ops (eth_estimateGas and eth_call)
+  gasLimit: "550000000"
   # If set to true the genesis block will contain extra data
   overrideGenesisExtraData: true
   # The hrp for bech32m addresses, unlikely to be changed
