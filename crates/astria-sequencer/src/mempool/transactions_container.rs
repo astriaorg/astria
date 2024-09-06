@@ -17,7 +17,10 @@ use tokio::time::{
     Duration,
     Instant,
 };
-use tracing::error;
+use tracing::{
+    error,
+    instrument,
+};
 
 use super::RemovalReason;
 
@@ -437,6 +440,7 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
     /// evicts all transactions from accounts whose lowest transaction has expired.
     ///
     /// Returns all transactions that have been removed with the reason why they have been removed.
+    #[instrument(skip_all)]
     pub(super) async fn clean_accounts<F, O>(
         &mut self,
         current_account_nonce_getter: &F,
@@ -523,6 +527,7 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
 
     /// Returns a copy of transactions and their hashes sorted by nonce difference and then time
     /// first seen.
+    #[instrument(skip_all, err)]
     pub(super) async fn builder_queue<F, O>(
         &self,
         current_account_nonce_getter: F,
@@ -601,6 +606,7 @@ impl<const MAX_TX_COUNT: usize> TransactionsContainer<ParkedTransactionsForAccou
     /// Removes and returns transactions along with their account's current nonce that are lower
     /// than or equal to that nonce. This is helpful when needing to promote transactions from
     /// parked to pending during mempool maintenance.
+    #[instrument(skip_all)]
     pub(super) async fn find_promotables<F, O>(
         &mut self,
         current_account_nonce_getter: &F,

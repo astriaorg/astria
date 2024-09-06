@@ -56,6 +56,7 @@ use crate::{
     transaction::StateReadExt as _,
 };
 
+#[instrument(skip_all, err)]
 async fn create_ibc_packet_from_withdrawal<S: StateRead>(
     withdrawal: &action::Ics20Withdrawal,
     state: S,

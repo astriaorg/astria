@@ -579,6 +579,7 @@ async fn execute_withdrawal_refund_to_rollup<S: StateWrite>(
     Ok(())
 }
 
+#[instrument(skip_all, err)]
 async fn parse_refund_sender<S: StateRead>(state: &S, sender: &str) -> anyhow::Result<Address> {
     use futures::TryFutureExt as _;
     let (base_prefix, compat_prefix) = match try_join!(

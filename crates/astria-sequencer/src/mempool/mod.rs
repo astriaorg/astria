@@ -226,6 +226,7 @@ impl Mempool {
     ///
     /// This function should only be used to remove invalid/failing transactions and not executed
     /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
+    #[instrument(skip_all)]
     pub(crate) async fn remove_tx_invalid(
         &self,
         signed_tx: Arc<SignedTransaction>,
