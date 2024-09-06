@@ -23,7 +23,11 @@ message Account {
 }
 
 message AddressPrefixes {
+  // The base prefix used for most Astria Sequencer addresses.
   string base = 1;
+  // The prefix used for sending ics20 transfers to IBC chains
+  // that enforce a bech32 format of the packet sender.
+  string ibc_compat = 2;
 }
 
 // IBC configuration data.

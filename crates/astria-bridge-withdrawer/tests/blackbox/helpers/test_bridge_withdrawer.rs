@@ -412,6 +412,7 @@ impl From<Ics20Withdrawal> for SubsetOfIcs20Withdrawal {
             fee_asset,
             memo,
             bridge_address,
+            use_compat_address: _use_compat_address,
         } = value;
         Self {
             amount,
@@ -464,6 +465,7 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
         timeout_time,
         source_channel: "channel-0".parse().unwrap(),
         bridge_address: Some(default_bridge_address()),
+        use_compat_address: false,
     };
 
     Action::Ics20Withdrawal(inner)
