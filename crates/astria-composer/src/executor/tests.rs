@@ -82,6 +82,10 @@ use crate::{
     },
     mount_executed_block,
     mount_get_commitment_state,
+    sequencer_hooks::{
+        FinalizedHashInfo,
+        OptimisticBlockInfo,
+    },
     test_utils::sequence_action_of_max_size,
     Config,
 };
@@ -357,9 +361,12 @@ async fn full_bundle() {
     let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
+    let (filtered_block_sender, filtered_block_receiver) =
+        tokio::sync::mpsc::channel::<OptimisticBlockInfo>(10);
+    let (finalized_hash_sender, finalized_hash_receiver) =
+        tokio::sync::mpsc::channel::<FinalizedHashInfo>(10);
+
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
-    let (_filtered_block_sender, filtered_block_receiver) = tokio::sync::mpsc::channel(1);
-    let (_finalized_hash_sender, finalized_hash_receiver) = tokio::sync::mpsc::channel(1);
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
@@ -415,7 +422,7 @@ async fn full_bundle() {
         ..sequence_action_of_max_size(cfg.max_bytes_per_bundle)
     };
 
-    let rollup_data: Vec<raw_sequencer::RollupData> = vec![seq0.clone()]
+    let rollup_data: Vec<raw_sequencer::RollupData> = vec![seq0.clone(), seq1.clone()]
         .iter()
         .map(|item| RollupData::SequencedData(item.clone().data).to_raw())
         .collect();
@@ -508,9 +515,11 @@ async fn bundle_triggered_by_block_timer() {
     let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
+    let (filtered_block_sender, filtered_block_receiver) =
+        tokio::sync::mpsc::channel::<OptimisticBlockInfo>(10);
+    let (finalized_hash_sender, finalized_hash_receiver) =
+        tokio::sync::mpsc::channel::<FinalizedHashInfo>(10);
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
-    let (_filtered_block_sender, filtered_block_receiver) = tokio::sync::mpsc::channel(1);
-    let (_finalized_hash_sender, finalized_hash_receiver) = tokio::sync::mpsc::channel(1);
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
@@ -664,8 +673,10 @@ async fn two_seq_actions_single_bundle() {
     let shutdown_token = CancellationToken::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
-    let (_filtered_block_sender, filtered_block_receiver) = tokio::sync::mpsc::channel(1);
-    let (_finalized_hash_sender, finalized_hash_receiver) = tokio::sync::mpsc::channel(1);
+    let (filtered_block_sender, filtered_block_receiver) =
+        tokio::sync::mpsc::channel::<OptimisticBlockInfo>(10);
+    let (finalized_hash_sender, finalized_hash_receiver) =
+        tokio::sync::mpsc::channel::<FinalizedHashInfo>(10);
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
@@ -821,8 +832,11 @@ async fn chain_id_mismatch_returns_error() {
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     let rollup_name = RollupId::new([0; ROLLUP_ID_LEN]);
 
-    let (_filtered_block_sender, filtered_block_receiver) = tokio::sync::mpsc::channel(1);
-    let (_finalized_hash_sender, finalized_hash_receiver) = tokio::sync::mpsc::channel(1);
+    let (filtered_block_sender, filtered_block_receiver) =
+        tokio::sync::mpsc::channel::<OptimisticBlockInfo>(10);
+    let (finalized_hash_sender, finalized_hash_receiver) =
+        tokio::sync::mpsc::channel::<FinalizedHashInfo>(10);
+
     // mount a status response with an incorrect chain_id
     mount_genesis(&sequencer, "bad-chain-id").await;
 
