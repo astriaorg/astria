@@ -10,12 +10,15 @@ use astria_core::{
     },
     Protobuf as _,
 };
-use astria_eyre::eyre::{
-    bail,
-    ensure,
-    OptionExt as _,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        ensure,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use cnidarium::{
     StateRead,
@@ -51,7 +54,6 @@ use crate::{
     },
     state_ext::StateReadExt as _,
     transaction::StateReadExt as _,
-    utils::anyhow_to_eyre,
 };
 
 async fn create_ibc_packet_from_withdrawal<S: StateRead>(

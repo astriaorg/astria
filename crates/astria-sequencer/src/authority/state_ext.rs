@@ -1,10 +1,13 @@
 use std::collections::BTreeMap;
 
 use astria_core::primitive::v1::ADDRESS_LEN;
-use astria_eyre::eyre::{
-    bail,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -18,10 +21,7 @@ use cnidarium::{
 use tracing::instrument;
 
 use super::ValidatorSet;
-use crate::{
-    accounts::AddressBytes,
-    utils::anyhow_to_eyre,
-};
+use crate::accounts::AddressBytes;
 
 /// Newtype wrapper to read and write an address from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]

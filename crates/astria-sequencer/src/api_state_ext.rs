@@ -12,11 +12,14 @@ use astria_core::{
     },
     Protobuf as _,
 };
-use astria_eyre::eyre::{
-    bail,
-    eyre,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        eyre,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -30,8 +33,6 @@ use cnidarium::{
 };
 use prost::Message;
 use tracing::instrument;
-
-use crate::utils::anyhow_to_eyre;
 
 fn block_hash_by_height_key(height: u64) -> String {
     format!("blockhash/{height}")

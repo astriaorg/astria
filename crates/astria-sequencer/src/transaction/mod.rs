@@ -8,11 +8,14 @@ use astria_core::protocol::transaction::v1alpha1::{
     action::Action,
     SignedTransaction,
 };
-use astria_eyre::eyre::{
-    ensure,
-    OptionExt as _,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        ensure,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 pub(crate) use checks::{
     check_balance_for_total_fees_and_transfers,
@@ -45,7 +48,6 @@ use crate::{
         StateReadExt as _,
     },
     state_ext::StateReadExt as _,
-    utils::anyhow_to_eyre,
 };
 
 #[derive(Debug)]

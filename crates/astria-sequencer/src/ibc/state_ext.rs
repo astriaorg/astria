@@ -2,10 +2,13 @@ use astria_core::primitive::v1::{
     asset,
     ADDRESS_LEN,
 };
-use astria_eyre::eyre::{
-    bail,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -22,10 +25,7 @@ use tracing::{
     instrument,
 };
 
-use crate::{
-    accounts::AddressBytes,
-    utils::anyhow_to_eyre,
-};
+use crate::accounts::AddressBytes;
 
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]

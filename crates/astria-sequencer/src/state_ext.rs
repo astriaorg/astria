@@ -1,8 +1,11 @@
-use astria_eyre::eyre::{
-    bail,
-    eyre,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        eyre,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use cnidarium::{
@@ -11,8 +14,6 @@ use cnidarium::{
 };
 use tendermint::Time;
 use tracing::instrument;
-
-use crate::utils::anyhow_to_eyre;
 
 const REVISION_NUMBER_KEY: &str = "revision_number";
 

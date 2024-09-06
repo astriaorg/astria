@@ -2,11 +2,14 @@ use astria_core::primitive::v1::{
     Address,
     Bech32m,
 };
-use astria_eyre::eyre::{
-    bail,
-    ensure,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        ensure,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use cnidarium::{
@@ -14,8 +17,6 @@ use cnidarium::{
     StateWrite,
 };
 use tracing::instrument;
-
-use crate::utils::anyhow_to_eyre;
 
 fn base_prefix_key() -> &'static str {
     "prefixes/base"

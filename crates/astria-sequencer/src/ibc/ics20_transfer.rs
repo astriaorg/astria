@@ -25,12 +25,15 @@ use astria_core::{
     protocol::memos,
     sequencerblock::v1alpha1::block::Deposit,
 };
-use astria_eyre::eyre::{
-    bail,
-    ensure,
-    OptionExt as _,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    eyre::{
+        bail,
+        ensure,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
+    eyre_to_anyhow,
 };
 use cnidarium::{
     StateRead,
@@ -79,7 +82,6 @@ use crate::{
         self,
         StateReadExt as _,
     },
-    utils::eyre_to_anyhow,
 };
 
 /// The maximum length of the encoded Ics20 `FungibleTokenPacketData` in bytes.

@@ -31,13 +31,16 @@ use astria_core::{
     },
     sequencerblock::v1alpha1::block::SequencerBlock,
 };
-use astria_eyre::eyre::{
-    bail,
-    ensure,
-    eyre,
-    OptionExt as _,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        ensure,
+        eyre,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use cnidarium::{
     ArcStateDeltaExt,
@@ -116,7 +119,6 @@ use crate::{
         StateWriteExt as _,
     },
     transaction::InvalidNonce,
-    utils::anyhow_to_eyre,
 };
 
 /// The inter-block state being written to by the application.

@@ -83,3 +83,40 @@ fn write_value(err: &dyn Error, f: &mut core::fmt::Formatter<'_>) -> core::fmt::
     f.write_fmt(format_args!("\"{err}\""))?;
     Ok(())
 }
+
+pub fn anyhow_to_eyre(anyhow_error: anyhow::Error) -> eyre::Report {
+    let boxed: Box<dyn std::error::Error + Send + Sync> = anyhow_error.into();
+    eyre::eyre!(boxed)
+}
+
+#[must_use]
+pub fn eyre_to_anyhow(eyre_error: eyre::Report) -> anyhow::Error {
+    let boxed: Box<dyn std::error::Error + Send + Sync> = eyre_error.into();
+    anyhow::anyhow!(boxed)
+}
+
+mod test {
+    #[test]
+    fn anyhow_to_eyre_preserves_source_chain() {
+        let mut errs = ["foo", "bar", "baz", "qux"];
+        let anyhow_error = anyhow::anyhow!(errs[0]).context(errs[1]).context(errs[2]);
+        let eyre_from_anyhow = crate::anyhow_to_eyre(anyhow_error).wrap_err(errs[3]);
+
+        errs.reverse();
+        for (i, err) in eyre_from_anyhow.chain().enumerate() {
+            assert_eq!(errs[i], &err.to_string());
+        }
+    }
+
+    #[test]
+    fn eyre_to_anyhow_preserves_source_chain() {
+        let mut errs = ["foo", "bar", "baz", "qux"];
+        let eyre_error = eyre::eyre!(errs[0]).wrap_err(errs[1]).wrap_err(errs[2]);
+        let anyhow_from_eyre = crate::eyre_to_anyhow(eyre_error).context(errs[3]);
+
+        errs.reverse();
+        for (i, err) in anyhow_from_eyre.chain().enumerate() {
+            assert_eq!(errs[i], &err.to_string());
+        }
+    }
+}

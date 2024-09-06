@@ -1,9 +1,12 @@
 use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer;
-use astria_eyre::eyre::{
-    eyre,
-    OptionExt as _,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        eyre,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use penumbra_tower_trace::{
     trace::request_span,
@@ -38,7 +41,6 @@ use crate::{
     mempool::Mempool,
     metrics::Metrics,
     service,
-    utils::anyhow_to_eyre,
 };
 
 pub struct Sequencer;

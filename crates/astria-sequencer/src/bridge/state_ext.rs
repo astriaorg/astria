@@ -13,12 +13,15 @@ use astria_core::{
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
-use astria_eyre::eyre::{
-    bail,
-    format_err,
-    OptionExt as _,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        format_err,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -40,7 +43,6 @@ use tracing::{
 use crate::{
     accounts::AddressBytes,
     address,
-    utils::anyhow_to_eyre,
 };
 
 /// Newtype wrapper to read and write a u128 from rocksdb.

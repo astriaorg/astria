@@ -732,6 +732,7 @@ dependencies = [
 name = "astria-eyre"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "eyre",
  "itoa",
  "tokio-test",

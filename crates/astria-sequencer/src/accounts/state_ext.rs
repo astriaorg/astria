@@ -5,11 +5,14 @@ use astria_core::{
     },
     protocol::account::v1alpha1::AssetBalance,
 };
-use astria_eyre::eyre::{
-    eyre,
-    OptionExt as _,
-    Result,
-    WrapErr as _,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        eyre,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -24,7 +27,6 @@ use futures::StreamExt;
 use tracing::instrument;
 
 use super::AddressBytes;
-use crate::utils::anyhow_to_eyre;
 
 /// Newtype wrapper to read and write a u32 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
