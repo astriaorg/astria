@@ -811,6 +811,7 @@ dependencies = [
  "penumbra-ibc",
  "penumbra-proto",
  "penumbra-tower-trace",
+ "pin-project-lite",
  "prost",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
