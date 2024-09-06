@@ -270,7 +270,7 @@ impl Conductor {
         info!("shutting down");
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn restart(&mut self) -> eyre::Result<()> {
         self.task_shutdown.cancel();
         let new_conductor = Self::new(self.cfg.clone(), self.metrics)
