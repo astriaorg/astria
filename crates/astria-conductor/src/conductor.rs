@@ -78,11 +78,20 @@ impl Future for Handle {
 }
 
 pub struct Conductor {
-    /// Token to signal to all tasks to shut down gracefully.
+    /// Token to signal to conductor to shut down gracefully.
     shutdown: CancellationToken,
+
+    /// Token to signal to all tasks to shut down gracefully.
+    task_shutdown: CancellationToken,
 
     /// The different long-running tasks that make up the conductor;
     tasks: JoinMap<&'static str, eyre::Result<()>>,
+
+    /// Configuration for the conductor, necessary upon a restart.
+    cfg: Config,
+
+    /// Metrics used by tasks, necessary upon a restart.
+    metrics: &'static Metrics,
 }
 
 impl Conductor {
@@ -103,13 +112,14 @@ impl Conductor {
             .wrap_err("failed constructing sequencer cometbft RPC client")?;
 
         let shutdown = CancellationToken::new();
+        let task_shutdown = CancellationToken::new();
 
         // Spawn the executor task.
         let executor_handle = {
             let (executor, handle) = executor::Builder {
                 mode: cfg.execution_commit_level,
-                rollup_address: cfg.execution_rpc_url,
-                shutdown: shutdown.clone(),
+                rollup_address: cfg.execution_rpc_url.clone(),
+                shutdown: task_shutdown.clone(),
                 metrics,
             }
             .build()
@@ -131,7 +141,7 @@ impl Conductor {
                 sequencer_grpc_client,
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
-                shutdown: shutdown.clone(),
+                shutdown: task_shutdown.clone(),
                 executor: executor_handle.clone(),
             }
             .build();
@@ -142,17 +152,17 @@ impl Conductor {
             let celestia_token = if cfg.no_celestia_auth {
                 None
             } else {
-                Some(cfg.celestia_bearer_token)
+                Some(cfg.celestia_bearer_token.clone())
             };
 
             let reader = celestia::Builder {
-                celestia_http_endpoint: cfg.celestia_node_http_url,
+                celestia_http_endpoint: cfg.celestia_node_http_url.clone(),
                 celestia_token,
                 celestia_block_time: Duration::from_millis(cfg.celestia_block_time_ms),
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_requests_per_second: cfg.sequencer_requests_per_second,
-                shutdown: shutdown.clone(),
+                shutdown: task_shutdown.clone(),
                 metrics,
             }
             .build()
@@ -163,7 +173,10 @@ impl Conductor {
 
         Ok(Self {
             shutdown,
+            task_shutdown,
             tasks,
+            cfg,
+            metrics,
         })
     }
 
@@ -174,19 +187,29 @@ impl Conductor {
     async fn run_until_stopped(mut self) {
         info_span!("Conductor::run_until_stopped").in_scope(|| info!("conductor is running"));
 
-        let exit_reason = select! {
-            biased;
+        let exit_reason = loop {
+            select! {
+                biased;
 
-            () = self.shutdown.cancelled() => {
-                Ok("received shutdown signal")
-            }
-
-            Some((name, res)) = self.tasks.join_next() => {
-                match flatten(res) {
-                    Ok(()) => Err(eyre!("task `{name}` exited unexpectedly")),
-                    Err(err) => Err(err).wrap_err_with(|| "task `{name}` failed"),
+                () = self.shutdown.cancelled() => {
+                    break Ok("received shutdown signal");
                 }
-            }
+
+                Some((name, res)) = self.tasks.join_next() => {
+                    match flatten(res) {
+                        Ok(()) => break Err(eyre!("task `{name}` exited unexpectedly")),
+                        Err(err) => {
+                            if check_for_restart(&err) {
+                                match self.restart().await {
+                                    Ok(()) => {},
+                                    Err(err) => break Err(err),
+                                }
+                            } else {
+                                break Err(err).wrap_err_with(|| "task `{name}` failed")
+                            }
+                        },
+                }
+            }}
         };
 
         let message = "initiating shutdown";
@@ -217,6 +240,7 @@ impl Conductor {
     #[instrument(skip_all)]
     async fn shutdown(mut self) {
         self.shutdown.cancel();
+        self.task_shutdown.cancel();
 
         info!("signalled all tasks to shut down; waiting for 25 seconds to exit");
 
@@ -245,6 +269,16 @@ impl Conductor {
         }
         info!("shutting down");
     }
+
+    #[instrument(skip_all)]
+    async fn restart(&mut self) -> eyre::Result<()> {
+        self.task_shutdown.cancel();
+        let new_conductor = Self::new(self.cfg.clone(), self.metrics)
+            .wrap_err("failed to restart Conductor after shutting down")?;
+        self.task_shutdown = new_conductor.task_shutdown;
+        self.tasks = new_conductor.tasks;
+        Ok(())
+    }
 }
 
 #[instrument(skip_all)]
@@ -253,4 +287,18 @@ fn report_exit(exit_reason: eyre::Result<&str>, message: &str) {
         Ok(reason) => info!(%reason, message),
         Err(reason) => error!(%reason, message),
     }
+}
+
+#[instrument(skip_all)]
+fn check_for_restart(err: &eyre::ErrReport) -> bool {
+    let mut current = Some(err.as_ref() as &dyn std::error::Error);
+    while let Some(err) = current {
+        if let Some(status) = err.downcast_ref::<tonic::Status>() {
+            if status.code() == tonic::Code::PermissionDenied {
+                return true;
+            }
+        }
+        current = err.source();
+    }
+    false
 }
