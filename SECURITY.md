@@ -34,7 +34,10 @@ infrastructure.
 
 ### Rewards
 
-Astria does not have a formal reward policy. Researchers should not expect compensation for discovering vulnerabilities. However, we are grateful for all legitimate vulnerability discoveries and will acknowledge researchers after a fix has been widely deployed.
+Astria does not have a formal reward policy.
+Researchers should not expect compensation for discovering vulnerabilities.
+However, we are grateful for all legitimate vulnerability discoveries
+and will acknowledge researchers after a fix has been widely deployed.
 
 ### Official Communication Channel
 
@@ -50,8 +53,8 @@ If you have suggestions for improving this policy, please submit a pull request.
 When working with us according to this policy, you can expect us to:
 
 - Extend Safe Harbor protection for your vulnerability research related to this policy;
-- Work with you to understand and validate your report, including providing a
-timely initial response to the submission;
+- Work with you to understand and validate your report,
+  including providing a timely initial response to the submission;
 - Work to remediate discovered vulnerabilities in a timely manner; and
 - Recognize your contribution if you're the first to report a unique vulnerability that triggers a code or configuration change.
 
@@ -63,7 +66,7 @@ good-faith hacking and malicious attack, we ask that you:
 - Follow this policy and any other relevant agreements.
 - Report discovered vulnerabilities promptly.
 - Avoid violating privacy, disrupting systems, destroying data, or harming user experience.
-- Use only the specified reporting method and official communication channels.
+- Use only specified reporting method and official communication channels.
 - Keep vulnerability details confidential until fixed, as per the Disclosure Policy.
 - Test only in-scope systems and respect out-of-scope systems and activities.
 - Limit data access when demonstrating a Proof of Concept, and immediately report any accidental access to sensitive data.
@@ -75,9 +78,10 @@ good-faith hacking and malicious attack, we ask that you:
 When conducting vulnerability research in full compliance with this policy and
 all applicable laws, we consider this research to be:
 
-- Authorized in accordance with the Computer Fraud and Abuse Act (CFAA) (and/or
-similar state laws), and we will not initiate or support legal action against
-you for accidental, good faith violations of this policy;
+- Authorized in accordance with the Computer Fraud and Abuse Act (CFAA)
+ (and/or similar state laws), and we will not initiate or support
+ legal action against you for accidental, good faith
+ violations of this policy;
 - Exempt from the Digital Millennium Copyright Act (DMCA), and we will not bring
 a claim against you for circumvention of technology controls;
 - Exempt from restrictions in our Terms & Conditions that would interfere with
