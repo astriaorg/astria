@@ -59,12 +59,15 @@ use crate::{
         proto_genesis_state,
         BOB_ADDRESS,
         CAROL_ADDRESS,
-    }, authority::StateReadExt as _, bridge::StateWriteExt as _, proposal::commitment::generate_rollup_datas_commitment, test_utils::{
+    },
+    bridge::StateWriteExt as _,
+    proposal::commitment::generate_rollup_datas_commitment,
+    test_utils::{
         astria_address,
         astria_address_from_hex_string,
         nria,
         ASTRIA_PREFIX,
-    }
+    },
 };
 
 #[tokio::test]
