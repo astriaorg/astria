@@ -22,7 +22,8 @@ Please first submit the vulnerability you discovered using the instructions in
 you may share the details with third parties after either of the following,
 whichever is sooner:
 
-- the vulnerability has been fixed and the Astria security team has permitted disclosure; or
+- the vulnerability has been fixed and the Astria security team has permitted
+  disclosure; or
 - 120 days have passed since your submission
 
 ### Scope
@@ -68,7 +69,6 @@ good-faith hacking and malicious attack, we ask that you:
 - Limit data access when demonstrating a Proof of Concept, and immediately report any accidental access to sensitive data.
 - Interact only with test accounts you own or have explicit permission to use.
 - Do not engage in extortion.
-
 
 ### Safe Harbor
 
