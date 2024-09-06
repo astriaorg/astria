@@ -93,11 +93,7 @@ impl Client {
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();
             let request = request.clone();
-            async move {
-                let res = client.execute_block(request).await;
-                println!("{:?}", res);
-                res
-            }
+            async move { client.execute_block(request).await }
         })
         .with_config(retry_config())
         .in_current_span()
