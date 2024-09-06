@@ -35,7 +35,6 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     WrapErr as _,
 };
 use bytes::Bytes;
@@ -365,10 +364,6 @@ impl Executor {
                 () = &mut block_timer, if submission_fut.is_terminated() => {
                     let bundle = bundle_factory.pop_now();
                     if bundle.is_empty() {
-<<<<<<< HEAD
-=======
-                        debug!("block timer ticked, but no bundle to submit to sequencer");
->>>>>>> 7c75d72f (clean ups)
                         block_timer.as_mut().reset(reset_time());
                     } else {
                         debug!(

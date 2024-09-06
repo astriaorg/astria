@@ -15,6 +15,10 @@ use astria_core::{
     },
     primitive::v1::{
         asset,
+        asset::{
+            Denom,
+            IbcPrefixed,
+        },
         RollupId,
         ROLLUP_ID_LEN,
     },
@@ -67,7 +71,6 @@ use wiremock::{
     Request,
     ResponseTemplate,
 };
-use astria_core::primitive::v1::asset::{Denom, IbcPrefixed};
 
 use crate::{
     executor,

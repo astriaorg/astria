@@ -16,7 +16,13 @@ use astria_composer::{
 use astria_core::{
     composer::v1alpha1::BuilderBundle,
     generated::composer::v1alpha1::BuilderBundlePacket,
-    primitive::v1::RollupId,
+    primitive::v1::{
+        asset::{
+            Denom,
+            IbcPrefixed,
+        },
+        RollupId,
+    },
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::SignedTransaction,
@@ -27,6 +33,7 @@ use astria_core::{
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
 use once_cell::sync::Lazy;
+use prost::Message;
 use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tendermint_rpc::{
@@ -45,7 +52,6 @@ use wiremock::{
     Request,
     ResponseTemplate,
 };
-use astria_core::primitive::v1::asset::{Denom, IbcPrefixed};
 
 use crate::helper::mock_grpc::{
     MockGrpc,
@@ -107,7 +113,7 @@ pub struct TestComposer {
     pub setup_guard: MockGuard,
     pub grpc_collector_addr: SocketAddr,
     pub metrics_handle: metrics::Handle,
-    pub test_executor: TestExecutor
+    pub test_executor: TestExecutor,
 }
 
 /// Spawns composer in a test environment.
