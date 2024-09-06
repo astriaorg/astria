@@ -202,7 +202,7 @@ impl Conductor {
                             if check_for_restart(&err) {
                                 match self.restart().await {
                                     Ok(()) => {},
-                                    Err(err) => break Err(err),
+                                    Err(err) => break Err(err.wrap_err("failed to restart conductor")),
                                 }
                             } else {
                                 break Err(err).wrap_err_with(|| "task `{name}` failed")
@@ -274,7 +274,7 @@ impl Conductor {
     async fn restart(&mut self) -> eyre::Result<()> {
         self.task_shutdown.cancel();
         let new_conductor = Self::new(self.cfg.clone(), self.metrics)
-            .wrap_err("failed to restart Conductor after shutting down")?;
+            .wrap_err("failed to start new conductor tasks")?;
         self.task_shutdown = new_conductor.task_shutdown;
         self.tasks = new_conductor.tasks;
         Ok(())
