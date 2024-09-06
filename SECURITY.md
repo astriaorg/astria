@@ -56,7 +56,8 @@ When working with us according to this policy, you can expect us to:
 - Work with you to understand and validate your report,
   including providing a timely initial response to the submission;
 - Work to remediate discovered vulnerabilities in a timely manner; and
-- Recognize your contribution if you're the first to report a unique vulnerability that triggers a code or configuration change.
+- Recognize your contribution if you're the first to report
+  a unique vulnerability that triggers a code or configuration change.
 
 ### Ground Rules for Researchers
 
@@ -68,7 +69,8 @@ good-faith hacking and malicious attack, we ask that you:
 - Avoid violating privacy, disrupting systems, destroying data, or harming user experience.
 - Use only specified reporting method and official communication channels.
 - Keep vulnerability details confidential until fixed, as per the Disclosure Policy.
-- Test only in-scope systems and respect out-of-scope systems and activities.
+- Test only in-scope systems and respect out-of-scope
+  systems and activities.
 - Limit data access when demonstrating a Proof of Concept, and immediately report any accidental access to sensitive data.
 - Interact only with test accounts you own or have explicit permission to use.
 - Do not engage in extortion.
@@ -87,7 +89,7 @@ a claim against you for circumvention of technology controls;
 - Exempt from restrictions in our Terms & Conditions that would interfere with
 conducting security research, and we waive those restrictions on a limited basis
 for work done under this policy; and
-- Lawful, helpful to the overall security of the Internet, and conducted in good
-faith.
+- Lawful, helpful to the overall security of the Internet, and
+conducted in good faith.
 
 If you're unsure whether your research is consistent with this policy, please report through our official channels before proceeding.
