@@ -59,7 +59,7 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
     let data = tx.rlp().to_vec();
     let rollup_data = vec![RollupData::SequencedData(Bytes::from(data)).to_raw()];
 
-    let execute_block = mount_executed_block!(test_executor,
+    let _execute_block = mount_executed_block!(test_executor,
         mock_name: "execute_block",
         number: soft_block_number,
         hash: soft_block_hash,
@@ -146,7 +146,7 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
     let data = tx.rlp().to_vec();
     let rollup_data = vec![RollupData::SequencedData(Bytes::from(data)).to_raw()];
 
-    let execute_block = mount_executed_block!(test_executor,
+    let _execute_block = mount_executed_block!(test_executor,
         mock_name: "execute_block",
         number: soft_block_number,
         hash: soft_block_hash,
@@ -225,7 +225,7 @@ async fn single_rollup_tx_payload_integrity() {
     let data = tx.rlp().to_vec();
     let rollup_data = vec![RollupData::SequencedData(Bytes::from(data)).to_raw()];
 
-    let execute_block = mount_executed_block!(test_executor,
+    let _execute_block = mount_executed_block!(test_executor,
         mock_name: "execute_block",
         number: soft_block_number,
         hash: soft_block_hash,

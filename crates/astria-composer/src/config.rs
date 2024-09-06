@@ -5,14 +5,6 @@ use serde::{
     Serialize,
 };
 
-<<<<<<< HEAD
-use crate::rollup::{
-    ParseError,
-    Rollup,
-};
-
-=======
->>>>>>> f151354e (initial version of trusted builder mvp)
 // this is a config, may have many boolean values
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Deserialize, Serialize)]
@@ -76,35 +68,10 @@ pub struct Config {
 
     /// The URL of the execution API server
     pub execution_api_url: String,
-}
 
-<<<<<<< HEAD
-impl Config {
-    /// Returns a map of rollup names to rollup URLs.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if parsing fails.
-    pub fn parse_rollups(&self) -> Result<HashMap<String, String>, ParseError> {
-        self.rollups
-            .split(',')
-            .filter(|s| !s.is_empty())
-            .map(|s| Rollup::parse(s).map(Rollup::into_parts))
-            .collect::<Result<HashMap<_, _>, _>>()
-    }
+    /// The maximum possible size of a bundle
+    pub max_bundle_size: usize,
 }
-=======
-// impl Config {
-//     pub(crate) fn parse_rollups(&self) -> astria_eyre::eyre::Result<HashMap<String, String>> {
-//         self.rollups
-//             .split(',')
-//             .filter(|s| !s.is_empty())
-//             .map(|s| Rollup::parse(s).map(Rollup::into_parts))
-//             .collect::<Result<HashMap<_, _>, _>>()
-//             .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")
-//     }
-// }
->>>>>>> f151354e (initial version of trusted builder mvp)
 
 impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_COMPOSER_";
