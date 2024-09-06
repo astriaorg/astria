@@ -23,6 +23,7 @@ use crate::{
         block::Deposit,
         SequencerBlock,
     },
+    Protobuf,
 };
 
 #[derive(Default)]
@@ -131,7 +132,7 @@ impl ConfigureSequencerBlock {
                 .or_default()
                 .extend(deposit.into_iter().map(|deposit| {
                     RollupData::Deposit(Box::new(deposit))
-                        .into_raw()
+                        .to_raw()
                         .encode_to_vec()
                         .into()
                 }));

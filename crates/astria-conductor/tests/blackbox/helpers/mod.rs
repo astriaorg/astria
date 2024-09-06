@@ -11,7 +11,6 @@ use astria_core::{
     brotli::compress_bytes,
     generated::{
         execution::v1alpha2::{
-            Block,
             CommitmentState,
             GenesisInfo,
         },
@@ -36,6 +35,7 @@ use telemetry::metrics;
 #[macro_use]
 mod macros;
 mod mock_grpc;
+use astria_core::generated::execution::v1alpha2::ExecuteBlockResponse;
 use astria_eyre;
 pub use mock_grpc::MockGrpc;
 use serde_json::json;
@@ -380,7 +380,7 @@ impl TestConductor {
         &self,
         mock_name: Option<&str>,
         expected_pbjson: S,
-        response: Block,
+        response: ExecuteBlockResponse,
     ) -> astria_grpc_mock::MockGuard {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
