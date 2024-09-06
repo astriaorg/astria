@@ -70,6 +70,7 @@ features = ["http"]
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+
 test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
   "geth",
 ] }

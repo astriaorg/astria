@@ -47,10 +47,14 @@ use wiremock::{
     Request,
     ResponseTemplate,
 };
-use crate::helper::mock_grpc::{MockGrpc, TestExecutor};
 
-pub mod mock_sequencer;
+use crate::helper::mock_grpc::{
+    MockGrpc,
+    TestExecutor,
+};
+
 pub mod mock_grpc;
+pub mod mock_sequencer;
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
@@ -174,8 +178,8 @@ pub async fn spawn_composer(rollup_name: &str) -> TestComposer {
         grpc_collector_addr,
         metrics_handle,
         test_executor: TestExecutor {
-            mock_grpc: mock_execution_api_server
-        }
+            mock_grpc: mock_execution_api_server,
+        },
     }
 }
 

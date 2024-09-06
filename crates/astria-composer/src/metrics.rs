@@ -112,13 +112,13 @@ impl telemetry::Metrics for Metrics {
         where
             Self: Sized,
     {
-        let rollups = config
-            .parse_rollups()
-            .map_err(|error| Error::External(Box::new(error)))?;
+        let rollup = config.rollup.clone();
         let (geth_txs_received, grpc_txs_received) =
-            register_txs_received(builder, rollups.keys())?;
-        let (geth_txs_dropped, grpc_txs_dropped) = register_txs_dropped(builder, rollups.keys())?;
-        let txs_dropped_too_large = register_txs_dropped_too_large(builder, rollups.keys())?;
+            register_txs_received(builder, vec![rollup.clone()].iter())?;
+        let (geth_txs_dropped, grpc_txs_dropped) =
+            register_txs_dropped(builder, vec![rollup.clone()].iter())?;
+        let txs_dropped_too_large =
+            register_txs_dropped_too_large(builder, vec![rollup.clone()].iter())?;
 
         let nonce_fetch_count = builder
             .new_counter_factory(

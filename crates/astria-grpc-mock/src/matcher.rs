@@ -20,7 +20,9 @@ impl Match for MessagePartialJsonMatcher {
     fn matches(&self, req: &tonic::Request<crate::AnyMessage>) -> bool {
         let req_json = serde_json::to_value(req.get_ref().as_serialize())
             .expect("can map provided gRPC request to JSON");
+        println!("IN MATCH: req_json is {:?}", req_json);
         let config = assert_json_diff::Config::new(CompareMode::Inclusive);
+        println!("IN MATCH: self.0 is {:?}", self.0);
         assert_json_matches_no_panic(&req_json, &self.0, config).is_ok()
     }
 }
