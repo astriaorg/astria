@@ -354,12 +354,18 @@ macro_rules! mount_get_block {
 
 #[macro_export]
 macro_rules! mount_execute_block_tonic_code {
-    ($test_env:ident, parent: $parent:expr, status_code: $status_code:expr $(,)?) => {{
+    (
+        $test_env:ident,
+        parent: $parent:expr,
+        status_code: $status_code:expr $(,)?
+    ) => {{
         use ::base64::prelude::*;
-        $test_env.mount_tonic_status_code(::serde_json::json!({
-            "prevBlockHash": BASE64_STANDARD.encode($parent),
-            "transactions": [{"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}],
-        }),
-        $status_code).await
+        $test_env.mount_tonic_status_code(
+            ::serde_json::json!({
+                "prevBlockHash": BASE64_STANDARD.encode($parent),
+                "transactions": [{"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}],
+            }),
+            $status_code
+        ).await
     }};
 }
