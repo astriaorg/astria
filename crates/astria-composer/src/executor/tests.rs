@@ -8,22 +8,13 @@ use std::{
 };
 
 use astria_core::{
-<<<<<<< HEAD
-    generated::protocol::accounts::v1alpha1::NonceResponse,
-    primitive::v1::{
-        asset::{
-            Denom,
-            IbcPrefixed,
-        },
-=======
     generated::{
         composer::v1alpha1::BuilderBundlePacket,
-        protocol::account::v1alpha1::NonceResponse,
+        protocol::accounts::v1alpha1::NonceResponse,
         sequencerblock::v1alpha1 as raw_sequencer,
     },
     primitive::v1::{
         asset,
->>>>>>> bb1bc54a (initial version of trusted builder mvp)
         RollupId,
         ROLLUP_ID_LEN,
     },
@@ -76,6 +67,7 @@ use wiremock::{
     Request,
     ResponseTemplate,
 };
+use astria_core::primitive::v1::asset::{Denom, IbcPrefixed};
 
 use crate::{
     executor,
@@ -99,7 +91,8 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
         api_listen_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
         sequencer_url: String::new(),
         sequencer_chain_id: String::new(),
-        rollups: String::new(),
+        rollup: "".to_string(),
+        rollup_websocket_url: "".to_string(),
         private_key_file: String::new(),
         sequencer_address_prefix: String::new(),
         block_time_ms: 0,
@@ -112,6 +105,8 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
         pretty_print: false,
         grpc_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
         fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([0; 32])),
+        execution_api_url: "".to_string(),
+        max_bundle_size: 0,
     };
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
@@ -358,11 +353,7 @@ async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
-<<<<<<< HEAD
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
-=======
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.clone())));
->>>>>>> bb1bc54a (initial version of trusted builder mvp)
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -509,11 +500,7 @@ async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
-<<<<<<< HEAD
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
-=======
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.clone())));
->>>>>>> bb1bc54a (initial version of trusted builder mvp)
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -664,11 +651,7 @@ async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
     let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
-<<<<<<< HEAD
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
-=======
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.clone())));
->>>>>>> bb1bc54a (initial version of trusted builder mvp)
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
         sequencer_url: cfg.sequencer_url.clone(),
@@ -820,12 +803,8 @@ async fn chain_id_mismatch_returns_error() {
     // set up sequencer mock
     let (sequencer, cfg, _keyfile, _test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
-<<<<<<< HEAD
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
-=======
-    let metrics = Box::leak(Box::new(Metrics::new(cfg.rollup.clone())));
     let rollup_name = RollupId::new([0; ROLLUP_ID_LEN]);
->>>>>>> bb1bc54a (initial version of trusted builder mvp)
 
     // mount a status response with an incorrect chain_id
     mount_genesis(&sequencer, "bad-chain-id").await;
