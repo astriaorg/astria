@@ -14,17 +14,15 @@ use astria_composer::{
     Metrics,
 };
 use astria_core::{
-    primitive::v1::{
-        asset::{
-            Denom,
-            IbcPrefixed,
-        },
-        RollupId,
-    },
+    composer::v1alpha1::BuilderBundle,
+    generated::composer::v1alpha1::BuilderBundlePacket,
+    primitive::v1::RollupId,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::SignedTransaction,
     },
+    sequencerblock::v1alpha1::block::RollupData,
+    Protobuf,
 };
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
@@ -47,6 +45,7 @@ use wiremock::{
     Request,
     ResponseTemplate,
 };
+use astria_core::primitive::v1::asset::{Denom, IbcPrefixed};
 
 use crate::helper::mock_grpc::{
     MockGrpc,
@@ -79,6 +78,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
         grpc_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
         fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([0; 32])),
         execution_api_url: "".to_string(),
+        max_bundle_size: 0,
     };
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
@@ -151,6 +151,7 @@ pub async fn spawn_composer(rollup_name: &str) -> TestComposer {
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
         fee_asset: "nria".parse().unwrap(),
         execution_api_url: format!("http://{}", mock_execution_api_server.local_addr),
+        max_bundle_size: 200000,
         rollup_websocket_url: rollup_websocket_url.to_string(),
     };
 
@@ -248,18 +249,27 @@ pub async fn mount_matcher_verifying_tx_integrity(
     expected_rlp: Transaction,
 ) -> MockGuard {
     let matcher = move |request: &Request| {
-        // let sequencer_tx = signed_tx_from_request(request);
-        // let sequence_action = sequencer_tx
-        //     .actions()
-        //     .first()
-        //     .unwrap()
-        //     .as_sequence()
-        //     .unwrap();
-        //
-        // let expected_rlp = expected_rlp.rlp().to_vec();
-        //
-        // expected_rlp == sequence_action.data
-        true
+        let sequencer_tx = signed_tx_from_request(request);
+        let sequence_action = sequencer_tx
+            .actions()
+            .first()
+            .unwrap()
+            .as_sequence()
+            .unwrap();
+        let seq_action_data = sequence_action.clone().data;
+        // unmarshall to BuilderBundlePacket
+        let builder_bundle_packet =
+            BuilderBundlePacket::decode(seq_action_data.as_slice()).unwrap();
+        let builder_bundle =
+            BuilderBundle::try_from_raw(builder_bundle_packet.bundle.unwrap()).unwrap();
+        let transaction = builder_bundle.transactions().first().unwrap();
+
+        if let RollupData::SequencedData(data) = transaction {
+            let expected_rlp = expected_rlp.rlp().to_vec();
+            expected_rlp == data.clone()
+        } else {
+            false
+        }
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),

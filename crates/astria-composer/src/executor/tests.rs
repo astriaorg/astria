@@ -32,10 +32,6 @@ use astria_core::{
     Protobuf,
 };
 use astria_eyre::eyre;
-use base64::{
-    prelude::BASE64_STANDARD,
-    Engine,
-};
 use futures::future::join;
 use once_cell::sync::Lazy;
 use prost::{
@@ -176,6 +172,7 @@ async fn setup() -> (MockServer, Config, NamedTempFile, TestExecutor) {
             .unwrap()
             .to_ibc_prefixed()
             .into(),
+        max_bundle_size: 200000,
         execution_api_url: format!("http://{}", execution_api_server.local_addr),
     };
     (
@@ -379,6 +376,7 @@ async fn full_bundle() {
         execution_api_url: cfg.execution_api_url,
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset,
+        max_bundle_size: cfg.max_bundle_size,
         metrics,
     }
     .build()
@@ -529,6 +527,7 @@ async fn bundle_triggered_by_block_timer() {
         execution_api_url: cfg.execution_api_url,
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset.clone(),
+        max_bundle_size: cfg.max_bundle_size,
         metrics,
     }
     .build()
@@ -683,6 +682,7 @@ async fn two_seq_actions_single_bundle() {
         execution_api_url: cfg.execution_api_url,
         chain_name: cfg.rollup.clone(),
         fee_asset: cfg.fee_asset.clone(),
+        max_bundle_size: cfg.max_bundle_size,
         metrics,
     }
     .build()
@@ -843,6 +843,7 @@ async fn chain_id_mismatch_returns_error() {
         execution_api_url: cfg.execution_api_url,
         chain_name: rollup_name.to_string(),
         fee_asset: cfg.fee_asset,
+        max_bundle_size: cfg.max_bundle_size,
         metrics,
     }
     .build()

@@ -34,12 +34,11 @@ use tonic::transport::Server;
 
 pub(crate) struct MockGrpc {
     _server: JoinHandle<eyre::Result<()>>,
-    pub mock_server: MockServer,
-    pub local_addr: SocketAddr,
+    pub(crate) mock_server: MockServer,
+    pub(crate) local_addr: SocketAddr,
 }
 
 impl MockGrpc {
-    #[must_use]
     pub(crate) async fn spawn() -> Self {
         use tokio_stream::wrappers::TcpListenerStream;
 
@@ -222,12 +221,12 @@ macro_rules! mount_executed_block {
     };
 }
 
-pub struct TestExecutor {
-    pub mock_grpc: MockGrpc,
+pub(crate) struct TestExecutor {
+    pub(crate) mock_grpc: MockGrpc,
 }
 
 impl TestExecutor {
-    pub async fn mount_get_commitment_state(&self, commitment_state: CommitmentState) {
+    pub(crate) async fn mount_get_commitment_state(&self, commitment_state: CommitmentState) {
         astria_grpc_mock::Mock::for_rpc_given(
             "get_commitment_state",
             astria_grpc_mock::matcher::message_type::<GetCommitmentStateRequest>(),
@@ -240,7 +239,7 @@ impl TestExecutor {
         .await;
     }
 
-    pub async fn mount_execute_block<S: serde::Serialize>(
+    pub(crate) async fn mount_execute_block<S: serde::Serialize>(
         &self,
         mock_name: Option<&str>,
         expected_pbjson: S,

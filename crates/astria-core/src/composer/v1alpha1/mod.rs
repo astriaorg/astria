@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use prost::Message;
 
 use crate::{
     sequencerblock::v1alpha1::block::{

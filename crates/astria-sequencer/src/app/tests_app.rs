@@ -1,24 +1,17 @@
 use std::collections::HashMap;
 
-use astria_core::{
-    primitive::v1::{
-        asset::TracePrefixed,
-        RollupId,
+use astria_core::{primitive::v1::{
+    asset::TracePrefixed,
+    RollupId,
+}, Protobuf, protocol::transaction::v1alpha1::{
+    action::{
+        BridgeLockAction,
+        SequenceAction,
+        TransferAction,
     },
-    protocol::{
-        genesis::v1alpha1::Account,
-        transaction::v1alpha1::{
-            action::{
-                BridgeLockAction,
-                SequenceAction,
-                TransferAction,
-            },
-            TransactionParams,
-            UnsignedTransaction,
-        },
-    },
-    sequencerblock::v1alpha1::block::Deposit,
-};
+    TransactionParams,
+    UnsignedTransaction,
+}, sequencerblock::v1alpha1::block::Deposit};
 use cnidarium::StateDelta;
 use prost::{
     bytes::Bytes,
@@ -41,6 +34,7 @@ use tendermint::{
     Hash,
     Time,
 };
+use astria_core::protocol::genesis::v1alpha1::Account;
 
 use super::*;
 use crate::{
