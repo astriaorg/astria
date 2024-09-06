@@ -32,7 +32,6 @@ use astria_core::{
             UnsignedTransaction,
         },
     },
-    Protobuf,
 };
 use astria_eyre::eyre::{
     self,
@@ -221,6 +220,8 @@ impl Executor {
         bundle: SizedBundle,
         metrics: &'static Metrics,
     ) -> eyre::Result<Fuse<Instrumented<SubmitFut>>> {
+        info!("Starting bundle simulation!");
+
         let bundle_simulator = self.bundle_simulator.clone();
 
         // simulate the bundle
@@ -232,9 +233,10 @@ impl Executor {
         let rollup_data_items: Vec<RollupData> = bundle_simulation_result
             .included_actions()
             .iter()
-            .map(|action| action.to_raw())
+            .map(astria_core::Protobuf::to_raw)
             .collect();
 
+        info!("Creating BuilderBundlePacket");
         let builder_bundle = BuilderBundle {
             transactions: rollup_data_items,
             parent_hash: bundle_simulation_result.parent_hash().to_vec(),
@@ -249,6 +251,7 @@ impl Executor {
         };
         let encoded_builder_bundle_packet = builder_bundle_packet.encode_to_vec();
 
+        info!("Created builder bundle packet: {:?}", builder_bundle_packet);
         // we can give the BuilderBundlePacket the highest bundle max size possible
         // since this is the only sequence action we are sending
         let mut final_bundle = SizedBundle::new(self.max_bundle_size);
@@ -259,6 +262,8 @@ impl Executor {
         }) {
             return Err(eyre::Report::from(e));
         }
+
+        info!("Submitting the builder bundle packet to sequencer!");
 
         Ok(SubmitFut {
             client: self.sequencer_client.clone(),

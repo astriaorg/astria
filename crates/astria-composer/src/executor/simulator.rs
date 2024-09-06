@@ -1,3 +1,5 @@
+/// ! `BundleSimulator` is responsible for fetching the latest rollup commitment state
+/// and simulating the given bundle on top of the latest soft block.
 use astria_core::{
     sequencerblock::v1alpha1::block::RollupData,
     Protobuf,
@@ -60,13 +62,16 @@ impl BundleSimulator {
         bundle: SizedBundle,
     ) -> eyre::Result<BundleSimulationResult> {
         // call GetCommitmentState to get the soft block
+        info!("Calling GetCommitmentState!");
         let commitment_state = self
             .execution_service_client
             .get_commitment_state_with_retry()
             .await
             .wrap_err("failed to get commitment state")?;
+        info!("Received CommitmentState of rollup");
 
         let soft_block = commitment_state.soft();
+        info!("Soft block hash is {:?}", soft_block.hash());
         // convert the sized bundle actions to a list of Vec<u8>
         let actions: Vec<Vec<u8>> = bundle
             .into_actions()
@@ -80,6 +85,7 @@ impl BundleSimulator {
             .filter(|data| !data.is_empty())
             .collect();
 
+        info!("Calling ExecuteBlock to simulate the bundle!");
         // as long as the timestamp > parent block timestamp, the block will be successfully
         // created. It doesn't matter what timestamp we use anyway since we are not going to
         // commit the block to the chain.
@@ -100,9 +106,14 @@ impl BundleSimulator {
             .await
             .wrap_err("failed to execute block")?;
 
-        info!("Using block hash instead of parent hash lmaoooo!");
+        let included_transactions = execute_block_response.included_transactions();
+        info!(
+            "Bundle simulated on top of {:?} and {:?} transactions were included",
+            soft_block.hash(),
+            included_transactions.len()
+        );
         Ok(BundleSimulationResult::new(
-            execute_block_response.included_transactions().to_vec(),
+            included_transactions.to_vec(),
             soft_block.hash().clone(),
         ))
     }
