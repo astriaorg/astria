@@ -109,8 +109,8 @@ impl telemetry::Metrics for Metrics {
     type Config = crate::Config;
 
     fn register(builder: &mut RegisteringBuilder, config: &Self::Config) -> Result<Self, Error>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         let rollups = config
             .parse_rollups()

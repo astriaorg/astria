@@ -17,10 +17,7 @@ use astria_core::{
             BuilderBundle,
             BuilderBundlePacket,
         },
-        sequencerblock::v1alpha1::{
-            rollup_data,
-            RollupData,
-        },
+        sequencerblock::v1alpha1::RollupData,
     },
     primitive::v1::{
         asset,
@@ -107,6 +104,7 @@ mod client;
 mod simulator;
 #[cfg(test)]
 mod tests;
+mod mock_grpc;
 
 pub(crate) use builder::Builder;
 
@@ -216,6 +214,7 @@ impl Executor {
         bundle: SizedBundle,
         metrics: &'static Metrics,
     ) -> eyre::Result<Fuse<Instrumented<SubmitFut>>> {
+        println!("IN MAIN CODE: STARTING SIMULATION");
         let bundle_simulator = self.bundle_simulator.clone();
 
         // simulate the bundle
@@ -223,9 +222,10 @@ impl Executor {
             .simulate_bundle(bundle.clone())
             .await
             .wrap_err("failed to simulate bundle")?;
-        let included_actions = bundle_simulation_result.included_actions();
 
-        let rollup_data_items: Vec<RollupData> = included_actions
+        println!("IN MAIN CODE: DONE WITH SIMULATION");
+        let rollup_data_items: Vec<RollupData> = bundle_simulation_result
+            .included_actions()
             .iter()
             .map(|action| action.to_raw())
             .collect();
@@ -235,7 +235,7 @@ impl Executor {
         let builder_bundle_packet = BuilderBundlePacket {
             bundle: Some(BuilderBundle {
                 transactions: rollup_data_items,
-                parent_hash: bundle_simulation_result.parent_hash().encode_to_vec(),
+                parent_hash: bundle_simulation_result.parent_hash().to_vec(),
             }),
             signature: vec![],
         };
@@ -245,7 +245,7 @@ impl Executor {
         let mut final_bundle = SizedBundle::new(200000);
         if let Err(e) = final_bundle.try_push(SequenceAction {
             rollup_id: self.rollup_id,
-            data: encoded_builder_bundle_packet,
+            data: encoded_builder_bundle_packet.into(),
             fee_asset: self.fee_asset.clone(),
         }) {
             // TODO - we had to make the SizedBundle error public across the crate, we should
@@ -253,6 +253,7 @@ impl Executor {
             return Err(eyre!(e.to_string()));
         }
 
+        println!("IN MAIN CODE: DONE SIMULATION!");
         Ok(SubmitFut {
             client: self.sequencer_client.clone(),
             address: self.address,
