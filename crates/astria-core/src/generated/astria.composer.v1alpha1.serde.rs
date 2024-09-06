@@ -401,6 +401,9 @@ impl serde::Serialize for SendOptimisticBlockRequest {
         if !self.seq_action.is_empty() {
             len += 1;
         }
+        if self.time.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.composer.v1alpha1.SendOptimisticBlockRequest", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
@@ -408,6 +411,9 @@ impl serde::Serialize for SendOptimisticBlockRequest {
         }
         if !self.seq_action.is_empty() {
             struct_ser.serialize_field("seqAction", &self.seq_action)?;
+        }
+        if let Some(v) = self.time.as_ref() {
+            struct_ser.serialize_field("time", v)?;
         }
         struct_ser.end()
     }
@@ -423,12 +429,14 @@ impl<'de> serde::Deserialize<'de> for SendOptimisticBlockRequest {
             "blockHash",
             "seq_action",
             "seqAction",
+            "time",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             BlockHash,
             SeqAction,
+            Time,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -452,6 +460,7 @@ impl<'de> serde::Deserialize<'de> for SendOptimisticBlockRequest {
                         match value {
                             "blockHash" | "block_hash" => Ok(GeneratedField::BlockHash),
                             "seqAction" | "seq_action" => Ok(GeneratedField::SeqAction),
+                            "time" => Ok(GeneratedField::Time),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -473,6 +482,7 @@ impl<'de> serde::Deserialize<'de> for SendOptimisticBlockRequest {
             {
                 let mut block_hash__ = None;
                 let mut seq_action__ = None;
+                let mut time__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::BlockHash => {
@@ -489,11 +499,18 @@ impl<'de> serde::Deserialize<'de> for SendOptimisticBlockRequest {
                             }
                             seq_action__ = Some(map_.next_value()?);
                         }
+                        GeneratedField::Time => {
+                            if time__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("time"));
+                            }
+                            time__ = map_.next_value()?;
+                        }
                     }
                 }
                 Ok(SendOptimisticBlockRequest {
                     block_hash: block_hash__.unwrap_or_default(),
                     seq_action: seq_action__.unwrap_or_default(),
+                    time: time__,
                 })
             }
         }

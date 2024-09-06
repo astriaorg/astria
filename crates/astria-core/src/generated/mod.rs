@@ -11,6 +11,8 @@
 //! [`buf`]: https://buf.build
 //! [`tools/protobuf-compiler`]: ../../../../tools/protobuf-compiler
 
+use crate::generated::protocol::transaction::v1alpha1;
+
 #[path = ""]
 pub mod astria_vendored {
     #[path = ""]

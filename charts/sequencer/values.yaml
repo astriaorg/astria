@@ -77,6 +77,8 @@ sequencer:
     tracesTimeout: 10
     otlpHeaders:
     traceHeaders:
+  composerHook:
+    enabled: false
 
 cometbft:
   config:

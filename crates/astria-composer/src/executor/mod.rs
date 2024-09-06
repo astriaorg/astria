@@ -227,12 +227,15 @@ impl Executor {
         self.status.subscribe()
     }
 
+    #[instrument(skip_all)]
     // TODO - improve the func args and the return type
     async fn simulate_bundle(
         &self,
         bundle: SizedBundle,
         parent_block: Vec<astria_core::generated::protocol::transaction::v1alpha1::SequenceAction>,
+        time: Option<pbjson_types::Timestamp>
     ) -> eyre::Result<(SizedBundle, BundleSimulationResult)> {
+        info!("BHARATH: simulating bundle on top of received parent block!");
         let bundle_simulator = self.bundle_simulator.clone();
         // convert the sequence actions to RollupData
         // TODO - clean up this code
@@ -254,14 +257,17 @@ impl Executor {
             parent_block_rollup_data_items.push(rollup_data);
         }
 
+        info!("BHARATH: time is {:?}", time);
+        info!("BHARATH: getting parent_bundle_simulation_result");
         let parent_bundle_simulation_result = bundle_simulator
             .clone()
-            .simulate_parent_bundle(parent_block_rollup_data_items)
+            .simulate_parent_bundle(parent_block_rollup_data_items, time.unwrap())
             .await
             .wrap_err("failed to simulate bundle")?;
 
         // now we have the parent block hash, we should simulate the bundle on top of the parent
         // hash
+        info!("BHARATH: getting actual bundle simulation");
         let bundle_simulation_result = bundle_simulator
             .clone()
             .simulate_bundle_on_block(bundle, parent_bundle_simulation_result.block().clone())
@@ -301,14 +307,13 @@ impl Executor {
         Ok((final_bundle, bundle_simulation_result))
     }
 
+    #[instrument(skip_all, fields(nonce.initial = %nonce))]
     async fn simulate_and_submit_bundle(
         &self,
         nonce: u32,
         bundle: SizedBundle,
         metrics: &'static Metrics,
     ) -> eyre::Result<Fuse<Instrumented<SubmitFut>>> {
-        info!("Starting bundle simulation!");
-
         let bundle_simulator = self.bundle_simulator.clone();
 
         // simulate the bundle
@@ -446,53 +451,57 @@ impl Executor {
                         debug!("no bundle to simulate")
                     } else {
                         // TODO - we should throw an error log when simulation fails rather than escaping the application
-                        let res = self.simulate_bundle(bundle, filtered_sequencer_block.seq_action).await.wrap_err("failed to simulate bundle on top of received parent block")?;
+                        let res = self.simulate_bundle(bundle, filtered_sequencer_block.seq_action, filtered_sequencer_block.time)
+                                                                        .await.wrap_err("failed to simulate bundle on top of received parent block")?;
                         pending_builder_bundle_packet = Some(res.0);
-                        current_finalized_block_hash = Some(filtered_sequencer_block.block_hash.clone());
                         debug!("simulating bundle on top of received parent block!")
                     }
-                    info!("BHARATH: received filtered sequencer block {:?}", filtered_sequencer_block.block_hash.to_ascii_lowercase());
+                    current_finalized_block_hash = Some(filtered_sequencer_block.block_hash.clone());
                 }
 
                 Some(finalized_block_hash) = self.finalized_block_hash_receiver.recv(), if submission_fut.is_terminated() => {
-
                     if let Some(block_hash) = current_finalized_block_hash.clone() {
                         if block_hash == finalized_block_hash.block_hash {
                             // we can submit the pending builder bundle packet
-                            let bundle = pending_builder_bundle_packet.take().unwrap();
-                            submission_fut = self.submit_bundle(nonce, bundle, self.metrics);
+                            if let Some(builder_bundle_packet) = pending_builder_bundle_packet.clone() {
+                                if !builder_bundle_packet.is_empty() {
+                                    submission_fut = self.submit_bundle(nonce, builder_bundle_packet, self.metrics);
+                                }
+                                // TODO - ideally we need to use take() here
+                                pending_builder_bundle_packet = None;
+                                current_finalized_block_hash = None;
+                            }
                         } else {
                             warn!("received finalized block hash does not match the current finalized block hash; skipping submission of pending builder bundle packet")
                         }
                     }
-                    info!("BHARATH: received finalized block hash {:?}", finalized_block_hash.block_hash.to_ascii_lowercase());
                 }
 
-                Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
-                    let bundle = next_bundle.pop();
-                    if !bundle.is_empty() {
-                        submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
-                    }
-                }
+                // Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
+                //     let bundle = next_bundle.pop();
+                //     if !bundle.is_empty() {
+                //         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
+                //     }
+                // }
 
                 // receive new seq_action and bundle it. will not pull from the channel if `bundle_factory` is full
                 Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.is_full() => {
                     self.bundle_seq_action(seq_action, &mut bundle_factory);
                 }
 
-                // try to preempt current bundle if the timer has ticked without submitting the next bundle
-                () = &mut block_timer, if submission_fut.is_terminated() => {
-                    let bundle = bundle_factory.pop_now();
-                    if bundle.is_empty() {
-                        debug!("block timer ticked, but no bundle to submit to sequencer");
-                        block_timer.as_mut().reset(reset_time());
-                    } else {
-                        debug!(
-                            "forcing bundle submission to sequencer due to block timer"
-                        );
-                        submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
-                    }
-                }
+                // // try to preempt current bundle if the timer has ticked without submitting the next bundle
+                // () = &mut block_timer, if submission_fut.is_terminated() => {
+                //     let bundle = bundle_factory.pop_now();
+                //     if bundle.is_empty() {
+                //         debug!("block timer ticked, but no bundle to submit to sequencer");
+                //         block_timer.as_mut().reset(reset_time());
+                //     } else {
+                //         debug!(
+                //             "forcing bundle submission to sequencer due to block timer"
+                //         );
+                //         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
+                //     }
+                // }
             }
         };
 
