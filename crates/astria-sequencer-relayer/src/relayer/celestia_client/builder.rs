@@ -19,6 +19,7 @@ use tonic::transport::{
 };
 use tracing::{
     info,
+    instrument,
     trace,
 };
 
@@ -98,6 +99,7 @@ impl Builder {
     }
 
     /// Returns a new `CelestiaClient` initialized with info retrieved from the Celestia app.
+    #[instrument(skip_all, err)]
     pub(in crate::relayer) async fn try_build(self) -> Result<CelestiaClient, BuilderError> {
         let received_celestia_chain_id = self.fetch_celestia_chain_id().await?;
 
@@ -129,6 +131,7 @@ impl Builder {
         })
     }
 
+    #[instrument(skip_all, err)]
     async fn fetch_celestia_chain_id(&self) -> Result<String, BuilderError> {
         let mut node_info_client = NodeInfoClient::new(self.grpc_channel.clone());
         let response = node_info_client.get_node_info(GetNodeInfoRequest {}).await;

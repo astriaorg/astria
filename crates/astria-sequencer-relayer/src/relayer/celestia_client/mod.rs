@@ -117,6 +117,7 @@ use tracing::{
     instrument,
     trace,
     warn,
+    Level,
 };
 
 // From https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/types/errors/errors.go#L75
@@ -148,6 +149,7 @@ impl CelestiaClient {
     /// used to obtain the appropriate fee in the case that the previous attempt failed due to a
     /// low fee.
     // Copied from https://github.com/celestiaorg/celestia-app/blob/v1.4.0/x/blob/payforblob.go
+    #[instrument(skip_all, err(level = Level::WARN))]
     pub(super) async fn try_prepare(
         &mut self,
         blobs: Arc<Vec<Blob>>,
@@ -197,6 +199,7 @@ impl CelestiaClient {
         Ok(new_blob_tx(&signed_tx, blobs.iter()))
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     pub(super) async fn try_submit(
         &mut self,
         blob_tx_hash: BlobTxHash,
@@ -224,6 +227,7 @@ impl CelestiaClient {
     ///
     /// Returns the height of the Celestia block in which the blobs were submitted, or `None` if
     /// timed out.
+    #[instrument(skip_all)]
     pub(super) async fn confirm_submission_with_timeout(
         &mut self,
         blob_tx_hash: &BlobTxHash,
@@ -234,6 +238,7 @@ impl CelestiaClient {
             .ok()
     }
 
+    #[instrument(skip_all, err)]
     async fn fetch_account(&self) -> Result<BaseAccount, TrySubmitError> {
         let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let request = QueryAccountRequest {
@@ -248,6 +253,7 @@ impl CelestiaClient {
         account_from_response(response)
     }
 
+    #[instrument(skip_all, err)]
     async fn fetch_blob_params(&self) -> Result<BlobParams, TrySubmitError> {
         let mut blob_query_client = BlobQueryClient::new(self.grpc_channel.clone());
         let response = blob_query_client.params(QueryBlobParamsRequest {}).await;
@@ -265,6 +271,7 @@ impl CelestiaClient {
             .ok_or_else(|| TrySubmitError::EmptyBlobParams)
     }
 
+    #[instrument(skip_all, err)]
     async fn fetch_auth_params(&self) -> Result<AuthParams, TrySubmitError> {
         let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let response = auth_query_client.params(QueryAuthParamsRequest {}).await;
@@ -282,6 +289,7 @@ impl CelestiaClient {
             .ok_or_else(|| TrySubmitError::EmptyAuthParams)
     }
 
+    #[instrument(skip_all, err)]
     async fn fetch_min_gas_price(&self) -> Result<f64, TrySubmitError> {
         let mut min_gas_price_client = MinGasPriceClient::new(self.grpc_channel.clone());
         let response = min_gas_price_client.config(MinGasPriceRequest {}).await;
@@ -299,6 +307,7 @@ impl CelestiaClient {
     /// [`CometBFT`][cometbft].
     ///
     /// [cometbft]: https://github.com/cometbft/cometbft/blob/b139e139ad9ae6fccb9682aa5c2de4aa952fd055/rpc/openapi/openapi.yaml#L201-L204
+    #[instrument(skip_all, err)]
     async fn broadcast_tx(&mut self, blob_tx: BlobTx) -> Result<String, TrySubmitError> {
         let request = BroadcastTxRequest {
             tx_bytes: Bytes::from(blob_tx.encode_to_vec()),
@@ -315,6 +324,7 @@ impl CelestiaClient {
 
     /// Returns `Some(height)` if the tx submission has completed, or `None` if it is still
     /// pending.
+    #[instrument(skip_all, err)]
     async fn get_tx(&mut self, hex_encoded_tx_hash: String) -> Result<Option<u64>, TrySubmitError> {
         let request = GetTxRequest {
             hash: hex_encoded_tx_hash,

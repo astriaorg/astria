@@ -9,6 +9,8 @@
 //! another task sends sequencer blocks ordered by their heights, then
 //! they will be written in that order.
 use std::{
+    future::Future,
+    pin::Pin,
     sync::Arc,
     time::Duration,
 };
@@ -16,6 +18,7 @@ use std::{
 use astria_eyre::eyre::{
     self,
     bail,
+    eyre,
     Report,
     WrapErr as _,
 };
@@ -48,9 +51,11 @@ use tracing::{
     debug,
     error,
     info,
+    info_span,
     instrument,
     warn,
     Instrument,
+    Level,
     Span,
 };
 
@@ -165,7 +170,7 @@ impl BlobSubmitter {
         );
         let client = init_result.map_err(|error| {
             let message = "failed to initialize celestia client";
-            error!(%error, message);
+            report_exit(&Err(eyre!(error.to_string())), message);
             error.wrap_err(message)
         })?;
 
@@ -198,7 +203,6 @@ impl BlobSubmitter {
                 biased;
 
                 () = self.submitter_shutdown_token.cancelled() => {
-                    info!("shutdown signal received");
                     break Ok("received shutdown signal");
                 }
 
@@ -242,10 +246,10 @@ impl BlobSubmitter {
                 // add new blocks to the next submission if there is space.
                 Some(block) = self.blocks.recv(), if self.has_capacity() => {
                     if block.height() <= started_submission.last_submission_sequencer_height() {
-                        info!(
+                        info_span!("sequencer-relayer::BlobSubmitter::run").in_scope(|| info!(
                             sequencer_height = %block.height(),
                             "skipping sequencer block as already included in previous submission"
-                        );
+                        ));
                     } else if let Err(error) = self.add_sequencer_block_to_next_submission(block) {
                         break Err(error).wrap_err(
                             "critically failed adding Sequencer block to next submission"
@@ -256,19 +260,10 @@ impl BlobSubmitter {
             );
         };
 
-        match &reason {
-            Ok(reason) => info!(reason, "starting shutdown"),
-            Err(reason) => error!(%reason, "starting shutdown"),
-        }
+        report_exit(&reason, "shutting down");
 
-        if ongoing_submission.is_terminated() {
-            info!("no submissions to Celestia were in flight, exiting now");
-        } else {
-            info!("a submission to Celestia is in flight; waiting for it to finish");
-            if let Err(error) = ongoing_submission.await {
-                error!(%error, "last submission to Celestia failed before exiting");
-            }
-        }
+        ongoing_submission_termination(ongoing_submission).await;
+
         reason.map(|_| ())
     }
 
@@ -309,7 +304,7 @@ impl BlobSubmitter {
 /// guaranteed to be in `Started` state, either holding the heights of the previously prepared
 /// submission if confirmed by Celestia, or holding the heights of the last known confirmed
 /// submission in the case of timing out.
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 async fn try_confirm_submission_from_last_session(
     mut client: CelestiaClient,
     prepared_submission: PreparedSubmission,
@@ -401,7 +396,7 @@ async fn submit_blobs(
     Ok(new_state)
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 async fn init_with_retry(client_builder: CelestiaClientBuilder) -> eyre::Result<CelestiaClient> {
     let span = Span::current();
 
@@ -526,7 +521,7 @@ async fn submit_with_retry(
     Ok(final_state)
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err(level = Level::WARN))]
 async fn try_submit(
     mut client: CelestiaClient,
     blobs: Arc<Vec<Blob>>,
@@ -579,7 +574,7 @@ async fn try_submit(
 ///
 /// This should only be called where submission state is `Prepared`, meaning we don't yet
 /// know whether that previous submission attempt succeeded or not.
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 async fn try_confirm_submission_from_failed_attempt(
     mut client: CelestiaClient,
     prepared_submission: PreparedSubmission,
@@ -601,4 +596,27 @@ async fn try_confirm_submission_from_failed_attempt(
 
     info!("previous attempt's last submission was not completed; starting resubmission");
     Ok(None)
+}
+
+type OngoingSubmission =
+    Fuse<Pin<Box<dyn Future<Output = Result<StartedSubmission, Report>> + Send>>>;
+
+#[instrument(skip_all)]
+async fn ongoing_submission_termination(ongoing_submission: OngoingSubmission) {
+    if ongoing_submission.is_terminated() {
+        info!("no submissions to Celestia were in flight, exiting now");
+    } else {
+        info!("a submission to Celestia is in flight; waiting for it to finish");
+        if let Err(error) = ongoing_submission.await {
+            error!(%error, "last submission to Celestia failed before exiting");
+        }
+    }
+}
+
+#[instrument(skip_all)]
+fn report_exit(reason: &eyre::Result<&str>, message: &str) {
+    match reason {
+        Ok(reason) => info!(reason, message),
+        Err(error) => error!(%error, message),
+    }
 }
