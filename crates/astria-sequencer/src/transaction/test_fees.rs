@@ -280,6 +280,7 @@ async fn correct_ics20_withdrawal_fee_payment_and_event_with_fee_change() {
         source_channel: "channel-0".to_string().parse().unwrap(),
         fee_asset: nria().into(),
         memo: String::new(),
+        use_compat_address: false,
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -554,6 +555,8 @@ async fn correct_bridge_unlock_fee_payment_and_event_with_fee_change() {
         fee_asset: nria().into(),
         memo: "{ \"msg\": \"ethanwashere\" }".into(),
         bridge_address: bob_address,
+        rollup_block_number: 1,
+        rollup_withdrawal_event_id: "id-from-rollup".to_string(),
     };
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
@@ -816,6 +819,7 @@ async fn should_exit_on_missing_fees() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Test is long, but is already quite condensed and I think shortening it would make it harder to read
 async fn handles_mid_tx_sudo_change() {
     let mut state_tx = new_state_tx().await;
 

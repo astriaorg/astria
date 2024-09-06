@@ -3,7 +3,6 @@ use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         bail,
-        OptionExt as _,
         Result,
         WrapErr as _,
     },

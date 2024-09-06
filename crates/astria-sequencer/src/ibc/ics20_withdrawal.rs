@@ -103,7 +103,7 @@ async fn create_ibc_packet_from_withdrawal<S: StateRead>(
 /// 1. Errors reading from DB
 /// 2. `action.bridge_address` is set, but `from` is not the withdrawer address.
 /// 3. `action.bridge_address` is unset, but `from` is a bridge account.
-async fn establish_withdrawal_target<S: StateRead>(
+pub(crate) async fn establish_withdrawal_target<S: StateRead>(
     action: &action::Ics20Withdrawal,
     state: &S,
     from: [u8; 20],

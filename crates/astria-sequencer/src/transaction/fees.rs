@@ -132,7 +132,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.transfer_base_fee,
                 return_payment_map,
-                index as u32,
+                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
             )
             .wrap_err("failed to increase transaction fees for transfer action")?,
 
@@ -148,7 +148,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 &act.data,
                 return_payment_map,
-                index as u32,
+                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
             )
             .wrap_err("failed to increase transaction fees for sequence action")?,
 
@@ -167,7 +167,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                     },
                     current_fees.ics20_withdrawal_base_fee,
                     return_payment_map,
-                    index as u32,
+                    u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
                 )
                 .wrap_err("failed to increase transaction fees for ics20 withdrawal action")?;
             }
@@ -183,7 +183,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.init_bridge_account_base_fee,
                 return_payment_map,
-                index as u32,
+                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
             )
             .wrap_err("failed to increase transaction fees for init bridge account action")?,
 
@@ -200,7 +200,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 current_fees.transfer_base_fee,
                 current_fees.bridge_lock_byte_cost_multiplier,
                 return_payment_map,
-                index as u32,
+                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
             )
             .wrap_err("failed to increase transaction fees for bridge lock action")?,
 
@@ -215,7 +215,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.transfer_base_fee,
                 return_payment_map,
-                index as u32,
+                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
             )
             .wrap_err("failed to increase transaction fees for bridge unlock action")?,
 
@@ -230,7 +230,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.bridge_sudo_change_fee,
                 return_payment_map,
-                index as u32,
+                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
             )
             .wrap_err("failed to increase transaction fees for bridge sudo change action")?,
 

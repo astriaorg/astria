@@ -236,7 +236,7 @@ mod tests {
         state.put_allowed_fee_asset(&asset);
         // Put plenty of balance
         state
-            .put_account_balance(bridge_address, &asset, 0)
+            .put_account_balance(bridge_address, &asset, 10000)
             .unwrap();
 
         let bridge_unlock_first = BridgeUnlockAction {
