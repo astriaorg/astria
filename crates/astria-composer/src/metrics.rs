@@ -40,89 +40,6 @@ pub struct Metrics {
 }
 
 impl Metrics {
-<<<<<<< HEAD
-=======
-    #[must_use]
-    pub(crate) fn new(rollup_name: &str) -> Self {
-        let (geth_txs_received, grpc_txs_received) =
-            register_txs_received([rollup_name.to_string()].iter());
-        // TODO - change the function signatures of the metrics
-        let (geth_txs_dropped, grpc_txs_dropped) =
-            register_txs_dropped([rollup_name.to_string()].iter());
-        let txs_dropped_too_large =
-            register_txs_dropped_too_large([rollup_name.to_string()].iter());
-
-        describe_counter!(
-            NONCE_FETCH_COUNT,
-            Unit::Count,
-            "The number of times we have attempted to fetch the nonce"
-        );
-        let nonce_fetch_count = counter!(NONCE_FETCH_COUNT);
-
-        describe_counter!(
-            NONCE_FETCH_FAILURE_COUNT,
-            Unit::Count,
-            "The number of times we have failed to fetch the nonce"
-        );
-        let nonce_fetch_failure_count = counter!(NONCE_FETCH_FAILURE_COUNT);
-
-        describe_histogram!(
-            NONCE_FETCH_LATENCY,
-            Unit::Seconds,
-            "The latency of fetching the nonce, in seconds"
-        );
-        let nonce_fetch_latency = histogram!(NONCE_FETCH_LATENCY);
-
-        describe_gauge!(CURRENT_NONCE, Unit::Count, "The current nonce");
-        let current_nonce = gauge!(CURRENT_NONCE);
-
-        describe_histogram!(
-            SEQUENCER_SUBMISSION_LATENCY,
-            Unit::Seconds,
-            "The latency of submitting a transaction to the sequencer, in seconds"
-        );
-        let sequencer_submission_latency = histogram!(SEQUENCER_SUBMISSION_LATENCY);
-
-        describe_counter!(
-            SEQUENCER_SUBMISSION_FAILURE_COUNT,
-            Unit::Count,
-            "The number of failed transaction submissions to the sequencer"
-        );
-        let sequencer_submission_failure_count = counter!(SEQUENCER_SUBMISSION_FAILURE_COUNT);
-
-        describe_histogram!(
-            TRANSACTIONS_PER_SUBMISSION,
-            Unit::Count,
-            "The number of rollup transactions successfully sent to the sequencer in a single \
-             submission"
-        );
-        let txs_per_submission = histogram!(TRANSACTIONS_PER_SUBMISSION);
-
-        describe_histogram!(
-            BYTES_PER_SUBMISSION,
-            Unit::Bytes,
-            "The total bytes successfully sent to the sequencer in a single submission"
-        );
-        let bytes_per_submission = histogram!(BYTES_PER_SUBMISSION);
-
-        Self {
-            geth_txs_received,
-            geth_txs_dropped,
-            grpc_txs_received,
-            grpc_txs_dropped,
-            txs_dropped_too_large,
-            nonce_fetch_count,
-            nonce_fetch_failure_count,
-            nonce_fetch_latency,
-            current_nonce,
-            sequencer_submission_latency,
-            sequencer_submission_failure_count,
-            txs_per_submission,
-            bytes_per_submission,
-        }
-    }
-
->>>>>>> f151354e (initial version of trusted builder mvp)
     pub(crate) fn geth_txs_received(&self, id: &String) -> Option<&Counter> {
         self.geth_txs_received.get(id)
     }
@@ -192,16 +109,14 @@ impl telemetry::Metrics for Metrics {
     type Config = crate::Config;
 
     fn register(builder: &mut RegisteringBuilder, config: &Self::Config) -> Result<Self, Error>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
-        let rollups = config
-            .parse_rollups()
-            .map_err(|error| Error::External(Box::new(error)))?;
+        let rollup = config.rollup.clone();
         let (geth_txs_received, grpc_txs_received) =
-            register_txs_received(builder, rollups.keys())?;
-        let (geth_txs_dropped, grpc_txs_dropped) = register_txs_dropped(builder, rollups.keys())?;
-        let txs_dropped_too_large = register_txs_dropped_too_large(builder, rollups.keys())?;
+            register_txs_received(builder, vec![rollup.clone()].iter())?;
+        let (geth_txs_dropped, grpc_txs_dropped) = register_txs_dropped(builder, vec![rollup.clone()].iter())?;
+        let txs_dropped_too_large = register_txs_dropped_too_large(builder, vec![rollup.clone()].iter())?;
 
         let nonce_fetch_count = builder
             .new_counter_factory(
