@@ -9,16 +9,5 @@ metadata:
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Retain
-    {{- if $.Values.config.blockscout.enabled }}
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-blockscout-local
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: WaitForFirstConsumer
-reclaimPolicy: Retain
----
-    {{- end }}
   {{- end }}
 {{- end }}
