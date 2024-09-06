@@ -43,7 +43,6 @@ pub(crate) struct Builder {
     pub(crate) execution_api_url: String,
     pub(crate) chain_name: String,
     pub(crate) fee_asset: asset::Denom,
-    pub(crate) websocket_url: String,
     pub(crate) metrics: &'static Metrics,
 }
 
@@ -61,7 +60,6 @@ impl Builder {
             execution_api_url,
             chain_name,
             fee_asset,
-            websocket_url,
             metrics,
         } = self;
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
@@ -104,7 +102,6 @@ impl Builder {
                 shutdown_token,
                 rollup_id,
                 fee_asset,
-                websocket_url,
                 metrics,
             },
             executor::Handle::new(serialized_rollup_transaction_tx),

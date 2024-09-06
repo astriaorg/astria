@@ -129,8 +129,7 @@ impl serde::Serialize for BuilderBundlePacket {
             struct_ser.serialize_field("bundle", v)?;
         }
         if !self.signature.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("signature", pbjson::private::base64::encode(&self.signature).as_str())?;
+            struct_ser.serialize_field("signature", &self.signature)?;
         }
         struct_ser.end()
     }
@@ -206,9 +205,7 @@ impl<'de> serde::Deserialize<'de> for BuilderBundlePacket {
                             if signature__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("signature"));
                             }
-                            signature__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            signature__ = Some(map_.next_value()?);
                         }
                     }
                 }

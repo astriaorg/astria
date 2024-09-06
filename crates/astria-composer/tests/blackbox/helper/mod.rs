@@ -47,10 +47,14 @@ use wiremock::{
     Request,
     ResponseTemplate,
 };
-use crate::helper::mock_grpc::{MockGrpc, TestExecutor};
 
-pub mod mock_sequencer;
+use crate::helper::mock_grpc::{
+    MockGrpc,
+    TestExecutor,
+};
+
 pub mod mock_grpc;
+pub mod mock_sequencer;
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
@@ -60,7 +64,8 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
         api_listen_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
         sequencer_url: String::new(),
         sequencer_chain_id: String::new(),
-        rollups: String::new(),
+        rollup: "".to_string(),
+        rollup_websocket_url: "".to_string(),
         private_key_file: String::new(),
         sequencer_address_prefix: String::new(),
         block_time_ms: 0,
@@ -73,6 +78,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
         pretty_print: false,
         grpc_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
         fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([0; 32])),
+        execution_api_url: "".to_string(),
     };
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
@@ -100,11 +106,8 @@ pub struct TestComposer {
     pub sequencer: wiremock::MockServer,
     pub setup_guard: MockGuard,
     pub grpc_collector_addr: SocketAddr,
-<<<<<<< HEAD
     pub metrics_handle: metrics::Handle,
-=======
     pub test_executor: TestExecutor
->>>>>>> f151354e (initial version of trusted builder mvp)
 }
 
 /// Spawns composer in a test environment.
@@ -173,13 +176,10 @@ pub async fn spawn_composer(rollup_name: &str) -> TestComposer {
         sequencer,
         setup_guard: sequencer_setup_guard,
         grpc_collector_addr,
-<<<<<<< HEAD
         metrics_handle,
-=======
         test_executor: TestExecutor {
             mock_grpc: mock_execution_api_server
         }
->>>>>>> f151354e (initial version of trusted builder mvp)
     }
 }
 

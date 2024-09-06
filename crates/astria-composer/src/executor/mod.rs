@@ -1,3 +1,4 @@
+use std::str::FromStr;
 /// ! The `Executor` is responsible for:
 /// - Nonce management
 /// - Transaction signing
@@ -9,8 +10,6 @@ use std::{
     task::Poll,
     time::Duration,
 };
-use ethers::prelude::{Provider, ProviderError, Ws};
-use ethers::providers::{Middleware, StreamExt};
 
 use astria_core::{
     crypto::SigningKey,
@@ -106,7 +105,6 @@ mod client;
 mod simulator;
 #[cfg(test)]
 mod tests;
-mod mock_grpc;
 
 pub(crate) use builder::Builder;
 
@@ -156,10 +154,12 @@ pub(super) struct Executor {
     bundle_queue_capacity: usize,
     // Token to signal the executor to stop upon shutdown.
     shutdown_token: CancellationToken,
+    // `BundleSimulator` simulates the execution of a bundle of transactions.
     bundle_simulator: BundleSimulator,
+    // The rollup id associated with this executor
     rollup_id: RollupId,
+    // The asset used for sequencer fees
     fee_asset: asset::Denom,
-    websocket_url: String,
     metrics: &'static Metrics,
 }
 
@@ -210,7 +210,6 @@ impl Executor {
         self.status.subscribe()
     }
 
-    // TODO - maybe we should break this up into a separate simulate and submit step?
     async fn simulate_and_submit_bundle(
         &self,
         nonce: u32,
@@ -231,29 +230,37 @@ impl Executor {
             .map(|action| action.to_raw())
             .collect();
 
-        info!("ALERT: simulated bundle: {:?}", bundle_simulation_result.parent_hash().clone());
+        let builder_bundle = BuilderBundle {
+            transactions: rollup_data_items,
+            parent_hash: bundle_simulation_result.parent_hash().to_vec(),
+        };
+
+        let encoded_builder_bundle = builder_bundle.encode_to_vec();
+        let private_key = "";
+        let wallet = ethers::signers::Wallet::from_str(private_key)
+            .wrap_err("failed to parse private key")?;
+        let signature = wallet
+            .sign_message(encoded_builder_bundle.clone())
+            .await
+            .wrap_err("failed to sign builder bundle packet")?;
 
         // create a top of block bundle
-        // TODO - we need to sign the builder bundle packet
-        let builder_bundle_packet = BuilderBundlePacket {
-            bundle: Some(BuilderBundle {
-                transactions: rollup_data_items,
-                parent_hash: bundle_simulation_result.parent_hash().to_vec(),
-            }),
-            signature: vec![],
+        let mut builder_bundle_packet = BuilderBundlePacket {
+            bundle: Some(builder_bundle),
+            signature: signature.to_string(),
         };
         let encoded_builder_bundle_packet = builder_bundle_packet.encode_to_vec();
 
-        // TODO - we had to make sized bundle struct public, can we avoid that?
+        // we can give the BuilderBundlePacket the highest bundle max size possible
+        // since this is the only sequence action we are sending
+        // TODO - parameterize the max bundle size
         let mut final_bundle = SizedBundle::new(200000);
         if let Err(e) = final_bundle.try_push(SequenceAction {
             rollup_id: self.rollup_id,
             data: encoded_builder_bundle_packet.into(),
             fee_asset: self.fee_asset.clone(),
         }) {
-            // TODO - we had to make the SizedBundle error public across the crate, we should
-            // revisit that
-            return Err(eyre!(e.to_string()));
+            return Err(eyre::Report::from(e));
         }
 
         Ok(SubmitFut {
@@ -323,41 +330,6 @@ impl Executor {
                 .expect("block_time should not be large enough to cause an overflow")
         };
 
-        // establish a websocket connection with the geth node to subscribe for latest blocks
-        let retry_config = tryhard::RetryFutureConfig::new(1024)
-            .exponential_backoff(Duration::from_millis(500))
-            .max_delay(Duration::from_secs(60))
-            .on_retry(
-                |attempt, next_delay: Option<Duration>, error: &ProviderError| {
-                    let wait_duration = next_delay
-                        .map(humantime::format_duration)
-                        .map(tracing::field::display);
-                    warn!(
-                        attempt,
-                        wait_duration,
-                        error = error as &StdError,
-                        "attempt to connect to geth node failed; retrying after backoff",
-                    );
-                    futures::future::ready(())
-                },
-            );
-
-        let client = tryhard::retry_fn(|| {
-            let url = self.websocket_url.clone();
-            async move {
-                let websocket_client = Ws::connect_with_reconnects(url, 0).await?;
-                Ok(Provider::new(websocket_client))
-            }
-        })
-            .with_config(retry_config)
-            .await
-            .wrap_err("failed connecting to geth after several retries; giving up")?;
-
-        let mut block_stream = client
-            .subscribe_blocks()
-            .await
-            .wrap_err("failed to subscribe eth client to full pending transactions")?;
-
         self.status.send_modify(|status| status.is_connected = true);
 
         let reason = loop {
@@ -374,12 +346,12 @@ impl Executor {
                     };
                 }
 
-                // Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
-                //     let bundle = next_bundle.pop();
-                //     if !bundle.is_empty() {
-                //         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
-                //     }
-                // }
+                Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
+                    let bundle = next_bundle.pop();
+                    if !bundle.is_empty() {
+                        submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
+                    }
+                }
 
                 // receive new seq_action and bundle it. will not pull from the channel if `bundle_factory` is full
                 Some(seq_action) = self.serialized_rollup_transactions.recv(), if !bundle_factory.is_full() => {
@@ -390,6 +362,10 @@ impl Executor {
                 () = &mut block_timer, if submission_fut.is_terminated() => {
                     let bundle = bundle_factory.pop_now();
                     if bundle.is_empty() {
+<<<<<<< HEAD
+=======
+                        debug!("block timer ticked, but no bundle to submit to sequencer");
+>>>>>>> 7c75d72f (clean ups)
                         block_timer.as_mut().reset(reset_time());
                     } else {
                         debug!(
@@ -398,20 +374,6 @@ impl Executor {
                         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
                     }
                 }
-
-                // // try to preempt current bundle if the timer has ticked without submitting the next bundle
-                // () = &mut block_timer, if submission_fut.is_terminated() => {
-                //     let bundle = bundle_factory.pop_now();
-                //     if bundle.is_empty() {
-                //         debug!("block timer ticked, but no bundle to submit to sequencer");
-                //         block_timer.as_mut().reset(reset_time());
-                //     } else {
-                //         debug!(
-                //             "forcing bundle submission to sequencer due to block timer"
-                //         );
-                //         submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
-                //     }
-                // }
             }
         };
 

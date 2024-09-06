@@ -1,16 +1,23 @@
 use std::time::Duration;
 use bytes::Bytes;
 
-use astria_core::{generated::{
-    composer::v1alpha1::{
-        grpc_collector_service_client::GrpcCollectorServiceClient,
-        SubmitRollupTransactionRequest,
+use astria_composer::{
+    mount_executed_block,
+    mount_get_commitment_state,
+};
+use astria_core::{
+    generated::{
+        composer::v1alpha1::{
+            grpc_collector_service_client::GrpcCollectorServiceClient,
+            SubmitRollupTransactionRequest,
+        },
+        protocol::accounts::v1alpha1::NonceResponse,
     },
-    protocol::accounts::v1alpha1::NonceResponse,
-}, primitive::v1::RollupId, Protobuf};
+    primitive::v1::RollupId,
+    sequencerblock::v1alpha1::block::RollupData,
+    Protobuf,
+};
 use ethers::prelude::Transaction;
-use astria_composer::{mount_executed_block, mount_get_commitment_state};
-use astria_core::sequencerblock::v1alpha1::block::RollupData;
 
 use crate::helper::{
     mount_broadcast_tx_sync_invalid_nonce_mock,
@@ -225,7 +232,6 @@ async fn single_rollup_tx_payload_integrity() {
         included_transactions: rollup_data.clone(),
         parent: soft_parent_hash.to_vec(),
     );
-
 
     // send sequence action request to the grpc generic collector
     let mut composer_client = GrpcCollectorServiceClient::connect(format!(
