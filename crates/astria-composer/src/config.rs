@@ -70,6 +70,9 @@ pub struct Config {
 
     /// The IBC asset to pay for transactions submiited to the sequencer.
     pub fee_asset: astria_core::primitive::v1::asset::Denom,
+
+    /// The URL of the execution API server
+    pub execution_api_url: String,
 }
 
 impl Config {

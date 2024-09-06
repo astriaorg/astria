@@ -131,6 +131,9 @@ impl Composer {
             block_time_ms: cfg.block_time_ms,
             max_bytes_per_bundle: cfg.max_bytes_per_bundle,
             bundle_queue_capacity: cfg.bundle_queue_capacity,
+            execution_api_url: cfg.execution_api_url.clone(),
+            fee_asset: cfg.fee_asset.clone(),
+            chain_name: rollup_name.clone(),
             shutdown_token: shutdown_token.clone(),
             metrics,
         }
