@@ -63,7 +63,7 @@ evm-rollup:
         cpu: "1"
         memory: 200Mi
   storage:
-    enabled: false
+    enabled: true
     local: false
     entities:
       rollupSharedStorage:
