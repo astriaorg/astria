@@ -37,6 +37,7 @@ pub struct Metrics {
     actions_per_transaction_in_mempool: Histogram,
     transaction_in_mempool_size_bytes: Histogram,
     transactions_in_mempool_total: Gauge,
+    mempool_recosted: Counter,
 }
 
 impl Metrics {
@@ -147,6 +148,10 @@ impl Metrics {
 
     pub(crate) fn set_transactions_in_mempool_total(&self, count: usize) {
         self.transactions_in_mempool_total.set(count);
+    }
+
+    pub(crate) fn increment_mempool_recosted(&self) {
+        self.mempool_recosted.increment(1);
     }
 }
 
@@ -311,6 +316,13 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let mempool_recosted = builder
+            .new_counter_factory(
+                MEMPOOL_RECOSTED,
+                "The number of times the mempool has been recosted",
+            )?
+            .register()?;
+
         Ok(Self {
             prepare_proposal_excluded_transactions_cometbft_space,
             prepare_proposal_excluded_transactions_sequencer_space,
@@ -336,6 +348,7 @@ impl telemetry::Metrics for Metrics {
             actions_per_transaction_in_mempool,
             transaction_in_mempool_size_bytes,
             transactions_in_mempool_total,
+            mempool_recosted,
         })
     }
 }
@@ -360,7 +373,8 @@ metric_names!(const METRICS_NAMES:
     CHECK_TX_DURATION_SECONDS_FETCH_TX_COST,
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
-    TRANSACTIONS_IN_MEMPOOL_TOTAL
+    TRANSACTIONS_IN_MEMPOOL_TOTAL,
+    MEMPOOL_RECOSTED
 );
 
 #[cfg(test)]
@@ -374,6 +388,7 @@ mod tests {
         CHECK_TX_REMOVED_FAILED_STATELESS,
         CHECK_TX_REMOVED_STALE_NONCE,
         CHECK_TX_REMOVED_TOO_LARGE,
+        MEMPOOL_RECOSTED,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
@@ -445,5 +460,6 @@ mod tests {
             TRANSACTIONS_IN_MEMPOOL_TOTAL,
             "transactions_in_mempool_total",
         );
+        assert_const(MEMPOOL_RECOSTED, "mempool_recosted");
     }
 }
