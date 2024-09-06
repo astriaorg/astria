@@ -16,7 +16,13 @@ use astria_composer::{
 use astria_core::{
     composer::v1alpha1::BuilderBundle,
     generated::composer::v1alpha1::BuilderBundlePacket,
-    primitive::v1::RollupId,
+    primitive::v1::{
+        asset::{
+            Denom,
+            IbcPrefixed,
+        },
+        RollupId,
+    },
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::SignedTransaction,
@@ -44,7 +50,6 @@ use wiremock::{
     Request,
     ResponseTemplate,
 };
-use astria_core::primitive::v1::asset::{Denom, IbcPrefixed};
 
 use crate::helper::mock_grpc::{
     MockGrpc,
@@ -106,7 +111,7 @@ pub struct TestComposer {
     pub setup_guard: MockGuard,
     pub grpc_collector_addr: SocketAddr,
     pub metrics_handle: metrics::Handle,
-    pub test_executor: TestExecutor
+    pub test_executor: TestExecutor,
 }
 
 /// Spawns composer in a test environment.
@@ -178,8 +183,8 @@ pub async fn spawn_composer(rollup_name: &str) -> TestComposer {
         grpc_collector_addr,
         metrics_handle,
         test_executor: TestExecutor {
-            mock_grpc: mock_execution_api_server
-        }
+            mock_grpc: mock_execution_api_server,
+        },
     }
 }
 

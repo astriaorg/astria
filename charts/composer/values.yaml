@@ -3,26 +3,26 @@ global:
   replicaCount: 1
   # Whether to use tty readable logging for astria services, when false use json.
   useTTY: false
-  dev: true
+  dev: false
 
 images:
   composer:
-    repo: astria-composer
+    repo: ghcr.io/astriaorg/composer
     tag: "0.8.2"
-    devTag: tb
+    devTag: latest
 
 config:
-  logLevel: "info"
+  logLevel: "debug"
   maxBytesPerBundle: 200000
   maxBundleSize: 200000
   bundleQueueCapacity: 40000
-  maxSubmitInterval: 1800
+  maxSubmitInterval: 2000
   sequencerAddressPrefix: astria
   sequencerNativeAssetBaseDenomination: "nria"
   sequencerRpc: ""
   sequencerChainId: ""
   privateKey:
-    devContent: "e315da1eafadb1e323a53244bdca8365437c643f0977de9ecf44cc926538f918"
+    devContent: ""
     secret:
       filename: "key.hex"
       resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
@@ -72,26 +72,3 @@ ports:
   grpc: 50052
   healthApi: 2450
   metrics: 6060
-
-
-ingress:
-  enabled: true
-  labels: {}
-  hostname: localdev.me
-  className: nginx
-  services:
-    rpc:
-      enabled: true
-      hosts:
-        - 'composer.astria-local.{{ .Values.ingress.hostname }}'
-      path: /
-      pathType: Prefix
-      service:
-        name: 'composer-service'
-        port:
-          name: grpc
-      annotations: {}
-        # kubernetes.io/ingress.class: nginx
-      # kubernetes.io/tls-acme: "true"
-      labels: {}
-      tls: {}

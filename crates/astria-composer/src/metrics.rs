@@ -109,14 +109,16 @@ impl telemetry::Metrics for Metrics {
     type Config = crate::Config;
 
     fn register(builder: &mut RegisteringBuilder, config: &Self::Config) -> Result<Self, Error>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         let rollup = config.rollup.clone();
         let (geth_txs_received, grpc_txs_received) =
             register_txs_received(builder, vec![rollup.clone()].iter())?;
-        let (geth_txs_dropped, grpc_txs_dropped) = register_txs_dropped(builder, vec![rollup.clone()].iter())?;
-        let txs_dropped_too_large = register_txs_dropped_too_large(builder, vec![rollup.clone()].iter())?;
+        let (geth_txs_dropped, grpc_txs_dropped) =
+            register_txs_dropped(builder, vec![rollup.clone()].iter())?;
+        let txs_dropped_too_large =
+            register_txs_dropped_too_large(builder, vec![rollup.clone()].iter())?;
 
         let nonce_fetch_count = builder
             .new_counter_factory(

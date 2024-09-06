@@ -4,17 +4,17 @@ global:
   # Whether to use tty readable logging for astria services, when false use json.
   # Best to be false in production environments, true for clean logs on local dev.
   useTTY: false
-  dev: true
+  dev: false
 
 images:
   geth:
-    repo: ghcr.io/astriaorg/go-ethereum
+    repo: ghcr.io/astriaorg/astria-geth
     tag: 0.14.0
-    devTag: tb
+    devTag: latest
   conductor:
     repo: astria-conductor
     tag: "0.20.0"
-    devTag: tb
+    devTag: latest
 
 
 genesis:
@@ -293,7 +293,18 @@ ingress:
 # Default persistent storage values
 # NOTE - `rollupName` will be used with `persistentVolumeName` to generate names for kubernetes resources.
 #  e.g. astria-executor-pv, astria-executor-pvc
-resources: {}
+resources:
+  conductor:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  geth:
+    requests:
+      cpu: 16000m
+      memory: 32Gi
 
 storage:
   enabled: false

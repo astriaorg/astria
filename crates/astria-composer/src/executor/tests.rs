@@ -14,6 +14,7 @@ use astria_core::{
         sequencerblock::v1alpha1 as raw_sequencer,
     },
     primitive::v1::{
+        asset,
         asset::{
             Denom,
             IbcPrefixed,
@@ -70,7 +71,6 @@ use wiremock::{
     Request,
     ResponseTemplate,
 };
-use astria_core::primitive::v1::asset;
 
 use crate::{
     executor,

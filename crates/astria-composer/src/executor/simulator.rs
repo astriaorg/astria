@@ -136,7 +136,7 @@ impl BundleSimulator {
         bundle: Vec<Vec<u8>>,
         block: Block,
         timestamp: Option<Timestamp>,
-        simulate_only: bool
+        simulate_only: bool,
     ) -> eyre::Result<BundleSimulationResult> {
         // convert the sized bundle actions to a list of Vec<u8>
         // as long as the timestamp > parent block timestamp, the block will be successfully

@@ -161,6 +161,8 @@ impl Conductor {
             tasks.spawn(Self::CELESTIA, reader.run_until_stopped());
         };
 
+        info!("BHARATH: CONDUCTOR INITED!");
+
         Ok(Self {
             shutdown,
             tasks,

@@ -23,7 +23,7 @@ evm-rollup:
     ## no defaults as they are unique to each chain
 
     # Block height to start syncing rollup from, lowest possible is 2
-    sequencerInitialHeight: 264188
+    sequencerInitialHeight: 2
     # The first Celestia height to utilize when looking for rollup data
     celestiaInitialHeight: 2
     # The variance in Celestia height to allow before halting the chain
@@ -102,7 +102,7 @@ evm-rollup:
   config:
     # The level at which core astria components will log out
     # Options are: error, warn, info, and debug
-    logLevel: "error"
+    logLevel: "debug"
 
     conductor:
       # Determines what will drive block execution, options are:
