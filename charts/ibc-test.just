@@ -142,6 +142,62 @@ run:
     exit 1
   fi
 
+
+  # We do a second withdrawal to make sure ibc doesn't work just once
+  # test IBC withdrawal from the EVM to Celestia
+  initial_balance=$(just evm-get-balance {{evm_destination_address}})
+  let expected_evm_balance="$initial_balance - 1000000000000"
+  initial_celestia_balance=$(just ibc-test get-celestia-balance)
+  # `bc` because very large number
+  # WITHDRAW_AMOUNT / 10^(18-6) = 1
+  expected_celestia_balance=$(echo "$initial_celestia_balance + 1" | bc)
+  echo "Initial Celestia balance $initial_celestia_balance"
+
+  echo "Performing IBC withdrawal from the EVM to Celestia..."
+  just evm-send-raw-transaction {{evm_withdraw_tx_raw_2}}
+
+  # check that evm balance updated correctly
+  for i in {1..50}
+  do
+    tx_receipt=$(just evm-get-transaction-receipt {{evm_withdraw_tx_hash_2}})
+    if [[ $tx_receipt != "null" ]]; then
+      echo "Transaction receipt found: $tx_receipt"
+      tx_receipt_found="1"
+      current_balance=$(just evm-get-balance {{evm_destination_address}})
+      if (( $expected_evm_balance == $current_balance )); then
+        echo "EVM balance updated correctly - expected: $expected_evm_balance, actual: $current_balance"
+        break
+      else
+        echo "EVM balance not updated correctly - expected: $expected_evm_balance, actual: $current_balance"
+        exit 1
+      fi
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $tx_receipt_found ]]; then
+    echo "Transaction receipt not found; IBC transfer from the Rollup to Celestia failed"
+    exit 1
+  fi
+
+  # check that celestia balance updated correctly
+  for i in {1..50}
+  do
+    current_celestia_balance=$(just ibc-test get-celestia-balance)
+    echo "check $i, balance: $current_celestia_balance, expected: $expected_celestia_balance"
+    if (( $expected_celestia_balance == $current_celestia_balance )); then
+      expected_celestia_balance_after_wd="1"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $expected_celestia_balance_after_wd ]]; then
+    echo "expected celestia balance was not found after withdraw; IBC transfer from the Rollup to Celestia failed"
+    exit 1
+  fi
+
 bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
 celestia_dev_account_address := "celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96"
 celestia_chain_id := "celestia-local-0"
@@ -154,6 +210,7 @@ celestia_desitnation_address := "0x4a58639fb5458e65e4fa917ff951c390292c24a1"
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
 evm_rpc_url := "http://executor.astria.localdev.me"
 evm_withdraw_tx_hash := "0x3f1a45c167fd147e92c8c9e0570eff7c4fbe7dc5ca7ce2a52a734f91cd6f72c3"
+evm_withdraw_tx_hash_2 := "0xa6c1b5ad350b4ec2b953fc161e38536d5e91e857fe3e877fccba7be5eec4880e"
 # evm_withdraw_tx_raw is the tx to the withdraw smart contract on the evm.
 # Uses private key for 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30 to sign tx.
 # was created via:
@@ -164,6 +221,8 @@ evm_withdraw_tx_hash := "0x3f1a45c167fd147e92c8c9e0570eff7c4fbe7dc5ca7ce2a52a734
 #  ORIGIN_DESTINATION_CHAIN_ADDRESS=celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96
 #  AMOUNT=1000000000000
 evm_withdraw_tx_raw := "0xf9012f80843b9aca07828fd794a58639fb5458e65e4fa917ff951c390292c24a1585e8d4a51000b8c4a996e020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002f63656c6573746961316d306b73646a6c3270356e7a68717933703437666b737635326174336c6e38383578766c393600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000820a95a04bc5ecc41a817099c62646713c907a302f0a81c879484f0d92fbc13d0d90d3c5a00da984f38e670402326f840dea26c5171557862aa16cfb5078d75627f6aea742"
+evm_withdraw_tx_raw_2 := "0xf9012f01843b9aca07828fd794a58639fb5458e65e4fa917ff951c390292c24a1585e8d4a51000b8c4a996e020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002f63656c657374696131786b3676686d72706a71306d6a746a64667333656d66347979796b38366d7535796e656b666a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000820a96a0a1cd1c26acc593343ca438fd3c7be82b611fd52a63c218efc248829c2a0e918ba02b5a73a6eaff9dca4ef143ae9a90d2639b47a1ed595ce2f290a6061636f948a4"
+
 
 # all in units of utia
 transfer_amount := "53000"
