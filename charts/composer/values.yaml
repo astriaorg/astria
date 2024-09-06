@@ -7,9 +7,9 @@ global:
 
 images:
   composer:
-    repo: ghcr.io/astriaorg/composer
-    tag: "0.8.2"
-    devTag: latest
+    repo: astria-composer
+    tag: "0.8.0"
+    devTag: tb
 
 config:
   logLevel: "debug"
