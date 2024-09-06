@@ -4,11 +4,15 @@ use std::{
     time::Duration,
 };
 
-use astria_core::primitive::v1::asset;
+use astria_core::{
+    generated::sequencerblock::v1alpha1::FilteredSequencerBlock,
+    primitive::v1::asset,
+};
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use bytes::Bytes;
 use itertools::Itertools as _;
 use tokio::{
     io,
@@ -23,6 +27,7 @@ use tokio::{
     },
     time::timeout,
 };
+use tokio::sync::mpsc;
 use tokio_util::{
     sync::CancellationToken,
     task::JoinMap,
@@ -47,6 +52,7 @@ use crate::{
     grpc,
     grpc::GrpcServer,
     metrics::Metrics,
+    sequencer_hooks::SequencerHooks,
     Config,
 };
 
@@ -123,6 +129,10 @@ impl Composer {
         let (composer_status_sender, _) = watch::channel(Status::default());
         let shutdown_token = CancellationToken::new();
 
+        let (filtered_sequencer_block_sender, filtered_sequencer_block_receiver) =
+            mpsc::channel::<FilteredSequencerBlock>(1000);
+        let (finalized_hash_sender, finalized_hash_receiver) = mpsc::channel::<Bytes>(1000);
+
         let (executor, executor_handle) = executor::Builder {
             sequencer_url: cfg.sequencer_url.clone(),
             sequencer_chain_id: cfg.sequencer_chain_id.clone(),
@@ -136,6 +146,9 @@ impl Composer {
             chain_name: cfg.rollup.clone(),
             max_bundle_size: cfg.max_bundle_size,
             shutdown_token: shutdown_token.clone(),
+            // TODO - rename these??
+            filtered_block_receiver: filtered_sequencer_block_receiver,
+            finalized_block_hash_receiver: finalized_hash_receiver,
             metrics,
         }
         .build()
@@ -147,6 +160,10 @@ impl Composer {
             shutdown_token: shutdown_token.clone(),
             metrics,
             fee_asset: cfg.fee_asset.clone(),
+            sequencer_hooks: SequencerHooks::new(
+                filtered_sequencer_block_sender,
+                finalized_hash_sender,
+            ),
         }
         .build()
         .await
