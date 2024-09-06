@@ -14,9 +14,9 @@ use astria_core::protocol::transaction::v1alpha1::{
 };
 pub(crate) use checks::{
     check_balance_for_total_fees_and_transfers,
-    check_balance_mempool,
     check_chain_id_mempool,
     check_nonce_mempool,
+    get_total_transaction_cost,
 };
 use cnidarium::StateWrite;
 // Conditional to quiet warnings. This object is used throughout the codebase,

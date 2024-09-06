@@ -25,13 +25,14 @@ pub struct Metrics {
     check_tx_removed_failed_execution: Counter,
     check_tx_removed_failed_stateless: Counter,
     check_tx_removed_stale_nonce: Counter,
-    check_tx_removed_account_balance: Counter,
     check_tx_duration_seconds_parse_tx: Histogram,
     check_tx_duration_seconds_check_stateless: Histogram,
     check_tx_duration_seconds_check_nonce: Histogram,
     check_tx_duration_seconds_check_chain_id: Histogram,
-    check_tx_duration_seconds_check_balance: Histogram,
     check_tx_duration_seconds_check_removed: Histogram,
+    check_tx_duration_seconds_convert_address: Histogram,
+    check_tx_duration_seconds_fetch_balances: Histogram,
+    check_tx_duration_seconds_fetch_tx_cost: Histogram,
     check_tx_duration_seconds_insert_to_app_mempool: Histogram,
     actions_per_transaction_in_mempool: Histogram,
     transaction_in_mempool_size_bytes: Histogram,
@@ -90,10 +91,6 @@ impl Metrics {
         self.check_tx_removed_stale_nonce.increment(1);
     }
 
-    pub(crate) fn increment_check_tx_removed_account_balance(&self) {
-        self.check_tx_removed_account_balance.increment(1);
-    }
-
     pub(crate) fn record_check_tx_duration_seconds_parse_tx(&self, duration: Duration) {
         self.check_tx_duration_seconds_parse_tx.record(duration);
     }
@@ -112,13 +109,23 @@ impl Metrics {
             .record(duration);
     }
 
-    pub(crate) fn record_check_tx_duration_seconds_check_balance(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_balance
+    pub(crate) fn record_check_tx_duration_seconds_check_removed(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_removed
             .record(duration);
     }
 
-    pub(crate) fn record_check_tx_duration_seconds_check_removed(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_removed
+    pub(crate) fn record_check_tx_duration_seconds_convert_address(&self, duration: Duration) {
+        self.check_tx_duration_seconds_convert_address
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_fetch_balances(&self, duration: Duration) {
+        self.check_tx_duration_seconds_fetch_balances
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_fetch_tx_cost(&self, duration: Duration) {
+        self.check_tx_duration_seconds_fetch_tx_cost
             .record(duration);
     }
 
@@ -227,6 +234,27 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let check_tx_duration_seconds_convert_address = builder
+            .new_histogram_factory(
+                CHECK_TX_DURATION_SECONDS_CONVERT_ADDRESS,
+                "The amount of time taken in seconds to convert an address",
+            )?
+            .register()?;
+
+        let check_tx_duration_seconds_fetch_balances = builder
+            .new_histogram_factory(
+                CHECK_TX_DURATION_SECONDS_FETCH_BALANCES,
+                "The amount of time taken in seconds to fetch balances",
+            )?
+            .register()?;
+
+        let check_tx_duration_seconds_fetch_tx_cost = builder
+            .new_histogram_factory(
+                CHECK_TX_DURATION_SECONDS_FETCH_TX_COST,
+                "The amount of time taken in seconds to fetch tx cost",
+            )?
+            .register()?;
+
         let check_tx_removed_failed_stateless = builder
             .new_counter_factory(
                 CHECK_TX_REMOVED_FAILED_STATELESS,
@@ -240,14 +268,6 @@ impl telemetry::Metrics for Metrics {
                 CHECK_TX_REMOVED_STALE_NONCE,
                 "The number of transactions that have been removed from the mempool due to having \
                  a stale nonce",
-            )?
-            .register()?;
-
-        let check_tx_removed_account_balance = builder
-            .new_counter_factory(
-                CHECK_TX_REMOVED_ACCOUNT_BALANCE,
-                "The number of transactions that have been removed from the mempool due to having \
-                 not enough account balance",
             )?
             .register()?;
 
@@ -265,8 +285,6 @@ impl telemetry::Metrics for Metrics {
             .register_with_labels(&[(CHECK_TX_STAGE, "nonce check".to_string())])?;
         let check_tx_duration_seconds_check_chain_id = check_tx_duration_factory
             .register_with_labels(&[(CHECK_TX_STAGE, "chain id check".to_string())])?;
-        let check_tx_duration_seconds_check_balance = check_tx_duration_factory
-            .register_with_labels(&[(CHECK_TX_STAGE, "balance check".to_string())])?;
         let check_tx_duration_seconds_check_removed = check_tx_duration_factory
             .register_with_labels(&[(CHECK_TX_STAGE, "check for removal".to_string())])?;
         let check_tx_duration_seconds_insert_to_app_mempool = check_tx_duration_factory
@@ -306,13 +324,14 @@ impl telemetry::Metrics for Metrics {
             check_tx_removed_failed_execution,
             check_tx_removed_failed_stateless,
             check_tx_removed_stale_nonce,
-            check_tx_removed_account_balance,
             check_tx_duration_seconds_parse_tx,
             check_tx_duration_seconds_check_stateless,
             check_tx_duration_seconds_check_nonce,
             check_tx_duration_seconds_check_chain_id,
-            check_tx_duration_seconds_check_balance,
             check_tx_duration_seconds_check_removed,
+            check_tx_duration_seconds_convert_address,
+            check_tx_duration_seconds_fetch_balances,
+            check_tx_duration_seconds_fetch_tx_cost,
             check_tx_duration_seconds_insert_to_app_mempool,
             actions_per_transaction_in_mempool,
             transaction_in_mempool_size_bytes,
@@ -336,6 +355,9 @@ metric_names!(const METRICS_NAMES:
     CHECK_TX_REMOVED_STALE_NONCE,
     CHECK_TX_REMOVED_ACCOUNT_BALANCE,
     CHECK_TX_DURATION_SECONDS,
+    CHECK_TX_DURATION_SECONDS_CONVERT_ADDRESS,
+    CHECK_TX_DURATION_SECONDS_FETCH_BALANCES,
+    CHECK_TX_DURATION_SECONDS_FETCH_TX_COST,
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
     TRANSACTIONS_IN_MEMPOOL_TOTAL
