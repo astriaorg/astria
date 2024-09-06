@@ -70,6 +70,17 @@ message ExecuteBlockRequest {
   repeated astria.sequencerblock.v1alpha1.RollupData transactions = 2;
   // Timestamp to be used for new block.
   google.protobuf.Timestamp timestamp = 3;
+  // If true, the block will be created but not persisted.
+  bool simulate_only = 4;
+}
+
+// ExecuteBlockResponse contains the new block and the transactions that were
+// included in the block.
+message ExecuteBlockResponse {
+  // The new block that was created.
+  Block block = 1;
+  // The transactions that were included in the block.
+  repeated astria.sequencerblock.v1alpha1.RollupData included_transactions = 2;
 }
 
 // The CommitmentState holds the block at each stage of sequencer commitment
@@ -115,7 +126,7 @@ service ExecutionService {
 
   // ExecuteBlock is called to deterministically derive a rollup block from
   // filtered sequencer block information.
-  rpc ExecuteBlock(ExecuteBlockRequest) returns (Block);
+  rpc ExecuteBlock(ExecuteBlockRequest) returns (ExecuteBlockResponse);
 
   // GetCommitmentState fetches the current CommitmentState of the chain.
   rpc GetCommitmentState(GetCommitmentStateRequest) returns (CommitmentState);

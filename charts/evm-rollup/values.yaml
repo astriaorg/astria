@@ -4,17 +4,20 @@ global:
   # Whether to use tty readable logging for astria services, when false use json.
   # Best to be false in production environments, true for clean logs on local dev.
   useTTY: false
-  dev: false
+  dev: true
 
 images:
   geth:
-    repo: ghcr.io/astriaorg/astria-geth
-    tag: 0.14.0
-    devTag: latest
-    overrideTag: ""
+    repo: ghcr.io/astriaorg/go-ethereum
+    tag: 0.13.0
+    devTag: tb
   conductor:
-    repo: ghcr.io/astriaorg/conductor
-    tag: "0.20.0"
+    repo: astria-conductor
+    tag: "0.18.0"
+    devTag: tb
+  composer:
+    repo: ghcr.io/astriaorg/composer
+    tag: "0.8.0"
     devTag: latest
 
 
