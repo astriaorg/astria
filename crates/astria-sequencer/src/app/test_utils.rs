@@ -241,7 +241,6 @@ pub(crate) fn mock_tx(
     Arc::new(tx.into_signed(signer))
 }
 
-#[cfg_attr(feature = "test", allow(dead_code))]
 pub(crate) const MOCK_SEQUENCE_FEE: u128 = 10;
 pub(crate) fn denom_0() -> Denom {
     "denom_0".parse().unwrap()
@@ -271,8 +270,6 @@ fn denom_6() -> Denom {
     "denom_6".parse().unwrap()
 }
 
-#[cfg_attr(feature = "test", allow(dead_code))]
-
 pub(crate) fn mock_balances(
     denom_0_balance: u128,
     denom_1_balance: u128,
@@ -287,12 +284,11 @@ pub(crate) fn mock_balances(
     // we don't sanitize the balance inputs
     balances.insert(denom_3().to_ibc_prefixed(), 100); // balance transaction costs won't have entry for
     balances.insert(denom_4().to_ibc_prefixed(), 0); // zero balance not in transaction
-    balances.insert(denom_5().to_ibc_prefixed(), 0); // zero balance with corresponding zero cost 
+    balances.insert(denom_5().to_ibc_prefixed(), 0); // zero balance with corresponding zero cost
 
     balances
 }
 
-#[cfg_attr(feature = "test", allow(dead_code))]
 pub(crate) fn mock_tx_cost(
     denom_0_cost: u128,
     denom_1_cost: u128,
@@ -304,8 +300,8 @@ pub(crate) fn mock_tx_cost(
     costs.insert(denom_2().to_ibc_prefixed(), denom_2_cost); // not present in balances
 
     // we don't sanitize the cost inputs
-    costs.insert(denom_5().to_ibc_prefixed(), 0); // zero in balances also 
-    costs.insert(denom_6().to_ibc_prefixed(), 0); // not present in balances 
+    costs.insert(denom_5().to_ibc_prefixed(), 0); // zero in balances also
+    costs.insert(denom_6().to_ibc_prefixed(), 0); // not present in balances
 
     costs
 }
@@ -313,18 +309,18 @@ pub(crate) fn mock_tx_cost(
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn mock_state_put_account_balances(
     state: &mut StateDelta<Snapshot>,
-    address: [u8; 20],
+    address: &[u8; 20],
     account_balances: HashMap<IbcPrefixed, u128>,
 ) {
     for (denom, balance) in account_balances {
-        state.put_account_balance(address, denom, balance).unwrap();
+        state.put_account_balance(address, &denom, balance).unwrap();
     }
 }
 
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn mock_state_put_account_nonce(
     state: &mut StateDelta<Snapshot>,
-    address: [u8; 20],
+    address: &[u8; 20],
     nonce: u32,
 ) {
     state.put_account_nonce(address, nonce).unwrap();
@@ -338,38 +334,40 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
 
     // setup denoms
     state
-        .put_ibc_asset(denom_0().as_trace_prefixed().unwrap())
+        .put_ibc_asset(denom_0().unwrap_trace_prefixed())
         .unwrap();
     state
-        .put_ibc_asset(denom_1().as_trace_prefixed().unwrap())
+        .put_ibc_asset(denom_1().unwrap_trace_prefixed())
         .unwrap();
     state
-        .put_ibc_asset(denom_2().as_trace_prefixed().unwrap())
+        .put_ibc_asset(denom_2().unwrap_trace_prefixed())
         .unwrap();
     state
-        .put_ibc_asset(denom_3().as_trace_prefixed().unwrap())
+        .put_ibc_asset(denom_3().unwrap_trace_prefixed())
         .unwrap();
     state
-        .put_ibc_asset(denom_4().as_trace_prefixed().unwrap())
+        .put_ibc_asset(denom_4().unwrap_trace_prefixed())
         .unwrap();
     state
-        .put_ibc_asset(denom_5().as_trace_prefixed().unwrap())
+        .put_ibc_asset(denom_5().unwrap_trace_prefixed())
         .unwrap();
     state
-        .put_ibc_asset(denom_6().as_trace_prefixed().unwrap())
+        .put_ibc_asset(denom_6().unwrap_trace_prefixed())
         .unwrap();
 
     // setup tx fees
-    state.put_sequence_action_base_fee(MOCK_SEQUENCE_FEE);
-    state.put_sequence_action_byte_cost_multiplier(0);
+    state
+        .put_sequence_action_base_fee(MOCK_SEQUENCE_FEE)
+        .unwrap();
+    state.put_sequence_action_byte_cost_multiplier(0).unwrap();
     state.put_transfer_base_fee(0).unwrap();
     state.put_ics20_withdrawal_base_fee(0).unwrap();
-    state.put_init_bridge_account_base_fee(0);
-    state.put_bridge_lock_byte_cost_multiplier(0);
-    state.put_bridge_sudo_change_base_fee(0);
+    state.put_init_bridge_account_base_fee(0).unwrap();
+    state.put_bridge_lock_byte_cost_multiplier(0).unwrap();
+    state.put_bridge_sudo_change_base_fee(0).unwrap();
 
     // put denoms as allowed fee asset
-    state.put_allowed_fee_asset(denom_0());
+    state.put_allowed_fee_asset(&denom_0()).unwrap();
 
     state
 }

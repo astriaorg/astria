@@ -407,7 +407,6 @@ impl UncheckedProof {
 /// The proof is the concatenation of all sibling hashes required to reconstruct
 /// the Merkle tree from a leaf. This is also called the audit path.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Proof {
     pub(super) audit_path: Vec<u8>,
     pub(super) leaf_index: usize,
@@ -620,5 +619,22 @@ impl Proof {
     #[must_use]
     pub fn verify(&self, leaf: &[u8], root_hash: [u8; 32]) -> bool {
         self.audit().with_leaf(leaf).with_root(root_hash).perform()
+    }
+
+    /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
+    /// our own state store.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(parts: UncheckedProof) -> Self {
+        let UncheckedProof {
+            audit_path,
+            leaf_index,
+            tree_size,
+        } = parts;
+        Proof {
+            audit_path,
+            leaf_index,
+            tree_size: NonZeroUsize::try_from(tree_size).expect("must be non-zero"),
+        }
     }
 }

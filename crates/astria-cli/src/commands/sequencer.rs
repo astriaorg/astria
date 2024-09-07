@@ -464,7 +464,7 @@ async fn submit_transaction(
     let sequencer_key = SigningKey::from(private_key_bytes);
 
     let from_address = Address::builder()
-        .array(sequencer_key.verification_key().address_bytes())
+        .array(*sequencer_key.verification_key().address_bytes())
         .prefix(prefix)
         .try_build()
         .wrap_err("failed constructing a valid from address from the provided prefix")?;

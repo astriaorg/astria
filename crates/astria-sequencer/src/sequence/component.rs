@@ -20,11 +20,11 @@ impl Component for SequenceComponent {
 
     #[instrument(name = "SequenceComponent::init_chain", skip_all)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
-        state.put_sequence_action_base_fee(app_state.fees().sequence_base_fee);
+        // No need to add context as these `put` methods already report sufficient context on error.
+        state.put_sequence_action_base_fee(app_state.fees().sequence_base_fee)?;
         state.put_sequence_action_byte_cost_multiplier(
             app_state.fees().sequence_byte_cost_multiplier,
-        );
-        Ok(())
+        )
     }
 
     #[instrument(name = "SequenceComponent::begin_block", skip_all)]

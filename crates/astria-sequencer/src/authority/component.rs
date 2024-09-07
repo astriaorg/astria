@@ -58,7 +58,7 @@ impl Component for AuthorityComponent {
             .context("failed getting validator set")?;
 
         for misbehaviour in &begin_block.byzantine_validators {
-            current_set.remove(misbehaviour.validator.address);
+            current_set.remove(&misbehaviour.validator.address);
         }
 
         let state = Arc::get_mut(state)

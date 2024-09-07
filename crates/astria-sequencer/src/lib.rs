@@ -20,6 +20,7 @@ pub(crate) mod sequence;
 mod sequencer;
 pub(crate) mod service;
 pub(crate) mod state_ext;
+pub(crate) mod storage;
 pub(crate) mod storage_keys;
 #[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod test_utils;

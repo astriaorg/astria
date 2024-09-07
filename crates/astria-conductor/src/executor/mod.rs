@@ -718,19 +718,20 @@ impl ExecutableBlock {
     }
 
     fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> Self {
-        let hash = block.block_hash();
-        let height = block.height();
-        let timestamp = convert_tendermint_time_to_protobuf_timestamp(block.header().time());
         let FilteredSequencerBlockParts {
+            block_hash,
+            header,
             mut rollup_transactions,
             ..
         } = block.into_parts();
+        let height = header.height();
+        let timestamp = convert_tendermint_time_to_protobuf_timestamp(header.time());
         let transactions = rollup_transactions
             .swap_remove(&id)
             .map(|txs| txs.transactions().to_vec())
             .unwrap_or_default();
         Self {
-            hash,
+            hash: block_hash,
             height,
             timestamp,
             transactions,

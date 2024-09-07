@@ -39,7 +39,9 @@ impl ActionHandler for FeeAssetChangeAction {
         );
         match self {
             FeeAssetChangeAction::Addition(asset) => {
-                state.put_allowed_fee_asset(asset);
+                state
+                    .put_allowed_fee_asset(asset)
+                    .context("failed to write allowed fee asset to state")?;
             }
             FeeAssetChangeAction::Removal(asset) => {
                 state.delete_allowed_fee_asset(asset);

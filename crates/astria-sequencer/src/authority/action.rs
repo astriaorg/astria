@@ -125,33 +125,27 @@ impl ActionHandler for FeeChangeAction {
             .context("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
 
+        // No need to add context to any of these `put` calls, as they already report sufficient
+        // context on error.
         match self.fee_change {
-            FeeChange::TransferBaseFee => {
-                state
-                    .put_transfer_base_fee(self.new_value)
-                    .context("failed to put transfer base fee in state")?;
-            }
+            FeeChange::TransferBaseFee => state.put_transfer_base_fee(self.new_value),
             FeeChange::SequenceBaseFee => state.put_sequence_action_base_fee(self.new_value),
             FeeChange::SequenceByteCostMultiplier => {
-                state.put_sequence_action_byte_cost_multiplier(self.new_value);
+                state.put_sequence_action_byte_cost_multiplier(self.new_value)
             }
             FeeChange::InitBridgeAccountBaseFee => {
-                state.put_init_bridge_account_base_fee(self.new_value);
+                state.put_init_bridge_account_base_fee(self.new_value)
             }
             FeeChange::BridgeLockByteCostMultiplier => {
-                state.put_bridge_lock_byte_cost_multiplier(self.new_value);
+                state.put_bridge_lock_byte_cost_multiplier(self.new_value)
             }
             FeeChange::BridgeSudoChangeBaseFee => {
-                state.put_bridge_sudo_change_base_fee(self.new_value);
+                state.put_bridge_sudo_change_base_fee(self.new_value)
             }
             FeeChange::Ics20WithdrawalBaseFee => {
-                state
-                    .put_ics20_withdrawal_base_fee(self.new_value)
-                    .context("failed to put ics20 withdrawal base fee in state")?;
+                state.put_ics20_withdrawal_base_fee(self.new_value)
             }
         }
-
-        Ok(())
     }
 }
 
@@ -197,7 +191,9 @@ mod test {
         assert_eq!(state.get_transfer_base_fee().await.unwrap(), 10);
 
         let sequence_base_fee = 5;
-        state.put_sequence_action_base_fee(sequence_base_fee);
+        state
+            .put_sequence_action_base_fee(sequence_base_fee)
+            .unwrap();
 
         let fee_change = FeeChangeAction {
             fee_change: FeeChange::SequenceBaseFee,
@@ -208,7 +204,9 @@ mod test {
         assert_eq!(state.get_sequence_action_base_fee().await.unwrap(), 3);
 
         let sequence_byte_cost_multiplier = 2;
-        state.put_sequence_action_byte_cost_multiplier(sequence_byte_cost_multiplier);
+        state
+            .put_sequence_action_byte_cost_multiplier(sequence_byte_cost_multiplier)
+            .unwrap();
 
         let fee_change = FeeChangeAction {
             fee_change: FeeChange::SequenceByteCostMultiplier,
@@ -225,7 +223,9 @@ mod test {
         );
 
         let init_bridge_account_base_fee = 1;
-        state.put_init_bridge_account_base_fee(init_bridge_account_base_fee);
+        state
+            .put_init_bridge_account_base_fee(init_bridge_account_base_fee)
+            .unwrap();
 
         let fee_change = FeeChangeAction {
             fee_change: FeeChange::InitBridgeAccountBaseFee,
@@ -236,7 +236,9 @@ mod test {
         assert_eq!(state.get_init_bridge_account_base_fee().await.unwrap(), 2);
 
         let bridge_lock_byte_cost_multiplier = 1;
-        state.put_bridge_lock_byte_cost_multiplier(bridge_lock_byte_cost_multiplier);
+        state
+            .put_bridge_lock_byte_cost_multiplier(bridge_lock_byte_cost_multiplier)
+            .unwrap();
 
         let fee_change = FeeChangeAction {
             fee_change: FeeChange::BridgeLockByteCostMultiplier,

@@ -21,7 +21,7 @@ pub const fn namespace_v0_from_first_10_bytes(bytes: &[u8]) -> Namespace {
 /// 10 bytes of [`crate::primitive::v1::RollupId`].
 #[must_use = "a celestia namespace must be used in order to be useful"]
 pub const fn namespace_v0_from_rollup_id(rollup_id: crate::primitive::v1::RollupId) -> Namespace {
-    namespace_v0_from_first_10_bytes(&rollup_id.get())
+    namespace_v0_from_first_10_bytes(rollup_id.get())
 }
 
 /// Constructs a [`celestia_types::nmt::Namespace`] from the first 10 bytes of the sha256 hash of

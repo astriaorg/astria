@@ -175,26 +175,27 @@ impl ActionHandler for SignedTransaction {
             .context("failed to check balance for total fees and transfers")?;
 
         if state
-            .get_bridge_account_rollup_id(self)
+            .get_bridge_account_rollup_id(&self)
             .await
             .context("failed to check account rollup id")?
             .is_some()
         {
+            // No need to add context as this method already reports sufficient context on error.
             state.put_last_transaction_id_for_bridge_account(
-                self,
-                &transaction_context.transaction_id,
-            );
+                &self,
+                transaction_context.transaction_id,
+            )?;
         }
 
         let from_nonce = state
-            .get_account_nonce(self)
+            .get_account_nonce(&self)
             .await
             .context("failed getting nonce of transaction signer")?;
         let next_nonce = from_nonce
             .checked_add(1)
             .context("overflow occurred incrementing stored nonce")?;
         state
-            .put_account_nonce(self, next_nonce)
+            .put_account_nonce(&self, next_nonce)
             .context("failed updating `from` nonce")?;
 
         // FIXME: this should create one span per `check_and_execute`

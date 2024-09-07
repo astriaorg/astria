@@ -47,7 +47,9 @@ impl ActionHandler for IbcRelayerChangeAction {
 
         match self {
             IbcRelayerChangeAction::Addition(address) => {
-                state.put_ibc_relayer_address(address);
+                // No need to add context as this method already reports sufficient context on
+                // error.
+                state.put_ibc_relayer_address(address)?;
             }
             IbcRelayerChangeAction::Removal(address) => {
                 state.delete_ibc_relayer_address(address);

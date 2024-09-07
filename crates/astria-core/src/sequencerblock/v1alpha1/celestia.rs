@@ -183,8 +183,8 @@ impl SubmittedRollupData {
     }
 
     #[must_use]
-    pub fn sequencer_block_hash(&self) -> [u8; 32] {
-        self.sequencer_block_hash
+    pub fn sequencer_block_hash(&self) -> &[u8; 32] {
+        &self.sequencer_block_hash
     }
 
     /// Converts from the unchecked representation of this type (its shadow).
@@ -511,8 +511,8 @@ impl<'a> Iterator for RollupIdIter<'a> {
 impl SubmittedMetadata {
     /// Returns the block hash of the tendermint header stored in this blob.
     #[must_use]
-    pub fn block_hash(&self) -> [u8; 32] {
-        self.block_hash
+    pub fn block_hash(&self) -> &[u8; 32] {
+        &self.block_hash
     }
 
     /// Returns the sequencer's `CometBFT` chain ID.
@@ -543,7 +543,7 @@ impl SubmittedMetadata {
     /// Returns the Merkle Tree Hash constructed from the rollup transactions of the original
     /// [`SequencerBlock`] this blob was derived from.
     #[must_use]
-    pub fn rollup_transactions_root(&self) -> [u8; 32] {
+    pub fn rollup_transactions_root(&self) -> &[u8; 32] {
         self.header.rollup_transactions_root()
     }
 
@@ -588,7 +588,7 @@ impl SubmittedMetadata {
 
         if !rollup_transactions_proof.verify(
             &Sha256::digest(header.rollup_transactions_root()),
-            header.data_hash(),
+            *header.data_hash(),
         ) {
             return Err(SubmittedMetadataError::rollup_transactions_not_in_cometbft_block());
         }
@@ -596,7 +596,7 @@ impl SubmittedMetadata {
         if !super::are_rollup_ids_included(
             rollup_ids.iter().copied(),
             &rollup_ids_proof,
-            header.data_hash(),
+            *header.data_hash(),
         ) {
             return Err(SubmittedMetadataError::rollup_ids_not_in_cometbft_block());
         }

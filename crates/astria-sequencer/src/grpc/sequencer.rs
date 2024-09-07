@@ -11,6 +11,7 @@ use astria_core::{
         SequencerBlock as RawSequencerBlock,
     },
     primitive::v1::RollupId,
+    Protobuf,
 };
 use bytes::Bytes;
 use cnidarium::Storage;
@@ -117,13 +118,20 @@ impl SequencerService for SequencerServer {
                 ))
             })?;
 
-        let (rollup_transactions_proof, rollup_ids_proof) = snapshot
-            .get_block_proofs_by_block_hash(&block_hash)
+        let rollup_transactions_proof = snapshot
+            .get_rollup_transactions_proof_by_block_hash(&block_hash)
             .await
             .map_err(|e| {
                 Status::internal(format!(
-                    "failed to get sequencer block proofs from storage: {e}"
+                    "failed to get rollup transactions proof from storage: {e}"
                 ))
+            })?;
+
+        let rollup_ids_proof = snapshot
+            .get_rollup_ids_proof_by_block_hash(&block_hash)
+            .await
+            .map_err(|e| {
+                Status::internal(format!("failed to get rollup ids proof from storage: {e}"))
             })?;
 
         let mut all_rollup_ids = snapshot
@@ -158,8 +166,8 @@ impl SequencerService for SequencerServer {
             block_hash: Bytes::copy_from_slice(&block_hash),
             header: Some(header.into_raw()),
             rollup_transactions,
-            rollup_transactions_proof: rollup_transactions_proof.into(),
-            rollup_ids_proof: rollup_ids_proof.into(),
+            rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
+            rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
             all_rollup_ids,
         };
 
@@ -200,7 +208,7 @@ impl SequencerService for SequencerServer {
 
         // nonce wasn't in mempool, so just look it up from storage
         let snapshot = self.storage.latest_snapshot();
-        let nonce = snapshot.get_account_nonce(address).await.map_err(|e| {
+        let nonce = snapshot.get_account_nonce(&address).await.map_err(|e| {
             error!(
                 error = AsRef::<dyn std::error::Error>::as_ref(&e),
                 "failed to parse get account nonce from storage",
@@ -248,8 +256,8 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mempool = Mempool::new();
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
-        state_tx.put_block_height(1);
-        state_tx.put_sequencer_block(block.clone()).unwrap();
+        state_tx.put_block_height(1).unwrap();
+        state_tx.put_sequencer_block(block).unwrap();
         storage.commit(state_tx).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
@@ -311,7 +319,7 @@ mod test {
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
         let alice = get_alice_signing_key();
         let alice_address = astria_address(&alice.address_bytes());
-        state_tx.put_account_nonce(alice_address, 99).unwrap();
+        state_tx.put_account_nonce(&alice_address, 99).unwrap();
         storage.commit(state_tx).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));

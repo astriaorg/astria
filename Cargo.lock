@@ -807,6 +807,7 @@ dependencies = [
  "ibc-proto",
  "ibc-types",
  "insta",
+ "itertools 0.12.1",
  "matchit",
  "penumbra-ibc",
  "penumbra-proto",
@@ -1398,6 +1399,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6362ed55def622cddc70a4746a68554d7b687713770de539e59a739b249f8ed"
 dependencies = [
  "borsh-derive",
+ "bytes",
  "cfg_aliases",
 ]
 

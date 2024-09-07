@@ -59,7 +59,7 @@ pub(crate) async fn transaction_fee_request(
 
     let mut fees = Vec::with_capacity(fees_with_ibc_denoms.len());
     for (ibc_denom, value) in fees_with_ibc_denoms {
-        let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(ibc_denom).await {
+        let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(&ibc_denom).await {
             Ok(Some(trace_denom)) => trace_denom,
             Ok(None) => {
                 return response::Query {

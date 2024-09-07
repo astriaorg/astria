@@ -107,7 +107,7 @@ impl RollupId {
     /// use astria_core::primitive::v1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
-    /// assert_eq!(bytes, rollup_id.get());
+    /// assert_eq!(bytes, *rollup_id.get());
     /// ```
     #[must_use]
     pub const fn new(inner: [u8; ROLLUP_ID_LEN]) -> Self {
@@ -116,18 +116,18 @@ impl RollupId {
         }
     }
 
-    /// Returns the 32 bytes array representing the rollup ID.
+    /// Returns a ref to the 32 bytes array representing the rollup ID.
     ///
     /// # Examples
     /// ```
     /// use astria_core::primitive::v1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
-    /// assert_eq!(bytes, rollup_id.get());
+    /// assert_eq!(bytes, *rollup_id.get());
     /// ```
     #[must_use]
-    pub const fn get(self) -> [u8; 32] {
-        self.inner
+    pub const fn get(&self) -> &[u8; 32] {
+        &self.inner
     }
 
     /// Creates a new rollup ID by applying Sha256 to `bytes`.
@@ -474,31 +474,6 @@ pub struct Address<T = Bech32m> {
     format: PhantomData<T>,
 }
 
-// The serde impls need to be manually implemented for Address because they
-// only work for Address<Bech32m> which cannot be expressed using serde
-// attributes.
-#[cfg(feature = "serde")]
-mod _serde_impls {
-    use serde::de::Error as _;
-    impl serde::Serialize for super::Address<super::Bech32m> {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
-        {
-            self.to_raw().serialize(serializer)
-        }
-    }
-    impl<'de> serde::Deserialize<'de> for super::Address<super::Bech32m> {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            super::raw::Address::deserialize(deserializer)
-                .and_then(|raw| raw.try_into().map_err(D::Error::custom))
-        }
-    }
-}
-
 impl<TFormat> Clone for Address<TFormat> {
     fn clone(&self) -> Self {
         *self
@@ -522,8 +497,8 @@ impl<TFormat> Address<TFormat> {
     }
 
     #[must_use]
-    pub fn bytes(self) -> [u8; ADDRESS_LEN] {
-        self.bytes
+    pub fn bytes(&self) -> &[u8; ADDRESS_LEN] {
+        &self.bytes
     }
 
     #[must_use]
@@ -538,7 +513,7 @@ impl<TFormat> Address<TFormat> {
     /// The error conditions for this are the same as for [`AddressBuilder::try_build`].
     pub fn to_prefix(&self, prefix: &str) -> Result<Self, AddressError> {
         Self::builder()
-            .array(self.bytes())
+            .array(*self.bytes())
             .prefix(prefix)
             .try_build()
     }
@@ -563,7 +538,7 @@ impl Address<Bech32m> {
     #[must_use]
     pub fn to_raw(&self) -> raw::Address {
         let bech32m =
-            bech32::encode_lower::<<Bech32m as Format>::Checksum>(self.prefix, &self.bytes())
+            bech32::encode_lower::<<Bech32m as Format>::Checksum>(self.prefix, self.bytes())
                 .expect(
                     "should not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH",
                 );
@@ -589,6 +564,18 @@ impl Address<Bech32m> {
             bech32m,
         } = raw;
         bech32m.parse()
+    }
+
+    /// This should only be used where the inputs have been provided by a trusted entity, e.g. read
+    /// from our own state store.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(bytes: [u8; ADDRESS_LEN], prefix: &str) -> Self {
+        Self {
+            bytes,
+            prefix: bech32::Hrp::parse_unchecked(prefix),
+            format: PhantomData,
+        }
     }
 }
 
@@ -623,7 +610,7 @@ impl TryFrom<raw::Address> for Address<Bech32m> {
 impl<T: Format> std::fmt::Display for Address<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use bech32::EncodeError;
-        match bech32::encode_lower_to_fmt::<T::Checksum, _>(f, self.prefix, &self.bytes()) {
+        match bech32::encode_lower_to_fmt::<T::Checksum, _>(f, self.prefix, self.bytes()) {
             Ok(()) => Ok(()),
             Err(EncodeError::Fmt(err)) => Err(err),
             Err(err) => panic!(
@@ -664,11 +651,6 @@ where
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(try_from = "raw::TransactionId", into = "raw::TransactionId")
-)]
 pub struct TransactionId {
     inner: [u8; TRANSACTION_ID_LEN],
 }
@@ -684,8 +666,8 @@ impl TransactionId {
 
     /// Returns the 32-byte transaction hash.
     #[must_use]
-    pub fn get(self) -> [u8; TRANSACTION_ID_LEN] {
-        self.inner
+    pub fn get(&self) -> &[u8; TRANSACTION_ID_LEN] {
+        &self.inner
     }
 
     #[must_use]
@@ -805,7 +787,7 @@ mod tests {
             .prefix(ASTRIA_ADDRESS_PREFIX)
             .try_build()
             .unwrap();
-        insta::assert_json_snapshot!(&main_address);
+        insta::assert_json_snapshot!(&main_address.to_raw());
 
         let compat_address = main_address
             .to_prefix(ASTRIA_COMPAT_ADDRESS_PREFIX)

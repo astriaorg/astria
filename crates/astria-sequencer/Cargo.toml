@@ -24,7 +24,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 ] }
 
 anyhow = "1"
-borsh = { version = "1", features = ["derive"] }
+borsh = { version = "1.5.1", features = ["bytes", "derive"] }
 cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6", features = [
   "metrics",
 ] }
@@ -41,6 +41,7 @@ divan = { workspace = true, optional = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
+itertools = { workspace = true }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 penumbra-proto = { workspace = true }
 penumbra-tower-trace = { workspace = true }

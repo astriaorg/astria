@@ -50,7 +50,7 @@ impl ActionHandler for SequenceAction {
         );
 
         let curr_balance = state
-            .get_account_balance(from, &self.fee_asset)
+            .get_account_balance(&from, &self.fee_asset)
             .await
             .context("failed getting `from` account balance for fee payment")?;
         let fee = calculate_fee_from_state(&self.data, &state)
@@ -63,7 +63,7 @@ impl ActionHandler for SequenceAction {
             .await
             .context("failed to add to block fees")?;
         state
-            .decrease_balance(from, &self.fee_asset, fee)
+            .decrease_balance(&from, &self.fee_asset, fee)
             .await
             .context("failed updating `from` account balance")?;
         Ok(())

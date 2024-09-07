@@ -5,7 +5,6 @@ use anyhow::{
     Result,
 };
 use astria_core::{
-    primitive::v1::Address,
     protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
     Protobuf as _,
 };
@@ -75,7 +74,7 @@ impl ActionHandler for InitBridgeAccountAction {
         // after the account becomes a bridge account, it can no longer receive funds
         // via `TransferAction`, only via `BridgeLockAction`.
         if state
-            .get_bridge_account_rollup_id(from)
+            .get_bridge_account_rollup_id(&from)
             .await
             .context("failed getting rollup ID of bridge account")?
             .is_some()
@@ -84,7 +83,7 @@ impl ActionHandler for InitBridgeAccountAction {
         }
 
         let balance = state
-            .get_account_balance(from, &self.fee_asset)
+            .get_account_balance(&from, &self.fee_asset)
             .await
             .context("failed getting `from` account balance for fee payment")?;
 
@@ -93,21 +92,28 @@ impl ActionHandler for InitBridgeAccountAction {
             "insufficient funds for bridge account initialization",
         );
 
-        state.put_bridge_account_rollup_id(from, &self.rollup_id);
+        // No need to add context as this method already reports sufficient context on error.
+        state.put_bridge_account_rollup_id(&from, self.rollup_id)?;
         state
-            .put_bridge_account_ibc_asset(from, &self.asset)
+            .put_bridge_account_ibc_asset(&from, &self.asset)
             .context("failed to put asset ID")?;
-        state.put_bridge_account_sudo_address(from, self.sudo_address.map_or(from, Address::bytes));
+        // No need to add context as this method already reports sufficient context on error.
+        state.put_bridge_account_sudo_address(
+            &from,
+            self.sudo_address.map_or(from, |address| *address.bytes()),
+        )?;
+        // No need to add context as this method already reports sufficient context on error.
         state.put_bridge_account_withdrawer_address(
-            from,
-            self.withdrawer_address.map_or(from, Address::bytes),
-        );
+            &from,
+            self.withdrawer_address
+                .map_or(from, |address| *address.bytes()),
+        )?;
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
             .context("failed to get and increase block fees")?;
         state
-            .decrease_balance(from, &self.fee_asset, fee)
+            .decrease_balance(&from, &self.fee_asset, fee)
             .await
             .context("failed to deduct fee from account balance")?;
         Ok(())

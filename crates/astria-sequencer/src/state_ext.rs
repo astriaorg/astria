@@ -11,7 +11,15 @@ use cnidarium::{
 use tendermint::Time;
 use tracing::instrument;
 
+use crate::storage::{
+    self,
+    StoredValue,
+};
+
+const CHAIN_ID_KEY: &str = "chain_id";
 const REVISION_NUMBER_KEY: &str = "revision_number";
+const BLOCK_HEIGHT_KEY: &str = "block_height";
+const BLOCK_TIMESTAMP_KEY: &str = "block_timestamp";
 
 fn storage_version_by_height_key(height: u64) -> Vec<u8> {
     format!("storage_version/{height}").into()
@@ -22,17 +30,15 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_chain_id(&self) -> Result<tendermint::chain::Id> {
         let Some(bytes) = self
-            .get_raw("chain_id")
+            .get_raw(CHAIN_ID_KEY)
             .await
             .context("failed to read raw chain_id from state")?
         else {
             bail!("chain id not found in state");
         };
-
-        Ok(String::from_utf8(bytes)
-            .context("failed to parse chain id from raw bytes")?
-            .try_into()
-            .expect("only valid chain ids should be stored in the state"))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::ChainId::try_from(value).map(tendermint::chain::Id::from))
+            .context("invalid chain id bytes")
     }
 
     #[instrument(skip_all)]
@@ -44,44 +50,37 @@ pub(crate) trait StateReadExt: StateRead {
         else {
             bail!("revision number not found in state");
         };
-
-        let bytes = TryInto::<[u8; 8]>::try_into(bytes).map_err(|b| {
-            anyhow::anyhow!(
-                "expected 8 revision number bytes but got {}; this is a bug",
-                b.len()
-            )
-        })?;
-
-        Ok(u64::from_be_bytes(bytes))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::RevisionNumber::try_from(value).map(u64::from))
+            .context("invalid revision number bytes")
     }
 
     #[instrument(skip_all)]
     async fn get_block_height(&self) -> Result<u64> {
         let Some(bytes) = self
-            .get_raw("block_height")
+            .get_raw(BLOCK_HEIGHT_KEY)
             .await
             .context("failed to read raw block_height from state")?
         else {
             bail!("block height not found state");
         };
-        let Ok(bytes): Result<[u8; 8], _> = bytes.try_into() else {
-            bail!("failed turning raw block height bytes into u64; not 8 bytes?");
-        };
-        Ok(u64::from_be_bytes(bytes))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::BlockHeight::try_from(value).map(u64::from))
+            .context("invalid block height bytes")
     }
 
     #[instrument(skip_all)]
     async fn get_block_timestamp(&self) -> Result<Time> {
         let Some(bytes) = self
-            .get_raw("block_timestamp")
+            .get_raw(BLOCK_TIMESTAMP_KEY)
             .await
             .context("failed to read raw block_timestamp from state")?
         else {
             bail!("block timestamp not found");
         };
-        // no extra allocations in the happy path (meaning the bytes are utf8)
-        Time::parse_from_rfc3339(&String::from_utf8_lossy(&bytes))
-            .context("failed to parse timestamp from raw timestamp bytes")
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::BlockTimestamp::try_from(value).map(Time::from))
+            .context("invalid block timestamp bytes")
     }
 
     #[instrument(skip_all)]
@@ -94,10 +93,9 @@ pub(crate) trait StateReadExt: StateRead {
         else {
             bail!("storage version not found");
         };
-        let Ok(bytes): Result<[u8; 8], _> = bytes.try_into() else {
-            bail!("failed turning raw storage version bytes into u64; not 8 bytes?");
-        };
-        Ok(u64::from_be_bytes(bytes))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::StorageVersion::try_from(value).map(u64::from))
+            .context("invalid storage version bytes")
     }
 }
 
@@ -106,36 +104,49 @@ impl<T: StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_chain_id_and_revision_number(&mut self, chain_id: tendermint::chain::Id) {
+    fn put_chain_id_and_revision_number(&mut self, chain_id: tendermint::chain::Id) -> Result<()> {
         let revision_number = revision_number_from_chain_id(chain_id.as_str());
-        self.put_raw("chain_id".into(), chain_id.as_bytes().to_vec());
-        self.put_revision_number(revision_number);
+        let bytes = StoredValue::ChainId((&chain_id).into())
+            .serialize()
+            .context("failed to serialize chain id")?;
+        self.put_raw(CHAIN_ID_KEY.into(), bytes);
+        self.put_revision_number(revision_number)
     }
 
     #[instrument(skip_all)]
-    fn put_revision_number(&mut self, revision_number: u64) {
-        self.put_raw(
-            REVISION_NUMBER_KEY.into(),
-            revision_number.to_be_bytes().to_vec(),
-        );
+    fn put_revision_number(&mut self, revision_number: u64) -> Result<()> {
+        let bytes = StoredValue::RevisionNumber(revision_number.into())
+            .serialize()
+            .context("failed to serialize revision number")?;
+        self.put_raw(REVISION_NUMBER_KEY.into(), bytes);
+        Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_block_height(&mut self, height: u64) {
-        self.put_raw("block_height".into(), height.to_be_bytes().to_vec());
+    fn put_block_height(&mut self, height: u64) -> Result<()> {
+        let bytes = StoredValue::BlockHeight(height.into())
+            .serialize()
+            .context("failed to serialize block height")?;
+        self.put_raw(BLOCK_HEIGHT_KEY.into(), bytes);
+        Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_block_timestamp(&mut self, timestamp: Time) {
-        self.put_raw("block_timestamp".into(), timestamp.to_rfc3339().into());
+    fn put_block_timestamp(&mut self, timestamp: Time) -> Result<()> {
+        let bytes = StoredValue::BlockTimestamp(timestamp.into())
+            .serialize()
+            .context("failed to serialize block timestamp")?;
+        self.put_raw(BLOCK_TIMESTAMP_KEY.into(), bytes);
+        Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_storage_version_by_height(&mut self, height: u64, version: u64) {
-        self.nonverifiable_put_raw(
-            storage_version_by_height_key(height),
-            version.to_be_bytes().to_vec(),
-        );
+    fn put_storage_version_by_height(&mut self, height: u64, version: u64) -> Result<()> {
+        let bytes = StoredValue::StorageVersion(version.into())
+            .serialize()
+            .context("failed to serialize storage version")?;
+        self.nonverifiable_put_raw(storage_version_by_height_key(height), bytes);
+        Ok(())
     }
 }
 
@@ -204,7 +215,9 @@ mod tests {
 
         // can write new
         let chain_id_orig: tendermint::chain::Id = "test-chain-orig".try_into().unwrap();
-        state.put_chain_id_and_revision_number(chain_id_orig.clone());
+        state
+            .put_chain_id_and_revision_number(chain_id_orig.clone())
+            .unwrap();
         assert_eq!(
             state
                 .get_chain_id()
@@ -225,7 +238,9 @@ mod tests {
 
         // can rewrite with new value
         let chain_id_update: tendermint::chain::Id = "test-chain-update".try_into().unwrap();
-        state.put_chain_id_and_revision_number(chain_id_update.clone());
+        state
+            .put_chain_id_and_revision_number(chain_id_update.clone())
+            .unwrap();
         assert_eq!(
             state
                 .get_chain_id()
@@ -246,7 +261,9 @@ mod tests {
 
         // can rewrite with chain id with revision number
         let chain_id_update: tendermint::chain::Id = "test-chain-99".try_into().unwrap();
-        state.put_chain_id_and_revision_number(chain_id_update.clone());
+        state
+            .put_chain_id_and_revision_number(chain_id_update.clone())
+            .unwrap();
         assert_eq!(
             state
                 .get_chain_id()
@@ -280,7 +297,7 @@ mod tests {
 
         // can write new
         let block_height_orig = 0;
-        state.put_block_height(block_height_orig);
+        state.put_block_height(block_height_orig).unwrap();
         assert_eq!(
             state
                 .get_block_height()
@@ -292,7 +309,7 @@ mod tests {
 
         // can rewrite with new value
         let block_height_update = 1;
-        state.put_block_height(block_height_update);
+        state.put_block_height(block_height_update).unwrap();
         assert_eq!(
             state
                 .get_block_height()
@@ -317,7 +334,7 @@ mod tests {
 
         // can write new
         let block_timestamp_orig = Time::from_unix_timestamp(1_577_836_800, 0).unwrap();
-        state.put_block_timestamp(block_timestamp_orig);
+        state.put_block_timestamp(block_timestamp_orig).unwrap();
         assert_eq!(
             state
                 .get_block_timestamp()
@@ -329,7 +346,7 @@ mod tests {
 
         // can rewrite with new value
         let block_timestamp_update = Time::from_unix_timestamp(1_577_836_801, 0).unwrap();
-        state.put_block_timestamp(block_timestamp_update);
+        state.put_block_timestamp(block_timestamp_update).unwrap();
         assert_eq!(
             state
                 .get_block_timestamp()
@@ -355,7 +372,9 @@ mod tests {
 
         // can write for block height 0
         let storage_version_orig = 0;
-        state.put_storage_version_by_height(block_height_orig, storage_version_orig);
+        state
+            .put_storage_version_by_height(block_height_orig, storage_version_orig)
+            .unwrap();
         assert_eq!(
             state
                 .get_storage_version_by_height(block_height_orig)
@@ -367,7 +386,9 @@ mod tests {
 
         // can update block height 0
         let storage_version_update = 0;
-        state.put_storage_version_by_height(block_height_orig, storage_version_update);
+        state
+            .put_storage_version_by_height(block_height_orig, storage_version_update)
+            .unwrap();
         assert_eq!(
             state
                 .get_storage_version_by_height(block_height_orig)
@@ -379,7 +400,9 @@ mod tests {
 
         // can write block 1 and block 0 is unchanged
         let block_height_update = 1;
-        state.put_storage_version_by_height(block_height_update, storage_version_orig);
+        state
+            .put_storage_version_by_height(block_height_update, storage_version_orig)
+            .unwrap();
         assert_eq!(
             state
                 .get_storage_version_by_height(block_height_update)

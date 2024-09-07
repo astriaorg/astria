@@ -44,6 +44,7 @@ use cnidarium::{
     StateRead,
     Storage,
 };
+use itertools::Itertools as _;
 use prost::Message as _;
 use sha2::{
     Digest as _,
@@ -223,26 +224,38 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
-        state_tx.put_base_prefix(genesis_state.address_prefixes().base());
-        state_tx.put_ibc_compat_prefix(genesis_state.address_prefixes().ibc_compat());
+        state_tx
+            .put_base_prefix(genesis_state.address_prefixes().base().to_string())
+            .context("failed to write base prefix to state")?;
+        state_tx
+            .put_ibc_compat_prefix(genesis_state.address_prefixes().ibc_compat().to_string())
+            .context("failed to write ibc-compat prefix to state")?;
 
         let native_asset = genesis_state.native_asset_base_denomination();
-        state_tx.put_native_asset(native_asset);
         state_tx
-            .put_ibc_asset(native_asset)
+            .put_native_asset(native_asset.clone())
+            .context("failed to write native asset to state")?;
+        state_tx
+            .put_ibc_asset(native_asset.clone())
             .context("failed to commit native asset as ibc asset to state")?;
 
-        state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
-        state_tx.put_block_height(0);
+        state_tx
+            .put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?)
+            .context("failed to write chain id to state")?;
+        state_tx
+            .put_block_height(0)
+            .context("failed to write block height to state")?;
 
         for fee_asset in genesis_state.allowed_fee_assets() {
-            state_tx.put_allowed_fee_asset(fee_asset);
+            state_tx
+                .put_allowed_fee_asset(fee_asset)
+                .context("failed to write allowed fee asset to state")?;
         }
 
         // call init_chain on all components
         AccountsComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .context("failed to call init_chain on AccountsComponent")?;
+            .context("init_chain failed on AccountsComponent")?;
         AuthorityComponent::init_chain(
             &mut state_tx,
             &AuthorityComponentAppState {
@@ -251,16 +264,16 @@ impl App {
             },
         )
         .await
-        .context("failed to call init_chain on AuthorityComponent")?;
+        .context("init_chain failed on AuthorityComponent")?;
         BridgeComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .context("failed to call init_chain on BridgeComponent")?;
+            .context("init_chain failed on BridgeComponent")?;
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .context("failed to call init_chain on IbcComponent")?;
+            .context("init_chain failed on IbcComponent")?;
         SequenceComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .context("failed to call init_chain on SequenceComponent")?;
+            .context("init_chain failed on SequenceComponent")?;
 
         state_tx.apply();
 
@@ -753,7 +766,7 @@ impl App {
 
         self.begin_block(&begin_block)
             .await
-            .context("failed to call begin_block")?;
+            .context("begin_block failed")?;
 
         Ok(())
     }
@@ -861,7 +874,7 @@ impl App {
             tx_results.extend(execution_results);
         };
 
-        let end_block = self.end_block(height.value(), sudo_address).await?;
+        let end_block = self.end_block(height.value(), &sudo_address).await?;
 
         // get and clear block deposits from state
         let mut state_tx = StateDelta::new(self.state.clone());
@@ -875,7 +888,12 @@ impl App {
             .await
             .context("failed to clear block deposits")?;
         debug!(
-            deposits = %telemetry::display::json(&deposits),
+            deposits = %deposits
+                .iter()
+                .map(|(rollup_id, deposits)| {
+                    format!("[rollup {}: {}]", rollup_id, deposits.iter().join(", "))
+                })
+                .join(", "),
             "got block deposits from state"
         );
 
@@ -934,7 +952,8 @@ impl App {
             .get_block_height()
             .await
             .expect("block height must be set, as `put_block_height` was already called");
-        state.put_storage_version_by_height(height, new_version);
+        // No need to add context as this method already reports sufficient context on error.
+        state.put_storage_version_by_height(height, new_version)?;
         debug!(
             height,
             version = new_version,
@@ -962,28 +981,28 @@ impl App {
     ) -> anyhow::Result<Vec<abci::Event>> {
         let mut state_tx = StateDelta::new(self.state.clone());
 
-        // store the block height
-        state_tx.put_block_height(begin_block.header.height.into());
-        // store the block time
-        state_tx.put_block_timestamp(begin_block.header.time);
+        // No need to add context as this method already reports sufficient context on error.
+        state_tx.put_block_height(begin_block.header.height.into())?;
+        // No need to add context as this method already reports sufficient context on error.
+        state_tx.put_block_timestamp(begin_block.header.time)?;
 
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);
         AccountsComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on AccountsComponent")?;
+            .context("begin_block failed on AccountsComponent")?;
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on AuthorityComponent")?;
+            .context("begin_block failed on AuthorityComponent")?;
         BridgeComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on BridgeComponent")?;
+            .context("begin_block failed on BridgeComponent")?;
         IbcComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on IbcComponent")?;
+            .context("begin_block failed on IbcComponent")?;
         SequenceComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on SequenceComponent")?;
+            .context("begin_block failed on SequenceComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1026,7 +1045,7 @@ impl App {
     async fn end_block(
         &mut self,
         height: u64,
-        fee_recipient: [u8; 20],
+        fee_recipient: &[u8; 20],
     ) -> anyhow::Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -1040,19 +1059,19 @@ impl App {
         // call end_block on all components
         AccountsComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on AccountsComponent")?;
+            .context("end_block failed on AccountsComponent")?;
         AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on AuthorityComponent")?;
+            .context("end_block failed on AuthorityComponent")?;
         BridgeComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on BridgeComponent")?;
+            .context("end_block failed on BridgeComponent")?;
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on IbcComponent")?;
+            .context("end_block failed on IbcComponent")?;
         SequenceComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on SequenceComponent")?;
+            .context("end_block failed on SequenceComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1076,7 +1095,7 @@ impl App {
 
         for (asset, amount) in fees {
             state_tx
-                .increase_balance(fee_recipient, asset, amount)
+                .increase_balance(fee_recipient, &asset, amount)
                 .await
                 .context("failed to increase fee recipient balance")?;
         }

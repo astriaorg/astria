@@ -9,7 +9,7 @@ use cnidarium::StateWrite;
 /// [1]: https://github.com/penumbra-zone/penumbra/blob/14959350abcb8cfbf33f9aedc7463fccfd8e3f9f/crates/cnidarium-component/src/action_handler.rs#L30
 #[async_trait::async_trait]
 pub(crate) trait ActionHandler {
-    // Commenting out for the time being as this is currentl nonot being used. Leaving this in
+    // Commenting out for the time being as this is currently not being used. Leaving this in
     // for reference as this is copied from cnidarium_component.
     // ```
     // type CheckStatelessContext: Clone + Send + Sync + 'static;

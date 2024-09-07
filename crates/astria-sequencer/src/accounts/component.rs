@@ -35,7 +35,7 @@ impl Component for AccountsComponent {
             .context("failed to read native asset from state")?;
         for account in app_state.accounts() {
             state
-                .put_account_balance(account.address, &native_asset, account.balance)
+                .put_account_balance(&account.address, &native_asset, account.balance)
                 .context("failed writing account balance to state")?;
         }
 

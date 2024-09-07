@@ -6,64 +6,56 @@ use std::collections::BTreeMap;
 
 use anyhow::Context as _;
 use astria_core::{
-    crypto::VerificationKey,
     primitive::v1::ADDRESS_LEN,
     protocol::transaction::v1alpha1::action::ValidatorUpdate,
-};
-use serde::{
-    Deserialize,
-    Serialize,
 };
 pub(crate) use state_ext::{
     StateReadExt,
     StateWriteExt,
 };
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Ord, PartialOrd)]
-pub(crate) struct ValidatorSetKey(#[serde(with = "::hex::serde")] [u8; ADDRESS_LEN]);
-
-impl From<[u8; ADDRESS_LEN]> for ValidatorSetKey {
-    fn from(value: [u8; ADDRESS_LEN]) -> Self {
-        Self(value)
-    }
-}
-
-impl From<&VerificationKey> for ValidatorSetKey {
-    fn from(value: &VerificationKey) -> Self {
-        Self(value.address_bytes())
-    }
-}
+use crate::accounts::AddressBytes;
 
 /// Newtype wrapper to read and write a validator set or set of updates from rocksdb.
 ///
 /// Contains a map of hex-encoded public keys to validator updates.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct ValidatorSet(BTreeMap<ValidatorSetKey, ValidatorUpdate>);
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Clone))]
+pub(crate) struct ValidatorSet(BTreeMap<[u8; ADDRESS_LEN], ValidatorUpdate>);
 
 impl ValidatorSet {
+    pub(crate) fn new(inner: BTreeMap<[u8; ADDRESS_LEN], ValidatorUpdate>) -> Self {
+        Self(inner)
+    }
+
     pub(crate) fn new_from_updates(updates: Vec<ValidatorUpdate>) -> Self {
         Self(
             updates
                 .into_iter()
-                .map(|update| ((&update.verification_key).into(), update))
+                .map(|update| (*update.verification_key.address_bytes(), update))
                 .collect::<BTreeMap<_, _>>(),
         )
+    }
+
+    pub(crate) fn updates(&self) -> impl Iterator<Item = &ValidatorUpdate> {
+        self.0.values()
     }
 
     pub(crate) fn len(&self) -> usize {
         self.0.len()
     }
 
-    pub(crate) fn get<T: Into<ValidatorSetKey>>(&self, address: T) -> Option<&ValidatorUpdate> {
-        self.0.get(&address.into())
+    pub(crate) fn get<T: AddressBytes>(&self, address: &T) -> Option<&ValidatorUpdate> {
+        self.0.get(address.address_bytes())
     }
 
     pub(super) fn push_update(&mut self, update: ValidatorUpdate) {
-        self.0.insert((&update.verification_key).into(), update);
+        self.0
+            .insert(*update.verification_key.address_bytes(), update);
     }
 
-    pub(super) fn remove<T: Into<ValidatorSetKey>>(&mut self, address: T) {
-        self.0.remove(&address.into());
+    pub(super) fn remove<T: AddressBytes>(&mut self, address: &T) {
+        self.0.remove(address.address_bytes());
     }
 
     /// Apply updates to the validator set.

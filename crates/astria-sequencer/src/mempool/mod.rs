@@ -204,7 +204,7 @@ impl Mempool {
                         .checked_add(1)
                         .expect("failed to increment nonce in promotion"),
                     &pending.subtract_contained_costs(
-                        *timemarked_tx.address(),
+                        timemarked_tx.address(),
                         current_account_balances.clone(),
                     ),
                 );
@@ -244,8 +244,8 @@ impl Mempool {
         signed_tx: Arc<SignedTransaction>,
         reason: RemovalReason,
     ) {
-        let tx_hash = signed_tx.id().get();
-        let address = signed_tx.verification_key().address_bytes();
+        let tx_hash = *signed_tx.id().get();
+        let address = *signed_tx.verification_key().address_bytes();
 
         // Try to remove from pending.
         let removed_txs = match self.pending.write().await.remove(signed_tx) {
@@ -301,12 +301,12 @@ impl Mempool {
 
         let addresses: HashSet<[u8; 20]> = pending
             .addresses()
-            .into_iter()
             .chain(parked.addresses())
+            .copied()
             .collect();
 
         // TODO: Make this concurrent, all account state is separate with IO bound disk reads.
-        for address in addresses {
+        for address in &addresses {
             // get current account state
             let current_nonce = match state.get_account_nonce(address).await {
                 Ok(res) => res,
@@ -322,7 +322,7 @@ impl Mempool {
                 Ok(res) => res,
                 Err(error) => {
                     error!(
-                        address = %telemetry::display::base64(&address),
+                        address = %telemetry::display::base64(address),
                         "failed to fetch account balances when cleaning accounts: {error:#}"
                     );
                     continue;
@@ -352,7 +352,7 @@ impl Mempool {
                 let remaining_balances =
                     pending.subtract_contained_costs(address, current_balances.clone());
                 let promtion_txs =
-                    parked.find_promotables(&address, highest_pending_nonce, &remaining_balances);
+                    parked.find_promotables(address, highest_pending_nonce, &remaining_balances);
 
                 for tx in promtion_txs {
                     if let Err(error) = pending.add(tx, current_nonce, &current_balances) {
@@ -391,7 +391,7 @@ impl Mempool {
     /// pending queue for an account has nonces [0,1] and the parked queue has [3], [1] will be
     /// returned.
     #[instrument(skip_all)]
-    pub(crate) async fn pending_nonce(&self, address: [u8; 20]) -> Option<u32> {
+    pub(crate) async fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
         self.pending.read().await.pending_nonce(address)
     }
 
@@ -486,7 +486,7 @@ mod test {
 
         let mempool = Mempool::new();
         let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.verification_key().address_bytes();
+        let signing_address = *signing_key.verification_key().address_bytes();
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
@@ -536,7 +536,7 @@ mod test {
 
         // mock state with nonce at 1
         let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, 1);
 
         // grab building queue, should return transactions [1,2] since [0] was below and [4] is
         // gapped
@@ -556,8 +556,8 @@ mod test {
         // to pending
 
         // setup state
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 4);
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(100, 100));
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, 4);
+        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances(100, 100));
 
         mempool.run_maintenance(&mock_state, false).await;
 
@@ -577,7 +577,7 @@ mod test {
     async fn run_maintenance_promotion() {
         let mempool = Mempool::new();
         let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.verification_key().address_bytes();
+        let signing_address = signing_key.address_bytes();
 
         // create transaction setup to trigger promotions
         //
@@ -608,7 +608,7 @@ mod test {
 
         // see pending only has one transaction
         let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, 1);
 
         let builder_queue = mempool
             .builder_queue(&mock_state)
@@ -623,7 +623,7 @@ mod test {
         // run maintenance with account containing balance for two more transactions
 
         // setup state
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(3, 0));
+        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances(3, 0));
 
         mempool.run_maintenance(&mock_state, false).await;
 
@@ -644,7 +644,7 @@ mod test {
     async fn run_maintenance_demotion() {
         let mempool = Mempool::new();
         let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.verification_key().address_bytes();
+        let signing_address = signing_key.address_bytes();
 
         // create transaction setup to trigger demotions
         //
@@ -676,7 +676,7 @@ mod test {
         // see pending only has all transactions
 
         let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, 1);
 
         let builder_queue = mempool
             .builder_queue(&mock_state)
@@ -689,7 +689,7 @@ mod test {
         );
 
         // setup state
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(1, 0));
+        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances(1, 0));
 
         mempool.run_maintenance(&mock_state, false).await;
 
@@ -704,8 +704,8 @@ mod test {
             "builder queue should contain single transaction"
         );
 
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(3, 0));
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, 1);
+        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances(3, 0));
 
         mempool.run_maintenance(&mock_state, false).await;
 
@@ -802,23 +802,23 @@ mod test {
         // assert that all were added to the cometbft removal cache
         // and the expected reasons were tracked
         assert!(matches!(
-            mempool.check_removed_comet_bft(tx0.id().get()).await,
+            mempool.check_removed_comet_bft(*tx0.id().get()).await,
             Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
-            mempool.check_removed_comet_bft(tx1.id().get()).await,
+            mempool.check_removed_comet_bft(*tx1.id().get()).await,
             Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
-            mempool.check_removed_comet_bft(tx3.id().get()).await,
+            mempool.check_removed_comet_bft(*tx3.id().get()).await,
             Some(RemovalReason::LowerNonceInvalidated)
         ));
         assert!(matches!(
-            mempool.check_removed_comet_bft(tx4.id().get()).await,
+            mempool.check_removed_comet_bft(*tx4.id().get()).await,
             Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
-            mempool.check_removed_comet_bft(tx5.id().get()).await,
+            mempool.check_removed_comet_bft(*tx5.id().get()).await,
             Some(RemovalReason::LowerNonceInvalidated)
         ));
     }
@@ -829,9 +829,9 @@ mod test {
         let signing_key_0 = SigningKey::from([1; 32]);
         let signing_key_1 = SigningKey::from([2; 32]);
         let signing_key_2 = SigningKey::from([3; 32]);
-        let signing_address_0 = signing_key_0.verification_key().address_bytes();
-        let signing_address_1 = signing_key_1.verification_key().address_bytes();
-        let signing_address_2 = signing_key_2.verification_key().address_bytes();
+        let signing_address_0 = *signing_key_0.verification_key().address_bytes();
+        let signing_address_1 = *signing_key_1.verification_key().address_bytes();
+        let signing_address_2 = *signing_key_2.verification_key().address_bytes();
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
@@ -884,11 +884,14 @@ mod test {
         assert_eq!(mempool.len().await, 4);
 
         // Check the pending nonces
-        assert_eq!(mempool.pending_nonce(signing_address_0).await.unwrap(), 1);
-        assert_eq!(mempool.pending_nonce(signing_address_1).await.unwrap(), 101);
+        assert_eq!(mempool.pending_nonce(&signing_address_0).await.unwrap(), 1);
+        assert_eq!(
+            mempool.pending_nonce(&signing_address_1).await.unwrap(),
+            101
+        );
 
         // Check the pending nonce for an address with no txs is `None`.
-        assert!(mempool.pending_nonce(signing_address_2).await.is_none());
+        assert!(mempool.pending_nonce(&signing_address_2).await.is_none());
     }
 
     #[tokio::test]

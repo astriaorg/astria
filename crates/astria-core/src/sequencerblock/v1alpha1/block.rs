@@ -1,5 +1,9 @@
 use std::{
     collections::HashMap,
+    fmt::{
+        Display,
+        Formatter,
+    },
     vec::IntoIter,
 };
 
@@ -92,8 +96,8 @@ pub struct RollupTransactions {
 impl RollupTransactions {
     /// Returns the [`RollupId`] identifying the rollup these transactions belong to.
     #[must_use]
-    pub fn rollup_id(&self) -> RollupId {
-        self.rollup_id
+    pub fn rollup_id(&self) -> &RollupId {
+        &self.rollup_id
     }
 
     /// Returns the block data for this rollup.
@@ -164,6 +168,23 @@ impl RollupTransactions {
             proof,
         } = self;
         RollupTransactionsParts {
+            rollup_id,
+            transactions,
+            proof,
+        }
+    }
+
+    /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
+    /// our own state store.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(parts: RollupTransactionsParts) -> Self {
+        let RollupTransactionsParts {
+            rollup_id,
+            transactions,
+            proof,
+        } = parts;
+        Self {
             rollup_id,
             transactions,
             proof,
@@ -371,13 +392,13 @@ impl SequencerBlockHeader {
     }
 
     #[must_use]
-    pub fn rollup_transactions_root(&self) -> [u8; 32] {
-        self.rollup_transactions_root
+    pub fn rollup_transactions_root(&self) -> &[u8; 32] {
+        &self.rollup_transactions_root
     }
 
     #[must_use]
-    pub fn data_hash(&self) -> [u8; 32] {
-        self.data_hash
+    pub fn data_hash(&self) -> &[u8; 32] {
+        &self.data_hash
     }
 
     #[must_use]
@@ -478,6 +499,29 @@ impl SequencerBlockHeader {
             proposer_address,
         })
     }
+
+    /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
+    /// our own state store.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(parts: SequencerBlockHeaderParts) -> Self {
+        let SequencerBlockHeaderParts {
+            chain_id,
+            height,
+            time,
+            rollup_transactions_root,
+            data_hash,
+            proposer_address,
+        } = parts;
+        Self {
+            chain_id,
+            height,
+            time,
+            rollup_transactions_root,
+            data_hash,
+            proposer_address,
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -557,17 +601,17 @@ pub struct SequencerBlock {
     header: SequencerBlockHeader,
     /// The collection of rollup transactions that were included in this block.
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
-    // The proof that the rollup transactions are included in the `CometBFT` block this
-    // sequencer block is derived form. This proof together with
-    // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
-    // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
-    // rollup transactions.
+    /// The proof that the rollup transactions are included in the `CometBFT` block this
+    /// sequencer block is derived form. This proof together with
+    /// `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+    /// rollup transactions.
     rollup_transactions_proof: merkle::Proof,
-    // The proof that the rollup IDs listed in `rollup_transactions` are included
-    // in the `CometBFT` block this sequencer block is derived form. This proof together
-    // with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
-    // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
-    // the rollup transactions.
+    /// The proof that the rollup IDs listed in `rollup_transactions` are included
+    /// in the `CometBFT` block this sequencer block is derived form. This proof together
+    /// with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+    /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
+    /// the rollup transactions.
     rollup_ids_proof: merkle::Proof,
 }
 
@@ -576,8 +620,8 @@ impl SequencerBlock {
     ///
     /// This is done by hashing the `CometBFT` header stored in this block.
     #[must_use]
-    pub fn block_hash(&self) -> [u8; 32] {
-        self.block_hash
+    pub fn block_hash(&self) -> &[u8; 32] {
+        &self.block_hash
     }
 
     #[must_use]
@@ -594,6 +638,16 @@ impl SequencerBlock {
     #[must_use]
     pub fn rollup_transactions(&self) -> &IndexMap<RollupId, RollupTransactions> {
         &self.rollup_transactions
+    }
+
+    #[must_use]
+    pub fn rollup_transactions_proof(&self) -> &merkle::Proof {
+        &self.rollup_transactions_proof
+    }
+
+    #[must_use]
+    pub fn rollup_ids_proof(&self) -> &merkle::Proof {
+        &self.rollup_ids_proof
     }
 
     /// Converts a [`SequencerBlock`] into its [`SequencerBlockParts`].
@@ -912,6 +966,27 @@ impl SequencerBlock {
             rollup_ids_proof,
         })
     }
+
+    /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
+    /// our own state store.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(parts: SequencerBlockParts) -> Self {
+        let SequencerBlockParts {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        } = parts;
+        Self {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        }
+    }
 }
 
 fn rollup_transactions_and_ids_root_from_data(
@@ -983,8 +1058,8 @@ pub struct FilteredSequencerBlock {
 
 impl FilteredSequencerBlock {
     #[must_use]
-    pub fn block_hash(&self) -> [u8; 32] {
-        self.block_hash
+    pub fn block_hash(&self) -> &[u8; 32] {
+        &self.block_hash
     }
 
     #[must_use]
@@ -1003,8 +1078,8 @@ impl FilteredSequencerBlock {
     }
 
     #[must_use]
-    pub fn rollup_transactions_root(&self) -> [u8; 32] {
-        self.header.rollup_transactions_root
+    pub fn rollup_transactions_root(&self) -> &[u8; 32] {
+        &self.header.rollup_transactions_root
     }
 
     #[must_use]
@@ -1147,7 +1222,7 @@ impl FilteredSequencerBlock {
             ) {
                 return Err(
                     FilteredSequencerBlockError::rollup_transaction_for_id_not_in_sequencer_block(
-                        rollup_transactions.rollup_id(),
+                        *rollup_transactions.rollup_id(),
                     ),
                 );
             }
@@ -1284,11 +1359,6 @@ impl FilteredSequencerBlockError {
 /// A [`Deposit`] is constructed whenever a [`BridgeLockAction`] is executed
 /// and stored as part of the block's events.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(into = "crate::generated::sequencerblock::v1alpha1::Deposit")
-)]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.
     bridge_address: Address,
@@ -1436,6 +1506,21 @@ impl Deposit {
             source_transaction_id,
             source_action_index,
         })
+    }
+}
+
+impl Display for Deposit {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "Deposit[bridge address: {}, rollup id: {}, amount: {}, asset: {}, destination chain \
+             address: {}]",
+            self.bridge_address,
+            self.rollup_id,
+            self.amount,
+            self.asset,
+            self.destination_chain_address,
+        )
     }
 }
 

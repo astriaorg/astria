@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use astria_core::{
     primitive::v1::RollupId,
     sequencerblock::v1alpha1::{
+        celestia::UncheckedSubmittedMetadata,
         SubmittedMetadata,
         SubmittedRollupData,
     },
@@ -52,14 +53,19 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
         if let Some(header_blob) =
             remove_header_blob_matching_rollup_blob(&mut header_blobs, &rollup)
         {
+            let UncheckedSubmittedMetadata {
+                block_hash,
+                header,
+                ..
+            } = header_blob.into_unchecked();
             reconstructed_blocks.push(ReconstructedBlock {
                 celestia_height,
-                block_hash: header_blob.block_hash(),
-                header: header_blob.into_unchecked().header,
+                block_hash,
+                header,
                 transactions: rollup.into_unchecked().transactions,
             });
         } else {
-            let reason = if header_blobs.contains_key(&rollup.sequencer_block_hash()) {
+            let reason = if header_blobs.contains_key(rollup.sequencer_block_hash()) {
                 "sequencer header blobs with the same block hash as the rollup blob found, but the \
                  rollup's Merkle proof did not lead any Merkle roots"
             } else {
@@ -77,13 +83,13 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
     for header_blob in header_blobs.into_values() {
         if header_blob.contains_rollup_id(rollup_id) {
             warn!(
-                block_hash = %base64(&header_blob.block_hash()),
+                block_hash = %base64(header_blob.block_hash()),
                 "sequencer header blob contains the target rollup ID, but no matching rollup blob was found; dropping it",
             );
         } else {
             reconstructed_blocks.push(ReconstructedBlock {
                 celestia_height,
-                block_hash: header_blob.block_hash(),
+                block_hash: *header_blob.block_hash(),
                 header: header_blob.into_unchecked().header,
                 transactions: vec![],
             });
@@ -98,11 +104,11 @@ fn remove_header_blob_matching_rollup_blob(
 ) -> Option<SubmittedMetadata> {
     // chaining methods and returning () to use the ? operator and to not bind the value
     headers
-        .get(&rollup.sequencer_block_hash())
+        .get(rollup.sequencer_block_hash())
         .and_then(|header| {
             verify_rollup_blob_against_sequencer_blob(rollup, header).then_some(())
         })?;
-    headers.remove(&rollup.sequencer_block_hash())
+    headers.remove(rollup.sequencer_block_hash())
 }
 
 fn verify_rollup_blob_against_sequencer_blob(
@@ -112,9 +118,9 @@ fn verify_rollup_blob_against_sequencer_blob(
     rollup_blob
         .proof()
         .audit()
-        .with_root(sequencer_blob.rollup_transactions_root())
+        .with_root(*sequencer_blob.rollup_transactions_root())
         .with_leaf_builder()
-        .write(&rollup_blob.rollup_id().get())
+        .write(rollup_blob.rollup_id().get())
         .write(&merkle::Tree::from_leaves(rollup_blob.transactions()).root())
         .finish_leaf()
         .perform()
