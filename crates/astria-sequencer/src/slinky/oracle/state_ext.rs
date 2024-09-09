@@ -1,8 +1,15 @@
-use std::collections::HashMap;
+use std::{
+    pin::Pin,
+    task::{
+        ready,
+        Context,
+        Poll,
+    },
+};
 
 use anyhow::{
     bail,
-    Context,
+    Context as _,
     Result,
 };
 use astria_core::slinky::{
@@ -21,7 +28,8 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use futures::StreamExt as _;
+use futures::Stream;
+use pin_project_lite::pin_project;
 use tracing::instrument;
 
 const CURRENCY_PAIR_TO_ID_PREFIX: &str = "oraclecpid";
@@ -51,6 +59,92 @@ struct Id(u64);
 /// Newtype wrapper to read and write a u64 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Count(u64);
+
+pin_project! {
+    pub(crate) struct CurrencyPairsWithIdsStream<St> {
+        #[pin]
+        underlying: St,
+    }
+}
+
+pub(crate) struct CurrencyPairWithId {
+    pub(crate) id: u64,
+    pub(crate) currency_pair: CurrencyPair,
+}
+
+impl<St> Stream for CurrencyPairsWithIdsStream<St>
+where
+    St: Stream<Item = anyhow::Result<(String, Vec<u8>)>>,
+{
+    type Item = anyhow::Result<CurrencyPairWithId>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        let (key, bytes) = match ready!(this.underlying.as_mut().poll_next(cx)) {
+            Some(Ok(item)) => item,
+            Some(Err(err)) => {
+                return Poll::Ready(Some(Err(err).context("failed reading from state")));
+            }
+            None => return Poll::Ready(None),
+        };
+        let Id(id) = Id::try_from_slice(&bytes).with_context(|| {
+            "failed decoding bytes read from state as currency pair ID for key `{key}`"
+        })?;
+        let currency_pair = match extract_currency_pair_from_key(&key) {
+            Err(err) => {
+                return Poll::Ready(Some(Err(err).with_context(|| {
+                    format!("failed to extract currency pair from key `{key}`")
+                })));
+            }
+            Ok(parsed) => parsed,
+        };
+        Poll::Ready(Some(Ok(CurrencyPairWithId {
+            id,
+            currency_pair,
+        })))
+    }
+}
+
+pin_project! {
+    pub(crate) struct CurrencyPairsStream<St> {
+        #[pin]
+        underlying: St,
+    }
+}
+
+impl<St> Stream for CurrencyPairsStream<St>
+where
+    St: Stream<Item = anyhow::Result<String>>,
+{
+    type Item = anyhow::Result<CurrencyPair>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        let key = match ready!(this.underlying.as_mut().poll_next(cx)) {
+            Some(Ok(item)) => item,
+            Some(Err(err)) => {
+                return Poll::Ready(Some(Err(err).context("failed reading from state")));
+            }
+            None => return Poll::Ready(None),
+        };
+        let currency_pair = match extract_currency_pair_from_key(&key) {
+            Err(err) => {
+                return Poll::Ready(Some(Err(err).with_context(|| {
+                    format!("failed to extract currency pair from key `{key}`")
+                })));
+            }
+            Ok(parsed) => parsed,
+        };
+        Poll::Ready(Some(Ok(currency_pair)))
+    }
+}
+
+fn extract_currency_pair_from_key(key: &str) -> anyhow::Result<CurrencyPair> {
+    key.strip_prefix(CURRENCY_PAIR_TO_ID_PREFIX)
+        .context("failed to strip prefix from currency pair state key")?
+        .parse::<CurrencyPair>()
+        .context("failed to parse storage key suffix as currency pair")
+}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -84,29 +178,17 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_currency_pair_mapping(&self) -> Result<HashMap<u64, CurrencyPair>> {
-        let prefix = format!("{CURRENCY_PAIR_TO_ID_PREFIX}/");
-        let mut currency_pairs = HashMap::new();
-
-        let mut stream = std::pin::pin!(self.prefix_keys(&prefix));
-        while let Some(Ok(key)) = stream.next().await {
-            let Some(bytes) = self
-                .get_raw(&key)
-                .await
-                .context("failed reading currency pair id from state")?
-            else {
-                bail!("currency pair not found in state; this is a bug")
-            };
-            let Id(id) = Id::try_from_slice(&bytes).context("invalid currency pair id bytes")?;
-
-            let currency_pair = key
-                .strip_prefix(&prefix)
-                .context("failed to strip prefix from currency pair state key")?
-                .parse::<CurrencyPair>()
-                .context("failed to parse storage key suffix as currency pair")?;
-            currency_pairs.insert(id, currency_pair);
+    fn currency_pairs_with_ids(&self) -> CurrencyPairsWithIdsStream<Self::PrefixRawStream> {
+        CurrencyPairsWithIdsStream {
+            underlying: self.prefix_raw(CURRENCY_PAIR_TO_ID_PREFIX),
         }
-        Ok(currency_pairs)
+    }
+
+    #[instrument(skip_all)]
+    fn currency_pairs(&self) -> CurrencyPairsStream<Self::PrefixKeysStream> {
+        CurrencyPairsStream {
+            underlying: self.prefix_keys(CURRENCY_PAIR_STATE_PREFIX),
+        }
     }
 
     #[instrument(skip_all)]
@@ -154,23 +236,6 @@ pub(crate) trait StateReadExt: StateRead {
             }
             None => Ok(None),
         }
-    }
-
-    #[instrument(skip_all)]
-    async fn get_all_currency_pairs(&self) -> Result<Vec<CurrencyPair>> {
-        let prefix = format!("{CURRENCY_PAIR_STATE_PREFIX}/");
-        let mut currency_pairs: Vec<CurrencyPair> = Vec::new();
-
-        let mut stream = std::pin::pin!(self.prefix_keys(&prefix));
-        while let Some(Ok(key)) = stream.next().await {
-            let currency_pair = key
-                .strip_prefix(&prefix)
-                .context("failed to strip prefix from currency pair state key")?
-                .parse::<CurrencyPair>()
-                .context("failed to parse storage key suffix as currency pair")?;
-            currency_pairs.push(currency_pair);
-        }
-        Ok(currency_pairs)
     }
 
     #[instrument(skip_all)]
