@@ -47,7 +47,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         context
     }
 
-    fn delete_current_source(&mut self) {
+    fn delete_current_transaction_context(&mut self) {
         self.object_delete(transaction_context());
     }
 }
