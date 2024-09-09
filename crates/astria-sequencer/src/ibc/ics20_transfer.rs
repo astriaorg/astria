@@ -702,7 +702,7 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         .get_transaction_context()
         .context("transaction source should be present in state when executing an action")?;
     let transaction_id = transaction_context.transaction_id;
-    let index_of_action = transaction_context.position_in_source_transaction;
+    let index_of_action = transaction_context.source_action_index;
 
     let deposit = Deposit::new(
         bridge_address,
@@ -857,7 +857,7 @@ mod test {
         state_tx.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: 0,
+            source_action_index: 0,
         });
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
@@ -1102,7 +1102,7 @@ mod test {
         state_tx.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: 0,
+            source_action_index: 0,
         });
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
@@ -1154,7 +1154,7 @@ mod test {
         state_tx.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: 0,
+            source_action_index: 0,
         });
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
@@ -1254,7 +1254,7 @@ mod test {
         let transaction_context = TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: 0,
+            source_action_index: 0,
         };
         state_tx.put_transaction_context(transaction_context);
 

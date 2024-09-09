@@ -182,7 +182,7 @@ mod test {
         state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            position_in_source_transaction: 0,
+            source_action_index: 0,
         });
         state.put_sudo_address([1; 20]).unwrap();
 

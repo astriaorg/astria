@@ -1110,12 +1110,9 @@ async fn app_execute_transaction_action_index_correctly_increments() {
 
     let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
     assert_eq!(deposits.len(), 2);
+    assert_eq!(deposits[0].source_action_index(), starting_index_of_action);
     assert_eq!(
-        deposits[0].position_in_source_transaction(),
-        starting_index_of_action
-    );
-    assert_eq!(
-        deposits[1].position_in_source_transaction(),
+        deposits[1].source_action_index(),
         starting_index_of_action + 1
     );
 }

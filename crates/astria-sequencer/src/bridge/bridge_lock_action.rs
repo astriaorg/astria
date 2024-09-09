@@ -76,10 +76,10 @@ impl ActionHandler for BridgeLockAction {
             .get_transaction_context()
             .expect("current source should be set before executing action")
             .transaction_id;
-        let position_in_source_transaction = state
+        let source_action_index = state
             .get_transaction_context()
             .expect("current source should be set before executing action")
-            .position_in_source_transaction;
+            .source_action_index;
 
         let deposit = Deposit::new(
             self.to,
@@ -88,7 +88,7 @@ impl ActionHandler for BridgeLockAction {
             self.asset.clone(),
             self.destination_chain_address.clone(),
             transaction_id,
-            position_in_source_transaction,
+            source_action_index,
         );
 
         let byte_cost_multiplier = state
@@ -187,7 +187,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: from_address.bytes(),
             transaction_id,
-            position_in_source_transaction: 0,
+            source_action_index: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX);
 

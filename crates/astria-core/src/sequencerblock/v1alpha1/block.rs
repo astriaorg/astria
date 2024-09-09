@@ -1302,9 +1302,9 @@ pub struct Deposit {
     destination_chain_address: String,
     // the transaction ID of the source action for the deposit, consisting
     // of the transaction hash.
-    id_of_source_transaction: TransactionId,
+    source_transaction_id: TransactionId,
     // index of the deposit's source action within its transaction
-    position_in_source_transaction: u64,
+    source_action_index: u64,
 }
 
 impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
@@ -1321,8 +1321,8 @@ impl Deposit {
         amount: u128,
         asset: asset::Denom,
         destination_chain_address: String,
-        id_of_source_transaction: TransactionId,
-        position_in_source_transaction: u64,
+        source_transaction_id: TransactionId,
+        source_action_index: u64,
     ) -> Self {
         Self {
             bridge_address,
@@ -1330,8 +1330,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
-            id_of_source_transaction,
-            position_in_source_transaction,
+            source_transaction_id,
+            source_action_index,
         }
     }
 
@@ -1361,8 +1361,8 @@ impl Deposit {
     }
 
     #[must_use]
-    pub fn position_in_source_transaction(&self) -> u64 {
-        self.position_in_source_transaction
+    pub fn source_action_index(&self) -> u64 {
+        self.source_action_index
     }
 
     #[must_use]
@@ -1373,8 +1373,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
-            id_of_source_transaction,
-            position_in_source_transaction,
+            source_transaction_id,
+            source_action_index,
         } = self;
         raw::Deposit {
             bridge_address: Some(bridge_address.into_raw()),
@@ -1382,8 +1382,8 @@ impl Deposit {
             amount: Some(amount.into()),
             asset: asset.to_string(),
             destination_chain_address,
-            id_of_source_transaction: Some(id_of_source_transaction.into_raw()),
-            position_in_source_transaction,
+            source_transaction_id: Some(source_transaction_id.into_raw()),
+            source_action_index,
         }
     }
 
@@ -1402,8 +1402,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
-            id_of_source_transaction,
-            position_in_source_transaction,
+            source_transaction_id,
+            source_action_index,
         } = raw;
         let Some(bridge_address) = bridge_address else {
             return Err(DepositError::field_not_set("bridge_address"));
@@ -1417,10 +1417,10 @@ impl Deposit {
         let rollup_id =
             RollupId::try_from_raw(&rollup_id).map_err(DepositError::incorrect_rollup_id_length)?;
         let asset = asset.parse().map_err(DepositError::incorrect_asset)?;
-        let Some(id_of_source_transaction) = id_of_source_transaction else {
+        let Some(source_transaction_id) = source_transaction_id else {
             return Err(DepositError::field_not_set("transaction_id"));
         };
-        let id_of_source_transaction = TransactionId::try_from_raw_ref(&id_of_source_transaction)
+        let source_transaction_id = TransactionId::try_from_raw_ref(&source_transaction_id)
             .map_err(DepositError::transaction_id_error)?;
         Ok(Self {
             bridge_address,
@@ -1428,8 +1428,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
-            id_of_source_transaction,
-            position_in_source_transaction,
+            source_transaction_id,
+            source_action_index,
         })
     }
 }
@@ -1472,7 +1472,7 @@ enum DepositErrorKind {
     IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the `asset` field could not be parsed")]
     IncorrectAsset(#[source] asset::ParseDenomError),
-    #[error("field `id_of_source_transaction` was invalid")]
+    #[error("field `source_transaction_id` was invalid")]
     TransactionIdError(#[source] TransactionIdError),
 }
 
