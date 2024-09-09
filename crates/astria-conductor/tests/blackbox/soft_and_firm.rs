@@ -32,10 +32,6 @@ use crate::{
 /// 4. block information for rollup number 1, sequencer height 2 is reconstructed from Celestia
 ///    height 1
 /// 5. the rollup's firm commitment state is updated (but without executing the block)
-///
-/// NOTE: there is a potential race condition in this test in that the information could be first
-/// retrieved from Celestia before Sequencer and executed against the rollup. In that case step 3.
-/// would be skipped (no soft commitment update).
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn simple() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
@@ -73,19 +69,6 @@ async fn simple() {
         height: 1u32,
     );
 
-    mount_celestia_blobs!(
-        test_conductor,
-        celestia_height: 1,
-        sequencer_heights: [3],
-    );
-
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 3u32,
-    );
-
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
-
     mount_get_filtered_sequencer_block!(
         test_conductor,
         sequencer_height: 3,
@@ -112,6 +95,19 @@ async fn simple() {
         ),
         base_celestia_height: 1,
     );
+
+    mount_celestia_blobs!(
+        test_conductor,
+        celestia_height: 1,
+        sequencer_heights: [3],
+    );
+
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 3u32,
+    );
+
+    mount_sequencer_validator_set!(test_conductor, height: 2u32);
 
     let update_commitment_state_firm = mount_update_commitment_state!(
         test_conductor,
