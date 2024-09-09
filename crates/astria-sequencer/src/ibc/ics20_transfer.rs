@@ -1251,6 +1251,13 @@ mod test {
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
 
+        let transaction_context = TransactionContext {
+            address_bytes: bridge_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_source_transaction: 0,
+        };
+        state_tx.put_transaction_context(transaction_context);
+        
         execute_ics20_transfer(
             &mut state_tx,
             &packet_bytes,
@@ -1288,6 +1295,8 @@ mod test {
                                          * be converted from the compat bech32 to the
                                          * standard/non-compat bech32m version before emitting
                                          * the deposit event */
+            TransactionId::new([0; 32]),
+            0,
         );
         assert_eq!(deposit, &expected_deposit);
     }
