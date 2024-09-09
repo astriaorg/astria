@@ -31,6 +31,10 @@ use astria_core::{
     slinky::types::v1::CurrencyPair,
 };
 use cnidarium::Storage;
+use futures::{
+    TryFutureExt as _,
+    TryStreamExt as _,
+};
 use tonic::{
     Request,
     Response,
@@ -41,7 +45,10 @@ use tracing::instrument;
 use crate::{
     slinky::{
         marketmap::state_ext::StateReadExt as _,
-        oracle::state_ext::StateReadExt as _,
+        oracle::state_ext::{
+            CurrencyPairWithId,
+            StateReadExt as _,
+        },
     },
     state_ext::StateReadExt as _,
 };
@@ -143,16 +150,18 @@ impl OracleService for SequencerServer {
         _request: Request<GetAllCurrencyPairsRequest>,
     ) -> Result<Response<GetAllCurrencyPairsResponse>, Status> {
         let snapshot = self.storage.latest_snapshot();
-        let currency_pairs = snapshot.get_all_currency_pairs().await.map_err(|e| {
-            Status::internal(format!(
-                "failed to get all currency pairs from storage: {e:#}"
-            ))
-        })?;
+        let currency_pairs = snapshot
+            .currency_pairs()
+            .map_ok(CurrencyPair::into_raw)
+            .try_collect()
+            .map_err(|err| {
+                Status::internal(format!(
+                    "failed to get all currency pairs from storage: {err:#}"
+                ))
+            })
+            .await?;
         Ok(Response::new(GetAllCurrencyPairsResponse {
-            currency_pairs: currency_pairs
-                .into_iter()
-                .map(CurrencyPair::into_raw)
-                .collect(),
+            currency_pairs,
         }))
     }
 
@@ -266,16 +275,21 @@ impl OracleService for SequencerServer {
         _request: Request<GetCurrencyPairMappingRequest>,
     ) -> Result<Response<GetCurrencyPairMappingResponse>, Status> {
         let snapshot = self.storage.latest_snapshot();
-        let currency_pair_mapping = snapshot.get_currency_pair_mapping().await.map_err(|e| {
-            Status::internal(format!(
-                "failed to get currency pair mapping from storage: {e:#}"
-            ))
-        })?;
-        let currency_pair_mapping = currency_pair_mapping
-            .into_iter()
-            .map(|(k, v)| (k, v.into_raw()))
-            .collect();
-
+        let currency_pair_mapping = snapshot
+            .currency_pairs_with_ids()
+            .map_ok(
+                |CurrencyPairWithId {
+                     id,
+                     currency_pair,
+                 }| (id, currency_pair.into_raw()),
+            )
+            .try_collect()
+            .map_err(|err| {
+                Status::internal(format!(
+                    "failed to get currency pair mapping from storage: {err:#}"
+                ))
+            })
+            .await?;
         Ok(Response::new(GetCurrencyPairMappingResponse {
             currency_pair_mapping,
         }))
