@@ -60,6 +60,7 @@ use crate::{
         BOB_ADDRESS,
         CAROL_ADDRESS,
     },
+    authority::StateReadExt as _,
     bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
