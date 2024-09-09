@@ -60,6 +60,7 @@ use crate::{
         BOB_ADDRESS,
         CAROL_ADDRESS,
     },
+    authority::StateReadExt as _,
     bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
@@ -289,6 +290,9 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let signed_tx = Arc::new(tx.into_signed(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
+
+    let sudo_address = app.state.get_sudo_address().await.unwrap();
+    app.end_block(1, sudo_address).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
