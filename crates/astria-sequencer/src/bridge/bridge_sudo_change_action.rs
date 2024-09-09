@@ -136,7 +136,7 @@ mod tests {
             transaction_id: TransactionId::new([0; 32]),
             position_in_source_transaction: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         let asset = test_asset();
         state.put_allowed_fee_asset(&asset);
@@ -174,7 +174,7 @@ mod tests {
             transaction_id: TransactionId::new([0; 32]),
             position_in_source_transaction: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
         state.put_bridge_sudo_change_base_fee(10);
 
         let fee_asset = test_asset();

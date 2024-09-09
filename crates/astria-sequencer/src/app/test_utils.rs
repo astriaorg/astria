@@ -90,9 +90,13 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::Fees {
 }
 
 pub(crate) fn address_prefixes() -> AddressPrefixes {
-    AddressPrefixes {
-        base: crate::test_utils::ASTRIA_PREFIX.into(),
-    }
+    AddressPrefixes::try_from_raw(
+        astria_core::generated::protocol::genesis::v1alpha1::AddressPrefixes {
+            base: crate::test_utils::ASTRIA_PREFIX.into(),
+            ibc_compat: crate::test_utils::ASTRIA_COMPAT_PREFIX.into(),
+        },
+    )
+    .unwrap()
 }
 
 pub(crate) fn proto_genesis_state()

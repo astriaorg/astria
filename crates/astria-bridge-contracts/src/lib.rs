@@ -420,6 +420,9 @@ where
             timeout_time: timeout_in_5_min(),
             source_channel,
             bridge_address: Some(self.bridge_address),
+            // FIXME: this needs a way to determine when to use compat address
+            // https://github.com/astriaorg/astria/issues/1424
+            use_compat_address: false,
         };
         Ok(Action::Ics20Withdrawal(action))
     }
