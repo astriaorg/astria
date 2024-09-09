@@ -1257,7 +1257,7 @@ mod test {
             position_in_source_transaction: 0,
         };
         state_tx.put_transaction_context(transaction_context);
-        
+
         execute_ics20_transfer(
             &mut state_tx,
             &packet_bytes,
