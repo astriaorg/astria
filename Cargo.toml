@@ -76,7 +76,6 @@ jsonrpsee = { version = "0.20" }
 once_cell = "1.17.1"
 pbjson-types = "0.6"
 # Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
-# can update to a tagged release when https://github.com/penumbra-zone/penumbra/pull/4822 is included
 penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.3", default-features = false }
 penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.3" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.3" }
