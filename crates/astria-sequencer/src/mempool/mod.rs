@@ -1,5 +1,4 @@
 #[cfg(feature = "benchmark")]
-#[cfg(test)]
 mod benchmarks;
 mod mempool_state;
 mod transactions_container;
