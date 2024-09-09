@@ -7,9 +7,18 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use axum::{
+    routing::IntoMakeService,
+    Router,
+    Server,
+};
+use hyper::server::conn::AddrIncoming;
 use tokio::{
     select,
-    sync::oneshot,
+    sync::oneshot::{
+        self,
+        Receiver,
+    },
     task::{
         JoinError,
         JoinHandle,
@@ -23,6 +32,7 @@ use tokio_util::sync::{
 use tracing::{
     error,
     info,
+    instrument,
 };
 
 use crate::{
@@ -106,18 +116,8 @@ impl SequencerRelayer {
         // Separate the API shutdown signal from the cancellation token because we want it to live
         // until the very end.
         let (api_shutdown_signal, api_shutdown_signal_rx) = oneshot::channel::<()>();
-        let mut api_task = tokio::spawn(async move {
-            api_server
-                .with_graceful_shutdown(async move {
-                    let _ = api_shutdown_signal_rx.await;
-                })
-                .await
-                .wrap_err("api server ended unexpectedly")
-        });
-        info!("spawned API server");
-
-        let mut relayer_task = tokio::spawn(relayer.run());
-        info!("spawned relayer task");
+        let (mut api_task, mut relayer_task) =
+            spawn_tasks(api_server, api_shutdown_signal_rx, relayer);
 
         let shutdown = select!(
             o = &mut api_task => {
@@ -132,6 +132,28 @@ impl SequencerRelayer {
         );
         shutdown.run().await;
     }
+}
+
+#[instrument(skip_all)]
+fn spawn_tasks(
+    api_server: Server<AddrIncoming, IntoMakeService<Router>>,
+    api_shutdown_signal_rx: Receiver<()>,
+    relayer: Relayer,
+) -> (JoinHandle<eyre::Result<()>>, JoinHandle<eyre::Result<()>>) {
+    let api_task = tokio::spawn(async move {
+        api_server
+            .with_graceful_shutdown(async move {
+                let _ = api_shutdown_signal_rx.await;
+            })
+            .await
+            .wrap_err("api server ended unexpectedly")
+    });
+    info!("spawned API server");
+
+    let relayer_task = tokio::spawn(relayer.run());
+    info!("spawned relayer task");
+
+    (api_task, relayer_task)
 }
 
 /// A handle for instructing the [`SequencerRelayer`] to shut down.
@@ -200,6 +222,7 @@ struct ShutDown {
 }
 
 impl ShutDown {
+    #[instrument(skip_all)]
     async fn run(self) {
         let Self {
             api_task,
