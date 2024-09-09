@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "graph-node.name" . }}
+  labels:
+    app: {{ include "graph-node.appName" . }}
+  namespace: {{ include "graph-node.namespace" . }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "graph-node.appName" . }}
+  template:
+    metadata:
+      name: {{ include "graph-node.name" . }}
+      labels:
+        app: {{ include "graph-node.appName" . }}
+    spec:
+      containers:
+        - name: sequencer-faucet
+          image: {{ include "graph-node.image" }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "graph-node.name" . }}-env
+          ports:
+            - containerPort: 8000
+            - containerPort: 8001
+            - containerPort: 8020
+            - containerPort: 8030
+            - containerPort: 8040
