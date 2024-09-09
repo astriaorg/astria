@@ -44,19 +44,7 @@ The log level represented as a number
 {{- end }}
 {{- end }}
 
-{{/*
-Full image paths for Astria built images
-*/}}
-{{- define "celestia.image" -}}
-{{ .Values.images.geth.repo }}:{{ if .Values.images.geth.overrideTag }}{{ .Values.images.geth.overrideTag }}{{ else }}{{ if .Values.global.dev }}{{ .Values.images.geth.devTag }}{{ else }}{{ .Values.images.geth.tag }}{{ end }}
-{{- end }}
-{{- end }}
-{{- define "conductor.image" -}}
-{{ .Values.images.conductor.repo }}:{{ if .Values.global.dev }}{{ .Values.images.conductor.devTag }}{{ else }}{{ .Values.images.conductor.tag }}{{ end }}
-{{- end }}
-{{- define "composer.image" -}}
-{{ .Values.images.composer.repo }}:{{ if .Values.global.dev }}{{ .Values.images.composer.devTag }}{{ else }}{{ .Values.images.composer.tag }}{{ end }}
-{{- end }}
+
 
 
 {{/*
@@ -91,12 +79,4 @@ Return the appropriate apiVersion for ingress.
 {{- else }}
 {{- print "extensions/v1beta1" }}
 {{- end }}
-{{- end }}
-
-{{- define "celestia.gethHomeDir" -}}
-/home/geth
-{{- end }}
-
-{{- define "celestia.gethDataDir" -}}
-{{ include "celestia.gethHomeDir" . }}/{{ include "celestia.name" . }}
 {{- end }}
