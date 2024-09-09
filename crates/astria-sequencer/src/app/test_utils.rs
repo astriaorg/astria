@@ -10,7 +10,6 @@ use astria_core::{
             Denom,
             IbcPrefixed,
         },
-
         RollupId,
     },
     protocol::{
@@ -292,7 +291,6 @@ pub(crate) fn mock_balances(
 
     balances
 }
-
 
 #[cfg_attr(feature = "test", allow(dead_code))]
 pub(crate) fn mock_tx_cost(

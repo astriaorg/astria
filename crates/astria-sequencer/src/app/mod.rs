@@ -95,7 +95,6 @@ use crate::{
     component::Component as _,
     ibc::component::IbcComponent,
     mempool::{
-        get_account_balances,
         Mempool,
         RemovalReason,
     },
@@ -1150,7 +1149,6 @@ async fn update_mempool_after_finalization<S: StateRead>(
     recost: bool,
 ) {
     mempool.run_maintenance(state, recost).await;
-
 }
 
 /// relevant data of a block being executed.

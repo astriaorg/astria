@@ -310,7 +310,6 @@ impl Mempool {
         for address in addresses {
             // get current account state
             let current_nonce = match state.get_account_nonce(address).await {
-
                 Ok(res) => res,
                 Err(error) => {
                     error!(
@@ -419,7 +418,6 @@ mod test {
         mock_state_getter,
         mock_state_put_account_balances,
         mock_state_put_account_nonce,
-
         mock_tx,
         mock_tx_cost,
     };

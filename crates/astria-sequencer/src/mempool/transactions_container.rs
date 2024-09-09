@@ -533,7 +533,7 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
             tx.set_cost_map(new_cost);
         }
     }
-  
+
     /// Adds the transaction to the container.
     ///
     /// `current_account_nonce` should be the current nonce of the account associated with the
