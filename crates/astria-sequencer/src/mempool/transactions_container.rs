@@ -7,7 +7,6 @@ use std::{
         HashSet,
     },
     fmt,
-    future::Future,
     mem,
     sync::Arc,
 };
@@ -27,6 +26,10 @@ use tokio::time::{
 use tracing::error;
 
 use super::RemovalReason;
+use crate::{
+    accounts,
+    transaction,
+};
 
 pub(super) type PendingTransactions = TransactionsContainer<PendingTransactionsForAccount>;
 pub(super) type ParkedTransactions<const MAX_TX_COUNT: usize> =
@@ -85,6 +88,10 @@ impl TimemarkedTransaction {
             *current_balance = new_balance;
             Ok(())
         })
+    }
+
+    fn set_cost_map(&mut self, cost_map: HashMap<IbcPrefixed, u128>) {
+        self.cost = cost_map;
     }
 
     fn is_expired(&self, now: Instant, ttl: Duration) -> bool {
@@ -492,8 +499,39 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
         }
     }
 
+    /// Returns all of the currently tracked addresses.
     pub(super) fn addresses(&self) -> HashSet<[u8; 20]> {
         self.txs.keys().copied().collect()
+    }
+
+    /// Recosts transactions for an account.
+    ///
+    /// Logs an error if fails to recost a transaction.
+    pub(super) async fn recost_transactions<S: accounts::StateReadExt>(
+        &mut self,
+        address: [u8; 20],
+        state: &S,
+    ) {
+        let Some(account) = self.txs.get_mut(&address) else {
+            return;
+        };
+
+        for tx in account.txs_mut().values_mut() {
+            let new_cost = match transaction::get_total_transaction_cost(&tx.signed_tx, &state)
+                .await
+            {
+                Ok(res) => res,
+                Err(error) => {
+                    error!(
+                        address = %telemetry::display::base64(&address),
+                        "failed to calculate new transaction cost when cleaning accounts: {error:#}"
+                    );
+                    continue;
+                }
+            };
+
+            tx.set_cost_map(new_cost);
+        }
     }
 
     /// Adds the transaction to the container.
@@ -664,14 +702,10 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
 
     /// Returns a copy of transactions and their hashes sorted by nonce difference and then time
     /// first seen.
-    pub(super) async fn builder_queue<F, O>(
+    pub(super) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
-        current_account_nonce_getter: F,
-    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>>
-    where
-        F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
-    {
+        state: &S,
+    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>> {
         // Used to hold the values in Vec for sorting.
         struct QueueEntry {
             tx: Arc<SignedTransaction>,
@@ -682,7 +716,8 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
         let mut queue = Vec::with_capacity(self.len());
         // Add all transactions to the queue.
         for (address, account_txs) in &self.txs {
-            let current_account_nonce = current_account_nonce_getter(*address)
+            let current_account_nonce = state
+                .get_account_nonce(*address)
                 .await
                 .context("failed to fetch account nonce for builder queue")?;
             for ttx in account_txs.txs.values() {
@@ -748,12 +783,15 @@ mod test {
 
     use super::*;
     use crate::app::test_utils::{
+        denom_0,
+        denom_1,
+        denom_3,
         mock_balances,
+        mock_state_getter,
+        mock_state_put_account_nonce,
         mock_tx,
         mock_tx_cost,
-        DENOM_0,
-        DENOM_1,
-        DENOM_3,
+        MOCK_SEQUENCE_FEE,
     };
 
     const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
@@ -1071,7 +1109,7 @@ mod test {
         pending_txs.subtract_contained_costs(&mut remaining_balances);
 
         for (asset, balance) in remaining_balances {
-            if asset != IbcPrefixed::new(DENOM_3) {
+            if asset != denom_3().to_ibc_prefixed() {
                 assert_eq!(balance, 0, "balance should have been consumed");
             }
         }
@@ -1363,6 +1401,54 @@ mod test {
     }
 
     #[tokio::test]
+    async fn transactions_container_recost_transactions() {
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
+        let signing_key = SigningKey::from([1; 32]);
+        let signing_address = signing_key.address_bytes();
+        let account_balances = mock_balances(1, 1);
+
+        // transaction to add to account
+        let ttx = mock_ttx(0, &signing_key, 0, 0, 0);
+        pending_txs.add(ttx.clone(), 0, &account_balances).unwrap();
+        assert_eq!(
+            pending_txs
+                .txs
+                .get(&signing_address)
+                .unwrap()
+                .txs
+                .get(&0)
+                .unwrap()
+                .cost()
+                .get(&denom_0().to_ibc_prefixed())
+                .unwrap(),
+            &0,
+            "cost initially should be zero"
+        );
+
+        // recost transactions with mock state's tx costs
+        let state = mock_state_getter().await;
+        pending_txs
+            .recost_transactions(signing_address, &state)
+            .await;
+
+        // transaction should have been recosted
+        assert_eq!(
+            pending_txs
+                .txs
+                .get(&signing_address)
+                .unwrap()
+                .txs
+                .get(&0)
+                .unwrap()
+                .cost()
+                .get(&denom_0().to_ibc_prefixed())
+                .unwrap(),
+            &MOCK_SEQUENCE_FEE,
+            "cost should be updated to MOCK_SEQUENCE_FEE"
+        );
+    }
+
+    #[tokio::test]
     async fn transactions_container_clean_account_stale_expired() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
         let signing_key_0 = SigningKey::from([1; 32]);
@@ -1575,21 +1661,14 @@ mod test {
             .add(ttx_s1_3.clone(), 1, &account_balances)
             .unwrap();
 
-        // current nonce getter
         // should return all transactions from signing_key_0 and last two from signing_key_1
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address_0 {
-                Ok(1)
-            } else if address == signing_address_1 {
-                Ok(2)
-            } else {
-                Err(anyhow::anyhow!("invalid address"))
-            }
-        };
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(&mut mock_state, signing_address_0, 1);
+        mock_state_put_account_nonce(&mut mock_state, signing_address_1, 2);
 
         // get builder queue
         let builder_queue = pending_txs
-            .builder_queue(&current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("building builders queue should work");
         assert_eq!(
@@ -1760,11 +1839,15 @@ mod test {
         let remaining_balances =
             pending_txs.subtract_contained_costs(signing_address, account_balances_full);
         assert_eq!(
-            remaining_balances.get(&IbcPrefixed::new(DENOM_0)).unwrap(),
+            remaining_balances
+                .get(&denom_0().to_ibc_prefixed())
+                .unwrap(),
             &88
         );
         assert_eq!(
-            remaining_balances.get(&IbcPrefixed::new(DENOM_1)).unwrap(),
+            remaining_balances
+                .get(&denom_1().to_ibc_prefixed())
+                .unwrap(),
             &90
         );
     }

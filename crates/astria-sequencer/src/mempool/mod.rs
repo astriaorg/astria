@@ -10,7 +10,6 @@ use std::{
         HashSet,
         VecDeque,
     },
-    future::Future,
     num::NonZeroUsize,
     sync::Arc,
 };
@@ -38,6 +37,8 @@ use transactions_container::{
     PendingTransactions,
     TimemarkedTransaction,
 };
+
+use crate::accounts;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub(crate) enum RemovalReason {
@@ -227,19 +228,11 @@ impl Mempool {
     /// Returns a copy of all transactions and their hashes ready for execution, sorted first by the
     /// difference between a transaction and the account's current nonce and then by the time that
     /// the transaction was first seen by the appside mempool.
-    pub(crate) async fn builder_queue<F, O>(
+    pub(crate) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
-        current_account_nonce_getter: F,
-    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>>
-    where
-        F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
-    {
-        self.pending
-            .read()
-            .await
-            .builder_queue(current_account_nonce_getter)
-            .await
+        state: &S,
+    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>> {
+        self.pending.read().await.builder_queue(state).await
     }
 
     /// Removes the target transaction and all transactions for associated account with higher
@@ -295,27 +288,17 @@ impl Mempool {
     /// All removed transactions are added to the CometBFT removal cache to aid with CometBFT
     /// mempool maintenance.
     #[instrument(skip_all)]
-    pub(crate) async fn run_maintenance<F1, O1, F2, O2>(
-        &self,
-        current_account_nonce_getter: F1,
-        current_account_balances_getter: F2,
-    ) where
-        F1: Fn([u8; 20]) -> O1,
-        O1: Future<Output = anyhow::Result<u32>>,
-        F2: Fn([u8; 20]) -> O2,
-        O2: Future<Output = anyhow::Result<HashMap<IbcPrefixed, u128>>>,
-    {
+    pub(crate) async fn run_maintenance<S: accounts::StateReadExt>(&self, state: &S, recost: bool) {
         let (mut pending, mut parked) = self.acquire_both_locks().await;
         let mut removed_txs = Vec::<([u8; 32], RemovalReason)>::new();
 
         // To clean we need to:
-        // 1.) remove stale and expired transactions from both pending and parked
-        // 2.) check if we have transactions in pending which need to be demoted due
+        // 1.) remove stale and expired transactions
+        // 2.) recost remaining transactions if needed
+        // 3.) check if we have transactions in pending which need to be demoted due
         //     to balance decreases
-        // 3.) if there were no demotions, check if parked has transactions we can
+        // 4.) if there were no demotions, check if parked has transactions we can
         //     promote
-
-        // TODO reprice transactions also if FeeAssetChange or FeeChange Actions were ran :0
 
         let addresses: HashSet<[u8; 20]> = pending
             .addresses()
@@ -323,9 +306,10 @@ impl Mempool {
             .chain(parked.addresses())
             .collect();
 
+        // TODO: Make this concurrent, all account state is separate with IO bound disk reads.
         for address in addresses {
             // get current account state
-            let current_nonce = match current_account_nonce_getter(address).await {
+            let current_nonce = match state.get_account_nonce(address).await {
                 Ok(res) => res,
                 Err(error) => {
                     error!(
@@ -335,7 +319,7 @@ impl Mempool {
                     continue;
                 }
             };
-            let current_balances = match current_account_balances_getter(address).await {
+            let current_balances = match get_account_balances(state, address).await {
                 Ok(res) => res,
                 Err(error) => {
                     error!(
@@ -348,7 +332,14 @@ impl Mempool {
 
             // clean pending and parked of stale and expired
             removed_txs.extend(pending.clean_account_stale_expired(address, current_nonce));
+            if recost {
+                pending.recost_transactions(address, state).await;
+            }
+
             removed_txs.extend(parked.clean_account_stale_expired(address, current_nonce));
+            if recost {
+                parked.recost_transactions(address, state).await;
+            }
 
             // get transactions to demote from pending
             let demotion_txs = pending.find_demotables(address, &current_balances);
@@ -424,6 +415,9 @@ mod test {
     use super::*;
     use crate::app::test_utils::{
         mock_balances,
+        mock_state_getter,
+        mock_state_put_account_balances,
+        mock_state_put_account_nonce,
         mock_tx,
         mock_tx_cost,
     };
@@ -541,18 +535,14 @@ mod test {
         // assert size
         assert_eq!(mempool.len().await, 4);
 
-        // mock nonce getter with nonce at 1
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(1);
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
+        // mock state with nonce at 1
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
 
         // grab building queue, should return transactions [1,2] since [0] was below and [4] is
         // gapped
         let builder_queue = mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("failed to get builder queue");
 
@@ -565,28 +555,19 @@ mod test {
 
         // run maintenance with simulated nonce to remove the nonces 0,1,2 and promote 4 from parked
         // to pending
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(4);
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
-        let current_account_balance_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(mock_balances(100, 100));
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
-        mempool
-            .run_maintenance(current_account_nonce_getter, current_account_balance_getter)
-            .await;
+
+        // setup state
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 4);
+        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(100, 100));
+
+        mempool.run_maintenance(&mock_state, false).await;
 
         // assert mempool at 1
         assert_eq!(mempool.len().await, 1);
 
         // see transaction [4] properly promoted
         let mut builder_queue = mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("failed to get builder queue");
         let (_, returned_tx) = builder_queue.pop().expect("should return last transaction");
@@ -627,15 +608,11 @@ mod test {
             .unwrap();
 
         // see pending only has one transaction
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(1);
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
 
         let builder_queue = mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("failed to get builder queue");
         assert_eq!(
@@ -645,28 +622,15 @@ mod test {
         );
 
         // run maintenance with account containing balance for two more transactions
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(1);
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
-        let current_account_balances_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(mock_balances(3, 0));
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
-        mempool
-            .run_maintenance(
-                current_account_nonce_getter,
-                current_account_balances_getter,
-            )
-            .await;
+
+        // setup state
+        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(3, 0));
+
+        mempool.run_maintenance(&mock_state, false).await;
 
         // see builder queue now contains them
         let builder_queue = mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("failed to get builder queue");
         assert_eq!(
@@ -676,6 +640,7 @@ mod test {
         );
     }
 
+    #[allow(clippy::too_many_lines)]
     #[tokio::test]
     async fn run_maintenance_demotion() {
         let mempool = Mempool::new();
@@ -710,15 +675,12 @@ mod test {
             .unwrap();
 
         // see pending only has all transactions
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(1);
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
+
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
 
         let builder_queue = mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("failed to get builder queue");
         assert_eq!(
@@ -727,29 +689,14 @@ mod test {
             "builder queue should only contain four transactions"
         );
 
-        // run maintenance with account balance being lowered
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(1);
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
-        let current_account_balances_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(mock_balances(1, 0));
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
-        mempool
-            .run_maintenance(
-                current_account_nonce_getter,
-                current_account_balances_getter,
-            )
-            .await;
+        // setup state
+        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(1, 0));
+
+        mempool.run_maintenance(&mock_state, false).await;
 
         // see builder queue now contains single transactions
         let builder_queue = mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("failed to get builder queue");
         assert_eq!(
@@ -758,21 +705,13 @@ mod test {
             "builder queue should contain single transaction"
         );
 
-        // can repromote as well
-        let current_account_balances_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(mock_balances(3, 0));
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
-        mempool
-            .run_maintenance(
-                current_account_nonce_getter,
-                current_account_balances_getter,
-            )
-            .await;
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
+        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(3, 0));
+
+        mempool.run_maintenance(&mock_state, false).await;
+
         let builder_queue = mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("failed to get builder queue");
         assert_eq!(
