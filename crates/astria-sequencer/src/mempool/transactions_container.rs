@@ -405,7 +405,8 @@ pub(super) trait TransactionsForAccount: Default {
     ) -> bool;
 
     /// Returns `Ok` if adding `ttx` would not break the balance precondition, i.e. enough
-    /// balance to cover all transactions in `CostsCovered` mode.
+    /// balance to cover all transactions.
+    /// Note: some implementations may clone the `current_account_balance` hashmap.
     fn has_balance_to_cover(
         &self,
         ttx: &TimemarkedTransaction,
@@ -415,8 +416,7 @@ pub(super) trait TransactionsForAccount: Default {
     /// Adds transaction to the container. Note: does NOT allow for nonce replacement.
     ///
     /// Will fail if in `SequentialNonces` mode and adding the transaction would create a nonce gap.
-    /// Will fail if in `CostsCovered` mode if adding the transaction would cause the total
-    /// balances for the transactions to exceed an account's available balance.
+    /// Will fail if adding the transaction would exceed balance constraints.
     ///
     /// `current_account_nonce` should be the account's nonce in the latest chain state.
     /// `current_account_balance` should be the account's balances in the lastest chain state.
