@@ -1,4 +1,7 @@
-use astria_eyre::eyre_to_anyhow;
+use astria_eyre::{
+    anyhow,
+    eyre_to_anyhow,
+};
 use cnidarium::StateRead;
 use penumbra_ibc::component::HostInterface;
 

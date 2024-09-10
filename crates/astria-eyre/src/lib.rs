@@ -5,6 +5,8 @@ use std::{
     fmt::Write as _,
 };
 
+#[cfg(feature = "anyhow_support")]
+pub use anyhow;
 pub use eyre;
 #[doc(hidden)]
 pub use eyre::Result;
@@ -84,12 +86,14 @@ fn write_value(err: &dyn Error, f: &mut core::fmt::Formatter<'_>) -> core::fmt::
     Ok(())
 }
 
+#[cfg(feature = "anyhow_support")]
 pub fn anyhow_to_eyre(anyhow_error: anyhow::Error) -> eyre::Report {
     let boxed: Box<dyn std::error::Error + Send + Sync> = anyhow_error.into();
     eyre::eyre!(boxed)
 }
 
 #[must_use]
+#[cfg(feature = "anyhow_support")]
 pub fn eyre_to_anyhow(eyre_error: eyre::Report) -> anyhow::Error {
     let boxed: Box<dyn std::error::Error + Send + Sync> = eyre_error.into();
     anyhow::anyhow!(boxed)
@@ -97,6 +101,7 @@ pub fn eyre_to_anyhow(eyre_error: eyre::Report) -> anyhow::Error {
 
 mod test {
     #[test]
+    #[cfg(feature = "anyhow_support")]
     fn anyhow_to_eyre_preserves_source_chain() {
         let mut errs = ["foo", "bar", "baz", "qux"];
         let anyhow_error = anyhow::anyhow!(errs[0]).context(errs[1]).context(errs[2]);
@@ -109,6 +114,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "anyhow_support")]
     fn eyre_to_anyhow_preserves_source_chain() {
         let mut errs = ["foo", "bar", "baz", "qux"];
         let eyre_error = eyre::eyre!(errs[0]).wrap_err(errs[1]).wrap_err(errs[2]);

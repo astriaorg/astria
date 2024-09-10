@@ -792,7 +792,6 @@ dependencies = [
 name = "astria-sequencer"
 version = "0.17.0"
 dependencies = [
- "anyhow",
  "astria-build-info",
  "astria-config",
  "astria-core",
