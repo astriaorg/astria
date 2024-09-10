@@ -1,0 +1,52 @@
+# Default values for celestia-local.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+global:
+  namespace: "astria-dev-cluster"
+  replicaCount: 1
+  useTTY: true
+  dev: false
+
+images:
+    repo: ghcr.io/astriaorg/sequencer
+    tag: "0.16.0"
+    devTag: latest
+
+storage:
+  enabled: false
+  local: true
+  entities:
+    celestiaSharedStorage:
+      size: "5Gi"
+      persistentVolumeName: "celestia-shared-storage"
+      path: "/data/celestia-data"
+
+metrics:
+  enabled: true
+
+config:
+  astriaEnv: development
+  logLevel: trace
+  profilerServer: http://localhost:4040
+  apiPrometheusEnabled: "true"
+  sequencerRpcUrl: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+  sequencerRpcTimeout: "10"
+  sequencerRpcRps: "10"
+  indexer:
+    indexerScriptDir: database
+    indexerThreadsCount: "5"
+    indexerBlockPeriod: "12"
+    indexerViewsDir: database/views
+  api:
+    host: 0.0.0.0
+    rateLimit: 20
+    requestTimeout: 10
+  database:
+    postgresHost: db.astria-dev-cluster.svc.cluster.local
+    postgresUser: indexer-user
+    postgresPassword: indexer-user
+    postgresDb: astria
+
+ports:
+  api: "9876"
+  postgress: "5432"

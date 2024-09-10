@@ -81,6 +81,12 @@ deploy-sequencer name=validatorName:
     {{name}}-sequencer-chart ./charts/sequencer
 deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy-sequencer "node2")
 
+deploy-astrotrek:
+  helm dependency update charts/astrotrek > /dev/null
+  helm install \
+    -n astria-dev-cluster \
+    astrotrek-chart ./charts/astrotrek
+
 deploy-hermes-local:
   helm install hermes-local-chart ./charts/hermes \
     -n astria-dev-cluster \
