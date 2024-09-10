@@ -19,7 +19,8 @@ spec:
       initContainers:
         - command: [ "/scripts/init-cometbft.sh" ]
           name: config-cometbft
-          image: "ghcr.io/tomwright/dasel:alpine"
+          image: {{ .Values.images.init.repo }}:{{ .Values.images.init.tag }}
+          imagePullPolicy: {{ .Values.images.init.pullPolicy }}
           volumeMounts:
             - mountPath: /config
               name: cometbft-config-volume
@@ -33,6 +34,7 @@ spec:
       containers:
         - name: sequencer
           image: {{ include "sequencer.image" . }}
+          imagePullPolicy: {{ .Values.images.sequencer.pullPolicy }}
           command: [ "/usr/local/bin/astria-sequencer" ]
           stdin: {{ .Values.global.useTTY }}
           tty: {{ .Values.global.useTTY }}
@@ -60,7 +62,7 @@ spec:
               cpu: {{ .Values.resources.sequencer.limits.cpu }}
               memory: {{ .Values.resources.sequencer.limits.memory }}
         - name: cometbft
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.images.cometBFT.pullPolicy }}
           command: [ "cometbft", "start" ]
           args:
           - "--home"
@@ -81,7 +83,7 @@ spec:
               name: cometbft-p2p
             - containerPort: {{ .Values.ports.cometbftRpc }}
               name: cometbft-rpc
-            {{- if .Values.serviceMonitor.enabled }} 
+            {{- if .Values.serviceMonitor.enabled }}
             - containerPort: {{ .Values.ports.cometbftMetrics }}
               name: cometbft-metric
             {{- end }}

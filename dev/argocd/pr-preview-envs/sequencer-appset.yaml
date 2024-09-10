@@ -76,6 +76,7 @@ spec:
               images:
                 sequencer:
                   devTag: pr-{{.number}}
+                  pullPolicy: Always
               ingress:
                 grpc:
                   enabled: true
