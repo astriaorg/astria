@@ -1,14 +1,43 @@
 use std::time::Duration;
 
-use astria_conductor::config::CommitLevel;
+use astria_conductor::{
+    conductor::CelestiaChainIdError,
+    config::CommitLevel,
+    Conductor,
+    Config,
+};
+use astria_core::generated::execution::v1alpha2::{
+    GetCommitmentStateRequest,
+    GetGenesisInfoRequest,
+};
 use futures::future::{
     join,
     join4,
 };
+use serde_json::json;
+use telemetry::metrics;
 use tokio::time::timeout;
+use wiremock::{
+    matchers::{
+        body_partial_json,
+        header,
+    },
+    Mock,
+    ResponseTemplate,
+};
 
 use crate::{
-    helpers::spawn_conductor,
+    celestia_network_head,
+    commitment_state,
+    genesis_info,
+    helpers::{
+        make_config,
+        spawn_conductor,
+        MockGrpc,
+        CELESTIA_BEARER_TOKEN,
+        CELESTIA_CHAIN_ID,
+        SEQUENCER_CHAIN_ID,
+    },
     mount_celestia_blobs,
     mount_celestia_header_network_head,
     mount_executed_block,
@@ -45,7 +74,7 @@ async fn simple() {
         base_celestia_height: 1,
     );
 
-    mount_sequencer_genesis!(test_conductor);
+    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
 
     mount_celestia_header_network_head!(
         test_conductor,
@@ -126,7 +155,7 @@ async fn submits_two_heights_in_succession() {
         base_celestia_height: 1,
     );
 
-    mount_sequencer_genesis!(test_conductor);
+    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
 
     mount_celestia_header_network_head!(
         test_conductor,
@@ -237,7 +266,7 @@ async fn skips_already_executed_heights() {
         ),
         base_celestia_height: 1,
     );
-    mount_sequencer_genesis!(test_conductor);
+    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
 
     mount_celestia_header_network_head!(
         test_conductor,
@@ -322,7 +351,7 @@ async fn fetch_from_later_celestia_height() {
         base_celestia_height: 4,
     );
 
-    mount_sequencer_genesis!(test_conductor);
+    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
 
     mount_celestia_header_network_head!(
         test_conductor,
@@ -376,4 +405,111 @@ async fn fetch_from_later_celestia_height() {
         "conductor should have executed the firm block and updated the firm commitment state \
          within 1000ms",
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn exits_on_celestia_chain_id_mismatch() {
+    use astria_grpc_mock::{
+        matcher,
+        response as GrpcResponse,
+        Mock as GrpcMock,
+    };
+
+    // We have to create our own test conductor and perform mounts manually because `TestConductor`
+    // implements the `Drop` trait, which disallows us from taking ownership of its tasks and
+    // awaiting their completion.
+
+    let mock_grpc = MockGrpc::spawn().await;
+    let mock_http = wiremock::MockServer::start().await;
+
+    let config = Config {
+        celestia_node_http_url: mock_http.uri(),
+        execution_rpc_url: format!("http://{}", mock_grpc.local_addr),
+        sequencer_cometbft_url: mock_http.uri(),
+        sequencer_grpc_url: format!("http://{}", mock_grpc.local_addr),
+        execution_commit_level: CommitLevel::FirmOnly,
+        ..make_config()
+    };
+
+    let (metrics, _) = metrics::ConfigBuilder::new()
+        .set_global_recorder(false)
+        .build(&())
+        .unwrap();
+    let metrics = Box::leak(Box::new(metrics));
+
+    let conductor = {
+        let conductor = Conductor::new(config, metrics).unwrap();
+        conductor.spawn()
+    };
+
+    GrpcMock::for_rpc_given(
+        "get_genesis_info",
+        matcher::message_type::<GetGenesisInfoRequest>(),
+    )
+    .respond_with(GrpcResponse::constant_response(
+        genesis_info!(sequencer_genesis_block_height: 1,
+            celestia_block_variance: 10,),
+    ))
+    .expect(0..)
+    .mount(&mock_grpc.mock_server)
+    .await;
+
+    GrpcMock::for_rpc_given(
+        "get_commitment_state",
+        matcher::message_type::<GetCommitmentStateRequest>(),
+    )
+    .respond_with(GrpcResponse::constant_response(commitment_state!(firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        base_celestia_height: 1,)))
+    .expect(0..)
+    .mount(&mock_grpc.mock_server)
+    .await;
+
+    Mock::given(body_partial_json(
+        json!({"jsonrpc": "2.0", "method": "header.NetworkHead"}),
+    ))
+    .and(header(
+        "authorization",
+        &*format!("Bearer {CELESTIA_BEARER_TOKEN}"),
+    ))
+    .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "result": celestia_network_head!(height: 1u32, chain_id: "bad_chain_id"),
+    })))
+    .expect(1..)
+    .mount(&mock_http)
+    .await;
+
+    let res = conductor.task();
+    let res = res.unwrap().await;
+    match res {
+        Ok(Ok(())) => panic!("conductor should have exited with an error, no error received"),
+        Ok(Err(e)) => {
+            let mut source = e.source();
+            while source.is_some() {
+                let err = source.unwrap();
+                if let Some(CelestiaChainIdError::MismatchedCelestiaChainId {
+                    expected,
+                    actual,
+                }) = err.downcast_ref::<CelestiaChainIdError>()
+                {
+                    assert_eq!(expected, CELESTIA_CHAIN_ID);
+                    assert_eq!(actual, "bad_chain_id");
+                    return;
+                }
+                source = err.source();
+            }
+            panic!("conductor did not exit with MismatchedCelestiaChainId, but with error: {e}")
+        }
+        Err(e) => panic!("conductor handle resulted in an error: {e}"),
+    }
 }

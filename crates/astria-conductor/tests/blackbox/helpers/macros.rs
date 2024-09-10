@@ -15,7 +15,7 @@ macro_rules! block {
 
 #[macro_export]
 macro_rules! celestia_network_head {
-    (height: $height:expr) => {
+    (height: $height:expr,chain_id: $chain_id:expr $(,)?) => {
         ::celestia_types::ExtendedHeader {
             header: ::celestia_tendermint::block::header::Header {
                 height: $height.into(),
@@ -23,7 +23,7 @@ macro_rules! celestia_network_head {
                     block: 0,
                     app: 0,
                 },
-                chain_id: "test_celestia-1000".try_into().unwrap(),
+                chain_id: $chain_id.try_into().unwrap(),
                 time: ::celestia_tendermint::Time::from_unix_timestamp(1, 1).unwrap(),
                 last_block_id: None,
                 last_commit_hash: ::celestia_tendermint::Hash::Sha256([0; 32]),
@@ -142,7 +142,7 @@ macro_rules! mount_celestia_header_network_head {
     ) => {
         $test_env
             .mount_celestia_header_network_head(
-                $crate::celestia_network_head!(height: $height)
+                $crate::celestia_network_head!(height: $height, chain_id: $crate::helpers::CELESTIA_CHAIN_ID),
             )
             .await;
     }
@@ -320,8 +320,8 @@ macro_rules! mount_sequencer_validator_set {
 
 #[macro_export]
 macro_rules! mount_sequencer_genesis {
-    ($test_env:ident) => {
-        $test_env.mount_genesis().await;
+    ($test_env:ident,chain_id: $chain_id:expr $(,)?) => {
+        $test_env.mount_genesis($chain_id).await;
     };
 }
 

@@ -6,6 +6,7 @@ use astria_core::sequencerblock::v1alpha1::block::FilteredSequencerBlock;
 use astria_eyre::eyre::{
     self,
     bail,
+    ensure,
     Report,
     WrapErr as _,
 };
@@ -39,6 +40,7 @@ use tracing::{
 
 use crate::{
     block_cache::BlockCache,
+    celestia::get_sequencer_chain_id,
     executor::{
         self,
         SoftSendError,
@@ -55,6 +57,11 @@ mod reporting;
 pub(crate) use builder::Builder;
 pub(crate) use client::SequencerGrpcClient;
 
+#[derive(Debug, thiserror::Error)]
+pub enum ValidateChainIdError {
+    #[error("expected chain id `{expected}` does not match actual: `{actual}`")]
+    MismatchedSequencerChainId { expected: String, actual: String },
+}
 /// [`Reader`] reads Sequencer blocks and forwards them to the [`crate::Executor`] task.
 ///
 /// The blocks are forwarded in strictly sequential order of their Sequencr heights.
@@ -76,6 +83,9 @@ pub(crate) struct Reader {
     /// The reader will wait `sequencer_block_time` before querying the network for its latest
     /// height.
     sequencer_block_time: Duration,
+
+    /// The chain ID of the sequencer network the reader should be communicating with.
+    sequencer_chain_id: String,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -99,6 +109,19 @@ impl Reader {
 
     #[instrument(skip_all, err)]
     async fn initialize(&mut self) -> eyre::Result<executor::Handle<StateIsInit>> {
+        let sequencer_chain_id = get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
+            .await
+            .wrap_err("failed to get chain ID from Sequencer")?
+            .to_string();
+
+        ensure!(
+            self.sequencer_chain_id == sequencer_chain_id,
+            ValidateChainIdError::MismatchedSequencerChainId {
+                expected: self.sequencer_chain_id.clone(),
+                actual: sequencer_chain_id,
+            }
+        );
+
         self.executor
             .wait_for_init()
             .await

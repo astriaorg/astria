@@ -8,8 +8,10 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
+pub use celestia::ValidateChainIdError as CelestiaChainIdError;
 use itertools::Itertools as _;
 use pin_project_lite::pin_project;
+pub use sequencer::ValidateChainIdError as SequencerChainIdError;
 use sequencer_client::HttpClient;
 use tokio::{
     select,
@@ -40,7 +42,7 @@ pin_project! {
     /// A handle returned by [`Conductor::spawn`].
     pub struct Handle {
         shutdown_token: CancellationToken,
-        task: Option<tokio::task::JoinHandle<()>>,
+        task: Option<tokio::task::JoinHandle<eyre::Result<()>>>,
     }
 }
 
@@ -53,15 +55,21 @@ impl Handle {
     /// # Panics
     /// Panics if called twice.
     #[instrument(skip_all, err)]
-    pub async fn shutdown(&mut self) -> Result<(), tokio::task::JoinError> {
+    pub async fn shutdown(&mut self) -> Result<eyre::Result<()>, tokio::task::JoinError> {
         self.shutdown_token.cancel();
         let task = self.task.take().expect("shutdown must not be called twice");
         task.await
     }
+
+    /// Returns the underlying task handle, consuming `self`.
+    #[must_use]
+    pub fn task(self) -> Option<tokio::task::JoinHandle<eyre::Result<()>>> {
+        self.task
+    }
 }
 
 impl Future for Handle {
-    type Output = Result<(), tokio::task::JoinError>;
+    type Output = Result<eyre::Result<()>, tokio::task::JoinError>;
 
     fn poll(
         self: std::pin::Pin<&mut Self>,
@@ -131,6 +139,7 @@ impl Conductor {
                 sequencer_grpc_client,
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
+                sequencer_chain_id: cfg.sequencer_chain_id,
                 shutdown: shutdown.clone(),
                 executor: executor_handle.clone(),
             }
@@ -152,6 +161,7 @@ impl Conductor {
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_requests_per_second: cfg.sequencer_requests_per_second,
+                celestia_chain_id: cfg.celestia_chain_id,
                 shutdown: shutdown.clone(),
                 metrics,
             }
@@ -171,7 +181,7 @@ impl Conductor {
     ///
     /// # Panics
     /// Panics if it could not install a signal handler.
-    async fn run_until_stopped(mut self) {
+    async fn run_until_stopped(mut self) -> eyre::Result<()> {
         info_span!("Conductor::run_until_stopped").in_scope(|| info!("conductor is running"));
 
         let exit_reason = select! {
@@ -183,8 +193,8 @@ impl Conductor {
 
             Some((name, res)) = self.tasks.join_next() => {
                 match flatten(res) {
-                    Ok(()) => Err(eyre!("task `{name}` exited unexpectedly")),
-                    Err(err) => Err(err).wrap_err_with(|| "task `{name}` failed"),
+                    Ok(()) => Err(eyre!("task `{name}` exited unexpectedly"))?,
+                    Err(err) => Err(err).wrap_err_with(|| "task `{name}` failed")?,
                 }
             }
         };
@@ -192,6 +202,7 @@ impl Conductor {
         let message = "initiating shutdown";
         report_exit(exit_reason, message);
         self.shutdown().await;
+        Ok(())
     }
 
     /// Spawns Conductor on the tokio runtime.

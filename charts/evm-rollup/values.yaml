@@ -14,7 +14,7 @@ images:
     overrideTag: ""
   conductor:
     repo: ghcr.io/astriaorg/conductor
-    tag: "0.20.0"
+    tag: "0.20.1"
     devTag: latest
 
 
@@ -176,6 +176,8 @@ config:
     sequencerGrpc: ""
     # The maximum number of requests to make to the sequencer per second
     sequencerRequestsPerSecond: 500
+    # The chain id of the celestia netowkr the conductor communicates with
+    celestiaChainId: ""
 
   celestia:
     # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled

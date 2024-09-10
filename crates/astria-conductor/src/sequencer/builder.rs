@@ -10,6 +10,7 @@ pub(crate) struct Builder {
     pub(crate) sequencer_grpc_client: SequencerGrpcClient,
     pub(crate) sequencer_cometbft_client: sequencer_client::HttpClient,
     pub(crate) sequencer_block_time: Duration,
+    pub(crate) sequencer_chain_id: String,
     pub(crate) shutdown: CancellationToken,
 }
 
@@ -20,6 +21,7 @@ impl Builder {
             sequencer_grpc_client,
             sequencer_cometbft_client,
             sequencer_block_time,
+            sequencer_chain_id,
             shutdown,
         } = self;
         super::Reader {
@@ -27,6 +29,7 @@ impl Builder {
             sequencer_grpc_client,
             sequencer_cometbft_client,
             sequencer_block_time,
+            sequencer_chain_id,
             shutdown,
         }
     }

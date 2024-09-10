@@ -11,9 +11,11 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     bail,
+    ensure,
     WrapErr as _,
 };
 use bytes::Bytes;
+use celestia_rpc::HeaderClient;
 use celestia_types::nmt::Namespace;
 use futures::{
     future::{
@@ -95,6 +97,14 @@ use crate::{
     executor,
 };
 
+#[derive(Debug, thiserror::Error)]
+pub enum ValidateChainIdError {
+    #[error("failed to get the Celestia network head")]
+    GetCelestiaNetworkHead(#[source] jsonrpsee::core::Error),
+    #[error("expected Celestia chain id `{expected}` does not match actual: `{actual}`")]
+    MismatchedCelestiaChainId { expected: String, actual: String },
+}
+
 /// Sequencer Block information reconstructed from Celestia blobs.
 ///
 /// Will be forwarded to the executor as a firm block.
@@ -139,6 +149,9 @@ pub(crate) struct Reader {
     /// (usually to verify block data retrieved from Celestia blobs).
     sequencer_requests_per_second: u32,
 
+    /// The chain ID of the Celestia network the reader should be communicating with.
+    celestia_chain_id: String,
+
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 
@@ -170,6 +183,17 @@ impl Reader {
     async fn initialize(
         &mut self,
     ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
+        let remote_chain_id = get_remote_chain_id(&self.celestia_client)
+            .await
+            .wrap_err("failed to get Celestia chain ID")?;
+        ensure!(
+            self.celestia_chain_id == remote_chain_id,
+            ValidateChainIdError::MismatchedCelestiaChainId {
+                expected: self.celestia_chain_id.clone(),
+                actual: remote_chain_id,
+            }
+        );
+
         let wait_for_init_executor = async {
             self.executor
                 .wait_for_init()
@@ -185,6 +209,34 @@ impl Reader {
 
         try_join!(wait_for_init_executor, get_sequencer_chain_id)
     }
+}
+
+#[instrument(skip_all, err)]
+async fn get_remote_chain_id(
+    celestia_client: &CelestiaClient,
+) -> Result<String, ValidateChainIdError> {
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to fetch celestia network header info; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+    let network_head = tryhard::retry_fn(|| celestia_client.header_network_head())
+        .with_config(retry_config)
+        .await
+        .map_err(ValidateChainIdError::GetCelestiaNetworkHead)?;
+    Ok(network_head.chain_id().to_string())
 }
 
 struct RunningReader {
@@ -610,7 +662,9 @@ async fn enqueue_block(
 }
 
 #[instrument(skip_all, err)]
-async fn get_sequencer_chain_id(client: SequencerClient) -> eyre::Result<tendermint::chain::Id> {
+pub(crate) async fn get_sequencer_chain_id(
+    client: SequencerClient,
+) -> eyre::Result<tendermint::chain::Id> {
     use sequencer_client::Client as _;
 
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
