@@ -15,7 +15,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use bytes::Bytes;
-use celestia_rpc::HeaderClient;
+use celestia_rpc::HeaderClient as _;
 use celestia_types::nmt::Namespace;
 use futures::{
     future::{
@@ -183,14 +183,14 @@ impl Reader {
     async fn initialize(
         &mut self,
     ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
-        let remote_chain_id = get_remote_chain_id(&self.celestia_client)
+        let actual_chain_id = get_remote_chain_id(&self.celestia_client)
             .await
-            .wrap_err("failed to get Celestia chain ID")?;
+            .wrap_err("failed to fetch Celestia chain ID")?;
         ensure!(
-            self.celestia_chain_id == remote_chain_id,
+            self.celestia_chain_id == actual_chain_id,
             ValidateChainIdError::MismatchedCelestiaChainId {
                 expected: self.celestia_chain_id.clone(),
-                actual: remote_chain_id,
+                actual: actual_chain_id,
             }
         );
 

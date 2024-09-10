@@ -61,7 +61,6 @@ impl Handle {
         task.await
     }
 
-    /// Returns the underlying task handle, consuming `self`.
     #[must_use]
     pub fn task(self) -> Option<tokio::task::JoinHandle<eyre::Result<()>>> {
         self.task

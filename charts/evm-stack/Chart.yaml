@@ -23,7 +23,7 @@ dependencies:
     repository: "file://../celestia-node"
     condition: celestia-node.enabled
   - name: evm-rollup
-    version: 0.26.2
+    version: 0.26.3
     repository: "file://../evm-rollup"
   - name: composer
     version: 0.1.2
