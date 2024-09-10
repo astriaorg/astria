@@ -122,8 +122,10 @@ spec:
                 images:
                   composer:
                     devTag: pr-{{.number}}
+                    pullPolicy: Always
                   conductor:
                     devTag: pr-{{.number}}
+                    pullPolicy: Always
                 ingress:
                   enabled: true
                   services:
