@@ -35,18 +35,19 @@ config:
   indexer:
     indexerScriptDir: database
     indexerThreadsCount: "5"
-    indexerBlockPeriod: "12"
+    indexerBlockPeriod: "2"
     indexerViewsDir: database/views
   api:
     host: 0.0.0.0
     rateLimit: 20
     requestTimeout: 10
   database:
-    postgresHost: db.astria-dev-cluster.svc.cluster.local
+    postgresHost: db-service.astria-dev-cluster.svc.cluster.local
     postgresUser: indexer-user
     postgresPassword: indexer-user
     postgresDb: astria
 
 ports:
   api: "9876"
-  postgress: "5432"
+  db: "5432"
+  frontend: "3000"

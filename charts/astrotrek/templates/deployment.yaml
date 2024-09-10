@@ -1,11 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-   app: indexer
   name: indexer
+  labels:
+    app: indexer
+  namespace: {{ .Values.global.namespace }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.global.replicaCount }}
   selector:
     matchLabels:
      app: indexer
@@ -15,114 +16,17 @@ spec:
        app: indexer
     spec:
       containers:
-        - env:
-            - name: API_HOST
-              valueFrom:
-                configMapKeyRef:
-                  key: API_HOST
-                  name: env
-            - name: API_PORT
-              valueFrom:
-                configMapKeyRef:
-                  key: API_PORT
-                  name: env
-            - name: API_PROMETHEUS_ENABLED
-              valueFrom:
-                configMapKeyRef:
-                  key: API_PROMETHEUS_ENABLED
-                  name: env
-            - name: API_RATE_LIMIT
-              valueFrom:
-                configMapKeyRef:
-                  key: API_RATE_LIMIT
-                  name: env
-            - name: API_REQUEST_TIMEOUT
-              valueFrom:
-                configMapKeyRef:
-                  key: API_REQUEST_TIMEOUT
-                  name: env
-            - name: ASTRIA_ENV
-              valueFrom:
-                configMapKeyRef:
-                  key: ASTRIA_ENV
-                  name: env
-            - name: INDEXER_BLOCK_PERIOD
-              valueFrom:
-                configMapKeyRef:
-                  key: INDEXER_BLOCK_PERIOD
-                  name: env
-            - name: INDEXER_SCRIPTS_DIR
-              valueFrom:
-                configMapKeyRef:
-                  key: INDEXER_SCRIPTS_DIR
-                  name: env
-            - name: INDEXER_THREADS_COUNT
-              valueFrom:
-                configMapKeyRef:
-                  key: INDEXER_THREADS_COUNT
-                  name: env
-            - name: INDEXER_VIEWS_DIR
-              valueFrom:
-                configMapKeyRef:
-                  key: INDEXER_VIEWS_DIR
-                  name: env
-            - name: LOG_LEVEL
-              valueFrom:
-                configMapKeyRef:
-                  key: LOG_LEVEL
-                  name: env
-            - name: POSTGRES_DB
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_DB
-                  name: env
-            - name: POSTGRES_HOST
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_HOST
-                  name: env
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_PASSWORD
-                  name: env
-            - name: POSTGRES_PORT
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_PORT
-                  name: env
-            - name: POSTGRES_USER
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_USER
-                  name: env
-            - name: PROFILER_SERVER
-              valueFrom:
-                configMapKeyRef:
-                  key: PROFILER_SERVER
-                  name: env
-            - name: SEQUENCER_RPC_RPS
-              valueFrom:
-                configMapKeyRef:
-                  key: SEQUENCER_RPC_RPS
-                  name: env
-            - name: SEQUENCER_RPC_TIMEOUT
-              valueFrom:
-                configMapKeyRef:
-                  key: SEQUENCER_RPC_TIMEOUT
-                  name: env
-            - name: SEQUENCER_RPC_URL
-              valueFrom:
-                configMapKeyRef:
-                  key: SEQUENCER_RPC_URL
-                  name: env
+        - name: indexer
           image: ghcr.io/celenium-io/astria-indexer:main
-          name: indexer
+          envFrom:
+            - configMapRef:
+                name: env
       restartPolicy: Always
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: {{ .Values.global.namespace }}
   labels:
     app: api
   name: api
@@ -137,109 +41,11 @@ spec:
         app: api
     spec:
       containers:
-        - env:
-            - name: API_HOST
-              valueFrom:
-                configMapKeyRef:
-                  key: API_HOST
-                  name: env
-            - name: API_PORT
-              valueFrom:
-                configMapKeyRef:
-                  key: API_PORT
-                  name: env
-            - name: API_PROMETHEUS_ENABLED
-              valueFrom:
-                configMapKeyRef:
-                  key: API_PROMETHEUS_ENABLED
-                  name: env
-            - name: API_RATE_LIMIT
-              valueFrom:
-                configMapKeyRef:
-                  key: API_RATE_LIMIT
-                  name: env
-            - name: API_REQUEST_TIMEOUT
-              valueFrom:
-                configMapKeyRef:
-                  key: API_REQUEST_TIMEOUT
-                  name: env
-            - name: ASTRIA_ENV
-              valueFrom:
-                configMapKeyRef:
-                  key: ASTRIA_ENV
-                  name: env
-            - name: INDEXER_BLOCK_PERIOD
-              valueFrom:
-                configMapKeyRef:
-                  key: INDEXER_BLOCK_PERIOD
-                  name: env
-            - name: INDEXER_SCRIPTS_DIR
-              valueFrom:
-                configMapKeyRef:
-                  key: INDEXER_SCRIPTS_DIR
-                  name: env
-            - name: INDEXER_THREADS_COUNT
-              valueFrom:
-                configMapKeyRef:
-                  key: INDEXER_THREADS_COUNT
-                  name: env
-            - name: INDEXER_VIEWS_DIR
-              valueFrom:
-                configMapKeyRef:
-                  key: INDEXER_VIEWS_DIR
-                  name: env
-            - name: LOG_LEVEL
-              valueFrom:
-                configMapKeyRef:
-                  key: LOG_LEVEL
-                  name: env
-            - name: POSTGRES_DB
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_DB
-                  name: env
-            - name: POSTGRES_HOST
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_HOST
-                  name: env
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_PASSWORD
-                  name: env
-            - name: POSTGRES_PORT
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_PORT
-                  name: env
-            - name: POSTGRES_USER
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_USER
-                  name: env
-            - name: PROFILER_SERVER
-              valueFrom:
-                configMapKeyRef:
-                  key: PROFILER_SERVER
-                  name: env
-            - name: SEQUENCER_RPC_RPS
-              valueFrom:
-                configMapKeyRef:
-                  key: SEQUENCER_RPC_RPS
-                  name: env
-            - name: SEQUENCER_RPC_TIMEOUT
-              valueFrom:
-                configMapKeyRef:
-                  key: SEQUENCER_RPC_TIMEOUT
-                  name: env
-            - name: SEQUENCER_RPC_URL
-              valueFrom:
-                configMapKeyRef:
-                  key: SEQUENCER_RPC_URL
-                  name: env
+        - name: api
           image: ghcr.io/celenium-io/astria-indexer-api:main
-          name: api
+          envFrom:
+            - configMapRef:
+                name: env
           ports:
             - containerPort: 9876
               name: indexer-api
@@ -249,6 +55,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: {{ .Values.global.namespace }}
   labels:
    app: db
   name: db
@@ -272,7 +79,7 @@ spec:
             - name: POSTGRES_DB
               value: astria
             - name: POSTGRES_HOST
-              value: db
+              value: db-service
             - name: POSTGRES_HOST_AUTH_METHOD
               value: trust
             - name: POSTGRES_PASSWORD
@@ -298,23 +105,24 @@ spec:
       volumes:
         - name: db
           persistentVolumeClaim:
-            claimName: db
+            claimName: astrotrek-shared-local-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: {{ .Values.global.namespace }}
   labels:
-   app: nuxt-app
-  name: nuxt-app
+   app: frontend
+  name: frontend
 spec:
   replicas: 1
   selector:
     matchLabels:
-     app: nuxt-app
+     app: frontend
   template:
     metadata:
       labels:
-       app: nuxt-app
+       app: frontend
     spec:
       containers:
         - args:
@@ -327,7 +135,7 @@ spec:
             - name: NUXT_PUBLIC_WSS_DEV
               value: "ws://api.sequencer.localdev.me/v1/ws"
           image: astrotrek:0.1.0
-          name: nuxt-app
+          name: frontend
           ports:
             - containerPort: 3000
               protocol: TCP
