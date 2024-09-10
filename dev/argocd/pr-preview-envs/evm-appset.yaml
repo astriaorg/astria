@@ -1,25 +1,39 @@
+# Ref: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/applicationset.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: pr-preview-rollup
   namespace: argocd
 spec:
+  # Ref: https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/GoTemplate/
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
   generators:
   - pullRequest:
+      # Ref:
+      # - https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Pull-Request/
+      # - https://github.com/argoproj/argo-cd/blob/33f5714c832eebee420dad6e14a638915b9ba872/applicationset/generators/pull_request.go#L104
+      # PR template vars for this generator:
+      # {{ .number }}
+      # {{ .branch }}
+      # {{ .branch_slug }}
+      # {{ .target_branch_slug }}
+      # {{ .head_sha }}
+      # {{ .head_short_sha }}
+      # {{ .head_short_sha_7 }}
+      # {{ .labels }}
       github:
-        labels:
-        - preview
-        # - demo
-        - evm
-        - docker-build
         owner: astriaorg
         repo: astria
         tokenRef:
           key: token
           secretName: github-pat
+        labels:
+        # All of the following labels are required to be set on the PR for the app to be created
+        - preview
+        - evm
+        - docker-build
       requeueAfterSeconds: 60
-  goTemplate: true
-  goTemplateOptions: ["missingkey=error"]
   template:
     metadata:
       name: pr-{{.number}}-rollup
@@ -33,10 +47,114 @@ spec:
           targetRevision: pull/{{.number}}/head
           path: charts/evm-stack
           helm:
+            # Ref: https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-value-precedence
+            # Order of precedence is as follows:
+            #       lowest  -> valueFiles
+            #               -> values
+            #               -> valuesObject
+            #       highest -> parameters
+
             valueFiles:
               - ../../dev/values/rollup/dev.yaml
+
+            # values: {}
+
             valuesObject:
-              config:
+              global:
+                namespaceOverride: pr-{{.number}}
+                sequencerGrpc: http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080
+                sequencerRpc: http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657
+
+              postgresql:
+                enabled: false
+
+              blockscout-stack:
+                enabled: false
+                blockscout:
+                  extraEnv:
+                    - name: DATABASE_URL
+                      value: "postgres://postgres:bigsecretpassword@astria-chain-chart-blockscout-postegres.pr-{{.number}}.svc.cluster.local:5432/blockscout"
+                    - name: ETHEREUM_JSONRPC_HTTP_URL
+                      value: "http://astria-evm-service.pr-{{.number}}.svc.cluster.local:8545/"
+                    - name: ETHEREUM_JSONRPC_WS_URL
+                      value: "ws://astria-evm-service.pr-{{.number}}.svc.cluster.local:8546/"
+                  ingress:
+                    enabled: false
+                    annotations:
+                      external-dns.alpha.kubernetes.io/hostname: explorer.evm.pr-{{.number}}.dev.astria.org
+                      external-dns.alpha.kubernetes.io/ttl: "30"
+                      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+                      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+                      nginx.ingress.kubernetes.io/limit-connections: '2'
+                      nginx.ingress.kubernetes.io/limit-rpm: '60'
+                    hostname: explorer.evm.pr-{{.number}}.dev.astria.org
+                    className: nginx
+                frontend:
+                  ingress:
+                    enabled: false
+                    annotations:
+                      external-dns.alpha.kubernetes.io/hostname: explorer.evm.pr-{{.number}}.dev.astria.org
+                      external-dns.alpha.kubernetes.io/ttl: "30"
+                      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+                      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+                      nginx.ingress.kubernetes.io/limit-connections: '2'
+                      nginx.ingress.kubernetes.io/limit-rpm: '60'
+                    hostname: explorer.evm.pr-{{.number}}.dev.astria.org
+                    className: nginx
+
+              evm-faucet:
+                ingress:
+                    annotations:
+                      external-dns.alpha.kubernetes.io/hostname: faucet.evm.pr-{{.number}}.dev.astria.org
+                      external-dns.alpha.kubernetes.io/ttl: "30"
+                      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+                      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+                      nginx.ingress.kubernetes.io/limit-connections: '2'
+                      nginx.ingress.kubernetes.io/limit-rpm: '60'
+                    hostname: faucet.evm.pr-{{.number}}.dev.astria.org
+                    className: nginx
+
+              evm-rollup:
+                config:
+                  celestia:
+                    rpc: http://celestia-service.pr-{{.number}}.svc.cluster.local:26658
+                    token: http://celestia-service.pr-{{.number}}.svc.cluster.local:5353
+                images:
+                  composer:
+                    devTag: pr-{{.number}}
+                  conductor:
+                    devTag: pr-{{.number}}
+                ingress:
+                  enabled: true
+                  services:
+                    rpc:
+                      annotations:
+                        external-dns.alpha.kubernetes.io/hostname: rpc.evm.pr-{{.number}}.dev.astria.org
+                        external-dns.alpha.kubernetes.io/ttl: "30"
+                        external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+                        nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+                        nginx.ingress.kubernetes.io/limit-connections: '2'
+                        nginx.ingress.kubernetes.io/limit-rpm: '60'
+                      hosts:
+                        - rpc.evm.pr-{{.number}}.dev.astria.org
+                    ws:
+                      annotations:
+                        external-dns.alpha.kubernetes.io/hostname: ws.evm.pr-{{.number}}.dev.astria.org
+                        external-dns.alpha.kubernetes.io/ttl: "30"
+                        external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+                        nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+                        nginx.ingress.kubernetes.io/limit-connections: '2'
+                        nginx.ingress.kubernetes.io/limit-rpm: '60'
+                      hosts:
+                        - ws.evm.pr-{{.number}}.dev.astria.org
+                resources:
+                  conductor:
+                    requests:
+                      cpu: "0.1"
+                      memory: 100Mi
+                    limits:
+                      cpu: "1"
+                      memory: 200Mi
                 storage:
                   enabled: true
                   local: false
@@ -46,35 +164,9 @@ spec:
                       storageClassName: standard-rwo
                       persistentVolumeName: "rollup-shared-storage"
                       path: "/data/rollup-data"
-            parameters:
-              - name: global.namespaceOverride
-                value: pr-{{.number}}
-              - name: evm-rollup.ingress.hostname
-                value: pr-{{.number}}.dev.astria.org
-              - name: evm-rollup.images.conductor.devTag
-                value: pr-{{.number}}
-              - name: composer.images.composer.devTag
-                value: pr-{{.number}}
-              - name: global.sequencerGrpc
-                value: http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080
-              - name: global.sequencerRpc
-                value: http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657
-              - name: evm-rollup.config.celestia.rpc
-                value: http://celestia-service.pr-{{.number}}.svc.cluster.local:26658
-              - name: config.celestia.token
-                value: http://celestia-service.pr-{{.number}}.svc.cluster.local:5353
-              - name: evm-rollup.resources.conductor.requests.cpu
-                value: "0.1"
-              - name: evm-rollup.resources.conductor.requests.memory
-                value: 100Mi
-              - name: evm-rollup.resources.conductor.limits.cpu
-                value: "1"
-              - name: evm-rollup.resources.conductor.limits.memory
-                value: 200Mi
-              - name: postgresql.enabled
-                value: "false"
-              - name: blockscout-stack.enabled
-                value: "false"
+
+            # parameters: []
+
       syncPolicy:
         automated:
           allowEmpty: true
