@@ -1174,11 +1174,9 @@ async fn transaction_execution_records_deposit_event() {
 
     signed_tx.check_and_execute(&mut state_tx).await.unwrap();
     let events = &state_tx.apply().1;
-    for event in events {
-        if event.kind == "tx.deposit" {
-            assert_eq!(*event, expected_deposit_event);
-            return;
-        }
-    }
-    panic!("no deposit event found in events");
+    let event = events
+        .iter()
+        .find(|event| event.kind == "tx.deposit")
+        .expect("should have deposit event");
+    assert_eq!(*event, expected_deposit_event);
 }
