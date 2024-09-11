@@ -147,7 +147,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
 pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let cost_by_asset = get_total_transaction_cost(tx, state)
         .await
         .context("failed to get transaction costs")?;
@@ -173,7 +173,7 @@ pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
 pub(crate) async fn get_total_transaction_cost<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<HashMap<asset::IbcPrefixed, u128>> {
+) -> Result<HashMap<asset::IbcPrefixed, u128>> {
     let mut cost_by_asset: HashMap<asset::IbcPrefixed, u128> =
         get_fees_for_transaction(tx.unsigned_transaction(), state)
             .await

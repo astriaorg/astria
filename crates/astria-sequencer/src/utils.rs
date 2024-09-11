@@ -4,6 +4,10 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
     Protobuf as _,
 };
+use astria_eyre::eyre::{
+    Result,
+    WrapErr as _,
+};
 use tendermint::abci::{
     self,
     EventAttributeIndexExt as _,
@@ -31,7 +35,7 @@ pub(crate) fn cometbft_to_sequencer_validator(
         power,
         pub_key: pub_key.map(pubkey::cometbft_to_astria),
     })
-    .context("failed converting cometbft validator update to astria validator update")
+    .wrap_err("failed converting cometbft validator update to astria validator update")
 }
 
 pub(crate) fn create_deposit_event(deposit: &Deposit) -> abci::Event {

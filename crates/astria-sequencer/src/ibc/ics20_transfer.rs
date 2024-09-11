@@ -11,13 +11,6 @@
 //! [`AppHandlerExecute`] is used for execution.
 use std::borrow::Cow;
 
-use anyhow::{
-    anyhow,
-    bail,
-    ensure,
-    Context as _,
-    Result,
-};
 use astria_core::{
     primitive::v1::{
         asset::{
@@ -515,9 +508,9 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
             .put_ibc_channel_balance(
                 escrow_channel,
                 &denom_trace,
-                escrow_balance.checked_sub(packet_amount).ok_or(anyhow!(
-                    "insufficient balance in escrow account to transfer tokens"
-                ))?,
+                escrow_balance
+                    .checked_sub(packet_amount)
+                    .ok_or_eyre("insufficient balance in escrow account to transfer tokens")?,
             )
             .wrap_err("failed to update escrow account balance in execute_ics20_transfer")?;
 
@@ -738,7 +731,7 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
 
     let transaction_context = state
         .get_transaction_context()
-        .context("transaction source should be present in state when executing an action")?;
+        .ok_or_eyre("transaction source should be present in state when executing an action")?;
     let transaction_id = transaction_context.transaction_id;
     let index_of_action = transaction_context.source_action_index;
 

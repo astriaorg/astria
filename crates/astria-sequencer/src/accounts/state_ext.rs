@@ -7,11 +7,16 @@ use std::{
     },
 };
 
-use anyhow::{
-    Context as _,
-    Result,
-};
 use astria_core::primitive::v1::asset;
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        eyre,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
+};
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize,
@@ -88,7 +93,7 @@ where
         let key = match ready!(this.underlying.as_mut().poll_next(cx)) {
             Some(Ok(key)) => key,
             Some(Err(err)) => {
-                return Poll::Ready(Some(Err(err).context("failed reading from state")));
+                return Poll::Ready(Some(Err(err).wrap_err("failed reading from state")));
             }
             None => return Poll::Ready(None),
         };
@@ -114,7 +119,7 @@ pin_project! {
 
 impl<St> Stream for AccountAssetBalancesStream<St>
 where
-    St: Stream<Item = Result<(String, Vec<u8>)>>,
+    St: Stream<Item = astria_eyre::anyhow::Result<(String, Vec<u8>)>>,
 {
     type Item = Result<AssetBalance>;
 
@@ -123,7 +128,9 @@ where
         let (key, bytes) = match ready!(this.underlying.as_mut().poll_next(cx)) {
             Some(Ok(tup)) => tup,
             Some(Err(err)) => {
-                return Poll::Ready(Some(Err(err).context("failed reading from state")));
+                return Poll::Ready(Some(Err(
+                    anyhow_to_eyre(err).wrap_err("failed reading from state")
+                )));
             }
             None => return Poll::Ready(None),
         };
@@ -149,7 +156,7 @@ where
 fn extract_asset_from_key(s: &str) -> Result<asset::IbcPrefixed> {
     Ok(s.strip_prefix("accounts/")
         .and_then(|s| s.split_once("/balance/").map(|(_, asset)| asset))
-        .context("failed to strip prefix from account balance key")?
+        .ok_or_eyre("failed to strip prefix from account balance key")?
         .parse::<crate::storage_keys::hunks::Asset>()
         .context("failed to parse storage key suffix as address hunk")?
         .get())

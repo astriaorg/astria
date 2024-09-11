@@ -39,19 +39,19 @@ use crate::{
 async fn ibc_to_trace<S: StateRead>(
     state: S,
     asset: asset::IbcPrefixed,
-) -> anyhow::Result<asset::TracePrefixed> {
+) -> Result<asset::TracePrefixed> {
     state
         .map_ibc_to_trace_prefixed_asset(asset)
         .await
         .context("failed to get ibc asset denom")?
-        .context("asset not found when user has balance of it; this is a bug")
+        .ok_or_eyre("asset not found when user has balance of it; this is a bug")
 }
 
 #[instrument(skip_all, fields(%address))]
 async fn get_trace_prefixed_account_balances<S: StateRead>(
     state: &S,
     address: Address,
-) -> anyhow::Result<Vec<AssetBalance>> {
+) -> Result<Vec<AssetBalance>> {
     let stream = state
         .account_asset_balances(address)
         .map_ok(|asset_balance| async move {

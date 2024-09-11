@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
 use astria_core::primitive::v1::asset;
+use astria_eyre::eyre::Result;
 use cnidarium::StateRead;
 use tracing::instrument;
 
