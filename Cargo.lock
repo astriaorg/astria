@@ -835,11 +835,13 @@ name = "astria-sequencer-client"
 version = "0.1.0"
 dependencies = [
  "astria-core",
+ "astria-eyre",
  "async-trait",
  "futures",
  "futures-util",
  "hex",
  "hex-literal",
+ "humantime",
  "prost",
  "regex",
  "serde",
@@ -852,6 +854,7 @@ dependencies = [
  "tokio-stream",
  "tokio-test",
  "tracing",
+ "tryhard",
  "wiremock",
 ]
 
