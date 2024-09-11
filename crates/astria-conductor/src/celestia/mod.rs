@@ -183,7 +183,7 @@ impl Reader {
     async fn initialize(
         &mut self,
     ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
-        let actual_chain_id = get_remote_chain_id(&self.celestia_client)
+        let actual_chain_id = get_celestia_chain_id(&self.celestia_client)
             .await
             .wrap_err("failed to fetch Celestia chain ID")?;
         ensure!(
@@ -212,7 +212,7 @@ impl Reader {
 }
 
 #[instrument(skip_all, err)]
-async fn get_remote_chain_id(
+async fn get_celestia_chain_id(
     celestia_client: &CelestiaClient,
 ) -> Result<String, ValidateChainIdError> {
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)

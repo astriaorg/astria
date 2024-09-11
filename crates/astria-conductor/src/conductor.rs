@@ -187,7 +187,7 @@ impl Conductor {
 
             Some((name, res)) = self.tasks.join_next() => {
                 match flatten(res) {
-                    Ok(()) => Err(eyre!("task `{name}` exited unexpectedly"))?,
+                    Ok(()) => Err(eyre!("task `{name}` exited unexpectedly")),
                     Err(err) => Err(err).wrap_err_with(|| "task `{name}` failed")?,
                 }
             }
