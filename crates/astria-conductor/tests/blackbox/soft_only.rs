@@ -429,8 +429,7 @@ async fn exits_on_sequencer_chain_id_mismatch() {
 
     mount_genesis(&mock_http, "bad_chain_id").await;
 
-    let res = conductor.task();
-    let res = res.unwrap().await;
+    let res = conductor.await;
     match res {
         Ok(Ok(())) => panic!("conductor should have exited with an error, no error received"),
         Ok(Err(e)) => {

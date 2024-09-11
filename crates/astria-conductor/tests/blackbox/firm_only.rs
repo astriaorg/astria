@@ -489,8 +489,7 @@ async fn exits_on_celestia_chain_id_mismatch() {
     .mount(&mock_http)
     .await;
 
-    let res = conductor.task();
-    let res = res.unwrap().await;
+    let res = conductor.await;
     match res {
         Ok(Ok(())) => panic!("conductor should have exited with an error, no error received"),
         Ok(Err(e)) => {

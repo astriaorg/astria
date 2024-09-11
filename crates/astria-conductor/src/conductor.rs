@@ -60,11 +60,6 @@ impl Handle {
         let task = self.task.take().expect("shutdown must not be called twice");
         task.await
     }
-
-    #[must_use]
-    pub fn task(self) -> Option<tokio::task::JoinHandle<eyre::Result<()>>> {
-        self.task
-    }
 }
 
 impl Future for Handle {

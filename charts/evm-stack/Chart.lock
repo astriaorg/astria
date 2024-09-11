@@ -20,5 +20,5 @@ dependencies:
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.2
-digest: sha256:a10877e17ed14e2a28db0dd6a968e8eafdd7529c6aab84ca8e0b1a9f5302b189
-generated: "2024-09-11T11:05:50.356152-05:00"
+digest: sha256:e27eba3b7b30cd0cb9a62fe44e61e524a189af19000bb29ab3cf46db99528928
+generated: "2024-09-11T11:46:07.360183-05:00"
