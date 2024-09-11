@@ -4,7 +4,7 @@ dependencies:
   version: 0.3.6
 - name: evm-rollup
   repository: file://../evm-rollup
-  version: 0.27.0
+  version: 0.27.1
 - name: composer
   repository: file://../composer
   version: 0.1.2
@@ -20,5 +20,5 @@ dependencies:
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.2
-digest: sha256:e2209c2b6aa17c3163bcbd32eea4bdbb0df9b108ff353a0020ff951186bb1350
-generated: "2024-09-04T11:23:10.710044-05:00"
+digest: sha256:a10877e17ed14e2a28db0dd6a968e8eafdd7529c6aab84ca8e0b1a9f5302b189
+generated: "2024-09-11T11:05:50.356152-05:00"
