@@ -8,8 +8,13 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::accounts::v1alpha1::NonceResponse,
+    generated::{
+        composer::v1alpha1::BuilderBundlePacket,
+        protocol::accounts::v1alpha1::NonceResponse,
+        sequencerblock::v1alpha1 as raw_sequencer,
+    },
     primitive::v1::{
+        asset,
         asset::{
             Denom,
             IbcPrefixed,
@@ -18,8 +23,11 @@ use astria_core::{
         ROLLUP_ID_LEN,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
+    sequencerblock::v1alpha1::block::RollupData,
+    Protobuf,
 };
 use astria_eyre::eyre;
+use futures::future::join;
 use once_cell::sync::Lazy;
 use prost::{
     bytes::Bytes,
@@ -68,6 +76,12 @@ use crate::{
     executor,
     executor::EnsureChainIdError,
     metrics::Metrics,
+    mock_grpc::{
+        MockGrpc,
+        TestExecutor,
+    },
+    mount_executed_block,
+    mount_get_commitment_state,
     test_utils::sequence_action_of_max_size,
     Config,
 };
@@ -80,7 +94,8 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
         api_listen_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
         sequencer_url: String::new(),
         sequencer_chain_id: String::new(),
-        rollups: String::new(),
+        rollup: "".to_string(),
+        rollup_websocket_url: "".to_string(),
         private_key_file: String::new(),
         sequencer_address_prefix: String::new(),
         block_time_ms: 0,
@@ -93,6 +108,8 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
         pretty_print: false,
         grpc_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
         fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([0; 32])),
+        execution_api_url: "".to_string(),
+        max_bundle_size: 0,
     };
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
@@ -111,18 +128,19 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
     }
 });
 
-fn sequence_action() -> SequenceAction {
+fn sequence_action(rollup_id: RollupId, fee_asset: asset::Denom) -> SequenceAction {
     SequenceAction {
-        rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-        data: Bytes::new(),
-        fee_asset: "nria".parse().unwrap(),
+        rollup_id,
+        data: Bytes::from(vec![]),
+        fee_asset,
     }
 }
 
 /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
-async fn setup() -> (MockServer, Config, NamedTempFile) {
+async fn setup() -> (MockServer, Config, NamedTempFile, TestExecutor) {
     Lazy::force(&TELEMETRY);
     let server = MockServer::start().await;
+    let execution_api_server = MockGrpc::spawn().await;
 
     let keyfile = NamedTempFile::new().unwrap();
     (&keyfile)
@@ -132,7 +150,8 @@ async fn setup() -> (MockServer, Config, NamedTempFile) {
     let cfg = Config {
         log: String::new(),
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
-        rollups: String::new(),
+        rollup: "test-chain-1".to_string(),
+        rollup_websocket_url: String::new(),
         sequencer_url: server.uri(),
         sequencer_chain_id: "test-chain-1".to_string(),
         private_key_file: keyfile.path().to_string_lossy().to_string(),
@@ -146,9 +165,22 @@ async fn setup() -> (MockServer, Config, NamedTempFile) {
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
-        fee_asset: "nria".parse().unwrap(),
+        fee_asset: "nria"
+            .parse::<asset::Denom>()
+            .unwrap()
+            .to_ibc_prefixed()
+            .into(),
+        max_bundle_size: 200000,
+        execution_api_url: format!("http://{}", execution_api_server.local_addr),
     };
-    (server, cfg, keyfile)
+    (
+        server,
+        cfg,
+        keyfile,
+        TestExecutor {
+            mock_grpc: execution_api_server,
+        },
+    )
 }
 
 /// Assert that given error is of correct type and contains the expected chain IDs.
@@ -322,7 +354,7 @@ async fn wait_for_startup(
 #[tokio::test]
 async fn full_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
-    let (sequencer, cfg, _keyfile) = setup().await;
+    let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
@@ -335,10 +367,27 @@ async fn full_bundle() {
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        execution_api_url: cfg.execution_api_url,
+        chain_name: cfg.rollup.clone(),
+        fee_asset: cfg.fee_asset,
+        max_bundle_size: cfg.max_bundle_size,
         metrics,
     }
     .build()
     .unwrap();
+
+    let rollup_id = RollupId::from_unhashed_bytes(cfg.rollup.clone());
+
+    let soft_parent_hash = [1; 64];
+    let soft_block_number = 1;
+    let soft_block_hash = [2; 64];
+
+    mount_get_commitment_state!(
+        test_executor,
+        firm: ( number: 1, hash: [1; 64], parent: [0; 64], ),
+        soft: ( number: soft_block_number, hash: soft_block_hash, parent: soft_parent_hash, ),
+        base_celestia_height: 1,
+    );
 
     let nonce_guard = mount_default_nonce_query_mock(&sequencer).await;
     let status = executor.subscribe();
@@ -352,12 +401,28 @@ async fn full_bundle() {
     // send two sequence actions to the executor, the first of which is large enough to fill the
     // bundle sending the second should cause the first to immediately be submitted in
     // order to make space for the second
-    let seq0 = sequence_action_of_max_size(cfg.max_bytes_per_bundle);
-
-    let seq1 = SequenceAction {
-        rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
+    let seq0 = SequenceAction {
+        rollup_id,
         ..sequence_action_of_max_size(cfg.max_bytes_per_bundle)
     };
+
+    let seq1 = SequenceAction {
+        rollup_id,
+        ..sequence_action_of_max_size(cfg.max_bytes_per_bundle)
+    };
+
+    let rollup_data: Vec<raw_sequencer::RollupData> = vec![seq0.clone()]
+        .iter()
+        .map(|item| RollupData::SequencedData(item.clone().data).to_raw())
+        .collect();
+
+    let execute_block = mount_executed_block!(test_executor,
+        mock_name: "execute_block",
+        number: soft_block_number,
+        hash: soft_block_hash,
+        included_transactions: rollup_data.clone(),
+        parent: soft_parent_hash.to_vec(),
+    );
 
     // push both sequence actions to the executor in order to force the full bundle to be sent
     executor_handle
@@ -372,14 +437,16 @@ async fn full_bundle() {
     // wait for the mock sequencer to receive the signed transaction
     tokio::time::timeout(
         Duration::from_millis(100),
-        response_guard.wait_until_satisfied(),
+        join(
+            response_guard.wait_until_satisfied(),
+            execute_block.wait_until_satisfied(),
+        ),
     )
     .await
     .unwrap();
 
     // verify only one signed transaction was received by the mock sequencer
     // i.e. only the full bundle was sent and not the second one due to the block timer
-    let expected_seq_actions = [seq0];
     let requests = response_guard.received_requests().await;
     assert_eq!(requests.len(), 1);
 
@@ -387,24 +454,45 @@ async fn full_bundle() {
     let signed_tx = signed_tx_from_request(&requests[0]);
     let actions = signed_tx.actions();
 
+    // we send only 1 action to the sequencer which is a BuilderBundlePacket
+    // we first verify that the action sent to the sequencer is a builder bundle packet.
+
+    // only 1 sequence action which is a BuilderBundlePacket is sent
+    assert_eq!(actions.len(), 1);
+
+    // decode the sequence action to its BuilderBundlePacket
+    let seq_action = actions.iter().next().unwrap().as_sequence().unwrap();
+    let proto_builder_bundle_packet =
+        BuilderBundlePacket::decode(&mut seq_action.data.clone()).unwrap();
+    let builder_bundle_packet = astria_core::composer::v1alpha1::BuilderBundlePacket::try_from_raw(
+        proto_builder_bundle_packet.clone(),
+    )
+    .unwrap();
+
     assert_eq!(
-        actions.len(),
-        expected_seq_actions.len(),
-        "received more than one action, one was supposed to fill the bundle"
+        builder_bundle_packet.bundle().parent_hash(),
+        soft_block_hash.to_vec()
     );
 
-    for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
-        let seq_action = action.as_sequence().unwrap();
-        assert_eq!(
-            seq_action.rollup_id, expected_seq_action.rollup_id,
-            "chain id does not match. actual {:?} expected {:?}",
-            seq_action.rollup_id, expected_seq_action.rollup_id
-        );
-        assert_eq!(
-            seq_action.data, expected_seq_action.data,
-            "data does not match expected data for action with rollup_id {:?}",
-            seq_action.rollup_id,
-        );
+    let bundle_txs = builder_bundle_packet.bundle().transactions();
+
+    // there should only be 1 sequence action in the bundle
+    assert_eq!(bundle_txs.len(), 1);
+
+    assert_eq!(seq_action.fee_asset, seq0.fee_asset);
+    assert_eq!(seq_action.rollup_id, seq0.rollup_id);
+
+    match bundle_txs.iter().next().unwrap() {
+        RollupData::SequencedData(data) => {
+            assert_eq!(data.clone(), seq0.data)
+        }
+        _ => {
+            assert!(
+                true,
+                "expected RollupData::SequencedData, but got {:?}",
+                bundle_txs.iter().next().unwrap()
+            )
+        }
     }
 }
 
@@ -413,7 +501,7 @@ async fn full_bundle() {
 #[tokio::test]
 async fn bundle_triggered_by_block_timer() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
-    let (sequencer, cfg, _keyfile) = setup().await;
+    let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
@@ -426,10 +514,16 @@ async fn bundle_triggered_by_block_timer() {
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        execution_api_url: cfg.execution_api_url,
+        chain_name: cfg.rollup.clone(),
+        fee_asset: cfg.fee_asset.clone(),
+        max_bundle_size: cfg.max_bundle_size,
         metrics,
     }
     .build()
     .unwrap();
+
+    let rollup_id = RollupId::from_unhashed_bytes(cfg.rollup.clone());
 
     let nonce_guard = mount_default_nonce_query_mock(&sequencer).await;
     let status = executor.subscribe();
@@ -444,9 +538,33 @@ async fn bundle_triggered_by_block_timer() {
     // send two sequence actions to the executor, both small enough to fit in a single bundle
     // without filling it
     let seq0 = SequenceAction {
-        data: vec![0u8; cfg.max_bytes_per_bundle / 4].into(),
-        ..sequence_action()
+        data: Bytes::from(vec![0u8; cfg.max_bytes_per_bundle / 4]),
+        ..sequence_action(rollup_id.clone(), cfg.fee_asset.clone())
     };
+
+    let rollup_data: Vec<raw_sequencer::RollupData> = vec![seq0.clone()]
+        .iter()
+        .map(|item| RollupData::SequencedData(item.clone().data).to_raw())
+        .collect();
+
+    let soft_parent_hash = [1; 64];
+    let soft_block_number = 1;
+    let soft_block_hash = [2; 64];
+
+    mount_get_commitment_state!(
+        test_executor,
+        firm: ( number: 1, hash: [1; 64], parent: [0; 64], ),
+        soft: ( number: soft_block_number, hash: soft_block_hash, parent: soft_parent_hash, ),
+        base_celestia_height: 1,
+    );
+
+    let execute_block = mount_executed_block!(test_executor,
+        mock_name: "execute_block",
+        number: soft_block_number,
+        hash: soft_block_hash,
+        included_transactions: rollup_data.clone(),
+        parent: soft_parent_hash.to_vec(),
+    );
 
     // make sure at least one block has passed so that the executor will submit the bundle
     // despite it not being full
@@ -461,7 +579,10 @@ async fn bundle_triggered_by_block_timer() {
     // wait for the mock sequencer to receive the signed transaction
     tokio::time::timeout(
         Duration::from_millis(100),
-        response_guard.wait_until_satisfied(),
+        join(
+            response_guard.wait_until_satisfied(),
+            execute_block.wait_until_satisfied(),
+        ),
     )
     .await
     .unwrap();
@@ -475,24 +596,54 @@ async fn bundle_triggered_by_block_timer() {
     let signed_tx = signed_tx_from_request(&requests[0]);
     let actions = signed_tx.actions();
 
+    assert_eq!(actions.len(), 1);
+
+    let seq_action = actions.iter().next().unwrap().as_sequence().unwrap();
+    let proto_builder_bundle_packet =
+        BuilderBundlePacket::decode(&mut seq_action.data.clone()).unwrap();
+    let builder_bundle_packet = astria_core::composer::v1alpha1::BuilderBundlePacket::try_from_raw(
+        proto_builder_bundle_packet.clone(),
+    )
+    .unwrap();
+
+    assert_eq!(builder_bundle_packet.bundle().transactions().len(), 1);
+
     assert_eq!(
-        actions.len(),
-        expected_seq_actions.len(),
-        "received more than one action, one was supposed to fill the bundle"
+        builder_bundle_packet.bundle().parent_hash().to_vec(),
+        soft_block_hash.to_vec()
     );
 
-    for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
-        let seq_action = action.as_sequence().unwrap();
-        assert_eq!(
-            seq_action.rollup_id, expected_seq_action.rollup_id,
-            "chain id does not match. actual {:?} expected {:?}",
-            seq_action.rollup_id, expected_seq_action.rollup_id
-        );
-        assert_eq!(
-            seq_action.data, expected_seq_action.data,
-            "data does not match expected data for action with rollup_id {:?}",
-            seq_action.rollup_id,
-        );
+    // ensure that the seq_action of the BuilderBundlePacket and the expected sequence actions have
+    // the same rollup id and fee asset
+
+    for (action, expected_action) in expected_seq_actions.iter().zip(actions) {
+        let expected_seq_action = expected_action.as_sequence().unwrap();
+        assert_eq!(action.rollup_id, expected_seq_action.rollup_id);
+        assert_eq!(action.fee_asset, expected_seq_action.fee_asset);
+    }
+
+    for (action, expected_seq_action) in builder_bundle_packet
+        .bundle()
+        .transactions()
+        .iter()
+        .zip(expected_seq_actions.iter())
+    {
+        match action.clone() {
+            RollupData::SequencedData(data) => {
+                assert_eq!(
+                    data, expected_seq_action.data,
+                    "data does not match expected data for action with rollup_id {:?}",
+                    expected_seq_action.rollup_id
+                )
+            }
+            _ => {
+                assert!(
+                    true,
+                    "expected RollupData::SequencedData, but got {:?}",
+                    action
+                )
+            }
+        }
     }
 }
 
@@ -501,7 +652,7 @@ async fn bundle_triggered_by_block_timer() {
 #[tokio::test]
 async fn two_seq_actions_single_bundle() {
     // set up the executor, channel for writing seq actions, and the sequencer mock
-    let (sequencer, cfg, _keyfile) = setup().await;
+    let (sequencer, cfg, _keyfile, test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
@@ -514,10 +665,16 @@ async fn two_seq_actions_single_bundle() {
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        execution_api_url: cfg.execution_api_url,
+        chain_name: cfg.rollup.clone(),
+        fee_asset: cfg.fee_asset.clone(),
+        max_bundle_size: cfg.max_bundle_size,
         metrics,
     }
     .build()
     .unwrap();
+
+    let rollup_id = RollupId::from_unhashed_bytes(cfg.rollup.clone());
 
     let nonce_guard = mount_default_nonce_query_mock(&sequencer).await;
     let status = executor.subscribe();
@@ -532,14 +689,37 @@ async fn two_seq_actions_single_bundle() {
     // without filling it
     let seq0 = SequenceAction {
         data: vec![0u8; cfg.max_bytes_per_bundle / 4].into(),
-        ..sequence_action()
+        ..sequence_action(rollup_id.clone(), cfg.fee_asset.clone())
     };
 
     let seq1 = SequenceAction {
-        rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
         data: vec![1u8; cfg.max_bytes_per_bundle / 4].into(),
-        ..sequence_action()
+        ..sequence_action(rollup_id.clone(), cfg.fee_asset.clone())
     };
+
+    let rollup_data: Vec<raw_sequencer::RollupData> = vec![seq0.clone(), seq1.clone()]
+        .iter()
+        .map(|item| RollupData::SequencedData(item.clone().data).to_raw())
+        .collect();
+
+    let soft_parent_hash = [1; 64];
+    let soft_block_number = 1;
+    let soft_block_hash = [2; 64];
+
+    mount_get_commitment_state!(
+        test_executor,
+        firm: ( number: 1, hash: [1; 64], parent: [0; 64], ),
+        soft: ( number: soft_block_number, hash: soft_block_hash, parent: soft_parent_hash, ),
+        base_celestia_height: 1,
+    );
+
+    let execute_block = mount_executed_block!(test_executor,
+        mock_name: "execute_block",
+        number: soft_block_number,
+        hash: soft_block_hash,
+        included_transactions: rollup_data.clone(),
+        parent: soft_parent_hash.to_vec(),
+    );
 
     // make sure at least one block has passed so that the executor will submit the bundle
     // despite it not being full
@@ -558,7 +738,10 @@ async fn two_seq_actions_single_bundle() {
     // wait for the mock sequencer to receive the signed transaction
     tokio::time::timeout(
         Duration::from_millis(100),
-        response_guard.wait_until_satisfied(),
+        join(
+            response_guard.wait_until_satisfied(),
+            execute_block.wait_until_satisfied(),
+        ),
     )
     .await
     .unwrap();
@@ -572,24 +755,45 @@ async fn two_seq_actions_single_bundle() {
     let signed_tx = signed_tx_from_request(&requests[0]);
     let actions = signed_tx.actions();
 
+    assert_eq!(actions.len(), 1);
+
+    let seq_action = actions.iter().next().unwrap().as_sequence().unwrap();
+    let proto_builder_bundle_packet =
+        BuilderBundlePacket::decode(&mut seq_action.data.clone()).unwrap();
+    let builder_bundle_packet = astria_core::composer::v1alpha1::BuilderBundlePacket::try_from_raw(
+        proto_builder_bundle_packet.clone(),
+    )
+    .unwrap();
+
+    let bundle_txs = builder_bundle_packet.bundle().transactions();
+
+    assert_eq!(builder_bundle_packet.bundle().transactions().len(), 2);
     assert_eq!(
-        actions.len(),
-        expected_seq_actions.len(),
-        "received more than one action, one was supposed to fill the bundle"
+        builder_bundle_packet.bundle().parent_hash().to_vec(),
+        soft_block_hash.to_vec()
     );
 
-    for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
-        let seq_action = action.as_sequence().unwrap();
-        assert_eq!(
-            seq_action.rollup_id, expected_seq_action.rollup_id,
-            "chain id does not match. actual {:?} expected {:?}",
-            seq_action.rollup_id, expected_seq_action.rollup_id
-        );
-        assert_eq!(
-            seq_action.data, expected_seq_action.data,
-            "data does not match expected data for action with rollup_id {:?}",
-            seq_action.rollup_id,
-        );
+    for (action, expected_action) in expected_seq_actions.iter().zip(actions) {
+        let expected_seq_action = expected_action.as_sequence().unwrap();
+        assert_eq!(action.rollup_id, expected_seq_action.rollup_id);
+        assert_eq!(action.fee_asset, expected_seq_action.fee_asset);
+    }
+
+    for (action, expected_seq_action) in bundle_txs.iter().zip(expected_seq_actions.iter()) {
+        match action.clone() {
+            RollupData::SequencedData(data) => {
+                assert_eq!(
+                    data, expected_seq_action.data,
+                    "data does not match expected data for action with rollup_id {:?}",
+                    expected_seq_action.rollup_id
+                )
+            }
+            _ => assert!(
+                true,
+                "expected RollupData::SequencedData, but got {:?}",
+                action
+            ),
+        }
     }
 }
 
@@ -600,9 +804,10 @@ async fn chain_id_mismatch_returns_error() {
     use tendermint::chain::Id;
 
     // set up sequencer mock
-    let (sequencer, cfg, _keyfile) = setup().await;
+    let (sequencer, cfg, _keyfile, _test_executor) = setup().await;
     let shutdown_token = CancellationToken::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
+    let rollup_name = RollupId::new([0; ROLLUP_ID_LEN]);
 
     // mount a status response with an incorrect chain_id
     mount_genesis(&sequencer, "bad-chain-id").await;
@@ -617,6 +822,10 @@ async fn chain_id_mismatch_returns_error() {
         max_bytes_per_bundle: cfg.max_bytes_per_bundle,
         bundle_queue_capacity: cfg.bundle_queue_capacity,
         shutdown_token: shutdown_token.clone(),
+        execution_api_url: cfg.execution_api_url,
+        chain_name: rollup_name.to_string(),
+        fee_asset: cfg.fee_asset,
+        max_bundle_size: cfg.max_bundle_size,
         metrics,
     }
     .build()

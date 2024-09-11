@@ -131,6 +131,10 @@ impl Composer {
             block_time_ms: cfg.block_time_ms,
             max_bytes_per_bundle: cfg.max_bytes_per_bundle,
             bundle_queue_capacity: cfg.bundle_queue_capacity,
+            execution_api_url: cfg.execution_api_url.clone(),
+            fee_asset: cfg.fee_asset.clone(),
+            chain_name: cfg.rollup.clone(),
+            max_bundle_size: cfg.max_bundle_size,
             shutdown_token: shutdown_token.clone(),
             metrics,
         }
@@ -160,7 +164,11 @@ impl Composer {
             "API server listening"
         );
 
-        let rollups = cfg.parse_rollups()?;
+        // TODO - we don't need a map here, we can just use a single collector. This is done to
+        // get things working for now. we need to clean up later
+        let mut rollups = HashMap::new();
+        rollups.insert(cfg.rollup.clone(), cfg.rollup_websocket_url.clone());
+
         let geth_collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
@@ -176,6 +184,7 @@ impl Composer {
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
+
         let geth_collector_statuses: HashMap<String, watch::Receiver<geth::Status>> =
             geth_collectors
                 .iter()

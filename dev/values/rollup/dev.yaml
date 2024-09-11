@@ -56,7 +56,7 @@ evm-rollup:
     eip1559Params: {}
       # 1:
       #   minBaseFee: 0
-      #   elasticityMultiplier: 2
+    #   elasticityMultiplier: 2
     #   baseFeeChangeDenominator: 8
 
     ## Standard Eth Genesis config values

@@ -12,6 +12,17 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
+    generated::{
+        composer::v1alpha1::{
+            BuilderBundle,
+            BuilderBundlePacket,
+        },
+        sequencerblock::v1alpha1::RollupData,
+    },
+    primitive::v1::{
+        asset,
+        RollupId,
+    },
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
@@ -26,6 +37,7 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use bytes::Bytes;
 use futures::{
     future::{
         self,
@@ -91,10 +103,14 @@ use crate::{
 mod bundle_factory;
 
 pub(crate) mod builder;
+mod client;
+mod simulator;
 #[cfg(test)]
 mod tests;
 
 pub(crate) use builder::Builder;
+
+use crate::executor::simulator::BundleSimulator;
 
 // Duration to wait for the executor to drain all the remaining bundles before shutting down.
 // This is 16s because the timeout for the higher level executor task is 17s to shut down.
@@ -140,6 +156,14 @@ pub(super) struct Executor {
     bundle_queue_capacity: usize,
     // Token to signal the executor to stop upon shutdown.
     shutdown_token: CancellationToken,
+    // `BundleSimulator` simulates the execution of a bundle of transactions.
+    bundle_simulator: BundleSimulator,
+    // The rollup id associated with this executor
+    rollup_id: RollupId,
+    // The asset used for sequencer fees
+    fee_asset: asset::Denom,
+    // The maximum possible size for a bundle so that it can fit into a block
+    max_bundle_size: usize,
     metrics: &'static Metrics,
 }
 
@@ -190,6 +214,71 @@ impl Executor {
         self.status.subscribe()
     }
 
+    async fn simulate_and_submit_bundle(
+        &self,
+        nonce: u32,
+        bundle: SizedBundle,
+        metrics: &'static Metrics,
+    ) -> eyre::Result<Fuse<Instrumented<SubmitFut>>> {
+        info!("Starting bundle simulation!");
+
+        let bundle_simulator = self.bundle_simulator.clone();
+
+        // simulate the bundle
+        let bundle_simulation_result = bundle_simulator
+            .simulate_bundle(bundle.clone())
+            .await
+            .wrap_err("failed to simulate bundle")?;
+
+        let rollup_data_items: Vec<RollupData> = bundle_simulation_result
+            .included_actions()
+            .iter()
+            .map(astria_core::Protobuf::to_raw)
+            .collect();
+
+        info!("Creating BuilderBundlePacket");
+        let builder_bundle = BuilderBundle {
+            transactions: rollup_data_items,
+            parent_hash: bundle_simulation_result.parent_hash(),
+        };
+
+        // TODO - bundle signing
+
+        // create a top of block bundle
+        let builder_bundle_packet = BuilderBundlePacket {
+            bundle: Some(builder_bundle),
+            signature: Bytes::from(vec![]),
+        };
+        let encoded_builder_bundle_packet = builder_bundle_packet.encode_to_vec();
+
+        info!("Created builder bundle packet: {:?}", builder_bundle_packet);
+        // we can give the BuilderBundlePacket the highest bundle max size possible
+        // since this is the only sequence action we are sending
+        let mut final_bundle = SizedBundle::new(self.max_bundle_size);
+        final_bundle
+            .try_push(SequenceAction {
+                rollup_id: self.rollup_id,
+                data: encoded_builder_bundle_packet.into(),
+                fee_asset: self.fee_asset.clone(),
+            })
+            .wrap_err("couldn't push sequence action to bundle")?;
+
+        info!("Submitting the builder bundle packet to sequencer!");
+
+        Ok(SubmitFut {
+            client: self.sequencer_client.clone(),
+            address: self.address,
+            nonce,
+            chain_id: self.sequencer_chain_id.clone(),
+            signing_key: self.sequencer_key.clone(),
+            state: SubmitState::NotStarted,
+            bundle: final_bundle,
+            metrics,
+        }
+        .in_current_span()
+        .fuse())
+    }
+
     /// Create a future to submit a bundle to the sequencer.
     #[instrument(skip_all, fields(nonce.initial = %nonce))]
     fn submit_bundle(
@@ -232,8 +321,6 @@ impl Executor {
 
         self.metrics.set_current_nonce(nonce);
 
-        self.status.send_modify(|status| status.is_connected = true);
-
         let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
         let mut bundle_factory =
@@ -244,6 +331,8 @@ impl Executor {
                 .checked_add(self.block_time)
                 .expect("block_time should not be large enough to cause an overflow")
         };
+
+        self.status.send_modify(|status| status.is_connected = true);
 
         let reason = loop {
             select! {
@@ -262,7 +351,7 @@ impl Executor {
                 Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
                     let bundle = next_bundle.pop();
                     if !bundle.is_empty() {
-                        submission_fut = self.submit_bundle(nonce, bundle, self.metrics);
+                        submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
                     }
                 }
 
@@ -277,7 +366,10 @@ impl Executor {
                     if bundle.is_empty() {
                         block_timer.as_mut().reset(reset_time());
                     } else {
-                        submission_fut = self.submit_bundle(nonce, bundle, self.metrics);
+                        debug!(
+                            "forcing bundle submission to sequencer due to block timer"
+                        );
+                        submission_fut = self.simulate_and_submit_bundle(nonce, bundle, self.metrics).await.wrap_err("failed to simulate and submit bundle")?;
                     }
                 }
             }
