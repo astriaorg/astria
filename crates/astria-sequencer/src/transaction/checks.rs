@@ -8,6 +8,7 @@ use astria_core::{
     primitive::v1::{
         asset,
         RollupId,
+        TransactionId,
     },
     protocol::transaction::v1alpha1::{
         action::{
@@ -100,7 +101,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .context("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
-    for action in &tx.actions {
+    for (i, action) in tx.actions.iter().enumerate() {
         match action {
             Action::Transfer(act) => {
                 transfer_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
@@ -119,12 +120,15 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     .and_modify(|amt| *amt = amt.saturating_add(init_bridge_account_fee))
                     .or_insert(init_bridge_account_fee);
             }
-            Action::BridgeLock(act) => bridge_lock_update_fees(
-                act,
-                &mut fees_by_asset,
-                transfer_fee,
-                bridge_lock_byte_cost_multiplier,
-            ),
+            Action::BridgeLock(act) => {
+                bridge_lock_update_fees(
+                    act,
+                    &mut fees_by_asset,
+                    transfer_fee,
+                    bridge_lock_byte_cost_multiplier,
+                    i as u64,
+                );
+            }
             Action::BridgeUnlock(act) => {
                 bridge_unlock_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
             }
@@ -261,6 +265,7 @@ fn bridge_lock_update_fees(
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     transfer_fee: u128,
     bridge_lock_byte_cost_multiplier: u128,
+    tx_index_of_action: u64,
 ) {
     use astria_core::sequencerblock::v1alpha1::block::Deposit;
 
@@ -272,6 +277,8 @@ fn bridge_lock_update_fees(
             act.amount,
             act.asset.clone(),
             act.destination_chain_address.clone(),
+            TransactionId::new([0; 32]),
+            tx_index_of_action,
         ))
         .saturating_mul(bridge_lock_byte_cost_multiplier),
     );

@@ -295,6 +295,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+    let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
@@ -334,6 +335,8 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         amount,
         nria().into(),
         "nootwashere".to_string(),
+        signed_tx.id(),
+        starting_index_of_action,
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
@@ -385,6 +388,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let asset = nria().clone();
+    let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
@@ -424,6 +428,8 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         amount,
         nria().into(),
         "nootwashere".to_string(),
+        signed_tx.id(),
+        starting_index_of_action,
     );
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());

@@ -21,6 +21,12 @@ impl serde::Serialize for Deposit {
         if !self.destination_chain_address.is_empty() {
             len += 1;
         }
+        if self.source_transaction_id.is_some() {
+            len += 1;
+        }
+        if self.source_action_index != 0 {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.Deposit", len)?;
         if let Some(v) = self.bridge_address.as_ref() {
             struct_ser.serialize_field("bridgeAddress", v)?;
@@ -36,6 +42,13 @@ impl serde::Serialize for Deposit {
         }
         if !self.destination_chain_address.is_empty() {
             struct_ser.serialize_field("destinationChainAddress", &self.destination_chain_address)?;
+        }
+        if let Some(v) = self.source_transaction_id.as_ref() {
+            struct_ser.serialize_field("sourceTransactionId", v)?;
+        }
+        if self.source_action_index != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("sourceActionIndex", ToString::to_string(&self.source_action_index).as_str())?;
         }
         struct_ser.end()
     }
@@ -55,6 +68,10 @@ impl<'de> serde::Deserialize<'de> for Deposit {
             "asset",
             "destination_chain_address",
             "destinationChainAddress",
+            "source_transaction_id",
+            "sourceTransactionId",
+            "source_action_index",
+            "sourceActionIndex",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -64,6 +81,8 @@ impl<'de> serde::Deserialize<'de> for Deposit {
             Amount,
             Asset,
             DestinationChainAddress,
+            SourceTransactionId,
+            SourceActionIndex,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -90,6 +109,8 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                             "amount" => Ok(GeneratedField::Amount),
                             "asset" => Ok(GeneratedField::Asset),
                             "destinationChainAddress" | "destination_chain_address" => Ok(GeneratedField::DestinationChainAddress),
+                            "sourceTransactionId" | "source_transaction_id" => Ok(GeneratedField::SourceTransactionId),
+                            "sourceActionIndex" | "source_action_index" => Ok(GeneratedField::SourceActionIndex),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -114,6 +135,8 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                 let mut amount__ = None;
                 let mut asset__ = None;
                 let mut destination_chain_address__ = None;
+                let mut source_transaction_id__ = None;
+                let mut source_action_index__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::BridgeAddress => {
@@ -146,6 +169,20 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                             }
                             destination_chain_address__ = Some(map_.next_value()?);
                         }
+                        GeneratedField::SourceTransactionId => {
+                            if source_transaction_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sourceTransactionId"));
+                            }
+                            source_transaction_id__ = map_.next_value()?;
+                        }
+                        GeneratedField::SourceActionIndex => {
+                            if source_action_index__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sourceActionIndex"));
+                            }
+                            source_action_index__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
                     }
                 }
                 Ok(Deposit {
@@ -154,6 +191,8 @@ impl<'de> serde::Deserialize<'de> for Deposit {
                     amount: amount__,
                     asset: asset__.unwrap_or_default(),
                     destination_chain_address: destination_chain_address__.unwrap_or_default(),
+                    source_transaction_id: source_transaction_id__,
+                    source_action_index: source_action_index__.unwrap_or_default(),
                 })
             }
         }
