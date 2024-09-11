@@ -11,7 +11,6 @@ use base64::{
     prelude::BASE64_STANDARD,
 };
 use bytes::Bytes;
-use hex::FromHex;
 use sha2::{
     Digest as _,
     Sha256,

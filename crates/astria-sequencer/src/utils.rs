@@ -49,13 +49,13 @@ pub(crate) fn create_deposit_event(deposit: &Deposit) -> abci::Event {
             )
                 .index(),
             (
-                "idOfSourceTransaction",
-                deposit.id_of_source_transaction().to_string(),
+                "sourceTransactionId",
+                deposit.source_transaction_id().to_string(),
             )
                 .index(),
             (
-                "positionInSourceTransaction",
-                deposit.position_in_source_transaction().to_string(),
+                "sourceActionIndex",
+                deposit.source_action_index().to_string(),
             )
                 .index(),
         ],
