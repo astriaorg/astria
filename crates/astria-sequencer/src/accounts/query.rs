@@ -32,6 +32,7 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
+#[instrument(skip_all, err)]
 async fn ibc_to_trace<S: StateRead>(
     state: S,
     asset: asset::IbcPrefixed,

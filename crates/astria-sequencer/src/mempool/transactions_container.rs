@@ -510,6 +510,7 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
     /// Recosts transactions for an account.
     ///
     /// Logs an error if fails to recost a transaction.
+    #[instrument(skip_all)]
     pub(super) async fn recost_transactions<S: accounts::StateReadExt>(
         &mut self,
         address: [u8; 20],
