@@ -7,7 +7,6 @@ use ibc_types::{
     IdentifierError,
 };
 use penumbra_ibc::IbcRelay;
-use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
 use super::raw;
 use crate::{
@@ -787,6 +786,11 @@ pub struct Ics20Withdrawal {
     // if unset, and the transaction sender is a bridge account, the withdrawal is
     // treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
     pub bridge_address: Option<Address>,
+
+    // whether to use a bech32-compatible format of the `.return_address` when generating
+    // fungible token packets (as opposed to Astria-native bech32m addresses). This is
+    // necessary for chains like noble which enforce a strict bech32 format.
+    pub use_compat_address: bool,
 }
 
 impl Ics20Withdrawal {
@@ -834,17 +838,6 @@ impl Ics20Withdrawal {
     pub fn memo(&self) -> &str {
         &self.memo
     }
-
-    #[must_use]
-    pub fn to_fungible_token_packet_data(&self) -> FungibleTokenPacketData {
-        FungibleTokenPacketData {
-            amount: self.amount.to_string(),
-            denom: self.denom.to_string(),
-            sender: self.return_address.to_string(),
-            receiver: self.destination_chain_address.clone(),
-            memo: self.memo.clone(),
-        }
-    }
 }
 
 impl Protobuf for Ics20Withdrawal {
@@ -864,6 +857,7 @@ impl Protobuf for Ics20Withdrawal {
             fee_asset: self.fee_asset.to_string(),
             memo: self.memo.clone(),
             bridge_address: self.bridge_address.as_ref().map(Address::to_raw),
+            use_compat_address: self.use_compat_address,
         }
     }
 
@@ -880,6 +874,7 @@ impl Protobuf for Ics20Withdrawal {
             fee_asset: self.fee_asset.to_string(),
             memo: self.memo,
             bridge_address: self.bridge_address.map(Address::into_raw),
+            use_compat_address: self.use_compat_address,
         }
     }
 
@@ -904,6 +899,7 @@ impl Protobuf for Ics20Withdrawal {
             fee_asset,
             memo,
             bridge_address,
+            use_compat_address,
         } = proto;
         let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
         let return_address = Address::try_from_raw(
@@ -935,6 +931,7 @@ impl Protobuf for Ics20Withdrawal {
                 .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
             memo,
             bridge_address,
+            use_compat_address,
         })
     }
 
@@ -959,6 +956,7 @@ impl Protobuf for Ics20Withdrawal {
             fee_asset,
             memo,
             bridge_address,
+            use_compat_address,
         } = proto;
         let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
         let return_address = Address::try_from_raw(
@@ -993,6 +991,7 @@ impl Protobuf for Ics20Withdrawal {
                 .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
             memo: memo.clone(),
             bridge_address,
+            use_compat_address: *use_compat_address,
         })
     }
 }

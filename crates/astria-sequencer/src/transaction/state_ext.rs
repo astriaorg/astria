@@ -18,7 +18,7 @@ fn transaction_context() -> &'static str {
 pub(crate) struct TransactionContext {
     pub(crate) address_bytes: [u8; ADDRESS_LEN],
     pub(crate) transaction_id: TransactionId,
-    pub(crate) position_in_source_transaction: u64,
+    pub(crate) source_action_index: u64,
 }
 
 impl TransactionContext {
@@ -32,7 +32,7 @@ impl From<&SignedTransaction> for TransactionContext {
         Self {
             address_bytes: value.address_bytes(),
             transaction_id: value.id(),
-            position_in_source_transaction: 0,
+            source_action_index: 0,
         }
     }
 }
@@ -47,7 +47,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         context
     }
 
-    fn delete_current_source(&mut self) {
+    fn delete_current_transaction_context(&mut self) {
         self.object_delete(transaction_context());
     }
 }

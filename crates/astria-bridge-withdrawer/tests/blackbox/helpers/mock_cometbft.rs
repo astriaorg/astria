@@ -10,19 +10,13 @@ use sequencer_client::{
     SignedTransaction,
 };
 use tendermint::{
-    abci::{
-        response::CheckTx,
-        types::ExecTxResult,
-    },
+    abci::types::ExecTxResult,
     block::Height,
     chain,
 };
 use tendermint_rpc::{
     endpoint::{
-        broadcast::{
-            tx_commit,
-            tx_sync,
-        },
+        broadcast::tx_sync,
         tx,
     },
     response,
@@ -46,38 +40,37 @@ use super::test_bridge_withdrawer::{
 };
 
 #[must_use]
-pub fn make_tx_commit_success_response() -> tx_commit::Response {
-    tx_commit::Response {
-        check_tx: CheckTx::default(),
-        tx_result: ExecTxResult::default(),
+pub fn make_tx_sync_success_response() -> tx_sync::Response {
+    tx_sync::Response {
+        code: 0.into(),
+        data: vec![].into(),
+        log: "tx success".to_string(),
         hash: vec![0u8; 32].try_into().unwrap(),
-        height: Height::default(),
     }
 }
 
 #[must_use]
-pub fn make_tx_commit_check_tx_failure_response() -> tx_commit::Response {
-    tx_commit::Response {
-        check_tx: CheckTx {
-            code: 1.into(),
-            ..CheckTx::default()
-        },
-        tx_result: ExecTxResult::default(),
+pub fn make_tx_sync_failure_response() -> tx_sync::Response {
+    tx_sync::Response {
+        code: 1.into(),
+        data: vec![].into(),
+        log: "tx failed".to_string(),
         hash: vec![0u8; 32].try_into().unwrap(),
-        height: Height::default(),
     }
 }
 
 #[must_use]
-pub fn make_tx_commit_deliver_tx_failure_response() -> tx_commit::Response {
-    tx_commit::Response {
-        check_tx: CheckTx::default(),
+pub fn make_tx_failure_response() -> tx::Response {
+    tx::Response {
+        hash: vec![0u8; 32].try_into().unwrap(),
+        height: Height::default(),
+        index: 0,
         tx_result: ExecTxResult {
             code: 1.into(),
             ..ExecTxResult::default()
         },
-        hash: vec![0u8; 32].try_into().unwrap(),
-        height: Height::default(),
+        tx: vec![],
+        proof: None,
     }
 }
 
@@ -308,28 +301,25 @@ fn prepare_tx_response(response: tx::Response) -> Mock {
         .expect(1)
 }
 
-pub async fn mount_broadcast_tx_commit_response(
-    server: &MockServer,
-    response: tx_commit::Response,
-) {
-    prepare_broadcast_tx_commit_response(response)
+pub async fn mount_broadcast_tx_sync_response(server: &MockServer, response: tx_sync::Response) {
+    prepare_broadcast_tx_sync_response(response)
         .mount(server)
         .await;
 }
 
-pub async fn mount_broadcast_tx_commit_response_as_scoped(
+pub async fn mount_broadcast_tx_sync_response_as_scoped(
     server: &MockServer,
-    response: tx_commit::Response,
+    response: tx_sync::Response,
 ) -> MockGuard {
-    prepare_broadcast_tx_commit_response(response)
+    prepare_broadcast_tx_sync_response(response)
         .mount_as_scoped(server)
         .await
 }
 
-fn prepare_broadcast_tx_commit_response(response: tx_commit::Response) -> Mock {
+fn prepare_broadcast_tx_sync_response(response: tx_sync::Response) -> Mock {
     let wrapper = response::Wrapper::new_with_id(tendermint_rpc::Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(serde_json::json!({
-        "method": "broadcast_tx_commit"
+        "method": "broadcast_tx_sync"
     })))
     .respond_with(
         ResponseTemplate::new(200)

@@ -1,13 +1,24 @@
 use astria_core::primitive::v1::{
     asset::TracePrefixed,
     Address,
+    Bech32,
 };
 
 pub(crate) const ASTRIA_PREFIX: &str = "astria";
+pub(crate) const ASTRIA_COMPAT_PREFIX: &str = "astriacompat";
 
 pub(crate) fn astria_address(bytes: &[u8]) -> Address {
     Address::builder()
         .prefix(ASTRIA_PREFIX)
+        .slice(bytes)
+        .try_build()
+        .unwrap()
+}
+
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) fn astria_compat_address(bytes: &[u8]) -> Address<Bech32> {
+    Address::builder()
+        .prefix(ASTRIA_COMPAT_PREFIX)
         .slice(bytes)
         .try_build()
         .unwrap()

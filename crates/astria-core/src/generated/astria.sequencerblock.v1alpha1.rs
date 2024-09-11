@@ -129,12 +129,12 @@ pub struct Deposit {
     /// the transaction ID of the source action for the deposit, consisting
     /// of the transaction hash.
     #[prost(message, optional, tag = "6")]
-    pub id_of_source_transaction: ::core::option::Option<
+    pub source_transaction_id: ::core::option::Option<
         super::super::primitive::v1::TransactionId,
     >,
     /// index of the deposit's source action within its transaction
     #[prost(uint64, tag = "7")]
-    pub position_in_source_transaction: u64,
+    pub source_action_index: u64,
 }
 impl ::prost::Name for Deposit {
     const NAME: &'static str = "Deposit";
