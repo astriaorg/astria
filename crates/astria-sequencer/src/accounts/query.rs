@@ -1,12 +1,20 @@
 use anyhow::Context as _;
 use astria_core::{
-    primitive::v1::Address,
-    protocol::abci::AbciErrorCode,
+    primitive::v1::{
+        asset,
+        Address,
+    },
+    protocol::{
+        abci::AbciErrorCode,
+        account::v1alpha1::AssetBalance,
+    },
 };
 use cnidarium::{
     Snapshot,
+    StateRead,
     Storage,
 };
+use futures::TryStreamExt as _;
 use prost::Message as _;
 use tendermint::{
     abci::{
@@ -16,11 +24,54 @@ use tendermint::{
     },
     block::Height,
 };
+use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::StateReadExt as _,
+    accounts::StateReadExt as _,
+    assets::StateReadExt as _,
     state_ext::StateReadExt as _,
 };
+
+async fn ibc_to_trace<S: StateRead>(
+    state: S,
+    asset: asset::IbcPrefixed,
+) -> anyhow::Result<asset::TracePrefixed> {
+    state
+        .map_ibc_to_trace_prefixed_asset(asset)
+        .await
+        .context("failed to get ibc asset denom")?
+        .context("asset not found when user has balance of it; this is a bug")
+}
+
+#[instrument(skip_all, fields(%address))]
+async fn get_trace_prefixed_account_balances<S: StateRead>(
+    state: &S,
+    address: Address,
+) -> anyhow::Result<Vec<AssetBalance>> {
+    let stream = state
+        .account_asset_balances(address)
+        .map_ok(|asset_balance| async move {
+            let native_asset = state
+                .get_native_asset()
+                .await
+                .context("failed to read native asset from state")?;
+
+            let result_denom = if asset_balance.asset == native_asset.to_ibc_prefixed() {
+                native_asset.into()
+            } else {
+                ibc_to_trace(state, asset_balance.asset)
+                    .await
+                    .context("failed to map ibc prefixed asset to trace prefixed")?
+                    .into()
+            };
+            Ok(AssetBalance {
+                denom: result_denom,
+                balance: asset_balance.balance,
+            })
+        })
+        .try_buffered(16);
+    stream.try_collect::<Vec<_>>().await
+}
 
 pub(crate) async fn balance_request(
     storage: Storage,
@@ -33,7 +84,7 @@ pub(crate) async fn balance_request(
         Err(err_rsp) => return err_rsp,
     };
 
-    let balances = match snapshot.get_account_balances(address).await {
+    let balances = match get_trace_prefixed_account_balances(&snapshot, address).await {
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
