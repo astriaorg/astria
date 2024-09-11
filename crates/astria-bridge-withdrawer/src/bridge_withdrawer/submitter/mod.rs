@@ -168,7 +168,7 @@ impl Submitter {
 
         // sign transaction
         let signed = unsigned.into_signed(signer.signing_key());
-        debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
+        debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response
         let (check_tx, tx_response) = submit_tx(
@@ -225,7 +225,7 @@ fn report_exit(reason: eyre::Result<&str>) {
     skip_all,
     fields(
         nonce = tx.nonce(),
-        transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
+        transaction.id = %tx.id(),
     ),
     err
 )]

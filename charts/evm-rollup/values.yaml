@@ -10,7 +10,7 @@ images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
     tag: 0.14.0
-    devTag: latest
+    devTag: pr-42  # update to latest once geth changes(https://github.com/astriaorg/astria-geth/pull/42) merged
     overrideTag: ""
   conductor:
     repo: ghcr.io/astriaorg/conductor

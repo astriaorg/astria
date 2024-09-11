@@ -692,6 +692,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+    let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
@@ -729,7 +730,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         .await
         .unwrap();
 
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.execute_transaction(signed_tx.clone()).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
     let expected_deposit = Deposit::new(
@@ -738,6 +739,8 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         amount,
         nria().into(),
         "nootwashere".to_string(),
+        signed_tx.id(),
+        starting_index_of_action,
     );
 
     let fee = transfer_fee
@@ -1065,5 +1068,51 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
             .expect("executing bridge unlock action should succeed"),
         0,
         "bridge should've transferred out whole balance"
+    );
+}
+
+#[tokio::test]
+async fn app_execute_transaction_action_index_correctly_increments() {
+    let alice = get_alice_signing_key();
+    let alice_address = astria_address(&alice.address_bytes());
+    let mut app = initialize_app(None, vec![]).await;
+
+    let bridge_address = astria_address(&[99; 20]);
+    let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+    let starting_index_of_action = 0;
+
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
+    state_tx
+        .put_bridge_account_ibc_asset(bridge_address, nria())
+        .unwrap();
+    app.apply(state_tx);
+
+    let amount = 100;
+    let action = BridgeLockAction {
+        to: bridge_address,
+        amount,
+        asset: nria().into(),
+        fee_asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+    };
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions: vec![action.clone().into(), action.into()],
+    };
+
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+    app.execute_transaction(signed_tx.clone()).await.unwrap();
+    assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+    let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
+    assert_eq!(deposits.len(), 2);
+    assert_eq!(deposits[0].source_action_index(), starting_index_of_action);
+    assert_eq!(
+        deposits[1].source_action_index(),
+        starting_index_of_action + 1
     );
 }

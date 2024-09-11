@@ -38,7 +38,7 @@ pub(super) struct TimemarkedTransaction {
 impl TimemarkedTransaction {
     pub(super) fn new(signed_tx: Arc<SignedTransaction>) -> Self {
         Self {
-            tx_hash: signed_tx.sha256_of_proto_encoding(),
+            tx_hash: signed_tx.id().get(),
             address: signed_tx.verification_key().address_bytes(),
             signed_tx,
             time_first_seen: Instant::now(),
