@@ -304,20 +304,21 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     );
 
     // grab cost of transaction
-    let transaction_cost = match transaction::get_total_transaction_cost(&signed_tx, &state)
-        .await
-        .context("failed fetching cost of the transaction")
-    {
-        Err(err) => {
-            return response::CheckTx {
-                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                info: AbciErrorCode::INTERNAL_ERROR.info(),
-                log: format!("failed to fetch cost of the transaction because: {err:#}"),
-                ..response::CheckTx::default()
-            };
-        }
-        Ok(transaction_cost) => transaction_cost,
-    };
+    let (transaction_cost, _) =
+        match transaction::get_total_transaction_cost(&signed_tx, &state, false)
+            .await
+            .context("failed fetching cost of the transaction")
+        {
+            Err(err) => {
+                return response::CheckTx {
+                    code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                    info: AbciErrorCode::INTERNAL_ERROR.info(),
+                    log: format!("failed to fetch cost of the transaction because: {err:#}"),
+                    ..response::CheckTx::default()
+                };
+            }
+            Ok(transaction_cost) => transaction_cost,
+        };
 
     let finished_fetch_tx_cost = Instant::now();
     metrics.record_check_tx_duration_seconds_fetch_tx_cost(

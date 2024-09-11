@@ -518,8 +518,12 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
         };
 
         for tx in account.txs_mut().values_mut() {
-            let new_cost = match transaction::get_total_transaction_cost(&tx.signed_tx, &state)
-                .await
+            let (new_cost, _) = match transaction::get_total_transaction_cost(
+                &tx.signed_tx,
+                &state,
+                false,
+            )
+            .await
             {
                 Ok(res) => res,
                 Err(error) => {

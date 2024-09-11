@@ -51,8 +51,8 @@ use crate::{
     ibc::StateWriteExt as IbcStateWriteExt,
     mempool::Mempool,
     metrics::Metrics,
-    sequence::StateWriteExt as SequenceStateWriteExt,
     sequence,
+    sequence::StateWriteExt as SequenceStateWriteExt,
     test_utils::astria_address_from_hex_string,
 };
 

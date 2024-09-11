@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
-use astria_core::protocol::transaction::v1alpha1::{
-    action::Action,
-    SignedTransaction,
+use astria_core::{
+    primitive::v1::asset::IbcPrefixed,
+    protocol::transaction::v1alpha1::{
+        action::Action,
+        SignedTransaction,
+    },
 };
 use astria_eyre::eyre::{
     ensure,
@@ -65,8 +68,9 @@ pub(crate) async fn check_chain_id_mempool<S: StateRead>(
 pub(crate) async fn check_balance_and_get_fees<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
-) -> Result<()> {
-    let cost_by_asset = get_total_transaction_cost(tx, state)
+    return_payment_map: bool,
+) -> Result<Option<PaymentMap>> {
+    let (cost_by_asset, payment_map) = get_total_transaction_cost(tx, state, return_payment_map)
         .await
         .context("failed to get transaction costs")?;
 
@@ -82,7 +86,7 @@ pub(crate) async fn check_balance_and_get_fees<S: StateRead>(
         );
     }
 
-    Ok(())
+    Ok(payment_map)
 }
 
 // Returns the total cost of the transaction (fees and transferred values for all actions in the
@@ -91,11 +95,12 @@ pub(crate) async fn check_balance_and_get_fees<S: StateRead>(
 pub(crate) async fn get_total_transaction_cost<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
-) -> Result<HashMap<asset::IbcPrefixed, u128>> {
-    let mut cost_by_asset: HashMap<asset::IbcPrefixed, u128> =
-        get_fees_for_transaction(tx.unsigned_transaction(), state)
+    return_payment_map: bool,
+) -> Result<(HashMap<IbcPrefixed, u128>, Option<PaymentMap>)> {
+    let (mut cost_by_asset, payment_map) =
+        get_and_report_tx_fees(tx.unsigned_transaction(), state, return_payment_map)
             .await
-            .context("failed to get fees for transaction")?;
+            .wrap_err("failed to get fees for transaction")?;
 
     // add values transferred within the tx to the cost
     for action in tx.actions() {
@@ -142,7 +147,7 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
         }
     }
 
-    Ok(())
+    Ok((cost_by_asset, payment_map))
 }
 
 #[cfg(test)]
@@ -252,7 +257,7 @@ mod tests {
         };
 
         let signed_tx = tx.into_signed(&alice);
-        check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
+        check_balance_and_get_fees(&signed_tx, &state_tx, false)
             .await
             .expect("sufficient balance for all actions");
     }
@@ -315,7 +320,7 @@ mod tests {
         };
 
         let signed_tx = tx.into_signed(&alice);
-        let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
+        let err = check_balance_and_get_fees(&signed_tx, &state_tx, false)
             .await
             .err()
             .unwrap();

@@ -73,11 +73,7 @@ use tracing::{
 };
 
 use crate::{
-    accounts::{
-        component::AccountsComponent,
-        StateReadExt,
-        StateWriteExt as _,
-    },
+    accounts::component::AccountsComponent,
     address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
     assets::StateWriteExt as _,

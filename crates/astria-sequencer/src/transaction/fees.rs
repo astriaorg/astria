@@ -7,6 +7,7 @@ use astria_core::{
             IbcPrefixed,
         },
         RollupId,
+        TransactionId,
     },
     protocol::{
         genesis::v1alpha1::Fees,
@@ -104,7 +105,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
         );
         from = Some(
             state
-                .get_current_source()
+                .get_transaction_context()
                 .ok_or_eyre("failed to get payer address")?
                 .address_bytes(),
         );
@@ -132,7 +133,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.transfer_base_fee,
                 return_payment_map,
-                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
+                u64::try_from(index).wrap_err("failed to convert from usize to u64")?,
             )
             .wrap_err("failed to increase transaction fees for transfer action")?,
 
@@ -148,7 +149,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 &act.data,
                 return_payment_map,
-                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
+                u64::try_from(index).wrap_err("failed to convert from usize to u64")?,
             )
             .wrap_err("failed to increase transaction fees for sequence action")?,
 
@@ -167,7 +168,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                     },
                     current_fees.ics20_withdrawal_base_fee,
                     return_payment_map,
-                    u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
+                    u64::try_from(index).wrap_err("failed to convert from usize to u64")?,
                 )
                 .wrap_err("failed to increase transaction fees for ics20 withdrawal action")?;
             }
@@ -183,7 +184,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.init_bridge_account_base_fee,
                 return_payment_map,
-                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
+                u64::try_from(index).wrap_err("failed to convert from usize to u64")?,
             )
             .wrap_err("failed to increase transaction fees for init bridge account action")?,
 
@@ -200,7 +201,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 current_fees.transfer_base_fee,
                 current_fees.bridge_lock_byte_cost_multiplier,
                 return_payment_map,
-                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
+                u64::try_from(index).wrap_err("failed to convert from usize to u64")?,
             )
             .wrap_err("failed to increase transaction fees for bridge lock action")?,
 
@@ -215,7 +216,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.transfer_base_fee,
                 return_payment_map,
-                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
+                u64::try_from(index).wrap_err("failed to convert from usize to u64")?,
             )
             .wrap_err("failed to increase transaction fees for bridge unlock action")?,
 
@@ -230,7 +231,7 @@ pub(crate) async fn get_and_report_tx_fees<S: StateRead>(
                 },
                 current_fees.bridge_sudo_change_fee,
                 return_payment_map,
-                u32::try_from(index).wrap_err("failed to convert from usize to u32")?,
+                u64::try_from(index).wrap_err("failed to convert from usize to u64")?,
             )
             .wrap_err("failed to increase transaction fees for bridge sudo change action")?,
 
@@ -284,7 +285,7 @@ fn transfer_update_fees(
     payment_info: &mut PaymentInfo,
     transfer_base_fee: u128,
     add_to_payment_map: bool,
-    action_index: u32,
+    action_index: u64,
 ) -> Result<()> {
     let PaymentInfo {
         from,
@@ -322,7 +323,7 @@ fn sequence_update_fees(
     payment_info: &mut PaymentInfo,
     data: &[u8],
     add_to_payment_map: bool,
-    action_index: u32,
+    action_index: u64,
 ) -> Result<()> {
     let PaymentInfo {
         from,
@@ -364,7 +365,7 @@ fn ics20_withdrawal_updates_fees(
     payment_info: &mut PaymentInfo,
     ics20_withdrawal_base_fee: u128,
     add_to_payment_map: bool,
-    action_index: u32,
+    action_index: u64,
 ) -> Result<()> {
     let PaymentInfo {
         from,
@@ -400,7 +401,7 @@ fn init_bridge_account_update_fees(
     payment_info: &mut PaymentInfo,
     init_bridge_account_base_fee: u128,
     add_to_payment_map: bool,
-    action_index: u32,
+    action_index: u64,
 ) -> Result<()> {
     let PaymentInfo {
         from,
@@ -438,7 +439,7 @@ fn bridge_lock_update_fees(
     transfer_base_fee: u128,
     bridge_lock_byte_cost_multiplier: u128,
     add_to_payment_map: bool,
-    action_index: u32,
+    action_index: u64,
 ) -> Result<()> {
     let PaymentInfo {
         from,
@@ -457,6 +458,8 @@ fn bridge_lock_update_fees(
             act.amount,
             act.asset.clone(),
             act.destination_chain_address.clone(),
+            TransactionId::new([0; 32]),
+            action_index,
         ))
         .saturating_mul(bridge_lock_byte_cost_multiplier),
     );
@@ -486,7 +489,7 @@ fn bridge_unlock_update_fees(
     payment_info: &mut PaymentInfo,
     transfer_base_fee: u128,
     add_to_payment_map: bool,
-    action_index: u32,
+    action_index: u64,
 ) -> Result<()> {
     let PaymentInfo {
         from,
@@ -522,7 +525,7 @@ fn bridge_sudo_change_update_fees(
     payment_info: &mut PaymentInfo,
     bridge_sudo_change_base_fee: u128,
     add_to_payment_map: bool,
-    action_index: u32,
+    action_index: u64,
 ) -> Result<()> {
     let PaymentInfo {
         from,
@@ -641,7 +644,7 @@ fn increase_fees(
     amount: u128,
     fee_payment_map: &mut HashMap<PaymentMapKey, FeeInfo>,
     action_type: String,
-    action_index: u32,
+    action_index: u64,
 ) {
     let fee_event = construct_tx_fee_event(fee_asset, amount, action_type, action_index);
     let key = PaymentMapKey {
@@ -666,7 +669,7 @@ pub(crate) fn construct_tx_fee_event<T: std::fmt::Display>(
     asset: &T,
     fee_amount: u128,
     action_type: String,
-    action_index: u32,
+    action_index: u64,
 ) -> Event {
     Event::new(
         "tx.fees",

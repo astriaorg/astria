@@ -6,6 +6,7 @@ use astria_core::{
         },
         Address,
         RollupId,
+        TransactionId,
     },
     protocol::{
         genesis::v1alpha1::Fees,
@@ -106,7 +107,7 @@ async fn correct_transfer_fee_payment_and_event_with_fee_change() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
 
     let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
     let fee_payment_map = fee_payment_map.unwrap();
@@ -193,7 +194,7 @@ async fn correct_sequence_fee_payment_and_event_with_fee_change() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
 
     let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
     let fee_payment_map = fee_payment_map.unwrap();
@@ -299,7 +300,7 @@ async fn correct_ics20_withdrawal_fee_payment_and_event_with_fee_change() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
 
     let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
     let fee_payment_map = fee_payment_map.unwrap();
@@ -384,7 +385,7 @@ async fn correct_init_bridge_account_fee_payment_and_event_with_fee_change() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
 
     let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
     let fee_payment_map = fee_payment_map.unwrap();
@@ -474,17 +475,19 @@ async fn correct_bridge_lock_fee_payment_and_event_with_fee_change() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
 
     let expected_fees_bridge_lock_action_1 = estimate_bridge_lock_fees(
         &bridge_lock_action,
         fees.transfer_base_fee,
         fees.bridge_lock_byte_cost_multiplier,
+        0
     );
     let expected_fees_bridge_lock_action_2 = estimate_bridge_lock_fees(
         &bridge_lock_action,
         fees.transfer_base_fee + 1,
         fees.bridge_lock_byte_cost_multiplier + 1,
+        2
     );
 
     let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
@@ -575,7 +578,7 @@ async fn correct_bridge_unlock_fee_payment_and_event_with_fee_change() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
 
     let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
     let fee_payment_map = fee_payment_map.unwrap();
@@ -659,7 +662,7 @@ async fn correct_bridge_sudo_change_fee_payment_and_event_with_fee_change() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
 
     let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
     let fee_payment_map = fee_payment_map.unwrap();
@@ -732,7 +735,7 @@ async fn should_exit_on_invalid_asset_type() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
     state_tx
         .put_sudo_address(bob_address.address_bytes())
         .unwrap();
@@ -760,7 +763,7 @@ async fn should_exit_on_missing_sudo_address() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
     put_all_base_fees(&mut state_tx);
 
     let err = get_and_report_tx_fees(&tx, &state_tx, true)
@@ -856,7 +859,7 @@ async fn handles_mid_tx_sudo_change() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
 
     let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
     let fee_payment_map = fee_payment_map.unwrap();
@@ -983,7 +986,7 @@ async fn handles_mid_tx_fee_asset_change() {
     };
 
     let signed_tx = tx.clone().into_signed(&alice);
-    state_tx.put_current_source(&signed_tx);
+    state_tx.put_transaction_context(&signed_tx);
 
     let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
     let fee_payment_map = fee_payment_map.unwrap();
@@ -1100,6 +1103,7 @@ fn estimate_bridge_lock_fees(
     act: &BridgeLockAction,
     transfer_base_fee: u128,
     bridge_lock_byte_cost_multiplier: u128,
+    action_index: u64,
 ) -> u128 {
     transfer_base_fee.saturating_add(
         crate::bridge::get_deposit_byte_len(&Deposit::new(
@@ -1108,6 +1112,8 @@ fn estimate_bridge_lock_fees(
             act.amount,
             act.asset.clone(),
             act.destination_chain_address.clone(),
+            TransactionId::new([0; 32]),
+            action_index,
         ))
         .saturating_mul(bridge_lock_byte_cost_multiplier),
     )
