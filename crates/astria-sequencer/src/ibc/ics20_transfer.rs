@@ -445,22 +445,6 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
             .wrap_err("failed to convert denomination if ibc/ prefixed")?
     };
 
-    // if the memo deserializes into an `Ics20WithdrawalFromRollupMemo`,
-    // we can assume this is a refund from an attempted withdrawal from
-    // a rollup directly to another IBC chain via the sequencer.
-    //
-    // in this case, we lock the tokens back in the bridge account and
-    // emit a `Deposit` event to send the tokens back to the rollup.
-    if is_refund
-        && serde_json::from_str::<memos::v1alpha1::Ics20WithdrawalFromRollup>(&packet_data.memo)
-            .is_ok()
-    {
-        execute_withdrawal_refund_to_rollup(state, packet_data)
-            .await
-            .wrap_err("failed to execute rollup withdrawal refund")?;
-        return Ok(());
-    }
-
     // the IBC packet should have the address as a bech32 string
     let recipient = if is_refund {
         packet_data.sender.clone()
