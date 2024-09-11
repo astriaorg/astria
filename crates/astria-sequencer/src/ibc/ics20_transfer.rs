@@ -74,9 +74,12 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    ibc,
-    ibc::StateReadExt as _,
+    ibc::{
+        self,
+        StateReadExt as _,
+    },
     transaction::StateReadExt as _,
+    utils::create_deposit_event,
 };
 
 /// The maximum length of the encoded Ics20 `FungibleTokenPacketData` in bytes.
@@ -713,6 +716,8 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         transaction_id,
         index_of_action,
     );
+    let deposit_abci_event = create_deposit_event(&deposit);
+    state.record(deposit_abci_event);
     state
         .put_deposit_event(deposit)
         .await

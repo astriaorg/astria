@@ -30,6 +30,7 @@ use crate::{
         StateWriteExt as _,
     },
     transaction::StateReadExt as _,
+    utils::create_deposit_event,
 };
 
 #[async_trait::async_trait]
@@ -90,6 +91,7 @@ impl ActionHandler for BridgeLockAction {
             transaction_id,
             source_action_index,
         );
+        let deposit_abci_event = create_deposit_event(&deposit);
 
         let byte_cost_multiplier = state
             .get_bridge_lock_byte_cost_multiplier()
@@ -133,6 +135,7 @@ impl ActionHandler for BridgeLockAction {
             .await
             .context("failed to deduct fee from account balance")?;
 
+        state.record(deposit_abci_event);
         state
             .put_deposit_event(deposit)
             .await
