@@ -1123,3 +1123,57 @@ async fn app_execute_transaction_action_index_correctly_increments() {
         starting_index_of_action + 1
     );
 }
+
+#[tokio::test]
+async fn transaction_execution_records_deposit_event() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = app
+        .state
+        .try_begin_transaction()
+        .expect("state Arc should be present and unique");
+
+    let alice = get_alice_signing_key();
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+    state_tx.put_bridge_account_rollup_id(bob_address, &[0; 32].into());
+    state_tx.put_allowed_fee_asset(nria());
+    state_tx
+        .put_bridge_account_ibc_asset(bob_address, nria())
+        .unwrap();
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions: vec![
+            BridgeLockAction {
+                to: bob_address,
+                amount: 1,
+                asset: nria().into(),
+                fee_asset: nria().into(),
+                destination_chain_address: "test_chain_address".to_string(),
+            }
+            .into(),
+        ],
+    };
+
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+
+    let expected_deposit = Deposit::new(
+        bob_address,
+        [0; 32].into(),
+        1,
+        nria().into(),
+        "test_chain_address".to_string(),
+        signed_tx.id(),
+        0,
+    );
+    let expected_deposit_event = create_deposit_event(&expected_deposit);
+
+    signed_tx.check_and_execute(&mut state_tx).await.unwrap();
+    let events = &state_tx.apply().1;
+    let event = events
+        .iter()
+        .find(|event| event.kind == "tx.deposit")
+        .expect("should have deposit event");
+    assert_eq!(*event, expected_deposit_event);
+}
