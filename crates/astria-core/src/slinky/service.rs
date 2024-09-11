@@ -40,6 +40,13 @@ pub mod v1 {
     }
 
     impl QueryPricesResponse {
+        /// Converts the on-wire [`raw::QueryPricesReponse`] to a validated domain type
+        /// [`QueryPricesResponse`].
+        ///
+        /// # Errors
+        /// Returns an error if:
+        /// + A key in the `.prices` map could not be parsed as a [`CurrencyPair`].
+        /// + A value in the `.prices` map could not be parsed as [`Price`].
         pub fn try_from_raw(
             wire: raw::QueryPricesResponse,
         ) -> Result<QueryPricesResponse, QueryPriceResponseError> {

@@ -833,9 +833,12 @@ mod tests {
     use super::*;
     use crate::{
         primitive::v1::Address,
-        slinky::market_map::v1::{
-            MarketMap,
-            Params,
+        slinky::{
+            market_map::v1::{
+                MarketMap,
+                Params,
+            },
+            types::v1::CurrencyPairId,
         },
     };
 
@@ -915,7 +918,7 @@ mod tests {
             }),
             slinky: Some(
                 SlinkyGenesis {
-                    market_map: MarketMapGenesisState {
+                    market_map: market_map::v1::GenesisState {
                         market_map: MarketMap {
                             markets: IndexMap::new(),
                         },
@@ -925,9 +928,9 @@ mod tests {
                             admin: alice(),
                         },
                     },
-                    oracle: OracleGenesisState {
+                    oracle: oracle::v1::GenesisState {
                         currency_pair_genesis: vec![],
-                        next_id: 0,
+                        next_id: CurrencyPairId::new(0),
                     },
                 }
                 .into_raw(),

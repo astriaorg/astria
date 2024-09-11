@@ -30,6 +30,11 @@ pub mod v1 {
     }
 
     impl OracleVoteExtension {
+        /// Converts an on-wire [`raw::OracleVoteExtension`] to a validated domain type
+        /// [`OracleVoteExtension`].
+        ///
+        /// # Errors
+        /// Returns an error if a value in the `.prices` map could not be validated.
         pub fn try_from_raw(
             raw: raw::OracleVoteExtension,
         ) -> Result<Self, OracleVoteExtensionError> {

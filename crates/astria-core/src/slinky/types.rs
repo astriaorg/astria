@@ -13,10 +13,12 @@ pub mod v1 {
     pub struct Price(u128);
 
     impl Price {
+        #[must_use]
         pub fn new(value: u128) -> Self {
             Self(value)
         }
 
+        #[must_use]
         pub fn get(self) -> u128 {
             self.0
         }
@@ -195,6 +197,15 @@ pub mod v1 {
             &self.quote.0
         }
 
+        /// Converts a on-wire [`raw::CurrencyPair`] to a validated domain type [`CurrencyPair`].
+        ///
+        /// # Errors
+
+        /// Returns an error if:
+        /// + The `.base` field could not be parsed as a [`Base`].
+        /// + The `.quote` field could not be parsed as [`Quote`].
+        // allow  reason: symmetry with all other `try_from_raw` methods that take ownership
+        #[allow(clippy::needless_pass_by_value)]
         pub fn try_from_raw(raw: raw::CurrencyPair) -> Result<Self, CurrencyPairError> {
             let base = raw
                 .base
@@ -296,10 +307,12 @@ pub mod v1 {
     }
 
     impl CurrencyPairId {
+        #[must_use]
         pub fn new(value: u64) -> Self {
             Self(value)
         }
 
+        #[must_use]
         pub fn get(self) -> u64 {
             self.0
         }
@@ -315,14 +328,17 @@ pub mod v1 {
     }
 
     impl CurrencyPairNonce {
+        #[must_use]
         pub fn new(value: u64) -> Self {
             Self(value)
         }
 
+        #[must_use]
         pub fn get(self) -> u64 {
             self.0
         }
 
+        #[must_use]
         pub fn increment(self) -> Option<Self> {
             let new_nonce = self.get().checked_add(1)?;
             Some(Self::new(new_nonce))

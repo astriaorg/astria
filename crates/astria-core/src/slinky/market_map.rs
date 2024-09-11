@@ -357,7 +357,7 @@ pub mod v1 {
                 .currency_pair
                 .ok_or_else(|| TickerError::field_not_set("currency_pair"))?
                 .try_into()
-                .map_err(|source| TickerError::invalid_currency_pair(source))?;
+                .map_err(TickerError::invalid_currency_pair)?;
 
             Ok(Self {
                 currency_pair,
@@ -386,14 +386,15 @@ pub mod v1 {
 
     impl TickerError {
         #[must_use]
-        pub fn field_not_set(name: &'static str) -> Self {
+        fn field_not_set(name: &'static str) -> Self {
             TickerErrorKind::FieldNotSet {
                 name,
             }
             .into()
         }
 
-        pub fn invalid_currency_pair(source: CurrencyPairError) -> Self {
+        #[must_use]
+        fn invalid_currency_pair(source: CurrencyPairError) -> Self {
             TickerErrorKind::InvalidCurrencyPair {
                 source,
             }

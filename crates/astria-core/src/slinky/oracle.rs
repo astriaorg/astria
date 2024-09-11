@@ -213,28 +213,8 @@ pub mod v1 {
     }
 
     impl CurrencyPairGenesis {
-        #[must_use]
-        fn currency_pair(&self) -> &CurrencyPair {
-            &self.currency_pair
-        }
-
-        #[must_use]
-        fn currency_pair_price(&self) -> &QuotePrice {
-            &self.currency_pair_price
-        }
-
-        #[must_use]
-        fn id(&self) -> CurrencyPairId {
-            self.id
-        }
-
-        #[must_use]
-        fn nonce(&self) -> CurrencyPairNonce {
-            self.nonce
-        }
-
-        /// Converts from a raw protobuf `CurrencyPairGenesis` to a native
-        /// `CurrencyPairGenesis`.
+        /// Converts from a raw protobuf `raw::CurrencyPairGenesis` to a validated
+        /// domain type [`CurrencyPairGenesis`].
         ///
         /// # Errors
         ///
