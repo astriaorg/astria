@@ -18,6 +18,7 @@ use astria_core::{
         },
     },
     sequencerblock::v1alpha1::block::Deposit,
+    Protobuf,
 };
 use cnidarium::StateDelta;
 use prost::{

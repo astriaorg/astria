@@ -11,6 +11,8 @@
 //! [`buf`]: https://buf.build
 //! [`tools/protobuf-compiler`]: ../../../../tools/protobuf-compiler
 
+use crate::generated::protocol::transactions::v1alpha1;
+
 #[path = ""]
 pub mod astria_vendored {
     #[path = ""]
@@ -136,8 +138,16 @@ pub mod sequencerblock {
 
 #[path = ""]
 pub mod composer {
-    #[path = "astria.composer.v1alpha1.rs"]
-    pub mod v1alpha1;
+
+    pub mod v1alpha1 {
+        include!("astria.composer.v1alpha1.rs");
+
+        #[cfg(feature = "serde")]
+        mod _serde_impl {
+            use super::*;
+            include!("astria.composer.v1alpha1.serde.rs");
+        }
+    }
 }
 
 #[path = ""]

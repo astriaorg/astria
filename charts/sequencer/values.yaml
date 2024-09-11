@@ -107,8 +107,6 @@ cometbft:
 
       # List of seeds to connect to
       seeds: []
-      # List of nodes to keep persistent connections to
-      persistentPeers: []
       # List of node IDs, to which a connection will be (re)established ignoring any existing limits
       unconditionalPeers: []
       # Maximum pause when redialing a persistent peer (if zero, exponential backoff is used)

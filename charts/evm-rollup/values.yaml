@@ -11,9 +11,8 @@ images:
     repo: ghcr.io/astriaorg/astria-geth
     tag: 0.14.0
     devTag: latest
-    overrideTag: ""
   conductor:
-    repo: ghcr.io/astriaorg/conductor
+    repo: astria-conductor
     tag: "0.20.0"
     devTag: latest
 
@@ -89,6 +88,10 @@ genesis:
       value:
         balance: "0"
         code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
+    - address: "0xC873fC6685abF295cc537811C234B2B3aD54Af42"
+      value:
+        balance: "1000000000000000000000"
+
     # Example of simple genesis account funding
     # - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
     #   value:
@@ -268,6 +271,24 @@ ingress:
       #  - secretName: chart-example-tls
       #    hosts:
       #      - chart-example.local
+#    exec-api:
+#      enabled: true
+#      hosts:
+#        - exec-executor.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}
+#      path: /
+#      pathType: Prefix
+#      service:
+#        name: '{{ include "rollup.name" . }}-evm-service'
+#        port:
+#          name: exec-grpc-svc
+#      annotations: {}
+#        # kubernetes.io/ingress.class: nginx
+#      # kubernetes.io/tls-acme: "true"
+#      labels: {}
+#      tls: {}
+#      #  - secretName: chart-example-tls
+#      #    hosts:
+#      #      - chart-example.local
 
 # Default persistent storage values
 # NOTE - `rollupName` will be used with `persistentVolumeName` to generate names for kubernetes resources.

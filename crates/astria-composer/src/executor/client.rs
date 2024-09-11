@@ -2,10 +2,8 @@ use std::time::Duration;
 
 use astria_core::{
     execution::v1alpha2::{
-        Block,
         CommitmentState,
         ExecuteBlockResponse,
-        GenesisInfo,
     },
     generated::{
         execution::{
@@ -18,7 +16,6 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    ensure,
     WrapErr as _,
 };
 use bytes::Bytes;
@@ -60,51 +57,8 @@ impl Client {
         })
     }
 
-    /// Calls RPC astria.execution.v1alpha2.GetBlock
-    #[instrument(skip_all, fields(block_number, uri = %self.uri), err)]
-    pub(crate) async fn get_block_with_retry(&mut self, block_number: u32) -> eyre::Result<Block> {
-        let raw_block = tryhard::retry_fn(|| {
-            let mut client = self.inner.clone();
-            let request = raw::GetBlockRequest {
-                identifier: Some(block_identifier(block_number)),
-            };
-            async move { client.get_block(request).await }
-        })
-        .with_config(retry_config())
-        .in_current_span()
-        .await
-        .wrap_err(
-            "failed to execute astria.execution.v1alpha2.GetBlocks RPC because of gRPC status \
-             code or because number of retries were exhausted",
-        )?
-        .into_inner();
-        ensure!(
-            block_number == raw_block.number,
-            "requested block at number `{block_number}`, but received block contained `{}`",
-            raw_block.number
-        );
-        Block::try_from_raw(raw_block).wrap_err("failed validating received block")
-    }
-
-    /// Calls remote procedure `astria.execution.v1alpha2.GetGenesisInfo`
-    #[instrument(skip_all, fields(uri = %self.uri), err)]
-    pub(crate) async fn get_genesis_info_with_retry(&mut self) -> eyre::Result<GenesisInfo> {
-        let response = tryhard::retry_fn(|| {
-            let mut client = self.inner.clone();
-            let request = raw::GetGenesisInfoRequest {};
-            async move { client.get_genesis_info(request).await }
-        })
-        .with_config(retry_config())
-        .in_current_span()
-        .await
-        .wrap_err(
-            "failed to execute astria.execution.v1alpha2.GetGenesisInfo RPC because of gRPC \
-             status code or because number of retries were exhausted",
-        )?
-        .into_inner();
-        let genesis_info = GenesisInfo::try_from_raw(response)
-            .wrap_err("failed converting raw response to validated genesis info")?;
-        Ok(genesis_info)
+    pub(crate) fn uri(&self) -> String {
+        self.uri.to_string()
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.ExecuteBlock`
@@ -116,16 +70,17 @@ impl Client {
     /// * `timestamp` - Optional timestamp of the sequencer block
     #[instrument(skip_all, fields(uri = %self.uri), err)]
     pub(super) async fn execute_block_with_retry(
-        &mut self,
+        &self,
         prev_block_hash: Bytes,
-        transactions: Vec<Bytes>,
+        transactions: Vec<Vec<u8>>,
         timestamp: Timestamp,
+        simulate_only: bool,
     ) -> eyre::Result<ExecuteBlockResponse> {
         use prost::Message;
 
         let transactions = transactions
             .into_iter()
-            .map(RollupData::decode)
+            .map(|tx| RollupData::decode(tx.as_slice()))
             .collect::<Result<_, _>>()
             .wrap_err("failed to decode tx bytes as RollupData")?;
 
@@ -133,7 +88,7 @@ impl Client {
             prev_block_hash,
             transactions,
             timestamp: Some(timestamp),
-            simulate_only: false,
+            simulate_only,
         };
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();
@@ -151,16 +106,12 @@ impl Client {
         let execute_block_response = ExecuteBlockResponse::try_from_raw(response)
             .wrap_err("failed converting raw response to validated execute block response")?;
 
-        // let block = Block::try_from_raw(response)
-        //     .wrap_err("failed converting raw response to validated block")?;
         Ok(execute_block_response)
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.GetCommitmentState`
     #[instrument(skip_all, fields(uri = %self.uri), err)]
-    pub(crate) async fn get_commitment_state_with_retry(
-        &mut self,
-    ) -> eyre::Result<CommitmentState> {
+    pub(crate) async fn get_commitment_state_with_retry(&self) -> eyre::Result<CommitmentState> {
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();
             async move {
@@ -179,46 +130,6 @@ impl Client {
         let commitment_state = CommitmentState::try_from_raw(response)
             .wrap_err("failed converting raw response to validated commitment state")?;
         Ok(commitment_state)
-    }
-
-    /// Calls remote procedure `astria.execution.v1alpha2.UpdateCommitmentState`
-    ///
-    /// # Arguments
-    ///
-    /// * `firm` - The firm block
-    /// * `soft` - The soft block
-    #[instrument(skip_all, fields(uri = %self.uri), err)]
-    pub(super) async fn update_commitment_state_with_retry(
-        &mut self,
-        commitment_state: CommitmentState,
-    ) -> eyre::Result<CommitmentState> {
-        let request = raw::UpdateCommitmentStateRequest {
-            commitment_state: Some(commitment_state.into_raw()),
-        };
-        let response = tryhard::retry_fn(|| {
-            let mut client = self.inner.clone();
-            let request = request.clone();
-            async move { client.update_commitment_state(request).await }
-        })
-        .with_config(retry_config())
-        .in_current_span()
-        .await
-        .wrap_err(
-            "failed to execute astria.execution.v1alpha2.UpdateCommitmentState RPC because of \
-             gRPC status code or because number of retries were exhausted",
-        )?
-        .into_inner();
-        let commitment_state = CommitmentState::try_from_raw(response)
-            .wrap_err("failed converting raw response to validated commitment state")?;
-        Ok(commitment_state)
-    }
-}
-
-/// Utility function to construct a `astria.execution.v1alpha2.BlockIdentifier` from `number`
-/// to use in RPC requests.
-fn block_identifier(number: u32) -> raw::BlockIdentifier {
-    raw::BlockIdentifier {
-        identifier: Some(raw::block_identifier::Identifier::BlockNumber(number)),
     }
 }
 

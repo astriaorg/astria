@@ -2,7 +2,10 @@ use bytes::Bytes;
 use indexmap::IndexMap;
 use transaction::v1alpha1::SignedTransaction;
 
-use crate::primitive::v1::RollupId;
+use crate::{
+    primitive::v1::RollupId,
+    Protobuf,
+};
 
 pub mod abci;
 pub mod account;

@@ -7,6 +7,10 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
+    sequencerblock::v1alpha1::block::{
+        RollupData,
+        RollupDataError,
+    },
     Protobuf,
 };
 
@@ -229,6 +233,105 @@ impl Protobuf for Block {
             // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64)
             // tuple
             timestamp: Some(timestamp.clone()),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct ExecuteBlockResponseError(ExecuteBlockResponseErrorKind);
+
+impl ExecuteBlockResponseError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(ExecuteBlockResponseErrorKind::FieldNotSet(field))
+    }
+
+    fn invalid_rollup_data(source: RollupDataError) -> Self {
+        Self(ExecuteBlockResponseErrorKind::InvalidRollupData(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ExecuteBlockResponseErrorKind {
+    #[error("{0} field not set")]
+    FieldNotSet(&'static str),
+    #[error("{0} invalid rollup data")]
+    InvalidRollupData(#[source] RollupDataError),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "crate::generated::execution::v1alpha2::ExecuteBlockResponse")
+)]
+pub struct ExecuteBlockResponse {
+    block: Block,
+    included_transactions: Vec<RollupData>,
+}
+
+impl ExecuteBlockResponse {
+    #[must_use]
+    pub fn block(&self) -> &Block {
+        &self.block
+    }
+
+    #[must_use]
+    pub fn included_transactions(&self) -> &[RollupData] {
+        &self.included_transactions
+    }
+}
+
+impl From<ExecuteBlockResponse> for raw::ExecuteBlockResponse {
+    fn from(value: ExecuteBlockResponse) -> Self {
+        value.to_raw()
+    }
+}
+
+impl Protobuf for ExecuteBlockResponse {
+    type Error = ExecuteBlockResponseError;
+    type Raw = raw::ExecuteBlockResponse;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::ExecuteBlockResponse {
+            block,
+            included_transactions,
+        } = raw;
+        let block = {
+            let Some(block) = block else {
+                return Err(Self::Error::field_not_set(".block"));
+            };
+            if let Ok(parsed_block) = Block::try_from_raw_ref(block) {
+                Ok(parsed_block)
+            } else {
+                return Err(Self::Error::field_not_set(".block"));
+            }
+        }?;
+
+        let included_transactions = included_transactions
+            .iter()
+            .map(RollupData::try_from_raw_ref)
+            .collect::<Result<Vec<RollupData>, _>>()
+            .map_err(Self::Error::invalid_rollup_data)?;
+
+        Ok(Self {
+            block,
+            included_transactions,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            block,
+            included_transactions,
+        } = self;
+        let block = block.to_raw();
+
+        let included_transactions = included_transactions.iter().map(Protobuf::to_raw).collect();
+
+        Self::Raw {
+            block: Some(block),
+            included_transactions,
         }
     }
 }

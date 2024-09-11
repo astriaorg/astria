@@ -35,7 +35,7 @@ use crate::{
         SignedTransaction,
         SignedTransactionError,
     },
-    Protobuf as _,
+    Protobuf,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -1454,18 +1454,15 @@ pub enum RollupData {
     Deposit(Box<Deposit>),
 }
 
-impl RollupData {
-    #[must_use]
-    pub fn into_raw(self) -> raw::RollupData {
-        match self {
-            Self::SequencedData(data) => raw::RollupData {
-                value: Some(raw::rollup_data::Value::SequencedData(data)),
-            },
-            Self::Deposit(deposit) => raw::RollupData {
-                value: Some(raw::rollup_data::Value::Deposit(deposit.into_raw())),
-            },
-        }
+impl From<RollupData> for raw::RollupData {
+    fn from(value: RollupData) -> Self {
+        value.to_raw()
     }
+}
+
+impl Protobuf for RollupData {
+    type Error = RollupDataError;
+    type Raw = raw::RollupData;
 
     /// Attempts to transform the `RollupData` from its raw representation.
     ///
@@ -1473,17 +1470,32 @@ impl RollupData {
     ///
     /// - if the `data` field is not set
     /// - if the variant is `Deposit` but a `Deposit` cannot be constructed from the raw proto
-    pub fn try_from_raw(raw: raw::RollupData) -> Result<Self, RollupDataError> {
+    fn try_from_raw_ref(raw: &raw::RollupData) -> Result<Self, RollupDataError> {
         let raw::RollupData {
             value,
         } = raw;
         match value {
-            Some(raw::rollup_data::Value::SequencedData(data)) => Ok(Self::SequencedData(data)),
-            Some(raw::rollup_data::Value::Deposit(deposit)) => Deposit::try_from_raw(deposit)
-                .map(Box::new)
-                .map(Self::Deposit)
-                .map_err(RollupDataError::deposit),
+            Some(raw::rollup_data::Value::SequencedData(data)) => {
+                Ok(Self::SequencedData(data.clone()))
+            }
+            Some(raw::rollup_data::Value::Deposit(deposit)) => {
+                Deposit::try_from_raw(deposit.clone())
+                    .map(Box::new)
+                    .map(Self::Deposit)
+                    .map_err(RollupDataError::deposit)
+            }
             None => Err(RollupDataError::field_not_set("data")),
+        }
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        match self {
+            Self::SequencedData(data) => raw::RollupData {
+                value: Some(raw::rollup_data::Value::SequencedData(data.clone())),
+            },
+            Self::Deposit(deposit) => raw::RollupData {
+                value: Some(raw::rollup_data::Value::Deposit(deposit.clone().into_raw())),
+            },
         }
     }
 }

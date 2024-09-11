@@ -31,7 +31,7 @@
       {{- if $index }},{{- end }}
       {
         "address": {{ include "sequencer.address" $value.address }},
-        "balance": {{ include "sequencer.toUint128Proto" ( toString $value.balance | replace "\"" "" ) }} 
+        "balance": {{ include "sequencer.toUint128Proto" ( toString $value.balance | replace "\"" "" ) }}
       }
       {{- end }}
     ],
