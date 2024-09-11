@@ -1,7 +1,15 @@
+serviceMonitor:
+  enabled: false
+  additionalLabels: {}
+  interval: 15s
+  scrapeTimeout: 10s
+
 graphNode:
   image: graphprotocol/graph-node
   tag: latest
   replicas: 1
+  metrics:
+    enabled: false
 
 ipfs:
   image: ipfs/kubo
