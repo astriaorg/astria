@@ -1,18 +1,23 @@
 #[cfg(feature = "benchmark")]
 mod benchmarks;
+mod mempool_state;
 mod transactions_container;
 
 use std::{
     collections::{
         HashMap,
+        HashSet,
         VecDeque,
     },
-    future::Future,
     num::NonZeroUsize,
     sync::Arc,
 };
 
-use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
+use astria_core::{
+    primitive::v1::asset::IbcPrefixed,
+    protocol::transaction::v1alpha1::SignedTransaction,
+};
+pub(crate) use mempool_state::get_account_balances;
 use tokio::{
     join,
     sync::{
@@ -32,13 +37,14 @@ use transactions_container::{
     TimemarkedTransaction,
 };
 
+use crate::accounts;
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub(crate) enum RemovalReason {
     Expired,
     NonceStale,
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
-    FailedCheckTx(String),
 }
 
 /// How long transactions are considered valid in the mempool.
@@ -160,18 +166,28 @@ impl Mempool {
         &self,
         tx: Arc<SignedTransaction>,
         current_account_nonce: u32,
+        current_account_balances: HashMap<IbcPrefixed, u128>,
+        transaction_cost: HashMap<IbcPrefixed, u128>,
     ) -> anyhow::Result<(), InsertionError> {
-        let timemarked_tx = TimemarkedTransaction::new(tx);
+        let timemarked_tx = TimemarkedTransaction::new(tx, transaction_cost);
 
         let (mut pending, mut parked) = self.acquire_both_locks().await;
 
-        // try insert into pending (will fail if nonce is gapped or already present)
-        match pending.add(timemarked_tx.clone(), current_account_nonce) {
-            Err(InsertionError::NonceGap) => {
+        // try insert into pending
+        match pending.add(
+            timemarked_tx.clone(),
+            current_account_nonce,
+            &current_account_balances,
+        ) {
+            Err(InsertionError::NonceGap | InsertionError::AccountBalanceTooLow) => {
                 // Release the lock asap.
                 drop(pending);
                 // try to add to parked queue
-                parked.add(timemarked_tx, current_account_nonce)
+                parked.add(
+                    timemarked_tx,
+                    current_account_nonce,
+                    &current_account_balances,
+                )
             }
             error @ Err(
                 InsertionError::AlreadyPresent
@@ -181,17 +197,22 @@ impl Mempool {
             ) => error,
             Ok(()) => {
                 // check parked for txs able to be promoted
-                let to_promote = parked.pop_front_account(
+                let to_promote = parked.find_promotables(
                     timemarked_tx.address(),
                     timemarked_tx
                         .nonce()
                         .checked_add(1)
                         .expect("failed to increment nonce in promotion"),
+                    &pending.subtract_contained_costs(
+                        *timemarked_tx.address(),
+                        current_account_balances.clone(),
+                    ),
                 );
-                // Release the lock asap.
-                drop(parked);
+                // promote the transactions
                 for ttx in to_promote {
-                    if let Err(error) = pending.add(ttx, current_account_nonce) {
+                    if let Err(error) =
+                        pending.add(ttx, current_account_nonce, &current_account_balances)
+                    {
                         error!(
                             current_account_nonce,
                             "failed to promote transaction during insertion: {error:#}"
@@ -206,19 +227,11 @@ impl Mempool {
     /// Returns a copy of all transactions and their hashes ready for execution, sorted first by the
     /// difference between a transaction and the account's current nonce and then by the time that
     /// the transaction was first seen by the appside mempool.
-    pub(crate) async fn builder_queue<F, O>(
+    pub(crate) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
-        current_account_nonce_getter: F,
-    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>>
-    where
-        F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
-    {
-        self.pending
-            .read()
-            .await
-            .builder_queue(current_account_nonce_getter)
-            .await
+        state: &S,
+    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>> {
+        self.pending.read().await.builder_queue(state).await
     }
 
     /// Removes the target transaction and all transactions for associated account with higher
@@ -268,34 +281,103 @@ impl Mempool {
     }
 
     /// Updates stored transactions to reflect current blockchain state. Will remove transactions
-    /// that have stale nonces and will remove transaction that are expired.
+    /// that have stale nonces or are expired. Will also shift transation between pending and
+    /// parked to relfect changes in account balances.
     ///
     /// All removed transactions are added to the CometBFT removal cache to aid with CometBFT
     /// mempool maintenance.
     #[instrument(skip_all)]
-    pub(crate) async fn run_maintenance<F, O>(&self, current_account_nonce_getter: F)
-    where
-        F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
-    {
+    pub(crate) async fn run_maintenance<S: accounts::StateReadExt>(&self, state: &S, recost: bool) {
         let (mut pending, mut parked) = self.acquire_both_locks().await;
+        let mut removed_txs = Vec::<([u8; 32], RemovalReason)>::new();
 
-        // clean accounts of stale and expired transactions
-        let mut removed_txs = pending.clean_accounts(&current_account_nonce_getter).await;
-        removed_txs.append(&mut parked.clean_accounts(&current_account_nonce_getter).await);
+        // To clean we need to:
+        // 1.) remove stale and expired transactions
+        // 2.) recost remaining transactions if needed
+        // 3.) check if we have transactions in pending which need to be demoted due
+        //     to balance decreases
+        // 4.) if there were no demotions, check if parked has transactions we can
+        //     promote
 
-        // run promotion logic in case transactions not in this mempool advanced account state
-        let to_promote = parked.find_promotables(&current_account_nonce_getter).await;
-        // Release the lock asap.
-        drop(parked);
-        for (ttx, current_account_nonce) in to_promote {
-            if let Err(error) = pending.add(ttx, current_account_nonce) {
-                error!(
-                    current_account_nonce,
-                    "failed to promote transaction during maintenance: {error:#}"
-                );
+        let addresses: HashSet<[u8; 20]> = pending
+            .addresses()
+            .into_iter()
+            .chain(parked.addresses())
+            .collect();
+
+        // TODO: Make this concurrent, all account state is separate with IO bound disk reads.
+        for address in addresses {
+            // get current account state
+            let current_nonce = match state.get_account_nonce(address).await {
+                Ok(res) => res,
+                Err(error) => {
+                    error!(
+                        address = %telemetry::display::base64(&address),
+                        "failed to fetch account nonce when cleaning accounts: {error:#}"
+                    );
+                    continue;
+                }
+            };
+            let current_balances = match get_account_balances(state, address).await {
+                Ok(res) => res,
+                Err(error) => {
+                    error!(
+                        address = %telemetry::display::base64(&address),
+                        "failed to fetch account balances when cleaning accounts: {error:#}"
+                    );
+                    continue;
+                }
+            };
+
+            // clean pending and parked of stale and expired
+            removed_txs.extend(pending.clean_account_stale_expired(address, current_nonce));
+            if recost {
+                pending.recost_transactions(address, state).await;
+            }
+
+            removed_txs.extend(parked.clean_account_stale_expired(address, current_nonce));
+            if recost {
+                parked.recost_transactions(address, state).await;
+            }
+
+            // get transactions to demote from pending
+            let demotion_txs = pending.find_demotables(address, &current_balances);
+
+            if demotion_txs.is_empty() {
+                // nothing to demote, check for transactions to promote
+                let highest_pending_nonce = pending
+                    .pending_nonce(address)
+                    .map_or(current_nonce, |nonce| nonce.saturating_add(1));
+
+                let remaining_balances =
+                    pending.subtract_contained_costs(address, current_balances.clone());
+                let promtion_txs =
+                    parked.find_promotables(&address, highest_pending_nonce, &remaining_balances);
+
+                for tx in promtion_txs {
+                    if let Err(error) = pending.add(tx, current_nonce, &current_balances) {
+                        error!(
+                            current_nonce,
+                            "failed to promote transaction during maintenance: {error:#}"
+                        );
+                    }
+                }
+            } else {
+                // add demoted transactions to parked
+                for tx in demotion_txs {
+                    if let Err(err) = parked.add(tx, current_nonce, &current_balances) {
+                        // this shouldn't happen
+                        error!(
+                               address = %telemetry::display::base64(&address),
+                               "failed to demote transaction during maintenance: {err:#}"
+                        );
+                    }
+                }
             }
         }
+        // Release the locks asap.
+        drop(parked);
+        drop(pending);
 
         // add to removal cache for cometbft
         let mut removal_cache = self.comet_bft_removal_cache.write().await;
@@ -330,23 +412,38 @@ mod test {
     use astria_core::crypto::SigningKey;
 
     use super::*;
-    use crate::app::test_utils::mock_tx;
+    use crate::app::test_utils::{
+        mock_balances,
+        mock_state_getter,
+        mock_state_put_account_balances,
+        mock_state_put_account_nonce,
+        mock_tx,
+        mock_tx_cost,
+    };
 
     #[tokio::test]
     async fn insert() {
         let mempool = Mempool::new();
         let signing_key = SigningKey::from([1; 32]);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
 
         // sign and insert nonce 1
         let tx1 = mock_tx(1, &signing_key, "test");
         assert!(
-            mempool.insert(tx1.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
 
         // try to insert again
         assert_eq!(
-            mempool.insert(tx1.clone(), 0).await.unwrap_err(),
+            mempool
+                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .unwrap_err(),
             InsertionError::AlreadyPresent,
             "already present"
         );
@@ -355,7 +452,12 @@ mod test {
         let tx1_replacement = mock_tx(1, &signing_key, "test_0");
         assert_eq!(
             mempool
-                .insert(tx1_replacement.clone(), 0)
+                .insert(
+                    tx1_replacement.clone(),
+                    0,
+                    account_balances.clone(),
+                    tx_cost.clone()
+                )
                 .await
                 .unwrap_err(),
             InsertionError::NonceTaken,
@@ -365,7 +467,10 @@ mod test {
         // add too low nonce
         let tx0 = mock_tx(0, &signing_key, "test");
         assert_eq!(
-            mempool.insert(tx0.clone(), 1).await.unwrap_err(),
+            mempool
+                .insert(tx0.clone(), 1, account_balances, tx_cost)
+                .await
+                .unwrap_err(),
             InsertionError::NonceTooLow,
             "nonce too low"
         );
@@ -382,51 +487,61 @@ mod test {
         let mempool = Mempool::new();
         let signing_key = SigningKey::from([1; 32]);
         let signing_address = signing_key.verification_key().address_bytes();
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
 
         // add nonces in odd order to trigger insertion promotion logic
         // sign and insert nonce 1
         let tx1 = mock_tx(1, &signing_key, "test");
         assert!(
-            mempool.insert(tx1.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
 
         // sign and insert nonce 2
         let tx2 = mock_tx(2, &signing_key, "test");
         assert!(
-            mempool.insert(tx2.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx2.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 2 transaction into mempool"
         );
 
         // sign and insert nonce 0
         let tx0 = mock_tx(0, &signing_key, "test");
         assert!(
-            mempool.insert(tx0.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
         );
 
         // sign and insert nonce 4
         let tx4 = mock_tx(4, &signing_key, "test");
         assert!(
-            mempool.insert(tx4.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx4.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 4 transaction into mempool"
         );
 
         // assert size
         assert_eq!(mempool.len().await, 4);
 
-        // mock nonce getter with nonce at 1
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(1);
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
+        // mock state with nonce at 1
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
 
         // grab building queue, should return transactions [1,2] since [0] was below and [4] is
         // gapped
         let builder_queue = mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("failed to get builder queue");
 
@@ -439,20 +554,19 @@ mod test {
 
         // run maintenance with simulated nonce to remove the nonces 0,1,2 and promote 4 from parked
         // to pending
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address {
-                return Ok(4);
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
-        mempool.run_maintenance(current_account_nonce_getter).await;
+
+        // setup state
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 4);
+        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(100, 100));
+
+        mempool.run_maintenance(&mock_state, false).await;
 
         // assert mempool at 1
         assert_eq!(mempool.len().await, 1);
 
         // see transaction [4] properly promoted
         let mut builder_queue = mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("failed to get builder queue");
         let (_, returned_tx) = builder_queue.pop().expect("should return last transaction");
@@ -460,34 +574,198 @@ mod test {
     }
 
     #[tokio::test]
+    async fn run_maintenance_promotion() {
+        let mempool = Mempool::new();
+        let signing_key = SigningKey::from([1; 32]);
+        let signing_address = signing_key.verification_key().address_bytes();
+
+        // create transaction setup to trigger promotions
+        //
+        // initially pending has single transaction
+        let initial_balances = mock_balances(1, 0);
+        let tx_cost = mock_tx_cost(1, 0, 0);
+        let tx1 = mock_tx(1, &signing_key, "test");
+        let tx2 = mock_tx(2, &signing_key, "test");
+        let tx3 = mock_tx(3, &signing_key, "test");
+        let tx4 = mock_tx(4, &signing_key, "test");
+
+        mempool
+            .insert(tx1.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx2.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx3.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx4.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // see pending only has one transaction
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
+
+        let builder_queue = mempool
+            .builder_queue(&mock_state)
+            .await
+            .expect("failed to get builder queue");
+        assert_eq!(
+            builder_queue.len(),
+            1,
+            "builder queue should only contain single transaction"
+        );
+
+        // run maintenance with account containing balance for two more transactions
+
+        // setup state
+        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(3, 0));
+
+        mempool.run_maintenance(&mock_state, false).await;
+
+        // see builder queue now contains them
+        let builder_queue = mempool
+            .builder_queue(&mock_state)
+            .await
+            .expect("failed to get builder queue");
+        assert_eq!(
+            builder_queue.len(),
+            3,
+            "builder queue should now have 3 transactions"
+        );
+    }
+
+    #[allow(clippy::too_many_lines)]
+    #[tokio::test]
+    async fn run_maintenance_demotion() {
+        let mempool = Mempool::new();
+        let signing_key = SigningKey::from([1; 32]);
+        let signing_address = signing_key.verification_key().address_bytes();
+
+        // create transaction setup to trigger demotions
+        //
+        // initially pending has four transactions
+        let initial_balances = mock_balances(4, 0);
+        let tx_cost = mock_tx_cost(1, 0, 0);
+        let tx1 = mock_tx(1, &signing_key, "test");
+        let tx2 = mock_tx(2, &signing_key, "test");
+        let tx3 = mock_tx(3, &signing_key, "test");
+        let tx4 = mock_tx(4, &signing_key, "test");
+
+        mempool
+            .insert(tx1.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx2.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx3.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx4.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // see pending only has all transactions
+
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
+
+        let builder_queue = mempool
+            .builder_queue(&mock_state)
+            .await
+            .expect("failed to get builder queue");
+        assert_eq!(
+            builder_queue.len(),
+            4,
+            "builder queue should only contain four transactions"
+        );
+
+        // setup state
+        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(1, 0));
+
+        mempool.run_maintenance(&mock_state, false).await;
+
+        // see builder queue now contains single transactions
+        let builder_queue = mempool
+            .builder_queue(&mock_state)
+            .await
+            .expect("failed to get builder queue");
+        assert_eq!(
+            builder_queue.len(),
+            1,
+            "builder queue should contain single transaction"
+        );
+
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
+        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(3, 0));
+
+        mempool.run_maintenance(&mock_state, false).await;
+
+        let builder_queue = mempool
+            .builder_queue(&mock_state)
+            .await
+            .expect("failed to get builder queue");
+        assert_eq!(
+            builder_queue.len(),
+            3,
+            "builder queue should contain three transactions"
+        );
+    }
+
+    #[tokio::test]
     async fn remove_invalid() {
         let mempool = Mempool::new();
         let signing_key = SigningKey::from([1; 32]);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 10);
 
         // sign and insert nonces 0,1 and 3,4,5
         let tx0 = mock_tx(0, &signing_key, "test");
         assert!(
-            mempool.insert(tx0.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
         );
         let tx1 = mock_tx(1, &signing_key, "test");
         assert!(
-            mempool.insert(tx1.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
         let tx3 = mock_tx(3, &signing_key, "test");
         assert!(
-            mempool.insert(tx3.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx3.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 3 transaction into mempool"
         );
         let tx4 = mock_tx(4, &signing_key, "test");
         assert!(
-            mempool.insert(tx4.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx4.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 4 transaction into mempool"
         );
         let tx5 = mock_tx(5, &signing_key, "test");
         assert!(
-            mempool.insert(tx5.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx5.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 5 transaction into mempool"
         );
         assert_eq!(mempool.len().await, 5);
@@ -554,28 +832,52 @@ mod test {
         let signing_address_0 = signing_key_0.verification_key().address_bytes();
         let signing_address_1 = signing_key_1.verification_key().address_bytes();
         let signing_address_2 = signing_key_2.verification_key().address_bytes();
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
 
         // sign and insert nonces 0,1
         let tx0 = mock_tx(0, &signing_key_0, "test");
         assert!(
-            mempool.insert(tx0.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
         );
         let tx1 = mock_tx(1, &signing_key_0, "test");
         assert!(
-            mempool.insert(tx1.clone(), 0).await.is_ok(),
+            mempool
+                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
 
         // sign and insert nonces 100, 101
         let tx100 = mock_tx(100, &signing_key_1, "test");
         assert!(
-            mempool.insert(tx100.clone(), 100).await.is_ok(),
+            mempool
+                .insert(
+                    tx100.clone(),
+                    100,
+                    account_balances.clone(),
+                    tx_cost.clone()
+                )
+                .await
+                .is_ok(),
             "should be able to insert nonce 100 transaction into mempool"
         );
         let tx101 = mock_tx(101, &signing_key_1, "test");
         assert!(
-            mempool.insert(tx101.clone(), 100).await.is_ok(),
+            mempool
+                .insert(
+                    tx101.clone(),
+                    100,
+                    account_balances.clone(),
+                    tx_cost.clone()
+                )
+                .await
+                .is_ok(),
             "should be able to insert nonce 101 transaction into mempool"
         );
 

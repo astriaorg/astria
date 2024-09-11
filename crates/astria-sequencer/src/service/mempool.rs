@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     pin::Pin,
     sync::Arc,
     task::{
@@ -11,6 +12,7 @@ use std::{
 use anyhow::Context as _;
 use astria_core::{
     generated::protocol::transactions::v1alpha1 as raw,
+    primitive::v1::asset::IbcPrefixed,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::SignedTransaction,
@@ -20,7 +22,6 @@ use cnidarium::Storage;
 use futures::{
     Future,
     FutureExt,
-    TryFutureExt as _,
 };
 use prost::Message as _;
 use tendermint::{
@@ -44,6 +45,7 @@ use crate::{
     address,
     app::ActionHandler as _,
     mempool::{
+        get_account_balances,
         Mempool as AppMempool,
         RemovalReason,
     },
@@ -214,27 +216,6 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         finished_check_chain_id.saturating_duration_since(finished_check_nonce),
     );
 
-    if let Err(e) = transaction::check_balance_mempool(&signed_tx, &state).await {
-        mempool
-            .remove_tx_invalid(
-                Arc::new(signed_tx),
-                RemovalReason::FailedCheckTx(e.to_string()),
-            )
-            .await;
-        metrics.increment_check_tx_removed_account_balance();
-        return response::CheckTx {
-            code: Code::Err(AbciErrorCode::INSUFFICIENT_FUNDS.value()),
-            info: "failed verifying account balance".into(),
-            log: e.to_string(),
-            ..response::CheckTx::default()
-        };
-    };
-
-    let finished_check_balance = Instant::now();
-    metrics.record_check_tx_duration_seconds_check_balance(
-        finished_check_balance.saturating_duration_since(finished_check_chain_id),
-    );
-
     if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
         match removal_reason {
             RemovalReason::Expired => {
@@ -275,26 +256,34 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
                     ..response::CheckTx::default()
                 };
             }
-            RemovalReason::FailedCheckTx(err) => {
-                return response::CheckTx {
-                    code: Code::Err(AbciErrorCode::TRANSACTION_FAILED.value()),
-                    info: "transaction failed check tx".into(),
-                    log: format!("transaction failed check tx because: {err}"),
-                    ..response::CheckTx::default()
-                };
-            }
         }
     };
 
     let finished_check_removed = Instant::now();
     metrics.record_check_tx_duration_seconds_check_removed(
-        finished_check_removed.saturating_duration_since(finished_check_balance),
+        finished_check_removed.saturating_duration_since(finished_check_chain_id),
     );
 
-    // tx is valid, push to mempool
-    let current_account_nonce = match state
+    // tx is valid, push to mempool with current state
+    let address = match state
         .try_base_prefixed(&signed_tx.verification_key().address_bytes())
-        .and_then(|address| state.get_account_nonce(address))
+        .await
+        .context("failed to generate address for signed transaction")
+    {
+        Err(err) => {
+            return response::CheckTx {
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
+                log: format!("failed to generate address because: {err:#}"),
+                ..response::CheckTx::default()
+            };
+        }
+        Ok(address) => address,
+    };
+
+    // fetch current account
+    let current_account_nonce = match state
+        .get_account_nonce(address)
         .await
         .context("failed fetching nonce for account")
     {
@@ -302,23 +291,76 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
             return response::CheckTx {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 info: AbciErrorCode::INTERNAL_ERROR.info(),
-                log: format!("transaction failed execution because: {err:#?}"),
+                log: format!("failed to fetch account nonce because: {err:#}"),
                 ..response::CheckTx::default()
             };
         }
         Ok(nonce) => nonce,
     };
 
+    let finished_convert_address = Instant::now();
+    metrics.record_check_tx_duration_seconds_convert_address(
+        finished_convert_address.saturating_duration_since(finished_check_removed),
+    );
+
+    // grab cost of transaction
+    let transaction_cost = match transaction::get_total_transaction_cost(&signed_tx, &state)
+        .await
+        .context("failed fetching cost of the transaction")
+    {
+        Err(err) => {
+            return response::CheckTx {
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
+                log: format!("failed to fetch cost of the transaction because: {err:#}"),
+                ..response::CheckTx::default()
+            };
+        }
+        Ok(transaction_cost) => transaction_cost,
+    };
+
+    let finished_fetch_tx_cost = Instant::now();
+    metrics.record_check_tx_duration_seconds_fetch_tx_cost(
+        finished_fetch_tx_cost.saturating_duration_since(finished_convert_address),
+    );
+
+    // grab current account's balances
+    let current_account_balance: HashMap<IbcPrefixed, u128> =
+        match get_account_balances(&state, address)
+            .await
+            .with_context(|| "failed fetching balances for account `{address}`")
+        {
+            Err(err) => {
+                return response::CheckTx {
+                    code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                    info: AbciErrorCode::INTERNAL_ERROR.info(),
+                    log: format!("failed to fetch account balances because: {err:#}"),
+                    ..response::CheckTx::default()
+                };
+            }
+            Ok(account_balance) => account_balance,
+        };
+
+    let finished_fetch_balances = Instant::now();
+    metrics.record_check_tx_duration_seconds_fetch_balances(
+        finished_fetch_balances.saturating_duration_since(finished_fetch_tx_cost),
+    );
+
     let actions_count = signed_tx.actions().len();
 
     if let Err(err) = mempool
-        .insert(Arc::new(signed_tx), current_account_nonce)
+        .insert(
+            Arc::new(signed_tx),
+            current_account_nonce,
+            current_account_balance,
+            transaction_cost,
+        )
         .await
     {
         return response::CheckTx {
             code: Code::Err(AbciErrorCode::TRANSACTION_INSERTION_FAILED.value()),
             info: "transaction insertion failed".into(),
-            log: format!("transaction insertion failed because: {err:#?}"),
+            log: format!("transaction insertion failed because: {err:#}"),
             ..response::CheckTx::default()
         };
     }
@@ -326,7 +368,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
     let mempool_len = mempool.len().await;
 
     metrics
-        .record_check_tx_duration_seconds_insert_to_app_mempool(finished_check_removed.elapsed());
+        .record_check_tx_duration_seconds_insert_to_app_mempool(finished_fetch_balances.elapsed());
     metrics.record_actions_per_transaction_in_mempool(actions_count);
     metrics.record_transaction_in_mempool_size_bytes(tx_len);
     metrics.set_transactions_in_mempool_total(mempool_len);

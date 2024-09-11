@@ -4,15 +4,21 @@ use std::{
         hash_map,
         BTreeMap,
         HashMap,
+        HashSet,
     },
     fmt,
-    future::Future,
     mem,
     sync::Arc,
 };
 
-use anyhow::Context;
-use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
+use anyhow::{
+    anyhow,
+    Context,
+};
+use astria_core::{
+    primitive::v1::asset::IbcPrefixed,
+    protocol::transaction::v1alpha1::SignedTransaction,
+};
 use tokio::time::{
     Duration,
     Instant,
@@ -20,6 +26,10 @@ use tokio::time::{
 use tracing::error;
 
 use super::RemovalReason;
+use crate::{
+    accounts,
+    transaction,
+};
 
 pub(super) type PendingTransactions = TransactionsContainer<PendingTransactionsForAccount>;
 pub(super) type ParkedTransactions<const MAX_TX_COUNT: usize> =
@@ -33,15 +43,17 @@ pub(super) struct TimemarkedTransaction {
     tx_hash: [u8; 32],
     time_first_seen: Instant,
     address: [u8; 20],
+    cost: HashMap<IbcPrefixed, u128>,
 }
 
 impl TimemarkedTransaction {
-    pub(super) fn new(signed_tx: Arc<SignedTransaction>) -> Self {
+    pub(super) fn new(signed_tx: Arc<SignedTransaction>, cost: HashMap<IbcPrefixed, u128>) -> Self {
         Self {
             tx_hash: signed_tx.id().get(),
             address: signed_tx.verification_key().address_bytes(),
             signed_tx,
             time_first_seen: Instant::now(),
+            cost,
         }
     }
 
@@ -59,6 +71,29 @@ impl TimemarkedTransaction {
         })
     }
 
+    pub(super) fn deduct_costs(
+        &self,
+        available_balances: &mut HashMap<IbcPrefixed, u128>,
+    ) -> anyhow::Result<()> {
+        self.cost.iter().try_for_each(|(denom, cost)| {
+            if *cost == 0 {
+                return Ok(());
+            }
+            let Some(current_balance) = available_balances.get_mut(denom) else {
+                return Err(anyhow!("account missing balance for {denom}"));
+            };
+            let Some(new_balance) = current_balance.checked_sub(*cost) else {
+                return Err(anyhow!("cost greater than account's balance for {denom}"));
+            };
+            *current_balance = new_balance;
+            Ok(())
+        })
+    }
+
+    fn set_cost_map(&mut self, cost_map: HashMap<IbcPrefixed, u128>) {
+        self.cost = cost_map;
+    }
+
     fn is_expired(&self, now: Instant, ttl: Duration) -> bool {
         now.saturating_duration_since(self.time_first_seen) > ttl
     }
@@ -69,6 +104,10 @@ impl TimemarkedTransaction {
 
     pub(super) fn address(&self) -> &[u8; 20] {
         &self.address
+    }
+
+    pub(super) fn cost(&self) -> &HashMap<IbcPrefixed, u128> {
+        &self.cost
     }
 }
 
@@ -128,6 +167,7 @@ pub(crate) enum InsertionError {
     NonceTaken,
     NonceGap,
     AccountSizeLimit,
+    AccountBalanceTooLow,
 }
 
 impl fmt::Display for InsertionError {
@@ -145,11 +185,15 @@ impl fmt::Display for InsertionError {
                 f,
                 "maximum number of pending transactions has been reached for the given account"
             ),
+            InsertionError::AccountBalanceTooLow => {
+                write!(f, "account does not have enough balance to cover costs")
+            }
         }
     }
 }
 
 /// Transactions for a single account where the sequence of nonces must not have any gaps.
+/// Contains logic to restrict total cost of contained transactions to inputted balances.
 #[derive(Clone, Default, Debug)]
 pub(super) struct PendingTransactionsForAccount {
     txs: BTreeMap<u32, TimemarkedTransaction>,
@@ -158,6 +202,67 @@ pub(super) struct PendingTransactionsForAccount {
 impl PendingTransactionsForAccount {
     fn highest_nonce(&self) -> Option<u32> {
         self.txs.last_key_value().map(|(nonce, _)| *nonce)
+    }
+
+    /// Removes and returns transactions that exceed the balances in `available_balances`.
+    fn find_demotables(
+        &mut self,
+        mut available_balances: HashMap<IbcPrefixed, u128>,
+    ) -> Vec<TimemarkedTransaction> {
+        let mut split_at = 0;
+
+        'outer: for (nonce, tx) in &self.txs {
+            // ensure we have enough balance to cover inclusion
+            for (denom, cost) in tx.cost() {
+                if *cost == 0 {
+                    continue;
+                }
+                match available_balances.entry(*denom) {
+                    hash_map::Entry::Occupied(mut entry) => {
+                        // try to subtract cost, if not enough balance, do not include
+                        let current_balance = entry.get_mut();
+                        *current_balance = match current_balance.checked_sub(*cost) {
+                            None => break 'outer,
+                            Some(new_value) => new_value,
+                        };
+                    }
+                    hash_map::Entry::Vacant(_) => {
+                        // not enough balance, do not include
+                        break 'outer;
+                    }
+                }
+            }
+
+            split_at = nonce.saturating_add(1);
+        }
+
+        // return all keys higher than split target
+        self.txs.split_off(&split_at).into_values().collect()
+    }
+
+    /// Returns remaining balances after accounting for costs of contained transactions.
+    ///
+    /// Note: assumes that the balances in `account_balances` are large enough
+    /// to cover costs for contained transactions. Will log an error if this is not true
+    /// but will not fail.
+    fn subtract_contained_costs(&self, account_balances: &mut HashMap<IbcPrefixed, u128>) {
+        // deduct costs from current account balances
+        self.txs.values().for_each(|tx| {
+            tx.cost.iter().for_each(|(denom, cost)| {
+                if *cost == 0 {
+                    return;
+                }
+                let Some(current_balance) = account_balances.get_mut(denom) else {
+                    error!("pending transactions has cost not in account balances");
+                    return;
+                };
+                let new_balance = current_balance.checked_sub(*cost).unwrap_or_else(|| {
+                    error!("pending transaction cost greater than available account balance");
+                    0
+                });
+                *current_balance = new_balance;
+            });
+        });
     }
 }
 
@@ -189,6 +294,19 @@ impl TransactionsForAccount for PendingTransactionsForAccount {
         // is equal to the account nonce
         self.txs().contains_key(&previous_nonce) || ttx.signed_tx.nonce() == current_account_nonce
     }
+
+    fn has_balance_to_cover(
+        &self,
+        ttx: &TimemarkedTransaction,
+        current_account_balances: &HashMap<IbcPrefixed, u128>,
+    ) -> bool {
+        let mut current_account_balances = current_account_balances.clone();
+        self.txs
+            .values()
+            .chain(std::iter::once(ttx))
+            .try_for_each(|ttx| ttx.deduct_costs(&mut current_account_balances))
+            .is_ok()
+    }
 }
 
 /// Transactions for a single account where gaps are allowed in the sequence of nonces, and with an
@@ -199,34 +317,34 @@ pub(super) struct ParkedTransactionsForAccount<const MAX_TX_COUNT: usize> {
 }
 
 impl<const MAX_TX_COUNT: usize> ParkedTransactionsForAccount<MAX_TX_COUNT> {
-    /// Returns contiguous transactions from front of queue starting from target nonce, removing the
-    /// transactions in the process.
+    /// Returns contiguous transactions from front of queue starting from `target_nonce`, removing
+    /// the transactions in the process. Will only return transactions if their cost is covered
+    /// by the `available_balances`.
+    ///
+    /// `target_nonce` should be the next nonce that the pending queue could add.
     ///
     /// Note: this function only operates on the front of the queue. If the target nonce is not at
-    /// the front, an error will be logged and nothing will be returned.
-    fn pop_front_contiguous(
+    /// the front, nothing will be returned.
+    fn find_promotables(
         &mut self,
         mut target_nonce: u32,
+        mut available_balances: HashMap<IbcPrefixed, u128>,
     ) -> impl Iterator<Item = TimemarkedTransaction> {
-        let mut split_at = 0;
-        for nonce in self.txs.keys() {
-            if *nonce == target_nonce {
-                let Some(next_target) = target_nonce.checked_add(1) else {
-                    // We've got contiguous nonces up to `u32::MAX`; return everything.
-                    return mem::take(&mut self.txs).into_values();
-                };
-                target_nonce = next_target;
-                split_at = next_target;
-            } else {
+        let mut split_at: u32 = 0;
+        for (nonce, ttx) in &self.txs {
+            if *nonce != target_nonce || ttx.deduct_costs(&mut available_balances).is_err() {
                 break;
             }
-        }
-
-        if split_at == 0 {
-            error!(target_nonce, "expected nonce to be present");
+            let Some(next_target) = target_nonce.checked_add(1) else {
+                // We've got contiguous nonces up to `u32::MAX`; return everything.
+                return mem::take(&mut self.txs).into_values();
+            };
+            target_nonce = next_target;
+            split_at = next_target;
         }
 
         let mut split_off = self.txs.split_off(&split_at);
+
         // The higher nonces are returned in `split_off`, but we want to keep these in `self.txs`,
         // so swap the two collections.
         mem::swap(&mut split_off, &mut self.txs);
@@ -250,6 +368,14 @@ impl<const MAX_TX_COUNT: usize> TransactionsForAccount
     }
 
     fn is_sequential_nonce_precondition_met(&self, _: &TimemarkedTransaction, _: u32) -> bool {
+        true
+    }
+
+    fn has_balance_to_cover(
+        &self,
+        _: &TimemarkedTransaction,
+        _: &HashMap<IbcPrefixed, u128>,
+    ) -> bool {
         true
     }
 }
@@ -278,10 +404,22 @@ pub(super) trait TransactionsForAccount: Default {
         current_account_nonce: u32,
     ) -> bool;
 
+    /// Returns `Ok` if adding `ttx` would not break the balance precondition, i.e. enough
+    /// balance to cover all transactions.
+    /// Note: some implementations may clone the `current_account_balance` hashmap.
+    fn has_balance_to_cover(
+        &self,
+        ttx: &TimemarkedTransaction,
+        current_account_balance: &HashMap<IbcPrefixed, u128>,
+    ) -> bool;
+
     /// Adds transaction to the container. Note: does NOT allow for nonce replacement.
+    ///
     /// Will fail if in `SequentialNonces` mode and adding the transaction would create a nonce gap.
+    /// Will fail if adding the transaction would exceed balance constraints.
     ///
     /// `current_account_nonce` should be the account's nonce in the latest chain state.
+    /// `current_account_balance` should be the account's balances in the lastest chain state.
     ///
     /// Note: if the account `current_account_nonce` ever decreases, this is a logic error
     /// and could mess up the validity of `SequentialNonces` containers.
@@ -289,6 +427,7 @@ pub(super) trait TransactionsForAccount: Default {
         &mut self,
         ttx: TimemarkedTransaction,
         current_account_nonce: u32,
+        current_account_balances: &HashMap<IbcPrefixed, u128>,
     ) -> Result<(), InsertionError> {
         if self.is_at_tx_limit() {
             return Err(InsertionError::AccountSizeLimit);
@@ -308,6 +447,10 @@ pub(super) trait TransactionsForAccount: Default {
 
         if !self.is_sequential_nonce_precondition_met(&ttx, current_account_nonce) {
             return Err(InsertionError::NonceGap);
+        }
+
+        if !self.has_balance_to_cover(&ttx, current_account_balances) {
+            return Err(InsertionError::AccountBalanceTooLow);
         }
 
         self.txs_mut().insert(ttx.signed_tx.nonce(), ttx);
@@ -334,21 +477,6 @@ pub(super) trait TransactionsForAccount: Default {
             .collect()
     }
 
-    /// Returns the transaction with the lowest nonce.
-    fn front(&self) -> Option<&TimemarkedTransaction> {
-        self.txs().first_key_value().map(|(_, ttx)| ttx)
-    }
-
-    /// Removes transactions below the given nonce. Returns the hashes of the removed transactions.
-    fn register_latest_account_nonce(
-        &mut self,
-        current_account_nonce: u32,
-    ) -> impl Iterator<Item = [u8; 32]> {
-        let mut split_off = self.txs_mut().split_off(&current_account_nonce);
-        mem::swap(&mut split_off, self.txs_mut());
-        split_off.into_values().map(|ttx| ttx.tx_hash)
-    }
-
     #[cfg(test)]
     fn contains_tx(&self, tx_hash: &[u8; 32]) -> bool {
         self.txs().values().any(|ttx| ttx.tx_hash == *tx_hash)
@@ -371,6 +499,41 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
         }
     }
 
+    /// Returns all of the currently tracked addresses.
+    pub(super) fn addresses(&self) -> HashSet<[u8; 20]> {
+        self.txs.keys().copied().collect()
+    }
+
+    /// Recosts transactions for an account.
+    ///
+    /// Logs an error if fails to recost a transaction.
+    pub(super) async fn recost_transactions<S: accounts::StateReadExt>(
+        &mut self,
+        address: [u8; 20],
+        state: &S,
+    ) {
+        let Some(account) = self.txs.get_mut(&address) else {
+            return;
+        };
+
+        for tx in account.txs_mut().values_mut() {
+            let new_cost = match transaction::get_total_transaction_cost(&tx.signed_tx, &state)
+                .await
+            {
+                Ok(res) => res,
+                Err(error) => {
+                    error!(
+                        address = %telemetry::display::base64(&address),
+                        "failed to calculate new transaction cost when cleaning accounts: {error:#}"
+                    );
+                    continue;
+                }
+            };
+
+            tx.set_cost_map(new_cost);
+        }
+    }
+
     /// Adds the transaction to the container.
     ///
     /// `current_account_nonce` should be the current nonce of the account associated with the
@@ -380,14 +543,17 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
         &mut self,
         ttx: TimemarkedTransaction,
         current_account_nonce: u32,
+        current_account_balances: &HashMap<IbcPrefixed, u128>,
     ) -> Result<(), InsertionError> {
         match self.txs.entry(*ttx.address()) {
             hash_map::Entry::Occupied(entry) => {
-                entry.into_mut().add(ttx, current_account_nonce)?;
+                entry
+                    .into_mut()
+                    .add(ttx, current_account_nonce, current_account_balances)?;
             }
             hash_map::Entry::Vacant(entry) => {
                 let mut txs = T::new();
-                txs.add(ttx, current_account_nonce)?;
+                txs.add(ttx, current_account_nonce, current_account_balances)?;
                 entry.insert(txs);
             }
         }
@@ -433,65 +599,43 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
             .unwrap_or_default()
     }
 
-    /// Cleans all of the accounts in the container. Removes any transactions with stale nonces and
-    /// evicts all transactions from accounts whose lowest transaction has expired.
-    ///
-    /// Returns all transactions that have been removed with the reason why they have been removed.
-    pub(super) async fn clean_accounts<F, O>(
+    /// Cleans the specified account of stale and expired transactions.
+    pub(super) fn clean_account_stale_expired(
         &mut self,
-        current_account_nonce_getter: &F,
-    ) -> Vec<([u8; 32], RemovalReason)>
-    where
-        F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
-    {
-        // currently just removes stale nonces and will clear accounts if the
-        // transactions are older than the TTL
-        let mut accounts_to_remove = Vec::new();
-        let mut removed_txs = Vec::new();
-        let now = Instant::now();
-        for (address, account_txs) in &mut self.txs {
-            // check if first tx is older than the TTL, if so, remove all transactions
-            if let Some(first_tx) = account_txs.front() {
-                if first_tx.is_expired(now, self.tx_ttl) {
-                    // first is stale, rest popped for invalidation
-                    removed_txs.push((first_tx.tx_hash, RemovalReason::Expired));
-                    removed_txs.extend(
-                        account_txs
-                            .txs()
-                            .values()
-                            .skip(1)
-                            .map(|ttx| (ttx.tx_hash, RemovalReason::LowerNonceInvalidated)),
-                    );
-                    account_txs.txs_mut().clear();
-                } else {
-                    // clean to newest nonce
-                    let current_account_nonce = match current_account_nonce_getter(*address).await {
-                        Ok(nonce) => nonce,
-                        Err(error) => {
-                            error!(
-                                address = %telemetry::display::base64(address),
-                                "failed to fetch nonce from state when cleaning accounts: {error:#}"
-                            );
-                            continue;
-                        }
-                    };
-                    removed_txs.extend(
-                        account_txs
-                            .register_latest_account_nonce(current_account_nonce)
-                            .map(|tx_hash| (tx_hash, RemovalReason::NonceStale)),
-                    );
-                }
-            }
+        address: [u8; 20],
+        current_account_nonce: u32,
+    ) -> Vec<([u8; 32], RemovalReason)> {
+        // Take the collection for this account out of `self` temporarily if it exists.
+        let Some(mut account_txs) = self.txs.remove(&address) else {
+            return Vec::new();
+        };
 
-            if account_txs.txs().is_empty() {
-                accounts_to_remove.push(*address);
+        // clear out stale nonces
+        let mut split_off = account_txs.txs_mut().split_off(&current_account_nonce);
+        mem::swap(&mut split_off, account_txs.txs_mut());
+        let mut removed_txs: Vec<([u8; 32], RemovalReason)> = split_off
+            .into_values()
+            .map(|ttx| (ttx.tx_hash, RemovalReason::NonceStale))
+            .collect();
+
+        // check for expired transactions
+        if let Some(first_tx) = account_txs.txs_mut().first_entry() {
+            if first_tx.get().is_expired(Instant::now(), self.tx_ttl) {
+                removed_txs.push((first_tx.get().tx_hash, RemovalReason::Expired));
+                removed_txs.extend(
+                    account_txs
+                        .txs()
+                        .values()
+                        .skip(1)
+                        .map(|ttx| (ttx.tx_hash, RemovalReason::LowerNonceInvalidated)),
+                );
+                account_txs.txs_mut().clear();
             }
         }
 
-        // remove empty accounts
-        for account in accounts_to_remove {
-            self.txs.remove(&account);
+        // Re-add the collection to `self` if it's not empty.
+        if !account_txs.txs().is_empty() {
+            let _ = self.txs.insert(address, account_txs);
         }
 
         removed_txs
@@ -514,6 +658,41 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
 }
 
 impl TransactionsContainer<PendingTransactionsForAccount> {
+    /// Remove and return transactions that should be moved from pending to parked
+    /// based on the specified account's current balances.
+    pub(super) fn find_demotables(
+        &mut self,
+        address: [u8; 20],
+        current_balances: &HashMap<IbcPrefixed, u128>,
+    ) -> Vec<TimemarkedTransaction> {
+        // Take the collection for this account out of `self` temporarily if it exists.
+        let Some(mut account) = self.txs.remove(&address) else {
+            return Vec::new();
+        };
+
+        let demoted = account.find_demotables(current_balances.clone());
+
+        // Re-add the collection to `self` if it's not empty.
+        if !account.txs().is_empty() {
+            let _ = self.txs.insert(address, account);
+        }
+
+        demoted
+    }
+
+    /// Returns remaining balances for an account after accounting for contained
+    /// transactions' costs.
+    pub(super) fn subtract_contained_costs(
+        &self,
+        address: [u8; 20],
+        mut current_balances: HashMap<IbcPrefixed, u128>,
+    ) -> HashMap<IbcPrefixed, u128> {
+        if let Some(account) = self.txs.get(&address) {
+            account.subtract_contained_costs(&mut current_balances);
+        };
+        current_balances
+    }
+
     /// Returns the highest nonce for an account.
     pub(super) fn pending_nonce(&self, address: [u8; 20]) -> Option<u32> {
         self.txs
@@ -523,14 +702,10 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
 
     /// Returns a copy of transactions and their hashes sorted by nonce difference and then time
     /// first seen.
-    pub(super) async fn builder_queue<F, O>(
+    pub(super) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
-        current_account_nonce_getter: F,
-    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>>
-    where
-        F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
-    {
+        state: &S,
+    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>> {
         // Used to hold the values in Vec for sorting.
         struct QueueEntry {
             tx: Arc<SignedTransaction>,
@@ -541,7 +716,8 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
         let mut queue = Vec::with_capacity(self.len());
         // Add all transactions to the queue.
         for (address, account_txs) in &self.txs {
-            let current_account_nonce = current_account_nonce_getter(*address)
+            let current_account_nonce = state
+                .get_account_nonce(*address)
                 .await
                 .context("failed to fetch account nonce for builder queue")?;
             for ttx in account_txs.txs.values() {
@@ -576,76 +752,28 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
 }
 
 impl<const MAX_TX_COUNT: usize> TransactionsContainer<ParkedTransactionsForAccount<MAX_TX_COUNT>> {
-    /// Removes and returns the transactions from the front of an account, similar to
-    /// `find_promotables`. Useful for when needing to promote transactions from a specific
-    /// account instead of all accounts.
-    pub(super) fn pop_front_account(
+    /// Removes and returns the transactions that can be promoted from parked to pending for
+    /// an account. Will only return sequential nonces from `target_nonce` whose costs are
+    /// covered by the `available_balance`.
+    pub(super) fn find_promotables(
         &mut self,
         account: &[u8; 20],
         target_nonce: u32,
+        available_balance: &HashMap<IbcPrefixed, u128>,
     ) -> Vec<TimemarkedTransaction> {
         // Take the collection for this account out of `self` temporarily.
         let Some(mut account_txs) = self.txs.remove(account) else {
             return Vec::new();
         };
 
-        let removed = account_txs.pop_front_contiguous(target_nonce);
+        let removed = account_txs.find_promotables(target_nonce, available_balance.clone());
 
         // Re-add the collection to `self` if it's not empty.
         if !account_txs.txs().is_empty() {
             let _ = self.txs.insert(*account, account_txs);
         }
+
         removed.collect()
-    }
-
-    /// Removes and returns transactions along with their account's current nonce that are lower
-    /// than or equal to that nonce. This is helpful when needing to promote transactions from
-    /// parked to pending during mempool maintenance.
-    pub(super) async fn find_promotables<F, O>(
-        &mut self,
-        current_account_nonce_getter: &F,
-    ) -> Vec<(TimemarkedTransaction, u32)>
-    where
-        F: Fn([u8; 20]) -> O,
-        O: Future<Output = anyhow::Result<u32>>,
-    {
-        let mut accounts_to_remove = Vec::new();
-        let mut promoted_txs = Vec::new();
-
-        for (address, account_txs) in &mut self.txs {
-            let current_account_nonce = match current_account_nonce_getter(*address).await {
-                Ok(nonce) => nonce,
-                Err(error) => {
-                    error!(
-                        address = %telemetry::display::base64(address),
-                        "failed to fetch nonce from state when finding promotables: {error:#}"
-                    );
-                    continue;
-                }
-            };
-
-            // find transactions that can be promoted
-            // note: can use current account nonce as target because this logic
-            // is only handling the case where transactions we didn't have in our
-            // local mempool were ran that would enable the parked transactions to
-            // be valid
-            promoted_txs.extend(
-                account_txs
-                    .pop_front_contiguous(current_account_nonce)
-                    .map(|ttx| (ttx, current_account_nonce)),
-            );
-
-            if account_txs.txs.is_empty() {
-                accounts_to_remove.push(*address);
-            }
-        }
-
-        // remove empty accounts
-        for account in accounts_to_remove {
-            self.txs.remove(&account);
-        }
-
-        promoted_txs
     }
 }
 
@@ -654,18 +782,38 @@ mod test {
     use astria_core::crypto::SigningKey;
 
     use super::*;
-    use crate::app::test_utils::mock_tx;
+    use crate::app::test_utils::{
+        denom_0,
+        denom_1,
+        denom_3,
+        mock_balances,
+        mock_state_getter,
+        mock_state_put_account_nonce,
+        mock_tx,
+        mock_tx_cost,
+        MOCK_SEQUENCE_FEE,
+    };
 
     const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
     const TX_TTL: Duration = Duration::from_secs(2);
 
-    fn mock_ttx(nonce: u32, signer: &SigningKey) -> TimemarkedTransaction {
-        TimemarkedTransaction::new(mock_tx(nonce, signer, "test"))
+    fn mock_ttx(
+        nonce: u32,
+        signer: &SigningKey,
+        denom_0_cost: u128,
+        denom_1_cost: u128,
+        denom_2_cost: u128,
+    ) -> TimemarkedTransaction {
+        TimemarkedTransaction::new(
+            mock_tx(nonce, signer, "test"),
+            mock_tx_cost(denom_0_cost, denom_1_cost, denom_2_cost),
+        )
     }
 
     #[test]
     fn transaction_priority_should_error_if_invalid() {
-        let ttx = TimemarkedTransaction::new(mock_tx(0, &[1; 32].into(), "test"));
+        let ttx =
+            TimemarkedTransaction::new(mock_tx(0, &[1; 32].into(), "test"), mock_tx_cost(0, 0, 0));
         let priority = ttx.priority(1);
 
         assert!(
@@ -781,26 +929,35 @@ mod test {
         let mut parked_txs = ParkedTransactionsForAccount::<MAX_PARKED_TXS_PER_ACCOUNT>::new();
 
         // transactions to add
-        let ttx_1 = mock_ttx(1, &[1; 32].into());
-        let ttx_3 = mock_ttx(3, &[1; 32].into());
-        let ttx_5 = mock_ttx(5, &[1; 32].into());
+        let ttx_1 = mock_ttx(1, &[1; 32].into(), 10, 0, 0);
+        let ttx_3 = mock_ttx(3, &[1; 32].into(), 0, 10, 0);
+        let ttx_5 = mock_ttx(5, &[1; 32].into(), 0, 0, 100);
+
+        // note account doesn't have balance to cover any of them
+        let account_balances = mock_balances(1, 1);
 
         let current_account_nonce = 2;
         parked_txs
-            .add(ttx_3.clone(), current_account_nonce)
+            .add(ttx_3.clone(), current_account_nonce, &account_balances)
             .unwrap();
         assert!(parked_txs.contains_tx(&ttx_3.tx_hash));
         assert_eq!(
-            parked_txs.add(ttx_3, current_account_nonce).unwrap_err(),
+            parked_txs
+                .add(ttx_3, current_account_nonce, &account_balances)
+                .unwrap_err(),
             InsertionError::AlreadyPresent
         );
 
         // add gapped transaction
-        parked_txs.add(ttx_5, current_account_nonce).unwrap();
+        parked_txs
+            .add(ttx_5, current_account_nonce, &account_balances)
+            .unwrap();
 
         // fail adding too low nonce
         assert_eq!(
-            parked_txs.add(ttx_1, current_account_nonce).unwrap_err(),
+            parked_txs
+                .add(ttx_1, current_account_nonce, &account_balances)
+                .unwrap_err(),
             InsertionError::NonceTooLow
         );
     }
@@ -810,19 +967,24 @@ mod test {
         let mut parked_txs = ParkedTransactionsForAccount::<2>::new();
 
         // transactions to add
-        let ttx_1 = mock_ttx(1, &[1; 32].into());
-        let ttx_3 = mock_ttx(3, &[1; 32].into());
-        let ttx_5 = mock_ttx(5, &[1; 32].into());
+        let ttx_1 = mock_ttx(1, &[1; 32].into(), 0, 0, 0);
+        let ttx_3 = mock_ttx(3, &[1; 32].into(), 0, 0, 0);
+        let ttx_5 = mock_ttx(5, &[1; 32].into(), 0, 0, 0);
+        let account_balances = mock_balances(1, 1);
 
         let current_account_nonce = 0;
         parked_txs
-            .add(ttx_3.clone(), current_account_nonce)
+            .add(ttx_3.clone(), current_account_nonce, &account_balances)
             .unwrap();
-        parked_txs.add(ttx_5, current_account_nonce).unwrap();
+        parked_txs
+            .add(ttx_5, current_account_nonce, &account_balances)
+            .unwrap();
 
         // fail with size limit hit
         assert_eq!(
-            parked_txs.add(ttx_1, current_account_nonce).unwrap_err(),
+            parked_txs
+                .add(ttx_1, current_account_nonce, &account_balances)
+                .unwrap_err(),
             InsertionError::AccountSizeLimit
         );
     }
@@ -831,17 +993,21 @@ mod test {
     fn pending_transactions_for_account_add() {
         let mut pending_txs = PendingTransactionsForAccount::new();
 
-        // transactions to add
-        let ttx_0 = mock_ttx(0, &[1; 32].into());
-        let ttx_1 = mock_ttx(1, &[1; 32].into());
-        let ttx_2 = mock_ttx(2, &[1; 32].into());
-        let ttx_3 = mock_ttx(3, &[1; 32].into());
+        // transactions to add, not testing balances in this unit test
+        let ttx_0 = mock_ttx(0, &[1; 32].into(), 0, 0, 0);
+        let ttx_1 = mock_ttx(1, &[1; 32].into(), 0, 0, 0);
+        let ttx_2 = mock_ttx(2, &[1; 32].into(), 0, 0, 0);
+        let ttx_3 = mock_ttx(3, &[1; 32].into(), 0, 0, 0);
+
+        let account_balances = mock_balances(1, 1);
 
         let current_account_nonce = 1;
 
         // too low nonces not added
         assert_eq!(
-            pending_txs.add(ttx_0, current_account_nonce).unwrap_err(),
+            pending_txs
+                .add(ttx_0, current_account_nonce, &account_balances)
+                .unwrap_err(),
             InsertionError::NonceTooLow
         );
         assert!(pending_txs.txs().is_empty());
@@ -849,7 +1015,7 @@ mod test {
         // too high nonces with empty container not added
         assert_eq!(
             pending_txs
-                .add(ttx_2.clone(), current_account_nonce)
+                .add(ttx_2.clone(), current_account_nonce, &account_balances)
                 .unwrap_err(),
             InsertionError::NonceGap
         );
@@ -857,21 +1023,104 @@ mod test {
 
         // add ok
         pending_txs
-            .add(ttx_1.clone(), current_account_nonce)
+            .add(ttx_1.clone(), current_account_nonce, &account_balances)
             .unwrap();
         assert_eq!(
-            pending_txs.add(ttx_1, current_account_nonce).unwrap_err(),
+            pending_txs
+                .add(ttx_1, current_account_nonce, &account_balances)
+                .unwrap_err(),
             InsertionError::AlreadyPresent
         );
 
         // gapped transaction not allowed
         assert_eq!(
-            pending_txs.add(ttx_3, current_account_nonce).unwrap_err(),
+            pending_txs
+                .add(ttx_3, current_account_nonce, &account_balances)
+                .unwrap_err(),
             InsertionError::NonceGap
         );
 
         // can add consecutive
-        pending_txs.add(ttx_2, current_account_nonce).unwrap();
+        pending_txs
+            .add(ttx_2, current_account_nonce, &account_balances)
+            .unwrap();
+    }
+
+    #[test]
+    fn pending_transactions_for_account_add_balances() {
+        let mut pending_txs = PendingTransactionsForAccount::new();
+
+        // transactions to add, testing balances
+        let ttx_0_too_expensive_0 = mock_ttx(0, &[1; 32].into(), 11, 0, 0);
+        let ttx_0_too_expensive_1 = mock_ttx(0, &[1; 32].into(), 0, 0, 1);
+        let ttx_0 = mock_ttx(0, &[1; 32].into(), 10, 0, 0);
+        let ttx_1 = mock_ttx(1, &[1; 32].into(), 0, 10, 0);
+        let ttx_2 = mock_ttx(2, &[1; 32].into(), 0, 8, 0);
+        let ttx_3 = mock_ttx(3, &[1; 32].into(), 0, 2, 0);
+        let ttx_4 = mock_ttx(4, &[1; 32].into(), 1, 0, 0);
+
+        let account_balances = mock_balances(10, 20);
+        let current_account_nonce = 0;
+
+        // transaction exceeding account balances (asset present in balances) not allowed
+        assert_eq!(
+            pending_txs
+                .add(
+                    ttx_0_too_expensive_0,
+                    current_account_nonce,
+                    &account_balances
+                )
+                .unwrap_err(),
+            InsertionError::AccountBalanceTooLow
+        );
+        assert!(pending_txs.txs().is_empty());
+
+        // transaction exceeding account balances (asset NOT present in balances) not allowed
+        assert_eq!(
+            pending_txs
+                .add(
+                    ttx_0_too_expensive_1,
+                    current_account_nonce,
+                    &account_balances
+                )
+                .unwrap_err(),
+            InsertionError::AccountBalanceTooLow
+        );
+        assert!(pending_txs.txs().is_empty());
+
+        // transactions under account cost allowed
+        pending_txs
+            .add(ttx_0, current_account_nonce, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_1.clone(), current_account_nonce, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_2.clone(), current_account_nonce, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_3.clone(), current_account_nonce, &account_balances)
+            .unwrap();
+
+        assert_eq!(pending_txs.txs().len(), 4);
+
+        // check that remaining balances are zero
+        let mut remaining_balances = account_balances.clone();
+        pending_txs.subtract_contained_costs(&mut remaining_balances);
+
+        for (asset, balance) in remaining_balances {
+            if asset != denom_3().to_ibc_prefixed() {
+                assert_eq!(balance, 0, "balance should have been consumed");
+            }
+        }
+
+        // cost exceeding when considering already contained transactions not allowed
+        assert_eq!(
+            pending_txs
+                .add(ttx_4, current_account_nonce, &account_balances)
+                .unwrap_err(),
+            InsertionError::AccountBalanceTooLow
+        );
     }
 
     #[test]
@@ -879,15 +1128,24 @@ mod test {
         let mut account_txs = PendingTransactionsForAccount::new();
 
         // transactions to add
-        let ttx_0 = mock_ttx(0, &[1; 32].into());
-        let ttx_1 = mock_ttx(1, &[1; 32].into());
-        let ttx_2 = mock_ttx(2, &[1; 32].into());
-        let ttx_3 = mock_ttx(3, &[1; 32].into());
+        let ttx_0 = mock_ttx(0, &[1; 32].into(), 0, 0, 0);
+        let ttx_1 = mock_ttx(1, &[1; 32].into(), 0, 0, 0);
+        let ttx_2 = mock_ttx(2, &[1; 32].into(), 0, 0, 0);
+        let ttx_3 = mock_ttx(3, &[1; 32].into(), 0, 0, 0);
+        let account_balances = mock_balances(1, 1);
 
-        account_txs.add(ttx_0.clone(), 0).unwrap();
-        account_txs.add(ttx_1.clone(), 0).unwrap();
-        account_txs.add(ttx_2.clone(), 0).unwrap();
-        account_txs.add(ttx_3.clone(), 0).unwrap();
+        account_txs
+            .add(ttx_0.clone(), 0, &account_balances)
+            .unwrap();
+        account_txs
+            .add(ttx_1.clone(), 0, &account_balances)
+            .unwrap();
+        account_txs
+            .add(ttx_2.clone(), 0, &account_balances)
+            .unwrap();
+        account_txs
+            .add(ttx_3.clone(), 0, &account_balances)
+            .unwrap();
 
         // remove from end will only remove end
         assert_eq!(
@@ -915,52 +1173,6 @@ mod test {
     }
 
     #[test]
-    fn parked_transactions_for_account_pop_front_contiguous() {
-        let mut parked_txs = ParkedTransactionsForAccount::<MAX_PARKED_TXS_PER_ACCOUNT>::new();
-
-        // transactions to add
-        let ttx_0 = mock_ttx(0, &[1; 32].into());
-        let ttx_2 = mock_ttx(2, &[1; 32].into());
-        let ttx_3 = mock_ttx(3, &[1; 32].into());
-        let ttx_4 = mock_ttx(4, &[1; 32].into());
-
-        parked_txs.add(ttx_0.clone(), 0).unwrap();
-        parked_txs.add(ttx_2.clone(), 0).unwrap();
-        parked_txs.add(ttx_3.clone(), 0).unwrap();
-        parked_txs.add(ttx_4.clone(), 0).unwrap();
-
-        // lowest nonce not target nonce is noop
-        assert_eq!(
-            parked_txs.pop_front_contiguous(2).count(),
-            0,
-            "no transaction should've been removed"
-        );
-        assert_eq!(parked_txs.txs().len(), 4);
-
-        // will remove single value
-        assert_eq!(
-            parked_txs
-                .pop_front_contiguous(0)
-                .map(|ttx| ttx.tx_hash)
-                .collect::<Vec<_>>(),
-            vec![ttx_0.tx_hash],
-            "single transaction should've been returned"
-        );
-        assert_eq!(parked_txs.txs().len(), 3);
-
-        // will remove multiple values
-        assert_eq!(
-            parked_txs
-                .pop_front_contiguous(2)
-                .map(|ttx| ttx.tx_hash)
-                .collect::<Vec<_>>(),
-            vec![ttx_2.tx_hash, ttx_3.tx_hash, ttx_4.tx_hash],
-            "multiple transaction should've been returned"
-        );
-        assert!(parked_txs.txs().is_empty());
-    }
-
-    #[test]
     fn pending_transactions_for_account_highest_nonce() {
         let mut pending_txs = PendingTransactionsForAccount::new();
 
@@ -971,13 +1183,14 @@ mod test {
         );
 
         // transactions to add
-        let ttx_0 = mock_ttx(0, &[1; 32].into());
-        let ttx_1 = mock_ttx(1, &[1; 32].into());
-        let ttx_2 = mock_ttx(2, &[1; 32].into());
+        let ttx_0 = mock_ttx(0, &[1; 32].into(), 0, 0, 0);
+        let ttx_1 = mock_ttx(1, &[1; 32].into(), 0, 0, 0);
+        let ttx_2 = mock_ttx(2, &[1; 32].into(), 0, 0, 0);
+        let account_balances = mock_balances(1, 1);
 
-        pending_txs.add(ttx_0, 0).unwrap();
-        pending_txs.add(ttx_1, 0).unwrap();
-        pending_txs.add(ttx_2, 0).unwrap();
+        pending_txs.add(ttx_0, 0, &account_balances).unwrap();
+        pending_txs.add(ttx_1, 0, &account_balances).unwrap();
+        pending_txs.add(ttx_2, 0, &account_balances).unwrap();
 
         // will return last transaction
         assert_eq!(
@@ -985,85 +1198,6 @@ mod test {
             Some(2),
             "highest nonce should be returned"
         );
-    }
-
-    #[test]
-    fn transactions_for_account_front() {
-        let mut parked_txs = ParkedTransactionsForAccount::<MAX_PARKED_TXS_PER_ACCOUNT>::new();
-
-        // no transactions ok
-        assert!(
-            parked_txs.front().is_none(),
-            "no transactions will return None"
-        );
-
-        // transactions to add
-        let ttx_0 = mock_ttx(0, &[1; 32].into());
-        let ttx_2 = mock_ttx(2, &[1; 32].into());
-
-        parked_txs.add(ttx_0.clone(), 0).unwrap();
-        parked_txs.add(ttx_2, 0).unwrap();
-
-        // will return first transaction
-        assert_eq!(
-            parked_txs.front().unwrap().tx_hash,
-            ttx_0.tx_hash,
-            "lowest transaction should be returned"
-        );
-    }
-
-    #[test]
-    fn transactions_for_account_register_latest_account_nonce() {
-        let mut parked_txs = ParkedTransactionsForAccount::<MAX_PARKED_TXS_PER_ACCOUNT>::new();
-
-        // transactions to add
-        let ttx_0 = mock_ttx(0, &[1; 32].into());
-        let ttx_2 = mock_ttx(2, &[1; 32].into());
-        let ttx_3 = mock_ttx(3, &[1; 32].into());
-        let ttx_4 = mock_ttx(4, &[1; 32].into());
-
-        parked_txs.add(ttx_0.clone(), 0).unwrap();
-        parked_txs.add(ttx_2.clone(), 0).unwrap();
-        parked_txs.add(ttx_3.clone(), 0).unwrap();
-        parked_txs.add(ttx_4.clone(), 0).unwrap();
-
-        // matching nonce will not be removed
-        assert_eq!(
-            parked_txs.register_latest_account_nonce(0).count(),
-            0,
-            "no transaction should've been removed"
-        );
-        assert_eq!(parked_txs.txs().len(), 4);
-
-        // fast forwarding to non existing middle nonce ok
-        assert_eq!(
-            parked_txs
-                .register_latest_account_nonce(1)
-                .collect::<Vec<_>>(),
-            vec![ttx_0.tx_hash],
-            "ttx_0 should've been removed"
-        );
-        assert_eq!(parked_txs.txs().len(), 3);
-
-        // fast forwarding to existing nonce ok
-        assert_eq!(
-            parked_txs
-                .register_latest_account_nonce(3)
-                .collect::<Vec<_>>(),
-            vec![ttx_2.tx_hash],
-            "one transaction should've been removed"
-        );
-        assert_eq!(parked_txs.txs().len(), 2);
-
-        // fast forwarding to much higher nonce ok
-        assert_eq!(
-            parked_txs
-                .register_latest_account_nonce(10)
-                .collect::<Vec<_>>(),
-            vec![ttx_3.tx_hash, ttx_4.tx_hash],
-            "two transactions should've been removed"
-        );
-        assert!(parked_txs.txs().is_empty());
     }
 
     #[test]
@@ -1077,11 +1211,13 @@ mod test {
         let signing_address_1 = signing_key_1.address_bytes();
 
         // transactions to add to accounts
-        let ttx_s0_0_0 = mock_ttx(0, &signing_key_0);
+        let ttx_s0_0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
         // Same nonce and signer as `ttx_s0_0_0`, but different rollup name, hence different tx.
-        let ttx_s0_0_1 = TimemarkedTransaction::new(mock_tx(0, &signing_key_0, "other"));
-        let ttx_s0_2_0 = mock_ttx(2, &signing_key_0);
-        let ttx_s1_0_0 = mock_ttx(0, &signing_key_1);
+        let ttx_s0_0_1 =
+            TimemarkedTransaction::new(mock_tx(0, &signing_key_0, "other"), mock_tx_cost(0, 0, 0));
+        let ttx_s0_2_0 = mock_ttx(2, &signing_key_0, 0, 0, 0);
+        let ttx_s1_0_0 = mock_ttx(0, &signing_key_1, 0, 0, 0);
+        let account_balances = mock_balances(1, 1);
 
         // transactions to add for account 1
 
@@ -1093,7 +1229,9 @@ mod test {
 
         // adding too low nonce shouldn't create account
         assert_eq!(
-            pending_txs.add(ttx_s0_0_0.clone(), 1).unwrap_err(),
+            pending_txs
+                .add(ttx_s0_0_0.clone(), 1, &account_balances)
+                .unwrap_err(),
             InsertionError::NonceTooLow,
             "shouldn't be able to add nonce too low transaction"
         );
@@ -1103,32 +1241,40 @@ mod test {
         );
 
         // add one transaction
-        pending_txs.add(ttx_s0_0_0.clone(), 0).unwrap();
+        pending_txs
+            .add(ttx_s0_0_0.clone(), 0, &account_balances)
+            .unwrap();
         assert_eq!(pending_txs.txs.len(), 1, "one account should exist");
 
         // re-adding transaction should fail
         assert_eq!(
-            pending_txs.add(ttx_s0_0_0, 0).unwrap_err(),
+            pending_txs
+                .add(ttx_s0_0_0, 0, &account_balances)
+                .unwrap_err(),
             InsertionError::AlreadyPresent,
             "re-adding same transaction should fail"
         );
 
         // nonce replacement fails
         assert_eq!(
-            pending_txs.add(ttx_s0_0_1, 0).unwrap_err(),
+            pending_txs
+                .add(ttx_s0_0_1, 0, &account_balances)
+                .unwrap_err(),
             InsertionError::NonceTaken,
             "nonce replacement not supported"
         );
 
         // nonce gaps not supported
         assert_eq!(
-            pending_txs.add(ttx_s0_2_0, 0).unwrap_err(),
+            pending_txs
+                .add(ttx_s0_2_0, 0, &account_balances)
+                .unwrap_err(),
             InsertionError::NonceGap,
             "gapped nonces in pending transactions not allowed"
         );
 
         // add transactions for account 2
-        pending_txs.add(ttx_s1_0_0, 0).unwrap();
+        pending_txs.add(ttx_s1_0_0, 0, &account_balances).unwrap();
 
         // check internal structures
         assert_eq!(pending_txs.txs.len(), 2, "two accounts should exist");
@@ -1156,10 +1302,11 @@ mod test {
         let signing_key_1 = SigningKey::from([2; 32]);
 
         // transactions to add to accounts
-        let ttx_s0_0 = mock_ttx(0, &signing_key_0);
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0);
-        let ttx_s1_0 = mock_ttx(0, &signing_key_1);
-        let ttx_s1_1 = mock_ttx(1, &signing_key_1);
+        let ttx_s0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
+        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
+        let ttx_s1_0 = mock_ttx(0, &signing_key_1, 0, 0, 0);
+        let ttx_s1_1 = mock_ttx(1, &signing_key_1, 0, 0, 0);
+        let account_balances = mock_balances(1, 1);
 
         // remove on empty returns the tx in Err variant.
         assert!(
@@ -1168,10 +1315,18 @@ mod test {
         );
 
         // add transactions
-        pending_txs.add(ttx_s0_0.clone(), 0).unwrap();
-        pending_txs.add(ttx_s0_1.clone(), 0).unwrap();
-        pending_txs.add(ttx_s1_0.clone(), 0).unwrap();
-        pending_txs.add(ttx_s1_1.clone(), 0).unwrap();
+        pending_txs
+            .add(ttx_s0_0.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s0_1.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s1_0.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s1_1.clone(), 0, &account_balances)
+            .unwrap();
 
         // remove should remove tx and higher
         assert_eq!(
@@ -1204,9 +1359,10 @@ mod test {
         let signing_key_1 = SigningKey::from([2; 32]);
 
         // transactions to add to accounts
-        let ttx_s0_0 = mock_ttx(0, &signing_key_0);
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0);
-        let ttx_s1_0 = mock_ttx(0, &signing_key_1);
+        let ttx_s0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
+        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
+        let ttx_s1_0 = mock_ttx(0, &signing_key_1, 0, 0, 0);
+        let account_balances = mock_balances(1, 1);
 
         // clear all on empty returns zero
         assert!(
@@ -1215,9 +1371,15 @@ mod test {
         );
 
         // add transactions
-        pending_txs.add(ttx_s0_0.clone(), 0).unwrap();
-        pending_txs.add(ttx_s0_1.clone(), 0).unwrap();
-        pending_txs.add(ttx_s1_0.clone(), 0).unwrap();
+        pending_txs
+            .add(ttx_s0_0.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s0_1.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s1_0.clone(), 0, &account_balances)
+            .unwrap();
 
         // clear should return all transactions
         assert_eq!(
@@ -1239,7 +1401,55 @@ mod test {
     }
 
     #[tokio::test]
-    async fn transactions_container_clean_accounts() {
+    async fn transactions_container_recost_transactions() {
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
+        let signing_key = SigningKey::from([1; 32]);
+        let signing_address = signing_key.address_bytes();
+        let account_balances = mock_balances(1, 1);
+
+        // transaction to add to account
+        let ttx = mock_ttx(0, &signing_key, 0, 0, 0);
+        pending_txs.add(ttx.clone(), 0, &account_balances).unwrap();
+        assert_eq!(
+            pending_txs
+                .txs
+                .get(&signing_address)
+                .unwrap()
+                .txs
+                .get(&0)
+                .unwrap()
+                .cost()
+                .get(&denom_0().to_ibc_prefixed())
+                .unwrap(),
+            &0,
+            "cost initially should be zero"
+        );
+
+        // recost transactions with mock state's tx costs
+        let state = mock_state_getter().await;
+        pending_txs
+            .recost_transactions(signing_address, &state)
+            .await;
+
+        // transaction should have been recosted
+        assert_eq!(
+            pending_txs
+                .txs
+                .get(&signing_address)
+                .unwrap()
+                .txs
+                .get(&0)
+                .unwrap()
+                .cost()
+                .get(&denom_0().to_ibc_prefixed())
+                .unwrap(),
+            &MOCK_SEQUENCE_FEE,
+            "cost should be updated to MOCK_SEQUENCE_FEE"
+        );
+    }
+
+    #[tokio::test]
+    async fn transactions_container_clean_account_stale_expired() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
         let signing_key_0 = SigningKey::from([1; 32]);
         let signing_address_0 = signing_key_0.address_bytes();
@@ -1249,45 +1459,52 @@ mod test {
         let signing_address_2 = signing_key_2.address_bytes();
 
         // transactions to add to accounts
-        let ttx_s0_0 = mock_ttx(0, &signing_key_0);
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0);
-        let ttx_s0_2 = mock_ttx(2, &signing_key_0);
-        let ttx_s1_0 = mock_ttx(0, &signing_key_1);
-        let ttx_s1_1 = mock_ttx(1, &signing_key_1);
-        let ttx_s1_2 = mock_ttx(2, &signing_key_1);
-        let ttx_s2_0 = mock_ttx(0, &signing_key_2);
-        let ttx_s2_1 = mock_ttx(1, &signing_key_2);
-        let ttx_s2_2 = mock_ttx(2, &signing_key_2);
+        let ttx_s0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
+        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
+        let ttx_s0_2 = mock_ttx(2, &signing_key_0, 0, 0, 0);
+        let ttx_s1_0 = mock_ttx(0, &signing_key_1, 0, 0, 0);
+        let ttx_s1_1 = mock_ttx(1, &signing_key_1, 0, 0, 0);
+        let ttx_s1_2 = mock_ttx(2, &signing_key_1, 0, 0, 0);
+        let ttx_s2_0 = mock_ttx(0, &signing_key_2, 0, 0, 0);
+        let ttx_s2_1 = mock_ttx(1, &signing_key_2, 0, 0, 0);
+        let ttx_s2_2 = mock_ttx(2, &signing_key_2, 0, 0, 0);
+        let account_balances = mock_balances(1, 1);
 
         // add transactions
-        pending_txs.add(ttx_s0_0.clone(), 0).unwrap();
-        pending_txs.add(ttx_s0_1.clone(), 0).unwrap();
-        pending_txs.add(ttx_s0_2.clone(), 0).unwrap();
-        pending_txs.add(ttx_s1_0.clone(), 0).unwrap();
-        pending_txs.add(ttx_s1_1.clone(), 0).unwrap();
-        pending_txs.add(ttx_s1_2.clone(), 0).unwrap();
-        pending_txs.add(ttx_s2_0.clone(), 0).unwrap();
-        pending_txs.add(ttx_s2_1.clone(), 0).unwrap();
-        pending_txs.add(ttx_s2_2.clone(), 0).unwrap();
+        pending_txs
+            .add(ttx_s0_0.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s0_1.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s0_2.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s1_0.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s1_1.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s1_2.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s2_0.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s2_1.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s2_2.clone(), 0, &account_balances)
+            .unwrap();
 
-        // current nonce getter
+        // clean accounts
         // should pop none from signing_address_0, one from signing_address_1, and all from
         // signing_address_2
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address_0 {
-                Ok(0)
-            } else if address == signing_address_1 {
-                Ok(1)
-            } else if address == signing_address_2 {
-                Ok(4)
-            } else {
-                Err(anyhow::anyhow!("invalid address"))
-            }
-        };
-
-        let removed_txs = pending_txs
-            .clean_accounts(&current_account_nonce_getter)
-            .await;
+        let mut removed_txs = pending_txs.clean_account_stale_expired(signing_address_0, 0);
+        removed_txs.extend(pending_txs.clean_account_stale_expired(signing_address_1, 1));
+        removed_txs.extend(pending_txs.clean_account_stale_expired(signing_address_2, 4));
 
         assert_eq!(
             removed_txs.len(),
@@ -1329,33 +1546,31 @@ mod test {
         let signing_address_0 = signing_key_0.address_bytes();
         let signing_key_1 = SigningKey::from([2; 32]);
         let signing_address_1 = signing_key_1.address_bytes();
+        let account_balances = mock_balances(1, 1);
 
         // transactions to add to accounts
-        let ttx_s0_0 = mock_ttx(0, &signing_key_0);
+        let ttx_s0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
 
         // pass time to make first transaction stale
         tokio::time::advance(TX_TTL.saturating_add(Duration::from_nanos(1))).await;
 
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0);
-        let ttx_s1_0 = mock_ttx(0, &signing_key_1);
+        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
+        let ttx_s1_0 = mock_ttx(0, &signing_key_1, 0, 0, 0);
 
         // add transactions
-        pending_txs.add(ttx_s0_0.clone(), 0).unwrap();
-        pending_txs.add(ttx_s0_1.clone(), 0).unwrap();
-        pending_txs.add(ttx_s1_0.clone(), 0).unwrap();
+        pending_txs
+            .add(ttx_s0_0.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s0_1.clone(), 0, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s1_0.clone(), 0, &account_balances)
+            .unwrap();
 
-        // current nonce getter
-        // all nonces should be valid
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address_0 || address == signing_address_1 {
-                return Ok(0);
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
-
-        let removed_txs = pending_txs
-            .clean_accounts(&current_account_nonce_getter)
-            .await;
+        // clean accounts, all nonces should be valid
+        let mut removed_txs = pending_txs.clean_account_stale_expired(signing_address_0, 0);
+        removed_txs.extend(pending_txs.clean_account_stale_expired(signing_address_1, 0));
 
         assert_eq!(
             removed_txs.len(),
@@ -1394,13 +1609,14 @@ mod test {
 
         let signing_key_1 = SigningKey::from([2; 32]);
         let signing_address_1 = signing_key_1.address_bytes();
+        let account_balances = mock_balances(1, 1);
 
         // transactions to add for account 0
-        let ttx_s0_0 = mock_ttx(0, &signing_key_0);
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0);
+        let ttx_s0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
+        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
 
-        pending_txs.add(ttx_s0_0, 0).unwrap();
-        pending_txs.add(ttx_s0_1, 0).unwrap();
+        pending_txs.add(ttx_s0_0, 0, &account_balances).unwrap();
+        pending_txs.add(ttx_s0_1, 0, &account_balances).unwrap();
 
         // empty account returns zero
         assert!(
@@ -1425,32 +1641,34 @@ mod test {
         let signing_address_1 = signing_key_1.address_bytes();
 
         // transactions to add to accounts
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0);
-        let ttx_s1_1 = mock_ttx(1, &signing_key_1);
-        let ttx_s1_2 = mock_ttx(2, &signing_key_1);
-        let ttx_s1_3 = mock_ttx(3, &signing_key_1);
+        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
+        let ttx_s1_1 = mock_ttx(1, &signing_key_1, 0, 0, 0);
+        let ttx_s1_2 = mock_ttx(2, &signing_key_1, 0, 0, 0);
+        let ttx_s1_3 = mock_ttx(3, &signing_key_1, 0, 0, 0);
+        let account_balances = mock_balances(1, 1);
 
         // add transactions
-        pending_txs.add(ttx_s0_1.clone(), 1).unwrap();
-        pending_txs.add(ttx_s1_1.clone(), 1).unwrap();
-        pending_txs.add(ttx_s1_2.clone(), 1).unwrap();
-        pending_txs.add(ttx_s1_3.clone(), 1).unwrap();
+        pending_txs
+            .add(ttx_s0_1.clone(), 1, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s1_1.clone(), 1, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s1_2.clone(), 1, &account_balances)
+            .unwrap();
+        pending_txs
+            .add(ttx_s1_3.clone(), 1, &account_balances)
+            .unwrap();
 
-        // current nonce getter
         // should return all transactions from signing_key_0 and last two from signing_key_1
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address_0 {
-                Ok(1)
-            } else if address == signing_address_1 {
-                Ok(2)
-            } else {
-                Err(anyhow::anyhow!("invalid address"))
-            }
-        };
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(&mut mock_state, signing_address_0, 1);
+        mock_state_put_account_nonce(&mut mock_state, signing_address_1, 2);
 
         // get builder queue
         let builder_queue = pending_txs
-            .builder_queue(&current_account_nonce_getter)
+            .builder_queue(&mock_state)
             .await
             .expect("building builders queue should work");
         assert_eq!(
@@ -1485,100 +1703,152 @@ mod test {
     }
 
     #[tokio::test]
-    async fn parked_transactions_pop_front_account() {
+    async fn parked_transactions_find_promotables() {
         let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL);
-        let signing_key_0 = SigningKey::from([1; 32]);
-        let signing_address_0 = signing_key_0.address_bytes();
-        let signing_key_1 = SigningKey::from([2; 32]);
-        let signing_address_1 = signing_key_1.address_bytes();
+        let signing_key = SigningKey::from([1; 32]);
+        let signing_address = signing_key.address_bytes();
 
         // transactions to add to accounts
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0);
-        let ttx_s1_1 = mock_ttx(1, &signing_key_1);
-        let ttx_s1_2 = mock_ttx(2, &signing_key_1);
-        let ttx_s1_4 = mock_ttx(4, &signing_key_1);
+        let ttx_1 = mock_ttx(1, &signing_key, 10, 0, 0);
+        let ttx_2 = mock_ttx(2, &signing_key, 5, 2, 0);
+        let ttx_3 = mock_ttx(3, &signing_key, 1, 0, 0);
+        let remaining_balances = mock_balances(15, 2);
 
         // add transactions
-        parked_txs.add(ttx_s0_1.clone(), 0).unwrap();
-        parked_txs.add(ttx_s1_1.clone(), 0).unwrap();
-        parked_txs.add(ttx_s1_2.clone(), 0).unwrap();
-        parked_txs.add(ttx_s1_4.clone(), 0).unwrap();
+        parked_txs
+            .add(ttx_1.clone(), 0, &remaining_balances)
+            .unwrap();
+        parked_txs
+            .add(ttx_2.clone(), 0, &remaining_balances)
+            .unwrap();
+        parked_txs
+            .add(ttx_3.clone(), 0, &remaining_balances)
+            .unwrap();
 
-        // pop from account 1
-        assert_eq!(
-            parked_txs.pop_front_account(&signing_address_0, 1).len(),
-            1,
-            "one transactions should've been popped"
-        );
-        assert_eq!(parked_txs.txs.len(), 1, "empty accounts should be removed");
+        // none should be returned on nonce gap
+        let promotables = parked_txs.find_promotables(&signing_address, 0, &remaining_balances);
+        assert_eq!(promotables.len(), 0);
 
-        // pop from account 2
-        assert_eq!(
-            parked_txs.pop_front_account(&signing_address_1, 1).len(),
-            2,
-            "two transactions should've been popped"
-        );
-        assert_eq!(
-            parked_txs.txs.len(),
-            1,
-            "non empty accounts should not be removed"
-        );
-
+        // only first two transactions should be returned
+        let promotables = parked_txs.find_promotables(&signing_address, 1, &remaining_balances);
+        assert_eq!(promotables.len(), 2);
+        assert_eq!(promotables[0].nonce(), 1);
+        assert_eq!(promotables[1].nonce(), 2);
         assert_eq!(
             parked_txs.len(),
             1,
-            "1 transactions should be remaining from original 4"
+            "promoted transactions should've been removed from container"
         );
-        assert!(parked_txs.contains_tx(&ttx_s1_4.tx_hash));
+
+        // empty account should be removed
+        // remove last
+        parked_txs.find_promotables(&signing_address, 3, &remaining_balances);
+        assert_eq!(
+            parked_txs.addresses().len(),
+            0,
+            "empty account should've been removed from container"
+        );
     }
 
     #[tokio::test]
-    async fn parked_transactions_find_promotables() {
-        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL);
-        let signing_key_0 = SigningKey::from([1; 32]);
-        let signing_address_0 = signing_key_0.address_bytes();
-        let signing_key_1 = SigningKey::from([2; 32]);
-        let signing_address_1 = signing_key_1.address_bytes();
+    async fn pending_transactions_find_demotables() {
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
+        let signing_key = SigningKey::from([1; 32]);
+        let signing_address = signing_key.address_bytes();
 
-        // transactions to add to accounts
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0);
-        let ttx_s0_2 = mock_ttx(2, &signing_key_0);
-        let ttx_s0_3 = mock_ttx(3, &signing_key_0);
-        let ttx_s1_1 = mock_ttx(1, &signing_key_1);
-        let ttx_s1_2 = mock_ttx(2, &signing_key_1);
-        let ttx_s1_4 = mock_ttx(4, &signing_key_1);
+        // transactions to add to account
+        let ttx_1 = mock_ttx(1, &signing_key, 5, 0, 0);
+        let ttx_2 = mock_ttx(2, &signing_key, 0, 5, 0);
+        let ttx_3 = mock_ttx(3, &signing_key, 5, 0, 0);
+        let ttx_4 = mock_ttx(4, &signing_key, 0, 5, 0);
+        let account_balances_full = mock_balances(100, 100);
 
         // add transactions
-        parked_txs.add(ttx_s0_1.clone(), 0).unwrap();
-        parked_txs.add(ttx_s0_2.clone(), 0).unwrap();
-        parked_txs.add(ttx_s0_3.clone(), 0).unwrap();
-        parked_txs.add(ttx_s1_1.clone(), 0).unwrap();
-        parked_txs.add(ttx_s1_2.clone(), 0).unwrap();
-        parked_txs.add(ttx_s1_4.clone(), 0).unwrap();
+        pending_txs
+            .add(ttx_1.clone(), 1, &account_balances_full)
+            .unwrap();
+        pending_txs
+            .add(ttx_2.clone(), 1, &account_balances_full)
+            .unwrap();
+        pending_txs
+            .add(ttx_3.clone(), 1, &account_balances_full)
+            .unwrap();
+        pending_txs
+            .add(ttx_4.clone(), 1, &account_balances_full)
+            .unwrap();
 
-        // current nonce getter
-        // should pop all from signing_address_0 and two from signing_address_1
-        let current_account_nonce_getter = |address: [u8; 20]| async move {
-            if address == signing_address_0 || address == signing_address_1 {
-                return Ok(1);
-            }
-            Err(anyhow::anyhow!("invalid address"))
-        };
+        // demote none
+        let demotables: Vec<TimemarkedTransaction> =
+            pending_txs.find_demotables(signing_address, &account_balances_full);
+        assert_eq!(demotables.len(), 0);
 
+        // demote last
+        let account_balances_demotion = mock_balances(100, 9);
+        let demotables = pending_txs.find_demotables(signing_address, &account_balances_demotion);
+        assert_eq!(demotables.len(), 1);
+        assert_eq!(demotables[0].nonce(), 4);
+
+        // demote multiple
+        let account_balances_demotion = mock_balances(100, 4);
+        let demotables = pending_txs.find_demotables(signing_address, &account_balances_demotion);
+        assert_eq!(demotables.len(), 2);
+        assert_eq!(demotables[0].nonce(), 2);
+
+        // demote rest
+        let account_balances_demotion = mock_balances(0, 5);
+        let demotables = pending_txs.find_demotables(signing_address, &account_balances_demotion);
+        assert_eq!(demotables.len(), 1);
+        assert_eq!(demotables[0].nonce(), 1);
+
+        // empty account removed
         assert_eq!(
-            parked_txs
-                .find_promotables(&current_account_nonce_getter)
-                .await
-                .len(),
-            5,
-            "five transactions should've been popped"
+            pending_txs.addresses().len(),
+            0,
+            "empty account should've been removed from container"
         );
-        assert_eq!(parked_txs.txs.len(), 1, "empty accounts should be removed");
+    }
+
+    #[tokio::test]
+    async fn pending_transactions_remaining_account_balances() {
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
+        let signing_key = SigningKey::from([1; 32]);
+        let signing_address = signing_key.address_bytes();
+
+        // transactions to add to account
+        let ttx_1 = mock_ttx(1, &signing_key, 6, 0, 0);
+        let ttx_2 = mock_ttx(2, &signing_key, 0, 5, 0);
+        let ttx_3 = mock_ttx(3, &signing_key, 6, 0, 0);
+        let ttx_4 = mock_ttx(4, &signing_key, 0, 5, 0);
+        let account_balances_full = mock_balances(100, 100);
+
+        // add transactions
+        pending_txs
+            .add(ttx_1.clone(), 1, &account_balances_full)
+            .unwrap();
+        pending_txs
+            .add(ttx_2.clone(), 1, &account_balances_full)
+            .unwrap();
+        pending_txs
+            .add(ttx_3.clone(), 1, &account_balances_full)
+            .unwrap();
+        pending_txs
+            .add(ttx_4.clone(), 1, &account_balances_full)
+            .unwrap();
+
+        // get balances
+        let remaining_balances =
+            pending_txs.subtract_contained_costs(signing_address, account_balances_full);
         assert_eq!(
-            parked_txs.len(),
-            1,
-            "1 transactions should be remaining from original 6"
+            remaining_balances
+                .get(&denom_0().to_ibc_prefixed())
+                .unwrap(),
+            &88
         );
-        assert!(parked_txs.contains_tx(&ttx_s1_4.tx_hash));
+        assert_eq!(
+            remaining_balances
+                .get(&denom_1().to_ibc_prefixed())
+                .unwrap(),
+            &90
+        );
     }
 }
