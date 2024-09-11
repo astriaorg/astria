@@ -15,6 +15,7 @@ use astria_core::{
     protocol::transaction::v1alpha1::SignedTransaction,
 };
 pub(crate) use state_ext::{
+    AssetBalance,
     StateReadExt,
     StateWriteExt,
 };
