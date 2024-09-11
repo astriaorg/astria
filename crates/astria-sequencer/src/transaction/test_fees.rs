@@ -481,13 +481,13 @@ async fn correct_bridge_lock_fee_payment_and_event_with_fee_change() {
         &bridge_lock_action,
         fees.transfer_base_fee,
         fees.bridge_lock_byte_cost_multiplier,
-        0
+        0,
     );
     let expected_fees_bridge_lock_action_2 = estimate_bridge_lock_fees(
         &bridge_lock_action,
         fees.transfer_base_fee + 1,
         fees.bridge_lock_byte_cost_multiplier + 1,
-        2
+        2,
     );
 
     let (_, fee_payment_map) = get_and_report_tx_fees(&tx, &state_tx, true).await.unwrap();
