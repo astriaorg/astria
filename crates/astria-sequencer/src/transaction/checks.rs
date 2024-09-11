@@ -59,29 +59,43 @@ pub(crate) async fn check_chain_id_mempool<S: StateRead>(
     Ok(())
 }
 
-#[instrument(skip_all)]
-pub(crate) async fn check_balance_mempool<S: StateRead>(
-    tx: &SignedTransaction,
-    state: &S,
-) -> Result<()> {
-    check_balance_and_get_fees(tx, state, false)
-        .await
-        .wrap_err("failed to check balance for total fees and transfers")?;
-    Ok(())
-}
-
 // Checks that the account has enough balance to cover the total fees and transferred values
 // for all actions in the transaction.
 #[instrument(skip_all)]
 pub(crate) async fn check_balance_and_get_fees<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
-    return_payment_map: bool,
-) -> Result<Option<PaymentMap>> {
-    let (mut cost_by_asset, payment_map_option) =
-        get_and_report_tx_fees(tx.unsigned_transaction(), state, return_payment_map)
+) -> Result<()> {
+    let cost_by_asset = get_total_transaction_cost(tx, state)
+        .await
+        .context("failed to get transaction costs")?;
+
+    for (asset, total_fee) in cost_by_asset {
+        let balance = state
+            .get_account_balance(tx, asset)
             .await
-            .wrap_err("failed to get fees for transaction")?;
+            .context("failed to get account balance")?;
+        ensure!(
+            balance >= total_fee,
+            "insufficient funds for asset {}",
+            asset
+        );
+    }
+
+    Ok(())
+}
+
+// Returns the total cost of the transaction (fees and transferred values for all actions in the
+// transaction).
+#[instrument(skip_all)]
+pub(crate) async fn get_total_transaction_cost<S: StateRead>(
+    tx: &SignedTransaction,
+    state: &S,
+) -> Result<HashMap<asset::IbcPrefixed, u128>> {
+    let mut cost_by_asset: HashMap<asset::IbcPrefixed, u128> =
+        get_fees_for_transaction(tx.unsigned_transaction(), state)
+            .await
+            .context("failed to get fees for transaction")?;
 
     // add values transferred within the tx to the cost
     for action in tx.actions() {
@@ -128,19 +142,7 @@ pub(crate) async fn check_balance_and_get_fees<S: StateRead>(
         }
     }
 
-    for (asset, total_fee) in cost_by_asset {
-        let balance = state
-            .get_account_balance(tx, asset)
-            .await
-            .wrap_err("failed to get account balance")?;
-        ensure!(
-            balance >= total_fee,
-            "insufficient funds for asset {}",
-            asset
-        );
-    }
-
-    Ok(payment_map_option)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -182,7 +184,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn check_balance_mempool_ok() {
+    async fn check_balance_total_fees_transfers_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
@@ -250,13 +252,13 @@ mod tests {
         };
 
         let signed_tx = tx.into_signed(&alice);
-        check_balance_mempool(&signed_tx, &state_tx)
+        check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
             .await
             .expect("sufficient balance for all actions");
     }
 
     #[tokio::test]
-    async fn check_balance_mempool_insufficient_other_asset_balance() {
+    async fn check_balance_total_fees_and_transfers_insufficient_other_asset_balance() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
@@ -313,7 +315,7 @@ mod tests {
         };
 
         let signed_tx = tx.into_signed(&alice);
-        let err = check_balance_mempool(&signed_tx, &state_tx)
+        let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
             .await
             .err()
             .unwrap();

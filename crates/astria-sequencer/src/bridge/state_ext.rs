@@ -9,6 +9,7 @@ use astria_core::{
         asset,
         Address,
         RollupId,
+        TransactionId,
         ADDRESS_LEN,
     },
     sequencerblock::v1alpha1::block::Deposit,
@@ -154,7 +155,7 @@ fn bridge_account_withdrawal_event_storage_key<T: AddressBytes>(
     )
 }
 
-fn last_transaction_hash_for_bridge_account_storage_key<T: AddressBytes>(address: &T) -> Vec<u8> {
+fn last_transaction_id_for_bridge_account_storage_key<T: AddressBytes>(address: &T) -> Vec<u8> {
     format!(
         "{}/lasttx",
         BridgeAccountKey {
@@ -368,14 +369,12 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_last_transaction_hash_for_bridge_account(
+    async fn get_last_transaction_id_for_bridge_account(
         &self,
         address: &Address,
-    ) -> Result<Option<[u8; 32]>> {
+    ) -> Result<Option<TransactionId>> {
         let Some(tx_hash_bytes) = self
-            .nonverifiable_get_raw(&last_transaction_hash_for_bridge_account_storage_key(
-                address,
-            ))
+            .nonverifiable_get_raw(&last_transaction_id_for_bridge_account_storage_key(address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw last transaction hash for bridge account from state")?
@@ -383,10 +382,11 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             return Ok(None);
         };
 
-        let tx_hash = tx_hash_bytes
+        let tx_hash: [u8; 32] = tx_hash_bytes
             .try_into()
             .expect("all transaction hashes stored should be 32 bytes; this is a bug");
-        Ok(Some(tx_hash))
+
+        Ok(Some(TransactionId::new(tx_hash)))
     }
 }
 
@@ -552,14 +552,14 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_last_transaction_hash_for_bridge_account<T: AddressBytes>(
+    fn put_last_transaction_id_for_bridge_account<T: AddressBytes>(
         &mut self,
         address: T,
-        tx_hash: &[u8; 32],
+        tx_id: &TransactionId,
     ) {
         self.nonverifiable_put_raw(
-            last_transaction_hash_for_bridge_account_storage_key(&address),
-            tx_hash.to_vec(),
+            last_transaction_id_for_bridge_account_storage_key(&address),
+            tx_id.get().to_vec(),
         );
     }
 }
@@ -573,6 +573,7 @@ mod test {
             asset,
             Address,
             RollupId,
+            TransactionId,
         },
         sequencerblock::v1alpha1::block::Deposit,
     };
@@ -844,6 +845,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)] // allow: it's a test
     async fn get_deposit_events() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
@@ -860,6 +862,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            TransactionId::new([0; 32]),
+            0,
         );
 
         let mut deposits = vec![deposit.clone()];
@@ -895,6 +899,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            TransactionId::new([0; 32]),
+            1,
         );
         deposits.append(&mut vec![deposit.clone()]);
         state
@@ -929,6 +935,8 @@ mod test {
             amount,
             asset,
             destination_chain_address.to_string(),
+            TransactionId::new([0; 32]),
+            2,
         );
         let deposits_1 = vec![deposit.clone()];
         state
@@ -972,6 +980,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            TransactionId::new([0; 32]),
+            0,
         );
 
         // write same rollup id twice
@@ -994,6 +1004,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            TransactionId::new([0; 32]),
+            1,
         );
         state
             .put_deposit_event(deposit)
@@ -1043,6 +1055,8 @@ mod test {
             amount,
             asset,
             destination_chain_address.to_string(),
+            TransactionId::new([0; 32]),
+            0,
         );
 
         let deposits = vec![deposit.clone()];
@@ -1098,6 +1112,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            TransactionId::new([0; 32]),
+            0,
         );
 
         // write to first
@@ -1114,6 +1130,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            TransactionId::new([0; 32]),
+            1,
         );
         let deposits_1 = vec![deposit.clone()];
 
@@ -1190,6 +1208,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            TransactionId::new([0; 32]),
+            0,
         );
 
         // write to first
@@ -1206,6 +1226,8 @@ mod test {
             amount,
             asset.clone(),
             destination_chain_address.to_string(),
+            TransactionId::new([0; 32]),
+            1,
         );
         state
             .put_deposit_event(deposit)

@@ -22,9 +22,9 @@ use astria_eyre::{
 };
 pub(crate) use checks::{
     check_balance_and_get_fees,
-    check_balance_mempool,
     check_chain_id_mempool,
     check_nonce_mempool,
+    get_total_transaction_cost,
 };
 use cnidarium::StateWrite;
 // Conditional to quiet warnings. This object is used throughout the codebase,
@@ -162,7 +162,7 @@ impl ActionHandler for SignedTransaction {
         // Add the current signed transaction into the ephemeral state in case
         // downstream actions require access to it.
         // XXX: This must be deleted at the end of `check_stateful`.
-        state.put_current_source(self);
+        let mut transaction_context = state.put_transaction_context(self);
 
         // Transactions must match the chain id of the node.
         let chain_id = state.get_chain_id().await?;
@@ -196,9 +196,9 @@ impl ActionHandler for SignedTransaction {
             .wrap_err("failed to check account rollup id")?
             .is_some()
         {
-            state.put_last_transaction_hash_for_bridge_account(
+            state.put_last_transaction_id_for_bridge_account(
                 self,
-                &self.sha256_of_proto_encoding(),
+                &transaction_context.transaction_id,
             );
         }
 
@@ -214,7 +214,10 @@ impl ActionHandler for SignedTransaction {
             .wrap_err("failed updating `from` nonce")?;
 
         // FIXME: this should create one span per `check_and_execute`
-        for action in self.actions() {
+        for (i, action) in (0..).zip(self.actions().iter()) {
+            transaction_context.source_action_index = i;
+            state.put_transaction_context(transaction_context);
+
             match action {
                 Action::Transfer(act) => act
                     .check_and_execute(&mut state)
@@ -289,7 +292,7 @@ impl ActionHandler for SignedTransaction {
         }
 
         // XXX: Delete the current transaction data from the ephemeral state.
-        state.delete_current_source();
+        state.delete_current_transaction_context();
         Ok(())
     }
 }

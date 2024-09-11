@@ -396,6 +396,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod test {
     use astria_core::{
+        primitive::v1::TransactionId,
         protocol::test_utils::ConfigureSequencerBlock,
         sequencerblock::v1alpha1::block::Deposit,
     };
@@ -424,6 +425,8 @@ mod test {
                 amount,
                 asset,
                 destination_chain_address,
+                TransactionId::new([0; 32]),
+                0,
             );
             deposits.push(deposit);
         }

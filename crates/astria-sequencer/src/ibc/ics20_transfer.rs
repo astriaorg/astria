@@ -85,6 +85,8 @@ use crate::{
         self,
         StateReadExt as _,
     },
+    transaction::StateReadExt as _,
+    utils::create_deposit_event,
 };
 
 /// The maximum length of the encoded Ics20 `FungibleTokenPacketData` in bytes.
@@ -445,22 +447,6 @@ async fn execute_ics20_transfer<S: ibc::StateWriteExt>(
             .wrap_err("failed to convert denomination if ibc/ prefixed")?
     };
 
-    // if the memo deserializes into an `Ics20WithdrawalFromRollupMemo`,
-    // we can assume this is a refund from an attempted withdrawal from
-    // a rollup directly to another IBC chain via the sequencer.
-    //
-    // in this case, we lock the tokens back in the bridge account and
-    // emit a `Deposit` event to send the tokens back to the rollup.
-    if is_refund
-        && serde_json::from_str::<memos::v1alpha1::Ics20WithdrawalFromRollup>(&packet_data.memo)
-            .is_ok()
-    {
-        execute_withdrawal_refund_to_rollup(state, packet_data)
-            .await
-            .wrap_err("failed to execute rollup withdrawal refund")?;
-        return Ok(());
-    }
-
     // the IBC packet should have the address as a bech32 string
     let recipient = if is_refund {
         packet_data.sender.clone()
@@ -743,13 +729,23 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
         "asset ID is not authorized for transfer to bridge account",
     );
 
+    let transaction_context = state
+        .get_transaction_context()
+        .ok_or_eyre("transaction source should be present in state when executing an action")?;
+    let transaction_id = transaction_context.transaction_id;
+    let index_of_action = transaction_context.source_action_index;
+
     let deposit = Deposit::new(
         bridge_address,
         rollup_id,
         amount,
         denom.into(),
         destination_address,
+        transaction_id,
+        index_of_action,
     );
+    let deposit_abci_event = create_deposit_event(&deposit);
+    state.record(deposit_abci_event);
     state
         .put_deposit_event(deposit)
         .await
@@ -760,7 +756,10 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
 
 #[cfg(test)]
 mod test {
-    use astria_core::primitive::v1::RollupId;
+    use astria_core::primitive::v1::{
+        RollupId,
+        TransactionId,
+    };
     use cnidarium::StateDelta;
     use denom::TracePrefixed;
 
@@ -775,6 +774,10 @@ mod test {
             astria_compat_address,
             ASTRIA_COMPAT_PREFIX,
             ASTRIA_PREFIX,
+        },
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
         },
     };
 
@@ -883,6 +886,12 @@ mod test {
         let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
         let denom = "dest_port/dest_channel/nootasset".parse::<Denom>().unwrap();
+
+        state_tx.put_transaction_context(TransactionContext {
+            address_bytes: bridge_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        });
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1123,6 +1132,12 @@ mod test {
             .parse::<TracePrefixed>()
             .unwrap();
 
+        state_tx.put_transaction_context(TransactionContext {
+            address_bytes: bridge_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        });
+
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
             .put_bridge_account_ibc_asset(bridge_address, &denom)
@@ -1168,6 +1183,12 @@ mod test {
         let destination_chain_address = bridge_address.to_string();
         let denom = "nootasset".parse::<Denom>().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+
+        state_tx.put_transaction_context(TransactionContext {
+            address_bytes: bridge_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        });
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
@@ -1223,6 +1244,8 @@ mod test {
             100,
             denom,
             destination_chain_address,
+            TransactionId::new([0; 32]),
+            0,
         );
         assert_eq!(deposit, &expected_deposit);
     }
@@ -1261,6 +1284,13 @@ mod test {
         };
         let packet_bytes = serde_json::to_vec(&packet).unwrap();
 
+        let transaction_context = TransactionContext {
+            address_bytes: bridge_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
+        state_tx.put_transaction_context(transaction_context);
+
         execute_ics20_transfer(
             &mut state_tx,
             &packet_bytes,
@@ -1298,6 +1328,8 @@ mod test {
                                          * be converted from the compat bech32 to the
                                          * standard/non-compat bech32m version before emitting
                                          * the deposit event */
+            TransactionId::new([0; 32]),
+            0,
         );
         assert_eq!(deposit, &expected_deposit);
     }

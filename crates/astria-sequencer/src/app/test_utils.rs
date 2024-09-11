@@ -1,8 +1,17 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use astria_core::{
     crypto::SigningKey,
-    primitive::v1::RollupId,
+    primitive::v1::{
+        asset::{
+            Denom,
+            IbcPrefixed,
+        },
+        RollupId,
+    },
     protocol::{
         genesis::v1alpha1::{
             Account,
@@ -27,21 +36,30 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use bytes::Bytes;
-use cnidarium::Storage;
+use cnidarium::{
+    Snapshot,
+    StateDelta,
+    Storage,
+};
 use telemetry::Metrics as _;
 
 use crate::{
+    accounts::StateWriteExt,
     app::App,
+    assets::StateWriteExt as AssetStateWriteExt,
+    bridge::StateWriteExt as BridgeStateWriteExt,
+    ibc::StateWriteExt as IbcStateWriteExt,
     mempool::Mempool,
     metrics::Metrics,
+    sequence::StateWriteExt as SequenceStateWriteExt,
     sequence,
     test_utils::astria_address_from_hex_string,
 };
 
 pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
-pub(crate) const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
-pub(crate) const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
-pub(crate) const JUDY_ADDRESS: &str = "bc5b91da07778eeaf622d0dcf4d7b4233525998d";
+pub(crate) const BOB_ADDRESS: &str = "2269aca7b7c03c7d07345f83db4fababd1a05570";
+pub(crate) const CAROL_ADDRESS: &str = "4e8846b82a8f31fd59265a9005959c4a030fc44c";
+pub(crate) const JUDY_ADDRESS: &str = "989a77160cb0e96e2d168083ab72ffe89b41c199";
 pub(crate) const TED_ADDRESS: &str = "4c4f91d8a918357ab5f6f19c1e179968fc39bb44";
 
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
@@ -53,6 +71,39 @@ pub(crate) fn get_alice_signing_key() -> SigningKey {
             .try_into()
             .unwrap();
     SigningKey::from(alice_secret_bytes)
+}
+
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) fn get_bob_signing_key() -> SigningKey {
+    // this secret key corresponds to ALICE_ADDRESS
+    let bob_secret_bytes: [u8; 32] =
+        hex::decode("b70fd3b99cab2d98dbd73602deb026b9cdc9bb7b85d35f0bbb81b17c78923dd0")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    SigningKey::from(bob_secret_bytes)
+}
+
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) fn get_carol_signing_key() -> SigningKey {
+    // this secret key corresponds to ALICE_ADDRESS
+    let carol_secret_bytes: [u8; 32] =
+        hex::decode("0e951afdcbefc420fe6f71b82b0c28c11eb6ee5d95be0886ce9dbf6fa512debc")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    SigningKey::from(carol_secret_bytes)
+}
+
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) fn get_judy_signing_key() -> SigningKey {
+    // this secret key corresponds to ALICE_ADDRESS
+    let judy_secret_bytes: [u8; 32] =
+        hex::decode("3b2a05a2168952a102dcc07f39b9e385a45b9c2a9b6e3d06acf46fb39fd14019")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    SigningKey::from(judy_secret_bytes)
 }
 
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
@@ -187,13 +238,146 @@ pub(crate) fn mock_tx(
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(rollup_name.as_bytes()),
                 data: Bytes::from_static(&[0x99]),
-                fee_asset: "astria".parse().unwrap(),
+                fee_asset: denom_0(),
             }
             .into(),
         ],
     };
 
     Arc::new(tx.into_signed(signer))
+}
+
+#[cfg_attr(feature = "test", allow(dead_code))]
+pub(crate) const MOCK_SEQUENCE_FEE: u128 = 10;
+pub(crate) fn denom_0() -> Denom {
+    "denom_0".parse().unwrap()
+}
+
+pub(crate) fn denom_1() -> Denom {
+    "denom_1".parse().unwrap()
+}
+
+fn denom_2() -> Denom {
+    "denom_2".parse().unwrap()
+}
+
+pub(crate) fn denom_3() -> Denom {
+    "denom_3".parse().unwrap()
+}
+
+fn denom_4() -> Denom {
+    "denom_4".parse().unwrap()
+}
+
+fn denom_5() -> Denom {
+    "denom_5".parse().unwrap()
+}
+
+fn denom_6() -> Denom {
+    "denom_6".parse().unwrap()
+}
+
+#[cfg_attr(feature = "test", allow(dead_code))]
+
+pub(crate) fn mock_balances(
+    denom_0_balance: u128,
+    denom_1_balance: u128,
+) -> HashMap<IbcPrefixed, u128> {
+    let mut balances = HashMap::<IbcPrefixed, u128>::new();
+    if denom_0_balance != 0 {
+        balances.insert(denom_0().to_ibc_prefixed(), denom_0_balance);
+    }
+    if denom_1_balance != 0 {
+        balances.insert(denom_1().to_ibc_prefixed(), denom_1_balance);
+    }
+    // we don't sanitize the balance inputs
+    balances.insert(denom_3().to_ibc_prefixed(), 100); // balance transaction costs won't have entry for
+    balances.insert(denom_4().to_ibc_prefixed(), 0); // zero balance not in transaction
+    balances.insert(denom_5().to_ibc_prefixed(), 0); // zero balance with corresponding zero cost 
+
+    balances
+}
+
+#[cfg_attr(feature = "test", allow(dead_code))]
+pub(crate) fn mock_tx_cost(
+    denom_0_cost: u128,
+    denom_1_cost: u128,
+    denom_2_cost: u128,
+) -> HashMap<IbcPrefixed, u128> {
+    let mut costs: HashMap<IbcPrefixed, u128> = HashMap::<IbcPrefixed, u128>::new();
+    costs.insert(denom_0().to_ibc_prefixed(), denom_0_cost);
+    costs.insert(denom_1().to_ibc_prefixed(), denom_1_cost);
+    costs.insert(denom_2().to_ibc_prefixed(), denom_2_cost); // not present in balances
+
+    // we don't sanitize the cost inputs
+    costs.insert(denom_5().to_ibc_prefixed(), 0); // zero in balances also 
+    costs.insert(denom_6().to_ibc_prefixed(), 0); // not present in balances 
+
+    costs
+}
+
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) fn mock_state_put_account_balances(
+    state: &mut StateDelta<Snapshot>,
+    address: [u8; 20],
+    account_balances: HashMap<IbcPrefixed, u128>,
+) {
+    for (denom, balance) in account_balances {
+        state.put_account_balance(address, denom, balance).unwrap();
+    }
+}
+
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) fn mock_state_put_account_nonce(
+    state: &mut StateDelta<Snapshot>,
+    address: [u8; 20],
+    nonce: u32,
+) {
+    state.put_account_nonce(address, nonce).unwrap();
+}
+
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
+    let storage = cnidarium::TempStorage::new().await.unwrap();
+    let snapshot = storage.latest_snapshot();
+    let mut state: StateDelta<cnidarium::Snapshot> = StateDelta::new(snapshot);
+
+    // setup denoms
+    state
+        .put_ibc_asset(denom_0().as_trace_prefixed().unwrap())
+        .unwrap();
+    state
+        .put_ibc_asset(denom_1().as_trace_prefixed().unwrap())
+        .unwrap();
+    state
+        .put_ibc_asset(denom_2().as_trace_prefixed().unwrap())
+        .unwrap();
+    state
+        .put_ibc_asset(denom_3().as_trace_prefixed().unwrap())
+        .unwrap();
+    state
+        .put_ibc_asset(denom_4().as_trace_prefixed().unwrap())
+        .unwrap();
+    state
+        .put_ibc_asset(denom_5().as_trace_prefixed().unwrap())
+        .unwrap();
+    state
+        .put_ibc_asset(denom_6().as_trace_prefixed().unwrap())
+        .unwrap();
+
+    // setup tx fees
+    state.put_sequence_action_base_fee(MOCK_SEQUENCE_FEE);
+    state.put_sequence_action_byte_cost_multiplier(0);
+    state.put_transfer_base_fee(0).unwrap();
+    state.put_ics20_withdrawal_base_fee(0).unwrap();
+    state.put_init_bridge_account_base_fee(0);
+    state.put_bridge_lock_byte_cost_multiplier(0);
+    state.put_bridge_sudo_change_base_fee(0);
+
+    // put denoms as allowed fee asset
+    state.put_allowed_fee_asset(denom_0());
+
+    state
 }
 
 /// Calculates the fee for a sequence `Action` based on the length of the `data`.

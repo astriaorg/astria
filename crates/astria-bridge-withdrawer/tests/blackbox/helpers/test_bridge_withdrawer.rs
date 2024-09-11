@@ -50,13 +50,13 @@ use tracing::{
 
 use super::{
     ethereum::AstriaBridgeableERC20DeployerConfig,
-    make_tx_commit_success_response,
+    make_tx_sync_success_response,
     mock_cometbft::{
         mount_default_chain_id,
         mount_get_nonce_response,
         mount_native_fee_asset,
     },
-    mount_broadcast_tx_commit_response_as_scoped,
+    mount_broadcast_tx_sync_response_as_scoped,
     mount_ibc_fee_asset,
     mount_last_bridge_tx_hash_response,
     MockSequencerServer,
@@ -225,12 +225,10 @@ impl TestBridgeWithdrawer {
             .await;
     }
 
-    pub async fn mount_broadcast_tx_commit_success_response_as_scoped(
-        &self,
-    ) -> wiremock::MockGuard {
-        mount_broadcast_tx_commit_response_as_scoped(
+    pub async fn mount_broadcast_tx_sync_success_response_as_scoped(&self) -> wiremock::MockGuard {
+        mount_broadcast_tx_sync_response_as_scoped(
             &self.cometbft_mock,
-            make_tx_commit_success_response(),
+            make_tx_sync_success_response(),
         )
         .await
     }

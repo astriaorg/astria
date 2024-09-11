@@ -45,6 +45,7 @@ use cnidarium::{
     Snapshot,
     StagedWriteBatch,
     StateDelta,
+    StateRead,
     Storage,
 };
 use prost::Message as _;
@@ -73,11 +74,11 @@ use tracing::{
 
 use crate::{
     accounts::{
-        self,
         component::AccountsComponent,
         StateReadExt,
+        StateWriteExt as _,
     },
-    address::StateWriteExt,
+    address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
     assets::StateWriteExt as _,
     authority::{
@@ -153,6 +154,10 @@ pub(crate) struct App {
     // `prepare_proposal` was not called.
     executed_proposal_hash: Hash,
 
+    // This is set when a `FeeChange` or `FeeAssetChange` action is seen in a block to flag
+    // to the mempool to recost all transactions.
+    recost_mempool: bool,
+
     // cache of results of executing of transactions in `prepare_proposal` or `process_proposal`.
     // cleared at the end of each block.
     execution_results: Option<Vec<tendermint::abci::types::ExecTxResult>>,
@@ -201,6 +206,7 @@ impl App {
             validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_results: None,
+            recost_mempool: false,
             write_batch: None,
             app_hash,
             metrics,
@@ -494,11 +500,9 @@ impl App {
         let mut excluded_txs: usize = 0;
 
         // get copy of transactions to execute from mempool
-        let current_account_nonce_getter =
-            |address: [u8; 20]| self.state.get_account_nonce(address);
         let pending_txs = self
             .mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&self.state)
             .await
             .expect("failed to fetch pending transactions");
 
@@ -715,6 +719,9 @@ impl App {
             .await
             .wrap_err("failed to get chain ID from state")?;
 
+        // reset recost flag
+        self.recost_mempool = false;
+
         // call begin_block on all components
         // NOTE: the fields marked `unused` are not used by any of the components;
         // however, we need to still construct a `BeginBlock` type for now as
@@ -890,7 +897,10 @@ impl App {
             .wrap_err("failed to write sequencer block to state")?;
 
         // update the priority of any txs in the mempool based on the updated app state
-        update_mempool_after_finalization(&mut self.mempool, &state_tx).await;
+        if self.recost_mempool {
+            self.metrics.increment_mempool_recosted();
+        }
+        update_mempool_after_finalization(&mut self.mempool, &state_tx, self.recost_mempool).await;
 
         // events that occur after end_block are ignored here;
         // there should be none anyways.
@@ -1003,6 +1013,13 @@ impl App {
             .await
             .wrap_err("failed executing transaction")?;
 
+        // flag mempool for cleaning if we ran a fee change action
+        self.recost_mempool = self.recost_mempool
+            || signed_tx
+                .actions()
+                .iter()
+                .any(|action| matches!(action, Action::FeeAssetChange(_) | Action::FeeChange(_)));
+
         Ok(state_tx.apply().1)
     }
 
@@ -1101,18 +1118,17 @@ impl App {
     }
 }
 
-// updates the priority of the txs in the mempool based on the current state,
-// and removes any txs that are now invalid.
+// updates the mempool to reflect current state
 //
-// NOTE: this function locks the mempool until every tx has been checked.
+// NOTE: this function locks the mempool until all accounts have been cleaned.
 // this could potentially stall consensus from moving to the next round if
-// the mempool is large.
-async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
+// the mempool is large, especially if recosting transactions.
+async fn update_mempool_after_finalization<S: StateRead>(
     mempool: &mut Mempool,
     state: &S,
+    recost: bool,
 ) {
-    let current_account_nonce_getter = |address: [u8; 20]| state.get_account_nonce(address);
-    mempool.run_maintenance(current_account_nonce_getter).await;
+    mempool.run_maintenance(state, recost).await;
 }
 
 /// relevant data of a block being executed.

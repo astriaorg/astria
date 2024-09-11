@@ -34,7 +34,7 @@ impl ActionHandler for ValidatorUpdate {
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         // ensure signer is the valid `sudo` key in state
@@ -85,7 +85,7 @@ impl ActionHandler for SudoAddressChangeAction {
     /// as only that address can change the sudo address
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         state
@@ -115,7 +115,7 @@ impl ActionHandler for FeeChangeAction {
     /// as only that address can change the fee
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         // ensure signer is the valid `sudo` key in state
@@ -157,6 +157,7 @@ impl ActionHandler for FeeChangeAction {
 
 #[cfg(test)]
 mod test {
+    use astria_core::primitive::v1::TransactionId;
     use cnidarium::StateDelta;
 
     use super::*;
@@ -178,8 +179,10 @@ mod test {
         let mut state = StateDelta::new(snapshot);
         let transfer_fee = 12;
 
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
         state.put_sudo_address([1; 20]).unwrap();
 
