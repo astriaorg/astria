@@ -108,3 +108,10 @@ tracing = "0.1"
 tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
+
+[patch.'https://github.com/penumbra-zone/penumbra.git']
+penumbra-ibc = { git = "https://github.com/noot/penumbra.git", rev = "636b9f12d6c5e7324e798236e4a514983f6a8c6d" }
+penumbra-proto = { git = "https://github.com/noot/penumbra.git", rev = "636b9f12d6c5e7324e798236e4a514983f6a8c6d" }
+penumbra-tower-trace = { git = "https://github.com/noot/penumbra.git", rev = "636b9f12d6c5e7324e798236e4a514983f6a8c6d" }
+cnidarium = { git = "https://github.com/noot/penumbra.git", rev = "636b9f12d6c5e7324e798236e4a514983f6a8c6d" }
+cnidarium-component = { git = "https://github.com/noot/penumbra.git", rev = "636b9f12d6c5e7324e798236e4a514983f6a8c6d" }
