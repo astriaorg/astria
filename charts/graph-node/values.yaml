@@ -20,7 +20,7 @@ postgres:
 
 environment:
   ethereumNetwork: flame-devnet
-  ethereumRPC: https://rpc.evm.dusk-10.devnet.astria.org/
+  ethereumRPC: http://astria-evm-service.astria-dev-cluster.svc.cluster.local:8545
 
 persistence:
   storageClass: standard
