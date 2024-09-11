@@ -34,6 +34,7 @@ use crate::{
         StateWriteExt as _,
     },
     transaction::StateReadExt as _,
+    utils::create_deposit_event,
 };
 
 #[async_trait::async_trait]
@@ -46,7 +47,7 @@ impl ActionHandler for BridgeLockAction {
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         state
@@ -78,13 +79,25 @@ impl ActionHandler for BridgeLockAction {
             .await
             .context("failed to get transfer base fee")?;
 
+        let transaction_id = state
+            .get_transaction_context()
+            .expect("current source should be set before executing action")
+            .transaction_id;
+        let source_action_index = state
+            .get_transaction_context()
+            .expect("current source should be set before executing action")
+            .source_action_index;
+
         let deposit = Deposit::new(
             self.to,
             rollup_id,
             self.amount,
             self.asset.clone(),
             self.destination_chain_address.clone(),
+            transaction_id,
+            source_action_index,
         );
+        let deposit_abci_event = create_deposit_event(&deposit);
 
         let byte_cost_multiplier = state
             .get_bridge_lock_byte_cost_multiplier()
@@ -109,20 +122,6 @@ impl ActionHandler for BridgeLockAction {
         // to the transfer-action logic.
         execute_transfer(&transfer_action, from, &mut state).await?;
 
-        let rollup_id = state
-            .get_bridge_account_rollup_id(self.to)
-            .await
-            .context("failed to get bridge account rollup id")?
-            .expect("recipient must be a bridge account; this is a bug in check_stateful");
-
-        let deposit = Deposit::new(
-            self.to,
-            rollup_id,
-            self.amount,
-            self.asset.clone(),
-            self.destination_chain_address.clone(),
-        );
-
         // the transfer fee is already deducted in `execute_transfer() above,
         // so we just deduct the bridge lock byte multiplier fee.
         // FIXME: similar to what is mentioned there: this should be reworked so that
@@ -142,6 +141,7 @@ impl ActionHandler for BridgeLockAction {
             .await
             .context("failed to deduct fee from account balance")?;
 
+        state.record(deposit_abci_event);
         state
             .put_deposit_event(deposit)
             .await
@@ -162,6 +162,7 @@ mod tests {
     use astria_core::primitive::v1::{
         asset,
         RollupId,
+        TransactionId,
     };
     use cnidarium::StateDelta;
 
@@ -191,8 +192,11 @@ mod tests {
         let transfer_fee = 12;
 
         let from_address = astria_address(&[2; 20]);
-        state.put_current_source(TransactionContext {
+        let transaction_id = TransactionId::new([0; 32]);
+        state.put_transaction_context(TransactionContext {
             address_bytes: from_address.bytes(),
+            transaction_id,
+            source_action_index: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX);
 
@@ -233,6 +237,8 @@ mod tests {
                 100,
                 asset.clone(),
                 "someaddress".to_string(),
+                transaction_id,
+                0,
             )) * 2;
         state
             .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)

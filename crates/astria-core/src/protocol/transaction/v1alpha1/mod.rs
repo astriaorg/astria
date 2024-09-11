@@ -14,6 +14,7 @@ use crate::{
     },
     primitive::v1::{
         asset,
+        TransactionId,
         ADDRESS_LEN,
     },
     Protobuf as _,
@@ -88,18 +89,18 @@ impl SignedTransaction {
         self.verification_key.address_bytes()
     }
 
-    /// Returns the transaction hash.
+    /// Returns the transaction ID, containing the transaction hash.
     ///
     /// The transaction hash is calculated by protobuf-encoding the transaction
     /// and hashing the resulting bytes with sha256.
     #[must_use]
-    pub fn sha256_of_proto_encoding(&self) -> [u8; 32] {
+    pub fn id(&self) -> TransactionId {
         use sha2::{
             Digest as _,
             Sha256,
         };
         let bytes = self.to_raw().encode_to_vec();
-        Sha256::digest(bytes).into()
+        TransactionId::new(Sha256::digest(bytes).into())
     }
 
     #[must_use]
@@ -609,7 +610,7 @@ mod test {
             transaction_bytes: unsigned.to_raw().encode_to_vec().into(),
         };
 
-        insta::assert_json_snapshot!(tx.sha256_of_proto_encoding());
+        insta::assert_json_snapshot!(tx.id());
     }
 
     #[test]

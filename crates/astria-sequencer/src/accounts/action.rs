@@ -42,7 +42,7 @@ impl ActionHandler for TransferAction {
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
 

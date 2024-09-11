@@ -53,7 +53,7 @@ impl ActionHandler for BridgeUnlockAction {
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         state
@@ -112,6 +112,7 @@ mod tests {
         primitive::v1::{
             asset,
             RollupId,
+            TransactionId,
         },
         protocol::transaction::v1alpha1::action::BridgeUnlockAction,
     };
@@ -144,8 +145,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX);
 
@@ -181,8 +184,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX);
 
@@ -221,8 +226,10 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let bridge_address = astria_address(&[1; 20]);
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX);
 
