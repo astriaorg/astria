@@ -213,6 +213,26 @@ pub mod v1 {
     }
 
     impl CurrencyPairGenesis {
+        #[must_use]
+        pub fn currency_pair(&self) -> &CurrencyPair {
+            &self.currency_pair
+        }
+
+        #[must_use]
+        pub fn currency_pair_price(&self) -> &QuotePrice {
+            &self.currency_pair_price
+        }
+
+        #[must_use]
+        pub fn id(&self) -> CurrencyPairId {
+            self.id
+        }
+
+        #[must_use]
+        pub fn nonce(&self) -> CurrencyPairNonce {
+            self.nonce
+        }
+
         /// Converts from a raw protobuf `raw::CurrencyPairGenesis` to a validated
         /// domain type [`CurrencyPairGenesis`].
         ///
