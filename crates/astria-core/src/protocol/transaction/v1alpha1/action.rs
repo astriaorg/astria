@@ -45,6 +45,50 @@ pub enum Action {
     FeeChange(FeeChangeAction),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PriorityCategory {
+    BundlableGeneral,
+    General,
+    BundleableSudo,
+    Sudo,
+}
+
+pub trait Priority {
+    fn priority(&self) -> PriorityCategory;
+}
+
+pub trait Bundleable {
+    fn is_bundleable(&self) -> bool;
+}
+
+impl Priority for Action {
+    fn priority(&self) -> PriorityCategory {
+        match self {
+            Action::Sequence(_)
+            | Action::Transfer(_)
+            | Action::ValidatorUpdate(_)
+            | Action::Ibc(_)
+            | Action::Ics20Withdrawal(_)
+            | Action::BridgeLock(_)
+            | Action::BridgeUnlock(_) => PriorityCategory::BundlableGeneral,
+            Action::SudoAddressChange(_) => PriorityCategory::Sudo,
+            Action::IbcRelayerChange(_) | Action::FeeAssetChange(_) | Action::FeeChange(_) => {
+                PriorityCategory::BundleableSudo
+            }
+            Action::InitBridgeAccount(_) | Action::BridgeSudoChange(_) => PriorityCategory::General,
+        }
+    }
+}
+
+impl Bundleable for PriorityCategory {
+    fn is_bundleable(&self) -> bool {
+        match self {
+            PriorityCategory::BundlableGeneral | PriorityCategory::BundleableSudo => true,
+            PriorityCategory::General | PriorityCategory::Sudo => false,
+        }
+    }
+}
+
 impl Protobuf for Action {
     type Error = ActionError;
     type Raw = raw::Action;

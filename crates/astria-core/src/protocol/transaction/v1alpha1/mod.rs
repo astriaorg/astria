@@ -1,3 +1,7 @@
+use action::{
+    Bundleable,
+    Priority,
+};
 use bytes::Bytes;
 use prost::{
     Message as _,
@@ -316,6 +320,18 @@ impl UnsignedTransaction {
             .collect::<Result<_, _>>()
             .map_err(UnsignedTransactionError::action)?;
 
+        // ensure all actions are of the same type
+        let first_action_type = actions[0].priority();
+        for action in &actions {
+            if action.priority() != first_action_type {
+                return Err(UnsignedTransactionError::mixed_action_types());
+            }
+        }
+        // if the action type is not bundleable, then there should only be one action
+        if !first_action_type.is_bundleable() && actions.len() > 1 {
+            return Err(UnsignedTransactionError::non_bundleable_actions_bundled());
+        }
+
         Ok(Self {
             actions,
             params,
@@ -361,6 +377,14 @@ impl UnsignedTransactionError {
     fn decode_any(inner: prost::DecodeError) -> Self {
         Self(UnsignedTransactionErrorKind::DecodeAny(inner))
     }
+
+    fn non_bundleable_actions_bundled() -> Self {
+        Self(UnsignedTransactionErrorKind::NonBundleableActionsBundled)
+    }
+
+    fn mixed_action_types() -> Self {
+        Self(UnsignedTransactionErrorKind::MixedActionTypes)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -380,6 +404,10 @@ enum UnsignedTransactionErrorKind {
         raw::UnsignedTransaction::type_url()
     )]
     DecodeAny(#[source] prost::DecodeError),
+    #[error("non-bundleable actions bundled together")]
+    NonBundleableActionsBundled,
+    #[error("mixed action types bundled together")]
+    MixedActionTypes,
 }
 
 pub struct TransactionParamsBuilder<TChainId = std::borrow::Cow<'static, str>> {
