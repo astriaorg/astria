@@ -8,7 +8,6 @@ use std::{
 };
 
 use anyhow::{
-    bail,
     Context as _,
     Result,
 };
@@ -17,7 +16,11 @@ use astria_core::slinky::{
         CurrencyPairState,
         QuotePrice,
     },
-    types::v1::CurrencyPair,
+    types::v1::{
+        CurrencyPair,
+        CurrencyPairId,
+        CurrencyPairNonce,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -32,6 +35,176 @@ use futures::Stream;
 use pin_project_lite::pin_project;
 use tracing::instrument;
 
+mod in_state {
+    //! Contains all borsh datatypes that are written to/read from state.
+
+    use anyhow::Context as _;
+    use borsh::{
+        BorshDeserialize,
+        BorshSerialize,
+    };
+
+    #[derive(BorshSerialize, BorshDeserialize, Debug)]
+    pub(super) struct CurrencyPairId(pub(super) u64);
+
+    impl From<CurrencyPairId> for super::CurrencyPairId {
+        fn from(value: CurrencyPairId) -> Self {
+            Self::new(value.0)
+        }
+    }
+
+    impl From<super::CurrencyPairId> for CurrencyPairId {
+        fn from(value: super::CurrencyPairId) -> Self {
+            Self(value.get())
+        }
+    }
+
+    #[derive(BorshSerialize, BorshDeserialize, Debug)]
+    pub(super) struct CurrencyPairNonce(pub(super) u64);
+
+    impl From<CurrencyPairNonce> for super::CurrencyPairNonce {
+        fn from(value: CurrencyPairNonce) -> Self {
+            Self::new(value.0)
+        }
+    }
+
+    impl From<super::CurrencyPairNonce> for CurrencyPairNonce {
+        fn from(value: super::CurrencyPairNonce) -> Self {
+            Self(value.get())
+        }
+    }
+
+    #[derive(BorshSerialize, BorshDeserialize, Debug)]
+    pub(super) struct CurrencyPair {
+        base: String,
+        quote: String,
+    }
+
+    impl TryFrom<CurrencyPair> for super::CurrencyPair {
+        type Error = anyhow::Error;
+
+        fn try_from(value: CurrencyPair) -> anyhow::Result<Self> {
+            Ok(Self::from_parts(
+                value.base.parse().with_context(|| {
+                    format!(
+                        "failed to parse state-fetched `{}` as currency pair base",
+                        value.base
+                    )
+                })?,
+                value.quote.parse().with_context(|| {
+                    format!(
+                        "failed to parse state-fetched `{}` as currency pair quote",
+                        value.quote
+                    )
+                })?,
+            ))
+        }
+    }
+
+    impl From<super::CurrencyPair> for CurrencyPair {
+        fn from(value: super::CurrencyPair) -> Self {
+            let (base, quote) = value.into_parts();
+            Self {
+                base,
+                quote,
+            }
+        }
+    }
+
+    #[derive(Debug, BorshSerialize, BorshDeserialize)]
+    struct Timestamp {
+        seconds: i64,
+        nanos: i32,
+    }
+
+    impl From<astria_core::primitive::Timestamp> for Timestamp {
+        fn from(value: astria_core::primitive::Timestamp) -> Self {
+            Self {
+                seconds: value.seconds,
+                nanos: value.nanos,
+            }
+        }
+    }
+
+    impl From<Timestamp> for astria_core::primitive::Timestamp {
+        fn from(value: Timestamp) -> Self {
+            Self {
+                seconds: value.seconds,
+                nanos: value.nanos,
+            }
+        }
+    }
+
+    #[derive(Debug, BorshSerialize, BorshDeserialize)]
+    struct Price(u128);
+
+    impl From<astria_core::slinky::types::v1::Price> for Price {
+        fn from(value: astria_core::slinky::types::v1::Price) -> Self {
+            Self(value.get())
+        }
+    }
+
+    impl From<Price> for astria_core::slinky::types::v1::Price {
+        fn from(value: Price) -> Self {
+            Self::new(value.0)
+        }
+    }
+
+    #[derive(Debug, BorshSerialize, BorshDeserialize)]
+    pub(super) struct QuotePrice {
+        price: Price,
+        block_timestamp: Timestamp,
+        block_height: u64,
+    }
+
+    impl From<super::QuotePrice> for QuotePrice {
+        fn from(value: super::QuotePrice) -> Self {
+            Self {
+                price: value.price.into(),
+                block_timestamp: value.block_timestamp.into(),
+                block_height: value.block_height,
+            }
+        }
+    }
+
+    impl From<QuotePrice> for super::QuotePrice {
+        fn from(value: QuotePrice) -> Self {
+            Self {
+                price: value.price.into(),
+                block_timestamp: value.block_timestamp.into(),
+                block_height: value.block_height,
+            }
+        }
+    }
+
+    #[derive(Debug, BorshSerialize, BorshDeserialize)]
+    pub(super) struct CurrencyPairState {
+        pub(super) price: QuotePrice,
+        pub(super) nonce: CurrencyPairNonce,
+        pub(super) id: CurrencyPairId,
+    }
+
+    impl From<super::CurrencyPairState> for CurrencyPairState {
+        fn from(value: super::CurrencyPairState) -> Self {
+            Self {
+                price: value.price.into(),
+                nonce: value.nonce.into(),
+                id: value.id.into(),
+            }
+        }
+    }
+
+    impl From<CurrencyPairState> for super::CurrencyPairState {
+        fn from(value: CurrencyPairState) -> Self {
+            Self {
+                price: value.price.into(),
+                nonce: value.nonce.into(),
+                id: value.id.into(),
+            }
+        }
+    }
+}
+
 const CURRENCY_PAIR_TO_ID_PREFIX: &str = "oraclecpid";
 const ID_TO_CURRENCY_PAIR_PREFIX: &str = "oracleidcp";
 const CURRENCY_PAIR_STATE_PREFIX: &str = "oraclecpstate";
@@ -44,17 +217,13 @@ fn currency_pair_to_id_storage_key(currency_pair: &CurrencyPair) -> String {
     format!("{CURRENCY_PAIR_TO_ID_PREFIX}/{currency_pair}",)
 }
 
-fn id_to_currency_pair_storage_key(id: u64) -> String {
+fn id_to_currency_pair_storage_key(id: CurrencyPairId) -> String {
     format!("{ID_TO_CURRENCY_PAIR_PREFIX}/{id}")
 }
 
 fn currency_pair_state_storage_key(currency_pair: &CurrencyPair) -> String {
     format!("{CURRENCY_PAIR_STATE_PREFIX}/{currency_pair}",)
 }
-
-/// Newtype wrapper to read and write a u64 from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct Id(u64);
 
 /// Newtype wrapper to read and write a u64 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -87,9 +256,10 @@ where
             }
             None => return Poll::Ready(None),
         };
-        let Id(id) = Id::try_from_slice(&bytes).with_context(|| {
-            "failed decoding bytes read from state as currency pair ID for key `{key}`"
-        })?;
+        let in_state::CurrencyPairId(id) = in_state::CurrencyPairId::try_from_slice(&bytes)
+            .with_context(|| {
+                "failed decoding bytes read from state as currency pair ID for key `{key}`"
+            })?;
         let currency_pair = match extract_currency_pair_from_key(&key) {
             Err(err) => {
                 return Poll::Ready(Some(Err(err).with_context(|| {
@@ -149,32 +319,36 @@ fn extract_currency_pair_from_key(key: &str) -> anyhow::Result<CurrencyPair> {
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
-    async fn get_currency_pair_id(&self, currency_pair: &CurrencyPair) -> Result<u64> {
+    async fn get_currency_pair_id(
+        &self,
+        currency_pair: &CurrencyPair,
+    ) -> Result<Option<CurrencyPairId>> {
         let Some(bytes) = self
             .get_raw(&currency_pair_to_id_storage_key(currency_pair))
             .await
             .context("failed reading currency pair id from state")?
         else {
-            bail!("currency pair not found in state")
+            return Ok(None);
         };
-        let Id(id) = Id::try_from_slice(&bytes).context("invalid currency pair id bytes")?;
-        Ok(id)
+        in_state::CurrencyPairId::try_from_slice(&bytes)
+            .context("invalid currency pair id bytes")
+            .map(|id| Some(id.into()))
     }
 
     #[instrument(skip_all)]
-    async fn get_currency_pair(&self, id: u64) -> Result<Option<CurrencyPair>> {
-        let bytes = self
+    async fn get_currency_pair(&self, id: CurrencyPairId) -> Result<Option<CurrencyPair>> {
+        let Some(bytes) = self
             .get_raw(&id_to_currency_pair_storage_key(id))
             .await
-            .context("failed to get currency pair from state")?;
-        match bytes {
-            Some(bytes) => {
-                let currency_pair = serde_json::from_slice(&bytes)
-                    .context("failed to deserialize currency pair")?;
-                Ok(Some(currency_pair))
-            }
-            None => Ok(None),
-        }
+            .context("failed reading currency pair from state")?
+        else {
+            return Ok(None);
+        };
+        let currency_pair = borsh::from_slice::<in_state::CurrencyPair>(&bytes)
+            .context("failed to deserialize bytes read from state as currency pair")?
+            .try_into()
+            .context("failed converting in-state currency pair into domain type currency pair")?;
+        Ok(Some(currency_pair))
     }
 
     #[instrument(skip_all)]
@@ -228,27 +402,27 @@ pub(crate) trait StateReadExt: StateRead {
             .get_raw(&currency_pair_state_storage_key(currency_pair))
             .await
             .context("failed to get currency pair state from state")?;
-        match bytes {
-            Some(bytes) => {
-                let currency_pair_state = serde_json::from_slice(&bytes)
-                    .context("failed to deserialize currency pair state")?;
-                Ok(Some(currency_pair_state))
-            }
-            None => Ok(None),
-        }
+        bytes
+            .map(|bytes| {
+                borsh::from_slice::<in_state::CurrencyPairState>(&bytes)
+                    .context("failed to deserialize bytes read from state as currency pair state")
+                    .map(Into::into)
+            })
+            .transpose()
     }
 
     #[instrument(skip_all)]
-    async fn get_next_currency_pair_id(&self) -> Result<u64> {
+    async fn get_next_currency_pair_id(&self) -> Result<CurrencyPairId> {
         let Some(bytes) = self
             .get_raw(NEXT_CURRENCY_PAIR_ID_KEY)
             .await
             .context("failed reading next currency pair id from state")?
         else {
-            return Ok(0);
+            return Ok(CurrencyPairId::new(0));
         };
-        let Id(next_currency_pair_id) =
-            Id::try_from_slice(&bytes).context("invalid next currency pair id bytes")?;
+        let next_currency_pair_id = in_state::CurrencyPairId::try_from_slice(&bytes)
+            .context("invalid next currency pair id bytes")?
+            .into();
         Ok(next_currency_pair_id)
     }
 }
@@ -258,16 +432,21 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_currency_pair_id(&mut self, currency_pair: &CurrencyPair, id: u64) -> Result<()> {
-        let bytes = borsh::to_vec(&Id(id)).context("failed to serialize currency pair id")?;
+    fn put_currency_pair_id(
+        &mut self,
+        currency_pair: &CurrencyPair,
+        id: CurrencyPairId,
+    ) -> Result<()> {
+        let bytes = borsh::to_vec(&in_state::CurrencyPairId::from(id))
+            .context("failed to serialize currency pair id")?;
         self.put_raw(currency_pair_to_id_storage_key(currency_pair), bytes);
         Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_currency_pair(&mut self, id: u64, currency_pair: &CurrencyPair) -> Result<()> {
-        let bytes =
-            serde_json::to_vec(&currency_pair).context("failed to serialize currency pair")?;
+    fn put_currency_pair(&mut self, id: CurrencyPairId, currency_pair: CurrencyPair) -> Result<()> {
+        let bytes = borsh::to_vec(&in_state::CurrencyPair::from(currency_pair))
+            .context("failed to serialize currency pair")?;
         self.put_raw(id_to_currency_pair_storage_key(id), bytes);
         Ok(())
     }
@@ -291,22 +470,24 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_currency_pair_state(
         &mut self,
-        currency_pair: &CurrencyPair,
+        currency_pair: CurrencyPair,
         currency_pair_state: CurrencyPairState,
     ) -> Result<()> {
-        let bytes = serde_json::to_vec(&currency_pair_state)
+        let currency_pair_id = currency_pair_state.id;
+        let bytes = borsh::to_vec(&in_state::CurrencyPairState::from(currency_pair_state))
             .context("failed to serialize currency pair state")?;
-        self.put_raw(currency_pair_state_storage_key(currency_pair), bytes);
-        self.put_currency_pair_id(currency_pair, currency_pair_state.id)
+        self.put_raw(currency_pair_state_storage_key(&currency_pair), bytes);
+
+        self.put_currency_pair_id(&currency_pair, currency_pair_id)
             .context("failed to put currency pair id")?;
-        self.put_currency_pair(currency_pair_state.id, currency_pair)
+        self.put_currency_pair(currency_pair_id, currency_pair)
             .context("failed to put currency pair")?;
         Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_next_currency_pair_id(&mut self, next_currency_pair_id: u64) -> Result<()> {
-        let bytes = borsh::to_vec(&Id(next_currency_pair_id))
+    fn put_next_currency_pair_id(&mut self, next_currency_pair_id: CurrencyPairId) -> Result<()> {
+        let bytes = borsh::to_vec(&in_state::CurrencyPairId::from(next_currency_pair_id))
             .context("failed to serialize next currency pair id")?;
         self.put_raw(NEXT_CURRENCY_PAIR_ID_KEY.to_string(), bytes);
         Ok(())
@@ -315,22 +496,28 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     async fn put_price_for_currency_pair(
         &mut self,
-        currency_pair: &CurrencyPair,
+        currency_pair: CurrencyPair,
         price: QuotePrice,
     ) -> Result<()> {
         let state = if let Some(mut state) = self
-            .get_currency_pair_state(currency_pair)
+            .get_currency_pair_state(&currency_pair)
             .await
             .context("failed to get currency pair state")?
         {
             state.price = price;
-            state.nonce.checked_add(1).context("nonce overflow")?;
+            state.nonce = state
+                .nonce
+                .increment()
+                .context("increment nonce overflowed")?;
             state
         } else {
-            let id = self.get_next_currency_pair_id().await?;
+            let id = self
+                .get_next_currency_pair_id()
+                .await
+                .context("failed to read next currency pair ID")?;
             CurrencyPairState {
                 price,
-                nonce: 0,
+                nonce: CurrencyPairNonce::new(0),
                 id,
             }
         };

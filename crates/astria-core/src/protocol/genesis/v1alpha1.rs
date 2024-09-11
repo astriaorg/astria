@@ -17,14 +17,8 @@ use crate::{
         Bech32m,
     },
     slinky::{
-        market_map::v1::{
-            GenesisState as MarketMapGenesisState,
-            GenesisStateError as MarketMapGenesisStateError,
-        },
-        oracle::v1::{
-            GenesisState as OracleGenesisState,
-            GenesisStateError as OracleGenesisStateError,
-        },
+        market_map,
+        oracle,
     },
     Protobuf,
 };
@@ -36,18 +30,18 @@ use crate::{
     serde(try_from = "raw::SlinkyGenesis", into = "raw::SlinkyGenesis")
 )]
 pub struct SlinkyGenesis {
-    market_map: MarketMapGenesisState,
-    oracle: OracleGenesisState,
+    market_map: market_map::v1::GenesisState,
+    oracle: oracle::v1::GenesisState,
 }
 
 impl SlinkyGenesis {
     #[must_use]
-    pub fn market_map(&self) -> &MarketMapGenesisState {
+    pub fn market_map(&self) -> &market_map::v1::GenesisState {
         &self.market_map
     }
 
     #[must_use]
-    pub fn oracle(&self) -> &OracleGenesisState {
+    pub fn oracle(&self) -> &oracle::v1::GenesisState {
         &self.oracle
     }
 }
@@ -65,13 +59,14 @@ impl Protobuf for SlinkyGenesis {
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("market_map"))
             .and_then(|market_map| {
-                MarketMapGenesisState::try_from_raw_ref(market_map).map_err(Self::Error::market_map)
+                market_map::v1::GenesisState::try_from_raw_ref(market_map)
+                    .map_err(Self::Error::market_map)
             })?;
         let oracle = oracle
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("oracle"))
             .and_then(|oracle| {
-                OracleGenesisState::try_from_raw_ref(oracle).map_err(Self::Error::oracle)
+                oracle::v1::GenesisState::try_from_raw_ref(oracle).map_err(Self::Error::oracle)
             })?;
         Ok(Self {
             market_map,
@@ -116,13 +111,13 @@ impl SlinkyGenesisError {
         })
     }
 
-    fn market_map(source: MarketMapGenesisStateError) -> Self {
+    fn market_map(source: market_map::v1::GenesisStateError) -> Self {
         Self(SlinkyGenesisErrorKind::MarketMap {
             source,
         })
     }
 
-    fn oracle(source: OracleGenesisStateError) -> Self {
+    fn oracle(source: oracle::v1::GenesisStateError) -> Self {
         Self(SlinkyGenesisErrorKind::Oracle {
             source,
         })
@@ -135,9 +130,13 @@ enum SlinkyGenesisErrorKind {
     #[error("field was not set: `{name}`")]
     FieldNotSet { name: &'static str },
     #[error("`market_map` field was invalid")]
-    MarketMap { source: MarketMapGenesisStateError },
+    MarketMap {
+        source: market_map::v1::GenesisStateError,
+    },
     #[error("`oracle` field was invalid")]
-    Oracle { source: OracleGenesisStateError },
+    Oracle {
+        source: oracle::v1::GenesisStateError,
+    },
 }
 
 /// The genesis state of Astria's Sequencer.
@@ -351,7 +350,7 @@ impl Protobuf for GenesisAppState {
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("market_map"))
             .and_then(|market_map| {
-                MarketMapGenesisState::try_from_raw(market_map.clone())
+                market_map::v1::GenesisState::try_from_raw(market_map.clone())
                     .map_err(Self::Error::market_map)
             })?;
 
@@ -360,7 +359,7 @@ impl Protobuf for GenesisAppState {
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("oracle"))
             .and_then(|oracle| {
-                OracleGenesisState::try_from_raw(oracle.clone()).map_err(Self::Error::oracle)
+                oracle::v1::GenesisState::try_from_raw(oracle.clone()).map_err(Self::Error::oracle)
             })?;
 
         let this = Self {
@@ -493,13 +492,13 @@ impl GenesisAppStateError {
         })
     }
 
-    fn market_map(source: MarketMapGenesisStateError) -> Self {
+    fn market_map(source: market_map::v1::GenesisStateError) -> Self {
         Self(GenesisAppStateErrorKind::MarketMap {
             source,
         })
     }
 
-    fn oracle(source: OracleGenesisStateError) -> Self {
+    fn oracle(source: oracle::v1::GenesisStateError) -> Self {
         Self(GenesisAppStateErrorKind::Oracle {
             source,
         })
@@ -532,9 +531,13 @@ enum GenesisAppStateErrorKind {
     #[error("`native_asset_base_denomination` field was invalid")]
     NativeAssetBaseDenomination { source: ParseTracePrefixedError },
     #[error("`market_map` field was invalid")]
-    MarketMap { source: MarketMapGenesisStateError },
+    MarketMap {
+        source: market_map::v1::GenesisStateError,
+    },
     #[error("`oracle` field was invalid")]
-    Oracle { source: OracleGenesisStateError },
+    Oracle {
+        source: oracle::v1::GenesisStateError,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]

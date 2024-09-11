@@ -3,7 +3,14 @@ pub mod v1 {
 
     use crate::{
         generated::astria_vendored::slinky::oracle::v1 as raw,
-        slinky::types::v1::CurrencyPair,
+        slinky::types::v1::{
+            CurrencyPair,
+            CurrencyPairError,
+            CurrencyPairId,
+            CurrencyPairNonce,
+            ParsePriceError,
+            Price,
+        },
         Protobuf,
     };
 
@@ -14,7 +21,7 @@ pub mod v1 {
     )]
     #[derive(Debug, Clone)]
     pub struct QuotePrice {
-        pub price: u128,
+        pub price: Price,
         pub block_timestamp: Timestamp,
         pub block_height: u64,
     }
@@ -41,10 +48,7 @@ pub mod v1 {
         /// - if the `price` field is invalid
         /// - if the `block_timestamp` field is missing
         pub fn try_from_raw(raw: raw::QuotePrice) -> Result<Self, QuotePriceError> {
-            let price = raw
-                .price
-                .parse()
-                .map_err(QuotePriceError::price_parse_error)?;
+            let price = raw.price.parse().map_err(QuotePriceError::parse_price)?;
             let Some(block_timestamp) = raw.block_timestamp else {
                 return Err(QuotePriceError::missing_block_timestamp());
             };
@@ -72,20 +76,23 @@ pub mod v1 {
 
     impl QuotePriceError {
         #[must_use]
-        pub fn price_parse_error(err: std::num::ParseIntError) -> Self {
-            Self(QuotePriceErrorKind::PriceParseError(err))
+        fn parse_price(source: ParsePriceError) -> Self {
+            Self(QuotePriceErrorKind::Price {
+                source,
+            })
         }
 
         #[must_use]
-        pub fn missing_block_timestamp() -> Self {
+        fn missing_block_timestamp() -> Self {
             Self(QuotePriceErrorKind::MissingBlockTimestamp)
         }
     }
 
     #[derive(Debug, thiserror::Error)]
+    #[error("failed to validate wire type `{}`", raw::QuotePrice::full_name())]
     enum QuotePriceErrorKind {
-        #[error("failed to parse price")]
-        PriceParseError(#[from] std::num::ParseIntError),
+        #[error("failed to parse `price` field")]
+        Price { source: ParsePriceError },
         #[error("missing block timestamp")]
         MissingBlockTimestamp,
     }
@@ -98,8 +105,8 @@ pub mod v1 {
     #[derive(Debug, Clone)]
     pub struct CurrencyPairState {
         pub price: QuotePrice,
-        pub nonce: u64,
-        pub id: u64,
+        pub nonce: CurrencyPairNonce,
+        pub id: CurrencyPairId,
     }
 
     impl TryFrom<raw::CurrencyPairState> for CurrencyPairState {
@@ -132,8 +139,8 @@ pub mod v1 {
             else {
                 return Err(CurrencyPairStateError::missing_price());
             };
-            let nonce = raw.nonce;
-            let id = raw.id;
+            let nonce = CurrencyPairNonce::new(raw.nonce);
+            let id = CurrencyPairId::new(raw.id);
             Ok(Self {
                 price,
                 nonce,
@@ -145,8 +152,8 @@ pub mod v1 {
         pub fn into_raw(self) -> raw::CurrencyPairState {
             raw::CurrencyPairState {
                 price: Some(self.price.into_raw()),
-                nonce: self.nonce,
-                id: self.id,
+                nonce: self.nonce.get(),
+                id: self.id.get(),
             }
         }
     }
@@ -157,12 +164,12 @@ pub mod v1 {
 
     impl CurrencyPairStateError {
         #[must_use]
-        pub fn missing_price() -> Self {
+        fn missing_price() -> Self {
             Self(CurrencyPairStateErrorKind::MissingPrice)
         }
 
         #[must_use]
-        pub fn quote_price_parse_error(err: QuotePriceError) -> Self {
+        fn quote_price_parse_error(err: QuotePriceError) -> Self {
             Self(CurrencyPairStateErrorKind::QuotePriceParseError(err))
         }
     }
@@ -187,8 +194,8 @@ pub mod v1 {
     pub struct CurrencyPairGenesis {
         pub currency_pair: CurrencyPair,
         pub currency_pair_price: QuotePrice,
-        pub id: u64,
-        pub nonce: u64,
+        pub id: CurrencyPairId,
+        pub nonce: CurrencyPairNonce,
     }
 
     impl TryFrom<raw::CurrencyPairGenesis> for CurrencyPairGenesis {
@@ -207,22 +214,22 @@ pub mod v1 {
 
     impl CurrencyPairGenesis {
         #[must_use]
-        pub fn currency_pair(&self) -> &CurrencyPair {
+        fn currency_pair(&self) -> &CurrencyPair {
             &self.currency_pair
         }
 
         #[must_use]
-        pub fn currency_pair_price(&self) -> &QuotePrice {
+        fn currency_pair_price(&self) -> &QuotePrice {
             &self.currency_pair_price
         }
 
         #[must_use]
-        pub fn id(&self) -> u64 {
+        fn id(&self) -> CurrencyPairId {
             self.id
         }
 
         #[must_use]
-        pub fn nonce(&self) -> u64 {
+        fn nonce(&self) -> CurrencyPairNonce {
             self.nonce
         }
 
@@ -238,19 +245,21 @@ pub mod v1 {
         pub fn try_from_raw(
             raw: raw::CurrencyPairGenesis,
         ) -> Result<Self, CurrencyPairGenesisError> {
-            let Some(currency_pair) = raw.currency_pair.map(CurrencyPair::from_raw) else {
-                return Err(CurrencyPairGenesisError::missing_currency_pair());
+            let currency_pair = raw
+                .currency_pair
+                .ok_or_else(|| CurrencyPairGenesisError::field_not_set("currency_pair"))?
+                .try_into()
+                .map_err(CurrencyPairGenesisError::currency_pair)?;
+            let currency_pair_price = {
+                let wire = raw.currency_pair_price.ok_or_else(|| {
+                    CurrencyPairGenesisError::field_not_set("currency_pair_price")
+                })?;
+                QuotePrice::try_from_raw(wire)
+                    .map_err(CurrencyPairGenesisError::currency_pair_price)?
             };
-            let Some(currency_pair_price) = raw
-                .currency_pair_price
-                .map(QuotePrice::try_from_raw)
-                .transpose()
-                .map_err(CurrencyPairGenesisError::quote_price_parse_error)?
-            else {
-                return Err(CurrencyPairGenesisError::missing_currency_pair_price());
-            };
-            let id = raw.id;
-            let nonce = raw.nonce;
+
+            let id = CurrencyPairId::new(raw.id);
+            let nonce = CurrencyPairNonce::new(raw.nonce);
             Ok(Self {
                 currency_pair,
                 currency_pair_price,
@@ -264,41 +273,46 @@ pub mod v1 {
             raw::CurrencyPairGenesis {
                 currency_pair: Some(self.currency_pair.into_raw()),
                 currency_pair_price: Some(self.currency_pair_price.into_raw()),
-                id: self.id,
-                nonce: self.nonce,
+                id: self.id.get(),
+                nonce: self.nonce.get(),
             }
         }
     }
 
     #[derive(Debug, thiserror::Error)]
     #[error(transparent)]
-    pub struct CurrencyPairGenesisError(CurrencyPairGenesisErrorKind);
+    pub struct CurrencyPairGenesisError(#[from] CurrencyPairGenesisErrorKind);
 
     impl CurrencyPairGenesisError {
         #[must_use]
-        pub fn missing_currency_pair() -> Self {
-            Self(CurrencyPairGenesisErrorKind::MissingCurrencyPair)
+        fn field_not_set(name: &'static str) -> Self {
+            CurrencyPairGenesisErrorKind::FieldNotSet {
+                name,
+            }
+            .into()
+        }
+
+        fn currency_pair(source: CurrencyPairError) -> Self {
+            CurrencyPairGenesisErrorKind::CurrencyPair {
+                source,
+            }
+            .into()
         }
 
         #[must_use]
-        pub fn missing_currency_pair_price() -> Self {
-            Self(CurrencyPairGenesisErrorKind::MissingCurrencyPairPrice)
-        }
-
-        #[must_use]
-        pub fn quote_price_parse_error(err: QuotePriceError) -> Self {
-            Self(CurrencyPairGenesisErrorKind::QuotePriceParseError(err))
+        fn currency_pair_price(err: QuotePriceError) -> Self {
+            Self(CurrencyPairGenesisErrorKind::CurrencyPairPrice(err))
         }
     }
 
     #[derive(Debug, thiserror::Error)]
     enum CurrencyPairGenesisErrorKind {
-        #[error("missing currency pair")]
-        MissingCurrencyPair,
-        #[error("missing currency pair price")]
-        MissingCurrencyPairPrice,
-        #[error("failed to parse quote price")]
-        QuotePriceParseError(#[source] QuotePriceError),
+        #[error("required field not set: .{name}")]
+        FieldNotSet { name: &'static str },
+        #[error("field `.currency_pair` was invalid")]
+        CurrencyPair { source: CurrencyPairError },
+        #[error("field `.currency_pair_price` was invalid")]
+        CurrencyPairPrice(#[source] QuotePriceError),
     }
 
     #[cfg_attr(
@@ -309,7 +323,7 @@ pub mod v1 {
     #[derive(Debug, Clone)]
     pub struct GenesisState {
         pub currency_pair_genesis: Vec<CurrencyPairGenesis>,
-        pub next_id: u64,
+        pub next_id: CurrencyPairId,
     }
 
     impl TryFrom<raw::GenesisState> for GenesisState {
@@ -338,7 +352,7 @@ pub mod v1 {
                 .map(CurrencyPairGenesis::try_from_raw)
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(GenesisStateError::currency_pair_genesis_parse_error)?;
-            let next_id = raw.next_id;
+            let next_id = CurrencyPairId::new(raw.next_id);
             Ok(Self {
                 currency_pair_genesis,
                 next_id,
@@ -357,7 +371,7 @@ pub mod v1 {
                 .map(CurrencyPairGenesis::try_from_raw)
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(GenesisStateError::currency_pair_genesis_parse_error)?;
-            let next_id = raw.next_id;
+            let next_id = CurrencyPairId::new(raw.next_id);
             Ok(Self {
                 currency_pair_genesis,
                 next_id,
@@ -372,7 +386,7 @@ pub mod v1 {
                     .into_iter()
                     .map(CurrencyPairGenesis::into_raw)
                     .collect(),
-                next_id: self.next_id,
+                next_id: self.next_id.get(),
             }
         }
 
@@ -384,7 +398,7 @@ pub mod v1 {
                     .into_iter()
                     .map(CurrencyPairGenesis::into_raw)
                     .collect(),
-                next_id: self.next_id,
+                next_id: self.next_id.get(),
             }
         }
     }
@@ -395,7 +409,7 @@ pub mod v1 {
 
     impl GenesisStateError {
         #[must_use]
-        pub fn currency_pair_genesis_parse_error(err: CurrencyPairGenesisError) -> Self {
+        fn currency_pair_genesis_parse_error(err: CurrencyPairGenesisError) -> Self {
             Self(GenesisStateErrorKind::CurrencyPairGenesisParseError(err))
         }
     }

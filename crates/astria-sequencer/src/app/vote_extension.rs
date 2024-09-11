@@ -12,13 +12,16 @@ use astria_core::{
         service::v1::{
             oracle_client::OracleClient,
             QueryPricesRequest,
-            QueryPricesResponse,
         },
     },
     slinky::{
         abci::v1::OracleVoteExtension,
         oracle::v1::QuotePrice,
-        types::v1::CurrencyPair,
+        service::v1::QueryPricesResponse,
+        types::v1::{
+            CurrencyPair,
+            Price,
+        },
     },
 };
 use indexmap::IndexMap;
@@ -35,7 +38,9 @@ use tendermint_proto::google::protobuf::Timestamp;
 use tonic::transport::Channel;
 use tracing::{
     debug,
-    trace,
+    info,
+    instrument,
+    warn,
 };
 
 use crate::{
@@ -77,19 +82,17 @@ impl Handler {
 
         // if we fail to get prices within the timeout duration, we will return an empty vote
         // extension to ensure liveness.
-        let prices = match oracle_client.prices(QueryPricesRequest {}).await {
-            Ok(prices) => prices.into_inner(),
+        let rsp = match oracle_client.prices(QueryPricesRequest {}).await {
+            Ok(rsp) => rsp.into_inner(),
             Err(e) => {
-                bail!("failed to get prices from oracle sidecar: {e}",);
+                bail!("failed to get prices from oracle sidecar: {e:#}",);
             }
         };
 
-        tracing::debug!(
-            prices_count = prices.prices.len(),
-            "got prices from oracle sidecar; transforming prices"
-        );
-
-        let oracle_vote_extension = transform_oracle_service_prices(state, prices)
+        let query_prices_response =
+            astria_core::slinky::service::v1::QueryPricesResponse::try_from_raw(rsp)
+                .context("failed to validate prices server response")?;
+        let oracle_vote_extension = transform_oracle_service_prices(state, query_prices_response)
             .await
             .context("failed to transform oracle service prices")?;
 
@@ -146,35 +149,27 @@ async fn verify_vote_extension<S: StateReadExt>(
 }
 
 // see https://github.com/skip-mev/slinky/blob/158cde8a4b774ac4eec5c6d1a2c16de6a8c6abb5/abci/ve/vote_extension.go#L290
+#[instrument(skip_all)]
 async fn transform_oracle_service_prices<S: StateReadExt>(
     state: &S,
-    prices: QueryPricesResponse,
+    rsp: QueryPricesResponse,
 ) -> anyhow::Result<OracleVoteExtension> {
     let mut strategy_prices = IndexMap::new();
-    for (currency_pair_id, price_string) in prices.prices {
-        let currency_pair = currency_pair_id
-            .parse()
-            .context("failed to parse currency pair")?;
-
-        // prices are encoded as just a decimal string in the sidecar response
-        let price: u128 = price_string
-            .parse()
-            .context("failed to parse price string")?;
-
-        let Ok(id) = DefaultCurrencyPairStrategy::id(state, &currency_pair).await else {
-            trace!(
-                currency_pair = currency_pair.to_string(),
-                "currency pair not found in state; skipping"
-            );
-            continue;
+    for (currency_pair, price) in rsp.prices {
+        let id = match DefaultCurrencyPairStrategy::id(state, &currency_pair).await {
+            Ok(Some(id)) => id,
+            Ok(None) => {
+                info!(%currency_pair, "currency pair ID not found in state; skipping");
+                continue;
+            }
+            Err(err) => {
+                // FIXME: this event can be removed once all instrumented functions
+                //        can generate an error event.
+                warn!(%currency_pair, "failed to fetch ID for currency pair; cancelling transformation");
+                return Err(err).context("failed to fetch currency pair ID");
+            }
         };
-        let encoded_price = DefaultCurrencyPairStrategy::get_encoded_price(state, price);
-
-        debug!(
-            currency_pair = currency_pair.to_string(),
-            id, price, "transformed price for inclusion in vote extension"
-        );
-        strategy_prices.insert(id, encoded_price.into());
+        strategy_prices.insert(id, price);
     }
 
     Ok(OracleVoteExtension {
@@ -423,9 +418,11 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         .map(|vote| {
             let raw = RawOracleVoteExtension::decode(vote.vote_extension.clone())
                 .context("failed to decode oracle vote extension")?;
-            Ok(OracleVoteExtension::from_raw(raw))
+            OracleVoteExtension::try_from_raw(raw)
+                .context("failed to validate oracle vote extension")
         })
-        .collect::<anyhow::Result<Vec<_>>>()?;
+        .collect::<anyhow::Result<Vec<_>>>()
+        .context("failed to extract oracle vote extension from extended commit info")?;
 
     let prices = aggregate_oracle_votes(state, votes)
         .await
@@ -441,14 +438,8 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
             block_height: height,
         };
 
-        tracing::debug!(
-            currency_pair = currency_pair.to_string(),
-            price = price.price,
-            "applied price from vote extension"
-        );
-
         state
-            .put_price_for_currency_pair(&currency_pair, price)
+            .put_price_for_currency_pair(currency_pair, price)
             .await
             .context("failed to put price")?;
     }
@@ -459,7 +450,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
 async fn aggregate_oracle_votes<S: StateReadExt>(
     state: &S,
     votes: Vec<OracleVoteExtension>,
-) -> anyhow::Result<HashMap<CurrencyPair, u128>> {
+) -> anyhow::Result<HashMap<CurrencyPair, Price>> {
     // validators are not weighted right now, so we just take the median price for each currency
     // pair
     //
@@ -467,48 +458,44 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
     // we can implement this later, when we have stake weighting.
     let mut currency_pair_to_price_list = HashMap::new();
     for vote in votes {
-        for (id, price_bytes) in vote.prices {
-            if price_bytes.len() > MAXIMUM_PRICE_BYTE_LEN {
-                continue;
-            }
-
+        for (id, price) in vote.prices {
             let Some(currency_pair) = DefaultCurrencyPairStrategy::from_id(state, id)
                 .await
                 .context("failed to get currency pair from id")?
             else {
                 continue;
             };
-
-            let price = DefaultCurrencyPairStrategy::get_decoded_price(state, &price_bytes)
-                .context("failed to get decoded price")?;
             currency_pair_to_price_list
                 .entry(currency_pair)
-                .and_modify(|prices: &mut Vec<u128>| prices.push(price))
+                .and_modify(|prices: &mut Vec<Price>| prices.push(price))
                 .or_insert(vec![price]);
         }
     }
 
     let mut prices = HashMap::new();
     for (currency_pair, mut price_list) in currency_pair_to_price_list {
-        let median_price = if price_list.is_empty() {
-            // price list should not ever be empty,
-            // as it was only inserted if it had a price
-            0
-        } else {
-            price_list.sort_unstable();
-            let mid = price_list.len() / 2;
-            if price_list.len() % 2 == 0 {
-                let num_to_skip = mid
-                    .checked_sub(1)
-                    .expect("must subtract as the length of the price list is >0");
-                price_list.iter().skip(num_to_skip).take(2).sum::<u128>() / 2
-            } else {
-                price_list
-                    .get(mid)
-                    .copied()
-                    .expect("must have element as mid < len")
+        price_list.sort_unstable();
+        let midpoint = price_list
+            .len()
+            .checked_div(2)
+            .expect("has a result because RHS is not 0");
+        let median_price = if price_list.len() % 2 == 0 {
+            'median_from_even: {
+                let Some(left) = price_list.get(midpoint) else {
+                    break 'median_from_even None;
+                };
+                let Some(right_idx) = midpoint.checked_add(1) else {
+                    break 'median_from_even None;
+                };
+                let Some(right) = price_list.get(right_idx).copied() else {
+                    break 'median_from_even None;
+                };
+                left.checked_add(right).and_then(|sum| sum.checked_div(2))
             }
-        };
+        } else {
+            price_list.get(midpoint).copied()
+        }
+        .unwrap_or_else(|| Price::new(0));
         prices.insert(currency_pair, median_price);
     }
 
