@@ -8852,3 +8852,28 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "cnidarium"
+version = "0.80.4"
+source = "git+https://github.com/noot/penumbra.git?rev=636b9f12d6c5e7324e798236e4a514983f6a8c6d#636b9f12d6c5e7324e798236e4a514983f6a8c6d"
+
+[[patch.unused]]
+name = "cnidarium-component"
+version = "0.80.4"
+source = "git+https://github.com/noot/penumbra.git?rev=636b9f12d6c5e7324e798236e4a514983f6a8c6d#636b9f12d6c5e7324e798236e4a514983f6a8c6d"
+
+[[patch.unused]]
+name = "penumbra-ibc"
+version = "0.80.4"
+source = "git+https://github.com/noot/penumbra.git?rev=636b9f12d6c5e7324e798236e4a514983f6a8c6d#636b9f12d6c5e7324e798236e4a514983f6a8c6d"
+
+[[patch.unused]]
+name = "penumbra-proto"
+version = "0.80.4"
+source = "git+https://github.com/noot/penumbra.git?rev=636b9f12d6c5e7324e798236e4a514983f6a8c6d#636b9f12d6c5e7324e798236e4a514983f6a8c6d"
+
+[[patch.unused]]
+name = "penumbra-tower-trace"
+version = "0.80.4"
+source = "git+https://github.com/noot/penumbra.git?rev=636b9f12d6c5e7324e798236e4a514983f6a8c6d#636b9f12d6c5e7324e798236e4a514983f6a8c6d"
