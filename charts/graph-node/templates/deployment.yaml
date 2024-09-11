@@ -1,30 +1,120 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "graph-node.name" . }}
-  labels:
-    app: {{ include "graph-node.appName" . }}
-  namespace: {{ include "graph-node.namespace" . }}
+  name: graph-node
 spec:
-  replicas: {{ .Values.global.replicaCount }}
+  replicas: {{ .Values.graphNode.replicas }}
   selector:
     matchLabels:
-      app: {{ include "graph-node.appName" . }}
+      app: graph-node
   template:
     metadata:
-      name: {{ include "graph-node.name" . }}
       labels:
-        app: {{ include "graph-node.appName" . }}
+        app: graph-node
     spec:
       containers:
-        - name: sequencer-faucet
-          image: {{ include "graph-node.image" }}
-          envFrom:
-            - configMapRef:
-                name: {{ include "graph-node.name" . }}-env
-          ports:
-            - containerPort: 8000
-            - containerPort: 8001
-            - containerPort: 8020
-            - containerPort: 8030
-            - containerPort: 8040
+      - name: graph-node
+        image: {{ .Values.graphNode.image }}:{{ .Values.graphNode.tag }}
+        ports:
+        - containerPort: 8000
+        - containerPort: 8001
+        - containerPort: 8020
+        - containerPort: 8030
+        - containerPort: 8040
+        env:
+        - name: postgres_host
+          value: postgres
+        - name: postgres_user
+          value: {{ .Values.postgres.user }}
+        - name: postgres_pass
+          value: {{ .Values.postgres.password }}
+        - name: postgres_db
+          value: {{ .Values.postgres.database }}
+        - name: ipfs
+          value: ipfs:5001
+        - name: ethereum
+          value: {{ .Values.environment.ethereumNetwork }}:{{ .Values.environment.ethereumRPC }}
+        - name: GRAPH_LOG
+          value: info
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ipfs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ipfs
+  template:
+    metadata:
+      labels:
+        app: ipfs
+    spec:
+      containers:
+      - name: ipfs
+        image: {{ .Values.ipfs.image }}:{{ .Values.ipfs.tag }}
+        ports:
+        - containerPort: 5001
+        volumeMounts:
+        - name: ipfs-storage
+          mountPath: /data/ipfs
+      volumes:
+      - name: ipfs-storage
+        persistentVolumeClaim:
+          claimName: ipfs-pvc
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+      - name: postgres
+        image: {{ .Values.postgres.image }}:{{ .Values.postgres.tag }}
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: {{ .Values.postgres.user }}
+        - name: POSTGRES_PASSWORD
+          value: {{ .Values.postgres.password }}
+        - name: POSTGRES_DB
+          value: {{ .Values.postgres.database }}
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        - name: POSTGRES_INITDB_ARGS
+          value: "--lc-collate=C --lc-ctype=C --encoding=UTF8"
+        securityContext:
+          runAsUser: 999
+          runAsGroup: 999
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "{{ .Values.postgres.user }}"]
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc

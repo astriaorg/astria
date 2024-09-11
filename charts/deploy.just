@@ -53,6 +53,11 @@ deploy-metrics-server:
 deploy-ingress-controller:
   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
 
+deploy-graph-node namespace=defaultNamespace: (deploy-chart "graph-node" namespace)
+delete-graph-node namespace=defaultNamespace: (delete-chart "graph-node" namespace)
+delete-pvc namespace=defaultNamespace: 
+  kubectl delete pvc --all -n namespace
+
 [private]
 deploy-celestia-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace)
 

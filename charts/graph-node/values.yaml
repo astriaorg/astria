@@ -1,24 +1,26 @@
-global:
-  namespaceOverride: ""
-  replicaCount: 1
-  # Whether to use tty readable logging for astria services, when false use json.
-  # Best to be false in production environments, true for clean logs on local dev.
-  useTTY: false
+graphNode:
+  image: graphprotocol/graph-node
+  tag: latest
+  replicas: 1
 
-images:
-  graph-node:
-    repo: graphprotocol/graph-node
-    tag: latest
-
-config:
-  nodeName: "graph-node"
-  postgresHost: "postgresql"
-  postgresUser: "{{ .Values.postgres.auth.username }}"
-  postgresPassword: "{{ .Values.postgres.auth.password }}"
-  postgresDB: "graph-node"
-  ipfs: "ipfs:5001"
-  evm: "astria-rollup:http://astria-rollup:8545"
-  logLevel: "info"
+ipfs:
+  image: ipfs/kubo
+  tag: v0.17.0
+  storage:
+    size: 5Gi
 
 postgres:
-  enabled: false
+  image: postgres
+  tag: latest
+  user: graph-node
+  password: let-me-in
+  database: graph-node
+  storage:
+    size: 10Gi
+
+environment:
+  ethereumNetwork: flame-devnet
+  ethereumRPC: https://rpc.evm.dusk-10.devnet.astria.org/
+
+persistence:
+  storageClass: standard
