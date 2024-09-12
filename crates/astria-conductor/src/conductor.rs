@@ -44,7 +44,7 @@ pub enum RestartToken {
 }
 
 pin_project! {
-    /// Handle to [`Conductor`].
+    /// Handle to the conductor, returned by [`Conductor::spawn`].
     pub struct ConductorHandle {
         shutdown: CancellationToken,
         task: Option<JoinHandle<eyre::Result<()>>>,
@@ -53,12 +53,13 @@ pin_project! {
 
 impl ConductorHandle {
     /// Initiates shutdown of the conductor and returns its result.
-    /// 
+    ///
     /// # Errors
     /// Returns an error if the conductor exited with an error.
-    /// 
+    ///
     /// # Panics
     /// Panics if shutdown is called twice.
+    #[instrument(skip_all, err)]
     pub async fn shutdown(&mut self) -> eyre::Result<()> {
         self.shutdown.cancel();
         self.task
@@ -106,11 +107,11 @@ pub struct Conductor {
 
 impl Conductor {
     /// Creates a new `Conductor` from a [`Config`].
-    /// 
+    ///
     /// # Errors
     /// Returns an error if [`InnerConductorTask`] could not be created.
     pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
-        let conductor = InnerConductorTask::new(&cfg, metrics)?;
+        let conductor = InnerConductorTask::new(cfg.clone(), metrics)?;
         let conductor_inner_shutdown = conductor.shutdown.clone();
         let conductor_inner_handle = conductor.spawn();
         Ok(Self {
@@ -133,8 +134,8 @@ impl Conductor {
 
                 task_res = &mut self.handle => {
                     match task_res {
-                        Ok(Ok(should_restart)) => {
-                            match should_restart {
+                        Ok(Ok(restart_token)) => {
+                            match restart_token {
                                 RestartToken::Restart => self.restart(),
                                 RestartToken::Shutdown => break,
                             }
@@ -144,7 +145,7 @@ impl Conductor {
                             Err(error)?;
                         },
                         Err(err) => {
-                            let error = eyre::ErrReport::from(err).wrap_err("conductor task exited unexpectedly");
+                            let error = eyre::ErrReport::from(err).wrap_err("conductor failed during shutdown");
                             Err(error)?;
                         }
                     }
@@ -155,12 +156,12 @@ impl Conductor {
         Ok(())
     }
 
-    /// Creates and spawns a new [`InnerConductorTask`] task with the same configuration, replacing the
-    /// previous one. This function should only be called after a graceful shutdown of the inner
-    /// conductor task.
+    /// Creates and spawns a new [`InnerConductorTask`] task with the same configuration, replacing
+    /// the previous one. This function should only be called after a graceful shutdown of the
+    /// inner conductor task.
     fn restart(&mut self) {
         info!("restarting conductor");
-        let new_handle = InnerConductorTask::new(&self.cfg, self.metrics)
+        let new_handle = InnerConductorTask::new(self.cfg.clone(), self.metrics)
             .expect("failed to create new conductor after restart")
             .spawn();
         self.conductor_inner_shutdown = new_handle.shutdown_token.clone();
@@ -187,7 +188,7 @@ impl Conductor {
 }
 
 pin_project! {
-    /// A handle returned by [`ConductorInner::spawn`].
+    /// A handle returned by [`InnerConductorTask::spawn`].
     pub struct ConductorInnerHandle {
         shutdown_token: CancellationToken,
         task: Option<tokio::task::JoinHandle<eyre::Result<RestartToken>>>,
@@ -224,13 +225,13 @@ impl InnerConductorTask {
     const EXECUTOR: &'static str = "executor";
     const SEQUENCER: &'static str = "sequencer";
 
-    /// Create a new [`ConductorInner`] from a [`Config`].
+    /// Create a new [`InnerConductorTask`] from a [`Config`].
     ///
     /// # Errors
     /// Returns an error in the following cases if one of its constituent
     /// actors could not be spawned (executor, sequencer reader, or data availability reader).
     /// This usually happens if the actors failed to connect to their respective endpoints.
-    pub fn new(cfg: &Config, metrics: &'static Metrics) -> eyre::Result<Self> {
+    pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let mut tasks = JoinMap::new();
 
         let sequencer_cometbft_client = HttpClient::new(&*cfg.sequencer_cometbft_url)
@@ -242,7 +243,7 @@ impl InnerConductorTask {
         let executor_handle = {
             let (executor, handle) = executor::Builder {
                 mode: cfg.execution_commit_level,
-                rollup_address: cfg.execution_rpc_url.clone(),
+                rollup_address: cfg.execution_rpc_url,
                 shutdown: shutdown.clone(),
                 metrics,
             }
@@ -276,11 +277,11 @@ impl InnerConductorTask {
             let celestia_token = if cfg.no_celestia_auth {
                 None
             } else {
-                Some(cfg.celestia_bearer_token.clone())
+                Some(cfg.celestia_bearer_token)
             };
 
             let reader = celestia::Builder {
-                celestia_http_endpoint: cfg.celestia_node_http_url.clone(),
+                celestia_http_endpoint: cfg.celestia_node_http_url,
                 celestia_token,
                 celestia_block_time: Duration::from_millis(cfg.celestia_block_time_ms),
                 executor: executor_handle.clone(),
@@ -301,7 +302,7 @@ impl InnerConductorTask {
         })
     }
 
-    /// Runs [`ConductorInner`] until it receives an exit signal.
+    /// Runs [`InnerConductorTask`] until it receives an exit signal.
     ///
     /// # Panics
     /// Panics if it could not install a signal handler.
@@ -338,18 +339,16 @@ impl InnerConductorTask {
         }
 
         if let RestartToken::Restart = shutdown_res {
-            return Ok(RestartToken::Restart)
+            return Ok(RestartToken::Restart);
         }
         exit_reason?;
         Ok(RestartToken::Shutdown)
-
     }
 
     /// Spawns Conductor on the tokio runtime.
     ///
     /// This calls [`tokio::spawn`] and returns a [`ConductorInnerHandle`] to the
-    /// running Conductor task, allowing to explicitly shut it down with
-    /// [`ConductorInnerHandle::shutdown`].
+    /// running Conductor task.
     #[must_use]
     pub fn spawn(self) -> ConductorInnerHandle {
         let shutdown_token = self.shutdown.clone();
