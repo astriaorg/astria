@@ -82,37 +82,24 @@ spec:
                     enabled: false
                     annotations:
                       external-dns.alpha.kubernetes.io/hostname: explorer.evm.pr-{{.number}}.dev.astria.org
-                      external-dns.alpha.kubernetes.io/ttl: "30"
-                      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-                      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-                      nginx.ingress.kubernetes.io/limit-connections: '2'
-                      nginx.ingress.kubernetes.io/limit-rpm: '60'
+                      external-dns.alpha.kubernetes.io/ttl: "60"
                     hostname: explorer.evm.pr-{{.number}}.dev.astria.org
-                    className: nginx
                 frontend:
                   ingress:
                     enabled: false
                     annotations:
                       external-dns.alpha.kubernetes.io/hostname: explorer.evm.pr-{{.number}}.dev.astria.org
-                      external-dns.alpha.kubernetes.io/ttl: "30"
-                      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-                      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-                      nginx.ingress.kubernetes.io/limit-connections: '2'
-                      nginx.ingress.kubernetes.io/limit-rpm: '60'
+                      external-dns.alpha.kubernetes.io/ttl: "60"
                     hostname: explorer.evm.pr-{{.number}}.dev.astria.org
-                    className: nginx
 
               evm-faucet:
                 ingress:
                     annotations:
                       external-dns.alpha.kubernetes.io/hostname: faucet.evm.pr-{{.number}}.dev.astria.org
-                      external-dns.alpha.kubernetes.io/ttl: "30"
-                      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-                      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-                      nginx.ingress.kubernetes.io/limit-connections: '2'
-                      nginx.ingress.kubernetes.io/limit-rpm: '60'
-                    hostname: faucet.evm.pr-{{.number}}.dev.astria.org
-                    className: nginx
+                      external-dns.alpha.kubernetes.io/ttl: "60"
+                    hostname: pr-{{.number}}.dev.astria.org
+                    hosts:
+                      - faucet.evm.pr-{{.number}}.dev.astria.org
 
               evm-rollup:
                 config:
@@ -128,27 +115,16 @@ spec:
                     pullPolicy: Always
                 ingress:
                   enabled: true
+                  hostname: pr-{{.number}}.dev.astria.org
                   services:
                     rpc:
                       annotations:
                         external-dns.alpha.kubernetes.io/hostname: rpc.evm.pr-{{.number}}.dev.astria.org
-                        external-dns.alpha.kubernetes.io/ttl: "30"
-                        external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-                        nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-                        nginx.ingress.kubernetes.io/limit-connections: '2'
-                        nginx.ingress.kubernetes.io/limit-rpm: '60'
-                      hosts:
-                        - rpc.evm.pr-{{.number}}.dev.astria.org
+                        external-dns.alpha.kubernetes.io/ttl: "60"
                     ws:
                       annotations:
                         external-dns.alpha.kubernetes.io/hostname: ws.evm.pr-{{.number}}.dev.astria.org
-                        external-dns.alpha.kubernetes.io/ttl: "30"
-                        external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-                        nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-                        nginx.ingress.kubernetes.io/limit-connections: '2'
-                        nginx.ingress.kubernetes.io/limit-rpm: '60'
-                      hosts:
-                        - ws.evm.pr-{{.number}}.dev.astria.org
+                        external-dns.alpha.kubernetes.io/ttl: "60"
                 resources:
                   conductor:
                     requests:

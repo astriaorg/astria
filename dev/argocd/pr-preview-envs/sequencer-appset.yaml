@@ -37,6 +37,15 @@ spec:
   template:
     metadata:
       name: pr-{{.number}}-sequencer-0
+      # labels:
+      #   number: {{ .number }}
+      #   branch: {{ .branch }}
+      #   branch_slug: {{ .branch_slug }}
+      #   target_branch_slug: {{ .target_branch_slug }}
+      #   head_sha: {{ .head_sha }}
+      #   head_short_sha: {{ .head_short_sha }}
+      #   head_short_sha_7: {{ .head_short_sha_7 }}
+      #   labels: {{ .labels }}
     spec:
       destination:
         namespace: pr-{{.number}}
@@ -83,36 +92,13 @@ spec:
                   hostname: sequencer.pr-{{.number}}.dev.astria.org
                   annotations:
                     external-dns.alpha.kubernetes.io/hostname: grpc.sequencer.pr-{{.number}}.dev.astria.org
-                    external-dns.alpha.kubernetes.io/ttl: "30"
-                    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-                    kubernetes.io/ingress.class: nginx
-                    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-                    cert-manager.io/cluster-issuer: "cloudflare-issuer"
-                  service:
-                    name: node0-sequencer-grpc-service
-                    port: 8080
-                  path: '/'
-                  pathType: Prefix
-                  hosts:
-                    - grpc.sequencer.pr-{{.number}}.dev.astria.org
+                    external-dns.alpha.kubernetes.io/ttl: "60"
                 rpc:
                   enabled: true
                   hostname: sequencer.pr-{{.number}}.dev.astria.org
                   annotations:
                     external-dns.alpha.kubernetes.io/hostname: rpc.sequencer.pr-{{.number}}.dev.astria.org
-                    external-dns.alpha.kubernetes.io/ttl: "30"
-                    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-                    kubernetes.io/ingress.class: nginx
-                    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-                    cert-manager.io/cluster-issuer: "cloudflare-issuer"
-                  service:
-                    name: node0-sequencer-rpc-service
-                    port: 26657
-                  path: '/'
-                  pathType: Prefix
-
-                  hosts:
-                    - rpc.sequencer.pr-{{.number}}.dev.astria.org
+                    external-dns.alpha.kubernetes.io/ttl: "60"
 
               sequencer-relayer:
                 config:
