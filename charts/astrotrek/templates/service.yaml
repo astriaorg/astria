@@ -34,7 +34,7 @@ metadata:
   labels:
     app: frontend
   name: frontend-service
-  namespace: {{ $.Values.global.namespace }}
+  namespace: {{ .Values.global.namespace }}
 spec:
   ports:
     - name: "3000"

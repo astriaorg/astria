@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: indexer
-          image: ghcr.io/celenium-io/astria-indexer:main
+          image: ghcr.io/astriaorg/astria-indexer:0.1.0
           envFrom:
             - configMapRef:
                 name: env
@@ -42,7 +42,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/celenium-io/astria-indexer-api:main
+          image: ghcr.io/astriaorg/astria-indexer-api:0.1.0
           envFrom:
             - configMapRef:
                 name: env
@@ -50,6 +50,13 @@ spec:
             - containerPort: 9876
               name: indexer-api
               protocol: TCP
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
       restartPolicy: Always
 ---
 apiVersion: apps/v1
@@ -134,9 +141,16 @@ spec:
               value: "http://api.sequencer.localdev.me/v1"
             - name: NUXT_PUBLIC_WSS_DEV
               value: "ws://api.sequencer.localdev.me/v1/ws"
-          image: astrotrek:0.1.0
+          image: ghcr.io/astriaorg/astrotrek:0.1.0
           name: frontend
           ports:
             - containerPort: 3000
               protocol: TCP
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
       restartPolicy: Always

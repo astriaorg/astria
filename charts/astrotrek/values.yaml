@@ -28,18 +28,18 @@ config:
   astriaEnv: development
   logLevel: trace
   profilerServer: http://localhost:4040
-  apiPrometheusEnabled: "true"
+  apiPrometheusEnabled: "false"
   sequencerRpcUrl: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
   sequencerRpcTimeout: "10"
   sequencerRpcRps: "10"
   indexer:
     indexerScriptDir: database
-    indexerThreadsCount: "5"
-    indexerBlockPeriod: "2"
+    indexerThreadsCount: "10"
+    indexerBlockPeriod: "1"
     indexerViewsDir: database/views
   api:
     host: 0.0.0.0
-    rateLimit: 20
+    rateLimit: 10
     requestTimeout: 10
   database:
     postgresHost: db-service.astria-dev-cluster.svc.cluster.local
@@ -51,3 +51,11 @@ ports:
   api: "9876"
   db: "5432"
   frontend: "3000"
+
+resources:
+  requests:
+    cpu: 0.25
+    memory: 100Mi
+  limits:
+    cpu: 1
+    memory: 300Mi
