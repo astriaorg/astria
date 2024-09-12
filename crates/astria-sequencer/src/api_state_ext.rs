@@ -333,7 +333,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         // 3. block hash to block header
         // 4. for each rollup ID in the block, map block hash + rollup ID to rollup data
         // 5. block hash to rollup transactions proof
-        // 6. block hash to rollup IDs proof
+        // 6. block hash to rollup IDs proof.
 
         let key = block_hash_by_height_key(block.height().into());
         self.put_raw(key, block.block_hash().to_vec());
