@@ -120,7 +120,7 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
 }
 
 pub struct TestConductor {
-    pub conductor: conductor::Handle,
+    pub conductor: conductor::ConductorHandle,
     pub mock_grpc: MockGrpc,
     pub mock_http: wiremock::MockServer,
     pub metrics_handle: metrics::Handle,
