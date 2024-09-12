@@ -25,7 +25,10 @@ use futures::{
 };
 use sequencer_client::{
     tendermint::block::Height as SequencerHeight,
-    tendermint_rpc,
+    tendermint_rpc::{
+        self,
+        Error,
+    },
     HttpClient as SequencerClient,
 };
 use tokio::{
@@ -41,12 +44,14 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{
     debug,
+    debug_span,
     error,
     info,
     instrument,
     trace,
     warn,
     Instrument,
+    Level,
     Span,
 };
 
@@ -123,7 +128,6 @@ impl Relayer {
     ///
     /// Returns errors if sequencer block fetch or celestia blob submission
     /// failed catastrophically (after `u32::MAX` retries).
-    #[instrument(skip_all)]
     pub(crate) async fn run(self) -> eyre::Result<()> {
         // No need to add `wrap_err` as `new_from_path` already reports the path on error.
         let submission_state_at_startup =
@@ -175,7 +179,6 @@ impl Relayer {
                 biased;
 
                 () = self.relayer_shutdown_token.cancelled() => {
-                    info!("received shutdown signal");
                     break Ok("shutdown signal received");
                 }
 
@@ -188,25 +191,11 @@ impl Relayer {
                         break Err(eyre!("submitter exited unexpectedly while trying to forward block"));
                     }
                     block_stream.resume();
-                    debug!("block stream resumed");
+                    debug_span!("sequencer-relayer::Relayer::run").in_scope(|| debug!("block stream resumed"));
                 }
 
                 Some(res) = latest_height_stream.next() => {
-                    match res {
-                        Ok(height) => {
-                            self.state.set_latest_observed_sequencer_height(height.value());
-                            debug!(%height, "received latest height from sequencer");
-                            block_stream.set_latest_sequencer_height(height);
-                        }
-                        Err(error) => {
-                            self.metrics.increment_sequencer_height_fetch_failure_count();
-                            self.state.set_sequencer_connected(false);
-                            warn!(
-                                %error,
-                                "failed fetching latest height from sequencer; waiting until next tick",
-                            );
-                        }
-                    }
+                    self.handle_latest_height(res, &mut block_stream);
                 }
 
                 Some((height, fetch_result)) = block_stream.next() => {
@@ -237,11 +226,40 @@ impl Relayer {
             );
         };
 
-        match &reason {
-            Ok(reason) => info!(reason, "starting shutdown"),
-            Err(reason) => error!(%reason, "starting shutdown"),
-        }
+        report_shutdown(&reason);
 
+        self.handle_submitter_shutdown(submitter_task).await;
+
+        reason.map(|_| ())
+    }
+
+    #[instrument(skip_all)]
+    fn handle_latest_height(
+        &self,
+        res: Result<SequencerHeight, Error>,
+        block_stream: &mut read::BlockStream,
+    ) {
+        match res {
+            Ok(height) => {
+                self.state
+                    .set_latest_observed_sequencer_height(height.value());
+                debug!(%height, "received latest height from sequencer");
+                block_stream.set_latest_sequencer_height(height);
+            }
+            Err(error) => {
+                self.metrics
+                    .increment_sequencer_height_fetch_failure_count();
+                self.state.set_sequencer_connected(false);
+                warn!(
+                    %error,
+                    "failed fetching latest height from sequencer; waiting until next tick",
+                );
+            }
+        }
+    }
+
+    #[instrument(skip_all)]
+    async fn handle_submitter_shutdown(&self, submitter_task: Fuse<JoinHandle<eyre::Result<()>>>) {
         if !submitter_task.is_terminated() {
             debug!("waiting for Celestia submission task to exit");
             self.submitter_shutdown_token.cancel();
@@ -252,8 +270,6 @@ impl Relayer {
                 );
             }
         }
-
-        reason.map(|_| ())
     }
 
     #[instrument(skip_all, fields(%height))]
@@ -294,7 +310,7 @@ impl Relayer {
     }
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 async fn confirm_sequencer_chain_id(
     configured_sequencer_chain_id: String,
     sequencer_cometbft_client: SequencerClient,
@@ -336,6 +352,7 @@ async fn confirm_sequencer_chain_id(
     Ok(())
 }
 
+#[instrument(skip_all, err(level = Level::WARN))]
 async fn fetch_sequencer_chain_id(
     sequencer_cometbft_client: SequencerClient,
 ) -> Result<String, tendermint_rpc::Error> {
@@ -370,4 +387,12 @@ fn spawn_submitter(
         metrics,
     );
     (tokio::spawn(submitter.run()).fuse(), handle)
+}
+
+#[instrument(skip_all)]
+fn report_shutdown(reason: &eyre::Result<&str>) {
+    match reason {
+        Ok(reason) => info!(reason, "starting shutdown"),
+        Err(reason) => error!(%reason, "starting shutdown"),
+    }
 }

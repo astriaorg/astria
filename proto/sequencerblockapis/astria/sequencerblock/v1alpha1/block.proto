@@ -86,6 +86,11 @@ message Deposit {
   // the address on the destination chain which
   // will receive the bridged funds
   string destination_chain_address = 5;
+  // the transaction ID of the source action for the deposit, consisting
+  // of the transaction hash.
+  astria.primitive.v1.TransactionId source_transaction_id = 6;
+  // index of the deposit's source action within its transaction
+  uint64 source_action_index = 7;
 }
 
 // `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset

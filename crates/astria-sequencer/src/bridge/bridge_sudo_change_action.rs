@@ -31,7 +31,7 @@ impl ActionHandler for BridgeSudoChangeAction {
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         state
@@ -102,7 +102,10 @@ impl ActionHandler for BridgeSudoChangeAction {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::asset;
+    use astria_core::primitive::v1::{
+        asset,
+        TransactionId,
+    };
     use cnidarium::StateDelta;
 
     use super::*;
@@ -128,8 +131,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX);
 
@@ -164,8 +169,10 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let sudo_address = astria_address(&[98; 20]);
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: sudo_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX);
         state.put_bridge_sudo_change_base_fee(10);
