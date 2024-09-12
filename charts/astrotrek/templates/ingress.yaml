@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api-ingress
-  namespace: {{ $.Values.global.namespace }}
+  name: {{ .Values.config.name }}-api-ingress
+  namespace: {{ .Values.global.namespace }}
   annotations:
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
@@ -20,9 +20,9 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: api-service
+                name: {{ .Values.config.name }}-indexer-api-service
                 port:
-                  number: 9876
+                  name: indexer-api
 status:
   loadBalancer:
     ingress:
@@ -31,7 +31,7 @@ status:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: frontend-ingress
+  name: {{ .Values.config.name }}-frontend-ingress
   namespace: astria-dev-cluster
   annotations:
   nginx.ingress.kubernetes.io/enable-cors: "true"
@@ -50,9 +50,9 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: frontend-service
+                name: {{ .Values.config.name }}-frontend-service
                 port:
-                  number: 3000
+                  number: {{ .Values.ports.frontend }}
 status:
   loadBalancer:
     ingress:

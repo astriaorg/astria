@@ -2,43 +2,43 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: db
-  name: db-service
-  namespace: {{ $.Values.global.namespace }}
+    app: {{ .Values.config.name }}
+  name: {{ .Values.config.name }}-db-service
+  namespace: {{ .Values.global.namespace }}
 spec:
   ports:
-    - name: "5432"
+    - name: "{{ .Values.ports.db }}"
       port: {{ .Values.ports.db }}
       targetPort: {{ .Values.ports.db }}
   selector:
-    app: db
+    app: {{ .Values.config.name }}-db
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: api
-  name: api-service
-  namespace: {{ $.Values.global.namespace }}
+    app: {{ .Values.config.name }}-indexer-api
+  name: {{ .Values.config.name }}-indexer-api-service
+  namespace: {{ .Values.global.namespace }}
 spec:
   ports:
     - name: indexer-api
       port: {{ .Values.ports.api}}
       targetPort: {{ .Values.ports.api}}
   selector:
-    app: api
+    app: {{ .Values.config.name }}-indexer-api
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: frontend
-  name: frontend-service
+    app: {{ .Values.config.name }}-frontend
+  name: {{ .Values.config.name }}-frontend-service
   namespace: {{ .Values.global.namespace }}
 spec:
   ports:
-    - name: "3000"
+    - name: "{{ .Values.ports.frontend }}"
       port: {{ .Values.ports.frontend }}
       targetPort: {{ .Values.ports.frontend }}
   selector:
-    app: frontend
+    app: {{ .Values.config.name }}-frontend

@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: indexer
+  name: {{ .Values.config.name }}-indexer
   labels:
-    app: indexer
+    app: {{ .Values.config.name }}-indexer
   namespace: {{ .Values.global.namespace }}
 spec:
   replicas: {{ .Values.global.replicaCount }}
   selector:
     matchLabels:
-     app: indexer
+     app: {{ .Values.config.name }}-indexer
   template:
     metadata:
       labels:
-       app: indexer
+       app: {{ .Values.config.name }}-indexer
     spec:
       containers:
-        - name: indexer
-          image: ghcr.io/astriaorg/astria-indexer:0.1.0
+        - name: {{ .Values.config.name }}-indexer
+          image: {{ include "indexer.image" . }}
           envFrom:
             - configMapRef:
                 name: env
@@ -28,26 +28,28 @@ kind: Deployment
 metadata:
   namespace: {{ .Values.global.namespace }}
   labels:
-    app: api
-  name: api
+    app: {{ .Values.config.name }}-indexer-api
+  name: {{ .Values.config.name }}-indexer-api
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: api
+      app: {{ .Values.config.name }}-indexer-api
+  name: {{ .Values.config.name }}-indexer-api
   template:
     metadata:
       labels:
-        app: api
+        app: {{ .Values.config.name }}-indexer-api
+    name: {{ .Values.config.name }}-indexer-api
     spec:
       containers:
-        - name: api
-          image: ghcr.io/astriaorg/astria-indexer-api:0.1.0
+        - name: {{ .Values.config.name }}-indexer-api
+          image: {{ include "api.image" . }}
           envFrom:
             - configMapRef:
                 name: env
           ports:
-            - containerPort: 9876
+            - containerPort: {{ .Values.ports.api }}
               name: indexer-api
               protocol: TCP
           resources:
@@ -64,35 +66,27 @@ kind: Deployment
 metadata:
   namespace: {{ .Values.global.namespace }}
   labels:
-   app: db
-  name: db
+   app: {{ .Values.config.name }}-db
+  name: {{ .Values.config.name }}-db
 spec:
   replicas: 1
   selector:
     matchLabels:
-     app: db
+     app: {{ .Values.config.name }}-db
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-       app: db
+       app: {{ .Values.config.name }}-db
     spec:
       containers:
         - args:
             - -cshared_preload_libraries=timescaledb,pg_stat_statements
             - -cpg_stat_statements.track=all
-          env:
-            - name: POSTGRES_DB
-              value: astria
-            - name: POSTGRES_HOST
-              value: db-service
-            - name: POSTGRES_HOST_AUTH_METHOD
-              value: trust
-            - name: POSTGRES_PASSWORD
-              value: indexer-user
-            - name: POSTGRES_USER
-              value: indexer-user
+          envFrom:
+            - configMapRef:
+                name: env
           image: timescale/timescaledb-ha:pg15-latest
           livenessProbe:
             exec:
@@ -101,9 +95,9 @@ spec:
             failureThreshold: 5
             periodSeconds: 10
             timeoutSeconds: 5
-          name: db
+          name: {{ .Values.config.name }}-db
           ports:
-            - containerPort: 5432
+            - containerPort: {{ .Values.ports.db }}
               protocol: TCP
           volumeMounts:
             - mountPath: /home/postgres/pgdata
@@ -111,40 +105,42 @@ spec:
       restartPolicy: Always
       volumes:
         - name: db
+          {{- if .Values.storage.enabled }}
           persistentVolumeClaim:
             claimName: astrotrek-shared-local-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   namespace: {{ .Values.global.namespace }}
   labels:
-   app: frontend
-  name: frontend
+   app: {{ .Values.config.name }}-frontend
+  name: {{ .Values.config.name }}-frontend
 spec:
   replicas: 1
   selector:
     matchLabels:
-     app: frontend
+     app: {{ .Values.config.name }}-frontend
   template:
     metadata:
       labels:
-       app: frontend
+       app: {{ .Values.config.name }}-frontend
     spec:
       containers:
         - args:
             - npm
             - run
             - start
-          env:
-            - name: NUXT_PUBLIC_API_DEV
-              value: "http://api.sequencer.localdev.me/v1"
-            - name: NUXT_PUBLIC_WSS_DEV
-              value: "ws://api.sequencer.localdev.me/v1/ws"
-          image: ghcr.io/astriaorg/astrotrek:0.1.0
-          name: frontend
+          envFrom:
+            - configMapRef:
+                name: env
+          image: {{ include "frontend.image" . }}
+          name: {{ .Values.config.name }}-frontend
           ports:
-            - containerPort: 3000
+            - containerPort: {{ .Values.ports.frontend }}
               protocol: TCP
           resources:
             requests:

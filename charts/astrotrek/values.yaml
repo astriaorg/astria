@@ -4,29 +4,43 @@
 global:
   namespace: "astria-dev-cluster"
   replicaCount: 1
-  useTTY: true
-  dev: false
 
 images:
-    repo: ghcr.io/astriaorg/sequencer
-    tag: "0.16.0"
+  indexer:
+    repo: ghcr.io/astriaorg/astria-indexer
+    tag: "0.1.0"
     devTag: latest
+  api:
+    repo: ghcr.io/astriaorg/astria-indexer-api
+    tag: "0.1.0"
+    devTag: latest
+  frontend:
+    repo: ghcr.io/astriaorg/astrotrek
+    tag: "0.1.0"
+    devTag: latest
+
+serviceMonitor:
+  enabled: false
+  additionalLabels: {}
+  interval: 15s
+  scrapeTimeout: 10s
 
 storage:
   enabled: false
   local: true
   entities:
-    celestiaSharedStorage:
+    indexerSharedStorage:
       size: "5Gi"
-      persistentVolumeName: "celestia-shared-storage"
-      path: "/data/celestia-data"
+      persistentVolumeName: "indexer-shared-storage"
+      path: "/data/indexer-data"
 
 metrics:
   enabled: true
 
 config:
+  name: astrotrek
   astriaEnv: development
-  logLevel: trace
+  logLevel: debug
   profilerServer: http://localhost:4040
   apiPrometheusEnabled: "false"
   sequencerRpcUrl: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
@@ -42,10 +56,13 @@ config:
     rateLimit: 10
     requestTimeout: 10
   database:
-    postgresHost: db-service.astria-dev-cluster.svc.cluster.local
+    postgresHost: astrotrek-db-service.astria-dev-cluster.svc.cluster.local
     postgresUser: indexer-user
     postgresPassword: indexer-user
     postgresDb: astria
+  frontend:
+    rpcApiUrl: http://api.sequencer.localdev.me/v1
+    wsApiUrl: ws://api.sequencer.localdev.me/v1/ws
 
 ports:
   api: "9876"

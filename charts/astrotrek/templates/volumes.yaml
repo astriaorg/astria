@@ -35,7 +35,7 @@ kind: PersistentVolumeClaim
 metadata:
   namespace: {{ .Values.global.namespace }}
   labels:
-    app: db
+    app: {{ .Values.config.name }}-db
   name: astrotrek-shared-local-pvc
 spec:
   accessModes:
