@@ -44,6 +44,7 @@ ibc-types = { workspace = true, features = ["with_serde"] }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 penumbra-proto = { workspace = true }
 penumbra-tower-trace = { workspace = true }
+pin-project-lite = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
