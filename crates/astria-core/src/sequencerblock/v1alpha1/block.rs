@@ -1291,85 +1291,23 @@ impl FilteredSequencerBlockError {
 )]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.
-    bridge_address: Address,
+    pub bridge_address: Address,
     // the rollup ID registered to the `bridge_address`
-    rollup_id: RollupId,
+    pub rollup_id: RollupId,
     // the amount that was transferred to `bridge_address`
-    amount: u128,
+    pub amount: u128,
     // the IBC ICS20 denom of the asset that was transferred
-    asset: asset::Denom,
+    pub asset: asset::Denom,
     // the address on the destination chain (rollup) which to send the bridged funds to
-    destination_chain_address: String,
+    pub destination_chain_address: String,
     // the transaction ID of the source action for the deposit, consisting
     // of the transaction hash.
-    source_transaction_id: TransactionId,
+    pub source_transaction_id: TransactionId,
     // index of the deposit's source action within its transaction
-    source_action_index: u64,
-}
-
-impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
-    fn from(deposit: Deposit) -> Self {
-        deposit.into_raw()
-    }
+    pub source_action_index: u64,
 }
 
 impl Deposit {
-    #[must_use]
-    pub fn new(
-        bridge_address: Address,
-        rollup_id: RollupId,
-        amount: u128,
-        asset: asset::Denom,
-        destination_chain_address: String,
-        source_transaction_id: TransactionId,
-        source_action_index: u64,
-    ) -> Self {
-        Self {
-            bridge_address,
-            rollup_id,
-            amount,
-            asset,
-            destination_chain_address,
-            source_transaction_id,
-            source_action_index,
-        }
-    }
-
-    #[must_use]
-    pub fn bridge_address(&self) -> &Address {
-        &self.bridge_address
-    }
-
-    #[must_use]
-    pub fn rollup_id(&self) -> &RollupId {
-        &self.rollup_id
-    }
-
-    #[must_use]
-    pub fn amount(&self) -> u128 {
-        self.amount
-    }
-
-    #[must_use]
-    pub fn asset(&self) -> &asset::Denom {
-        &self.asset
-    }
-
-    #[must_use]
-    pub fn destination_chain_address(&self) -> &str {
-        &self.destination_chain_address
-    }
-
-    #[must_use]
-    pub fn source_transaction_id(&self) -> &TransactionId {
-        &self.source_transaction_id
-    }
-
-    #[must_use]
-    pub fn source_action_index(&self) -> u64 {
-        self.source_action_index
-    }
-
     #[must_use]
     pub fn into_raw(self) -> raw::Deposit {
         let Self {
@@ -1436,6 +1374,12 @@ impl Deposit {
             source_transaction_id,
             source_action_index,
         })
+    }
+}
+
+impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
+    fn from(deposit: Deposit) -> Self {
+        deposit.into_raw()
     }
 }
 
