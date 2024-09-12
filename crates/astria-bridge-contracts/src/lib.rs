@@ -382,7 +382,7 @@ where
         let rollup_withdrawal_event_id = log
             .transaction_hash
             .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .encode_hex_with_prefix();
+            .encode_hex();
 
         let event = decode_log::<Ics20WithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
@@ -440,7 +440,7 @@ where
         let rollup_withdrawal_event_id = log
             .transaction_hash
             .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .encode_hex_with_prefix();
+            .encode_hex();
 
         let event = decode_log::<SequencerWithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
