@@ -222,6 +222,11 @@ pub struct Ics20Withdrawal {
     pub bridge_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
     >,
+    /// whether to use a bech32-compatible format of the `.return_address` when generating
+    /// fungible token packets (as opposed to Astria-native bech32m addresses). This is
+    /// necessary for chains like noble which enforce a strict bech32 format.
+    #[prost(bool, tag = "11")]
+    pub use_compat_address: bool,
 }
 impl ::prost::Name for Ics20Withdrawal {
     const NAME: &'static str = "Ics20Withdrawal";

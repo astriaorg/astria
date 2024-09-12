@@ -98,3 +98,21 @@ impl ::prost::Name for Address {
         ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)
     }
 }
+/// A `TransactionId` is a unique identifier for a transaction.
+/// It contains the hash of the transaction, to be included in
+/// rollup deposit events for source tracking.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionId {
+    /// The hash of the transaction which the ID represents.
+    /// It must be a lower hex-encoded 32-byte hash.
+    #[prost(string, tag = "1")]
+    pub inner: ::prost::alloc::string::String,
+}
+impl ::prost::Name for TransactionId {
+    const NAME: &'static str = "TransactionId";
+    const PACKAGE: &'static str = "astria.primitive.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)
+    }
+}

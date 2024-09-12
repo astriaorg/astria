@@ -233,12 +233,12 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
     };
 
     let resp = match snapshot
-        .get_last_transaction_hash_for_bridge_account(&address)
+        .get_last_transaction_id_for_bridge_account(&address)
         .await
     {
-        Ok(Some(tx_hash)) => BridgeAccountLastTxHashResponse {
+        Ok(Some(tx_id)) => BridgeAccountLastTxHashResponse {
             height,
-            tx_hash: Some(tx_hash),
+            tx_hash: Some(tx_id.get()),
         },
         Ok(None) => BridgeAccountLastTxHashResponse {
             height,
@@ -314,7 +314,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         let asset: astria_core::primitive::v1::asset::Denom = "test".parse().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes("test");

@@ -10,6 +10,7 @@ use std::{
         Hash,
         Hasher,
     },
+    sync::OnceLock,
 };
 
 use base64::{
@@ -78,6 +79,7 @@ impl SigningKey {
     pub fn verification_key(&self) -> VerificationKey {
         VerificationKey {
             key: self.0.verification_key(),
+            address_bytes: OnceLock::new(),
         }
     }
 
@@ -131,9 +133,13 @@ impl From<[u8; 32]> for SigningKey {
 }
 
 /// An Ed25519 verification key.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct VerificationKey {
     key: Ed25519VerificationKey,
+    // The address-bytes are lazily-initialized.  Since it may or may not be initialized for any
+    // given instance of a verification key, it is excluded from `PartialEq`, `Eq`, `PartialOrd`,
+    // `Ord` and `Hash` impls.
+    address_bytes: OnceLock<[u8; ADDRESS_LEN]>,
 }
 
 impl VerificationKey {
@@ -160,24 +166,23 @@ impl VerificationKey {
     /// Returns the sequencer address of this verification key.
     ///
     /// The address is the first 20 bytes of the sha256 hash of the verification key.
-    // Silence the clippy lint because the function body asserts that the panic
-    // cannot happen.
-    #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
-        fn first_20(array: [u8; 32]) -> [u8; ADDRESS_LEN] {
-            [
-                array[0], array[1], array[2], array[3], array[4], array[5], array[6], array[7],
-                array[8], array[9], array[10], array[11], array[12], array[13], array[14],
-                array[15], array[16], array[17], array[18], array[19],
-            ]
-        }
-        /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
-        /// that would violate this assumption.
-        #[allow(clippy::assertions_on_constants)]
-        const _: () = assert!(ADDRESS_LEN <= 32);
-        let bytes: [u8; 32] = Sha256::digest(self).into();
-        first_20(bytes)
+        *self.address_bytes.get_or_init(|| {
+            fn first_20(array: [u8; 32]) -> [u8; ADDRESS_LEN] {
+                [
+                    array[0], array[1], array[2], array[3], array[4], array[5], array[6], array[7],
+                    array[8], array[9], array[10], array[11], array[12], array[13], array[14],
+                    array[15], array[16], array[17], array[18], array[19],
+                ]
+            }
+            /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
+            /// that would violate this assumption.
+            #[allow(clippy::assertions_on_constants)]
+            const _: () = assert!(ADDRESS_LEN <= 32);
+            let bytes: [u8; 32] = Sha256::digest(self).into();
+            first_20(bytes)
+        })
     }
 }
 
@@ -185,6 +190,11 @@ impl Debug for VerificationKey {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut debug_struct = formatter.debug_struct("VerificationKey");
         debug_struct.field("key", &BASE64_STANDARD.encode(self.key.as_ref()));
+        if let Some(address_bytes) = self.address_bytes.get() {
+            debug_struct.field("address_bytes", &BASE64_STANDARD.encode(address_bytes));
+        } else {
+            debug_struct.field("address_bytes", &"unset");
+        }
         debug_struct.finish()
     }
 }
@@ -234,6 +244,7 @@ impl TryFrom<&[u8]> for VerificationKey {
         let key = Ed25519VerificationKey::try_from(slice).map_err(Error)?;
         Ok(Self {
             key,
+            address_bytes: OnceLock::new(),
         })
     }
 }
@@ -245,6 +256,7 @@ impl TryFrom<[u8; 32]> for VerificationKey {
         let key = Ed25519VerificationKey::try_from(bytes).map_err(Error)?;
         Ok(Self {
             key,
+            address_bytes: OnceLock::new(),
         })
     }
 }
@@ -305,18 +317,22 @@ mod tests {
         // A key which compares greater than "low" ones below, and with its address uninitialized.
         let high_uninit = VerificationKey {
             key: SigningKey::from([255; 32]).0.verification_key(),
+            address_bytes: OnceLock::new(),
         };
         // A key equal to `high_uninit`, but with its address initialized.
         let high_init = VerificationKey {
             key: high_uninit.key,
+            address_bytes: OnceLock::new(),
         };
         // A key which compares less than "high" ones above, and with its address uninitialized.
         let low_uninit = VerificationKey {
             key: SigningKey::from([0; 32]).0.verification_key(),
+            address_bytes: OnceLock::new(),
         };
         // A key equal to `low_uninit`, but with its address initialized.
         let low_init = VerificationKey {
             key: low_uninit.key,
+            address_bytes: OnceLock::new(),
         };
 
         assert!(high_uninit.cmp(&high_uninit) == Ordering::Equal);
@@ -422,12 +438,15 @@ mod tests {
         // Check verification keys compare equal if and only if their keys are equal.
         let key0 = VerificationKey {
             key: SigningKey::from([0; 32]).0.verification_key(),
+            address_bytes: OnceLock::new(),
         };
         let other_key0 = VerificationKey {
             key: SigningKey::from([0; 32]).0.verification_key(),
+            address_bytes: OnceLock::new(),
         };
         let key1 = VerificationKey {
             key: SigningKey::from([1; 32]).0.verification_key(),
+            address_bytes: OnceLock::new(),
         };
 
         assert!(key0 == other_key0);

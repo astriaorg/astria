@@ -1,5 +1,8 @@
 use astria_core::{
-    primitive::v1::ADDRESS_LEN,
+    primitive::v1::{
+        TransactionId,
+        ADDRESS_LEN,
+    },
     protocol::transaction::v1alpha1::SignedTransaction,
 };
 use cnidarium::{
@@ -7,13 +10,15 @@ use cnidarium::{
     StateWrite,
 };
 
-fn current_source() -> &'static str {
-    "transaction/current_source"
+fn transaction_context() -> &'static str {
+    "transaction/context"
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct TransactionContext {
     pub(crate) address_bytes: [u8; ADDRESS_LEN],
+    pub(crate) transaction_id: TransactionId,
+    pub(crate) source_action_index: u64,
 }
 
 impl TransactionContext {
@@ -26,24 +31,30 @@ impl From<&SignedTransaction> for TransactionContext {
     fn from(value: &SignedTransaction) -> Self {
         Self {
             address_bytes: value.address_bytes(),
+            transaction_id: value.id(),
+            source_action_index: 0,
         }
     }
 }
 
 pub(crate) trait StateWriteExt: StateWrite {
-    fn put_current_source(&mut self, transaction: impl Into<TransactionContext>) {
+    fn put_transaction_context(
+        &mut self,
+        transaction: impl Into<TransactionContext>,
+    ) -> TransactionContext {
         let context: TransactionContext = transaction.into();
-        self.object_put(current_source(), context);
+        self.object_put(transaction_context(), context);
+        context
     }
 
-    fn delete_current_source(&mut self) {
-        self.object_delete(current_source());
+    fn delete_current_transaction_context(&mut self) {
+        self.object_delete(transaction_context());
     }
 }
 
 pub(crate) trait StateReadExt: StateRead {
-    fn get_current_source(&self) -> Option<TransactionContext> {
-        self.object_get(current_source())
+    fn get_transaction_context(&self) -> Option<TransactionContext> {
+        self.object_get(transaction_context())
     }
 }
 

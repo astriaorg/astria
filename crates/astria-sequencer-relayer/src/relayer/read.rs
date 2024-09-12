@@ -183,7 +183,7 @@ impl Stream for BlockStream {
 ///
 /// If fetching the block fails, then a new fetch is scheduled with exponential backoff,
 /// up to a maximum of `block_time` duration between subsequent requests.
-#[instrument(skip_all, fields(%height))]
+#[instrument(skip_all, fields(%height), err)]
 async fn fetch_block(
     client: SequencerServiceClient<tonic::transport::Channel>,
     height: Height,
