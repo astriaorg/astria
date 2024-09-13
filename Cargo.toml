@@ -110,8 +110,8 @@ which = "4.4.0"
 wiremock = "0.5"
 
 [patch.'https://github.com/penumbra-zone/penumbra.git']
-penumbra-ibc = { git = "https://github.com/noot/penumbra.git", rev = "638266979adba9dac7db6f26140b2f122878dbbc" }
-penumbra-proto = { git = "https://github.com/noot/penumbra.git", rev = "638266979adba9dac7db6f26140b2f122878dbbc" }
-penumbra-tower-trace = { git = "https://github.com/noot/penumbra.git", rev = "638266979adba9dac7db6f26140b2f122878dbbc" }
-cnidarium = { git = "https://github.com/noot/penumbra.git", rev = "638266979adba9dac7db6f26140b2f122878dbbc" }
-cnidarium-component = { git = "https://github.com/noot/penumbra.git", rev = "638266979adba9dac7db6f26140b2f122878dbbc" }
+penumbra-ibc = { git = "https://github.com/noot/penumbra.git", rev = "a154a72efc88edf3dc737d38fb2eb76c92499128" }
+penumbra-proto = { git = "https://github.com/noot/penumbra.git", rev = "a154a72efc88edf3dc737d38fb2eb76c92499128" }
+penumbra-tower-trace = { git = "https://github.com/noot/penumbra.git", rev = "a154a72efc88edf3dc737d38fb2eb76c92499128" }
+cnidarium = { git = "https://github.com/noot/penumbra.git", rev = "a154a72efc88edf3dc737d38fb2eb76c92499128" }
+cnidarium-component = { git = "https://github.com/noot/penumbra.git", rev = "a154a72efc88edf3dc737d38fb2eb76c92499128" }

@@ -1813,7 +1813,7 @@ dependencies = [
 [[package]]
 name = "cnidarium"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1842,7 +1842,7 @@ dependencies = [
 [[package]]
 name = "cnidarium-component"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2336,7 +2336,7 @@ dependencies = [
 [[package]]
 name = "decaf377-fmd"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
@@ -2350,7 +2350,7 @@ dependencies = [
 [[package]]
 name = "decaf377-ka"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "ark-ff 0.4.2",
  "decaf377",
@@ -5381,7 +5381,7 @@ dependencies = [
 [[package]]
 name = "penumbra-asset"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5419,7 +5419,7 @@ dependencies = [
 [[package]]
 name = "penumbra-ibc"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5456,7 +5456,7 @@ dependencies = [
 [[package]]
 name = "penumbra-keys"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "aes",
  "anyhow",
@@ -5500,7 +5500,7 @@ dependencies = [
 [[package]]
 name = "penumbra-num"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5536,7 +5536,7 @@ dependencies = [
 [[package]]
 name = "penumbra-proto"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5565,7 +5565,7 @@ dependencies = [
 [[package]]
 name = "penumbra-sct"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5601,7 +5601,7 @@ dependencies = [
 [[package]]
 name = "penumbra-tct"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "ark-ed-on-bls12-377",
  "ark-ff 0.4.2",
@@ -5629,7 +5629,7 @@ dependencies = [
 [[package]]
 name = "penumbra-tower-trace"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "futures",
  "hex",
@@ -5651,7 +5651,7 @@ dependencies = [
 [[package]]
 name = "penumbra-txhash"
 version = "0.80.4"
-source = "git+https://github.com/noot/penumbra.git?rev=638266979adba9dac7db6f26140b2f122878dbbc#638266979adba9dac7db6f26140b2f122878dbbc"
+source = "git+https://github.com/noot/penumbra.git?rev=a154a72efc88edf3dc737d38fb2eb76c92499128#a154a72efc88edf3dc737d38fb2eb76c92499128"
 dependencies = [
  "anyhow",
  "blake2b_simd 1.0.2",
