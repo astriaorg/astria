@@ -51,6 +51,7 @@ jobs:
       package-name: composer
       binary-name: composer
       tag: ${{ inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'composer' }}
     secrets: inherit
 
   conductor:
@@ -66,6 +67,7 @@ jobs:
       package-name: conductor
       binary-name: conductor
       tag: ${{ inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'conductor' }}
     secrets: inherit
 
   sequencer:
@@ -81,6 +83,7 @@ jobs:
       package-name: sequencer
       binary-name: sequencer
       tag: ${{ inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sequencer' }}
     secrets: inherit
 
   sequencer-relayer:
@@ -96,6 +99,7 @@ jobs:
       package-name: sequencer-relayer
       binary-name: sequencer-relayer
       tag: ${{ inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sequencer-relayer' }}
     secrets: inherit
 
   evm-bridge-withdrawer:
@@ -111,6 +115,7 @@ jobs:
       package-name: evm-bridge-withdrawer
       binary-name: bridge-withdrawer
       tag: ${{ inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'evm-bridge-withdrawer' }}
     secrets: inherit
 
   smoke-test:

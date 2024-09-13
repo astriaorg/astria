@@ -1,0 +1,153 @@
+# Ref: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/applicationset.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-preview-rollup
+  namespace: argocd
+spec:
+  # Ref: https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/GoTemplate/
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - pullRequest:
+      # Ref:
+      # - https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Pull-Request/
+      # - https://github.com/argoproj/argo-cd/blob/33f5714c832eebee420dad6e14a638915b9ba872/applicationset/generators/pull_request.go#L104
+      # PR template vars for this generator:
+      # {{ .number }}
+      # {{ .branch }}
+      # {{ .branch_slug }}
+      # {{ .target_branch_slug }}
+      # {{ .head_sha }}
+      # {{ .head_short_sha }}
+      # {{ .head_short_sha_7 }}
+      # {{ .labels }}
+      github:
+        owner: astriaorg
+        repo: astria
+        tokenRef:
+          key: token
+          secretName: github-pat
+        labels:
+        # All of the following labels are required to be set on the PR for the app to be created
+        - preview
+        - evm
+        - docker-build
+      requeueAfterSeconds: 60
+  template:
+    metadata:
+      name: pr-{{.number}}-rollup
+    spec:
+      destination:
+        namespace: pr-{{.number}}
+        server: https://kubernetes.default.svc
+      project: default
+      sources:
+        - repoURL: https://github.com/astriaorg/astria.git
+          targetRevision: pull/{{.number}}/head
+          path: charts/evm-stack
+          helm:
+            # Ref: https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-value-precedence
+            # Order of precedence is as follows:
+            #       lowest  -> valueFiles
+            #               -> values
+            #               -> valuesObject
+            #       highest -> parameters
+
+            valueFiles:
+              - ../../dev/values/rollup/dev.yaml
+
+            # values: {}
+
+            valuesObject:
+              global:
+                namespaceOverride: pr-{{.number}}
+                sequencerGrpc: http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080
+                sequencerRpc: http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657
+
+              postgresql:
+                enabled: false
+
+              blockscout-stack:
+                enabled: false
+                blockscout:
+                  extraEnv:
+                    - name: DATABASE_URL
+                      value: "postgres://postgres:bigsecretpassword@astria-chain-chart-blockscout-postegres.pr-{{.number}}.svc.cluster.local:5432/blockscout"
+                    - name: ETHEREUM_JSONRPC_HTTP_URL
+                      value: "http://astria-evm-service.pr-{{.number}}.svc.cluster.local:8545/"
+                    - name: ETHEREUM_JSONRPC_WS_URL
+                      value: "ws://astria-evm-service.pr-{{.number}}.svc.cluster.local:8546/"
+                  ingress:
+                    enabled: false
+                    annotations:
+                      external-dns.alpha.kubernetes.io/hostname: explorer.evm.pr-{{.number}}.dev.astria.org
+                      external-dns.alpha.kubernetes.io/ttl: "60"
+                    hostname: explorer.evm.pr-{{.number}}.dev.astria.org
+                frontend:
+                  ingress:
+                    enabled: false
+                    annotations:
+                      external-dns.alpha.kubernetes.io/hostname: explorer.evm.pr-{{.number}}.dev.astria.org
+                      external-dns.alpha.kubernetes.io/ttl: "60"
+                    hostname: explorer.evm.pr-{{.number}}.dev.astria.org
+
+              evm-faucet:
+                ingress:
+                    annotations:
+                      external-dns.alpha.kubernetes.io/hostname: faucet.evm.pr-{{.number}}.dev.astria.org
+                      external-dns.alpha.kubernetes.io/ttl: "60"
+                    hostname: pr-{{.number}}.dev.astria.org
+                    hosts:
+                      - faucet.evm.pr-{{.number}}.dev.astria.org
+
+              evm-rollup:
+                config:
+                  celestia:
+                    rpc: http://celestia-service.pr-{{.number}}.svc.cluster.local:26658
+                    token: http://celestia-service.pr-{{.number}}.svc.cluster.local:5353
+                images:
+                  composer:
+                    devTag: pr-{{.number}}
+                    pullPolicy: Always
+                  conductor:
+                    devTag: pr-{{.number}}
+                    pullPolicy: Always
+                ingress:
+                  enabled: true
+                  hostname: pr-{{.number}}.dev.astria.org
+                  services:
+                    rpc:
+                      annotations:
+                        external-dns.alpha.kubernetes.io/hostname: rpc.evm.pr-{{.number}}.dev.astria.org
+                        external-dns.alpha.kubernetes.io/ttl: "60"
+                    ws:
+                      annotations:
+                        external-dns.alpha.kubernetes.io/hostname: ws.evm.pr-{{.number}}.dev.astria.org
+                        external-dns.alpha.kubernetes.io/ttl: "60"
+                resources:
+                  conductor:
+                    requests:
+                      cpu: "0.1"
+                      memory: 100Mi
+                    limits:
+                      cpu: "1"
+                      memory: 200Mi
+                storage:
+                  enabled: true
+                  local: false
+                  entities:
+                    rollupSharedStorage:
+                      size: "1Gi"
+                      storageClassName: standard-rwo
+                      persistentVolumeName: "rollup-shared-storage"
+                      path: "/data/rollup-data"
+
+            # parameters: []
+
+      syncPolicy:
+        automated:
+          allowEmpty: true
+          prune: true
+        syncOptions:
+        - CreateNamespace=true

@@ -17,13 +17,17 @@ benchmark = ["divan"]
 [dependencies]
 astria-core = { path = "../astria-core", features = ["server", "serde"] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
+
+# The "anyhow" feature is only included because it is necessary for the implementation of 
+# `penumbra_ibc::component::HostInterface` in `crates/astria-sequencer/src/ibc/host_interface.rs`.
+# Avoid using "anyhow" results anywhere else.
+astria-eyre = { path = "../astria-eyre", features = ["anyhow"] }
+
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
-
-anyhow = "1"
 borsh = { version = "1", features = ["derive"] }
 cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6", features = [
   "metrics",

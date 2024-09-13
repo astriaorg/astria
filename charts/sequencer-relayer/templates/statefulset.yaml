@@ -20,6 +20,7 @@ spec:
       containers:
         - name: sequencer-relayer
           image: {{ include "sequencer-relayer.image" . }}
+          imagePullPolicy: {{ .Values.images.sequencerRelayer.pullPolicy }}
           command: [ "/scripts/start-relayer.sh" ]
           stdin: {{ .Values.global.useTTY }}
           tty: {{ .Values.global.useTTY }}

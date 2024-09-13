@@ -1,13 +1,13 @@
-use anyhow::{
-    bail,
-    ensure,
-    Context as _,
-    Result,
-};
 use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
     Protobuf as _,
+};
+use astria_eyre::eyre::{
+    bail,
+    ensure,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::StateWrite;
 
@@ -44,13 +44,13 @@ impl ActionHandler for InitBridgeAccountAction {
             state
                 .ensure_base_prefix(withdrawer_address)
                 .await
-                .context("failed check for base prefix of withdrawer address")?;
+                .wrap_err("failed check for base prefix of withdrawer address")?;
         }
         if let Some(sudo_address) = &self.sudo_address {
             state
                 .ensure_base_prefix(sudo_address)
                 .await
-                .context("failed check for base prefix of sudo address")?;
+                .wrap_err("failed check for base prefix of sudo address")?;
         }
 
         ensure!(
@@ -61,7 +61,7 @@ impl ActionHandler for InitBridgeAccountAction {
         let fee = state
             .get_init_bridge_account_base_fee()
             .await
-            .context("failed to get base fee for initializing bridge account")?;
+            .wrap_err("failed to get base fee for initializing bridge account")?;
 
         // this prevents the address from being registered as a bridge account
         // if it's been previously initialized as a bridge account.
@@ -77,7 +77,7 @@ impl ActionHandler for InitBridgeAccountAction {
         if state
             .get_bridge_account_rollup_id(from)
             .await
-            .context("failed getting rollup ID of bridge account")?
+            .wrap_err("failed getting rollup ID of bridge account")?
             .is_some()
         {
             bail!("bridge account already exists");
@@ -86,7 +86,7 @@ impl ActionHandler for InitBridgeAccountAction {
         let balance = state
             .get_account_balance(from, &self.fee_asset)
             .await
-            .context("failed getting `from` account balance for fee payment")?;
+            .wrap_err("failed getting `from` account balance for fee payment")?;
 
         ensure!(
             balance >= fee,
@@ -96,7 +96,7 @@ impl ActionHandler for InitBridgeAccountAction {
         state.put_bridge_account_rollup_id(from, &self.rollup_id);
         state
             .put_bridge_account_ibc_asset(from, &self.asset)
-            .context("failed to put asset ID")?;
+            .wrap_err("failed to put asset ID")?;
         state.put_bridge_account_sudo_address(from, self.sudo_address.map_or(from, Address::bytes));
         state.put_bridge_account_withdrawer_address(
             from,
@@ -105,11 +105,11 @@ impl ActionHandler for InitBridgeAccountAction {
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
-            .context("failed to get and increase block fees")?;
+            .wrap_err("failed to get and increase block fees")?;
         state
             .decrease_balance(from, &self.fee_asset, fee)
             .await
-            .context("failed to deduct fee from account balance")?;
+            .wrap_err("failed to deduct fee from account balance")?;
         Ok(())
     }
 }
