@@ -25,7 +25,7 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use astria_eyre::{
-    anyhow_conversion::anyhow::{
+    anyhow::{
         self,
         Context as _,
     },

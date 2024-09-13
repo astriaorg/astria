@@ -7,6 +7,7 @@ use std::{
 
 #[cfg(feature = "anyhow")]
 pub use anyhow_conversion::{
+    anyhow,
     anyhow_to_eyre,
     eyre_to_anyhow,
 };
@@ -90,7 +91,7 @@ fn write_value(err: &dyn Error, f: &mut core::fmt::Formatter<'_>) -> core::fmt::
 }
 
 #[cfg(feature = "anyhow")]
-pub mod anyhow_conversion {
+mod anyhow_conversion {
     pub use anyhow;
 
     pub fn anyhow_to_eyre(anyhow_error: anyhow::Error) -> eyre::Report {
