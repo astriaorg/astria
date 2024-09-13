@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use astria_core::{
     primitive::v1::{
         asset,
@@ -8,6 +7,11 @@ use astria_core::{
         abci::AbciErrorCode,
         account::v1alpha1::AssetBalance,
     },
+};
+use astria_eyre::eyre::{
+    OptionExt as _,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::{
     Snapshot,
@@ -35,19 +39,19 @@ use crate::{
 async fn ibc_to_trace<S: StateRead>(
     state: S,
     asset: asset::IbcPrefixed,
-) -> anyhow::Result<asset::TracePrefixed> {
+) -> Result<asset::TracePrefixed> {
     state
         .map_ibc_to_trace_prefixed_asset(asset)
         .await
         .context("failed to get ibc asset denom")?
-        .context("asset not found when user has balance of it; this is a bug")
+        .ok_or_eyre("asset not found when user has balance of it; this is a bug")
 }
 
 #[instrument(skip_all, fields(%address))]
 async fn get_trace_prefixed_account_balances<S: StateRead>(
     state: &S,
     address: Address,
-) -> anyhow::Result<Vec<AssetBalance>> {
+) -> Result<Vec<AssetBalance>> {
     let stream = state
         .account_asset_balances(address)
         .map_ok(|asset_balance| async move {
@@ -150,10 +154,7 @@ pub(crate) async fn nonce_request(
     }
 }
 
-async fn get_snapshot_and_height(
-    storage: &Storage,
-    height: Height,
-) -> anyhow::Result<(Snapshot, Height)> {
+async fn get_snapshot_and_height(storage: &Storage, height: Height) -> Result<(Snapshot, Height)> {
     let snapshot = match height.value() {
         0 => storage.latest_snapshot(),
         other => {
@@ -161,18 +162,18 @@ async fn get_snapshot_and_height(
                 .latest_snapshot()
                 .get_storage_version_by_height(other)
                 .await
-                .context("failed to get storage version from height")?;
+                .wrap_err("failed to get storage version from height")?;
             storage
                 .snapshot(version)
-                .context("failed to get storage at version")?
+                .ok_or_eyre("failed to get storage at version")?
         }
     };
     let height: Height = snapshot
         .get_block_height()
         .await
-        .context("failed to get block height from snapshot")?
+        .wrap_err("failed to get block height from snapshot")?
         .try_into()
-        .context("internal u64 block height does not fit into tendermint i64 `Height`")?;
+        .wrap_err("internal u64 block height does not fit into tendermint i64 `Height`")?;
     Ok((snapshot, height))
 }
 
@@ -180,7 +181,7 @@ async fn preprocess_request(
     storage: &Storage,
     request: &request::Query,
     params: &[(String, String)],
-) -> anyhow::Result<(Address, Snapshot, Height), response::Query> {
+) -> Result<(Address, Snapshot, Height), response::Query> {
     let Some(address) = params
         .iter()
         .find_map(|(k, v)| (k == "account").then_some(v))
@@ -194,7 +195,7 @@ async fn preprocess_request(
     };
     let address = address
         .parse()
-        .context("failed to parse argument as address")
+        .wrap_err("failed to parse argument as address")
         .map_err(|err| response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
             info: AbciErrorCode::INVALID_PARAMETER.info(),

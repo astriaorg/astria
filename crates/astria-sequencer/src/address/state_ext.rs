@@ -1,12 +1,15 @@
-use anyhow::{
-    bail,
-    ensure,
-    Context as _,
-    Result,
-};
 use astria_core::primitive::v1::{
     Address,
     Bech32m,
+};
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        ensure,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use cnidarium::{
@@ -25,11 +28,11 @@ fn ibc_compat_prefix_key() -> &'static str {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    async fn ensure_base_prefix(&self, address: &Address<Bech32m>) -> anyhow::Result<()> {
+    async fn ensure_base_prefix(&self, address: &Address<Bech32m>) -> Result<()> {
         let prefix = self
             .get_base_prefix()
             .await
-            .context("failed to read base prefix from state")?;
+            .wrap_err("failed to read base prefix from state")?;
         ensure!(
             prefix == address.prefix(),
             "address has prefix `{}` but only `{prefix}` is permitted",
@@ -38,16 +41,16 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(())
     }
 
-    async fn try_base_prefixed(&self, slice: &[u8]) -> anyhow::Result<Address> {
+    async fn try_base_prefixed(&self, slice: &[u8]) -> Result<Address> {
         let prefix = self
             .get_base_prefix()
             .await
-            .context("failed to read base prefix from state")?;
+            .wrap_err("failed to read base prefix from state")?;
         Address::builder()
             .slice(slice)
             .prefix(prefix)
             .try_build()
-            .context("failed to construct address from byte slice and state-provided base prefix")
+            .wrap_err("failed to construct address from byte slice and state-provided base prefix")
     }
 
     #[instrument(skip_all)]
@@ -55,7 +58,8 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(base_prefix_key())
             .await
-            .context("failed reading address base prefix from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading address base prefix from state")?
         else {
             bail!("no base prefix found in state");
         };
@@ -67,11 +71,12 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(ibc_compat_prefix_key())
             .await
-            .context("failed reading address ibc compat prefix from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading address ibc compat prefix from state")?
         else {
             bail!("no ibc compat prefix found in state")
         };
-        String::from_utf8(bytes).context("prefix retrieved from storage is not valid utf8")
+        String::from_utf8(bytes).wrap_err("prefix retrieved from storage is not valid utf8")
     }
 }
 

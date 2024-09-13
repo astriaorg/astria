@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use astria_eyre::eyre::Result;
 use async_trait::async_trait;
 use cnidarium::StateWrite;
 use tendermint::abci;

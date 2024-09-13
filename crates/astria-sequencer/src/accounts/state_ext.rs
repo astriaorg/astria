@@ -7,11 +7,16 @@ use std::{
     },
 };
 
-use anyhow::{
-    Context as _,
-    Result,
-};
 use astria_core::primitive::v1::asset;
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        eyre,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
+};
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize,
@@ -88,7 +93,7 @@ where
         let key = match ready!(this.underlying.as_mut().poll_next(cx)) {
             Some(Ok(key)) => key,
             Some(Err(err)) => {
-                return Poll::Ready(Some(Err(err).context("failed reading from state")));
+                return Poll::Ready(Some(Err(err).wrap_err("failed reading from state")));
             }
             None => return Poll::Ready(None),
         };
@@ -114,7 +119,7 @@ pin_project! {
 
 impl<St> Stream for AccountAssetBalancesStream<St>
 where
-    St: Stream<Item = Result<(String, Vec<u8>)>>,
+    St: Stream<Item = astria_eyre::anyhow::Result<(String, Vec<u8>)>>,
 {
     type Item = Result<AssetBalance>;
 
@@ -123,7 +128,9 @@ where
         let (key, bytes) = match ready!(this.underlying.as_mut().poll_next(cx)) {
             Some(Ok(tup)) => tup,
             Some(Err(err)) => {
-                return Poll::Ready(Some(Err(err).context("failed reading from state")));
+                return Poll::Ready(Some(Err(
+                    anyhow_to_eyre(err).wrap_err("failed reading from state")
+                )));
             }
             None => return Poll::Ready(None),
         };
@@ -149,7 +156,7 @@ where
 fn extract_asset_from_key(s: &str) -> Result<asset::IbcPrefixed> {
     Ok(s.strip_prefix("accounts/")
         .and_then(|s| s.split_once("/balance/").map(|(_, asset)| asset))
-        .context("failed to strip prefix from account balance key")?
+        .ok_or_eyre("failed to strip prefix from account balance key")?
         .parse::<crate::storage_keys::hunks::Asset>()
         .context("failed to parse storage key suffix as address hunk")?
         .get())
@@ -192,11 +199,12 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         let Some(bytes) = self
             .get_raw(&balance_storage_key(address, asset))
             .await
-            .context("failed reading raw account balance from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw account balance from state")?
         else {
             return Ok(0);
         };
-        let Balance(balance) = Balance::try_from_slice(&bytes).context("invalid balance bytes")?;
+        let Balance(balance) = Balance::try_from_slice(&bytes).wrap_err("invalid balance bytes")?;
         Ok(balance)
     }
 
@@ -205,13 +213,14 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         let bytes = self
             .get_raw(&nonce_storage_key(address))
             .await
-            .context("failed reading raw account nonce from state")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw account nonce from state")?;
         let Some(bytes) = bytes else {
             // the account has not yet been initialized; return 0
             return Ok(0);
         };
 
-        let Nonce(nonce) = Nonce::try_from_slice(&bytes).context("invalid nonce bytes")?;
+        let Nonce(nonce) = Nonce::try_from_slice(&bytes).wrap_err("invalid nonce bytes")?;
         Ok(nonce)
     }
 
@@ -220,12 +229,13 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         let bytes = self
             .get_raw(TRANSFER_BASE_FEE_STORAGE_KEY)
             .await
-            .context("failed reading raw transfer base fee from state")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw transfer base fee from state")?;
         let Some(bytes) = bytes else {
-            return Err(anyhow::anyhow!("transfer base fee not set"));
+            return Err(eyre!("transfer base fee not set"));
         };
 
-        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
         Ok(fee)
     }
 }
@@ -245,14 +255,14 @@ pub(crate) trait StateWriteExt: StateWrite {
         TAddress: AddressBytes,
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
     {
-        let bytes = borsh::to_vec(&Balance(balance)).context("failed to serialize balance")?;
+        let bytes = borsh::to_vec(&Balance(balance)).wrap_err("failed to serialize balance")?;
         self.put_raw(balance_storage_key(address, asset), bytes);
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn put_account_nonce<T: AddressBytes>(&mut self, address: T, nonce: u32) -> Result<()> {
-        let bytes = borsh::to_vec(&Nonce(nonce)).context("failed to serialize nonce")?;
+        let bytes = borsh::to_vec(&Nonce(nonce)).wrap_err("failed to serialize nonce")?;
         self.put_raw(nonce_storage_key(address), bytes);
         Ok(())
     }
@@ -272,15 +282,15 @@ pub(crate) trait StateWriteExt: StateWrite {
         let balance = self
             .get_account_balance(&address, asset)
             .await
-            .context("failed to get account balance")?;
+            .wrap_err("failed to get account balance")?;
         self.put_account_balance(
             &address,
             asset,
             balance
                 .checked_add(amount)
-                .context("failed to update account balance due to overflow")?,
+                .ok_or_eyre("failed to update account balance due to overflow")?,
         )
-        .context("failed to store updated account balance in database")?;
+        .wrap_err("failed to store updated account balance in database")?;
         Ok(())
     }
 
@@ -299,21 +309,21 @@ pub(crate) trait StateWriteExt: StateWrite {
         let balance = self
             .get_account_balance(&address, asset)
             .await
-            .context("failed to get account balance")?;
+            .wrap_err("failed to get account balance")?;
         self.put_account_balance(
             &address,
             asset,
             balance
                 .checked_sub(amount)
-                .context("subtracting from account balance failed due to insufficient funds")?,
+                .ok_or_eyre("subtracting from account balance failed due to insufficient funds")?,
         )
-        .context("failed to store updated account balance in database")?;
+        .wrap_err("failed to store updated account balance in database")?;
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn put_transfer_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = borsh::to_vec(&Fee(fee)).context("failed to serialize fee")?;
+        let bytes = borsh::to_vec(&Fee(fee)).wrap_err("failed to serialize fee")?;
         self.put_raw(TRANSFER_BASE_FEE_STORAGE_KEY.to_string(), bytes);
         Ok(())
     }
@@ -813,7 +823,7 @@ mod tests {
             .expect("increasing account balance for uninitialized account should be ok");
 
         // decrease balance
-        state
+        let _ = state
             .decrease_balance(address, &asset, amount_increase + 1)
             .await
             .expect_err("should not be able to subtract larger balance than what existed");

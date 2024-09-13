@@ -11,13 +11,14 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{
-    anyhow,
-    Context,
-};
 use astria_core::{
     primitive::v1::asset::IbcPrefixed,
     protocol::transaction::v1alpha1::SignedTransaction,
+};
+use astria_eyre::eyre::{
+    eyre,
+    Result,
+    WrapErr as _,
 };
 use tokio::time::{
     Duration,
@@ -57,9 +58,9 @@ impl TimemarkedTransaction {
         }
     }
 
-    fn priority(&self, current_account_nonce: u32) -> anyhow::Result<TransactionPriority> {
+    fn priority(&self, current_account_nonce: u32) -> Result<TransactionPriority> {
         let Some(nonce_diff) = self.signed_tx.nonce().checked_sub(current_account_nonce) else {
-            return Err(anyhow::anyhow!(
+            return Err(eyre!(
                 "transaction nonce {} is less than current account nonce {current_account_nonce}",
                 self.signed_tx.nonce()
             ));
@@ -74,16 +75,16 @@ impl TimemarkedTransaction {
     pub(super) fn deduct_costs(
         &self,
         available_balances: &mut HashMap<IbcPrefixed, u128>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         self.cost.iter().try_for_each(|(denom, cost)| {
             if *cost == 0 {
                 return Ok(());
             }
             let Some(current_balance) = available_balances.get_mut(denom) else {
-                return Err(anyhow!("account missing balance for {denom}"));
+                return Err(eyre!("account missing balance for {denom}"));
             };
             let Some(new_balance) = current_balance.checked_sub(*cost) else {
-                return Err(anyhow!("cost greater than account's balance for {denom}"));
+                return Err(eyre!("cost greater than account's balance for {denom}"));
             };
             *current_balance = new_balance;
             Ok(())
@@ -705,7 +706,7 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
     pub(super) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
         state: &S,
-    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>> {
+    ) -> Result<Vec<([u8; 32], Arc<SignedTransaction>)>> {
         // Used to hold the values in Vec for sorting.
         struct QueueEntry {
             tx: Arc<SignedTransaction>,
@@ -719,7 +720,7 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
             let current_account_nonce = state
                 .get_account_nonce(*address)
                 .await
-                .context("failed to fetch account nonce for builder queue")?;
+                .wrap_err("failed to fetch account nonce for builder queue")?;
             for ttx in account_txs.txs.values() {
                 let priority = match ttx.priority(current_account_nonce) {
                     Ok(priority) => priority,

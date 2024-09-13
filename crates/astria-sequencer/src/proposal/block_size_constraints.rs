@@ -1,7 +1,8 @@
-use anyhow::{
-    anyhow,
+use astria_eyre::eyre::{
     ensure,
-    Context,
+    eyre,
+    OptionExt as _,
+    Result,
 };
 
 use super::commitment::GeneratedCommitments;
@@ -19,9 +20,9 @@ pub(crate) struct BlockSizeConstraints {
 }
 
 impl BlockSizeConstraints {
-    pub(crate) fn new(cometbft_max_size: usize) -> anyhow::Result<Self> {
+    pub(crate) fn new(cometbft_max_size: usize) -> Result<Self> {
         if cometbft_max_size < GeneratedCommitments::TOTAL_SIZE {
-            return Err(anyhow!(
+            return Err(eyre!(
                 "cometbft_max_size must be at least GeneratedCommitments::TOTAL_SIZE"
             ));
         }
@@ -55,11 +56,11 @@ impl BlockSizeConstraints {
             .saturating_sub(self.current_size_cometbft)
     }
 
-    pub(crate) fn sequencer_checked_add(&mut self, size: usize) -> anyhow::Result<()> {
+    pub(crate) fn sequencer_checked_add(&mut self, size: usize) -> Result<()> {
         let new_size = self
             .current_size_sequencer
             .checked_add(size)
-            .context("overflow adding to sequencer size")?;
+            .ok_or_eyre("overflow adding to sequencer size")?;
         ensure!(
             new_size <= self.max_size_sequencer,
             "max sequencer size reached"
@@ -68,11 +69,11 @@ impl BlockSizeConstraints {
         Ok(())
     }
 
-    pub(crate) fn cometbft_checked_add(&mut self, size: usize) -> anyhow::Result<()> {
+    pub(crate) fn cometbft_checked_add(&mut self, size: usize) -> Result<()> {
         let new_size = self
             .current_size_cometbft
             .checked_add(size)
-            .context("overflow adding to cometBFT size")?;
+            .ok_or_eyre("overflow adding to cometBFT size")?;
         ensure!(
             new_size <= self.max_size_cometbft,
             "max cometBFT size reached"
