@@ -7,6 +7,13 @@ use std::fmt::{
 /// Format `bytes` using standard base64 formatting.
 ///
 /// See the [`base64::engine::general_purpose::STANDARD`] for the formatting definition.
+///
+/// # Example
+/// ```
+/// use astria_core::display;
+/// let signature = vec![1u8, 2, 3, 4, 5, 6, 7, 8];
+/// println!("received signature: {}", display::base64(&signature));
+/// ```
 pub fn base64<T: AsRef<[u8]> + ?Sized>(bytes: &T) -> Base64<'_> {
     Base64(bytes.as_ref())
 }
@@ -32,9 +39,9 @@ pub struct Hex<'a>(&'a [u8]);
 ///
 /// # Example
 /// ```
-/// use astria_telemetry::display;
+/// use astria_core::display;
 /// let signature = vec![1u8, 2, 3, 4, 5, 6, 7, 8];
-/// tracing::info!(signature = %display::hex(&signature), "received signature");
+/// println!("received signature: {}", display::hex(&signature));
 /// ```
 pub fn hex<T: AsRef<[u8]> + ?Sized>(bytes: &T) -> Hex<'_> {
     Hex(bytes.as_ref())
