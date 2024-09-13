@@ -29,8 +29,8 @@ use astria_core::{
     },
 };
 use ethers::{
+    abi::AbiEncode,
     types::TransactionReceipt,
-    utils::hex::ToHexExt as _,
 };
 use futures::Future;
 use ibc_types::core::{
@@ -432,12 +432,14 @@ impl From<Ics20Withdrawal> for SubsetOfIcs20Withdrawal {
 #[must_use]
 pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
     let denom = default_native_asset();
+    let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
+    let event_index = receipt.logs[0].log_index.unwrap().encode_hex();
+
     let inner = BridgeUnlockAction {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),
-        // TODO: add event index
-        rollup_withdrawal_event_id: receipt.transaction_hash.encode_hex(),
+        rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
         memo: String::new(),
         fee_asset: denom,
         bridge_address: default_bridge_address(),
@@ -450,6 +452,9 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
     let timeout_height = IbcHeight::new(u64::MAX, u64::MAX).unwrap();
     let timeout_time = make_ibc_timeout_time();
     let denom = default_ibc_asset();
+    let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
+    let event_index = receipt.logs[0].log_index.unwrap().encode_hex();
+
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
         destination_chain_address: default_sequencer_address().to_string(),
@@ -459,8 +464,7 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
             memo: "nootwashere".to_string(),
             rollup_return_address: receipt.from.to_string(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
-            // TODO: add event index
-            rollup_withdrawal_event_id: receipt.transaction_hash.encode_hex(),
+            rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
         })
         .unwrap(),
         fee_asset: denom,
