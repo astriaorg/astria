@@ -25,6 +25,7 @@ config:
 
 images:
   sequencerFaucet: "ghcr.io/astriaorg/seq-faucet:0.8.0"
+  pullPolicy: IfNotPresent
 
 # When deploying in a production environment should use a secret provider
 # This is configured for use with GCP, need to set own resource names

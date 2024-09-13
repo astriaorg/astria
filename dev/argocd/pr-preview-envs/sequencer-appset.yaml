@@ -1,0 +1,162 @@
+# Ref: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/applicationset.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-preview-sequencer-0
+  namespace: argocd
+spec:
+  # Ref: https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/GoTemplate/
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - pullRequest:
+        # Ref:
+        # - https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Pull-Request/
+        # - https://github.com/argoproj/argo-cd/blob/33f5714c832eebee420dad6e14a638915b9ba872/applicationset/generators/pull_request.go#L104
+        # PR template vars for this generator:
+        # {{ .number }}
+        # {{ .branch }}
+        # {{ .branch_slug }}
+        # {{ .target_branch_slug }}
+        # {{ .head_sha }}
+        # {{ .head_short_sha }}
+        # {{ .head_short_sha_7 }}
+        # {{ .labels }}
+        github:
+          owner: astriaorg
+          repo: astria
+          tokenRef:
+            key: token
+            secretName: github-pat
+          labels:
+            # ALL of the following labels are required to be set on the PR for the app to be created
+            - preview
+            - evm
+            - docker-build
+        requeueAfterSeconds: 60
+  template:
+    metadata:
+      name: pr-{{.number}}-sequencer-0
+      # labels:
+      #   number: {{ .number }}
+      #   branch: {{ .branch }}
+      #   branch_slug: {{ .branch_slug }}
+      #   target_branch_slug: {{ .target_branch_slug }}
+      #   head_sha: {{ .head_sha }}
+      #   head_short_sha: {{ .head_short_sha }}
+      #   head_short_sha_7: {{ .head_short_sha_7 }}
+      #   labels: {{ .labels }}
+    spec:
+      destination:
+        namespace: pr-{{.number}}
+        server: https://kubernetes.default.svc
+      project: default
+      sources:
+        - repoURL: https://github.com/astriaorg/astria.git
+          targetRevision: pull/{{.number}}/head
+          path: charts/sequencer
+          helm:
+            # Ref: https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-value-precedence
+            # Order of precedence:
+            #       lowest  -> valueFiles
+            #               -> values
+            #               -> valuesObject
+            #       highest -> parameters
+
+            valueFiles:
+              - ../../dev/values/validators/all.yml
+              - ../../dev/values/validators/single.yml
+
+            # values: {}
+
+            valuesObject:
+              global:
+                dev: true
+                namespaceOverride: pr-{{.number}}
+
+              config:
+                sequencer:
+                  metrics:
+                    enabled: true
+
+              serviceMonitor:
+                enabled: true
+
+              images:
+                sequencer:
+                  devTag: pr-{{.number}}
+                  pullPolicy: Always
+              ingress:
+                grpc:
+                  enabled: true
+                  hostname: sequencer.pr-{{.number}}.dev.astria.org
+                  annotations:
+                    external-dns.alpha.kubernetes.io/hostname: grpc.sequencer.pr-{{.number}}.dev.astria.org
+                    external-dns.alpha.kubernetes.io/ttl: "60"
+                rpc:
+                  enabled: true
+                  hostname: sequencer.pr-{{.number}}.dev.astria.org
+                  annotations:
+                    external-dns.alpha.kubernetes.io/hostname: rpc.sequencer.pr-{{.number}}.dev.astria.org
+                    external-dns.alpha.kubernetes.io/ttl: "60"
+
+              sequencer-relayer:
+                config:
+                  relayer:
+                    celestiaAppGrpc: http://celestia-app-service.pr-{{.number}}.svc.cluster.local:9090
+                    cometbftRpc: http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657
+                    sequencerGrpc: http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080
+
+              storage:
+                enabled: true
+                local: false
+                entities:
+                  sequencerSharedStorage:
+                    size: 1Gi
+                    storageClassName: standard-rwo
+                    persistentVolumeName: "sequencer-shared-storage"
+                    path: "/data/sequencer-data"
+
+            # parameters: []
+
+        - repoURL: https://github.com/astriaorg/astria.git
+          targetRevision: pull/{{.number}}/head
+          path: charts/celestia-local
+          helm:
+            # Ref: https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-value-precedence
+            # Order of precedence is as follows:
+            #       lowest  -> valueFiles
+            #               -> values
+            #               -> valuesObject
+            #       highest -> parameters
+
+            # valueFiles: []
+
+            # values: {}
+
+            valuesObject:
+              global:
+                namespace: pr-{{.number}}
+
+              ingress:
+                hostname: pr-{{.number}}.dev.astria.org
+
+              storage:
+                enabled: true
+                local: false
+                entities:
+                  celestiaSharedStorage:
+                    size: "1Gi"
+                    storageClassName: standard-rwo
+                    persistentVolumeName: "celestia-shared-storage"
+                    path: "/data/celestia-data"
+
+            # parameters: []
+
+      syncPolicy:
+        automated:
+          allowEmpty: true
+          prune: true
+          selfHeal: false
+        syncOptions:
+          - CreateNamespace=true
