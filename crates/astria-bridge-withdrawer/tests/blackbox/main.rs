@@ -2,8 +2,10 @@ use astria_core::protocol::transaction::v1alpha1::Action;
 use helpers::{
     assert_actions_eq,
     default_sequencer_address,
-    make_bridge_unlock_action,
-    make_ics20_withdrawal_action,
+    make_erc20_bridge_unlock_action,
+    make_erc20_ics20_withdrawal_action,
+    make_native_bridge_unlock_action,
+    make_native_ics20_withdrawal_action,
     signed_tx_from_request,
     TestBridgeWithdrawerConfig,
 };
@@ -39,7 +41,7 @@ async fn native_sequencer_withdraw_success() {
         )
         .await;
 
-    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock>(
+    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock, NativeAsset>(
         &broadcast_guard.received_requests().await,
         &receipt,
     );
@@ -76,7 +78,7 @@ async fn native_ics20_withdraw_success() {
         )
         .await;
 
-    assert_contract_receipt_action_matches_broadcast_action::<Ics20>(
+    assert_contract_receipt_action_matches_broadcast_action::<Ics20, NativeAsset>(
         &broadcast_guard.received_requests().await,
         &receipt,
     );
@@ -119,7 +121,7 @@ async fn erc20_sequencer_withdraw_success() {
         )
         .await;
 
-    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock>(
+    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock, Erc20>(
         &broadcast_guard.received_requests().await,
         &receipt,
     );
@@ -162,34 +164,54 @@ async fn erc20_ics20_withdraw_success() {
         )
         .await;
 
-    assert_contract_receipt_action_matches_broadcast_action::<Ics20>(
+    assert_contract_receipt_action_matches_broadcast_action::<Ics20, Erc20>(
         &broadcast_guard.received_requests().await,
         &receipt,
     );
 }
 
-trait ActionFromReceipt {
+trait ActionFromReceipt<TAsset> {
     fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action;
 }
 
+struct NativeAsset;
+struct Erc20;
+
 struct BridgeUnlock;
-impl ActionFromReceipt for BridgeUnlock {
+impl ActionFromReceipt<NativeAsset> for BridgeUnlock {
     #[track_caller]
     fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
-        make_bridge_unlock_action(receipt)
+        make_native_bridge_unlock_action(receipt)
+    }
+}
+
+impl ActionFromReceipt<Erc20> for BridgeUnlock {
+    #[track_caller]
+    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
+        make_erc20_bridge_unlock_action(receipt)
     }
 }
 
 struct Ics20;
-impl ActionFromReceipt for Ics20 {
+impl ActionFromReceipt<NativeAsset> for Ics20 {
     #[track_caller]
     fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
-        make_ics20_withdrawal_action(receipt)
+        make_native_ics20_withdrawal_action(receipt)
+    }
+}
+
+impl ActionFromReceipt<Erc20> for Ics20 {
+    #[track_caller]
+    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
+        make_erc20_ics20_withdrawal_action(receipt)
     }
 }
 
 #[track_caller]
-fn assert_contract_receipt_action_matches_broadcast_action<T: ActionFromReceipt>(
+fn assert_contract_receipt_action_matches_broadcast_action<
+    TAction: ActionFromReceipt<TAsset>,
+    TAsset,
+>(
     received_broadcasts: &[wiremock::Request],
     receipt: &ethers::types::TransactionReceipt,
 ) {
@@ -201,6 +223,6 @@ fn assert_contract_receipt_action_matches_broadcast_action<T: ActionFromReceipt>
         .first()
         .expect("the signed transaction should contain at least one action");
 
-    let expected = T::action_from_receipt(receipt);
+    let expected = TAction::action_from_receipt(receipt);
     assert_actions_eq(&expected, actual);
 }
