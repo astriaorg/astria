@@ -6,8 +6,9 @@ use std::{
 };
 
 #[cfg(feature = "anyhow")]
+pub use anyhow;
+#[cfg(feature = "anyhow")]
 pub use anyhow_conversion::{
-    anyhow,
     anyhow_to_eyre,
     eyre_to_anyhow,
 };
@@ -92,8 +93,6 @@ fn write_value(err: &dyn Error, f: &mut core::fmt::Formatter<'_>) -> core::fmt::
 
 #[cfg(feature = "anyhow")]
 mod anyhow_conversion {
-    pub use anyhow;
-
     pub fn anyhow_to_eyre(anyhow_error: anyhow::Error) -> eyre::Report {
         let boxed: Box<dyn std::error::Error + Send + Sync> = anyhow_error.into();
         eyre::eyre!(boxed)
@@ -105,6 +104,7 @@ mod anyhow_conversion {
         anyhow::anyhow!(boxed)
     }
 
+    #[cfg(test)]
     mod test {
         #[test]
         fn anyhow_to_eyre_preserves_source_chain() {
