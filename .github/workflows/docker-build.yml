@@ -130,7 +130,7 @@ jobs:
     secrets: inherit
 
   smoke-test:
-    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer]
+    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
@@ -163,7 +163,7 @@ jobs:
         run: just run-smoke-test
 
   smoke-cli:
-    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer]
+    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
@@ -198,7 +198,7 @@ jobs:
           just run-smoke-cli $TAG
 
   ibc-bridge-test:
-    needs: [ run_checker, composer, conductor, sequencer, sequencer-relayer ]
+    needs: [ run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli ]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
