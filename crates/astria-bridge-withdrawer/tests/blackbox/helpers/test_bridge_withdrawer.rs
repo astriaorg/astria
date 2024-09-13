@@ -436,6 +436,7 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),
+        // TODO: add event index
         rollup_withdrawal_event_id: receipt.transaction_hash.encode_hex(),
         memo: String::new(),
         fee_asset: denom,
@@ -458,6 +459,7 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
             memo: "nootwashere".to_string(),
             rollup_return_address: receipt.from.to_string(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
+            // TODO: add event index
             rollup_withdrawal_event_id: receipt.transaction_hash.encode_hex(),
         })
         .unwrap(),
