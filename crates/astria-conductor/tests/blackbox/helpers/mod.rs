@@ -427,6 +427,7 @@ impl TestConductor {
         &self,
         mock_name: Option<&str>,
         commitment_state: CommitmentState,
+        expected_calls: u64,
     ) -> astria_grpc_mock::MockGuard {
         use astria_core::generated::execution::v1alpha2::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
@@ -444,7 +445,7 @@ impl TestConductor {
         if let Some(name) = mock_name {
             mock = mock.with_name(name);
         }
-        mock.expect(1)
+        mock.expect(expected_calls)
             .mount_as_scoped(&self.mock_grpc.mock_server)
             .await
     }

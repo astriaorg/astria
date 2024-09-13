@@ -50,6 +50,11 @@ async fn simple_firm_only() {
         base_celestia_height: 1,
     );
 
+    mount_abci_info!(
+        test_conductor,
+        latest_sequencer_height: 3,
+    );
+
     mount_sequencer_genesis!(test_conductor);
 
     mount_celestia_header_network_head!(
@@ -104,6 +109,35 @@ async fn simple_firm_only() {
         "conductor should have executed the block and updated the firm commitment state within \
          1000ms",
     );
+
+    mount_get_filtered_sequencer_block!(
+        test_conductor,
+        sequencer_height: 3,
+    );
+
+    let update_commitment_state_soft = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_soft",
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 0,
+    );
+
+    timeout(
+        Duration::from_millis(500),
+        update_commitment_state_soft.wait_until_satisfied(),
+    )
+    .await
+    .expect_err("conductor should not have updated firm commitment state.");
 }
 
 /// Tests if a single block is executed and the rollup's state updated (first soft, then firm).
@@ -230,6 +264,7 @@ async fn simple_soft_first() {
 
 /// Tests if a single block is executed and the rollup's state updated after first receiving a firm
 /// block, then for the soft block at the next height.
+#[allow(clippy::too_many_lines)] // allow: all mounts and test logic are necessary.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn executes_firm_then_soft_at_next_height() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;

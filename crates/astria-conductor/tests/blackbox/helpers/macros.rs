@@ -182,7 +182,8 @@ macro_rules! mount_update_commitment_state {
         mock_name: $mock_name:expr,
         firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
         soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
-        base_celestia_height: $base_celestia_height:expr
+        base_celestia_height: $base_celestia_height:expr,
+        expected_calls: $expected_calls:expr
         $(,)?
     ) => {
         $test_env
@@ -201,6 +202,7 @@ macro_rules! mount_update_commitment_state {
                     ),
                     base_celestia_height: $base_celestia_height,
                 ),
+                $expected_calls,
         )
         .await
     };
@@ -217,6 +219,7 @@ macro_rules! mount_update_commitment_state {
             firm: ( number: $firm_number, hash: $firm_hash, parent: $firm_parent, ),
             soft: ( number: $soft_number, hash: $soft_hash, parent: $soft_parent, ),
             base_celestia_height: $base_celestia_height,
+            expected_calls: 1,
         )
     };
 }
