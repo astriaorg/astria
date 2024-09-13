@@ -119,7 +119,7 @@ pin_project! {
 
 impl<St> Stream for AccountAssetBalancesStream<St>
 where
-    St: Stream<Item = astria_eyre::anyhow::Result<(String, Vec<u8>)>>,
+    St: Stream<Item = astria_eyre::anyhow_conversion::anyhow::Result<(String, Vec<u8>)>>,
 {
     type Item = Result<AssetBalance>;
 

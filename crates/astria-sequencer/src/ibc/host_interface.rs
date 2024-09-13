@@ -1,5 +1,5 @@
 use astria_eyre::{
-    anyhow,
+    anyhow_conversion::anyhow,
     eyre_to_anyhow,
 };
 use cnidarium::StateRead;
