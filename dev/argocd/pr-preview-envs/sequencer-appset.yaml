@@ -31,7 +31,7 @@ spec:
           labels:
             # ALL of the following labels are required to be set on the PR for the app to be created
             - preview
-            - evm
+            - sequencer
             - docker-build
         requeueAfterSeconds: 60
   template:
