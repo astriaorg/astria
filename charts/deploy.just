@@ -16,8 +16,8 @@ init tool *ARGS:
 run-smoke type *ARGS:
   @just run-smoke-{{type}} {{ARGS}}
 
-load-image image:
-  kind load docker-image {{image}} --name astria-dev-cluster
+load-image image_name repo=default_repo_name tag=default_docker_tag:
+  kind load docker-image {{repo}}/{{image_name}}:{{tag}} --name astria-dev-cluster
 
 deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer (deploy-chart "sequencer-faucet") deploy-rollup
 delete-all: clean clean-persisted-data
@@ -207,7 +207,7 @@ sequencer_rpc_url := "http://rpc.sequencer.localdev.me"
 sequencer_bridge_address := "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
 sequencer_bridge_pkey := "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
 sequencer_chain_id := "sequencer-test-chain-0"
-cli_image := "astria-cli"
+cli_image := "ghcr.io/astriaorg/astria-cli"
 init-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
   #!/usr/bin/env bash
   set -e

@@ -124,7 +124,7 @@ jobs:
       packages: write
     with:
       depot-project-id: kcchkd09m0
-      package-name: cli
+      package-name: astria-cli
       binary-name: cli
       tag: ${{ inputs.tag }}
     secrets: inherit
