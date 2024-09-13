@@ -35,7 +35,7 @@ delete:
   kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=300s
 
 [no-cd]
-run:
+run tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
@@ -43,7 +43,7 @@ run:
   initial_celestia_balance=$(just ibc-test get-celestia-balance)
 
   # Create a bridge account on the sequencer
-  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria
+  just init-ibc-bridge {{tag}} {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria
 
   # Execute the transfer from Celestia to the Rollup
   just ibc-test _do-ibc-transfer

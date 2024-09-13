@@ -193,7 +193,9 @@ jobs:
           just deploy smoke-cli $TAG
       - name: Run Smoke test
         timeout-minutes: 3
-        run: just run-smoke-cli
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just run-smoke-cli $TAG
 
   ibc-bridge-test:
     needs: [ run_checker, composer, conductor, sequencer, sequencer-relayer ]
@@ -225,7 +227,9 @@ jobs:
           just ibc-test deploy $TAG
       - name: Run IBC ICS20 Transfer test
         timeout-minutes: 3
-        run: just ibc-test run
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just ibc-test run $TAG
 
   docker:
     if: ${{ always() && !cancelled() }}

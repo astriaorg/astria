@@ -207,7 +207,8 @@ sequencer_rpc_url := "http://rpc.sequencer.localdev.me"
 sequencer_bridge_address := "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
 sequencer_bridge_pkey := "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
 sequencer_chain_id := "sequencer-test-chain-0"
-init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
+cli_image := "astria-cli"
+init-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
   #!/usr/bin/env bash
   set -e
 
@@ -216,13 +217,15 @@ init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destin
   FEE_ASSET="nria"
   TRANSFER_AMOUNT=$(echo "{{transferAmount}} * {{sequencer_base_amount}}" | bc)
 
-  astria-cli sequencer init-bridge-account \
+  IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+
+  docker run --network host $IMAGE sequencer init-bridge-account \
     --rollup-name {{rollupName}} \
     --private-key {{sequencer_bridge_pkey}} \
     --sequencer.chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
     --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
-  astria-cli sequencer bridge-lock {{sequencer_bridge_address}} \
+  docker run --network host $IMAGE sequencer bridge-lock {{sequencer_bridge_address}} \
     --amount $TRANSFER_AMOUNT \
     --destination-chain-address {{evmDestinationAddress}} \
     --private-key $SEQUENCER_FUNDS_PKEY \
@@ -231,8 +234,9 @@ init-rollup-bridge rollupName=defaultRollupName evmDestinationAddress=evm_destin
     --fee-asset=$FEE_ASSET --asset=$ASSET
 
 
-init-ibc-bridge privateKey asset feeAsset rollupName=defaultRollupName:
-  astria-cli sequencer init-bridge-account \
+init-ibc-bridge privateKey asset feeAsset rollupName=defaultRollupName tag=defaultTag:
+  IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+  docker run $IMAGE sequencer init-bridge-account \
     --rollup-name {{ rollupName }} \
     --private-key {{ privateKey }} \
     --sequencer.chain-id {{ sequencer_chain_id }} \
@@ -244,10 +248,10 @@ eth_rpc_url := "http://executor.astria.localdev.me/"
 eth_ws_url := "ws://ws-executor.astria.localdev.me/"
 bridge_tx_bytes := "0xf8f280843c54e7f182898594a58639fb5458e65e4fa917ff951c390292c24a15880de0b6b3a7640000b884bab916d00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002d617374726961313777306164656736346b7930646178776432756779756e65656c6c6d6a676e786c333935303400000000000000000000000000000000000000820a96a086b85348c9816f6d34533669db3d3626cf55eecea6a380d4d072efb1839df443a04b8b60c8b91dd30add1ca4a96097238d73bab29b0a958322d9a51755d5a5f287"
 bridge_tx_hash := "0x67db5b0825e8f60b926234e209d54e0336cd94defe6720e7acadf871e0377150"
-run-smoke-test:
+run-smoke-test tag=defaultTag:
   #!/usr/bin/env bash
   set -e
-
+  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
   MAX_CHECKS=30
 
   # Checking starting balance
@@ -258,7 +262,7 @@ run-smoke-test:
   fi
 
   echo "Testing Bridge In..."
-  just init rollup-bridge
+  just init rollup-bridge {{tag}}
   CHECKS=0
   EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
   while (( $CHECKS < $MAX_CHECKS )); do
@@ -301,7 +305,7 @@ run-smoke-test:
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
   while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
-    BALANCE=$(astria-cli sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
+    BALANCE=$(docker run --network host $ASTRIA_CLI_IMAGE sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
     if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
       echo "Bridge Out Sequencer success"
@@ -343,10 +347,11 @@ delete-smoke-test:
   just delete rollup
 
 evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
-run-smoke-cli:
+run-smoke-cli tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
+  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
   MAX_CHECKS=30
 
   # Checking starting balance
@@ -406,7 +411,7 @@ run-smoke-cli:
 
   echo "passing ${withdrawals_dst} to astria-cli"
 
-  astria-cli bridge collect-withdrawals \
+  docker run --network host $ASTRIA_CLI_IMAGE bridge collect-withdrawals \
     --rollup-endpoint {{eth_ws_url}} \
     --contract-address {{evm_contract_address}} \
     --from-rollup-height 1 \
@@ -415,7 +420,7 @@ run-smoke-cli:
     --bridge-address {{sequencer_bridge_address}} \
     --output "${withdrawals_dst}" \
     --force
-   astria-cli bridge submit-withdrawals \
+   docker run --network host $ASTRIA_CLI_IMAGE bridge submit-withdrawals \
     --signing-key <(printf "%s" "{{sequencer_bridge_pkey}}") \
     --sequencer-chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
@@ -425,7 +430,7 @@ run-smoke-cli:
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
   while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
-    BALANCE=$(astria-cli sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
+    BALANCE=$(docker run --network host $ASTRIA_CLI_IMAGE sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
     if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
       echo "Bridge Out Sequencer success"
