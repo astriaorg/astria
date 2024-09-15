@@ -54,10 +54,7 @@ use crate::{
         StateWriteExt as _,
         ValidatorSet,
     },
-    bridge::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     state_ext::StateReadExt as _,
     test_utils::{
@@ -360,10 +357,6 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         .await
         .unwrap();
     app.commit(storage).await;
-
-    // ensure deposits are cleared at the end of the block
-    let deposit_events = app.state.get_deposit_events(&rollup_id).await.unwrap();
-    assert_eq!(deposit_events.len(), 0);
 
     let block = app.state.get_sequencer_block_by_height(1).await.unwrap();
     let mut deposits = vec![];

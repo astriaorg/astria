@@ -879,7 +879,7 @@ impl App {
             .await
             .wrap_err("failed to get block deposits in end_block")?;
         state_tx
-            .clear_block_deposits()
+            .clear_block_deposit_nonces()
             .await
             .wrap_err("failed to clear block deposits")?;
         debug!(

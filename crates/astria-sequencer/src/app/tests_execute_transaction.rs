@@ -772,7 +772,8 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         bridge_before_balance + amount
     );
 
-    let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
+    let all_deposits = app.state.get_block_deposits().await.unwrap();
+    let deposits = all_deposits.get(&rollup_id).unwrap();
     assert_eq!(deposits.len(), 1);
     assert_eq!(deposits[0], expected_deposit);
 }
@@ -1115,7 +1116,8 @@ async fn app_execute_transaction_action_index_correctly_increments() {
     app.execute_transaction(signed_tx.clone()).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
-    let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
+    let all_deposits = app.state.get_block_deposits().await.unwrap();
+    let deposits = all_deposits.get(&rollup_id).unwrap();
     assert_eq!(deposits.len(), 2);
     assert_eq!(deposits[0].source_action_index(), starting_index_of_action);
     assert_eq!(
