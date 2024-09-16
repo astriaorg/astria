@@ -235,8 +235,7 @@ init-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAdd
 
 
 init-ibc-bridge privateKey asset feeAsset rollupName=defaultRollupName tag=defaultTag:
-  IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
-  docker run $IMAGE sequencer init-bridge-account \
+  docker run {{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }} sequencer init-bridge-account \
     --rollup-name {{ rollupName }} \
     --private-key {{ privateKey }} \
     --sequencer.chain-id {{ sequencer_chain_id }} \
