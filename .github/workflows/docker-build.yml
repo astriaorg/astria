@@ -157,7 +157,9 @@ jobs:
           just deploy smoke-test $TAG
       - name: Run Smoke test
         timeout-minutes: 3
-        run: just run-smoke-test
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just run-smoke-test $TAG
 
   smoke-cli:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
