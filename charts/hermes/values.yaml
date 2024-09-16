@@ -3,7 +3,7 @@ global:
   replicaCount: 1
   logLevel: debug
 
-image: ghcr.io/astriaorg/hermes:sha-903bac5
+image: ghcr.io/astriaorg/hermes:sha-450f848
 
 fullnameOverride: ""
 nameOverride: ""
