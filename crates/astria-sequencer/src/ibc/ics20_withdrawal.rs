@@ -164,8 +164,8 @@ impl ActionHandler for action::Ics20Withdrawal {
                 "rollup withdrawal event id must be non-empty",
             );
             ensure!(
-                parsed_bridge_memo.rollup_withdrawal_event_id.len() <= 64,
-                "rollup withdrawal event id must be no more than 64 bytes",
+                parsed_bridge_memo.rollup_withdrawal_event_id.len() <= 256,
+                "rollup withdrawal event id must be no more than 256 bytes",
             );
             ensure!(
                 parsed_bridge_memo.rollup_block_number != 0,
