@@ -161,7 +161,7 @@ pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
     use prost::Message as _;
     let bridge_address = Address::builder()
         .prefix("astria")
-        .slice(&[0; ADDRESS_LEN])
+        .slice(&[0u8; ADDRESS_LEN])
         .try_build()
         .unwrap();
     let deposit = Deposit::new(
