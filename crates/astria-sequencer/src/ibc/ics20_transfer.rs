@@ -776,7 +776,7 @@ async fn denom_trace<S: ibc::StateWriteExt>(
     let denom = packet_data
         .denom
         .parse::<Denom>()
-        .context("failed parsing denom in packet data as Denom")?;
+        .wrap_err("failed parsing denom in packet data as Denom")?;
     // convert denomination if it's prefixed with `ibc/`
     // note: this denomination might have a prefix, but it wasn't prefixed by us right now.
     convert_denomination_if_ibc_prefixed(state, denom)
