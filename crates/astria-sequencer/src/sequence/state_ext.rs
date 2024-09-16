@@ -1,7 +1,10 @@
-use anyhow::{
-    anyhow,
-    Context,
-    Result,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use cnidarium::{
@@ -25,11 +28,12 @@ pub(crate) trait StateReadExt: StateRead {
         let bytes = self
             .get_raw(SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY)
             .await
-            .context("failed reading raw sequence action base fee from state")?
-            .ok_or_else(|| anyhow!("sequence action base fee not found"))?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw sequence action base fee from state")?
+            .ok_or_eyre("sequence action base fee not found")?;
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-            .context("invalid sequence action base fee bytes")
+            .wrap_err("invalid sequence action base fee bytes")
     }
 
     #[instrument(skip_all)]
@@ -37,11 +41,12 @@ pub(crate) trait StateReadExt: StateRead {
         let bytes = self
             .get_raw(SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY)
             .await
-            .context("failed reading raw sequence action byte cost multiplier from state")?
-            .ok_or_else(|| anyhow!("sequence action byte cost multiplier not found"))?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw sequence action byte cost multiplier from state")?
+            .ok_or_eyre("sequence action byte cost multiplier not found")?;
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-            .context("invalid sequence action byte cost multiplier bytes")
+            .wrap_err("invalid sequence action byte cost multiplier bytes")
     }
 }
 

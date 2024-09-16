@@ -24,7 +24,7 @@ impl<'a> From<IbcPrefixedDenom<'a>> for DomainIbcPrefixed {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for IbcPrefixedDenom<'a> {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::IbcPrefixedDenom(denom) = value else {

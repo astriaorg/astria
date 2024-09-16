@@ -732,6 +732,7 @@ dependencies = [
 name = "astria-eyre"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "eyre",
  "itoa",
  "tokio-test",
@@ -791,10 +792,10 @@ dependencies = [
 name = "astria-sequencer"
 version = "0.17.0"
 dependencies = [
- "anyhow",
  "astria-build-info",
  "astria-config",
  "astria-core",
+ "astria-eyre",
  "astria-merkle",
  "astria-telemetry",
  "async-trait",

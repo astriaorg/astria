@@ -24,7 +24,7 @@ impl<'a> From<RollupId<'a>> for DomainRollupId {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for RollupId<'a> {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::RollupId(rollup_id) = value else {

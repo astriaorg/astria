@@ -56,7 +56,7 @@ impl<'a> From<SequencerBlockHeader<'a>> for DomainSequencerBlockHeader {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for SequencerBlockHeader<'a> {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::SequencerBlockHeader(block_header) = value else {

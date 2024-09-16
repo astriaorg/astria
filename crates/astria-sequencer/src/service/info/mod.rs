@@ -6,8 +6,8 @@ use std::{
     },
 };
 
-use anyhow::Context as _;
 use astria_core::protocol::abci::AbciErrorCode;
+use astria_eyre::eyre::WrapErr as _;
 use cnidarium::Storage;
 use futures::{
     Future,
@@ -32,6 +32,11 @@ use tracing::{
 
 mod abci_query_router;
 
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::Result,
+};
+
 use crate::state_ext::StateReadExt;
 
 #[derive(Clone)]
@@ -41,47 +46,47 @@ pub(crate) struct Info {
 }
 
 impl Info {
-    pub(crate) fn new(storage: Storage) -> anyhow::Result<Self> {
+    pub(crate) fn new(storage: Storage) -> Result<Self> {
         let mut query_router = abci_query_router::Router::new();
         query_router
             .insert(
                 "accounts/balance/:account",
                 crate::accounts::query::balance_request,
             )
-            .context("invalid path: `accounts/balance/:account`")?;
+            .wrap_err("invalid path: `accounts/balance/:account`")?;
         query_router
             .insert(
                 "accounts/nonce/:account",
                 crate::accounts::query::nonce_request,
             )
-            .context("invalid path: `accounts/nonce/:account`")?;
+            .wrap_err("invalid path: `accounts/nonce/:account`")?;
         query_router
             .insert("asset/denom/:id", crate::assets::query::denom_request)
-            .context("invalid path: `asset/denom/:id`")?;
+            .wrap_err("invalid path: `asset/denom/:id`")?;
         query_router
             .insert(
                 "asset/allowed_fee_assets",
                 crate::assets::query::allowed_fee_assets_request,
             )
-            .context("invalid path: `asset/allowed_fee_asset_ids`")?;
+            .wrap_err("invalid path: `asset/allowed_fee_asset_ids`")?;
         query_router
             .insert(
                 "bridge/account_last_tx_hash/:address",
                 crate::bridge::query::bridge_account_last_tx_hash_request,
             )
-            .context("invalid path: `bridge/account_last_tx_hash/:address`")?;
+            .wrap_err("invalid path: `bridge/account_last_tx_hash/:address`")?;
         query_router
             .insert(
                 "transaction/fee",
                 crate::transaction::query::transaction_fee_request,
             )
-            .context("invalid path: `transaction/fee`")?;
+            .wrap_err("invalid path: `transaction/fee`")?;
         query_router
             .insert(
                 "bridge/account_info/:address",
                 crate::bridge::query::bridge_account_info_request,
             )
-            .context("invalid path: `bridge/account_info/:address`")?;
+            .wrap_err("invalid path: `bridge/account_info/:address`")?;
         Ok(Self {
             storage,
             query_router,
@@ -103,7 +108,8 @@ impl Info {
                     .latest_snapshot()
                     .root_hash()
                     .await
-                    .context("failed to get app hash")?;
+                    .map_err(anyhow_to_eyre)
+                    .wrap_err("failed to get app hash")?;
 
                 let response = InfoResponse::Info(response::Info {
                     version: env!("CARGO_PKG_VERSION").to_string(),

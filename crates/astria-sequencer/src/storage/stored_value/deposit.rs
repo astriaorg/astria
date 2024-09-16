@@ -96,7 +96,7 @@ impl<'a> From<Deposit<'a>> for DomainDeposit {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for Deposit<'a> {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::Deposit(deposit) = value else {

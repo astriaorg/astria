@@ -20,9 +20,13 @@ mod trace_prefixed_denom;
 mod transaction_hash;
 mod validator_set;
 
-use anyhow::{
-    anyhow,
-    Context,
+use astria_eyre::{
+    eyre::{
+        self,
+        eyre,
+        WrapErr,
+    },
+    Result,
 };
 use borsh::{
     BorshDeserialize,
@@ -80,16 +84,16 @@ pub(crate) enum StoredValue<'a> {
 }
 
 impl<'a> StoredValue<'a> {
-    pub(crate) fn serialize(&self) -> anyhow::Result<Vec<u8>> {
-        borsh::to_vec(&self).context("failed to serialize stored value")
+    pub(crate) fn serialize(&self) -> Result<Vec<u8>> {
+        borsh::to_vec(&self).wrap_err("failed to serialize stored value")
     }
 
-    pub(crate) fn deserialize(bytes: &[u8]) -> anyhow::Result<Self> {
-        borsh::from_slice(bytes).context("failed to deserialize stored value")
+    pub(crate) fn deserialize(bytes: &[u8]) -> Result<Self> {
+        borsh::from_slice(bytes).wrap_err("failed to deserialize stored value")
     }
 }
 
-fn type_mismatch(expected: &'static str, found: &StoredValue) -> anyhow::Error {
+fn type_mismatch(expected: &'static str, found: &StoredValue) -> eyre::Error {
     let found = match found {
         StoredValue::ChainId(_) => "chain id",
         StoredValue::RevisionNumber(_) => "revision number",
@@ -114,5 +118,5 @@ fn type_mismatch(expected: &'static str, found: &StoredValue) -> anyhow::Error {
         StoredValue::TransactionHash(_) => "transaction hash",
         StoredValue::Unit => "unit",
     };
-    anyhow!("type mismatch: expected {expected}, found {found}")
+    eyre!("type mismatch: expected {expected}, found {found}")
 }

@@ -23,7 +23,7 @@ impl<'a> From<TransactionHash<'a>> for [u8; 32] {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for TransactionHash<'a> {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::TransactionHash(tx_hash) = value else {

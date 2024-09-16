@@ -23,7 +23,7 @@ impl<'a> From<BlockHash<'a>> for [u8; 32] {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for BlockHash<'a> {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::BlockHash(block_hash) = value else {

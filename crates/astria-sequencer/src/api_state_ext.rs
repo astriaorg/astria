@@ -1,8 +1,3 @@
-use anyhow::{
-    bail,
-    Context as _,
-    Result,
-};
 use astria_core::{
     primitive::v1::RollupId,
     sequencerblock::v1alpha1::block::{
@@ -10,6 +5,14 @@ use astria_core::{
         SequencerBlock,
         SequencerBlockHeader,
         SequencerBlockParts,
+    },
+};
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        Result,
+        WrapErr as _,
     },
 };
 use async_trait::async_trait;
@@ -55,13 +58,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&block_hash_by_height_key(height))
             .await
-            .context("failed to read block hash by height from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read block hash by height from state")?
         else {
             bail!("block hash not found for given height");
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::BlockHash::try_from(value).map(<[u8; 32]>::from))
-            .context("invalid block hash bytes")
+            .wrap_err("invalid block hash bytes")
     }
 
     #[instrument(skip_all)]
@@ -72,7 +76,8 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&sequencer_block_header_by_hash_key(hash))
             .await
-            .context("failed to read raw sequencer block from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw sequencer block from state")?
         else {
             bail!("header not found for given block hash");
         };
@@ -80,7 +85,7 @@ pub(crate) trait StateReadExt: StateRead {
             .and_then(|value| {
                 storage::SequencerBlockHeader::try_from(value).map(SequencerBlockHeader::from)
             })
-            .context("invalid sequencer block header bytes")
+            .wrap_err("invalid sequencer block header bytes")
     }
 
     #[instrument(skip_all)]
@@ -88,13 +93,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&rollup_ids_by_hash_key(hash))
             .await
-            .context("failed to read rollup IDs by block hash from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read rollup IDs by block hash from state")?
         else {
             bail!("rollup IDs not found for given block hash");
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::RollupIds::try_from(value).map(Vec::<RollupId>::from))
-            .context("invalid rollup ids bytes")
+            .wrap_err("invalid rollup ids bytes")
     }
 
     #[instrument(skip_all)]
@@ -130,10 +136,10 @@ pub(crate) trait StateReadExt: StateRead {
         let hash = self
             .get_block_hash_by_height(height)
             .await
-            .context("failed to get block hash by height")?;
+            .wrap_err("failed to get block hash by height")?;
         self.get_sequencer_block_by_hash(&hash)
             .await
-            .context("failed to get sequencer block by hash")
+            .wrap_err("failed to get sequencer block by hash")
     }
 
     #[instrument(skip_all)]
@@ -145,7 +151,10 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&rollup_data_by_hash_and_rollup_id_key(hash, rollup_id))
             .await
-            .context("failed to read rollup transactions by block hash and rollup ID from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err(
+                "failed to read rollup transactions by block hash and rollup ID from state",
+            )?
         else {
             bail!("rollup transactions not found for given block hash and rollup ID");
         };
@@ -153,7 +162,7 @@ pub(crate) trait StateReadExt: StateRead {
             .and_then(|value| {
                 storage::RollupTransactions::try_from(value).map(RollupTransactions::from)
             })
-            .context("invalid rollup transactions bytes")
+            .wrap_err("invalid rollup transactions bytes")
     }
 
     #[instrument(skip_all)]
@@ -164,13 +173,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&rollup_transactions_proof_by_hash_key(hash))
             .await
-            .context("failed to read rollup transactions proof by block hash from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read rollup transactions proof by block hash from state")?
         else {
             bail!("rollup transactions proof not found for given block hash");
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::Proof::try_from(value).map(merkle::Proof::from))
-            .context("invalid rollup transactions proof bytes")
+            .wrap_err("invalid rollup transactions proof bytes")
     }
 
     #[instrument(skip_all)]
@@ -178,13 +188,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&rollup_ids_proof_by_hash_key(hash))
             .await
-            .context("failed to read rollup IDs proof by block hash from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read rollup IDs proof by block hash from state")?
         else {
             bail!("rollup IDs proof not found for given block hash");
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::Proof::try_from(value).map(merkle::Proof::from))
-            .context("invalid rollup IDs proof bytes")
+            .wrap_err("invalid rollup IDs proof bytes")
     }
 }
 

@@ -23,7 +23,7 @@ impl<'a> From<AddressPrefix<'a>> for String {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for AddressPrefix<'a> {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::AddressPrefix(address_prefix) = value else {

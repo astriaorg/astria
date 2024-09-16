@@ -21,7 +21,7 @@ impl From<Nonce> for u32 {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for Nonce {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::Nonce(nonce) = value else {

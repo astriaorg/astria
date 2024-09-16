@@ -73,7 +73,7 @@ impl<'a> From<ValidatorSet<'a>> for DomainValidatorSet {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for ValidatorSet<'a> {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::ValidatorSet(validator_set) = value else {

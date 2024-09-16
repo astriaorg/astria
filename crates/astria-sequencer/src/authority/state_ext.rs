@@ -1,11 +1,14 @@
 use std::collections::BTreeMap;
 
-use anyhow::{
-    bail,
-    Context,
-    Result,
-};
 use astria_core::primitive::v1::ADDRESS_LEN;
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        Result,
+        WrapErr as _,
+    },
+};
 use async_trait::async_trait;
 use cnidarium::{
     StateRead,
@@ -33,14 +36,15 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(SUDO_STORAGE_KEY)
             .await
-            .context("failed reading raw sudo key from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw sudo key from state")?
         else {
             // return error because sudo key must be set
             bail!("sudo key not found");
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::AddressBytes::try_from(value).map(<[u8; ADDRESS_LEN]>::from))
-            .context("invalid sudo key bytes")
+            .wrap_err("invalid sudo key bytes")
     }
 
     #[instrument(skip_all)]
@@ -48,14 +52,15 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(VALIDATOR_SET_STORAGE_KEY)
             .await
-            .context("failed reading raw validator set from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator set from state")?
         else {
             // return error because validator set must be set
             bail!("validator set not found")
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::ValidatorSet::try_from(value).map(ValidatorSet::from))
-            .context("invalid validator set bytes")
+            .wrap_err("invalid validator set bytes")
     }
 
     #[instrument(skip_all)]
@@ -63,14 +68,15 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .nonverifiable_get_raw(VALIDATOR_UPDATES_KEY)
             .await
-            .context("failed reading raw validator updates from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator updates from state")?
         else {
             // return empty set because validator updates are optional
             return Ok(ValidatorSet(BTreeMap::new()));
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::ValidatorSet::try_from(value).map(ValidatorSet::from))
-            .context("invalid validator update bytes")
+            .wrap_err("invalid validator update bytes")
     }
 }
 
@@ -82,7 +88,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
         let bytes = StoredValue::AddressBytes((&address).into())
             .serialize()
-            .context("failed to serialize sudo address")?;
+            .wrap_err("failed to serialize sudo address")?;
         self.put_raw(SUDO_STORAGE_KEY.to_string(), bytes);
         Ok(())
     }
@@ -91,7 +97,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
         let bytes = StoredValue::ValidatorSet((&validator_set).into())
             .serialize()
-            .context("failed to serialize validator set")?;
+            .wrap_err("failed to serialize validator set")?;
         self.put_raw(VALIDATOR_SET_STORAGE_KEY.to_string(), bytes);
         Ok(())
     }
@@ -100,7 +106,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_validator_updates(&mut self, validator_updates: ValidatorSet) -> Result<()> {
         let bytes = StoredValue::ValidatorSet((&validator_updates).into())
             .serialize()
-            .context("failed to serialize validator updates")?;
+            .wrap_err("failed to serialize validator updates")?;
         self.nonverifiable_put_raw(VALIDATOR_UPDATES_KEY.to_vec(), bytes);
         Ok(())
     }
@@ -147,7 +153,7 @@ mod tests {
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_sudo_address()
             .await
             .expect_err("no sudo address should exist at first");
@@ -188,7 +194,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_validator_set()
             .await
             .expect_err("no validator set should exist at first");

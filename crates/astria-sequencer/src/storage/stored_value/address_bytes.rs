@@ -35,7 +35,7 @@ impl<'a> From<AddressBytes<'a>> for [u8; ADDRESS_LEN] {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for AddressBytes<'a> {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::AddressBytes(address) = value else {

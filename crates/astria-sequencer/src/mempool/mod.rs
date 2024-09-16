@@ -17,6 +17,7 @@ use astria_core::{
     primitive::v1::asset::IbcPrefixed,
     protocol::transaction::v1alpha1::SignedTransaction,
 };
+use astria_eyre::eyre::Result;
 pub(crate) use mempool_state::get_account_balances;
 use tokio::{
     join,
@@ -168,7 +169,7 @@ impl Mempool {
         current_account_nonce: u32,
         current_account_balances: HashMap<IbcPrefixed, u128>,
         transaction_cost: HashMap<IbcPrefixed, u128>,
-    ) -> anyhow::Result<(), InsertionError> {
+    ) -> Result<(), InsertionError> {
         let timemarked_tx = TimemarkedTransaction::new(tx, transaction_cost);
 
         let (mut pending, mut parked) = self.acquire_both_locks().await;
@@ -230,7 +231,7 @@ impl Mempool {
     pub(crate) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
         state: &S,
-    ) -> anyhow::Result<Vec<([u8; 32], Arc<SignedTransaction>)>> {
+    ) -> Result<Vec<([u8; 32], Arc<SignedTransaction>)>> {
         self.pending.read().await.builder_queue(state).await
     }
 

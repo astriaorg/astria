@@ -21,7 +21,7 @@ impl From<StorageVersion> for u64 {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for StorageVersion {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::StorageVersion(storage_version) = value else {

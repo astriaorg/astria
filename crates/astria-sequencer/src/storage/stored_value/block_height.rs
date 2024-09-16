@@ -21,7 +21,7 @@ impl From<BlockHeight> for u64 {
 }
 
 impl<'a> TryFrom<StoredValue<'a>> for BlockHeight {
-    type Error = anyhow::Error;
+    type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
         let StoredValue::BlockHeight(block_height) = value else {

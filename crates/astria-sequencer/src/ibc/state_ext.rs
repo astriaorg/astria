@@ -1,11 +1,14 @@
-use anyhow::{
-    bail,
-    Context,
-    Result,
-};
 use astria_core::primitive::v1::{
     asset,
     ADDRESS_LEN,
+};
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use cnidarium::{
@@ -71,14 +74,15 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&channel_balance_storage_key(channel, asset))
             .await
-            .context("failed reading ibc channel balance from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading ibc channel balance from state")?
         else {
             debug!("ibc channel balance not found, returning 0");
             return Ok(0);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::Balance::try_from(value).map(u128::from))
-            .context("invalid ibc channel balance bytes")
+            .wrap_err("invalid ibc channel balance bytes")
     }
 
     #[instrument(skip_all)]
@@ -86,14 +90,15 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(IBC_SUDO_STORAGE_KEY)
             .await
-            .context("failed reading raw ibc sudo address from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw ibc sudo address from state")?
         else {
             // ibc sudo key must be set
             bail!("ibc sudo address not found");
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::AddressBytes::try_from(value).map(<[u8; ADDRESS_LEN]>::from))
-            .context("invalid ibc sudo address bytes")
+            .wrap_err("invalid ibc sudo address bytes")
     }
 
     #[instrument(skip_all)]
@@ -101,7 +106,8 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(self
             .get_raw(&ibc_relayer_key(&address))
             .await
-            .context("failed to read ibc relayer key from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read ibc relayer key from state")?
             .is_some())
     }
 
@@ -110,13 +116,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY)
             .await
-            .context("failed reading ics20 withdrawal fee from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading ics20 withdrawal fee from state")?
         else {
             bail!("ics20 withdrawal fee not found");
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-            .context("invalid ics20 withdrawal base fee bytes")
+            .wrap_err("invalid ics20 withdrawal base fee bytes")
     }
 }
 
@@ -136,7 +143,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     {
         let bytes = StoredValue::Balance(balance.into())
             .serialize()
-            .context("failed to serialize ibc channel balance")?;
+            .wrap_err("failed to serialize ibc channel balance")?;
         self.put_raw(channel_balance_storage_key(channel, asset), bytes);
         Ok(())
     }
@@ -145,7 +152,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_ibc_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
         let bytes = StoredValue::AddressBytes((&address).into())
             .serialize()
-            .context("failed to serialize ibc sudo address")?;
+            .wrap_err("failed to serialize ibc sudo address")?;
         self.put_raw(IBC_SUDO_STORAGE_KEY.to_string(), bytes);
         Ok(())
     }
@@ -154,7 +161,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_ibc_relayer_address<T: AddressBytes>(&mut self, address: &T) -> Result<()> {
         let bytes = StoredValue::Unit
             .serialize()
-            .context("failed to serialize unit for ibc relayer address")?;
+            .wrap_err("failed to serialize unit for ibc relayer address")?;
         self.put_raw(ibc_relayer_key(address), bytes);
         Ok(())
     }
@@ -168,7 +175,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_ics20_withdrawal_base_fee(&mut self, fee: u128) -> Result<()> {
         let bytes = StoredValue::Fee(fee.into())
             .serialize()
-            .context("failed to serialize ics20 withdrawal base fee")?;
+            .wrap_err("failed to serialize ics20 withdrawal base fee")?;
         self.put_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(), bytes);
         Ok(())
     }
@@ -213,7 +220,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // should fail if not set
-        state
+        let _ = state
             .get_ibc_sudo_address()
             .await
             .expect_err("sudo address should be set");
