@@ -1,9 +1,3 @@
-use anyhow::{
-    anyhow,
-    bail,
-    Context as _,
-    Result,
-};
 use astria_core::{
     generated::{
         primitive::v1 as primitiveRaw,
@@ -17,6 +11,15 @@ use astria_core::{
         SequencerBlockParts,
     },
     Protobuf as _,
+};
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        eyre,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -138,13 +141,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(hash) = self
             .get_raw(&key)
             .await
-            .context("failed to read block hash by height from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read block hash by height from state")?
         else {
             bail!("block hash not found for given height");
         };
 
         let hash: [u8; 32] = hash.try_into().map_err(|bytes: Vec<_>| {
-            anyhow!("expected 32 bytes block hash, but got {}", bytes.len())
+            eyre!("expected 32 bytes block hash, but got {}", bytes.len())
         })?;
         Ok(hash)
     }
@@ -158,15 +162,16 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(header_bytes) = self
             .get_raw(&key)
             .await
-            .context("failed to read raw sequencer block from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw sequencer block from state")?
         else {
             bail!("header not found for given block hash");
         };
 
         let raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
-            .context("failed to decode sequencer block from raw bytes")?;
+            .wrap_err("failed to decode sequencer block from raw bytes")?;
         let header = SequencerBlockHeader::try_from_raw(raw)
-            .context("failed to convert raw sequencer block to sequencer block")?;
+            .wrap_err("failed to convert raw sequencer block to sequencer block")?;
         Ok(header)
     }
 
@@ -176,13 +181,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(rollup_ids_bytes) = self
             .get_raw(&key)
             .await
-            .context("failed to read rollup IDs by block hash from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read rollup IDs by block hash from state")?
         else {
             bail!("rollup IDs not found for given block hash");
         };
 
         let RollupIdSeq(rollup_ids) = RollupIdSeq::try_from_slice(&rollup_ids_bytes)
-            .context("failed to deserialize rollup IDs list")?;
+            .wrap_err("failed to deserialize rollup IDs list")?;
         Ok(rollup_ids)
     }
 
@@ -191,30 +197,31 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(header_bytes) = self
             .get_raw(&sequencer_block_header_by_hash_key(hash))
             .await
-            .context("failed to read raw sequencer block from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw sequencer block from state")?
         else {
             bail!("header not found for given block hash");
         };
 
         let header_raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
-            .context("failed to decode sequencer block from raw bytes")?;
+            .wrap_err("failed to decode sequencer block from raw bytes")?;
 
         let rollup_ids = self
             .get_rollup_ids_by_block_hash(hash)
             .await
-            .context("failed to get rollup IDs by block hash")?;
+            .wrap_err("failed to get rollup IDs by block hash")?;
 
         let mut rollup_transactions = Vec::with_capacity(rollup_ids.len());
         for id in &rollup_ids {
             let key = rollup_data_by_hash_and_rollup_id_key(hash, id);
-            let raw = self
-                .get_raw(&key)
-                .await
-                .context("failed to read rollup data by block hash and rollup ID from state")?;
+            let raw =
+                self.get_raw(&key).await.map_err(anyhow_to_eyre).wrap_err(
+                    "failed to read rollup data by block hash and rollup ID from state",
+                )?;
             if let Some(raw) = raw {
                 let raw = raw.as_slice();
                 let rollup_data = raw::RollupTransactions::decode(raw)
-                    .context("failed to decode rollup data from raw bytes")?;
+                    .wrap_err("failed to decode rollup data from raw bytes")?;
                 rollup_transactions.push(rollup_data);
             }
         }
@@ -222,25 +229,27 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(rollup_transactions_proof) = self
             .get_raw(&rollup_transactions_proof_by_hash_key(hash))
             .await
-            .context("failed to read rollup transactions proof by block hash from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read rollup transactions proof by block hash from state")?
         else {
             bail!("rollup transactions proof not found for given block hash");
         };
 
         let rollup_transactions_proof =
             primitiveRaw::Proof::decode(rollup_transactions_proof.as_slice())
-                .context("failed to decode rollup transactions proof from raw bytes")?;
+                .wrap_err("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
             .get_raw(&rollup_ids_proof_by_hash_key(hash))
             .await
-            .context("failed to read rollup IDs proof by block hash from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read rollup IDs proof by block hash from state")?
         else {
             bail!("rollup IDs proof not found for given block hash");
         };
 
         let rollup_ids_proof = primitiveRaw::Proof::decode(rollup_ids_proof.as_slice())
-            .context("failed to decode rollup IDs proof from raw bytes")?;
+            .wrap_err("failed to decode rollup IDs proof from raw bytes")?;
 
         let raw = raw::SequencerBlock {
             block_hash: Bytes::copy_from_slice(hash),
@@ -251,7 +260,7 @@ pub(crate) trait StateReadExt: StateRead {
         };
 
         let block = SequencerBlock::try_from_raw(raw)
-            .context("failed to convert raw sequencer block to sequencer block")?;
+            .wrap_err("failed to convert raw sequencer block to sequencer block")?;
 
         Ok(block)
     }
@@ -261,10 +270,10 @@ pub(crate) trait StateReadExt: StateRead {
         let hash = self
             .get_block_hash_by_height(height)
             .await
-            .context("failed to get block hash by height")?;
+            .wrap_err("failed to get block hash by height")?;
         self.get_sequencer_block_by_hash(&hash)
             .await
-            .context("failed to get sequencer block by hash")
+            .wrap_err("failed to get sequencer block by hash")
     }
 
     #[instrument(skip_all)]
@@ -277,15 +286,16 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&key)
             .await
-            .context("failed to read rollup data by block hash and rollup ID from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read rollup data by block hash and rollup ID from state")?
         else {
             bail!("rollup data not found for given block hash and rollup ID");
         };
         let raw = raw::RollupTransactions::decode(bytes.as_slice())
-            .context("failed to decode rollup data from raw bytes")?;
+            .wrap_err("failed to decode rollup data from raw bytes")?;
 
         let rollup_transactions = RollupTransactions::try_from_raw(raw)
-            .context("failed to convert raw rollup transaction to rollup transaction")?;
+            .wrap_err("failed to convert raw rollup transaction to rollup transaction")?;
 
         Ok(rollup_transactions)
     }
@@ -298,25 +308,27 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(rollup_transactions_proof) = self
             .get_raw(&rollup_transactions_proof_by_hash_key(hash))
             .await
-            .context("failed to read rollup transactions proof by block hash from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read rollup transactions proof by block hash from state")?
         else {
             bail!("rollup transactions proof not found for given block hash");
         };
 
         let rollup_transactions_proof =
             primitiveRaw::Proof::decode(rollup_transactions_proof.as_slice())
-                .context("failed to decode rollup transactions proof from raw bytes")?;
+                .wrap_err("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
             .get_raw(&rollup_ids_proof_by_hash_key(hash))
             .await
-            .context("failed to read rollup IDs proof by block hash from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read rollup IDs proof by block hash from state")?
         else {
             bail!("rollup IDs proof not found for given block hash");
         };
 
         let rollup_ids_proof = primitiveRaw::Proof::decode(rollup_ids_proof.as_slice())
-            .context("failed to decode rollup IDs proof from raw bytes")?;
+            .wrap_err("failed to decode rollup IDs proof from raw bytes")?;
 
         Ok((rollup_transactions_proof, rollup_ids_proof))
     }
@@ -350,7 +362,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(
             key,
             borsh::to_vec(&RollupIdSeq(rollup_ids))
-                .context("failed to serialize rollup IDs list")?,
+                .wrap_err("failed to serialize rollup IDs list")?,
         );
 
         let key = sequencer_block_header_by_hash_key(&block.block_hash());

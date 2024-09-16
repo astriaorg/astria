@@ -9,13 +9,23 @@ use std::{
     time::Duration,
 };
 
-use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
+use astria_core::{
+    crypto::SigningKey,
+    protocol::transaction::v1alpha1::SignedTransaction,
+};
 use sha2::{
     Digest as _,
     Sha256,
 };
 
 use crate::{
+    app::test_utils::{
+        mock_balances,
+        mock_state_getter,
+        mock_state_put_account_balances,
+        mock_state_put_account_nonce,
+        mock_tx_cost,
+    },
     benchmark_utils::SIGNER_COUNT,
     mempool::{
         Mempool,
@@ -94,9 +104,19 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         .build()
         .unwrap();
     let mempool = Mempool::new();
+    let account_mock_balance = mock_balances(0, 0);
+    let tx_mock_cost = mock_tx_cost(0, 0, 0);
     runtime.block_on(async {
         for tx in transactions().iter().take(T::checked_size()) {
-            mempool.insert(tx.clone(), 0).await.unwrap();
+            mempool
+                .insert(
+                    tx.clone(),
+                    0,
+                    account_mock_balance.clone(),
+                    tx_mock_cost.clone(),
+                )
+                .await
+                .unwrap();
         }
         for i in 0..super::REMOVAL_CACHE_SIZE {
             let hash = Sha256::digest(i.to_le_bytes()).into();
@@ -132,11 +152,23 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
         .enable_all()
         .build()
         .unwrap();
+    let mock_balances = mock_balances(0, 0);
+    let mock_tx_cost = mock_tx_cost(0, 0, 0);
     bencher
-        .with_inputs(|| (init_mempool::<T>(), get_unused_tx::<T>()))
-        .bench_values(move |(mempool, tx)| {
+        .with_inputs(|| {
+            (
+                init_mempool::<T>(),
+                get_unused_tx::<T>(),
+                mock_balances.clone(),
+                mock_tx_cost.clone(),
+            )
+        })
+        .bench_values(move |(mempool, tx, mock_balances, mock_tx_cost)| {
             runtime.block_on(async {
-                mempool.insert(tx, 0).await.unwrap();
+                mempool
+                    .insert(tx, 0, mock_balances, mock_tx_cost)
+                    .await
+                    .unwrap();
             });
         });
 }
@@ -158,15 +190,21 @@ fn builder_queue<T: MempoolSize>(bencher: divan::Bencher) {
         .enable_all()
         .build()
         .unwrap();
-    let mocked_current_account_nonce_getter = |_: [u8; 20]| async move { Ok(0_u32) };
+
+    let mut mock_state = runtime.block_on(mock_state_getter());
+
+    // iterate over all signers and put their balances and nonces into the mock state
+    for i in 0..SIGNER_COUNT {
+        let signing_key = SigningKey::from([i; 32]);
+        let signing_address = signing_key.address_bytes();
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 0);
+    }
+
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool
-                    .builder_queue(mocked_current_account_nonce_getter)
-                    .await
-                    .unwrap();
+                mempool.builder_queue(&mock_state).await.unwrap();
             });
         });
 }
@@ -250,15 +288,62 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
     // allow: this is test-only code, using small values, and where the result is not critical.
     #[allow(clippy::arithmetic_side_effects, clippy::cast_possible_truncation)]
     let new_nonce = (super::REMOVAL_CACHE_SIZE as u32 / u32::from(SIGNER_COUNT)) + 1;
-    // Although in production this getter will be hitting the state store and will be slower than
-    // this test one, it's probably insignificant as the getter is only called once per address,
-    // and we don't expect a high number of discrete addresses in the mempool entries.
-    let current_account_nonce_getter = |_: [u8; 20]| async { Ok(new_nonce) };
+    let mock_balances = mock_balances(0, 0);
+    let mut mock_state = runtime.block_on(mock_state_getter());
+
+    // iterate over all signers and put their balances and nonces into the mock state
+    for i in 0..SIGNER_COUNT {
+        let signing_key = SigningKey::from([i; 32]);
+        let signing_address = signing_key.address_bytes();
+        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances.clone());
+        mock_state_put_account_nonce(&mut mock_state, signing_address, new_nonce);
+    }
+
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.run_maintenance(current_account_nonce_getter).await;
+                mempool.run_maintenance(&mock_state, false).await;
+            });
+        });
+}
+
+/// Benchmarks `Mempool::run_maintenance` on a mempool with the given number of existing entries.
+#[divan::bench(
+    max_time = MAX_TIME,
+    types = [
+        mempool_with_100_txs,
+        mempool_with_1000_txs,
+        mempool_with_10000_txs,
+        mempool_with_100000_txs
+    ]
+)]
+fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    // Set the new nonce so that the entire `REMOVAL_CACHE_SIZE` entries in the
+    // `comet_bft_removal_cache` are filled (assuming this test case has enough txs).
+    // allow: this is test-only code, using small values, and where the result is not critical.
+    #[allow(clippy::arithmetic_side_effects, clippy::cast_possible_truncation)]
+    let new_nonce = (super::REMOVAL_CACHE_SIZE as u32 / u32::from(SIGNER_COUNT)) + 1;
+    let mock_balances = mock_balances(0, 0);
+    let mut mock_state = runtime.block_on(mock_state_getter());
+
+    // iterate over all signers and put their balances and nonces into the mock state
+    for i in 0..SIGNER_COUNT {
+        let signing_key = SigningKey::from([i; 32]);
+        let signing_address = signing_key.address_bytes();
+        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances.clone());
+        mock_state_put_account_nonce(&mut mock_state, signing_address, new_nonce);
+    }
+
+    bencher
+        .with_inputs(|| init_mempool::<T>())
+        .bench_values(move |mempool| {
+            runtime.block_on(async {
+                mempool.run_maintenance(&mock_state, true).await;
             });
         });
 }
