@@ -1,8 +1,3 @@
-use anyhow::{
-    ensure,
-    Context as _,
-    Result,
-};
 use astria_core::{
     protocol::transaction::v1alpha1::action::{
         BridgeLockAction,
@@ -10,6 +5,12 @@ use astria_core::{
     },
     sequencerblock::v1alpha1::block::Deposit,
     Protobuf as _,
+};
+use astria_eyre::eyre::{
+    ensure,
+    OptionExt as _,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::StateWrite;
 use tracing::{
@@ -53,18 +54,18 @@ impl ActionHandler for BridgeLockAction {
         state
             .ensure_base_prefix(&self.to)
             .await
-            .context("failed check for base prefix of destination address")?;
+            .wrap_err("failed check for base prefix of destination address")?;
         // ensure the recipient is a bridge account.
         let rollup_id = state
             .get_bridge_account_rollup_id(self.to)
             .await
-            .context("failed to get bridge account rollup id")?
-            .ok_or_else(|| anyhow::anyhow!("bridge lock must be sent to a bridge account"))?;
+            .wrap_err("failed to get bridge account rollup id")?
+            .ok_or_eyre("bridge lock must be sent to a bridge account")?;
 
         let allowed_asset = state
             .get_bridge_account_ibc_asset(self.to)
             .await
-            .context("failed to get bridge account asset ID")?;
+            .wrap_err("failed to get bridge account asset ID")?;
         ensure!(
             allowed_asset == self.asset.to_ibc_prefixed(),
             "asset ID is not authorized for transfer to bridge account",
@@ -73,7 +74,7 @@ impl ActionHandler for BridgeLockAction {
         let from_balance = state
             .get_account_balance(from, &self.fee_asset)
             .await
-            .context("failed to get sender account balance")?;
+            .wrap_err("failed to get sender account balance")?;
         let transfer_fee = state
             .get_transfer_base_fee()
             .await
@@ -102,7 +103,7 @@ impl ActionHandler for BridgeLockAction {
         let byte_cost_multiplier = state
             .get_bridge_lock_byte_cost_multiplier()
             .await
-            .context("failed to get byte cost multiplier")?;
+            .wrap_err("failed to get byte cost multiplier")?;
         let fee = byte_cost_multiplier
             .saturating_mul(get_deposit_byte_len(&deposit))
             .saturating_add(transfer_fee);
@@ -130,22 +131,22 @@ impl ActionHandler for BridgeLockAction {
         let byte_cost_multiplier = state
             .get_bridge_lock_byte_cost_multiplier()
             .await
-            .context("failed to get byte cost multiplier")?;
+            .wrap_err("failed to get byte cost multiplier")?;
         let fee = byte_cost_multiplier.saturating_mul(get_deposit_byte_len(&deposit));
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
-            .context("failed to add to block fees")?;
+            .wrap_err("failed to add to block fees")?;
         state
             .decrease_balance(from, &self.fee_asset, fee)
             .await
-            .context("failed to deduct fee from account balance")?;
+            .wrap_err("failed to deduct fee from account balance")?;
 
         state.record(deposit_abci_event);
         state
             .put_deposit_event(deposit)
             .await
-            .context("failed to put deposit event into state")?;
+            .wrap_err("failed to put deposit event into state")?;
         Ok(())
     }
 }
@@ -170,7 +171,7 @@ mod tests {
     use crate::{
         address::StateWriteExt as _,
         test_utils::{
-            assert_anyhow_error,
+            assert_eyre_error,
             astria_address,
             ASTRIA_PREFIX,
         },
@@ -224,7 +225,7 @@ mod tests {
         state
             .put_account_balance(from_address, &asset, 100 + transfer_fee)
             .unwrap();
-        assert_anyhow_error(
+        assert_eyre_error(
             &bridge_lock.check_and_execute(&mut state).await.unwrap_err(),
             "insufficient funds for fee payment",
         );

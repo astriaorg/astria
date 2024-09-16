@@ -1,11 +1,14 @@
 use std::collections::BTreeMap;
 
-use anyhow::{
-    bail,
-    Context,
-    Result,
-};
 use astria_core::primitive::v1::ADDRESS_LEN;
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        Result,
+        WrapErr as _,
+    },
+};
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize,
@@ -35,13 +38,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(SUDO_STORAGE_KEY)
             .await
-            .context("failed reading raw sudo key from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw sudo key from state")?
         else {
             // return error because sudo key must be set
             bail!("sudo key not found");
         };
         let SudoAddress(address_bytes) =
-            SudoAddress::try_from_slice(&bytes).context("invalid sudo key bytes")?;
+            SudoAddress::try_from_slice(&bytes).wrap_err("invalid sudo key bytes")?;
         Ok(address_bytes)
     }
 
@@ -50,14 +54,15 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(VALIDATOR_SET_STORAGE_KEY)
             .await
-            .context("failed reading raw validator set from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator set from state")?
         else {
             // return error because validator set must be set
             bail!("validator set not found")
         };
 
         let ValidatorSet(validator_set) =
-            serde_json::from_slice(&bytes).context("invalid validator set bytes")?;
+            serde_json::from_slice(&bytes).wrap_err("invalid validator set bytes")?;
         Ok(ValidatorSet(validator_set))
     }
 
@@ -66,14 +71,15 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .nonverifiable_get_raw(VALIDATOR_UPDATES_KEY)
             .await
-            .context("failed reading raw validator updates from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator updates from state")?
         else {
             // return empty set because validator updates are optional
             return Ok(ValidatorSet(BTreeMap::new()));
         };
 
         let validator_updates: ValidatorSet =
-            serde_json::from_slice(&bytes).context("invalid validator updates bytes")?;
+            serde_json::from_slice(&bytes).wrap_err("invalid validator updates bytes")?;
         Ok(validator_updates)
     }
 }
@@ -87,7 +93,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(
             SUDO_STORAGE_KEY.to_string(),
             borsh::to_vec(&SudoAddress(address.address_bytes()))
-                .context("failed to convert sudo address to vec")?,
+                .wrap_err("failed to convert sudo address to vec")?,
         );
         Ok(())
     }
@@ -96,7 +102,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
         self.put_raw(
             VALIDATOR_SET_STORAGE_KEY.to_string(),
-            serde_json::to_vec(&validator_set).context("failed to serialize validator set")?,
+            serde_json::to_vec(&validator_set).wrap_err("failed to serialize validator set")?,
         );
         Ok(())
     }
@@ -106,7 +112,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.nonverifiable_put_raw(
             VALIDATOR_UPDATES_KEY.to_vec(),
             serde_json::to_vec(&validator_updates)
-                .context("failed to serialize validator updates")?,
+                .wrap_err("failed to serialize validator updates")?,
         );
         Ok(())
     }
@@ -153,7 +159,7 @@ mod tests {
         state.put_base_prefix(ASTRIA_PREFIX);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_sudo_address()
             .await
             .expect_err("no sudo address should exist at first");
@@ -194,7 +200,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_validator_set()
             .await
             .expect_err("no validator set should exist at first");

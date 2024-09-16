@@ -1,9 +1,12 @@
-use anyhow::Context as _;
 use astria_core::{
     generated::astria_vendored::tendermint::abci as raw,
     protocol::transaction::v1alpha1::action::ValidatorUpdate,
     sequencerblock::v1alpha1::block::Deposit,
     Protobuf as _,
+};
+use astria_eyre::eyre::{
+    Result,
+    WrapErr as _,
 };
 use tendermint::abci::{
     self,
@@ -23,7 +26,7 @@ impl<'a> std::fmt::Display for Hex<'a> {
 
 pub(crate) fn cometbft_to_sequencer_validator(
     value: tendermint::validator::Update,
-) -> anyhow::Result<ValidatorUpdate> {
+) -> Result<ValidatorUpdate> {
     let tendermint_proto::abci::ValidatorUpdate {
         pub_key,
         power,
@@ -32,7 +35,7 @@ pub(crate) fn cometbft_to_sequencer_validator(
         power,
         pub_key: pub_key.map(pubkey::cometbft_to_astria),
     })
-    .context("failed converting cometbft validator update to astria validator update")
+    .wrap_err("failed converting cometbft validator update to astria validator update")
 }
 
 pub(crate) fn create_deposit_event(deposit: &Deposit) -> abci::Event {
@@ -64,7 +67,7 @@ pub(crate) fn create_deposit_event(deposit: &Deposit) -> abci::Event {
 
 pub(crate) fn sequencer_to_cometbft_validator(
     value: ValidatorUpdate,
-) -> anyhow::Result<tendermint::validator::Update> {
+) -> Result<tendermint::validator::Update> {
     let astria_core::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
         pub_key,
         power,
@@ -74,7 +77,7 @@ pub(crate) fn sequencer_to_cometbft_validator(
         power,
     }
     .try_into()
-    .context("failed converting astria validator update to cometbft validator update")
+    .wrap_err("failed converting astria validator update to cometbft validator update")
 }
 
 mod pubkey {

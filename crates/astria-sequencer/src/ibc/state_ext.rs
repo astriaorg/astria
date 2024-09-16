@@ -1,11 +1,14 @@
-use anyhow::{
-    bail,
-    Context,
-    Result,
-};
 use astria_core::primitive::v1::{
     asset,
     ADDRESS_LEN,
+};
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -80,12 +83,13 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&channel_balance_storage_key(channel, asset))
             .await
-            .context("failed reading ibc channel balance from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading ibc channel balance from state")?
         else {
             debug!("ibc channel balance not found, returning 0");
             return Ok(0);
         };
-        let Balance(balance) = Balance::try_from_slice(&bytes).context("invalid balance bytes")?;
+        let Balance(balance) = Balance::try_from_slice(&bytes).wrap_err("invalid balance bytes")?;
         Ok(balance)
     }
 
@@ -94,13 +98,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(IBC_SUDO_STORAGE_KEY)
             .await
-            .context("failed reading raw ibc sudo key from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw ibc sudo key from state")?
         else {
             // ibc sudo key must be set
             bail!("ibc sudo key not found");
         };
         let SudoAddress(address_bytes) =
-            SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
+            SudoAddress::try_from_slice(&bytes).wrap_err("invalid ibc sudo key bytes")?;
         Ok(address_bytes)
     }
 
@@ -109,7 +114,8 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(self
             .get_raw(&ibc_relayer_key(&address))
             .await
-            .context("failed to read ibc relayer key from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read ibc relayer key from state")?
             .is_some())
     }
 
@@ -118,11 +124,12 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY)
             .await
-            .context("failed reading ics20 withdrawal fee from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading ics20 withdrawal fee from state")?
         else {
             bail!("ics20 withdrawal fee not found");
         };
-        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
         Ok(fee)
     }
 }
@@ -141,7 +148,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
     {
-        let bytes = borsh::to_vec(&Balance(balance)).context("failed to serialize balance")?;
+        let bytes = borsh::to_vec(&Balance(balance)).wrap_err("failed to serialize balance")?;
         self.put_raw(channel_balance_storage_key(channel, asset), bytes);
         Ok(())
     }
@@ -151,7 +158,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(
             IBC_SUDO_STORAGE_KEY.to_string(),
             borsh::to_vec(&SudoAddress(address.address_bytes()))
-                .context("failed to convert sudo address to vec")?,
+                .wrap_err("failed to convert sudo address to vec")?,
         );
         Ok(())
     }
@@ -170,7 +177,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_ics20_withdrawal_base_fee(&mut self, fee: u128) -> Result<()> {
         self.put_raw(
             ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(),
-            borsh::to_vec(&Fee(fee)).context("failed to serialize fee")?,
+            borsh::to_vec(&Fee(fee)).wrap_err("failed to serialize fee")?,
         );
         Ok(())
     }
@@ -215,7 +222,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // should fail if not set
-        state
+        let _ = state
             .get_ibc_sudo_address()
             .await
             .expect_err("sudo address should be set");

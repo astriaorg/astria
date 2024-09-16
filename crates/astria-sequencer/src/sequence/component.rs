@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use anyhow::Result;
 use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
+use astria_eyre::eyre::Result;
 use tendermint::abci::request::{
     BeginBlock,
     EndBlock,

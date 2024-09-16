@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use anyhow::{
-    Context,
-    Result,
-};
 use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
+use astria_eyre::eyre::{
+    Result,
+    WrapErr as _,
+};
 use tendermint::abci::request::{
     BeginBlock,
     EndBlock,
@@ -32,16 +32,16 @@ impl Component for AccountsComponent {
         let native_asset = state
             .get_native_asset()
             .await
-            .context("failed to read native asset from state")?;
+            .wrap_err("failed to read native asset from state")?;
         for account in app_state.accounts() {
             state
                 .put_account_balance(account.address, &native_asset, account.balance)
-                .context("failed writing account balance to state")?;
+                .wrap_err("failed writing account balance to state")?;
         }
 
         state
             .put_transfer_base_fee(app_state.fees().transfer_base_fee)
-            .context("failed to put transfer base fee")?;
+            .wrap_err("failed to put transfer base fee")?;
         Ok(())
     }
 

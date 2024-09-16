@@ -3,6 +3,9 @@ import 'charts/deploy.just'
 # commands to simplify Kubetail usage
 mod kubetail 'dev/kubetail.just'
 
+mod? argo 'dev/argo.just'
+mod? helm 'dev/helm.just'
+
 default:
   @just --list
 

@@ -1,7 +1,10 @@
-use anyhow::{
-    anyhow,
-    Context,
-    Result,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -28,9 +31,10 @@ pub(crate) trait StateReadExt: StateRead {
         let bytes = self
             .get_raw(SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY)
             .await
-            .context("failed reading raw sequence action base fee from state")?
-            .ok_or_else(|| anyhow!("sequence action base fee not found"))?;
-        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw sequence action base fee from state")?
+            .ok_or_eyre("sequence action base fee not found")?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
         Ok(fee)
     }
 
@@ -39,9 +43,10 @@ pub(crate) trait StateReadExt: StateRead {
         let bytes = self
             .get_raw(SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY)
             .await
-            .context("failed reading raw sequence action byte cost multiplier from state")?
-            .ok_or_else(|| anyhow!("sequence action byte cost multiplier not found"))?;
-        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw sequence action byte cost multiplier from state")?
+            .ok_or_eyre("sequence action byte cost multiplier not found")?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
         Ok(fee)
     }
 }

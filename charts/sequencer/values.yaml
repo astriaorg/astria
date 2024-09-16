@@ -11,12 +11,18 @@ global:
 
 # sequencer core images
 images:
+  init:
+    repo: ghcr.io/tomwright/dasel
+    pullPolicy: IfNotPresent
+    tag: alpine
   cometBFT:
     repo: docker.io/cometbft/cometbft
+    pullPolicy: IfNotPresent
     tag: v0.38.8
     devTag: v0.38.8
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
+    pullPolicy: IfNotPresent
     tag: "0.16.0"
     devTag: latest
 
