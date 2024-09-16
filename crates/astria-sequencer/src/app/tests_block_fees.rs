@@ -13,7 +13,7 @@ use astria_core::{
         TransactionParams,
         UnsignedTransaction,
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1alpha1::block::DepositBuilder,
 };
 use cnidarium::StateDelta;
 use tendermint::abci::EventAttributeIndexExt as _;
@@ -262,15 +262,16 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx.clone()).await.unwrap();
 
-    let test_deposit = Deposit::new(
+    let test_deposit = DepositBuilder {
         bridge_address,
         rollup_id,
-        1,
-        nria().into(),
-        rollup_id.to_string(),
-        signed_tx.id(),
-        starting_index_of_action,
-    );
+        amount: 1,
+        asset: nria().into(),
+        destination_chain_address: rollup_id.to_string(),
+        source_transaction_id: signed_tx.id(),
+        source_action_index: starting_index_of_action,
+    }
+    .build();
 
     let total_block_fees: u128 = app
         .state

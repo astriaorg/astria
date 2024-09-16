@@ -22,7 +22,7 @@ use astria_core::{
         Bech32m,
     },
     protocol::memos,
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1alpha1::block::DepositBuilder,
 };
 use astria_eyre::{
     anyhow::{
@@ -735,15 +735,16 @@ async fn execute_deposit<S: ibc::StateWriteExt>(
     let transaction_id = transaction_context.transaction_id;
     let index_of_action = transaction_context.source_action_index;
 
-    let deposit = Deposit::new(
+    let deposit = DepositBuilder {
         bridge_address,
         rollup_id,
         amount,
-        denom.into(),
-        destination_address,
-        transaction_id,
-        index_of_action,
-    );
+        asset: denom.into(),
+        destination_chain_address: destination_address,
+        source_transaction_id: transaction_id,
+        source_action_index: index_of_action,
+    }
+    .build();
     let deposit_abci_event = create_deposit_event(&deposit);
     state.record(deposit_abci_event);
     state
@@ -1238,15 +1239,16 @@ mod test {
         assert_eq!(deposits.len(), 1);
 
         let deposit = deposits.get(&rollup_id).unwrap().first().unwrap();
-        let expected_deposit = Deposit::new(
+        let expected_deposit = DepositBuilder {
             bridge_address,
             rollup_id,
-            100,
-            denom,
+            amount: 100,
+            asset: denom,
             destination_chain_address,
-            TransactionId::new([0; 32]),
-            0,
-        );
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        }
+        .build();
         assert_eq!(deposit, &expected_deposit);
     }
 
@@ -1319,18 +1321,23 @@ mod test {
         assert_eq!(deposits.len(), 1);
 
         let deposit = deposits.get(&rollup_id).unwrap().first().unwrap();
-        let expected_deposit = Deposit::new(
+        let expected_deposit = DepositBuilder {
             bridge_address,
             rollup_id,
-            100,
-            denom,
-            bridge_address.to_string(), /* NOTE: this is the non-compat address because it will
-                                         * be converted from the compat bech32 to the
-                                         * standard/non-compat bech32m version before emitting
-                                         * the deposit event */
-            TransactionId::new([0; 32]),
-            0,
-        );
+            amount: 100,
+            asset: denom,
+            destination_chain_address: bridge_address.to_string(), /* NOTE: this is the
+                                                                    * non-compat address because
+                                                                    * it will
+                                                                    * be converted from the
+                                                                    * compat bech32 to the
+                                                                    * standard/non-compat bech32m
+                                                                    * version before emitting
+                                                                    * the deposit event */
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        }
+        .build();
         assert_eq!(deposit, &expected_deposit);
     }
 }

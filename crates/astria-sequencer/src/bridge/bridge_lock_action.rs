@@ -3,7 +3,10 @@ use astria_core::{
         BridgeLockAction,
         TransferAction,
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1alpha1::block::{
+        Deposit,
+        DepositBuilder,
+    },
     Protobuf as _,
 };
 use astria_eyre::eyre::{
@@ -74,7 +77,7 @@ impl ActionHandler for BridgeLockAction {
             .await
             .context("failed to get transfer base fee")?;
 
-        let transaction_id = state
+        let source_transaction_id = state
             .get_transaction_context()
             .expect("current source should be set before executing action")
             .transaction_id;
@@ -83,15 +86,16 @@ impl ActionHandler for BridgeLockAction {
             .expect("current source should be set before executing action")
             .source_action_index;
 
-        let deposit = Deposit::new(
-            self.to,
+        let deposit = DepositBuilder {
+            bridge_address: self.to,
             rollup_id,
-            self.amount,
-            self.asset.clone(),
-            self.destination_chain_address.clone(),
-            transaction_id,
+            amount: self.amount,
+            asset: self.asset.clone(),
+            destination_chain_address: self.destination_chain_address.clone(),
+            source_transaction_id,
             source_action_index,
-        );
+        }
+        .build();
         let deposit_abci_event = create_deposit_event(&deposit);
 
         let byte_cost_multiplier = state
@@ -187,10 +191,10 @@ mod tests {
         let transfer_fee = 12;
 
         let from_address = astria_address(&[2; 20]);
-        let transaction_id = TransactionId::new([0; 32]);
+        let source_transaction_id = TransactionId::new([0; 32]);
         state.put_transaction_context(TransactionContext {
             address_bytes: from_address.bytes(),
-            transaction_id,
+            transaction_id: source_transaction_id,
             source_action_index: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX);
@@ -226,15 +230,18 @@ mod tests {
 
         // enough balance; should pass
         let expected_deposit_fee = transfer_fee
-            + get_deposit_byte_len(&Deposit::new(
-                bridge_address,
-                rollup_id,
-                100,
-                asset.clone(),
-                "someaddress".to_string(),
-                transaction_id,
-                0,
-            )) * 2;
+            + get_deposit_byte_len(
+                &DepositBuilder {
+                    bridge_address,
+                    rollup_id,
+                    amount: 100,
+                    asset: asset.clone(),
+                    destination_chain_address: "someaddress".to_string(),
+                    source_transaction_id,
+                    source_action_index: 0,
+                }
+                .build(),
+            ) * 2;
         state
             .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();

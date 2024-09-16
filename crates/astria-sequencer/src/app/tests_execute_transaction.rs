@@ -23,7 +23,7 @@ use astria_core::{
             UnsignedTransaction,
         },
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1alpha1::block::DepositBuilder,
     Protobuf as _,
 };
 use bytes::Bytes;
@@ -740,15 +740,16 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     app.execute_transaction(signed_tx.clone()).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
-    let expected_deposit = Deposit::new(
+    let expected_deposit = DepositBuilder {
         bridge_address,
         rollup_id,
         amount,
-        nria().into(),
-        "nootwashere".to_string(),
-        signed_tx.id(),
-        starting_index_of_action,
-    );
+        asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+        source_transaction_id: signed_tx.id(),
+        source_action_index: starting_index_of_action,
+    }
+    .build();
 
     let fee = transfer_fee
         + app
@@ -1158,15 +1159,16 @@ async fn transaction_execution_records_deposit_event() {
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
 
-    let expected_deposit = Deposit::new(
-        bob_address,
-        [0; 32].into(),
-        1,
-        nria().into(),
-        "test_chain_address".to_string(),
-        signed_tx.id(),
-        0,
-    );
+    let expected_deposit = DepositBuilder {
+        bridge_address: bob_address,
+        rollup_id: [0; 32].into(),
+        amount: 1,
+        asset: nria().into(),
+        destination_chain_address: "test_chain_address".to_string(),
+        source_transaction_id: signed_tx.id(),
+        source_action_index: 0,
+    }
+    .build();
     let expected_deposit_event = create_deposit_event(&expected_deposit);
 
     signed_tx.check_and_execute(&mut state_tx).await.unwrap();

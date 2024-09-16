@@ -1315,27 +1315,6 @@ impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
 
 impl Deposit {
     #[must_use]
-    pub fn new(
-        bridge_address: Address,
-        rollup_id: RollupId,
-        amount: u128,
-        asset: asset::Denom,
-        destination_chain_address: String,
-        source_transaction_id: TransactionId,
-        source_action_index: u64,
-    ) -> Self {
-        Self {
-            bridge_address,
-            rollup_id,
-            amount,
-            asset,
-            destination_chain_address,
-            source_transaction_id,
-            source_action_index,
-        }
-    }
-
-    #[must_use]
     pub fn bridge_address(&self) -> &Address {
         &self.bridge_address
     }
@@ -1479,6 +1458,31 @@ enum DepositErrorKind {
     IncorrectAsset(#[source] asset::ParseDenomError),
     #[error("field `source_transaction_id` was invalid")]
     TransactionIdError(#[source] TransactionIdError),
+}
+
+pub struct DepositBuilder {
+    pub bridge_address: Address,
+    pub rollup_id: RollupId,
+    pub amount: u128,
+    pub asset: asset::Denom,
+    pub destination_chain_address: String,
+    pub source_transaction_id: TransactionId,
+    pub source_action_index: u64,
+}
+
+impl DepositBuilder {
+    #[must_use]
+    pub fn build(self) -> Deposit {
+        Deposit {
+            bridge_address: self.bridge_address,
+            rollup_id: self.rollup_id,
+            amount: self.amount,
+            asset: self.asset,
+            destination_chain_address: self.destination_chain_address,
+            source_transaction_id: self.source_transaction_id,
+            source_action_index: self.source_action_index,
+        }
+    }
 }
 
 /// A piece of data that is sent to a rollup execution node.

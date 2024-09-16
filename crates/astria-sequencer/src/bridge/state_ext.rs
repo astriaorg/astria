@@ -575,7 +575,10 @@ mod test {
             RollupId,
             TransactionId,
         },
-        sequencerblock::v1alpha1::block::Deposit,
+        sequencerblock::v1alpha1::block::{
+            Deposit,
+            DepositBuilder,
+        },
     };
     use cnidarium::StateDelta;
     use insta::assert_snapshot;
@@ -855,16 +858,17 @@ mod test {
         let bridge_address = astria_address(&[42u8; 20]);
         let mut amount = 10u128;
         let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-        let mut deposit = Deposit::new(
+        let destination_chain_address = "0xdeadbeef".to_string();
+        let mut deposit = DepositBuilder {
             bridge_address,
             rollup_id,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            0,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.clone(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        }
+        .build();
 
         let mut deposits = vec![deposit.clone()];
 
@@ -893,15 +897,16 @@ mod test {
 
         // can write additional
         amount = 20u128;
-        deposit = Deposit::new(
+        deposit = DepositBuilder {
             bridge_address,
             rollup_id,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            1,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.clone(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 1,
+        }
+        .build();
         deposits.append(&mut vec![deposit.clone()]);
         state
             .put_deposit_event(deposit)
@@ -929,15 +934,16 @@ mod test {
 
         // can write different rollup id and both ok
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit::new(
+        deposit = DepositBuilder {
             bridge_address,
-            rollup_id_1,
+            rollup_id: rollup_id_1,
             amount,
             asset,
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            2,
-        );
+            destination_chain_address,
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 2,
+        }
+        .build();
         let deposits_1 = vec![deposit.clone()];
         state
             .put_deposit_event(deposit)
@@ -973,16 +979,17 @@ mod test {
         let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-        let mut deposit = Deposit::new(
+        let destination_chain_address = "0xdeadbeef".to_string();
+        let mut deposit = DepositBuilder {
             bridge_address,
-            rollup_id_0,
+            rollup_id: rollup_id_0,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            0,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.clone(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        }
+        .build();
 
         // write same rollup id twice
         state
@@ -998,15 +1005,16 @@ mod test {
 
         // writing additional different rollup id
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit::new(
+        deposit = DepositBuilder {
             bridge_address,
-            rollup_id_1,
+            rollup_id: rollup_id_1,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            1,
-        );
+            asset: asset.clone(),
+            destination_chain_address,
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 1,
+        }
+        .build();
         state
             .put_deposit_event(deposit)
             .await
@@ -1048,16 +1056,17 @@ mod test {
         let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-        let deposit = Deposit::new(
+        let destination_chain_address = "0xdeadbeef".to_string();
+        let deposit = DepositBuilder {
             bridge_address,
             rollup_id,
             amount,
-            asset,
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            0,
-        );
+            asset: asset.clone(),
+            destination_chain_address,
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        }
+        .build();
 
         let deposits = vec![deposit.clone()];
 
@@ -1105,16 +1114,17 @@ mod test {
         let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-        let mut deposit = Deposit::new(
+        let destination_chain_address = "0xdeadbeef".to_string();
+        let mut deposit = DepositBuilder {
             bridge_address,
             rollup_id,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            0,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.clone(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        }
+        .build();
 
         // write to first
         state
@@ -1124,15 +1134,16 @@ mod test {
 
         // write to second
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit::new(
+        deposit = DepositBuilder {
             bridge_address,
-            rollup_id_1,
+            rollup_id: rollup_id_1,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            1,
-        );
+            asset: asset.clone(),
+            destination_chain_address,
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 1,
+        }
+        .build();
         let deposits_1 = vec![deposit.clone()];
 
         state
@@ -1201,16 +1212,17 @@ mod test {
         let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-        let mut deposit = Deposit::new(
+        let destination_chain_address = "0xdeadbeef".to_string();
+        let mut deposit = DepositBuilder {
             bridge_address,
             rollup_id,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            0,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.clone(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        }
+        .build();
 
         // write to first
         state
@@ -1220,15 +1232,16 @@ mod test {
 
         // write to second
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit::new(
+        deposit = DepositBuilder {
             bridge_address,
-            rollup_id_1,
+            rollup_id: rollup_id_1,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            1,
-        );
+            asset: asset.clone(),
+            destination_chain_address,
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 1,
+        }
+        .build();
         state
             .put_deposit_event(deposit)
             .await

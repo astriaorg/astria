@@ -398,7 +398,7 @@ mod test {
     use astria_core::{
         primitive::v1::TransactionId,
         protocol::test_utils::ConfigureSequencerBlock,
-        sequencerblock::v1alpha1::block::Deposit,
+        sequencerblock::v1alpha1::block::DepositBuilder,
     };
     use cnidarium::StateDelta;
     use rand::Rng;
@@ -419,15 +419,16 @@ mod test {
             let amount = rng.gen::<u128>();
             let asset = "testasset".parse().unwrap();
             let destination_chain_address = rng.gen::<u8>().to_string();
-            let deposit = Deposit::new(
+            let deposit = DepositBuilder {
                 bridge_address,
                 rollup_id,
                 amount,
                 asset,
                 destination_chain_address,
-                TransactionId::new([0; 32]),
-                0,
-            );
+                source_transaction_id: TransactionId::new([0; 32]),
+                source_action_index: 0,
+            }
+            .build();
             deposits.push(deposit);
         }
 

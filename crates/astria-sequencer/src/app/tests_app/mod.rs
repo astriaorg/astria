@@ -19,7 +19,7 @@ use astria_core::{
             UnsignedTransaction,
         },
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1alpha1::block::DepositBuilder,
 };
 use cnidarium::StateDelta;
 use prost::{
@@ -331,15 +331,16 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
 
     let signed_tx = tx.into_signed(&alice);
 
-    let expected_deposit = Deposit::new(
+    let expected_deposit = DepositBuilder {
         bridge_address,
         rollup_id,
         amount,
-        nria().into(),
-        "nootwashere".to_string(),
-        signed_tx.id(),
-        starting_index_of_action,
-    );
+        asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+        source_transaction_id: signed_tx.id(),
+        source_action_index: starting_index_of_action,
+    }
+    .build();
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
@@ -424,15 +425,16 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 
     let signed_tx = tx.into_signed(&alice);
 
-    let expected_deposit = Deposit::new(
+    let expected_deposit = DepositBuilder {
         bridge_address,
         rollup_id,
         amount,
-        nria().into(),
-        "nootwashere".to_string(),
-        signed_tx.id(),
-        starting_index_of_action,
-    );
+        asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+        source_transaction_id: signed_tx.id(),
+        source_action_index: starting_index_of_action,
+    }
+    .build();
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
