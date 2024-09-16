@@ -219,13 +219,13 @@ init-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAdd
 
   IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
 
-  docker run --network host $IMAGE sequencer init-bridge-account \
+  docker run --rm --network host $IMAGE sequencer init-bridge-account \
     --rollup-name {{rollupName}} \
     --private-key {{sequencer_bridge_pkey}} \
     --sequencer.chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
     --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
-  docker run --network host $IMAGE sequencer bridge-lock {{sequencer_bridge_address}} \
+  docker run --rm --network host $IMAGE sequencer bridge-lock {{sequencer_bridge_address}} \
     --amount $TRANSFER_AMOUNT \
     --destination-chain-address {{evmDestinationAddress}} \
     --private-key $SEQUENCER_FUNDS_PKEY \
@@ -235,7 +235,7 @@ init-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAdd
 
 
 init-ibc-bridge privateKey asset feeAsset tag=defaultTag rollupName=defaultRollupName:
-  docker run --network host {{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }} sequencer init-bridge-account \
+  docker run --rm --network host {{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }} sequencer init-bridge-account \
     --rollup-name {{ rollupName }} \
     --private-key {{ privateKey }} \
     --sequencer.chain-id {{ sequencer_chain_id }} \
@@ -304,7 +304,7 @@ run-smoke-test tag=defaultTag:
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
   while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
-    BALANCE=$(docker run --network host $ASTRIA_CLI_IMAGE sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
+    BALANCE=$(docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
     if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
       echo "Bridge Out Sequencer success"
@@ -404,13 +404,10 @@ run-smoke-cli tag=defaultTag:
   CURRENT_BLOCK_HEX=$(just evm-get-block-by-number latest | jq -r '.number')
   CURRENT_BLOCK=$(just hex-to-dec $CURRENT_BLOCK_HEX)
 
-  withdrawals_dst="$(mktemp)"
-  # uncomment this line if you want to inspect `withdrawals_dst`
-  trap "rm -f ${withdrawals_dst@Q}" EXIT
-
-  echo "passing ${withdrawals_dst} to astria-cli"
-
-  docker run -v $withdrawals_dst:/astria/tempfile --network host $ASTRIA_CLI_IMAGE bridge collect-withdrawals \
+  # Using a docker volume to handle both passing in a private key & the output file
+  docker volume create cli-test-withdrawals
+  docker run --rm -v cli-test-withdrawals:/data alpine sh -c "echo '{{sequencer_bridge_pkey}}' > /data/key"
+  docker run --rm -v cli-test-withdrawals:/astria --network host $ASTRIA_CLI_IMAGE bridge collect-withdrawals \
     --rollup-endpoint {{eth_ws_url}} \
     --contract-address {{evm_contract_address}} \
     --from-rollup-height 1 \
@@ -419,17 +416,20 @@ run-smoke-cli tag=defaultTag:
     --bridge-address {{sequencer_bridge_address}} \
     --output "/astria/tempfile" \
     --force
-   docker run --network host $ASTRIA_CLI_IMAGE bridge submit-withdrawals \
-    --signing-key <(printf "%s" "{{sequencer_bridge_pkey}}") \
+   docker run --rm -v cli-test-withdrawals:/astria --network host $ASTRIA_CLI_IMAGE bridge submit-withdrawals \
+    --signing-key "/astria/key"  \
     --sequencer-chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
     --input "/astria/tempfile"
+
+  # Can inspect the file by removing and looking in volume
+  docker volume remove cli-test-withdrawals
 
   CHECKS=0
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
   while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
-    BALANCE=$(docker run --network host $ASTRIA_CLI_IMAGE sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
+    BALANCE=$(docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
     echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
     if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
       echo "Bridge Out Sequencer success"
