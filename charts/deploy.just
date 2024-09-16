@@ -362,7 +362,7 @@ run-smoke-cli tag=defaultTag:
   fi
 
   echo "Testing Bridge In..."
-  just init rollup-bridge
+  just init rollup-bridge {{tag}}
   CHECKS=0
   EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
   while (( $CHECKS < $MAX_CHECKS )); do
