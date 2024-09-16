@@ -11,6 +11,24 @@ graphNode:
   metrics:
     enabled: false
 
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  host: graph-node.localdev.me
+  tls: []
+  #  - secretName: graph-node-tls
+  #    hosts:
+  #      - graph-node.example.com
+
+serviceMonitor:
+  enabled: false
+  additionalLabels: {}
+  interval: 15s
+  scrapeTimeout: 10s
+
 ipfs:
   image: ipfs/kubo
   tag: v0.17.0
@@ -27,7 +45,7 @@ postgres:
     size: 10Gi
 
 environment:
-  ethereumNetwork: flame-devnet
+  ethereumNetwork: flame-local
   ethereumRPC: http://astria-evm-service.astria-dev-cluster.svc.cluster.local:8545
 
 persistence:
