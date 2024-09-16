@@ -1,4 +1,12 @@
 use astria_core::{
+    primitive::v1::{
+        Address,
+        RollupId,
+        TransactionId,
+        ADDRESS_LEN,
+        ROLLUP_ID_LEN,
+        TRANSACTION_ID_LEN,
+    },
     protocol::transaction::v1alpha1::action::{
         BridgeLockAction,
         TransferAction,
@@ -145,17 +153,36 @@ impl ActionHandler for BridgeLockAction {
     }
 }
 
-/// returns the length of a serialized `Deposit` message.
+/// Returns a modified byte length of the deposit event. Length is calculated with constants for all
+/// fields except `asset` and `destination_chain_address`, ergo it may not be representative of
+/// on-wire length. This should always return a byte length greater than or equal to the actual size
+/// of the serialized `Deposit`, but never less.
 pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
     use prost::Message as _;
-    let raw = deposit.clone().into_raw();
+    let bridge_address = Address::builder()
+        .prefix("astria")
+        .slice(&[0; ADDRESS_LEN])
+        .try_build()
+        .unwrap();
+    let deposit = Deposit::new(
+        bridge_address,
+        RollupId::from_unhashed_bytes([0; ROLLUP_ID_LEN]),
+        u128::MAX,
+        deposit.asset().clone(),
+        deposit.destination_chain_address().to_string(),
+        TransactionId::new([0; TRANSACTION_ID_LEN]),
+        u64::MAX,
+    );
+    let raw = deposit.into_raw();
     raw.encoded_len() as u128
 }
 
 #[cfg(test)]
 mod tests {
     use astria_core::primitive::v1::{
-        asset,
+        asset::{
+            self,
+        },
         RollupId,
         TransactionId,
     };
@@ -239,5 +266,64 @@ mod tests {
             .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
         bridge_lock.check_and_execute(&mut state).await.unwrap();
+    }
+
+    #[test]
+    fn test_get_deposit_byte_len() {
+        use prost::Message as _;
+
+        // Test for deposit length at maximum int values
+        let deposit = Deposit::new(
+            astria_address(&[1; 20]),
+            RollupId::from_unhashed_bytes(b"test_rollup_id"),
+            u128::MAX,
+            test_asset(),
+            "someaddress".to_string(),
+            TransactionId::new([0; 32]),
+            u64::MAX,
+        );
+        let calculated_len = get_deposit_byte_len(&deposit);
+        let expected_len = deposit.into_raw().encoded_len() as u128;
+        assert_eq!(calculated_len, expected_len);
+
+        // Test for deposit length at minimum int values
+        let deposit = Deposit::new(
+            astria_address(&[1; 20]),
+            RollupId::from_unhashed_bytes(b"test_rollup_id"),
+            0,
+            test_asset(),
+            "someaddress".to_string(),
+            TransactionId::new([0; 32]),
+            0,
+        );
+        let calculated_len = get_deposit_byte_len(&deposit);
+        let expected_len = deposit.into_raw().encoded_len() as u128;
+        assert!(calculated_len >= expected_len);
+
+        // Ensure longer asset name results in longer byte length.
+        let deposit = Deposit::new(
+            astria_address(&[1; 20]),
+            RollupId::from_unhashed_bytes(b"test_rollup_id"),
+            0,
+            "test_asset".parse().unwrap(),
+            "someaddress".to_string(),
+            TransactionId::new([0; 32]),
+            0,
+        );
+        let calculated_len_2 = get_deposit_byte_len(&deposit);
+        assert!(calculated_len_2 >= calculated_len);
+
+        // Ensure longer destination chain address results in longer byte length.
+        let deposit = Deposit::new(
+            astria_address(&[1; 20]),
+            RollupId::from_unhashed_bytes(b"test_rollup_id"),
+            0,
+            "test_asset".parse().unwrap(),
+            "someaddresslonger".to_string(),
+            TransactionId::new([0; 32]),
+            0,
+        );
+        let calculated_len_3 = get_deposit_byte_len(&deposit);
+        assert!(calculated_len_3 >= calculated_len_2);
     }
 }
