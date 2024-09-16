@@ -16,7 +16,7 @@ init tool *ARGS:
 run-smoke type *ARGS:
   @just run-smoke-{{type}} {{ARGS}}
 
-load-image image_name repo=default_repo_name tag=default_docker_tag:
+load-image image_name tag=default_docker_tag repo=default_repo_name:
   kind load docker-image {{repo}}/{{image_name}}:{{tag}} --name astria-dev-cluster
 
 deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer (deploy-chart "sequencer-faucet") deploy-rollup
@@ -410,20 +410,20 @@ run-smoke-cli tag=defaultTag:
 
   echo "passing ${withdrawals_dst} to astria-cli"
 
-  docker run --network host $ASTRIA_CLI_IMAGE bridge collect-withdrawals \
+  docker run -v $withdrawals_dst:/astria/tempfile --network host $ASTRIA_CLI_IMAGE bridge collect-withdrawals \
     --rollup-endpoint {{eth_ws_url}} \
     --contract-address {{evm_contract_address}} \
     --from-rollup-height 1 \
     --to-rollup-height $CURRENT_BLOCK \
     --sequencer-asset-to-withdraw nria \
     --bridge-address {{sequencer_bridge_address}} \
-    --output "${withdrawals_dst}" \
+    --output "/astria/tempfile" \
     --force
    docker run --network host $ASTRIA_CLI_IMAGE bridge submit-withdrawals \
     --signing-key <(printf "%s" "{{sequencer_bridge_pkey}}") \
     --sequencer-chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
-    --input "${withdrawals_dst}"
+    --input "/astria/tempfile"
 
   CHECKS=0
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
