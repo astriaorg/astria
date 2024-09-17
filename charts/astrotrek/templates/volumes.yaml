@@ -7,6 +7,7 @@ apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: astrotrek-shared-vol-local-pv
+  namespace: {{ include "astrotrek.namespace" $ }}
 spec:
   capacity:
     storage: {{ $value.size }}
@@ -28,14 +29,12 @@ spec:
                 - astria-dev-cluster-worker
 ---
     {{- end }}
-  {{- end}}
-{{- end }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  namespace: {{ .Values.global.namespace }}
+  namespace: {{ include "astrotrek.namespace" $ }}
   labels:
-    app: {{ .Values.config.name }}-db
+    app: {{ $.Values.config.name }}-db
   name: astrotrek-shared-local-pvc
 spec:
   accessModes:
@@ -43,3 +42,6 @@ spec:
   resources:
     requests:
       storage: 100Mi
+  {{- end}}
+{{- end }}
+

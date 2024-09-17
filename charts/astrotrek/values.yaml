@@ -2,7 +2,7 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 global:
-  namespace: "astria-dev-cluster"
+  namespaceOverride: "astria-dev-cluster"
   replicaCount: 1
 
 images:
@@ -30,12 +30,12 @@ storage:
   local: true
   entities:
     indexerSharedStorage:
-      size: "5Gi"
+      size: "1Gi"
       persistentVolumeName: "indexer-shared-storage"
       path: "/data/indexer-data"
 
 metrics:
-  enabled: true
+  enabled: false
 
 config:
   name: astrotrek
@@ -63,6 +63,25 @@ config:
   frontend:
     rpcApiUrl: http://api.sequencer.localdev.me/v1
     wsApiUrl: ws://api.sequencer.localdev.me/v1/ws
+
+ingress:
+  enabled: true
+  api:
+    className: "nginx"
+    annotations: 
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+      nginx.ingress.kubernetes.io/cors-allow-methods: "GET"
+      nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range"
+      nginx.ingress.kubernetes.io/cors-expose-headers: "Content-Length,Content-Range"
+      nginx.ingress.kubernetes.io/cors-max-age: "86400"
+    host: api.sequencer.localdev.me
+    tls: []
+  frontend:
+    className: "nginx"
+    annotations: {}
+    host: astrotrek.sequencer.localdev.me
+    tls: []
 
 ports:
   api: "9876"

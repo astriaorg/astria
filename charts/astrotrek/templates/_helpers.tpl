@@ -1,4 +1,9 @@
-
+{{/*
+Namepsace to deploy elements into.
+*/}}
+{{- define "astrotrek.namespace" -}}
+{{- default .Release.Namespace .Values.global.namespaceOverride | trunc 63 | trimSuffix "-" -}}
+{{- end }}
 
 {{- define "indexer.image" -}}
 {{ .Values.images.indexer.repo }}:{{ if .Values.global.dev }}{{ .Values.images.indexer.devTag }}{{ else }}{{ .Values.images.indexer.tag }}{{ end }}
