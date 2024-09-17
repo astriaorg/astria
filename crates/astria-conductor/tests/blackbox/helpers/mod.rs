@@ -120,7 +120,7 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
 }
 
 pub struct TestConductor {
-    pub conductor: conductor::ConductorHandle,
+    pub conductor: conductor::Handle,
     pub mock_grpc: MockGrpc,
     pub mock_http: wiremock::MockServer,
     pub metrics_handle: metrics::Handle,
@@ -132,7 +132,7 @@ impl Drop for TestConductor {
             let err_msg =
                 match tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown()).await
                 {
-                    Ok(Ok(())) => None,
+                    Ok(Ok(_)) => None,
                     Ok(Err(conductor_err)) => Some(format!(
                         "conductor shut down with an error:\n{conductor_err:?}"
                     )),
