@@ -480,7 +480,7 @@ fn rollup_height_from_signed_transaction(
     .expect("action is already checked to be either BridgeUnlock or Ics20Withdrawal");
 
     info!(
-        last_batch.tx_hash = %telemetry::display::hex(&signed_transaction.sha256_of_proto_encoding()),
+        last_batch.transaction_id = %signed_transaction.id(),
         last_batch.rollup_height = last_batch_rollup_height,
         "extracted rollup height from last batch of withdrawals",
     );

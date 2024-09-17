@@ -26,6 +26,7 @@ spec:
             - -faucet.amount=$(ETH_FAUCET_AMOUNT)
             - -proxycount=$(ETH_FAUCET_PROXYCOUNT)
           image: {{ .Values.images.faucet.repo }}:{{ .Values.images.faucet.tag }}
+          imagePullPolicy: {{ .Values.images.faucet.pullPolicy }}
           envFrom:
             - configMapRef:
                 name: {{tpl .Values.config.rollupName . }}-evm-faucet-env

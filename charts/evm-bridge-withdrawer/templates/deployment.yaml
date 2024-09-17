@@ -20,6 +20,7 @@ spec:
       containers:
         - name: evm-bridge-withdrawer
           image: {{ include "evm-bridge-withdrawer.image" . }}
+          imagePullPolicy: {{ .Values.images.evmBridgeWithdrawer.pullPolicy }}
           command: [ "/usr/local/bin/astria-bridge-withdrawer" ]
           stdin: {{ .Values.global.useTTY }}
           tty: {{ .Values.global.useTTY }}

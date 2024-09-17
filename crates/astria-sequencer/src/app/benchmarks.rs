@@ -17,6 +17,10 @@ use cnidarium::Storage;
 use crate::{
     app::{
         test_utils,
+        test_utils::{
+            mock_balances,
+            mock_tx_cost,
+        },
         App,
     },
     benchmark_utils::{
@@ -70,8 +74,14 @@ impl Fixture {
         let (app, storage) =
             test_utils::initialize_app_with_storage(Some(genesis_state), vec![]).await;
 
+        let mock_balances = mock_balances(0, 0);
+        let mock_tx_cost = mock_tx_cost(0, 0, 0);
+
         for tx in benchmark_utils::transactions(TxTypes::AllTransfers) {
-            app.mempool.insert(tx.clone(), 0).await.unwrap();
+            app.mempool
+                .insert(tx.clone(), 0, mock_balances.clone(), mock_tx_cost.clone())
+                .await
+                .unwrap();
         }
         Fixture {
             app,

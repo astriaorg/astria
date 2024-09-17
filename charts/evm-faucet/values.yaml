@@ -9,6 +9,7 @@ global:
 images:
   faucet:
     repo: "ghcr.io/astriaorg/ria-faucet"
+    pullPolicy: IfNotPresent
     tag: "0.0.1"
 
 config:

@@ -33,7 +33,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ $value.persistentVolumeName }}-pvc
-  namespace: astria-dev-cluster
+  namespace: {{ $.Values.global.namespace }}
   labels:
     "app.kubernetes.io/name": "{{ $.Chart.Name }}"
     "app.kubernetes.io/managed-by": {{ $.Release.Service | quote }}

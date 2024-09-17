@@ -4,19 +4,24 @@ mod state_ext;
 
 use std::fmt;
 
-use anyhow::{
-    ensure,
-    Context as _,
-};
 use astria_core::protocol::transaction::v1alpha1::{
     action::Action,
     SignedTransaction,
 };
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        ensure,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
+};
 pub(crate) use checks::{
     check_balance_for_total_fees_and_transfers,
-    check_balance_mempool,
     check_chain_id_mempool,
     check_nonce_mempool,
+    get_total_transaction_cost,
 };
 use cnidarium::StateWrite;
 // Conditional to quiet warnings. This object is used throughout the codebase,
@@ -77,7 +82,7 @@ impl std::error::Error for InvalidNonce {}
 
 #[async_trait::async_trait]
 impl ActionHandler for SignedTransaction {
-    async fn check_stateless(&self) -> anyhow::Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         ensure!(!self.actions().is_empty(), "must have at least one action");
 
         for action in self.actions() {
@@ -85,23 +90,23 @@ impl ActionHandler for SignedTransaction {
                 Action::Transfer(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for TransferAction")?,
+                    .wrap_err("stateless check failed for TransferAction")?,
                 Action::Sequence(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for SequenceAction")?,
+                    .wrap_err("stateless check failed for SequenceAction")?,
                 Action::ValidatorUpdate(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for ValidatorUpdateAction")?,
+                    .wrap_err("stateless check failed for ValidatorUpdateAction")?,
                 Action::SudoAddressChange(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for SudoAddressChangeAction")?,
+                    .wrap_err("stateless check failed for SudoAddressChangeAction")?,
                 Action::FeeChange(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for FeeChangeAction")?,
+                    .wrap_err("stateless check failed for FeeChangeAction")?,
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
@@ -109,36 +114,37 @@ impl ActionHandler for SignedTransaction {
                     action
                         .check_stateless(())
                         .await
-                        .context("stateless check failed for IbcAction")?;
+                        .map_err(anyhow_to_eyre)
+                        .wrap_err("stateless check failed for IbcAction")?;
                 }
                 Action::Ics20Withdrawal(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for Ics20WithdrawalAction")?,
+                    .wrap_err("stateless check failed for Ics20WithdrawalAction")?,
                 Action::IbcRelayerChange(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for IbcRelayerChangeAction")?,
+                    .wrap_err("stateless check failed for IbcRelayerChangeAction")?,
                 Action::FeeAssetChange(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for FeeAssetChangeAction")?,
+                    .wrap_err("stateless check failed for FeeAssetChangeAction")?,
                 Action::InitBridgeAccount(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for InitBridgeAccountAction")?,
+                    .wrap_err("stateless check failed for InitBridgeAccountAction")?,
                 Action::BridgeLock(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for BridgeLockAction")?,
+                    .wrap_err("stateless check failed for BridgeLockAction")?,
                 Action::BridgeUnlock(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for BridgeLockAction")?,
+                    .wrap_err("stateless check failed for BridgeUnlockAction")?,
                 Action::BridgeSudoChange(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for BridgeSudoChangeAction")?,
+                    .wrap_err("stateless check failed for BridgeSudoChangeAction")?,
             }
         }
         Ok(())
@@ -148,11 +154,11 @@ impl ActionHandler for SignedTransaction {
     // individual actions. This could be tidied up by implementing `ActionHandler for Action`
     // and letting it delegate.
     #[allow(clippy::too_many_lines)]
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> anyhow::Result<()> {
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         // Add the current signed transaction into the ephemeral state in case
         // downstream actions require access to it.
         // XXX: This must be deleted at the end of `check_stateful`.
-        state.put_current_source(self);
+        let mut transaction_context = state.put_transaction_context(self);
 
         // Transactions must match the chain id of the node.
         let chain_id = state.get_chain_id().await?;
@@ -166,60 +172,63 @@ impl ActionHandler for SignedTransaction {
         let curr_nonce = state
             .get_account_nonce(self.address_bytes())
             .await
-            .context("failed to get nonce for transaction signer")?;
+            .wrap_err("failed to get nonce for transaction signer")?;
         ensure!(curr_nonce == self.nonce(), InvalidNonce(self.nonce()));
 
         // Should have enough balance to cover all actions.
         check_balance_for_total_fees_and_transfers(self, &state)
             .await
-            .context("failed to check balance for total fees and transfers")?;
+            .wrap_err("failed to check balance for total fees and transfers")?;
 
         if state
             .get_bridge_account_rollup_id(self)
             .await
-            .context("failed to check account rollup id")?
+            .wrap_err("failed to check account rollup id")?
             .is_some()
         {
-            state.put_last_transaction_hash_for_bridge_account(
+            state.put_last_transaction_id_for_bridge_account(
                 self,
-                &self.sha256_of_proto_encoding(),
+                &transaction_context.transaction_id,
             );
         }
 
         let from_nonce = state
             .get_account_nonce(self)
             .await
-            .context("failed getting nonce of transaction signer")?;
+            .wrap_err("failed getting nonce of transaction signer")?;
         let next_nonce = from_nonce
             .checked_add(1)
-            .context("overflow occurred incrementing stored nonce")?;
+            .ok_or_eyre("overflow occurred incrementing stored nonce")?;
         state
             .put_account_nonce(self, next_nonce)
-            .context("failed updating `from` nonce")?;
+            .wrap_err("failed updating `from` nonce")?;
 
         // FIXME: this should create one span per `check_and_execute`
-        for action in self.actions() {
+        for (i, action) in (0..).zip(self.actions().iter()) {
+            transaction_context.source_action_index = i;
+            state.put_transaction_context(transaction_context);
+
             match action {
                 Action::Transfer(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("executing transfer action failed")?,
+                    .wrap_err("executing transfer action failed")?,
                 Action::Sequence(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("executing sequence action failed")?,
+                    .wrap_err("executing sequence action failed")?,
                 Action::ValidatorUpdate(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("executing validor update")?,
+                    .wrap_err("executing validor update")?,
                 Action::SudoAddressChange(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("executing sudo address change failed")?,
+                    .wrap_err("executing sudo address change failed")?,
                 Action::FeeChange(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("executing fee change failed")?,
+                    .wrap_err("executing fee change failed")?,
                 Action::Ibc(act) => {
                     // FIXME: this check should be moved to check_and_execute, as it now has
                     // access to the the signer through state. However, what's the correct
@@ -229,7 +238,7 @@ impl ActionHandler for SignedTransaction {
                         state
                             .is_ibc_relayer(self)
                             .await
-                            .context("failed to check if address is IBC relayer")?,
+                            .wrap_err("failed to check if address is IBC relayer")?,
                         "only IBC sudo address can execute IBC actions"
                     );
                     let action = act
@@ -238,41 +247,42 @@ impl ActionHandler for SignedTransaction {
                     action
                         .check_and_execute(&mut state)
                         .await
-                        .context("failed executing ibc action")?;
+                        .map_err(anyhow_to_eyre)
+                        .wrap_err("failed executing ibc action")?;
                 }
                 Action::Ics20Withdrawal(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("failed executing ics20 withdrawal")?,
+                    .wrap_err("failed executing ics20 withdrawal")?,
                 Action::IbcRelayerChange(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("failed executing ibc relayer change")?,
+                    .wrap_err("failed executing ibc relayer change")?,
                 Action::FeeAssetChange(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("failed executing fee asseet change")?,
+                    .wrap_err("failed executing fee asseet change")?,
                 Action::InitBridgeAccount(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("failed executing init bridge account")?,
+                    .wrap_err("failed executing init bridge account")?,
                 Action::BridgeLock(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("failed executing bridge lock")?,
+                    .wrap_err("failed executing bridge lock")?,
                 Action::BridgeUnlock(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("failed executing bridge unlock")?,
+                    .wrap_err("failed executing bridge unlock")?,
                 Action::BridgeSudoChange(act) => act
                     .check_and_execute(&mut state)
                     .await
-                    .context("failed executing bridge sudo change")?,
+                    .wrap_err("failed executing bridge sudo change")?,
             }
         }
 
         // XXX: Delete the current transaction data from the ephemeral state.
-        state.delete_current_source();
+        state.delete_current_transaction_context();
         Ok(())
     }
 }
