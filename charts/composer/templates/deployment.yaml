@@ -18,6 +18,7 @@ spec:
       containers:
         - name: composer
           image: {{ include "composer.image" . }}
+          imagePullPolicy: {{ .Values.images.composer.pullPolicy }}
           command: ["/usr/local/bin/astria-composer"]
           stdin: {{ .Values.global.useTTY }}
           tty: {{ .Values.global.useTTY }}

@@ -9,11 +9,13 @@ global:
 images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
+    pullPolicy: IfNotPresent
     tag: 0.14.0
     devTag: latest
     overrideTag: ""
   conductor:
     repo: ghcr.io/astriaorg/conductor
+    pullPolicy: IfNotPresent
     tag: "0.20.0"
     devTag: latest
 

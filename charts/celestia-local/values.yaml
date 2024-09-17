@@ -55,3 +55,55 @@ ports:
   celestiaAppRestPort: 1317
   bridgeRPC: 26658
   bridgeHTTP: 26659
+
+ingress:
+  labels: {}
+  annotations: {}
+  hostname: localdev.me
+  className: nginx
+  services:
+    bridgeRpc:
+      hosts:
+        - 'rpc.node.celestia.{{ .Values.ingress.hostname }}'
+      path: /
+      pathType: Prefix
+      service:
+        name: celestia-service
+        port:
+          name: bridge-jsonrpc
+    bridgeRest:
+      hosts:
+        - rest.node.celestia.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: celestia-service
+        port:
+          name: bridge-rest
+    token:
+      hosts:
+        - token.node.celestia.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: celestia-service
+        port:
+          name: token-svc
+    appRpc:
+      hosts:
+        - 'rpc.app.celestia.{{ .Values.ingress.hostname }}'
+      path: /
+      pathType: Prefix
+      service:
+        name: celestia-app-service
+        port:
+          name: app-rpc
+    appRest:
+      hosts:
+        - rest.app.celestia.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: celestia-app-service
+        port:
+          name: app-rest

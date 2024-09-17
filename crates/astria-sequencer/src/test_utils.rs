@@ -47,7 +47,7 @@ pub(crate) fn verification_key(seed: u64) -> astria_core::crypto::VerificationKe
 
 #[cfg(test)]
 #[track_caller]
-pub(crate) fn assert_anyhow_error(error: &anyhow::Error, expected: &'static str) {
+pub(crate) fn assert_eyre_error(error: &astria_eyre::eyre::Error, expected: &'static str) {
     let msg = error.to_string();
     assert!(
         msg.contains(expected),

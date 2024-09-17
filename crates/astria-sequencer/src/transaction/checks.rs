@@ -1,13 +1,10 @@
 use std::collections::HashMap;
 
-use anyhow::{
-    ensure,
-    Context as _,
-};
 use astria_core::{
     primitive::v1::{
         asset,
         RollupId,
+        TransactionId,
     },
     protocol::transaction::v1alpha1::{
         action::{
@@ -17,6 +14,11 @@ use astria_core::{
         SignedTransaction,
         UnsignedTransaction,
     },
+};
+use astria_eyre::eyre::{
+    ensure,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::StateRead;
 use tracing::instrument;
@@ -33,18 +35,18 @@ use crate::{
 pub(crate) async fn check_nonce_mempool<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let signer_address = state
         .try_base_prefixed(&tx.verification_key().address_bytes())
         .await
-        .context(
+        .wrap_err(
             "failed constructing the signer address from signed transaction verification and \
              prefix provided by app state",
         )?;
     let curr_nonce = state
         .get_account_nonce(signer_address)
         .await
-        .context("failed to get account nonce")?;
+        .wrap_err("failed to get account nonce")?;
     ensure!(tx.nonce() >= curr_nonce, "nonce already used by account");
     Ok(())
 }
@@ -53,23 +55,12 @@ pub(crate) async fn check_nonce_mempool<S: StateRead>(
 pub(crate) async fn check_chain_id_mempool<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let chain_id = state
         .get_chain_id()
         .await
-        .context("failed to get chain id")?;
+        .wrap_err("failed to get chain id")?;
     ensure!(tx.chain_id() == chain_id.as_str(), "chain id mismatch");
-    Ok(())
-}
-
-#[instrument(skip_all)]
-pub(crate) async fn check_balance_mempool<S: StateRead>(
-    tx: &SignedTransaction,
-    state: &S,
-) -> anyhow::Result<()> {
-    check_balance_for_total_fees_and_transfers(tx, state)
-        .await
-        .context("failed to check balance for total fees and transfers")?;
     Ok(())
 }
 
@@ -77,30 +68,30 @@ pub(crate) async fn check_balance_mempool<S: StateRead>(
 pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     tx: &UnsignedTransaction,
     state: &S,
-) -> anyhow::Result<HashMap<asset::IbcPrefixed, u128>> {
+) -> Result<HashMap<asset::IbcPrefixed, u128>> {
     let transfer_fee = state
         .get_transfer_base_fee()
         .await
-        .context("failed to get transfer base fee")?;
+        .wrap_err("failed to get transfer base fee")?;
     let ics20_withdrawal_fee = state
         .get_ics20_withdrawal_base_fee()
         .await
-        .context("failed to get ics20 withdrawal base fee")?;
+        .wrap_err("failed to get ics20 withdrawal base fee")?;
     let init_bridge_account_fee = state
         .get_init_bridge_account_base_fee()
         .await
-        .context("failed to get init bridge account base fee")?;
+        .wrap_err("failed to get init bridge account base fee")?;
     let bridge_lock_byte_cost_multiplier = state
         .get_bridge_lock_byte_cost_multiplier()
         .await
-        .context("failed to get bridge lock byte cost multiplier")?;
+        .wrap_err("failed to get bridge lock byte cost multiplier")?;
     let bridge_sudo_change_fee = state
         .get_bridge_sudo_change_base_fee()
         .await
-        .context("failed to get bridge sudo change fee")?;
+        .wrap_err("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
-    for action in &tx.actions {
+    for (i, action) in tx.actions.iter().enumerate() {
         match action {
             Action::Transfer(act) => {
                 transfer_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
@@ -119,12 +110,15 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     .and_modify(|amt| *amt = amt.saturating_add(init_bridge_account_fee))
                     .or_insert(init_bridge_account_fee);
             }
-            Action::BridgeLock(act) => bridge_lock_update_fees(
-                act,
-                &mut fees_by_asset,
-                transfer_fee,
-                bridge_lock_byte_cost_multiplier,
-            ),
+            Action::BridgeLock(act) => {
+                bridge_lock_update_fees(
+                    act,
+                    &mut fees_by_asset,
+                    transfer_fee,
+                    bridge_lock_byte_cost_multiplier,
+                    i as u64,
+                );
+            }
             Action::BridgeUnlock(act) => {
                 bridge_unlock_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
             }
@@ -153,10 +147,37 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
 pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
-) -> anyhow::Result<()> {
-    let mut cost_by_asset = get_fees_for_transaction(tx.unsigned_transaction(), state)
+) -> Result<()> {
+    let cost_by_asset = get_total_transaction_cost(tx, state)
         .await
-        .context("failed to get fees for transaction")?;
+        .context("failed to get transaction costs")?;
+
+    for (asset, total_fee) in cost_by_asset {
+        let balance = state
+            .get_account_balance(tx, asset)
+            .await
+            .context("failed to get account balance")?;
+        ensure!(
+            balance >= total_fee,
+            "insufficient funds for asset {}",
+            asset
+        );
+    }
+
+    Ok(())
+}
+
+// Returns the total cost of the transaction (fees and transferred values for all actions in the
+// transaction).
+#[instrument(skip_all)]
+pub(crate) async fn get_total_transaction_cost<S: StateRead>(
+    tx: &SignedTransaction,
+    state: &S,
+) -> Result<HashMap<asset::IbcPrefixed, u128>> {
+    let mut cost_by_asset: HashMap<asset::IbcPrefixed, u128> =
+        get_fees_for_transaction(tx.unsigned_transaction(), state)
+            .await
+            .context("failed to get fees for transaction")?;
 
     // add values transferred within the tx to the cost
     for action in tx.actions() {
@@ -183,7 +204,7 @@ pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
                 let asset = state
                     .get_bridge_account_ibc_asset(tx)
                     .await
-                    .context("failed to get bridge account asset id")?;
+                    .wrap_err("failed to get bridge account asset id")?;
                 cost_by_asset
                     .entry(asset)
                     .and_modify(|amt| *amt = amt.saturating_add(act.amount))
@@ -203,19 +224,7 @@ pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
         }
     }
 
-    for (asset, total_fee) in cost_by_asset {
-        let balance = state
-            .get_account_balance(tx, asset)
-            .await
-            .context("failed to get account balance")?;
-        ensure!(
-            balance >= total_fee,
-            "insufficient funds for asset {}",
-            asset
-        );
-    }
-
-    Ok(())
+    Ok(cost_by_asset)
 }
 
 fn transfer_update_fees(
@@ -234,10 +243,10 @@ async fn sequence_update_fees<S: StateRead>(
     fee_asset: &asset::Denom,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     data: &[u8],
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let fee = crate::sequence::calculate_fee_from_state(data, state)
         .await
-        .context("fee for sequence action overflowed; data too large")?;
+        .wrap_err("fee for sequence action overflowed; data too large")?;
     fees_by_asset
         .entry(fee_asset.to_ibc_prefixed())
         .and_modify(|amt| *amt = amt.saturating_add(fee))
@@ -261,6 +270,7 @@ fn bridge_lock_update_fees(
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     transfer_fee: u128,
     bridge_lock_byte_cost_multiplier: u128,
+    tx_index_of_action: u64,
 ) {
     use astria_core::sequencerblock::v1alpha1::block::Deposit;
 
@@ -272,6 +282,8 @@ fn bridge_lock_update_fees(
             act.amount,
             act.asset.clone(),
             act.destination_chain_address.clone(),
+            TransactionId::new([0; 32]),
+            tx_index_of_action,
         ))
         .saturating_mul(bridge_lock_byte_cost_multiplier),
     );
@@ -328,7 +340,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn check_balance_mempool_ok() {
+    async fn check_balance_total_fees_transfers_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
@@ -399,13 +411,13 @@ mod tests {
         };
 
         let signed_tx = tx.into_signed(&alice);
-        check_balance_mempool(&signed_tx, &state_tx)
+        check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
             .await
             .expect("sufficient balance for all actions");
     }
 
     #[tokio::test]
-    async fn check_balance_mempool_insufficient_other_asset_balance() {
+    async fn check_balance_total_fees_and_transfers_insufficient_other_asset_balance() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
@@ -465,7 +477,7 @@ mod tests {
         };
 
         let signed_tx = tx.into_signed(&alice);
-        let err = check_balance_mempool(&signed_tx, &state_tx)
+        let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
             .await
             .err()
             .unwrap();
