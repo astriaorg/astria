@@ -23,12 +23,6 @@ ingress:
   #    hosts:
   #      - graph-node.example.com
 
-serviceMonitor:
-  enabled: false
-  additionalLabels: {}
-  interval: 15s
-  scrapeTimeout: 10s
-
 ipfs:
   image: ipfs/kubo
   tag: v0.17.0
