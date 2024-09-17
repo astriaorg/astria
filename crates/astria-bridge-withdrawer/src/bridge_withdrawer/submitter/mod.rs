@@ -69,14 +69,14 @@ pub(super) struct Submitter {
     state: Arc<State>,
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
-    sequencer_grpc_endpoint: String,
+    sequencer_grpc_client: SequencerServiceClient<Channel>,
     signer: SequencerKey,
     metrics: &'static Metrics,
 }
 
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        let (sequencer_chain_id, sequencer_grpc_client) = select! {
+        let sequencer_chain_id = select! {
             () = self.shutdown_token.cancelled() => {
                 report_exit(Ok("submitter received shutdown signal while waiting for startup"));
                 return Ok(());
@@ -85,12 +85,8 @@ impl Submitter {
             startup_info = self.startup_handle.get_info() => {
                 let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
 
-                let sequencer_grpc_client = sequencer_service_client::SequencerServiceClient::connect(
-                    self.sequencer_grpc_endpoint.clone(),
-                ).await.wrap_err("failed to connect to sequencer gRPC endpoint")?;
-
                 self.state.set_submitter_ready();
-                (chain_id, sequencer_grpc_client)
+                chain_id
             }
         };
         self.state.set_submitter_ready();
@@ -110,7 +106,7 @@ impl Submitter {
 
                     // if batch submission fails, halt the submitter
                     if let Err(e) = self.process_batch(
-                        sequencer_grpc_client.clone(),
+                        self.sequencer_grpc_client.clone(),
                         &sequencer_chain_id,
                         actions,
                         rollup_height,
