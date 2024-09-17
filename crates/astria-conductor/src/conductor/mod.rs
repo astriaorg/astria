@@ -90,7 +90,7 @@ impl Conductor {
     pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let shutdown_token = CancellationToken::new();
         let conductor_inner_handle =
-            ConductorInner::new(cfg.clone(), metrics, shutdown_token.child_token())?.spawn();
+            ConductorInner::spawn(cfg.clone(), metrics, shutdown_token.child_token())?;
         Ok(Self {
             shutdown_token,
             handle: conductor_inner_handle,
@@ -115,13 +115,12 @@ impl Conductor {
     /// inner conductor task.
     fn restart(&mut self) {
         info!("restarting conductor");
-        let new_handle = ConductorInner::new(
+        let new_handle = ConductorInner::spawn(
             self.cfg.clone(),
             self.metrics,
             self.shutdown_token.child_token(),
         )
-        .expect("failed to create new conductor after restart")
-        .spawn();
+        .expect("failed to create new conductor after restart");
         self.handle = new_handle;
     }
 

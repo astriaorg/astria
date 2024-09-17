@@ -86,7 +86,7 @@ impl ConductorInner {
     /// Returns an error in the following cases if one of its constituent
     /// actors could not be spawned (executor, sequencer reader, or data availability reader).
     /// This usually happens if the actors failed to connect to their respective endpoints.
-    pub(super) fn new(
+    fn new(
         cfg: Config,
         metrics: &'static Metrics,
         shutdown_token: CancellationToken,
@@ -188,18 +188,22 @@ impl ConductorInner {
         self.shutdown(exit_reason).await
     }
 
-    /// Spawns Conductor on the tokio runtime.
+    /// Creates and spawns a Conductor on the tokio runtime.
     ///
     /// This calls [`tokio::spawn`] and returns a [`InnerHandle`] to the
     /// running Conductor task.
-    #[must_use]
-    pub(super) fn spawn(self) -> InnerHandle {
-        let shutdown_token = self.shutdown_token.clone();
-        let task = tokio::spawn(self.run_until_stopped());
-        InnerHandle {
+    pub(super) fn spawn(
+        cfg: Config,
+        metrics: &'static Metrics,
+        shutdown_token: CancellationToken,
+    ) -> eyre::Result<InnerHandle> {
+        let conductor = Self::new(cfg, metrics, shutdown_token)?;
+        let shutdown_token = conductor.shutdown_token.clone();
+        let task = tokio::spawn(conductor.run_until_stopped());
+        Ok(InnerHandle {
             shutdown_token,
             task: Some(task),
-        }
+        })
     }
 
     /// Shuts down all tasks.
