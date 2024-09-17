@@ -9,7 +9,13 @@ use anyhow::{
     Context as _,
 };
 use astria_core::protocol::transaction::v1alpha1::{
-    action::Action,
+    action_groups::{
+        ActionGroup,
+        BundlableGeneralAction,
+        BundlableSudoAction,
+        GeneralAction,
+        SudoAction,
+    },
     SignedTransaction,
 };
 pub(crate) use checks::{
@@ -78,68 +84,92 @@ impl std::error::Error for InvalidNonce {}
 #[async_trait::async_trait]
 impl ActionHandler for SignedTransaction {
     async fn check_stateless(&self) -> anyhow::Result<()> {
-        ensure!(!self.actions().is_empty(), "must have at least one action");
+        // ensure not emtpy
+        match self.actions() {
+            ActionGroup::BundlableGeneral(actions) => {
+                ensure!(!actions.actions.is_empty(), "must have at least one action");
+            }
+            ActionGroup::BundlableSudo(actions) => {
+                ensure!(!actions.actions.is_empty(), "must have at least one action");
+            }
+            ActionGroup::General(_) | ActionGroup::Sudo(_) => (),
+        }
 
-        for action in self.actions() {
-            match action {
-                Action::Transfer(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for TransferAction")?,
-                Action::Sequence(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for SequenceAction")?,
-                Action::ValidatorUpdate(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for ValidatorUpdateAction")?,
-                Action::SudoAddressChange(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for SudoAddressChangeAction")?,
-                Action::FeeChange(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for FeeChangeAction")?,
-                Action::Ibc(act) => {
-                    let action = act
-                        .clone()
-                        .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
-                    action
-                        .check_stateless(())
-                        .await
-                        .context("stateless check failed for IbcAction")?;
+        match &self.actions() {
+            ActionGroup::BundlableGeneral(actions) => {
+                for action in &actions.actions {
+                    match action {
+                        BundlableGeneralAction::Transfer(act) => act
+                            .check_stateless()
+                            .await
+                            .context("stateless check failed for TransferAction")?,
+                        BundlableGeneralAction::Sequence(act) => act
+                            .check_stateless()
+                            .await
+                            .context("stateless check failed for SequenceAction")?,
+                        BundlableGeneralAction::ValidatorUpdate(act) => act
+                            .check_stateless()
+                            .await
+                            .context("stateless check failed for ValidatorUpdateAction")?,
+                        BundlableGeneralAction::Ibc(act) => {
+                            let action = act
+                                .clone()
+                                .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
+                            action
+                                .check_stateless(())
+                                .await
+                                .context("stateless check failed for IbcAction")?;
+                        }
+                        BundlableGeneralAction::Ics20Withdrawal(act) => act
+                            .check_stateless()
+                            .await
+                            .context("stateless check failed for Ics20WithdrawalAction")?,
+                        BundlableGeneralAction::BridgeLock(act) => act
+                            .check_stateless()
+                            .await
+                            .context("stateless check failed for BridgeLockAction")?,
+                        BundlableGeneralAction::BridgeUnlock(act) => act
+                            .check_stateless()
+                            .await
+                            .context("stateless check failed for BridgeUnlockAction")?,
+                    }
                 }
-                Action::Ics20Withdrawal(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for Ics20WithdrawalAction")?,
-                Action::IbcRelayerChange(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for IbcRelayerChangeAction")?,
-                Action::FeeAssetChange(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for FeeAssetChangeAction")?,
-                Action::InitBridgeAccount(act) => act
+            }
+            ActionGroup::BundlableSudo(actions) => {
+                for action in &actions.actions {
+                    match action {
+                        BundlableSudoAction::FeeChange(act) => act
+                            .check_stateless()
+                            .await
+                            .context("stateless check failed for FeeChangeAction")?,
+                        BundlableSudoAction::IbcRelayerChange(act) => {
+                            act.check_stateless()
+                                .await
+                                .context("stateless check failed for IbcRelayerChangeAction")?;
+                        }
+                        BundlableSudoAction::FeeAssetChange(act) => act
+                            .check_stateless()
+                            .await
+                            .context("stateless check failed for FeeAssetChangeAction")?,
+                    }
+                }
+            }
+            ActionGroup::General(actions) => match &actions.actions {
+                GeneralAction::InitBridgeAccount(act) => act
                     .check_stateless()
                     .await
                     .context("stateless check failed for InitBridgeAccountAction")?,
-                Action::BridgeLock(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for BridgeLockAction")?,
-                Action::BridgeUnlock(act) => act
-                    .check_stateless()
-                    .await
-                    .context("stateless check failed for BridgeLockAction")?,
-                Action::BridgeSudoChange(act) => act
+                GeneralAction::BridgeSudoChange(act) => act
                     .check_stateless()
                     .await
                     .context("stateless check failed for BridgeSudoChangeAction")?,
-            }
+            },
+            ActionGroup::Sudo(actions) => match &actions.actions {
+                SudoAction::SudoAddressChange(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for SudoAddressChangeAction")?,
+            }, // No actions to check for Sudo
         }
         Ok(())
     }
@@ -198,79 +228,103 @@ impl ActionHandler for SignedTransaction {
             .context("failed updating `from` nonce")?;
 
         // FIXME: this should create one span per `check_and_execute`
-        for (i, action) in (0..).zip(self.actions().iter()) {
-            transaction_context.source_action_index = i;
-            state.put_transaction_context(transaction_context);
+        match self.actions() {
+            ActionGroup::BundlableGeneral(actions) => {
+                for (i, action) in actions.actions.iter().enumerate() {
+                    transaction_context.source_action_index = i as u64;
+                    state.put_transaction_context(transaction_context);
 
-            match action {
-                Action::Transfer(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("executing transfer action failed")?,
-                Action::Sequence(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("executing sequence action failed")?,
-                Action::ValidatorUpdate(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("executing validor update")?,
-                Action::SudoAddressChange(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("executing sudo address change failed")?,
-                Action::FeeChange(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("executing fee change failed")?,
-                Action::Ibc(act) => {
-                    // FIXME: this check should be moved to check_and_execute, as it now has
-                    // access to the the signer through state. However, what's the correct
-                    // ibc AppHandler call to do it? Can we just update one of the trait methods
-                    // of crate::ibc::ics20_transfer::Ics20Transfer?
-                    ensure!(
-                        state
-                            .is_ibc_relayer(self)
+                    match action {
+                        BundlableGeneralAction::Transfer(act) => act
+                            .check_and_execute(&mut state)
                             .await
-                            .context("failed to check if address is IBC relayer")?,
-                        "only IBC sudo address can execute IBC actions"
-                    );
-                    let action = act
-                        .clone()
-                        .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
-                    action
+                            .context("executing transfer action failed")?,
+                        BundlableGeneralAction::Sequence(act) => act
+                            .check_and_execute(&mut state)
+                            .await
+                            .context("executing sequence action failed")?,
+                        BundlableGeneralAction::ValidatorUpdate(act) => act
+                            .check_and_execute(&mut state)
+                            .await
+                            .context("executing validator update failed")?,
+                        BundlableGeneralAction::Ibc(act) => {
+                            ensure!(
+                                state
+                                    .is_ibc_relayer(self)
+                                    .await
+                                    .context("failed to check if address is IBC relayer")?,
+                                "only IBC sudo address can execute IBC actions"
+                            );
+                            let action = act
+                                .clone()
+                                .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
+                            action
+                                .check_and_execute(&mut state)
+                                .await
+                                .context("failed executing ibc action")?;
+                        }
+                        BundlableGeneralAction::Ics20Withdrawal(act) => act
+                            .check_and_execute(&mut state)
+                            .await
+                            .context("failed executing ics20 withdrawal")?,
+                        BundlableGeneralAction::BridgeLock(act) => act
+                            .check_and_execute(&mut state)
+                            .await
+                            .context("failed executing bridge lock")?,
+                        BundlableGeneralAction::BridgeUnlock(act) => act
+                            .check_and_execute(&mut state)
+                            .await
+                            .context("failed executing bridge unlock")?,
+                    }
+                }
+            }
+            ActionGroup::General(actions) => {
+                transaction_context.source_action_index = 0;
+                state.put_transaction_context(transaction_context);
+
+                match &actions.actions {
+                    GeneralAction::InitBridgeAccount(act) => act
                         .check_and_execute(&mut state)
                         .await
-                        .context("failed executing ibc action")?;
+                        .context("failed executing init bridge account")?,
+                    GeneralAction::BridgeSudoChange(act) => act
+                        .check_and_execute(&mut state)
+                        .await
+                        .context("failed executing bridge sudo change")?,
                 }
-                Action::Ics20Withdrawal(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("failed executing ics20 withdrawal")?,
-                Action::IbcRelayerChange(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("failed executing ibc relayer change")?,
-                Action::FeeAssetChange(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("failed executing fee asseet change")?,
-                Action::InitBridgeAccount(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("failed executing init bridge account")?,
-                Action::BridgeLock(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("failed executing bridge lock")?,
-                Action::BridgeUnlock(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("failed executing bridge unlock")?,
-                Action::BridgeSudoChange(act) => act
-                    .check_and_execute(&mut state)
-                    .await
-                    .context("failed executing bridge sudo change")?,
+            }
+            ActionGroup::BundlableSudo(actions) => {
+                for (i, action) in actions.actions.iter().enumerate() {
+                    transaction_context.source_action_index = i as u64;
+                    state.put_transaction_context(transaction_context);
+
+                    match action {
+                        BundlableSudoAction::FeeChange(act) => act
+                            .check_and_execute(&mut state)
+                            .await
+                            .context("executing fee change failed")?,
+                        BundlableSudoAction::IbcRelayerChange(act) => act
+                            .check_and_execute(&mut state)
+                            .await
+                            .context("executing ibc relayer change failed")?,
+                        BundlableSudoAction::FeeAssetChange(act) => act
+                            .check_and_execute(&mut state)
+                            .await
+                            .context("executing fee asset change failed")?,
+                    }
+                }
+            }
+            ActionGroup::Sudo(actions) => {
+                transaction_context.source_action_index = 0;
+                state.put_transaction_context(transaction_context);
+
+                match &actions.actions {
+                    SudoAction::SudoAddressChange(act) => {
+                        act.check_and_execute(&mut state)
+                            .await
+                            .context("failed executing sudo address change")?;
+                    }
+                }
             }
         }
 

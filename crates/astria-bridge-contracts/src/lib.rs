@@ -14,10 +14,7 @@ use astria_core::{
     },
     protocol::{
         memos,
-        transaction::v1alpha1::{
-            action::Ics20Withdrawal,
-            Action,
-        },
+        transaction::v1alpha1::action_groups::BundlableGeneralAction,
     },
 };
 use astria_withdrawer::{
@@ -332,7 +329,10 @@ where
     pub async fn get_for_block_hash(
         &self,
         block_hash: H256,
-    ) -> Result<Vec<Result<Action, GetWithdrawalActionsError>>, GetWithdrawalActionsError> {
+    ) -> Result<
+        Vec<Result<BundlableGeneralAction, GetWithdrawalActionsError>>,
+        GetWithdrawalActionsError,
+    > {
         use futures::FutureExt as _;
         let get_ics20_logs = if self.configured_for_ics20_withdrawals() {
             get_logs::<Ics20WithdrawalFilter, _>(&self.provider, self.contract_address, block_hash)
@@ -372,7 +372,7 @@ where
     fn log_to_ics20_withdrawal_action(
         &self,
         log: Log,
-    ) -> Result<Action, GetWithdrawalActionsError> {
+    ) -> Result<BundlableGeneralAction, GetWithdrawalActionsError> {
         let rollup_block_number = log
             .block_number
             .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
@@ -407,7 +407,7 @@ where
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
 
-        let action = Ics20Withdrawal {
+        let action = astria_core::protocol::transaction::v1alpha1::action::Ics20Withdrawal {
             denom,
             destination_chain_address: event.destination_chain_address,
             return_address: self.bridge_address,
@@ -424,13 +424,13 @@ where
             // https://github.com/astriaorg/astria/issues/1424
             use_compat_address: false,
         };
-        Ok(Action::Ics20Withdrawal(action))
+        Ok(action.into())
     }
 
     fn log_to_sequencer_withdrawal_action(
         &self,
         log: Log,
-    ) -> Result<Action, GetWithdrawalActionsError> {
+    ) -> Result<BundlableGeneralAction, GetWithdrawalActionsError> {
         let rollup_block_number = log
             .block_number
             .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
@@ -460,7 +460,7 @@ where
             bridge_address: self.bridge_address,
         };
 
-        Ok(Action::BridgeUnlock(action))
+        Ok(action.into())
     }
 }
 

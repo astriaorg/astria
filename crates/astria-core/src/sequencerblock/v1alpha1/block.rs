@@ -34,6 +34,10 @@ use crate::{
     },
     protocol::transaction::v1alpha1::{
         action,
+        action_groups::{
+            ActionGroup,
+            BundlableGeneralAction,
+        },
         SignedTransaction,
         SignedTransactionError,
     },
@@ -735,20 +739,24 @@ impl SequencerBlock {
                 .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
-            for action in signed_tx.into_unsigned().actions {
-                // XXX: The fee asset is dropped. We shjould explain why that's ok.
-                if let action::Action::Sequence(action::SequenceAction {
-                    rollup_id,
-                    data,
-                    fee_asset: _,
-                }) = action
-                {
-                    let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
-                    let data = RollupData::SequencedData(data)
-                        .into_raw()
-                        .encode_to_vec()
-                        .into();
-                    elem.push(data);
+
+            if let ActionGroup::BundlableGeneral(general_bundle) = signed_tx.into_unsigned().actions
+            {
+                for action in general_bundle.actions {
+                    // XXX: The fee asset is dropped. We should explain why that's ok.
+                    if let BundlableGeneralAction::Sequence(action::SequenceAction {
+                        rollup_id,
+                        data,
+                        fee_asset: _,
+                    }) = action
+                    {
+                        let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
+                        let data = RollupData::SequencedData(data)
+                            .into_raw()
+                            .encode_to_vec()
+                            .into();
+                        elem.push(data);
+                    }
                 }
             }
         }

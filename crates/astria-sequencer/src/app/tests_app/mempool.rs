@@ -9,6 +9,7 @@ use astria_core::{
                 FeeChangeAction,
                 TransferAction,
             },
+            action_groups::BundlableSudo,
             TransactionParams,
             UnsignedTransaction,
         },
@@ -56,13 +57,16 @@ async fn trigger_cleaning() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            FeeChangeAction {
-                fee_change: FeeChange::TransferBaseFee,
-                new_value: 10,
-            }
-            .into(),
-        ],
+        actions: BundlableSudo {
+            actions: vec![
+                FeeChangeAction {
+                    fee_change: FeeChange::TransferBaseFee,
+                    new_value: 10,
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&sudo);
 
@@ -156,13 +160,16 @@ async fn do_not_trigger_cleaning() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            FeeChangeAction {
-                fee_change: FeeChange::TransferBaseFee,
-                new_value: 10,
-            }
-            .into(),
-        ],
+        actions: BundlableSudo {
+            actions: vec![
+                FeeChangeAction {
+                    fee_change: FeeChange::TransferBaseFee,
+                    new_value: 10,
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&alice);
 
@@ -229,15 +236,18 @@ async fn maintenance_recosting_promotes() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            TransferAction {
-                to: astria_address_from_hex_string(CAROL_ADDRESS),
-                amount: 1u128,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                TransferAction {
+                    to: astria_address_from_hex_string(CAROL_ADDRESS),
+                    amount: 1u128,
+                    asset: nria().into(),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&get_bob_signing_key());
 
@@ -261,13 +271,16 @@ async fn maintenance_recosting_promotes() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            FeeChangeAction {
-                fee_change: FeeChange::TransferBaseFee,
-                new_value: 10, // originally 12
-            }
-            .into(),
-        ],
+        actions: BundlableSudo {
+            actions: vec![
+                FeeChangeAction {
+                    fee_change: FeeChange::TransferBaseFee,
+                    new_value: 10, // originally 12
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&get_judy_signing_key());
 
@@ -402,15 +415,18 @@ async fn maintenance_funds_added_promotes() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            TransferAction {
-                to: astria_address_from_hex_string(BOB_ADDRESS),
-                amount: 10u128,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                TransferAction {
+                    to: astria_address_from_hex_string(BOB_ADDRESS),
+                    amount: 10u128,
+                    asset: nria().into(),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&get_carol_signing_key());
 
@@ -434,15 +450,18 @@ async fn maintenance_funds_added_promotes() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            TransferAction {
-                to: astria_address_from_hex_string(CAROL_ADDRESS),
-                amount: 22u128,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                TransferAction {
+                    to: astria_address_from_hex_string(CAROL_ADDRESS),
+                    amount: 22u128,
+                    asset: nria().into(),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&get_alice_signing_key());
 

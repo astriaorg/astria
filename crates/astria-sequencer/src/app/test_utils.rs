@@ -23,6 +23,7 @@ use astria_core::{
                 SequenceAction,
                 ValidatorUpdate,
             },
+            action_groups::BundlableGeneral,
             SignedTransaction,
             TransactionParams,
             UnsignedTransaction,
@@ -228,14 +229,17 @@ pub(crate) fn mock_tx(
             .nonce(nonce)
             .chain_id("test")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(rollup_name.as_bytes()),
-                data: Bytes::from_static(&[0x99]),
-                fee_asset: denom_0(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(rollup_name.as_bytes()),
+                    data: Bytes::from_static(&[0x99]),
+                    fee_asset: denom_0(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     };
 
     Arc::new(tx.into_signed(signer))

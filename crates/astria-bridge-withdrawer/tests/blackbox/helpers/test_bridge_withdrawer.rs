@@ -24,7 +24,7 @@ use astria_core::{
                 BridgeUnlockAction,
                 Ics20Withdrawal,
             },
-            Action,
+            action_groups::BundlableGeneralAction,
         },
     },
 };
@@ -363,12 +363,18 @@ impl Default for TestBridgeWithdrawerConfig {
 }
 
 #[track_caller]
-pub fn assert_actions_eq(expected: &Action, actual: &Action) {
+pub fn assert_actions_eq(expected: &BundlableGeneralAction, actual: &BundlableGeneralAction) {
     match (expected.clone(), actual.clone()) {
-        (Action::BridgeUnlock(expected), Action::BridgeUnlock(actual)) => {
+        (
+            BundlableGeneralAction::BridgeUnlock(expected),
+            BundlableGeneralAction::BridgeUnlock(actual),
+        ) => {
             assert_eq!(expected, actual, "BridgeUnlock actions do not match");
         }
-        (Action::Ics20Withdrawal(expected), Action::Ics20Withdrawal(actual)) => {
+        (
+            BundlableGeneralAction::Ics20Withdrawal(expected),
+            BundlableGeneralAction::Ics20Withdrawal(actual),
+        ) => {
             assert_eq!(
                 SubsetOfIcs20Withdrawal::from(expected),
                 SubsetOfIcs20Withdrawal::from(actual),
@@ -427,7 +433,7 @@ impl From<Ics20Withdrawal> for SubsetOfIcs20Withdrawal {
 }
 
 #[must_use]
-pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
+pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> BundlableGeneralAction {
     let denom = default_native_asset();
     let inner = BridgeUnlockAction {
         to: default_sequencer_address(),
@@ -438,11 +444,11 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
         fee_asset: denom,
         bridge_address: default_bridge_address(),
     };
-    Action::BridgeUnlock(inner)
+    BundlableGeneralAction::BridgeUnlock(inner)
 }
 
 #[must_use]
-pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
+pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> BundlableGeneralAction {
     let timeout_height = IbcHeight::new(u64::MAX, u64::MAX).unwrap();
     let timeout_time = make_ibc_timeout_time();
     let denom = default_ibc_asset();
@@ -466,7 +472,7 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
         use_compat_address: false,
     };
 
-    Action::Ics20Withdrawal(inner)
+    BundlableGeneralAction::Ics20Withdrawal(inner)
 }
 
 #[must_use]

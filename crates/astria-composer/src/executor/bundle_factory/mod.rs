@@ -10,10 +10,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::transaction::v1alpha1::{
-        action::SequenceAction,
-        Action,
-    },
+    protocol::transaction::v1alpha1::action::SequenceAction,
     Protobuf as _,
 };
 use serde::ser::{
@@ -53,7 +50,7 @@ impl<'a> Serialize for SizedBundleReport<'a> {
 #[derive(Clone)]
 pub(super) struct SizedBundle {
     /// The buffer of actions
-    buffer: Vec<Action>,
+    buffer: Vec<SequenceAction>,
     /// The current size of the bundle in bytes. This is equal to the sum of the size of the
     /// `seq_action`s + `ROLLUP_ID_LEN` for each.
     curr_size: usize,
@@ -95,7 +92,7 @@ impl SizedBundle {
             .entry(seq_action.rollup_id)
             .and_modify(|count| *count = count.saturating_add(1))
             .or_insert(1);
-        self.buffer.push(Action::Sequence(seq_action));
+        self.buffer.push(seq_action);
         self.curr_size = new_size;
 
         Ok(())
@@ -112,7 +109,7 @@ impl SizedBundle {
     }
 
     /// Consume self and return the underlying buffer of actions.
-    pub(super) fn into_actions(self) -> Vec<Action> {
+    pub(super) fn into_actions(self) -> Vec<SequenceAction> {
         self.buffer
     }
 

@@ -18,7 +18,12 @@ use astria_core::{
                 TransferAction,
                 ValidatorUpdate,
             },
-            Action,
+            action_groups::{
+                BundlableGeneral,
+                BundlableSudo,
+                General,
+                Sudo,
+            },
             TransactionParams,
             UnsignedTransaction,
         },
@@ -108,15 +113,18 @@ async fn app_execute_transaction_transfer() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            TransferAction {
-                to: bob_address,
-                amount: value,
-                asset: crate::test_utils::nria().into(),
-                fee_asset: crate::test_utils::nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                TransferAction {
+                    to: bob_address,
+                    amount: value,
+                    asset: crate::test_utils::nria().into(),
+                    fee_asset: crate::test_utils::nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -165,15 +173,18 @@ async fn app_execute_transaction_transfer_not_native_token() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            TransferAction {
-                to: bob_address,
-                amount: value,
-                asset: test_asset(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                TransferAction {
+                    to: bob_address,
+                    amount: value,
+                    asset: test_asset(),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -230,15 +241,18 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            TransferAction {
-                to: bob,
-                amount: 0,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                TransferAction {
+                    to: bob,
+                    amount: 0,
+                    asset: nria().into(),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&keypair));
@@ -271,14 +285,17 @@ async fn app_execute_transaction_sequence() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data,
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -306,14 +323,17 @@ async fn app_execute_transaction_invalid_fee_asset() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: test_asset(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data,
+                    fee_asset: test_asset(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -337,7 +357,10 @@ async fn app_execute_transaction_validator_update() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![Action::ValidatorUpdate(update.clone())],
+        actions: BundlableGeneral {
+            actions: vec![update.clone().into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -364,7 +387,10 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![IbcRelayerChangeAction::Addition(alice_address).into()],
+        actions: BundlableSudo {
+            actions: vec![IbcRelayerChangeAction::Addition(alice_address).into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -392,7 +418,10 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
+        actions: BundlableSudo {
+            actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -422,7 +451,10 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
+        actions: BundlableSudo {
+            actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -443,9 +475,13 @@ async fn app_execute_transaction_sudo_address_change() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
-            new_address,
-        })],
+        actions: Sudo {
+            actions: SudoAddressChangeAction {
+                new_address,
+            }
+            .into(),
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -481,9 +517,13 @@ async fn app_execute_transaction_sudo_address_change_error() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
-            new_address: alice_address,
-        })],
+        actions: Sudo {
+            actions: SudoAddressChangeAction {
+                new_address: alice_address,
+            }
+            .into(),
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -510,9 +550,10 @@ async fn app_execute_transaction_fee_asset_change_addition() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Addition(
-            test_asset(),
-        ))],
+        actions: BundlableSudo {
+            actions: vec![FeeAssetChangeAction::Addition(test_asset()).into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -543,9 +584,10 @@ async fn app_execute_transaction_fee_asset_change_removal() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
-            test_asset(),
-        ))],
+        actions: BundlableSudo {
+            actions: vec![FeeAssetChangeAction::Removal(test_asset()).into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -568,9 +610,10 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
-            nria().into(),
-        ))],
+        actions: BundlableSudo {
+            actions: vec![FeeAssetChangeAction::Removal(nria().into()).into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -609,7 +652,10 @@ async fn app_execute_transaction_init_bridge_account_ok() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![action.into()],
+        actions: General {
+            actions: action.into(),
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -666,7 +712,10 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
             .chain_id("test")
             .build(),
 
-        actions: vec![action.into()],
+        actions: General {
+            actions: action.into(),
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -684,7 +733,10 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![action.into()],
+        actions: General {
+            actions: action.into(),
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -721,7 +773,10 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![action.into()],
+        actions: BundlableGeneral {
+            actions: vec![action.into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -800,7 +855,10 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![action.into()],
+        actions: BundlableGeneral {
+            actions: vec![action.into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -821,14 +879,17 @@ async fn app_execute_transaction_invalid_nonce() {
             .nonce(1)
             .chain_id("test")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data,
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -868,14 +929,17 @@ async fn app_execute_transaction_invalid_chain_id() {
             .nonce(0)
             .chain_id("wrong-chain")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data,
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -925,15 +989,18 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            TransferAction {
-                to: keypair_address,
-                amount: fee,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                TransferAction {
+                    to: keypair_address,
+                    amount: fee,
+                    asset: nria().into(),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&alice);
 
@@ -946,20 +1013,23 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data: data.clone(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data: data.clone(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data: data.clone(),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data: data.clone(),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&keypair);
 
@@ -978,14 +1048,17 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data,
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&keypair);
 
@@ -1037,7 +1110,10 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![action.into()],
+        actions: BundlableGeneral {
+            actions: vec![action.into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -1061,7 +1137,10 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![action.into()],
+        actions: BundlableGeneral {
+            actions: vec![action.into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&bridge));
@@ -1108,7 +1187,10 @@ async fn app_execute_transaction_action_index_correctly_increments() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![action.clone().into(), action.into()],
+        actions: BundlableGeneral {
+            actions: vec![action.clone().into(), action.into()],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -1144,16 +1226,19 @@ async fn transaction_execution_records_deposit_event() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            BridgeLockAction {
-                to: bob_address,
-                amount: 1,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-                destination_chain_address: "test_chain_address".to_string(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                BridgeLockAction {
+                    to: bob_address,
+                    amount: 1,
+                    asset: nria().into(),
+                    fee_asset: nria().into(),
+                    destination_chain_address: "test_chain_address".to_string(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));

@@ -17,9 +17,12 @@ use astria_core::{
     },
     protocol::transaction::v1alpha1::{
         action::{
-            Action,
             SequenceAction,
             TransferAction,
+        },
+        action_groups::{
+            BundlableGeneral,
+            BundlableGeneralAction,
         },
         SignedTransaction,
         TransactionParams,
@@ -95,7 +98,10 @@ fn sequence_actions() -> Vec<Arc<SignedTransaction>> {
                 fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
             };
             let tx = UnsignedTransaction {
-                actions: vec![Action::Sequence(sequence_action)],
+                actions: BundlableGeneral {
+                    actions: vec![sequence_action.into()],
+                }
+                .into(),
                 params,
             }
             .into_signed(signing_key);
@@ -109,12 +115,13 @@ fn transfers() -> Vec<Arc<SignedTransaction>> {
     let sender = signing_keys().next().unwrap();
     let receiver = signing_keys().nth(1).unwrap();
     let to = astria_address(&receiver.address_bytes());
-    let action = Action::from(TransferAction {
+    let action: BundlableGeneralAction = TransferAction {
         to,
         amount: 1,
         asset: nria().into(),
         fee_asset: nria().into(),
-    });
+    }
+    .into();
     (0..TRANSFERS_TX_COUNT)
         .map(|nonce| {
             let params = TransactionParams::builder()
@@ -122,9 +129,12 @@ fn transfers() -> Vec<Arc<SignedTransaction>> {
                 .chain_id("test")
                 .build();
             let tx = UnsignedTransaction {
-                actions: std::iter::repeat(action.clone())
-                    .take(TRANSFERS_PER_TX)
-                    .collect(),
+                actions: BundlableGeneral {
+                    actions: std::iter::repeat(action.clone())
+                        .take(TRANSFERS_PER_TX)
+                        .collect(),
+                }
+                .into(),
                 params,
             }
             .into_signed(sender);

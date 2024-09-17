@@ -17,7 +17,10 @@ use astria_core::{
         RollupId,
         ROLLUP_ID_LEN,
     },
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transaction::v1alpha1::{
+        action::SequenceAction,
+        action_groups::ActionGroup,
+    },
 };
 use astria_eyre::eyre;
 use once_cell::sync::Lazy;
@@ -225,10 +228,15 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
 async fn mount_broadcast_tx_sync_seq_actions_mock(server: &MockServer) -> MockGuard {
     let matcher = move |request: &Request| {
         let signed_tx = signed_tx_from_request(request);
-        let actions = signed_tx.actions();
 
         // verify all received actions are sequence actions
-        actions.iter().all(|action| action.as_sequence().is_some())
+        match signed_tx.actions() {
+            ActionGroup::BundlableGeneral(actions) => actions
+                .actions
+                .iter()
+                .all(|action| action.as_sequence().is_some()),
+            _ => false,
+        }
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
@@ -387,24 +395,33 @@ async fn full_bundle() {
     let signed_tx = signed_tx_from_request(&requests[0]);
     let actions = signed_tx.actions();
 
-    assert_eq!(
-        actions.len(),
-        expected_seq_actions.len(),
-        "received more than one action, one was supposed to fill the bundle"
-    );
+    match actions {
+        ActionGroup::BundlableGeneral(actions) => {
+            assert_eq!(
+                actions.actions.len(),
+                expected_seq_actions.len(),
+                "received more than one action, one was supposed to fill the bundle"
+            );
 
-    for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
-        let seq_action = action.as_sequence().unwrap();
-        assert_eq!(
-            seq_action.rollup_id, expected_seq_action.rollup_id,
-            "chain id does not match. actual {:?} expected {:?}",
-            seq_action.rollup_id, expected_seq_action.rollup_id
-        );
-        assert_eq!(
-            seq_action.data, expected_seq_action.data,
-            "data does not match expected data for action with rollup_id {:?}",
-            seq_action.rollup_id,
-        );
+            for (action, expected_seq_action) in
+                actions.actions.iter().zip(expected_seq_actions.iter())
+            {
+                let seq_action = action.as_sequence().unwrap();
+                assert_eq!(
+                    seq_action.rollup_id, expected_seq_action.rollup_id,
+                    "chain id does not match. actual {:?} expected {:?}",
+                    seq_action.rollup_id, expected_seq_action.rollup_id
+                );
+                assert_eq!(
+                    seq_action.data, expected_seq_action.data,
+                    "data does not match expected data for action with rollup_id {:?}",
+                    seq_action.rollup_id,
+                );
+            }
+        }
+        _ => {
+            panic!("expected action group to be BundlableGeneral, got {actions:?}");
+        }
     }
 }
 
@@ -475,24 +492,33 @@ async fn bundle_triggered_by_block_timer() {
     let signed_tx = signed_tx_from_request(&requests[0]);
     let actions = signed_tx.actions();
 
-    assert_eq!(
-        actions.len(),
-        expected_seq_actions.len(),
-        "received more than one action, one was supposed to fill the bundle"
-    );
+    match actions {
+        ActionGroup::BundlableGeneral(actions) => {
+            assert_eq!(
+                actions.actions.len(),
+                expected_seq_actions.len(),
+                "received more than one action, one was supposed to fill the bundle"
+            );
 
-    for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
-        let seq_action = action.as_sequence().unwrap();
-        assert_eq!(
-            seq_action.rollup_id, expected_seq_action.rollup_id,
-            "chain id does not match. actual {:?} expected {:?}",
-            seq_action.rollup_id, expected_seq_action.rollup_id
-        );
-        assert_eq!(
-            seq_action.data, expected_seq_action.data,
-            "data does not match expected data for action with rollup_id {:?}",
-            seq_action.rollup_id,
-        );
+            for (action, expected_seq_action) in
+                actions.actions.iter().zip(expected_seq_actions.iter())
+            {
+                let seq_action = action.as_sequence().unwrap();
+                assert_eq!(
+                    seq_action.rollup_id, expected_seq_action.rollup_id,
+                    "chain id does not match. actual {:?} expected {:?}",
+                    seq_action.rollup_id, expected_seq_action.rollup_id
+                );
+                assert_eq!(
+                    seq_action.data, expected_seq_action.data,
+                    "data does not match expected data for action with rollup_id {:?}",
+                    seq_action.rollup_id,
+                );
+            }
+        }
+        _ => {
+            panic!("expected action group to be BundlableGeneral, got {actions:?}");
+        }
     }
 }
 
@@ -572,24 +598,33 @@ async fn two_seq_actions_single_bundle() {
     let signed_tx = signed_tx_from_request(&requests[0]);
     let actions = signed_tx.actions();
 
-    assert_eq!(
-        actions.len(),
-        expected_seq_actions.len(),
-        "received more than one action, one was supposed to fill the bundle"
-    );
+    match actions {
+        ActionGroup::BundlableGeneral(actions) => {
+            assert_eq!(
+                actions.actions.len(),
+                expected_seq_actions.len(),
+                "received more than one action, one was supposed to fill the bundle"
+            );
 
-    for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
-        let seq_action = action.as_sequence().unwrap();
-        assert_eq!(
-            seq_action.rollup_id, expected_seq_action.rollup_id,
-            "chain id does not match. actual {:?} expected {:?}",
-            seq_action.rollup_id, expected_seq_action.rollup_id
-        );
-        assert_eq!(
-            seq_action.data, expected_seq_action.data,
-            "data does not match expected data for action with rollup_id {:?}",
-            seq_action.rollup_id,
-        );
+            for (action, expected_seq_action) in
+                actions.actions.iter().zip(expected_seq_actions.iter())
+            {
+                let seq_action = action.as_sequence().unwrap();
+                assert_eq!(
+                    seq_action.rollup_id, expected_seq_action.rollup_id,
+                    "chain id does not match. actual {:?} expected {:?}",
+                    seq_action.rollup_id, expected_seq_action.rollup_id
+                );
+                assert_eq!(
+                    seq_action.data, expected_seq_action.data,
+                    "data does not match expected data for action with rollup_id {:?}",
+                    seq_action.rollup_id,
+                );
+            }
+        }
+        _ => {
+            panic!("expected action group to be BundlableGeneral, got {actions:?}");
+        }
     }
 }
 

@@ -12,7 +12,7 @@ use astria_core::{
         asset,
         Address,
     },
-    protocol::transaction::v1alpha1::Action,
+    protocol::transaction::v1alpha1::action_groups::BundlableGeneralAction,
 };
 use astria_eyre::{
     eyre::{
@@ -354,7 +354,7 @@ async fn get_and_forward_block_events(
         .number
         .ok_or_eyre("block did not contain a rollup height")?
         .as_u64();
-    let actions: Vec<Action> = actions_fetcher
+    let actions: Vec<BundlableGeneralAction> = actions_fetcher
         .get_for_block_hash(block_hash)
         .await
         .wrap_err("failed getting actions for block")?

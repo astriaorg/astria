@@ -30,7 +30,11 @@ use astria_core::{
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
             action::ValidatorUpdate,
-            Action,
+            action_groups::{
+                ActionGroup,
+                BundlableGeneralAction,
+                BundlableSudoAction,
+            },
             SignedTransaction,
         },
     },
@@ -527,12 +531,15 @@ impl App {
             }
 
             // check if tx's sequence data will fit into sequence block
-            let tx_sequence_data_bytes = tx
-                .unsigned_transaction()
-                .actions
-                .iter()
-                .filter_map(Action::as_sequence)
-                .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
+            let tx_sequence_data_bytes = match &tx.unsigned_transaction().actions {
+                ActionGroup::BundlableGeneral(actions) => actions
+                    .actions
+                    .iter()
+                    .filter_map(BundlableGeneralAction::as_sequence)
+                    .map(|seq| seq.data.len())
+                    .sum(),
+                _ => 0,
+            };
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 self.metrics
@@ -647,12 +654,15 @@ impl App {
             let tx_len = bytes.len();
 
             // check if tx's sequence data will fit into sequence block
-            let tx_sequence_data_bytes = tx
-                .unsigned_transaction()
-                .actions
-                .iter()
-                .filter_map(Action::as_sequence)
-                .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
+            let tx_sequence_data_bytes = match &tx.unsigned_transaction().actions {
+                ActionGroup::BundlableGeneral(actions) => actions
+                    .actions
+                    .iter()
+                    .filter_map(BundlableGeneralAction::as_sequence)
+                    .map(|seq| seq.data.len())
+                    .sum(),
+                _ => 0,
+            };
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 debug!(
@@ -1014,10 +1024,15 @@ impl App {
 
         // flag mempool for cleaning if we ran a fee change action
         self.recost_mempool = self.recost_mempool
-            || signed_tx
-                .actions()
-                .iter()
-                .any(|action| matches!(action, Action::FeeAssetChange(_) | Action::FeeChange(_)));
+            || match signed_tx.actions() {
+                ActionGroup::BundlableSudo(actions) => actions.actions.iter().any(|action| {
+                    matches!(
+                        action,
+                        BundlableSudoAction::FeeAssetChange(_) | BundlableSudoAction::FeeChange(_)
+                    )
+                }),
+                _ => false,
+            };
 
         Ok(state_tx.apply().1)
     }

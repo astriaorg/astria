@@ -7,7 +7,6 @@ use astria_core::{
     },
     protocol::transaction::v1alpha1::{
         action::{
-            Action,
             BridgeLockAction,
             FeeAssetChangeAction,
             IbcRelayerChangeAction,
@@ -15,6 +14,13 @@ use astria_core::{
             SudoAddressChangeAction,
             TransferAction,
             ValidatorUpdate,
+        },
+        action_groups::{
+            ActionGroup,
+            BundlableGeneral,
+            BundlableSudo,
+            General,
+            Sudo,
         },
         TransactionParams,
         UnsignedTransaction,
@@ -195,12 +201,18 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::Transfer(TransferAction {
-            to: args.to_address,
-            amount: args.amount,
-            asset: args.asset.clone(),
-            fee_asset: args.fee_asset.clone(),
-        }),
+        BundlableGeneral {
+            actions: vec![
+                TransferAction {
+                    to: args.to_address,
+                    amount: args.amount,
+                    asset: args.asset.clone(),
+                    fee_asset: args.fee_asset.clone(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     )
     .await
     .wrap_err("failed to submit transfer transaction")?;
@@ -226,7 +238,10 @@ pub(crate) async fn ibc_relayer_add(args: &IbcRelayerChangeArgs) -> eyre::Result
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(args.address)),
+        BundlableSudo {
+            actions: vec![IbcRelayerChangeAction::Addition(args.address).into()],
+        }
+        .into(),
     )
     .await
     .wrap_err("failed to submit IbcRelayerChangeAction::Addition transaction")?;
@@ -252,7 +267,10 @@ pub(crate) async fn ibc_relayer_remove(args: &IbcRelayerChangeArgs) -> eyre::Res
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::IbcRelayerChange(IbcRelayerChangeAction::Removal(args.address)),
+        BundlableSudo {
+            actions: vec![IbcRelayerChangeAction::Removal(args.address).into()],
+        }
+        .into(),
     )
     .await
     .wrap_err("failed to submit IbcRelayerChangeAction::Removal transaction")?;
@@ -281,13 +299,17 @@ pub(crate) async fn init_bridge_account(args: &InitBridgeAccountArgs) -> eyre::R
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::InitBridgeAccount(InitBridgeAccountAction {
-            rollup_id,
-            asset: args.asset.clone(),
-            fee_asset: args.fee_asset.clone(),
-            sudo_address: None,
-            withdrawer_address: None,
-        }),
+        General {
+            actions: InitBridgeAccountAction {
+                rollup_id,
+                asset: args.asset.clone(),
+                fee_asset: args.fee_asset.clone(),
+                sudo_address: None,
+                withdrawer_address: None,
+            }
+            .into(),
+        }
+        .into(),
     )
     .await
     .wrap_err("failed to submit InitBridgeAccount transaction")?;
@@ -315,13 +337,19 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::BridgeLock(BridgeLockAction {
-            to: args.to_address,
-            asset: args.asset.clone(),
-            amount: args.amount,
-            fee_asset: args.fee_asset.clone(),
-            destination_chain_address: args.destination_chain_address.clone(),
-        }),
+        BundlableGeneral {
+            actions: vec![
+                BridgeLockAction {
+                    to: args.to_address,
+                    asset: args.asset.clone(),
+                    amount: args.amount,
+                    fee_asset: args.fee_asset.clone(),
+                    destination_chain_address: args.destination_chain_address.clone(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     )
     .await
     .wrap_err("failed to submit BridgeLock transaction")?;
@@ -347,7 +375,10 @@ pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()>
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::FeeAssetChange(FeeAssetChangeAction::Addition(args.asset.clone())),
+        BundlableSudo {
+            actions: vec![FeeAssetChangeAction::Addition(args.asset.clone()).into()],
+        }
+        .into(),
     )
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
@@ -373,7 +404,10 @@ pub(crate) async fn fee_asset_remove(args: &FeeAssetChangeArgs) -> eyre::Result<
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::FeeAssetChange(FeeAssetChangeAction::Removal(args.asset.clone())),
+        BundlableSudo {
+            actions: vec![FeeAssetChangeAction::Removal(args.asset.clone()).into()],
+        }
+        .into(),
     )
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
@@ -399,9 +433,13 @@ pub(crate) async fn sudo_address_change(args: &SudoAddressChangeArgs) -> eyre::R
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::SudoAddressChange(SudoAddressChangeAction {
-            new_address: args.address,
-        }),
+        Sudo {
+            actions: SudoAddressChangeAction {
+                new_address: args.address,
+            }
+            .into(),
+        }
+        .into(),
     )
     .await
     .wrap_err("failed to submit SudoAddressChange transaction")?;
@@ -437,7 +475,10 @@ pub(crate) async fn validator_update(args: &ValidatorUpdateArgs) -> eyre::Result
         args.sequencer_chain_id.clone(),
         &args.prefix,
         args.private_key.as_str(),
-        Action::ValidatorUpdate(validator_update),
+        BundlableGeneral {
+            actions: vec![validator_update.into()],
+        }
+        .into(),
     )
     .await
     .wrap_err("failed to submit ValidatorUpdate transaction")?;
@@ -452,7 +493,7 @@ async fn submit_transaction(
     chain_id: String,
     prefix: &str,
     private_key: &str,
-    action: Action,
+    action_group: ActionGroup,
 ) -> eyre::Result<Response> {
     let sequencer_client =
         HttpClient::new(sequencer_url).wrap_err("failed constructing http sequencer client")?;
@@ -480,7 +521,7 @@ async fn submit_transaction(
             .nonce(nonce_res.nonce)
             .chain_id(chain_id)
             .build(),
-        actions: vec![action],
+        actions: action_group,
     }
     .into_signed(&sequencer_key);
     let res = sequencer_client

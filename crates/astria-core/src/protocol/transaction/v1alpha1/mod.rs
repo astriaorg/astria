@@ -1,3 +1,4 @@
+use action_groups::ActionGroup;
 use bytes::Bytes;
 use prost::{
     Message as _,
@@ -17,11 +18,10 @@ use crate::{
         TransactionId,
         ADDRESS_LEN,
     },
-    Protobuf as _,
 };
 
 pub mod action;
-pub use action::Action;
+pub mod action_groups;
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -197,7 +197,7 @@ impl SignedTransaction {
     }
 
     #[must_use]
-    pub fn actions(&self) -> &[Action] {
+    pub fn actions(&self) -> &ActionGroup {
         &self.transaction.actions
     }
 
@@ -229,7 +229,7 @@ impl SignedTransaction {
 #[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct UnsignedTransaction {
-    pub actions: Vec<Action>,
+    pub actions: ActionGroup,
     pub params: TransactionParams,
 }
 
@@ -257,12 +257,13 @@ impl UnsignedTransaction {
         }
     }
 
+    #[must_use]
     pub fn into_raw(self) -> raw::UnsignedTransaction {
         let Self {
-            actions,
+            mut actions,
             params,
         } = self;
-        let actions = actions.into_iter().map(Action::into_raw).collect();
+        let actions = actions.to_raw_protobuf_mut();
         raw::UnsignedTransaction {
             actions,
             params: Some(params.into_raw()),
@@ -278,12 +279,16 @@ impl UnsignedTransaction {
         }
     }
 
+    #[must_use]
     pub fn to_raw(&self) -> raw::UnsignedTransaction {
         let Self {
             actions,
             params,
         } = self;
-        let actions = actions.iter().map(Action::to_raw).collect();
+        // TODO: introduced a clone here, need to figure out how to not do that
+        // or if that is okay
+        let actions = actions.clone().to_raw_protobuf_mut();
+
         let params = params.clone().into_raw();
         raw::UnsignedTransaction {
             actions,
@@ -301,7 +306,7 @@ impl UnsignedTransaction {
     /// # Errors
     ///
     /// Returns an error if one of the inner raw actions could not be converted to a native
-    /// [`Action`].
+    /// [`Action`] or if the contained actions do not form a valid [`ActionGroup`].
     pub fn try_from_raw(proto: raw::UnsignedTransaction) -> Result<Self, UnsignedTransactionError> {
         let raw::UnsignedTransaction {
             actions,
@@ -311,14 +316,11 @@ impl UnsignedTransaction {
             return Err(UnsignedTransactionError::unset_params());
         };
         let params = TransactionParams::from_raw(params);
-        let actions: Vec<_> = actions
-            .into_iter()
-            .map(Action::try_from_raw)
-            .collect::<Result<_, _>>()
-            .map_err(UnsignedTransactionError::action)?;
+        let action_group =
+            ActionGroup::try_from_raw(actions).map_err(UnsignedTransactionError::action_group)?;
 
         Ok(Self {
-            actions,
+            actions: action_group,
             params,
         })
     }
@@ -345,10 +347,6 @@ impl UnsignedTransaction {
 pub struct UnsignedTransactionError(UnsignedTransactionErrorKind);
 
 impl UnsignedTransactionError {
-    fn action(inner: action::ActionError) -> Self {
-        Self(UnsignedTransactionErrorKind::Action(inner))
-    }
-
     fn unset_params() -> Self {
         Self(UnsignedTransactionErrorKind::UnsetParams())
     }
@@ -362,12 +360,14 @@ impl UnsignedTransactionError {
     fn decode_any(inner: prost::DecodeError) -> Self {
         Self(UnsignedTransactionErrorKind::DecodeAny(inner))
     }
+
+    fn action_group(inner: action_groups::ActionGroupError) -> Self {
+        Self(UnsignedTransactionErrorKind::ActionGroup(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum UnsignedTransactionErrorKind {
-    #[error("`actions` field is invalid")]
-    Action(#[source] action::ActionError),
     #[error("`params` field is unset")]
     UnsetParams(),
     #[error(
@@ -381,6 +381,8 @@ enum UnsignedTransactionErrorKind {
         raw::UnsignedTransaction::type_url()
     )]
     DecodeAny(#[source] prost::DecodeError),
+    #[error("action group is invalid")]
+    ActionGroup(#[source] action_groups::ActionGroupError),
 }
 
 pub struct TransactionParamsBuilder<TChainId = std::borrow::Cow<'static, str>> {
@@ -555,6 +557,11 @@ enum TransactionFeeResponseErrorKind {
 
 #[cfg(test)]
 mod test {
+    use action_groups::{
+        BundlableGeneral,
+        BundlableGeneralAction,
+    };
+
     use super::*;
     use crate::{
         primitive::v1::{
@@ -599,7 +606,9 @@ mod test {
             chain_id: "test-1".to_string(),
         });
         let unsigned = UnsignedTransaction {
-            actions: vec![transfer.into()],
+            actions: ActionGroup::BundlableGeneral(BundlableGeneral {
+                actions: vec![BundlableGeneralAction::Transfer(transfer)],
+            }),
             params,
         };
 
@@ -636,7 +645,10 @@ mod test {
             chain_id: "test-1".to_string(),
         });
         let unsigned = UnsignedTransaction {
-            actions: vec![transfer.into()],
+            actions: BundlableGeneral {
+                actions: vec![transfer.into()],
+            }
+            .into(),
             params,
         };
 

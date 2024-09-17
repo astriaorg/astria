@@ -10,6 +10,11 @@ use astria_core::{
             SequenceAction,
             TransferAction,
         },
+        action_groups::{
+            BundlableGeneral,
+            General,
+            GeneralAction,
+        },
         TransactionParams,
         UnsignedTransaction,
     },
@@ -58,15 +63,18 @@ async fn transaction_execution_records_fee_event() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            TransferAction {
-                to: bob_address,
-                amount: value,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                TransferAction {
+                    to: bob_address,
+                    amount: value,
+                    asset: nria().into(),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     };
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -119,7 +127,10 @@ async fn ensure_correct_block_fees_transfer() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions,
+        actions: BundlableGeneral {
+            actions,
+        }
+        .into(),
     };
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
@@ -160,7 +171,10 @@ async fn ensure_correct_block_fees_sequence() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions,
+        actions: BundlableGeneral {
+            actions,
+        }
+        .into(),
     };
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
@@ -187,23 +201,24 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
 
     let alice = get_alice_signing_key();
 
-    let actions = vec![
-        InitBridgeAccountAction {
-            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            asset: nria().into(),
-            fee_asset: nria().into(),
-            sudo_address: None,
-            withdrawer_address: None,
-        }
-        .into(),
-    ];
+    let actions: GeneralAction = InitBridgeAccountAction {
+        rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+        asset: nria().into(),
+        fee_asset: nria().into(),
+        sudo_address: None,
+        withdrawer_address: None,
+    }
+    .into();
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions,
+        actions: General {
+            actions,
+        }
+        .into(),
     };
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
@@ -257,7 +272,10 @@ async fn ensure_correct_block_fees_bridge_lock() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions,
+        actions: BundlableGeneral {
+            actions,
+        }
+        .into(),
     };
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx.clone()).await.unwrap();
@@ -304,22 +322,23 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
         .unwrap();
     app.apply(state_tx);
 
-    let actions = vec![
-        BridgeSudoChangeAction {
-            bridge_address,
-            new_sudo_address: None,
-            new_withdrawer_address: None,
-            fee_asset: nria().into(),
-        }
-        .into(),
-    ];
+    let actions = BridgeSudoChangeAction {
+        bridge_address,
+        new_sudo_address: None,
+        new_withdrawer_address: None,
+        fee_asset: nria().into(),
+    }
+    .into();
 
     let tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions,
+        actions: General {
+            actions,
+        }
+        .into(),
     };
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();

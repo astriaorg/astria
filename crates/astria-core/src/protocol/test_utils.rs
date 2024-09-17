@@ -19,6 +19,10 @@ use crate::{
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
+    protocol::transaction::v1alpha1::action_groups::{
+        BundlableGeneral,
+        BundlableGeneralAction,
+    },
     sequencerblock::v1alpha1::{
         block::Deposit,
         SequencerBlock,
@@ -63,10 +67,7 @@ impl ConfigureSequencerBlock {
     pub fn make(self) -> SequencerBlock {
         use tendermint::Time;
 
-        use crate::{
-            protocol::transaction::v1alpha1::Action,
-            sequencerblock::v1alpha1::block::RollupData,
-        };
+        use crate::sequencerblock::v1alpha1::block::RollupData;
 
         let Self {
             block_hash,
@@ -90,7 +91,7 @@ impl ConfigureSequencerBlock {
             tendermint::account::Id::from(public_key)
         });
 
-        let actions: Vec<Action> = sequence_data
+        let actions: Vec<BundlableGeneralAction> = sequence_data
             .into_iter()
             .map(|(rollup_id, data)| {
                 SequenceAction {
@@ -105,7 +106,10 @@ impl ConfigureSequencerBlock {
             vec![]
         } else {
             let unsigned_transaction = UnsignedTransaction {
-                actions,
+                actions: BundlableGeneral {
+                    actions,
+                }
+                .into(),
                 params: TransactionParams::builder()
                     .nonce(1)
                     .chain_id(chain_id.clone())

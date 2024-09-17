@@ -16,6 +16,7 @@ use astria_core::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
             action::SequenceAction,
+            action_groups::BundlableGeneral,
             SignedTransaction,
             TransactionParams,
             UnsignedTransaction,
@@ -682,7 +683,16 @@ impl Future for SubmitFut {
                         .chain_id(&*this.chain_id)
                         .build();
                     let tx = UnsignedTransaction {
-                        actions: this.bundle.clone().into_actions(),
+                        actions: BundlableGeneral {
+                            actions: this
+                                .bundle
+                                .clone()
+                                .into_actions()
+                                .into_iter()
+                                .map(std::convert::Into::into)
+                                .collect(),
+                        }
+                        .into(),
                         params,
                     }
                     .into_signed(this.signing_key);
@@ -760,7 +770,16 @@ impl Future for SubmitFut {
                             .chain_id(&*this.chain_id)
                             .build();
                         let tx = UnsignedTransaction {
-                            actions: this.bundle.clone().into_actions(),
+                            actions: BundlableGeneral {
+                                actions: this
+                                    .bundle
+                                    .clone()
+                                    .into_actions()
+                                    .into_iter()
+                                    .map(std::convert::Into::into)
+                                    .collect(),
+                            }
+                            .into(),
                             params,
                         }
                         .into_signed(this.signing_key);

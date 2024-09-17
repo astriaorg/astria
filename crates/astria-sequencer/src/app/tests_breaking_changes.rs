@@ -28,7 +28,12 @@ use astria_core::{
                 TransferAction,
                 ValidatorUpdate,
             },
-            Action,
+            action_groups::{
+                BundlableGeneral,
+                BundlableSudo,
+                General,
+                Sudo,
+            },
             TransactionParams,
             UnsignedTransaction,
         },
@@ -116,7 +121,10 @@ async fn app_finalize_block_snapshot() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![lock_action.into(), sequence_action.into()],
+        actions: BundlableGeneral {
+            actions: vec![lock_action.into(), sequence_action.into()],
+        }
+        .into(),
     };
 
     let signed_tx = tx.into_signed(&alice);
@@ -162,7 +170,7 @@ async fn app_finalize_block_snapshot() {
 // and the respective PR must be marked as breaking.
 #[allow(clippy::too_many_lines)]
 #[tokio::test]
-async fn app_execute_transaction_with_every_action_snapshot() {
+async fn app_execute_every_action_group_and_action_snapshot() {
     use astria_core::protocol::transaction::v1alpha1::action::{
         FeeAssetChangeAction,
         InitBridgeAccountAction,
@@ -201,50 +209,83 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-    let tx = UnsignedTransaction {
+    let general_bundle = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            TransferAction {
-                to: bob_address,
-                amount: 333_333,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data: Bytes::from_static(b"hello world"),
-                fee_asset: nria().into(),
-            }
-            .into(),
-            Action::ValidatorUpdate(update.clone()),
-            IbcRelayerChangeAction::Addition(bob_address).into(),
-            IbcRelayerChangeAction::Addition(carol_address).into(),
-            IbcRelayerChangeAction::Removal(bob_address).into(),
-            // TODO: should fee assets be stored in state?
-            FeeAssetChangeAction::Addition("test-0".parse().unwrap()).into(),
-            FeeAssetChangeAction::Addition("test-1".parse().unwrap()).into(),
-            FeeAssetChangeAction::Removal("test-0".parse().unwrap()).into(),
-            SudoAddressChangeAction {
+        actions: BundlableGeneral {
+            actions: vec![
+                TransferAction {
+                    to: bob_address,
+                    amount: 333_333,
+                    asset: nria().into(),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data: Bytes::from_static(b"hello world"),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+                update.clone().into(),
+            ],
+        }
+        .into(),
+    };
+
+    let sudo_bundle = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(1)
+            .chain_id("test")
+            .build(),
+        actions: BundlableSudo {
+            actions: vec![
+                IbcRelayerChangeAction::Addition(bob_address).into(),
+                IbcRelayerChangeAction::Addition(carol_address).into(),
+                IbcRelayerChangeAction::Removal(bob_address).into(),
+                // TODO: should fee assets be stored in state?
+                FeeAssetChangeAction::Addition("test-0".parse().unwrap()).into(),
+                FeeAssetChangeAction::Addition("test-1".parse().unwrap()).into(),
+                FeeAssetChangeAction::Removal("test-0".parse().unwrap()).into(),
+            ],
+        }
+        .into(),
+    };
+
+    let sudo = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(2)
+            .chain_id("test")
+            .build(),
+        actions: Sudo {
+            actions: SudoAddressChangeAction {
                 new_address: bob_address,
             }
             .into(),
-        ],
+        }
+        .into(),
     };
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    let signed_tx_general_bundle = Arc::new(general_bundle.into_signed(&alice));
+    let signed_tx_sudo_bundle = Arc::new(sudo_bundle.into_signed(&alice));
+    let signed_tx_sudo = Arc::new(sudo.into_signed(&alice));
+    app.execute_transaction(signed_tx_general_bundle)
+        .await
+        .unwrap();
+    app.execute_transaction(signed_tx_sudo_bundle)
+        .await
+        .unwrap();
+    app.execute_transaction(signed_tx_sudo).await.unwrap();
 
-    let tx = UnsignedTransaction {
+    let general_tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            InitBridgeAccountAction {
+        actions: General {
+            actions: InitBridgeAccountAction {
                 rollup_id,
                 asset: nria().into(),
                 fee_asset: nria().into(),
@@ -252,47 +293,67 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 withdrawer_address: None,
             }
             .into(),
-        ],
+        }
+        .into(),
     };
-    let signed_tx = Arc::new(tx.into_signed(&bridge));
-    app.execute_transaction(signed_tx).await.unwrap();
+    let signed_general_tx = Arc::new(general_tx.into_signed(&bridge));
+    app.execute_transaction(signed_general_tx).await.unwrap();
 
-    let tx = UnsignedTransaction {
+    let bridge_bundle_tx = UnsignedTransaction {
         params: TransactionParams::builder()
             .chain_id("test")
             .nonce(1)
             .build(),
-        actions: vec![
-            BridgeLockAction {
-                to: bridge_address,
-                amount: 100,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-                destination_chain_address: "nootwashere".to_string(),
-            }
-            .into(),
-            BridgeUnlockAction {
-                to: bob_address,
-                amount: 10,
-                fee_asset: nria().into(),
-                memo: String::new(),
-                bridge_address: astria_address(&bridge.address_bytes()),
-                rollup_block_number: 1,
-                rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
-            }
-            .into(),
-            BridgeSudoChangeAction {
+        actions: BundlableGeneral {
+            actions: vec![
+                BridgeLockAction {
+                    to: bridge_address,
+                    amount: 100,
+                    asset: nria().into(),
+                    fee_asset: nria().into(),
+                    destination_chain_address: "nootwashere".to_string(),
+                }
+                .into(),
+                BridgeUnlockAction {
+                    to: bob_address,
+                    amount: 10,
+                    fee_asset: nria().into(),
+                    memo: String::new(),
+                    bridge_address: astria_address(&bridge.address_bytes()),
+                    rollup_block_number: 1,
+                    rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
+    };
+
+    let bridge_general_tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .chain_id("test")
+            .nonce(1)
+            .build(),
+        actions: General {
+            actions: BridgeSudoChangeAction {
                 bridge_address,
                 new_sudo_address: Some(bob_address),
                 new_withdrawer_address: Some(bob_address),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
+        }
+        .into(),
     };
 
-    let signed_tx = Arc::new(tx.into_signed(&bridge));
-    app.execute_transaction(signed_tx).await.unwrap();
+    let signed_bridge_bundle_tx = Arc::new(bridge_bundle_tx.into_signed(&bridge));
+    let signed_bridge_general_tx = Arc::new(bridge_general_tx.into_signed(&bridge));
+    app.execute_transaction(signed_bridge_bundle_tx)
+        .await
+        .unwrap();
+    app.execute_transaction(signed_bridge_general_tx)
+        .await
+        .unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();
     app.end_block(1, sudo_address).await.unwrap();

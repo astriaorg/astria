@@ -23,7 +23,13 @@ use astria_core::{
     },
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
+        transaction::v1alpha1::{
+            action_groups::{
+                ActionGroup,
+                BundlableGeneralAction,
+            },
+            SignedTransaction,
+        },
     },
 };
 use astria_eyre::eyre;
@@ -215,14 +221,18 @@ fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
     let signed_tx = signed_tx_from_request(request);
 
     // validate that the transaction's first action is a sequence action
-    let Some(sent_action) = signed_tx.actions().first() else {
-        panic!("received transaction contained no actions");
-    };
-    let Some(sequence_action) = sent_action.as_sequence() else {
-        panic!("mocked sequencer expected a sequence action");
-    };
-
-    (sequence_action.rollup_id, signed_tx.nonce())
+    match signed_tx.actions() {
+        ActionGroup::BundlableGeneral(actions) => match actions.actions.first() {
+            Some(action) => match action {
+                BundlableGeneralAction::Sequence(sequence_action) => {
+                    (sequence_action.rollup_id, signed_tx.nonce())
+                }
+                _ => panic!("mocked sequencer expected a sequence action"),
+            },
+            None => panic!("received transaction contained no actions"),
+        },
+        _ => panic!("mocked sequencer expected a sequence action"),
+    }
 }
 
 /// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
@@ -235,12 +245,18 @@ pub async fn mount_matcher_verifying_tx_integrity(
 ) -> MockGuard {
     let matcher = move |request: &Request| {
         let sequencer_tx = signed_tx_from_request(request);
-        let sequence_action = sequencer_tx
-            .actions()
-            .first()
-            .unwrap()
-            .as_sequence()
-            .unwrap();
+
+        let sequence_action = if let ActionGroup::BundlableGeneral(actions) = sequencer_tx.actions()
+        {
+            if let Some(BundlableGeneralAction::Sequence(sequence_action)) = actions.actions.first()
+            {
+                sequence_action
+            } else {
+                panic!("mocked sequencer expected a sequence action")
+            }
+        } else {
+            panic!("mocked sequencer expected a bundlable general action group")
+        };
 
         let expected_rlp = expected_rlp.rlp().to_vec();
 

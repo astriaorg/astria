@@ -11,9 +11,11 @@ use astria_core::{
         TransactionId,
     },
     protocol::transaction::v1alpha1::{
-        action::{
-            Action,
-            BridgeLockAction,
+        action::BridgeLockAction,
+        action_groups::{
+            ActionGroup,
+            BundlableGeneralAction,
+            GeneralAction,
         },
         SignedTransaction,
         UnsignedTransaction,
@@ -90,52 +92,56 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .context("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
-    for (i, action) in tx.actions.iter().enumerate() {
-        match action {
-            Action::Transfer(act) => {
-                transfer_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
+
+    match &tx.actions {
+        ActionGroup::BundlableGeneral(actions) => {
+            for (i, action) in actions.actions.iter().enumerate() {
+                match action {
+                    BundlableGeneralAction::Transfer(act) => {
+                        transfer_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
+                    }
+                    BundlableGeneralAction::Sequence(act) => {
+                        sequence_update_fees(state, &act.fee_asset, &mut fees_by_asset, &act.data)
+                            .await?;
+                    }
+                    BundlableGeneralAction::Ics20Withdrawal(act) => ics20_withdrawal_updates_fees(
+                        &act.fee_asset,
+                        &mut fees_by_asset,
+                        ics20_withdrawal_fee,
+                    ),
+                    BundlableGeneralAction::BridgeLock(act) => {
+                        bridge_lock_update_fees(
+                            act,
+                            &mut fees_by_asset,
+                            transfer_fee,
+                            bridge_lock_byte_cost_multiplier,
+                            i as u64,
+                        );
+                    }
+                    BundlableGeneralAction::BridgeUnlock(act) => {
+                        bridge_unlock_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
+                    }
+                    BundlableGeneralAction::ValidatorUpdate(_) | BundlableGeneralAction::Ibc(_) => {
+                        continue;
+                    }
+                }
             }
-            Action::Sequence(act) => {
-                sequence_update_fees(state, &act.fee_asset, &mut fees_by_asset, &act.data).await?;
-            }
-            Action::Ics20Withdrawal(act) => ics20_withdrawal_updates_fees(
-                &act.fee_asset,
-                &mut fees_by_asset,
-                ics20_withdrawal_fee,
-            ),
-            Action::InitBridgeAccount(act) => {
+        }
+        ActionGroup::General(actions) => match &actions.actions {
+            GeneralAction::InitBridgeAccount(act) => {
                 fees_by_asset
                     .entry(act.fee_asset.to_ibc_prefixed())
                     .and_modify(|amt| *amt = amt.saturating_add(init_bridge_account_fee))
                     .or_insert(init_bridge_account_fee);
             }
-            Action::BridgeLock(act) => {
-                bridge_lock_update_fees(
-                    act,
-                    &mut fees_by_asset,
-                    transfer_fee,
-                    bridge_lock_byte_cost_multiplier,
-                    i as u64,
-                );
-            }
-            Action::BridgeUnlock(act) => {
-                bridge_unlock_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
-            }
-            Action::BridgeSudoChange(act) => {
+            GeneralAction::BridgeSudoChange(act) => {
                 fees_by_asset
                     .entry(act.fee_asset.to_ibc_prefixed())
                     .and_modify(|amt| *amt = amt.saturating_add(bridge_sudo_change_fee))
                     .or_insert(bridge_sudo_change_fee);
             }
-            Action::ValidatorUpdate(_)
-            | Action::SudoAddressChange(_)
-            | Action::Ibc(_)
-            | Action::IbcRelayerChange(_)
-            | Action::FeeAssetChange(_)
-            | Action::FeeChange(_) => {
-                continue;
-            }
-        }
+        },
+        ActionGroup::BundlableSudo(_) | ActionGroup::Sudo(_) => (),
     }
     Ok(fees_by_asset)
 }
@@ -179,48 +185,45 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             .context("failed to get fees for transaction")?;
 
     // add values transferred within the tx to the cost
-    for action in tx.actions() {
-        match action {
-            Action::Transfer(act) => {
-                cost_by_asset
-                    .entry(act.asset.to_ibc_prefixed())
-                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
-                    .or_insert(act.amount);
-            }
-            Action::Ics20Withdrawal(act) => {
-                cost_by_asset
-                    .entry(act.denom.to_ibc_prefixed())
-                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
-                    .or_insert(act.amount);
-            }
-            Action::BridgeLock(act) => {
-                cost_by_asset
-                    .entry(act.asset.to_ibc_prefixed())
-                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
-                    .or_insert(act.amount);
-            }
-            Action::BridgeUnlock(act) => {
-                let asset = state
-                    .get_bridge_account_ibc_asset(tx)
-                    .await
-                    .context("failed to get bridge account asset id")?;
-                cost_by_asset
-                    .entry(asset)
-                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
-                    .or_insert(act.amount);
-            }
-            Action::ValidatorUpdate(_)
-            | Action::SudoAddressChange(_)
-            | Action::Sequence(_)
-            | Action::InitBridgeAccount(_)
-            | Action::BridgeSudoChange(_)
-            | Action::Ibc(_)
-            | Action::IbcRelayerChange(_)
-            | Action::FeeAssetChange(_)
-            | Action::FeeChange(_) => {
-                continue;
+    match tx.actions() {
+        ActionGroup::BundlableGeneral(actions) => {
+            for action in &actions.actions {
+                match action {
+                    BundlableGeneralAction::Transfer(act) => {
+                        cost_by_asset
+                            .entry(act.asset.to_ibc_prefixed())
+                            .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                            .or_insert(act.amount);
+                    }
+                    BundlableGeneralAction::Ics20Withdrawal(act) => {
+                        cost_by_asset
+                            .entry(act.denom.to_ibc_prefixed())
+                            .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                            .or_insert(act.amount);
+                    }
+                    BundlableGeneralAction::BridgeLock(act) => {
+                        cost_by_asset
+                            .entry(act.asset.to_ibc_prefixed())
+                            .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                            .or_insert(act.amount);
+                    }
+                    BundlableGeneralAction::BridgeUnlock(act) => {
+                        let asset = state
+                            .get_bridge_account_ibc_asset(tx)
+                            .await
+                            .context("failed to get bridge account asset id")?;
+                        cost_by_asset
+                            .entry(asset)
+                            .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                            .or_insert(act.amount);
+                    }
+                    BundlableGeneralAction::ValidatorUpdate(_)
+                    | BundlableGeneralAction::Ibc(_)
+                    | BundlableGeneralAction::Sequence(_) => continue,
+                }
             }
         }
+        ActionGroup::BundlableSudo(_) | ActionGroup::Sudo(_) | ActionGroup::General(_) => (),
     }
 
     Ok(cost_by_asset)
@@ -317,6 +320,7 @@ mod tests {
                 SequenceAction,
                 TransferAction,
             },
+            action_groups::BundlableGeneral,
             TransactionParams,
         },
     };
@@ -387,17 +391,19 @@ mod tests {
             .unwrap();
 
         let actions = vec![
-            Action::Transfer(TransferAction {
+            TransferAction {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: crate::test_utils::nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
-            }),
-            Action::Sequence(SequenceAction {
+            }
+            .into(),
+            SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
                 fee_asset: crate::test_utils::nria().into(),
-            }),
+            }
+            .into(),
         ];
 
         let params = TransactionParams::builder()
@@ -405,7 +411,10 @@ mod tests {
             .chain_id("test-chain-id")
             .build();
         let tx = UnsignedTransaction {
-            actions,
+            actions: BundlableGeneral {
+                actions,
+            }
+            .into(),
             params,
         };
 
@@ -453,17 +462,19 @@ mod tests {
             .unwrap();
 
         let actions = vec![
-            Action::Transfer(TransferAction {
+            TransferAction {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: crate::test_utils::nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
-            }),
-            Action::Sequence(SequenceAction {
+            }
+            .into(),
+            SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
                 fee_asset: crate::test_utils::nria().into(),
-            }),
+            }
+            .into(),
         ];
 
         let params = TransactionParams::builder()
@@ -471,7 +482,10 @@ mod tests {
             .chain_id("test-chain-id")
             .build();
         let tx = UnsignedTransaction {
-            actions,
+            actions: BundlableGeneral {
+                actions,
+            }
+            .into(),
             params,
         };
 

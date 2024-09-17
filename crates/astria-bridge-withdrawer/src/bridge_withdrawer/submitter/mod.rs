@@ -12,7 +12,10 @@ use astria_core::{
         GetPendingNonceRequest,
     },
     protocol::transaction::v1alpha1::{
-        Action,
+        action_groups::{
+            BundlableGeneral,
+            BundlableGeneralAction,
+        },
         TransactionParams,
         UnsignedTransaction,
     },
@@ -137,7 +140,7 @@ impl Submitter {
         &self,
         sequencer_grpc_client: SequencerServiceClient<Channel>,
         sequencer_chain_id: &String,
-        actions: Vec<Action>,
+        actions: Vec<BundlableGeneralAction>,
         rollup_height: u64,
     ) -> eyre::Result<()> {
         let Self {
@@ -159,7 +162,10 @@ impl Submitter {
         debug!(nonce, "fetched latest nonce");
 
         let unsigned = UnsignedTransaction {
-            actions,
+            actions: BundlableGeneral {
+                actions,
+            }
+            .into(),
             params: TransactionParams::builder()
                 .nonce(nonce)
                 .chain_id(sequencer_chain_id)

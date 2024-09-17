@@ -13,7 +13,10 @@ use astria_core::{
         asset::v1alpha1::AllowedFeeAssetsResponse,
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
         memos,
-        transaction::v1alpha1::Action,
+        transaction::v1alpha1::action_groups::{
+            ActionGroup,
+            BundlableGeneralAction,
+        },
     },
 };
 use astria_eyre::eyre::{
@@ -461,15 +464,21 @@ fn rollup_height_from_signed_transaction(
     signed_transaction: &SignedTransaction,
 ) -> eyre::Result<u64> {
     // find the last batch's rollup block height
-    let withdrawal_action = signed_transaction
-        .actions()
-        .iter()
-        .find(|action| matches!(action, Action::BridgeUnlock(_) | Action::Ics20Withdrawal(_)))
-        .ok_or_eyre("last transaction by the bridge account did not contain a withdrawal action")?;
+    let withdrawal_action = match signed_transaction.actions() {
+        ActionGroup::BundlableGeneral(actions) => actions.actions.iter().find(|action| {
+            matches!(
+                action,
+                BundlableGeneralAction::Ics20Withdrawal(_)
+                    | BundlableGeneralAction::BridgeUnlock(_)
+            )
+        }),
+        _ => None,
+    }
+    .ok_or_eyre("signed transaction does not contain an Ics20Withdrawal or BridgeUnlock action")?;
 
     let last_batch_rollup_height = match withdrawal_action {
-        Action::BridgeUnlock(action) => Some(action.rollup_block_number),
-        Action::Ics20Withdrawal(action) => {
+        BundlableGeneralAction::BridgeUnlock(action) => Some(action.rollup_block_number),
+        BundlableGeneralAction::Ics20Withdrawal(action) => {
             let memo: memos::v1alpha1::Ics20WithdrawalFromRollup =
                 serde_json::from_str(&action.memo)
                     .wrap_err("failed to parse memo from last transaction by the bridge account")?;

@@ -19,7 +19,7 @@ use astria_core::{
         },
         Address,
     },
-    protocol::transaction::v1alpha1::Action,
+    protocol::transaction::v1alpha1::action_groups::BundlableGeneralAction,
 };
 use clap::Args;
 use color_eyre::eyre::{
@@ -211,19 +211,23 @@ async fn block_to_actions(
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
-pub(crate) struct ActionsByRollupHeight(BTreeMap<u64, Vec<Action>>);
+pub(crate) struct ActionsByRollupHeight(BTreeMap<u64, Vec<BundlableGeneralAction>>);
 
 impl ActionsByRollupHeight {
     fn new() -> Self {
         Self(BTreeMap::new())
     }
 
-    pub(crate) fn into_inner(self) -> BTreeMap<u64, Vec<Action>> {
+    pub(crate) fn into_inner(self) -> BTreeMap<u64, Vec<BundlableGeneralAction>> {
         self.0
     }
 
     #[instrument(skip_all, err)]
-    fn insert(&mut self, rollup_height: u64, actions: Vec<Action>) -> eyre::Result<()> {
+    fn insert(
+        &mut self,
+        rollup_height: u64,
+        actions: Vec<BundlableGeneralAction>,
+    ) -> eyre::Result<()> {
         ensure!(
             self.0.insert(rollup_height, actions).is_none(),
             "already collected actions for block at rollup height `{rollup_height}`; no 2 blocks \

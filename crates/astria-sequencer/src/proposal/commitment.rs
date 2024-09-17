@@ -98,6 +98,7 @@ mod test {
                 SequenceAction,
                 TransferAction,
             },
+            action_groups::BundlableGeneral,
             TransactionParams,
             UnsignedTransaction,
         },
@@ -126,7 +127,10 @@ mod test {
                 .nonce(0)
                 .chain_id("test-chain-1")
                 .build(),
-            actions: vec![sequence_action.clone().into(), transfer_action.into()],
+            actions: BundlableGeneral {
+                actions: vec![sequence_action.clone().into(), transfer_action.into()],
+            }
+            .into(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -142,7 +146,10 @@ mod test {
                 .nonce(0)
                 .chain_id("test-chain-1")
                 .build(),
-            actions: vec![sequence_action.into()],
+            actions: BundlableGeneral {
+                actions: vec![sequence_action.clone().into()],
+            }
+            .into(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -180,7 +187,10 @@ mod test {
                 .nonce(0)
                 .chain_id("test-chain-1")
                 .build(),
-            actions: vec![sequence_action.into(), transfer_action.into()],
+            actions: BundlableGeneral {
+                actions: vec![sequence_action.clone().into(), transfer_action.into()],
+            }
+            .into(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);

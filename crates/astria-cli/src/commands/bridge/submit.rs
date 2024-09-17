@@ -6,7 +6,11 @@ use std::path::{
 use astria_core::{
     crypto::SigningKey,
     protocol::transaction::v1alpha1::{
-        Action,
+        action_groups::{
+            ActionGroup,
+            BundlableGeneral,
+            BundlableGeneralAction,
+        },
         TransactionParams,
         UnsignedTransaction,
     },
@@ -116,7 +120,7 @@ async fn submit_transaction(
     chain_id: &str,
     prefix: &str,
     signing_key: &SigningKey,
-    actions: Vec<Action>,
+    actions: Vec<BundlableGeneralAction>,
 ) -> eyre::Result<Response> {
     let from_address = Address::builder()
         .array(signing_key.verification_key().address_bytes())
@@ -134,7 +138,9 @@ async fn submit_transaction(
             .nonce(nonce_res.nonce)
             .chain_id(chain_id)
             .build(),
-        actions,
+        actions: ActionGroup::BundlableGeneral(BundlableGeneral {
+            actions,
+        }),
     }
     .into_signed(signing_key);
     let res = client

@@ -213,6 +213,7 @@ mod test {
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
             action::SequenceAction,
+            action_groups::BundlableGeneral,
             TransactionParams,
             UnsignedTransaction,
         },
@@ -244,14 +245,17 @@ mod test {
                 .nonce(0)
                 .chain_id("test")
                 .build(),
-            actions: vec![
-                SequenceAction {
-                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: Bytes::from_static(b"hello world"),
-                    fee_asset: crate::test_utils::nria().into(),
-                }
-                .into(),
-            ],
+            actions: BundlableGeneral {
+                actions: vec![
+                    SequenceAction {
+                        rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                        data: Bytes::from_static(b"hello world"),
+                        fee_asset: crate::test_utils::nria().into(),
+                    }
+                    .into(),
+                ],
+            }
+            .into(),
         }
     }
 

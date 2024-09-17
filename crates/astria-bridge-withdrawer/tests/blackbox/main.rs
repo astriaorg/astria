@@ -1,4 +1,7 @@
-use astria_core::protocol::transaction::v1alpha1::Action;
+use astria_core::protocol::transaction::v1alpha1::action_groups::{
+    ActionGroup,
+    BundlableGeneralAction,
+};
 use helpers::{
     assert_actions_eq,
     default_sequencer_address,
@@ -169,13 +172,13 @@ async fn erc20_ics20_withdraw_success() {
 }
 
 trait ActionFromReceipt {
-    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action;
+    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> BundlableGeneralAction;
 }
 
 struct BridgeUnlock;
 impl ActionFromReceipt for BridgeUnlock {
     #[track_caller]
-    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
+    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> BundlableGeneralAction {
         make_bridge_unlock_action(receipt)
     }
 }
@@ -183,7 +186,7 @@ impl ActionFromReceipt for BridgeUnlock {
 struct Ics20;
 impl ActionFromReceipt for Ics20 {
     #[track_caller]
-    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
+    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> BundlableGeneralAction {
         make_ics20_withdrawal_action(receipt)
     }
 }
@@ -196,10 +199,15 @@ fn assert_contract_receipt_action_matches_broadcast_action<T: ActionFromReceipt>
     let tx = signed_tx_from_request(received_broadcasts.first().expect(
         "at least one request should have been received if the broadcast guard is satisfied",
     ));
-    let actual = tx
-        .actions()
-        .first()
-        .expect("the signed transaction should contain at least one action");
+    let actual = match tx.actions() {
+        ActionGroup::BundlableGeneral(actions) => actions
+            .actions
+            .first()
+            .expect("expected at least one action"),
+        _ => {
+            panic!("expected BundlableGeneral action")
+        }
+    };
 
     let expected = T::action_from_receipt(receipt);
     assert_actions_eq(&expected, actual);

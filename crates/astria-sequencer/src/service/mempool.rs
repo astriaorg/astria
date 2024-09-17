@@ -15,7 +15,10 @@ use astria_core::{
     primitive::v1::asset::IbcPrefixed,
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
+        transaction::v1alpha1::{
+            action_groups::ActionGroup,
+            SignedTransaction,
+        },
     },
 };
 use cnidarium::Storage;
@@ -346,7 +349,11 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         finished_fetch_balances.saturating_duration_since(finished_fetch_tx_cost),
     );
 
-    let actions_count = signed_tx.actions().len();
+    let actions_count = match &signed_tx.actions() {
+        ActionGroup::BundlableGeneral(actions) => actions.actions.len(),
+        ActionGroup::BundlableSudo(actions) => actions.actions.len(),
+        ActionGroup::General(_) | ActionGroup::Sudo(_) => 1,
+    };
 
     if let Err(err) = mempool
         .insert(

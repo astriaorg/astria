@@ -15,6 +15,11 @@ use astria_core::{
                 SequenceAction,
                 TransferAction,
             },
+            action_groups::{
+                ActionGroup,
+                BundlableGeneral,
+                BundlableGeneralAction,
+            },
             TransactionParams,
             UnsignedTransaction,
         },
@@ -236,15 +241,14 @@ async fn app_transfer_block_fees_to_sudo() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            TransferAction {
+        actions: ActionGroup::BundlableGeneral(BundlableGeneral {
+            actions: vec![BundlableGeneralAction::Transfer(TransferAction {
                 to: bob_address,
                 amount,
                 asset: nria().into(),
                 fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+            })],
+        }),
     };
 
     let signed_tx = tx.into_signed(&alice);
@@ -326,7 +330,10 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![lock_action.into(), sequence_action.into()],
+        actions: BundlableGeneral {
+            actions: vec![lock_action.into(), sequence_action.into()],
+        }
+        .into(),
     };
 
     let signed_tx = tx.into_signed(&alice);
@@ -419,7 +426,10 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![lock_action.into(), sequence_action.into()],
+        actions: BundlableGeneral {
+            actions: vec![lock_action.into(), sequence_action.into()],
+        }
+        .into(),
     };
 
     let signed_tx = tx.into_signed(&alice);
@@ -556,14 +566,17 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: Bytes::copy_from_slice(&[1u8; 100_000]),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&alice);
     let tx_overflow = UnsignedTransaction {
@@ -571,14 +584,17 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             .nonce(1)
             .chain_id("test")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: Bytes::copy_from_slice(&[1u8; 100_000]),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&alice);
 
@@ -648,14 +664,17 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             .nonce(0)
             .chain_id("test")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 200_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: Bytes::copy_from_slice(&[1u8; 200_000]),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&alice);
     let tx_overflow = UnsignedTransaction {
@@ -663,14 +682,17 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             .nonce(1)
             .chain_id("test")
             .build(),
-        actions: vec![
-            SequenceAction {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ],
+        actions: BundlableGeneral {
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from([1u8; 32]),
+                    data: Bytes::copy_from_slice(&[1u8; 100_000]),
+                    fee_asset: nria().into(),
+                }
+                .into(),
+            ],
+        }
+        .into(),
     }
     .into_signed(&alice);
 

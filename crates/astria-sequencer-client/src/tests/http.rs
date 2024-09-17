@@ -6,6 +6,7 @@ use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::{
         action::TransferAction,
+        action_groups::BundlableGeneral,
         SignedTransaction,
         TransactionParams,
         UnsignedTransaction,
@@ -162,7 +163,10 @@ fn create_signed_transaction() -> SignedTransaction {
             .nonce(1)
             .chain_id("test")
             .build(),
-        actions,
+        actions: BundlableGeneral {
+            actions,
+        }
+        .into(),
     }
     .into_signed(&alice_key)
 }
