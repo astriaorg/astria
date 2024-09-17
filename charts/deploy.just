@@ -83,9 +83,11 @@ deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy
 
 deploy-astrotrek:
   helm dependency update charts/astrotrek > /dev/null
-  helm install \
+  helm install astrotrek-chart ./charts/astrotrek \
     -n astria-dev-cluster \
-    astrotrek-chart ./charts/astrotrek
+
+delete-astrotrek:
+  @just delete chart astrotrek 
 
 deploy-hermes-local:
   helm install hermes-local-chart ./charts/hermes \

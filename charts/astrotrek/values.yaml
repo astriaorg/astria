@@ -68,7 +68,7 @@ ingress:
   enabled: true
   api:
     className: "nginx"
-    annotations: 
+    annotations:
       nginx.ingress.kubernetes.io/enable-cors: "true"
       nginx.ingress.kubernetes.io/cors-allow-origin: "*"
       nginx.ingress.kubernetes.io/cors-allow-methods: "GET"
