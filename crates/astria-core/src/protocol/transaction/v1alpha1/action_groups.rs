@@ -114,9 +114,8 @@ impl BelongsToGroup for Action {
             Action::BridgeSudoChange(act) => act.belongs_to_group(),
             Action::FeeChange(act) => act.belongs_to_group(),
             Action::FeeAssetChange(act) => act.belongs_to_group(),
-            Action::Ibc(_) => BundlableGeneral.into(), /* Can't use implement on act
-                                                        * directly since it lives in a externa
-                                                        * crate */
+            Action::Ibc(_) => BundlableGeneral.into(), /* Can't implement on action directly
+                                                        * since it lives in a external crate */
         }
     }
 }
