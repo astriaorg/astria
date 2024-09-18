@@ -475,14 +475,17 @@ async fn submit_transaction(
         .await
         .wrap_err("failed to get nonce")?;
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(nonce_res.nonce)
-            .chain_id(chain_id)
-            .build(),
-        actions: vec![action],
-    }
-    .into_signed(&sequencer_key);
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![action])
+        .params(
+            TransactionParams::builder()
+                .nonce(nonce_res.nonce)
+                .chain_id(chain_id)
+                .build(),
+        )
+        .build()
+        .expect("failed to build transaction from actions")
+        .into_signed(&sequencer_key);
     let res = sequencer_client
         .submit_transaction_sync(tx)
         .await

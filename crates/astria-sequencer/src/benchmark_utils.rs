@@ -94,11 +94,12 @@ fn sequence_actions() -> Vec<Arc<SignedTransaction>> {
                 data: vec![2; 1000].into(),
                 fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
             };
-            let tx = UnsignedTransaction {
-                actions: vec![Action::Sequence(sequence_action)],
-                params,
-            }
-            .into_signed(signing_key);
+            let tx = UnsignedTransaction::builder()
+                .actions(vec![Action::Sequence(sequence_action)])
+                .params(params)
+                .build()
+                .expect("failed to build transaction from actions")
+                .into_signed(signing_key);
             Arc::new(tx)
         })
         .take(SEQUENCE_ACTION_TX_COUNT)
@@ -121,13 +122,16 @@ fn transfers() -> Vec<Arc<SignedTransaction>> {
                 .nonce(u32::try_from(nonce).unwrap())
                 .chain_id("test")
                 .build();
-            let tx = UnsignedTransaction {
-                actions: std::iter::repeat(action.clone())
-                    .take(TRANSFERS_PER_TX)
-                    .collect(),
-                params,
-            }
-            .into_signed(sender);
+            let tx = UnsignedTransaction::builder()
+                .actions(
+                    std::iter::repeat(action.clone())
+                        .take(TRANSFERS_PER_TX)
+                        .collect(),
+                )
+                .params(params)
+                .build()
+                .expect("failed to build transaction from actions")
+                .into_signed(sender);
             Arc::new(tx)
         })
         .collect()

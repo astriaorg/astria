@@ -53,12 +53,8 @@ async fn transaction_execution_records_fee_event() {
     let alice = get_alice_signing_key();
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![
             TransferAction {
                 to: bob_address,
                 amount: value,
@@ -66,9 +62,15 @@ async fn transaction_execution_records_fee_event() {
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    };
-
+        ])
+        .params(
+            TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test")
+                .build(),
+        )
+        .build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
 
     let events = app.execute_transaction(signed_tx).await.unwrap();
@@ -114,13 +116,16 @@ async fn ensure_correct_block_fees_transfer() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions,
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .params(
+            TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test")
+                .build(),
+        )
+        .build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
@@ -155,13 +160,16 @@ async fn ensure_correct_block_fees_sequence() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions,
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .params(
+            TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test")
+                .build(),
+        )
+        .build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
@@ -198,13 +206,16 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions,
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .params(
+            TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test")
+                .build(),
+        )
+        .build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
@@ -252,13 +263,16 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions,
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .params(
+            TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test")
+                .build(),
+        )
+        .build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx.clone()).await.unwrap();
 
@@ -314,13 +328,16 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions,
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .params(
+            TransactionParams::builder()
+                .nonce(0)
+                .chain_id("test")
+                .build(),
+        )
+        .build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 

@@ -1,3 +1,7 @@
+use action_groups::{
+    ActionGroup,
+    Actions,
+};
 use bytes::Bytes;
 use prost::{
     Message as _,
@@ -21,6 +25,7 @@ use crate::{
 };
 
 pub mod action;
+pub mod action_groups;
 pub use action::Action;
 
 #[derive(Debug, thiserror::Error)]
@@ -198,7 +203,12 @@ impl SignedTransaction {
 
     #[must_use]
     pub fn actions(&self) -> &[Action] {
-        &self.transaction.actions
+        self.transaction.actions.actions()
+    }
+
+    #[must_use]
+    pub fn group(&self) -> &Option<ActionGroup> {
+        self.transaction.actions.group()
     }
 
     #[must_use]
@@ -226,14 +236,85 @@ impl SignedTransaction {
     }
 }
 
+pub struct UnsignedTransactionBuilder {
+    actions: Vec<Action>,
+    params: TransactionParams,
+}
+
+impl UnsignedTransactionBuilder {
+    fn new() -> Self {
+        Self {
+            actions: Vec::new(),
+            params: TransactionParams::from_raw(raw::TransactionParams {
+                nonce: 0,
+                chain_id: String::new(),
+            }),
+        }
+    }
+}
+
+impl UnsignedTransactionBuilder {
+    #[must_use]
+    pub fn actions(self, actions: Vec<Action>) -> Self {
+        Self {
+            actions,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn params(self, params: TransactionParams) -> Self {
+        Self {
+            params,
+            ..self
+        }
+    }
+
+    /// Builds the `UnsignedTransaction` from the builder.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the actions list contains actions
+    /// of different `ActionGroup` types or violated an `ActionGroup`'s bundling constraints.
+    pub fn build(self) -> Result<UnsignedTransaction, UnsignedTransactionError> {
+        let Self {
+            actions,
+            params,
+        } = self;
+
+        let actions = Actions::from_list_of_actions(actions)
+            .map_err(UnsignedTransactionError::action_group)?;
+
+        Ok(UnsignedTransaction {
+            actions,
+            params,
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct UnsignedTransaction {
-    pub actions: Vec<Action>,
-    pub params: TransactionParams,
+    actions: Actions,
+    params: TransactionParams,
 }
 
 impl UnsignedTransaction {
+    #[must_use]
+    pub fn builder() -> UnsignedTransactionBuilder {
+        UnsignedTransactionBuilder::new()
+    }
+
+    #[must_use]
+    pub fn into_actions(self) -> Vec<Action> {
+        self.actions.into_actions()
+    }
+
+    #[must_use]
+    pub fn actions(&self) -> &[Action] {
+        self.actions.actions()
+    }
+
     #[must_use]
     pub fn nonce(&self) -> u32 {
         self.params.nonce
@@ -262,7 +343,11 @@ impl UnsignedTransaction {
             actions,
             params,
         } = self;
-        let actions = actions.into_iter().map(Action::into_raw).collect();
+        let actions = actions
+            .into_actions()
+            .into_iter()
+            .map(Action::into_raw)
+            .collect();
         raw::UnsignedTransaction {
             actions,
             params: Some(params.into_raw()),
@@ -283,7 +368,7 @@ impl UnsignedTransaction {
             actions,
             params,
         } = self;
-        let actions = actions.iter().map(Action::to_raw).collect();
+        let actions = actions.actions().iter().map(Action::to_raw).collect();
         let params = params.clone().into_raw();
         raw::UnsignedTransaction {
             actions,
@@ -317,10 +402,10 @@ impl UnsignedTransaction {
             .collect::<Result<_, _>>()
             .map_err(UnsignedTransactionError::action)?;
 
-        Ok(Self {
-            actions,
-            params,
-        })
+        UnsignedTransactionBuilder::new()
+            .actions(actions)
+            .params(params)
+            .build()
     }
 
     /// Attempt to convert from a protobuf [`pbjson_types::Any`].
@@ -362,6 +447,10 @@ impl UnsignedTransactionError {
     fn decode_any(inner: prost::DecodeError) -> Self {
         Self(UnsignedTransactionErrorKind::DecodeAny(inner))
     }
+
+    fn action_group(inner: action_groups::ActionGroupError) -> Self {
+        Self(UnsignedTransactionErrorKind::ActionGroup(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -381,6 +470,8 @@ enum UnsignedTransactionErrorKind {
         raw::UnsignedTransaction::type_url()
     )]
     DecodeAny(#[source] prost::DecodeError),
+    #[error("failed to construct valid `Actions` from list of actions")]
+    ActionGroup(#[source] action_groups::ActionGroupError),
 }
 
 pub struct TransactionParamsBuilder<TChainId = std::borrow::Cow<'static, str>> {
@@ -557,10 +648,7 @@ enum TransactionFeeResponseErrorKind {
 mod test {
     use super::*;
     use crate::{
-        primitive::v1::{
-            asset,
-            Address,
-        },
+        primitive::v1::Address,
         protocol::transaction::v1alpha1::action::TransferAction,
     };
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
@@ -598,10 +686,12 @@ mod test {
             nonce: 1,
             chain_id: "test-1".to_string(),
         });
-        let unsigned = UnsignedTransaction {
-            actions: vec![transfer.into()],
-            params,
-        };
+
+        let unsigned = UnsignedTransaction::builder()
+            .actions(vec![transfer.into()])
+            .params(params)
+            .build()
+            .expect("failed to build unsigned transaction");
 
         let tx = SignedTransaction {
             signature,
@@ -635,12 +725,14 @@ mod test {
             nonce: 1,
             chain_id: "test-1".to_string(),
         });
-        let unsigned = UnsignedTransaction {
-            actions: vec![transfer.into()],
-            params,
-        };
 
-        let signed_tx = unsigned.into_signed(&signing_key);
+        let unsigned_tx = UnsignedTransaction::builder()
+            .actions(vec![transfer.into()])
+            .params(params)
+            .build()
+            .expect("failed to build unsigned transaction");
+
+        let signed_tx = unsigned_tx.into_signed(&signing_key);
         let raw = signed_tx.to_raw();
 
         // `try_from_raw` verifies the signature

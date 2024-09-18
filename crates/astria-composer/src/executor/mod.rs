@@ -681,11 +681,12 @@ impl Future for SubmitFut {
                         .nonce(*this.nonce)
                         .chain_id(&*this.chain_id)
                         .build();
-                    let tx = UnsignedTransaction {
-                        actions: this.bundle.clone().into_actions(),
-                        params,
-                    }
-                    .into_signed(this.signing_key);
+                    let tx = UnsignedTransaction::builder()
+                        .actions(this.bundle.clone().into_actions())
+                        .params(params)
+                        .build()
+                        .expect("failed to build transaction from actions")
+                        .into_signed(this.signing_key);
                     info!(
                         nonce.actual = *this.nonce,
                         bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
@@ -759,11 +760,12 @@ impl Future for SubmitFut {
                             .nonce(*this.nonce)
                             .chain_id(&*this.chain_id)
                             .build();
-                        let tx = UnsignedTransaction {
-                            actions: this.bundle.clone().into_actions(),
-                            params,
-                        }
-                        .into_signed(this.signing_key);
+                        let tx = UnsignedTransaction::builder()
+                            .actions(this.bundle.clone().into_actions())
+                            .params(params)
+                            .build()
+                            .expect("failed to build transaction from actions")
+                            .into_signed(this.signing_key);
                         info!(
                             nonce.resubmission = *this.nonce,
                             bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),

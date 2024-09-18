@@ -223,20 +223,23 @@ pub(crate) fn mock_tx(
     signer: &SigningKey,
     rollup_name: &str,
 ) -> Arc<SignedTransaction> {
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(nonce)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![
             SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes(rollup_name.as_bytes()),
                 data: Bytes::from_static(&[0x99]),
                 fee_asset: denom_0(),
             }
             .into(),
-        ],
-    };
+        ])
+        .params(
+            TransactionParams::builder()
+                .nonce(nonce)
+                .chain_id("test")
+                .build(),
+        )
+        .build()
+        .expect("Failed to build unsigned transaction");
 
     Arc::new(tx.into_signed(signer))
 }

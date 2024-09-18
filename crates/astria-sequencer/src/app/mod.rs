@@ -25,6 +25,7 @@ use astria_core::{
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
             action::ValidatorUpdate,
+            action_groups::ActionGroup,
             Action,
             SignedTransaction,
         },
@@ -537,7 +538,7 @@ impl App {
             // check if tx's sequence data will fit into sequence block
             let tx_sequence_data_bytes = tx
                 .unsigned_transaction()
-                .actions
+                .actions()
                 .iter()
                 .filter_map(Action::as_sequence)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
@@ -657,7 +658,7 @@ impl App {
             // check if tx's sequence data will fit into sequence block
             let tx_sequence_data_bytes = tx
                 .unsigned_transaction()
-                .actions
+                .actions()
                 .iter()
                 .filter_map(Action::as_sequence)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
@@ -1024,10 +1025,10 @@ impl App {
 
         // flag mempool for cleaning if we ran a fee change action
         self.recost_mempool = self.recost_mempool
-            || signed_tx
-                .actions()
-                .iter()
-                .any(|action| matches!(action, Action::FeeAssetChange(_) | Action::FeeChange(_)));
+            || matches!(signed_tx.group(), Some(ActionGroup::BundlableSudo(_)))
+                && signed_tx.actions().iter().any(|action| {
+                    matches!(action, Action::FeeAssetChange(_) | Action::FeeChange(_))
+                });
 
         Ok(state_tx.apply().1)
     }
