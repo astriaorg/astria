@@ -546,28 +546,43 @@ async fn refund_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<(
         .await
         .with_context(|| format!("failed parsing packet.asset `{}`", packet_data.denom))?;
 
-    if let Ok(memo) = serde_json::from_str::<Ics20WithdrawalFromRollup>(&packet_data.memo) {
-        refund_tokens_to_rollup(&mut state, receiver, asset, amount, memo)
-            .await
-            .context("failed to refund the rollup")?;
-    } else {
-        refund_tokens_to_sequencer(
+    // Refunding a rollup is the same as refunding an address on sequencer (which would
+    // be the bridge account associated with the rollup) plus emitting a deposit.
+    if let Some(memo) = does_failed_transfer_come_from_rollup(&packet_data) {
+        emit_deposit(
             &mut state,
             receiver,
-            asset,
+            memo.rollup_return_address,
+            &asset,
             amount,
-            &packet.port_on_a,
-            &packet.chan_on_a,
         )
         .await
-        .context("failed to refund a sequencer address")?;
+        .context("failed to emit deposit for refunding tokens to rollup")?;
     }
+    refund_tokens_to_sequencer_address(
+        &mut state,
+        receiver,
+        asset,
+        amount,
+        &packet.port_on_a,
+        &packet.chan_on_a,
+    )
+    .await
+    .context("failed to refund a sequencer address")?;
 
     Ok(())
 }
 
+/// A failed transfer is said to originate on a rollup if its memo field can be
+/// parsed as a `[Ics20WithdrawalFromRollup]`.
+fn does_failed_transfer_come_from_rollup(
+    packet_data: &FungibleTokenPacketData,
+) -> Option<Ics20WithdrawalFromRollup> {
+    serde_json::from_str::<Ics20WithdrawalFromRollup>(&packet_data.memo).ok()
+}
+
 #[instrument(skip_all, fields(%recipient, %asset, amount), err)]
-async fn refund_tokens_to_sequencer<S: StateWrite>(
+async fn refund_tokens_to_sequencer_address<S: StateWrite>(
     mut state: S,
     recipient: Address,
     asset: denom::TracePrefixed,
@@ -590,32 +605,6 @@ async fn refund_tokens_to_sequencer<S: StateWrite>(
             .await
             .wrap_err("failed to update user account balance in execute_ics20_transfer")?;
     }
-    Ok(())
-}
-
-#[instrument(skip_all, fields(%bridge_address, %asset, amount), err)]
-async fn refund_tokens_to_rollup<S: StateWrite>(
-    mut state: S,
-    bridge_address: Address,
-    asset: denom::TracePrefixed,
-    amount: u128,
-    memo: Ics20WithdrawalFromRollup,
-) -> Result<()> {
-    emit_deposit(
-        &mut state,
-        bridge_address,
-        memo.rollup_return_address,
-        &asset,
-        amount,
-    )
-    .await
-    .context("failed to emit deposit")?;
-
-    state
-        .increase_balance(bridge_address, asset, amount)
-        .await
-        .wrap_err("failed to update bridge account account balance")?;
-
     Ok(())
 }
 
@@ -1156,7 +1145,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refund_user_account_with_source_zone_asset() {
+    async fn refund_sequencer_account_with_source_zone_asset() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
@@ -1201,7 +1190,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refund_user_account_with_sink_zone_asset() {
+    async fn refund_sequencer_account_with_sink_zone_asset() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
@@ -1246,7 +1235,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refund_rollup_with_sink_asset() {
+    async fn refund_rollup_with_sink_zone_asset() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
@@ -1266,10 +1255,14 @@ mod tests {
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, &sink_asset())
+            .put_bridge_account_ibc_asset(bridge_address, sink_asset())
             .unwrap();
 
         let amount = 100;
+        state_tx
+            .put_ibc_channel_balance(&packet().chan_on_a, sink_asset(), amount)
+            .unwrap();
+
         let address_on_rollup = "address_on_rollup".to_string();
 
         let rollup_return_address = "rollup-defined-return-address";
@@ -1320,7 +1313,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refund_rollup_with_source_asset() {
+    async fn refund_rollup_with_source_zone_asset() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
@@ -1329,6 +1322,10 @@ mod tests {
         state_tx.put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX);
 
         let amount = 100;
+        state_tx
+            .put_ibc_channel_balance(&packet().chan_on_a, nria(), amount)
+            .unwrap();
+
         let bridge_address = astria_address(&[99u8; 20]);
         let destination_chain_address = "rollup-defined";
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -1341,7 +1338,7 @@ mod tests {
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, &nria())
+            .put_bridge_account_ibc_asset(bridge_address, nria())
             .unwrap();
 
         let packet_denom = FungibleTokenPacketData {
@@ -1369,7 +1366,7 @@ mod tests {
         .unwrap();
 
         let balance = state_tx
-            .get_account_balance(bridge_address, &nria())
+            .get_account_balance(bridge_address, nria())
             .await
             .expect("refunds of rollup withdrawals should be credited to the bridge account");
         assert_eq!(balance, amount);
@@ -1397,7 +1394,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refund_rollup_with_compat_prefix() {
+    async fn refund_rollup_with_source_zone_asset_compat_prefix() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
@@ -1409,20 +1406,20 @@ mod tests {
         let bridge_address_compat = astria_compat_address(&[99u8; 20]);
         let destination_chain_address = "rollup-defined-address".to_string();
 
-        let asset: Denom = format!("{}/{}/usdc", packet().port_on_a, packet().chan_on_b)
-            .parse()
-            .unwrap();
         let amount = 100;
+        state_tx
+            .put_ibc_channel_balance(&packet().chan_on_a, nria(), amount)
+            .unwrap();
 
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .put_bridge_account_ibc_asset(bridge_address, nria())
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
-            denom: asset.to_string(),
+            denom: nria().to_string(),
             sender: bridge_address_compat.to_string(),
             amount: amount.to_string(),
             receiver: "other-chain-address".to_string(),
@@ -1450,13 +1447,13 @@ mod tests {
             },
         )
         .await
-        .expect("valid ics20 transfer refund; recipient, memo, and asset ID are valid");
+        .unwrap();
 
         let balance = state_tx
-            .get_account_balance(bridge_address, &asset)
+            .get_account_balance(bridge_address, nria())
             .await
             .expect("refunding a rollup should add the tokens to its bridge address");
-        assert_eq!(balance, 100);
+        assert_eq!(balance, amount);
 
         let deposits = state_tx
             .get_block_deposits()
@@ -1469,7 +1466,7 @@ mod tests {
             bridge_address,
             rollup_id,
             amount,
-            asset,
+            asset: nria().into(),
             destination_chain_address: destination_chain_address.clone(),
             source_transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
