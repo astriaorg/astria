@@ -175,7 +175,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(maybe_id.is_some())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn get_bridge_account_rollup_id<T: AddressBytes>(
         &self,
         address: T,
@@ -195,7 +195,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(Some(rollup_id))
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn get_bridge_account_ibc_asset<T: AddressBytes>(
         &self,
         address: T,
@@ -490,7 +490,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn put_deposit_event(&mut self, deposit: Deposit) -> Result<()> {
         let nonce = self.get_deposit_nonce(&deposit.rollup_id).await?;
         self.put_deposit_nonce(

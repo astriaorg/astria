@@ -99,7 +99,7 @@ pub(crate) trait StateReadExt: StateRead {
             .is_some())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%asset), err)]
     async fn map_ibc_to_trace_prefixed_asset(
         &self,
         asset: asset::IbcPrefixed,

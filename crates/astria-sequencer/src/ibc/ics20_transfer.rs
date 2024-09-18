@@ -579,28 +579,12 @@ async fn refund_tokens_to_sequencer<S: StateWrite>(
         state
             .decrease_ibc_channel_balance(source_channel, &asset, amount)
             .await
-            .context("failed to withdraw refund amount from ibc20 channel")?;
+            .context("failed to withdraw refund amount from escrow account")?;
         state
             .increase_balance(recipient, &asset, amount)
             .await
-            .context("failed to update user account balance in execute_ics20_transfer")?;
+            .context("failed to increase user account balance")?;
     } else {
-        // register denomination in global ID -> denom map if it's not already there
-        // XXX(janis): is this correct? Shouldn't an asset that is being refunded always
-        // be present in the state if one attempted to transfer it out?
-        //
-        // TODO(janis): check if writing the asset to state if already present actually changes it.
-        // We could just always write it to state to avoid this extra check.
-        if !state
-            .has_ibc_asset(&asset)
-            .await
-            .context("failed to check if ibc asset exists in state")?
-        {
-            state
-                .put_ibc_asset(&asset)
-                .context("failed to put IBC asset in storage")?;
-        }
-
         state
             .increase_balance(recipient, asset, amount)
             .await

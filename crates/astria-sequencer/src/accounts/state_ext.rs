@@ -186,7 +186,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         }
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset), err)]
     async fn get_account_balance<'a, TAddress, TAsset>(
         &self,
         address: TAddress,
@@ -244,7 +244,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset, balance), err)]
     fn put_account_balance<TAddress, TAsset>(
         &mut self,
         address: TAddress,
@@ -267,7 +267,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount), err)]
     async fn increase_balance<TAddress, TAsset>(
         &mut self,
         address: TAddress,
@@ -294,7 +294,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount))]
     async fn decrease_balance<TAddress, TAsset>(
         &mut self,
         address: TAddress,
