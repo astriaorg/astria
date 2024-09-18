@@ -221,7 +221,9 @@ sequencer_base_amount := "1000000000"
 rollup_multiplier := "1000000000"
 # 10 RIA
 sequencer_transfer_amount := "10"
-sequencer_rpc_url := "http://rpc.sequencer.localdev.me"
+# Set env var: PR_SEQUENCER_RPC or PR to point to a remote preview environment
+pr_sequencer_rpc := env("PR_SEQUENCER_RPC", env("PR", ""))
+sequencer_rpc_url := if pr_sequencer_rpc == "" {"http://rpc.sequencer.localdev.me"} else {replace("http://rpc.sequencer.pr-#.dev.astria.org", "#", pr_sequencer_rpc)}
 sequencer_bridge_address := "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
 sequencer_bridge_pkey := "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
 sequencer_chain_id := "sequencer-test-chain-0"
@@ -261,8 +263,12 @@ init-ibc-bridge privateKey asset feeAsset tag=defaultTag rollupName=defaultRollu
     --fee-asset {{ feeAsset }} \
     --asset {{ asset }}
 
-eth_rpc_url := "http://executor.astria.localdev.me/"
-eth_ws_url := "ws://ws-executor.astria.localdev.me/"
+# Set env var: ETH_RPC_PR or PR to point to a remote preview environment
+pr_eth_rpc := env("PR_ETH_RPC", env("PR", ""))
+eth_rpc_url := if pr_eth_rpc == "" {"http://executor.astria.localdev.me/"} else {replace("http://executor.astria.pr-#.dev.astria.org/", "#", pr_eth_rpc)}
+# Set env var: ETH_WS_PR or PR to point to a remote preview environment
+pr_eth_ws :=  env("PR_ETH_WS", env("PR", ""))
+eth_ws_url := if pr_eth_ws == "" {"ws://ws-executor.astria.localdev.me/"} else {replace("ws://ws-executor.astria.pr-#.dev.astria.org/", "#", pr_eth_ws)}
 bridge_tx_bytes := "0xf8f280843c54e7f182898594a58639fb5458e65e4fa917ff951c390292c24a15880de0b6b3a7640000b884bab916d00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002d617374726961313777306164656736346b7930646178776432756779756e65656c6c6d6a676e786c333935303400000000000000000000000000000000000000820a96a086b85348c9816f6d34533669db3d3626cf55eecea6a380d4d072efb1839df443a04b8b60c8b91dd30add1ca4a96097238d73bab29b0a958322d9a51755d5a5f287"
 bridge_tx_hash := "0x67db5b0825e8f60b926234e209d54e0336cd94defe6720e7acadf871e0377150"
 run-smoke-test tag=defaultTag:
