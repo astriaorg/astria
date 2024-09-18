@@ -790,6 +790,7 @@ mod tests {
     use crate::{
         accounts::StateReadExt as _,
         address::StateWriteExt as _,
+        assets::StateReadExt as _,
         bridge::{
             StateReadExt as _,
             StateWriteExt as _,
@@ -840,19 +841,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn receive_on_user_account() {
+    async fn receive_source_zone_asset_on_sequencer_account() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
+        let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
+        state_tx
+            .put_ibc_channel_balance(&packet().chan_on_b, nria(), amount)
+            .unwrap();
 
-        let recipient = astria_address_from_hex_string("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
         let packet_data = FungibleTokenPacketData {
-            denom: nria().to_string(),
+            denom: source_asset().to_string(),
             sender: String::new(),
             amount: amount.to_string(),
-            receiver: recipient.to_string(),
+            receiver: recipient_address.to_string(),
             memo: String::new(),
         };
 
@@ -864,20 +868,64 @@ mod tests {
             },
         )
         .await
-        .expect("valid ics20 transfer to user account; recipient, memo, and asset ID are valid");
+        .unwrap();
 
-        let balance = state_tx
-            .get_account_balance(recipient, sink_asset())
+        let user_balance = state_tx
+            .get_account_balance(recipient_address, nria())
             .await
-            .expect(
-                "ics20 transfer to user account should succeed and balance should be minted to \
-                 this account",
-            );
-        assert_eq!(balance, amount);
+            .expect("ics20 transfer to user account should succeed");
+        assert_eq!(user_balance, amount);
+        let escrow_balance = state_tx
+            .get_ibc_channel_balance(&packet().chan_on_b, nria())
+            .await
+            .expect("ics20 transfer to user account from escrow account should succeed");
+        assert_eq!(escrow_balance, 0);
     }
 
     #[tokio::test]
-    async fn receive_source_asset_on_bridge_account_and_emit_to_rollup() {
+    async fn receive_sink_zone_asset_on_sequencer_account() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        let recipient_address = astria_address(&[1; 20]);
+        let amount = 100;
+
+        // "nria" being received by sequencer will be a foreign asset
+        // because it is not prefixed by sequencer's (port, channel) pair.
+        let packet_data = FungibleTokenPacketData {
+            denom: nria().to_string(),
+            sender: String::new(),
+            amount: amount.to_string(),
+            receiver: recipient_address.to_string(),
+            memo: String::new(),
+        };
+
+        receive_tokens(
+            &mut state_tx,
+            &Packet {
+                data: serde_json::to_vec(&packet_data).unwrap(),
+                ..packet()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(state_tx.has_ibc_asset(sink_asset()).await.expect(
+            "a new asset with <sequencer_port>/<sequencer_channel>/<asset> should be registered \
+             in the state"
+        ));
+        let user_balance = state_tx
+            .get_account_balance(recipient_address, sink_asset())
+            .await
+            .expect(
+                "a successful transfer should be reflected in the account balance of the new asset",
+            );
+        assert_eq!(user_balance, amount);
+    }
+
+    #[tokio::test]
+    async fn receive_source_zone_asset_on_bridge_account_and_emit_to_rollup() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
@@ -956,7 +1004,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn receive_sink_asset_on_bridge_account_and_emit_to_rollup() {
+    async fn receive_sink_zone_asset_on_bridge_account_and_emit_to_rollup() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
@@ -1100,48 +1148,6 @@ mod tests {
         )
         .await
         .expect_err("unknown asset during transfer to bridge account should fail");
-    }
-
-    #[tokio::test]
-    async fn receive_funds_on_user_account_of_source_asset() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
-
-        let recipient_address = astria_address(&[1; 20]);
-        let amount = 100;
-        state_tx
-            .put_ibc_channel_balance(&packet().chan_on_b, nria(), amount)
-            .unwrap();
-
-        let packet_data = FungibleTokenPacketData {
-            denom: source_asset().to_string(),
-            sender: String::new(),
-            amount: amount.to_string(),
-            receiver: recipient_address.to_string(),
-            memo: String::new(),
-        };
-
-        receive_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
-        .await
-        .unwrap();
-
-        let user_balance = state_tx
-            .get_account_balance(recipient_address, nria())
-            .await
-            .expect("ics20 transfer to user account should succeed");
-        assert_eq!(user_balance, amount);
-        let escrow_balance = state_tx
-            .get_ibc_channel_balance(&packet().chan_on_b, nria())
-            .await
-            .expect("ics20 transfer to user account from escrow account should succeed");
-        assert_eq!(escrow_balance, 0);
     }
 
     #[tokio::test]
