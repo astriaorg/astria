@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/bridge/bridge_lock_action.rs
+expression: get_deposit_byte_len(&deposit)
+---
+31
