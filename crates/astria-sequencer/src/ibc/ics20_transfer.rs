@@ -590,7 +590,6 @@ async fn refund_tokens_to_sequencer<S: StateWrite>(
             .await
             .wrap_err("failed to update user account balance in execute_ics20_transfer")?;
     }
-
     Ok(())
 }
 
@@ -997,9 +996,6 @@ mod tests {
         state_tx
             .put_bridge_account_ibc_asset(bridge_address, &remote_asset_on_sequencer)
             .unwrap();
-        state_tx
-            .put_ibc_channel_balance(&packet().chan_on_b, &remote_asset_on_sequencer, amount)
-            .unwrap();
 
         let packet_data = FungibleTokenPacketData {
             denom: remote_asset.to_string(),
@@ -1057,7 +1053,7 @@ mod tests {
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, &sink_asset())
+            .put_bridge_account_ibc_asset(bridge_address, sink_asset())
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -1091,7 +1087,7 @@ mod tests {
 
         state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, &sink_asset())
+            .put_bridge_account_ibc_asset(bridge_address, sink_asset())
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -1148,12 +1144,12 @@ mod tests {
         .unwrap();
 
         let user_balance = state_tx
-            .get_account_balance(recipient_address, &nria())
+            .get_account_balance(recipient_address, nria())
             .await
             .expect("ics20 transfer to user account should succeed");
         assert_eq!(user_balance, amount);
         let escrow_balance = state_tx
-            .get_ibc_channel_balance(&packet().chan_on_b, &nria())
+            .get_ibc_channel_balance(&packet().chan_on_b, nria())
             .await
             .expect("ics20 transfer to user account from escrow account should succeed");
         assert_eq!(escrow_balance, 0);
@@ -1171,7 +1167,7 @@ mod tests {
         let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
         state_tx
-            .put_ibc_channel_balance(&packet().chan_on_a, &nria(), amount)
+            .put_ibc_channel_balance(&packet().chan_on_a, nria(), amount)
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -1193,12 +1189,57 @@ mod tests {
         .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
 
         let balance = state_tx
-            .get_account_balance(recipient_address, &nria())
+            .get_account_balance(recipient_address, nria())
             .await
             .expect("ics20 refund to user account should succeed");
         assert_eq!(balance, amount);
         let balance = state_tx
-            .get_ibc_channel_balance(&packet().chan_on_a, &nria())
+            .get_ibc_channel_balance(&packet().chan_on_a, nria())
+            .await
+            .expect("ics20 refund to user account from escrow account should succeed");
+        assert_eq!(balance, 0);
+    }
+
+    #[tokio::test]
+    async fn refund_user_account_with_sink_zone_asset() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot.clone());
+
+        state_tx.put_base_prefix(ASTRIA_PREFIX);
+        state_tx.put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX);
+
+        let recipient_address = astria_address(&[1; 20]);
+        let amount = 100;
+        state_tx
+            .put_ibc_channel_balance(&packet().chan_on_a, sink_asset(), amount)
+            .unwrap();
+
+        let packet_data = FungibleTokenPacketData {
+            denom: sink_asset().to_string(),
+            sender: recipient_address.to_string(),
+            amount: amount.to_string(),
+            receiver: recipient_address.to_string(),
+            memo: String::new(),
+        };
+
+        refund_tokens(
+            &mut state_tx,
+            &Packet {
+                data: serde_json::to_vec(&packet_data).unwrap(),
+                ..packet()
+            },
+        )
+        .await
+        .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
+
+        let balance = state_tx
+            .get_account_balance(recipient_address, sink_asset())
+            .await
+            .expect("ics20 refund to user account should succeed");
+        assert_eq!(balance, amount);
+        let balance = state_tx
+            .get_ibc_channel_balance(&packet().chan_on_a, sink_asset())
             .await
             .expect("ics20 refund to user account from escrow account should succeed");
         assert_eq!(balance, 0);
