@@ -1,12 +1,4 @@
 use astria_core::{
-    primitive::v1::{
-        Address,
-        RollupId,
-        TransactionId,
-        ADDRESS_LEN,
-        ROLLUP_ID_LEN,
-        TRANSACTION_ID_LEN,
-    },
     protocol::transaction::v1alpha1::action::{
         BridgeLockAction,
         TransferAction,
@@ -153,28 +145,24 @@ impl ActionHandler for BridgeLockAction {
     }
 }
 
-/// Returns a modified byte length of the deposit event. Length is calculated with constants for all
-/// fields except `asset` and `destination_chain_address`, ergo it may not be representative of
-/// on-wire length. This should always return a byte length greater than or equal to the actual size
-/// of the serialized `Deposit`, but never less.
+/// Returns a modified byte length of the deposit event. Length is calculated with maximum possible
+/// constants for all fields except `asset` and `destination_chain_address`, ergo it may not be
+/// representative of on-wire length. This should always return a byte length greater than or equal
+/// to the actual size of the serialized `Deposit`, but never less.
 pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
-    use prost::Message as _;
-    let bridge_address = Address::builder()
-        .prefix("astria")
-        .slice(&[0u8; ADDRESS_LEN][..])
-        .try_build()
-        .unwrap();
-    let deposit = Deposit::new(
-        bridge_address,
-        RollupId::from_unhashed_bytes([0; ROLLUP_ID_LEN]),
-        u128::MAX,
-        deposit.asset().clone(),
-        deposit.destination_chain_address().to_string(),
-        TransactionId::new([0; TRANSACTION_ID_LEN]),
-        u64::MAX,
-    );
-    let raw = deposit.into_raw();
-    raw.encoded_len() as u128
+    // This is the base byte length of a deposit, as determined by the unit test
+    // `get_base_deposit_byte_length()` below.
+    let base_deposit_byte_length: u128 = 265;
+
+    let variable_length = deposit
+        .asset()
+        .to_string()
+        .len()
+        .checked_add(deposit.destination_chain_address().len())
+        .expect("deposit byte length overflowed usize") as u128;
+    base_deposit_byte_length
+        .checked_add(variable_length)
+        .expect("deposit byte length overflowed u128")
 }
 
 #[cfg(test)]
@@ -183,8 +171,12 @@ mod tests {
         asset::{
             self,
         },
+        Address,
         RollupId,
         TransactionId,
+        ADDRESS_LEN,
+        ROLLUP_ID_LEN,
+        TRANSACTION_ID_LEN,
     };
     use cnidarium::StateDelta;
 
@@ -268,6 +260,7 @@ mod tests {
         bridge_lock.check_and_execute(&mut state).await.unwrap();
     }
 
+    // Test that `get_deposit_byte_len()` returns a byte length greater than or equal to actual size
     #[test]
     fn test_get_deposit_byte_len() {
         use prost::Message as _;
@@ -284,7 +277,7 @@ mod tests {
         );
         let calculated_len = get_deposit_byte_len(&deposit);
         let expected_len = deposit.into_raw().encoded_len() as u128;
-        assert_eq!(calculated_len, expected_len);
+        assert!(calculated_len >= expected_len);
 
         // Test for deposit length at minimum int values
         let deposit = Deposit::new(
@@ -325,5 +318,47 @@ mod tests {
         );
         let calculated_len_3 = get_deposit_byte_len(&deposit);
         assert!(calculated_len_3 >= calculated_len_2);
+
+        // Ensure calculated length is still greater than or equal to actual with absurd string
+        // lengths (have tested up to 99999999, but this makes testing very slow)
+        let absurd_string: String = ['a'; u16::MAX as usize].iter().collect();
+        let deposit = Deposit::new(
+            astria_address(&[1; 20]),
+            RollupId::from_unhashed_bytes(b"test_rollup_id"),
+            u128::MAX,
+            absurd_string.parse().unwrap(),
+            absurd_string,
+            TransactionId::new([0; 32]),
+            u64::MAX,
+        );
+        let calculated_len = get_deposit_byte_len(&deposit);
+        let expected_len = deposit.into_raw().encoded_len() as u128;
+        assert!(calculated_len >= expected_len);
+    }
+
+    /// Used to determine the base deposit byte length for `get_deposit_byte_len()`. This is based
+    /// on usage of the longest allowed values for `bridge_address`, `amount`, and
+    /// `source_action_index`. `asset` and `destination_chain_address` are empty strings, whose
+    /// length will be added to the base cost at the time of calculation.
+    #[test]
+    #[ignore]
+    fn get_base_deposit_byte_length() {
+        use prost::Message as _;
+        let prefix: String = ['0'; 83].iter().collect();
+        let bridge_address = Address::builder()
+            .prefix(prefix)
+            .slice(&[0u8; ADDRESS_LEN][..])
+            .try_build()
+            .unwrap();
+        let raw_deposit = astria_core::generated::sequencerblock::v1alpha1::Deposit {
+            bridge_address: Some(bridge_address.to_raw()),
+            rollup_id: Some(RollupId::from_unhashed_bytes([0; ROLLUP_ID_LEN]).to_raw()),
+            amount: Some(u128::MAX.into()),
+            asset: String::new(),
+            destination_chain_address: String::new(),
+            source_transaction_id: Some(TransactionId::new([0; TRANSACTION_ID_LEN]).to_raw()),
+            source_action_index: u64::MAX,
+        };
+        println!("Deposit byte length: {}", raw_deposit.encoded_len());
     }
 }
