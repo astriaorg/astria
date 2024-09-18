@@ -70,12 +70,8 @@ use penumbra_ibc::component::app_handler::{
     AppHandlerExecute,
 };
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
-use prost::Name as _;
 use tokio::try_join;
-use tracing::{
-    info,
-    instrument,
-};
+use tracing::instrument;
 
 use crate::{
     accounts::StateWriteExt as _,
@@ -349,6 +345,9 @@ impl AppHandlerExecute for Ics20Transfer {
 
     async fn chan_close_init_execute<S: StateWrite>(_: S, _: &MsgChannelCloseInit) {}
 
+    #[instrument(skip_all, err)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
     async fn recv_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgRecvPacket,
@@ -374,6 +373,9 @@ impl AppHandlerExecute for Ics20Transfer {
             .context("failed to write acknowledgement")
     }
 
+    #[instrument(skip_all, err)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
     async fn timeout_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgTimeout,
@@ -383,7 +385,9 @@ impl AppHandlerExecute for Ics20Transfer {
         })
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
     async fn acknowledge_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgAcknowledgement,
@@ -404,23 +408,18 @@ impl AppHandlerExecute for Ics20Transfer {
 #[async_trait::async_trait]
 impl AppHandler for Ics20Transfer {}
 
-async fn parse_asset<S: StateRead>(state: S, input: &str) -> Result<denom::TracePrefixed> {
-    let asset = match input
-        .parse::<Denom>()
-        .wrap_err("failed parsing input as IBC denomination")?
-    {
-        Denom::TracePrefixed(trace_prefixed) => trace_prefixed,
-        Denom::IbcPrefixed(ibc_prefixed) => state
-            .map_ibc_to_trace_prefixed_asset(ibc_prefixed)
-            .await
-            .wrap_err("failed reading state to map ibc prefixed asset to trace prefixed asset")?
-            .ok_or_eyre(
-                "could not find trace prefixed counterpart to ibc prefixed asset in state",
-            )?,
-    };
-    Ok(asset)
-}
-
+#[instrument(
+    skip_all,
+    fields(
+        %packet.port_on_a,
+        %packet.chan_on_a,
+        %packet.port_on_b,
+        %packet.chan_on_b,
+        %packet.timeout_height_on_b,
+        %packet.timeout_timestamp_on_b,
+    ),
+    err,
+)]
 async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<()> {
     let packet_data: FungibleTokenPacketData = serde_json::from_slice(&packet.data)
         .wrap_err("failed to deserialize fungible token packet data")?;
@@ -511,7 +510,18 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
     Ok(())
 }
 
-#[instrument(skip_all)]
+#[instrument(
+    skip_all,
+    fields(
+        %packet.port_on_a,
+        %packet.chan_on_a,
+        %packet.port_on_b,
+        %packet.chan_on_b,
+        %packet.timeout_height_on_b,
+        %packet.timeout_timestamp_on_b,
+    ),
+    err,
+)]
 async fn refund_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<()> {
     let packet_data: FungibleTokenPacketData = serde_json::from_slice(&packet.data)
         .wrap_err("failed to deserialize fungible token packet data")?;
@@ -537,29 +547,13 @@ async fn refund_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<(
         .with_context(|| format!("failed parsing packet.asset `{}`", packet_data.denom))?;
 
     if let Ok(memo) = serde_json::from_str::<Ics20WithdrawalFromRollup>(&packet_data.memo) {
-        info!(
-                memo.rollup_return_address,
-                memo_name = astria_core::generated::protocol::memos::v1alpha1::Ics20WithdrawalFromRollup::full_name(),
-                "was able to parse memo; refunding to rollup",
-            );
         refund_tokens_to_rollup(&mut state, receiver, asset, amount, memo)
             .await
             .context("failed to refund the rollup")?;
     } else {
-        info!(
-            recipient = packet_data.sender,
-            "memo in fungible token packet was unknown; taking packet sender as recipient address \
-             on sequencer",
-        );
-        let recipient = packet_data.sender.parse().wrap_err_with(|| {
-            format!(
-                "failed to parse recipient `{}` as Astria address",
-                packet_data.sender
-            )
-        })?;
         refund_tokens_to_sequencer(
             &mut state,
-            recipient,
+            receiver,
             asset,
             amount,
             &packet.port_on_a,
@@ -571,7 +565,8 @@ async fn refund_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<(
 
     Ok(())
 }
-#[instrument(skip_all)]
+
+#[instrument(skip_all, fields(%recipient, %asset, amount), err)]
 async fn refund_tokens_to_sequencer<S: StateWrite>(
     mut state: S,
     recipient: Address,
@@ -615,8 +610,7 @@ async fn refund_tokens_to_sequencer<S: StateWrite>(
     Ok(())
 }
 
-// TODO: Add `err` with https://github.com/astriaorg/astria/issues/1386 being done
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(%bridge_address, %asset, amount), err)]
 async fn refund_tokens_to_rollup<S: StateWrite>(
     mut state: S,
     bridge_address: Address,
@@ -642,7 +636,26 @@ async fn refund_tokens_to_rollup<S: StateWrite>(
     Ok(())
 }
 
-async fn parse_sender<S: StateRead>(state: &S, sender: &str) -> Result<Address> {
+#[instrument(skip_all, fields(input), err)]
+async fn parse_asset<S: StateRead>(state: S, input: &str) -> Result<denom::TracePrefixed> {
+    let asset = match input
+        .parse::<Denom>()
+        .wrap_err("failed parsing input as IBC denomination")?
+    {
+        Denom::TracePrefixed(trace_prefixed) => trace_prefixed,
+        Denom::IbcPrefixed(ibc_prefixed) => state
+            .map_ibc_to_trace_prefixed_asset(ibc_prefixed)
+            .await
+            .wrap_err("failed reading state to map ibc prefixed asset to trace prefixed asset")?
+            .ok_or_eyre(
+                "could not find trace prefixed counterpart to ibc prefixed asset in state",
+            )?,
+    };
+    Ok(asset)
+}
+
+#[instrument(skip_all, fields(input), err)]
+async fn parse_sender<S: StateRead>(state: &S, input: &str) -> Result<Address> {
     use futures::TryFutureExt as _;
     let (base_prefix, compat_prefix) = match try_join!(
         state
@@ -655,7 +668,7 @@ async fn parse_sender<S: StateRead>(state: &S, sender: &str) -> Result<Address> 
         Ok(prefixes) => prefixes,
         Err(err) => return Err(err),
     };
-    sender
+    input
         .parse::<Address<Bech32m>>()
         .wrap_err("failed to parse address in bech32m format")
         .and_then(|addr| {
@@ -666,7 +679,7 @@ async fn parse_sender<S: StateRead>(state: &S, sender: &str) -> Result<Address> 
             Ok(addr)
         })
         .or_else(|_| {
-            sender
+            input
                 .parse::<Address<Bech32>>()
                 .wrap_err("failed to parse address in bech32/compat format")
                 .and_then(|addr| {
@@ -687,10 +700,11 @@ async fn parse_sender<S: StateRead>(state: &S, sender: &str) -> Result<Address> 
 
 /// Emits a deposit event signaling to the rollup that funds
 /// were added to `bridge_address`.
+#[instrument(skip_all, fields(%bridge_address, %asset, amount, memo), err)]
 async fn emit_bridge_lock_deposit<S: StateWrite>(
     mut state: S,
     bridge_address: Address,
-    denom: &denom::TracePrefixed,
+    asset: &denom::TracePrefixed,
     amount: u128,
     memo: &str,
 ) -> Result<()> {
@@ -711,12 +725,13 @@ async fn emit_bridge_lock_deposit<S: StateWrite>(
         &mut state,
         bridge_address,
         deposit_memo.rollup_deposit_address,
-        denom,
+        asset,
         amount,
     )
     .await
 }
 
+#[instrument(skip_all, fields(%bridge_address, destination_chain_address, %asset, amount), err)]
 async fn emit_deposit<S: StateWrite>(
     mut state: S,
     bridge_address: Address,
