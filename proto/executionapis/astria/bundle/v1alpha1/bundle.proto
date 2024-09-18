@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package astria.bundle.v1alpha1;
+
+import "astria/execution/v1alpha2/execution.proto";
+import "astria/sequencerblock/v1alpha1/block.proto";
+import "google/protobuf/timestamp.proto";
+
+// The "BaseBlock" is the information needed to simulate bundles on top of
+// a Sequencer block which may not have been committed yet.
+message BaseBlock {
+  // This is the block hash for the proposed block.
+  bytes sequencer_block_hash = 1;
+  // List of transactions to include in the new block.
+  repeated astria.sequencerblock.v1alpha1.RollupData transactions = 2;
+  // Timestamp to be used for new block.
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message StreamExecuteOptimisticBlockRequest {
+  BaseBlock block = 1;
+}
+
+message StreamExecuteOptimisticBlockResponse {
+  // Metadata identifying the block resulting from executing a block. Includes number, hash,
+  // parent hash and timestamp.
+  astria.execution.v1alpha2.Block block = 1;
+  // The base_sequencer_block_hash is the hash from the base sequencer block this block
+  // is based on. This is used to associate an optimistic execution result with the hash
+  // received once a sequencer block is committed.
+  bytes base_sequencer_block_hash = 2;
+}
+
+message StreamBundlesRequest {}
+
+// Information for the bundle submitter to know how to submit the bundle.
+// The fee and base_sequencer_block_hash are not necessarily strictly necessary
+// it allows for the case where the server doesn't always send the highest fee
+// bundles after the previous but could just stream any confirmed bundles.
+message Bundle {
+  // The fee that can be expected to be received for submitting this bundle.
+  // This allows the bundle producer to stream any confirmed bundles they would be ok
+  // with submitting. Used to avoid race conditions in received bundle packets. Could
+  // also be used by a bundle submitter to allow multiple entities to submit bundles.
+  uint64 fee = 1;
+  // The byte list of transactions to be included.
+  repeated bytes transactions = 2;
+  // The base_sequencer_block_hash is the hash from the base block this bundle
+  // is based on. This is used to verify that the bundle is based on the correct
+  // Sequencer block.
+  bytes base_sequencer_block_hash = 3;
+  // The hash of previous rollup block, on top of which the bundle will be executed as ToB.
+  bytes prev_rollup_block_hash = 4;
+}
+
+service OptimisticExecutionService {
+  // Stream blocks from the Auctioneer to Geth for optimistic execution. Geth will stream back
+  // metadata from the executed blocks.
+  rpc StreamExecuteOptimisticBlock(stream StreamExecuteOptimisticBlockRequest) returns (stream StreamExecuteOptimisticBlockResponse);
+}
+
+service BundleService {
+  // A bundle submitter requests bundles given a new optimistic Sequencer block,
+  // and receives a stream of potential bundles for submission, until either a timeout
+  // or the connection is closed by the client.
+  rpc StreamBundles(StreamBundlesRequest) returns (stream Bundle);
+}
