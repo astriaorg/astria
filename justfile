@@ -87,3 +87,7 @@ _lint-proto:
   buf breaking proto/sequencerblockapis --against 'buf.build/astria/sequencerblock-apis'
   buf breaking proto/protocolapis --against 'buf.build/astria/protocol-apis'
   buf breaking proto/composerapis --against 'buf.build/astria/composer-apis'
+
+defaultargs := ''
+cli *args=defaultargs:
+  cargo run -p astria-cli -- {{args}}

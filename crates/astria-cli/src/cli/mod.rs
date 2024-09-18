@@ -16,6 +16,10 @@ const DEFAULT_SEQUENCER_CHAIN_ID: &str = "astria-dusk-10";
 #[derive(Debug, Parser)]
 #[command(name = "astria-cli", version)]
 pub struct Cli {
+    /// Sets the log level (e.g. error, warn, info, debug, trace)
+    #[arg(short, long, default_value = "info")]
+    pub(crate) log_level: String,
+
     #[command(subcommand)]
     pub(crate) command: Option<Command>,
 }

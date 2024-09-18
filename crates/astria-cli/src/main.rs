@@ -5,6 +5,8 @@ use astria_cli::{
     commands,
 };
 use color_eyre::eyre;
+mod config;
+use config::Config;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -22,6 +24,10 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> eyre::Result<()> {
+    let _config: Config = config::get_networks_config()?;
+
+    // Parse the TOML string into our Config struct
     let args = Cli::get_args()?;
+
     commands::run(args).await
 }
