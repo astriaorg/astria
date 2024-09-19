@@ -1,7 +1,4 @@
-use astria_core::{
-    protocol::transaction::v1alpha1::action::TransferAction,
-    Protobuf as _,
-};
+use astria_core::protocol::transaction::v1alpha1::action::TransferAction;
 use astria_eyre::eyre::{
     ensure,
     OptionExt as _,
@@ -12,6 +9,10 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::AddressBytes;
 use crate::{
@@ -20,7 +21,10 @@ use crate::{
         StateWriteExt as _,
     },
     address::StateReadExt as _,
-    app::ActionHandler,
+    app::{
+        ActionHandler,
+        FeeHandler,
+    },
     assets::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -57,6 +61,44 @@ impl ActionHandler for TransferAction {
     }
 }
 
+#[async_trait::async_trait]
+impl FeeHandler for TransferAction {
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, err(level = Level::WARN))]
+    async fn calculate_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let tx_context = state
+            .get_transaction_context()
+            .expect("transaction source must be present in state when executing an action");
+        let from = tx_context.address_bytes();
+        let fee = state
+            .get_transfer_base_fee()
+            .await
+            .wrap_err("failed to get transfer base fee")?;
+
+        ensure!(
+            state
+                .is_allowed_fee_asset(&self.fee_asset)
+                .await
+                .wrap_err("failed to check allowed fee assets in state")?,
+            "invalid fee asset",
+        );
+
+        state
+            .decrease_balance(from, &self.fee_asset, fee)
+            .await
+            .wrap_err("failed to decrease balance for fee payment")?;
+        state.add_fee_to_block_fees(
+            self.fee_asset.clone(),
+            fee,
+            tx_context.transaction_id,
+            tx_context.source_action_index,
+        )?;
+
+        Ok(())
+    }
+}
+
 pub(crate) async fn execute_transfer<S, TAddress>(
     action: &TransferAction,
     from: TAddress,
@@ -67,51 +109,15 @@ where
     TAddress: AddressBytes,
 {
     let from = from.address_bytes();
-
-    let fee = state
-        .get_transfer_base_fee()
-        .await
-        .wrap_err("failed to get transfer base fee")?;
     state
-        .get_and_increase_block_fees(&action.fee_asset, fee, TransferAction::full_name())
+        .decrease_balance(from, &action.asset, action.amount)
         .await
-        .wrap_err("failed to add to block fees")?;
+        .wrap_err("failed decreasing `from` account balance")?;
+    state
+        .increase_balance(action.to, &action.asset, action.amount)
+        .await
+        .wrap_err("failed increasing `to` account balance")?;
 
-    // if fee payment asset is same asset as transfer asset, deduct fee
-    // from same balance as asset transferred
-    if action.asset.to_ibc_prefixed() == action.fee_asset.to_ibc_prefixed() {
-        // check_stateful should have already checked this arithmetic
-        let payment_amount = action
-            .amount
-            .checked_add(fee)
-            .expect("transfer amount plus fee should not overflow");
-
-        state
-            .decrease_balance(from, &action.asset, payment_amount)
-            .await
-            .wrap_err("failed decreasing `from` account balance")?;
-        state
-            .increase_balance(action.to, &action.asset, action.amount)
-            .await
-            .wrap_err("failed increasing `to` account balance")?;
-    } else {
-        // otherwise, just transfer the transfer asset and deduct fee from fee asset balance
-        // later
-        state
-            .decrease_balance(from, &action.asset, action.amount)
-            .await
-            .wrap_err("failed decreasing `from` account balance")?;
-        state
-            .increase_balance(action.to, &action.asset, action.amount)
-            .await
-            .wrap_err("failed increasing `to` account balance")?;
-
-        // deduct fee from fee asset balance
-        state
-            .decrease_balance(from, &action.fee_asset, fee)
-            .await
-            .wrap_err("failed decreasing `from` account balance for fee payment")?;
-    }
     Ok(())
 }
 

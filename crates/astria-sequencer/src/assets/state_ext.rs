@@ -1,9 +1,11 @@
-use astria_core::primitive::v1::asset;
+use astria_core::primitive::v1::{
+    asset,
+    TransactionId,
+};
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         bail,
-        OptionExt as _,
         Result,
         WrapErr as _,
     },
@@ -18,17 +20,15 @@ use cnidarium::{
     StateWrite,
 };
 use futures::StreamExt as _;
-use tendermint::abci::{
-    Event,
-    EventAttributeIndexExt as _,
-};
 use tracing::instrument;
+
+use crate::app::Fee;
 
 /// Newtype wrapper to read and write a denomination trace from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct DenominationTrace(String);
 
-const BLOCK_FEES_PREFIX: &str = "block_fees/";
+const BLOCK_FEES_PREFIX: &str = "block_fees";
 const FEE_ASSET_PREFIX: &str = "fee_asset/";
 const NATIVE_ASSET_KEY: &[u8] = b"nativeasset";
 
@@ -36,33 +36,10 @@ fn asset_storage_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String 
     format!("asset/{}", crate::storage_keys::hunks::Asset::from(asset))
 }
 
-fn block_fees_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
-    format!(
-        "{BLOCK_FEES_PREFIX}{}",
-        crate::storage_keys::hunks::Asset::from(asset)
-    )
-}
-
 fn fee_asset_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
     format!(
         "{FEE_ASSET_PREFIX}{}",
         crate::storage_keys::hunks::Asset::from(asset)
-    )
-}
-
-/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
-fn construct_tx_fee_event<T: std::fmt::Display>(
-    asset: &T,
-    fee_amount: u128,
-    action_type: String,
-) -> Event {
-    Event::new(
-        "tx.fees",
-        [
-            ("asset", asset.to_string()).index(),
-            ("feeAmount", fee_amount.to_string()).index(),
-            ("actionType", action_type).index(),
-        ],
     )
 }
 
@@ -122,31 +99,15 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_block_fees(&self) -> Result<Vec<(asset::IbcPrefixed, u128)>> {
-        let mut fees = Vec::new();
-
-        let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(BLOCK_FEES_PREFIX.as_bytes()));
-        while let Some(Ok((key, value))) = stream.next().await {
-            // if the key isn't of the form `block_fees/{asset_id}`, then we have a bug
-            // in `put_block_fees`
-            let suffix = key
-                .strip_prefix(BLOCK_FEES_PREFIX.as_bytes())
-                .expect("prefix must always be present");
-            let asset = std::str::from_utf8(suffix)
-                .wrap_err("key suffix was not utf8 encoded; this should not happen")?
-                .parse::<crate::storage_keys::hunks::Asset>()
-                .wrap_err("failed to parse storage key suffix as address hunk")?
-                .get();
-
-            let Ok(bytes): Result<[u8; 16], _> = value.try_into() else {
-                bail!("failed turning raw block fees bytes into u128; not 16 bytes?");
-            };
-
-            fees.push((asset, u128::from_be_bytes(bytes)));
+    fn get_block_fees(&self) -> Result<Vec<Fee>> {
+        let mut block_fees = self.object_get(BLOCK_FEES_PREFIX);
+        match block_fees {
+            Some(_) => {}
+            None => {
+                block_fees = Some(vec![]);
+            }
         }
-
-        Ok(fees)
+        Ok(block_fees.expect("block fees should not be `None` after populating"))
     }
 
     #[instrument(skip_all)]
@@ -202,53 +163,43 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    /// Adds `amount` to the block fees for `asset`.
+    /// Constructs and adds `Fee` object to the block fees vec.
     #[instrument(skip_all)]
-    async fn get_and_increase_block_fees<TAsset>(
+    fn add_fee_to_block_fees<TAsset>(
         &mut self,
         asset: TAsset,
         amount: u128,
-        action_type: String,
+        source_transaction_id: TransactionId,
+        source_action_index: u64,
     ) -> Result<()>
     where
-        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+        TAsset: Into<asset::Denom> + std::fmt::Display + Send,
     {
-        let tx_fee_event = construct_tx_fee_event(&asset, amount, action_type);
-        let block_fees_key = block_fees_key(asset);
+        let mut current_fees: Option<Vec<Fee>> = self.object_get(BLOCK_FEES_PREFIX);
 
-        let current_amount = self
-            .nonverifiable_get_raw(block_fees_key.as_bytes())
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed to read raw block fees from state")?
-            .map(|bytes| {
-                let Ok(bytes): Result<[u8; 16], _> = bytes.try_into() else {
-                    // this shouldn't happen
-                    bail!("failed turning raw block fees bytes into u128; not 16 bytes?");
-                };
-                Ok(u128::from_be_bytes(bytes))
-            })
-            .transpose()?
-            .unwrap_or_default();
+        match current_fees {
+            Some(_) => {}
+            None => {
+                current_fees = Some(vec![]);
+            }
+        }
 
-        let new_amount = current_amount
-            .checked_add(amount)
-            .ok_or_eyre("block fees overflowed u128")?;
+        let mut current_fees =
+            current_fees.expect("block fees should not be `None` after populating");
+        current_fees.push(Fee {
+            asset: asset.into(),
+            amount,
+            source_transaction_id,
+            source_action_index,
+        });
 
-        self.nonverifiable_put_raw(block_fees_key.into(), new_amount.to_be_bytes().to_vec());
-
-        self.record(tx_fee_event);
-
+        self.object_put(BLOCK_FEES_PREFIX, current_fees);
         Ok(())
     }
 
     #[instrument(skip_all)]
-    async fn clear_block_fees(&mut self) {
-        let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(BLOCK_FEES_PREFIX.as_bytes()));
-        while let Some(Ok((key, _))) = stream.next().await {
-            self.nonverifiable_delete(key);
-        }
+    fn clear_block_fees(&mut self) {
+        self.object_delete(BLOCK_FEES_PREFIX);
     }
 
     #[instrument(skip_all)]
@@ -274,16 +225,19 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use std::collections::HashSet;
 
-    use astria_core::primitive::v1::asset;
+    use astria_core::primitive::v1::{
+        asset,
+        TransactionId,
+    };
     use cnidarium::StateDelta;
 
     use super::{
         asset_storage_key,
-        block_fees_key,
         fee_asset_key,
         StateReadExt as _,
         StateWriteExt as _,
     };
+    use crate::app::Fee;
 
     fn asset() -> asset::Denom {
         "asset".parse().unwrap()
@@ -341,22 +295,26 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        let fee_balances_orig = state.get_block_fees().await.unwrap();
+        let fee_balances_orig = state.get_block_fees().unwrap();
         assert!(fee_balances_orig.is_empty());
 
         // can write
         let asset = asset_0();
         let amount = 100u128;
         state
-            .get_and_increase_block_fees(&asset, amount, "test".into())
-            .await
+            .add_fee_to_block_fees(asset.clone(), amount, TransactionId::new([0; 32]), 0)
             .unwrap();
 
         // holds expected
-        let fee_balances_updated = state.get_block_fees().await.unwrap();
+        let fee_balances_updated = state.get_block_fees().unwrap();
         assert_eq!(
             fee_balances_updated[0],
-            (asset.to_ibc_prefixed(), amount),
+            Fee {
+                asset,
+                amount,
+                source_transaction_id: TransactionId::new([0; 32]),
+                source_action_index: 0
+            },
             "fee balances are not what they were expected to be"
         );
     }
@@ -374,28 +332,46 @@ mod tests {
         let amount_second = 200u128;
 
         state
-            .get_and_increase_block_fees(&asset_first, amount_first, "test".into())
-            .await
+            .add_fee_to_block_fees(
+                asset_first.clone(),
+                amount_first,
+                TransactionId::new([0; 32]),
+                0,
+            )
             .unwrap();
         state
-            .get_and_increase_block_fees(&asset_second, amount_second, "test".into())
-            .await
+            .add_fee_to_block_fees(
+                asset_second.clone(),
+                amount_second,
+                TransactionId::new([0; 32]),
+                1,
+            )
             .unwrap();
         // holds expected
-        let fee_balances = HashSet::<_>::from_iter(state.get_block_fees().await.unwrap());
+        let fee_balances = HashSet::<_>::from_iter(state.get_block_fees().unwrap());
         assert_eq!(
             fee_balances,
             HashSet::from_iter(vec![
-                (asset_first.to_ibc_prefixed(), amount_first),
-                (asset_second.to_ibc_prefixed(), amount_second)
+                Fee {
+                    asset: asset_first,
+                    amount: amount_first,
+                    source_transaction_id: TransactionId::new([0; 32]),
+                    source_action_index: 0
+                },
+                Fee {
+                    asset: asset_second,
+                    amount: amount_second,
+                    source_transaction_id: TransactionId::new([0; 32]),
+                    source_action_index: 1
+                },
             ]),
             "returned fee balance vector not what was expected"
         );
 
         // can delete
-        state.clear_block_fees().await;
+        state.clear_block_fees();
 
-        let fee_balances_updated = state.get_block_fees().await.unwrap();
+        let fee_balances_updated = state.get_block_fees().unwrap();
         assert!(
             fee_balances_updated.is_empty(),
             "fee balances were expected to be deleted but were not"
@@ -643,11 +619,6 @@ mod tests {
         let trace_prefixed = "a/denom/with/a/prefix"
             .parse::<astria_core::primitive::v1::asset::Denom>()
             .unwrap();
-        assert_eq!(
-            block_fees_key(&trace_prefixed),
-            block_fees_key(trace_prefixed.to_ibc_prefixed()),
-        );
-        insta::assert_snapshot!(block_fees_key(&trace_prefixed));
 
         assert_eq!(
             fee_asset_key(&trace_prefixed),

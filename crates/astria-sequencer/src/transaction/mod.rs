@@ -38,7 +38,10 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    app::ActionHandler,
+    app::{
+        ActionHandler,
+        FeeHandler,
+    },
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -210,23 +213,23 @@ impl ActionHandler for SignedTransaction {
 
             match action {
                 Action::Transfer(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("executing transfer action failed")?,
                 Action::Sequence(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("executing sequence action failed")?,
                 Action::ValidatorUpdate(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("executing validor update")?,
                 Action::SudoAddressChange(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("executing sudo address change failed")?,
                 Action::FeeChange(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("executing fee change failed")?,
                 Action::Ibc(act) => {
@@ -251,31 +254,31 @@ impl ActionHandler for SignedTransaction {
                         .wrap_err("failed executing ibc action")?;
                 }
                 Action::Ics20Withdrawal(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("failed executing ics20 withdrawal")?,
                 Action::IbcRelayerChange(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("failed executing ibc relayer change")?,
                 Action::FeeAssetChange(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("failed executing fee asseet change")?,
                 Action::InitBridgeAccount(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("failed executing init bridge account")?,
                 Action::BridgeLock(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("failed executing bridge lock")?,
                 Action::BridgeUnlock(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("failed executing bridge unlock")?,
                 Action::BridgeSudoChange(act) => act
-                    .check_and_execute(&mut state)
+                    .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("failed executing bridge sudo change")?,
             }
@@ -283,6 +286,13 @@ impl ActionHandler for SignedTransaction {
 
         // XXX: Delete the current transaction data from the ephemeral state.
         state.delete_current_transaction_context();
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for SignedTransaction {
+    async fn calculate_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
         Ok(())
     }
 }

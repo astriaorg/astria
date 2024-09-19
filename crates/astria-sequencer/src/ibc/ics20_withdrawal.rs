@@ -8,7 +8,6 @@ use astria_core::{
         memos::v1alpha1::Ics20WithdrawalFromRollup,
         transaction::v1alpha1::action,
     },
-    Protobuf as _,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -35,6 +34,10 @@ use penumbra_ibc::component::packet::{
     Unchecked,
 };
 use penumbra_proto::core::component::ibc::v1::FungibleTokenPacketData;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::{
@@ -42,8 +45,14 @@ use crate::{
         StateWriteExt as _,
     },
     address::StateReadExt as _,
-    app::ActionHandler,
-    assets::StateWriteExt as _,
+    app::{
+        ActionHandler,
+        FeeHandler,
+    },
+    assets::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -211,11 +220,6 @@ impl ActionHandler for action::Ics20Withdrawal {
             .await
             .wrap_err("failed establishing which account to withdraw funds from")?;
 
-        let fee = state
-            .get_ics20_withdrawal_base_fee()
-            .await
-            .wrap_err("failed to get ics20 withdrawal base fee")?;
-
         let current_timestamp = state
             .get_block_timestamp()
             .await
@@ -232,19 +236,9 @@ impl ActionHandler for action::Ics20Withdrawal {
         };
 
         state
-            .get_and_increase_block_fees(self.fee_asset(), fee, Self::full_name())
-            .await
-            .wrap_err("failed to get and increase block fees")?;
-
-        state
             .decrease_balance(withdrawal_target, self.denom(), self.amount())
             .await
             .wrap_err("failed to decrease sender or bridge balance")?;
-
-        state
-            .decrease_balance(from, self.fee_asset(), fee)
-            .await
-            .wrap_err("failed to subtract fee from sender balance")?;
 
         // if we're the source, move tokens to the escrow account,
         // otherwise the tokens are just burned
@@ -266,6 +260,44 @@ impl ActionHandler for action::Ics20Withdrawal {
         }
 
         state.send_packet_execute(packet).await;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for action::Ics20Withdrawal {
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, err(level = Level::WARN))]
+    async fn calculate_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let tx_context = state
+            .get_transaction_context()
+            .expect("transaction source must be present in state when executing an action");
+        let from = tx_context.address_bytes();
+        let fee = state
+            .get_ics20_withdrawal_base_fee()
+            .await
+            .wrap_err("failed to get transfer base fee")?;
+
+        ensure!(
+            state
+                .is_allowed_fee_asset(&self.fee_asset)
+                .await
+                .wrap_err("failed to check allowed fee assets in state")?,
+            "invalid fee asset",
+        );
+
+        state
+            .decrease_balance(from, &self.fee_asset, fee)
+            .await
+            .wrap_err("failed to decrease balance for fee payment")?;
+        state.add_fee_to_block_fees(
+            self.fee_asset.clone(),
+            fee,
+            tx_context.transaction_id,
+            tx_context.source_action_index,
+        )?;
+
         Ok(())
     }
 }

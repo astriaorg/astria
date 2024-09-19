@@ -1,7 +1,4 @@
-use astria_core::{
-    protocol::transaction::v1alpha1::action::SequenceAction,
-    Protobuf as _,
-};
+use astria_core::protocol::transaction::v1alpha1::action::SequenceAction;
 use astria_eyre::eyre::{
     ensure,
     OptionExt as _,
@@ -9,13 +6,17 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
-    accounts::{
-        StateReadExt as _,
-        StateWriteExt as _,
+    accounts::StateWriteExt as _,
+    app::{
+        ActionHandler,
+        FeeHandler,
     },
-    app::ActionHandler,
     assets::{
         StateReadExt,
         StateWriteExt,
@@ -36,11 +37,21 @@ impl ActionHandler for SequenceAction {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let from = state
+    async fn check_and_execute<S: StateWrite>(&self, _state: S) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for SequenceAction {
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, err(level = Level::WARN))]
+    async fn calculate_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let tx_context = state
             .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+            .expect("transaction source must be present in state when executing an action");
+        let from = tx_context.address_bytes();
 
         ensure!(
             state
@@ -50,18 +61,17 @@ impl ActionHandler for SequenceAction {
             "invalid fee asset",
         );
 
-        let curr_balance = state
-            .get_account_balance(from, &self.fee_asset)
-            .await
-            .wrap_err("failed getting `from` account balance for fee payment")?;
         let fee = calculate_fee_from_state(&self.data, &state)
             .await
             .wrap_err("calculated fee overflows u128")?;
-        ensure!(curr_balance >= fee, "insufficient funds");
 
         state
-            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
-            .await
+            .add_fee_to_block_fees(
+                self.fee_asset.clone(),
+                fee,
+                tx_context.transaction_id,
+                tx_context.source_action_index,
+            )
             .wrap_err("failed to add to block fees")?;
         state
             .decrease_balance(from, &self.fee_asset, fee)

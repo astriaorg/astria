@@ -1,7 +1,4 @@
-use astria_core::{
-    protocol::transaction::v1alpha1::action::BridgeSudoChangeAction,
-    Protobuf as _,
-};
+use astria_core::protocol::transaction::v1alpha1::action::BridgeSudoChangeAction;
 use astria_eyre::eyre::{
     bail,
     ensure,
@@ -9,11 +6,18 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::StateWriteExt as _,
     address::StateReadExt as _,
-    app::ActionHandler,
+    app::{
+        ActionHandler,
+        FeeHandler,
+    },
     assets::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -52,14 +56,6 @@ impl ActionHandler for BridgeSudoChangeAction {
                 .wrap_err("failed check for base prefix of new withdrawer address")?;
         }
 
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
-
         // check that the sender of this tx is the authorized sudo address for the bridge account
         let Some(sudo_address) = state
             .get_bridge_account_sudo_address(self.bridge_address)
@@ -76,19 +72,6 @@ impl ActionHandler for BridgeSudoChangeAction {
             "unauthorized for bridge sudo change action",
         );
 
-        let fee = state
-            .get_bridge_sudo_change_base_fee()
-            .await
-            .wrap_err("failed to get bridge sudo change fee")?;
-        state
-            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
-            .await
-            .wrap_err("failed to add to block fees")?;
-        state
-            .decrease_balance(self.bridge_address, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to decrease balance for bridge sudo change fee")?;
-
         if let Some(sudo_address) = self.new_sudo_address {
             state.put_bridge_account_sudo_address(self.bridge_address, sudo_address);
         }
@@ -96,6 +79,46 @@ impl ActionHandler for BridgeSudoChangeAction {
         if let Some(withdrawer_address) = self.new_withdrawer_address {
             state.put_bridge_account_withdrawer_address(self.bridge_address, withdrawer_address);
         }
+
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for BridgeSudoChangeAction {
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, err(level = Level::WARN))]
+    async fn calculate_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let tx_context = state
+            .get_transaction_context()
+            .expect("transaction source must be present in state when executing an action");
+        let from = tx_context.address_bytes();
+        let fee = state
+            .get_bridge_sudo_change_base_fee()
+            .await
+            .wrap_err("failed to get bridge sudo change fee")?;
+
+        ensure!(
+            state
+                .is_allowed_fee_asset(&self.fee_asset)
+                .await
+                .wrap_err("failed to check allowed fee assets in state")?,
+            "invalid fee asset",
+        );
+
+        state
+            .add_fee_to_block_fees(
+                self.fee_asset.clone(),
+                fee,
+                tx_context.transaction_id,
+                tx_context.source_action_index,
+            )
+            .wrap_err("failed to add to block fees")?;
+        state
+            .decrease_balance(from, &self.fee_asset, fee)
+            .await
+            .wrap_err("failed to decrease balance for bridge sudo change fee")?;
 
         Ok(())
     }

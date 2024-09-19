@@ -15,7 +15,10 @@ use cnidarium::StateWrite;
 use crate::{
     accounts::StateWriteExt as _,
     address::StateReadExt as _,
-    app::ActionHandler,
+    app::{
+        ActionHandler,
+        FeeHandler,
+    },
     authority::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -76,6 +79,13 @@ impl ActionHandler for ValidatorUpdate {
 }
 
 #[async_trait::async_trait]
+impl FeeHandler for ValidatorUpdate {
+    async fn calculate_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
 impl ActionHandler for SudoAddressChangeAction {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
@@ -101,6 +111,13 @@ impl ActionHandler for SudoAddressChangeAction {
         state
             .put_sudo_address(self.new_address)
             .wrap_err("failed to put sudo address in state")?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for SudoAddressChangeAction {
+    async fn calculate_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
         Ok(())
     }
 }
@@ -151,6 +168,13 @@ impl ActionHandler for FeeChangeAction {
             }
         }
 
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for FeeChangeAction {
+    async fn calculate_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
         Ok(())
     }
 }
