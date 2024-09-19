@@ -791,7 +791,6 @@ mod tests {
         },
         test_utils::{
             astria_address,
-            astria_address_from_hex_string,
             astria_compat_address,
             nria,
             ASTRIA_COMPAT_PREFIX,
