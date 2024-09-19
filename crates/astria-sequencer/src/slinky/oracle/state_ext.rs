@@ -260,9 +260,7 @@ where
             Some(Ok(item)) => item,
             Some(Err(err)) => {
                 return Poll::Ready(Some(
-                    Err(err)
-                        .map_err(anyhow_to_eyre)
-                        .wrap_err("failed reading from state"),
+                    Err(anyhow_to_eyre(err)).wrap_err("failed reading from state"),
                 ));
             }
             None => return Poll::Ready(None),
@@ -305,9 +303,7 @@ where
             Some(Ok(item)) => item,
             Some(Err(err)) => {
                 return Poll::Ready(Some(
-                    Err(err)
-                        .map_err(anyhow_to_eyre)
-                        .wrap_err("failed reading from state"),
+                    Err(anyhow_to_eyre(err)).wrap_err("failed reading from state"),
                 ));
             }
             None => return Poll::Ready(None),
