@@ -9,7 +9,10 @@ pub mod v1 {
             Address,
             AddressError,
         },
-        slinky::types::v1::CurrencyPair,
+        slinky::types::v1::{
+            CurrencyPair,
+            CurrencyPairError,
+        },
         Protobuf,
     };
 
@@ -350,9 +353,11 @@ pub mod v1 {
         /// - if the `currency_pair` field is missing
         /// - if the `currency_pair` field is invalid
         pub fn try_from_raw(raw: raw::Ticker) -> Result<Self, TickerError> {
-            let Some(currency_pair) = raw.currency_pair.map(CurrencyPair::from_raw) else {
-                return Err(TickerError::missing_currency_pair());
-            };
+            let currency_pair = raw
+                .currency_pair
+                .ok_or_else(|| TickerError::field_not_set("currency_pair"))?
+                .try_into()
+                .map_err(TickerError::invalid_currency_pair)?;
 
             Ok(Self {
                 currency_pair,
@@ -377,19 +382,33 @@ pub mod v1 {
 
     #[derive(Debug, thiserror::Error)]
     #[error(transparent)]
-    pub struct TickerError(TickerErrorKind);
+    pub struct TickerError(#[from] TickerErrorKind);
 
     impl TickerError {
         #[must_use]
-        pub fn missing_currency_pair() -> Self {
-            Self(TickerErrorKind::MissingCurrencyPair)
+        fn field_not_set(name: &'static str) -> Self {
+            TickerErrorKind::FieldNotSet {
+                name,
+            }
+            .into()
+        }
+
+        #[must_use]
+        fn invalid_currency_pair(source: CurrencyPairError) -> Self {
+            TickerErrorKind::InvalidCurrencyPair {
+                source,
+            }
+            .into()
         }
     }
 
     #[derive(Debug, thiserror::Error)]
+    #[error("failed validating wire type `{}`", raw::Ticker::full_name())]
     enum TickerErrorKind {
-        #[error("missing currency pair")]
-        MissingCurrencyPair,
+        #[error("required field not set: .{name}")]
+        FieldNotSet { name: &'static str },
+        #[error("field `.currency_pair` was invalid")]
+        InvalidCurrencyPair { source: CurrencyPairError },
     }
 
     #[cfg_attr(
@@ -427,9 +446,11 @@ pub mod v1 {
         ///
         /// - if the `normalize_by_pair` field is missing
         pub fn try_from_raw(raw: raw::ProviderConfig) -> Result<Self, ProviderConfigError> {
-            let Some(normalize_by_pair) = raw.normalize_by_pair.map(CurrencyPair::from_raw) else {
-                return Err(ProviderConfigError::missing_normalize_by_pair());
-            };
+            let normalize_by_pair = raw
+                .normalize_by_pair
+                .ok_or_else(|| ProviderConfigError::field_not_set("normalize_by_pair"))?
+                .try_into()
+                .map_err(ProviderConfigError::invalid_normalize_by_pair)?;
             Ok(Self {
                 name: raw.name,
                 off_chain_ticker: raw.off_chain_ticker,
@@ -453,19 +474,32 @@ pub mod v1 {
 
     #[derive(Debug, thiserror::Error)]
     #[error(transparent)]
-    pub struct ProviderConfigError(ProviderConfigErrorKind);
+    pub struct ProviderConfigError(#[from] ProviderConfigErrorKind);
 
     impl ProviderConfigError {
         #[must_use]
-        pub fn missing_normalize_by_pair() -> Self {
-            Self(ProviderConfigErrorKind::MissingNormalizeByPair)
+        fn field_not_set(name: &'static str) -> Self {
+            ProviderConfigErrorKind::FieldNotSet {
+                name,
+            }
+            .into()
+        }
+
+        fn invalid_normalize_by_pair(source: CurrencyPairError) -> Self {
+            ProviderConfigErrorKind::InvalidNormalizeByPair {
+                source,
+            }
+            .into()
         }
     }
 
     #[derive(Debug, thiserror::Error)]
+    #[error("failed validating wire type `{}`", raw::ProviderConfig::full_name())]
     enum ProviderConfigErrorKind {
-        #[error("missing normalize by pair")]
-        MissingNormalizeByPair,
+        #[error("required field not set: .{name}")]
+        FieldNotSet { name: &'static str },
+        #[error("field `.normalize_by_pair` was invalid")]
+        InvalidNormalizeByPair { source: CurrencyPairError },
     }
 
     #[cfg_attr(

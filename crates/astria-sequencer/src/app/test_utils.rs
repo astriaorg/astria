@@ -111,13 +111,9 @@ pub(crate) fn proto_genesis_state()
             IbcParameters,
             SlinkyGenesis,
         },
-        slinky::{
-            market_map::v1::{
-                GenesisState as MarketMapGenesisState,
-                MarketMap,
-                Params,
-            },
-            oracle::v1::GenesisState as OracleGenesisState,
+        slinky::market_map::v1::{
+            MarketMap,
+            Params,
         },
     };
 
@@ -141,7 +137,7 @@ pub(crate) fn proto_genesis_state()
         fees: Some(default_fees().to_raw()),
         slinky: Some(SlinkyGenesis {
             market_map: Some(
-                MarketMapGenesisState {
+                astria_core::slinky::market_map::v1::GenesisState {
                     market_map: MarketMap {
                         markets: IndexMap::new(),
                     },
@@ -154,11 +150,10 @@ pub(crate) fn proto_genesis_state()
                 .into_raw(),
             ),
             oracle: Some(
-                OracleGenesisState {
+                astria_core::generated::astria_vendored::slinky::oracle::v1::GenesisState {
                     currency_pair_genesis: vec![],
                     next_id: 0,
-                }
-                .into_raw(),
+                },
             ),
         }),
     }
