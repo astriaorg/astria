@@ -23,14 +23,11 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    app::{
-        test_utils::{
-            get_alice_signing_key,
-            get_bridge_signing_key,
-            initialize_app,
-            BOB_ADDRESS,
-        },
-        Fee,
+    app::test_utils::{
+        get_alice_signing_key,
+        get_bridge_signing_key,
+        initialize_app,
+        BOB_ADDRESS,
     },
     assets::StateReadExt as _,
     authority::StateReadExt as _,
