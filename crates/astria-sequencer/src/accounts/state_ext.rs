@@ -317,9 +317,10 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_account_balance(
             &address,
             asset,
-            balance
-                .checked_sub(amount)
-                .ok_or_eyre("subtracting from account balance failed due to insufficient funds")?,
+            balance.checked_sub(amount).ok_or_eyre(format!(
+                "subtracting amount ({amount}) from account balance ({balance}) failed due to \
+                 insufficient funds"
+            ))?,
         )
         .wrap_err("failed to store updated account balance in database")?;
         Ok(())
