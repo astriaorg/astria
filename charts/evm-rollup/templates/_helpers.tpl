@@ -58,9 +58,6 @@ Full image paths for Astria built images
 {{- define "conductor.image" -}}
 {{ .Values.images.conductor.repo }}:{{ if .Values.global.dev }}{{ .Values.images.conductor.devTag }}{{ else }}{{ .Values.images.conductor.tag }}{{ end }}
 {{- end }}
-{{- define "composer.image" -}}
-{{ .Values.images.composer.repo }}:{{ if .Values.global.dev }}{{ .Values.images.composer.devTag }}{{ else }}{{ .Values.images.composer.tag }}{{ end }}
-{{- end }}
 
 
 {{/*

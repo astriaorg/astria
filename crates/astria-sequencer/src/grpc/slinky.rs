@@ -277,7 +277,7 @@ impl OracleService for SequencerServer {
         let snapshot = self.storage.latest_snapshot();
         let currency_pair_mapping = snapshot
             .currency_pairs_with_ids()
-            .map_ok(
+            .map(
                 |CurrencyPairWithId {
                      id,
                      currency_pair,

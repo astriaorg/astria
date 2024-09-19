@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -92,19 +93,26 @@ impl BridgeWithdrawer {
             .parse()
             .wrap_err("failed to parse sequencer bridge address")?;
 
+        let sequencer_grpc_connection =
+            tonic::transport::Endpoint::new(sequencer_grpc_endpoint)?.connect_lazy();
+        let sequencer_grpc_client =
+            sequencer_service_client::SequencerServiceClient::new(sequencer_grpc_connection);
+        let sequencer_cometbft_client =
+            sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
+                .wrap_err("failed constructing cometbft http client")?;
+
         // make startup object
         let startup = startup::Builder {
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
             sequencer_chain_id,
-            sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
+            sequencer_cometbft_client: sequencer_cometbft_client.clone(),
             sequencer_bridge_address,
-            sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
+            sequencer_grpc_client: sequencer_grpc_client.clone(),
             expected_fee_asset: fee_asset_denomination,
             metrics,
         }
-        .build()
-        .wrap_err("failed to initialize startup")?;
+        .build();
 
         let startup_handle = startup::InfoHandle::new(state.subscribe());
 
@@ -112,8 +120,8 @@ impl BridgeWithdrawer {
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             startup_handle: startup_handle.clone(),
-            sequencer_cometbft_endpoint,
-            sequencer_grpc_endpoint,
+            sequencer_cometbft_client,
+            sequencer_grpc_client,
             sequencer_key_path,
             sequencer_address_prefix: sequencer_address_prefix.clone(),
             state: state.clone(),

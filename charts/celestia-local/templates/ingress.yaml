@@ -5,62 +5,36 @@ metadata:
   namespace: {{ $.Values.global.namespace }}
   labels:
     app: celestia-local-network
+    {{- with $.Values.ingress.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
   annotations:
     nginx.ingress.kubernetes.io/enable-cors: "true"
     # allow requests from bridge web app
     nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  {{- range $key, $value := $.Values.ingress.annotations }}
+    {{ $key }}: {{ tpl $value $ | quote }}
+  {{- end }}
 spec:
-  ingressClassName: nginx
+  ingressClassName: {{ $.Values.ingress.className }}
   rules:
-    - host: rpc.node.celestia.localdev.me
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: celestia-service
-                port:
-                  name: bridge-jsonrpc
-    - host: rest.node.celestia.localdev.me
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: celestia-service
-                port:
-                  name: bridge-rest
-    - host: token.node.celestia.localdev.me
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: celestia-service
-                port:
-                  name: token-svc
-    - host: rpc.app.celestia.localdev.me
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: celestia-app-service
-                port:
-                  name: app-rpc
-    - host: rest.app.celestia.localdev.me
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: celestia-app-service
-                port:
-                  name: app-rest
+    {{- range $service, $ingress := $.Values.ingress.services }}
+    {{- with $ingress.hosts }}
+    {{- range $host := . }}
+      - host: {{ tpl $host $ }}
+        http:
+          paths:
+            - path: {{ $ingress.path }}
+              pathType: {{ $ingress.pathType }}
+              backend:
+                service:
+                  {{- with $ingress.service }}
+                  name: {{ .name }}
+                  port:
+                    name: {{ .port.name }}
+                  {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}

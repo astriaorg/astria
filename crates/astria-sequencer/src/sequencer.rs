@@ -1,8 +1,3 @@
-use anyhow::{
-    anyhow,
-    Context as _,
-    Result,
-};
 use astria_core::generated::{
     astria_vendored::slinky::{
         marketmap::v1::query_server::QueryServer as MarketMapQueryServer,
@@ -13,6 +8,15 @@ use astria_core::generated::{
         },
     },
     sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer,
+};
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        eyre,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use penumbra_tower_trace::{
     trace::request_span,
@@ -94,7 +98,8 @@ impl Sequencer {
                 .collect(),
         )
         .await
-        .context("failed to load storage backing chain state")?;
+        .map_err(anyhow_to_eyre)
+        .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
 
         // the native asset should be configurable only at genesis.
@@ -146,7 +151,7 @@ impl Sequencer {
             metrics,
         )
         .await
-        .context("failed to initialize app")?;
+        .wrap_err("failed to initialize app")?;
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -158,7 +163,7 @@ impl Sequencer {
             }));
         let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
         let info_service =
-            service::Info::new(storage.clone()).context("failed initializing info service")?;
+            service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
         let snapshot_service = service::Snapshot;
 
         let server = Server::builder()
@@ -167,7 +172,7 @@ impl Sequencer {
             .mempool(mempool_service)
             .snapshot(snapshot_service)
             .finish()
-            .ok_or_else(|| anyhow!("server builder didn't return server; are all fields set?"))?;
+            .ok_or_eyre("server builder didn't return server; are all fields set?")?;
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
         let (server_exit_tx, server_exit_rx) = tokio::sync::oneshot::channel();
@@ -175,7 +180,7 @@ impl Sequencer {
         let grpc_addr = config
             .grpc_addr
             .parse()
-            .context("failed to parse grpc_addr address")?;
+            .wrap_err("failed to parse grpc_addr address")?;
         let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
 
         info!(config.listen_addr, "starting sequencer");
@@ -204,11 +209,11 @@ impl Sequencer {
 
         shutdown_tx
             .send(())
-            .map_err(|()| anyhow!("failed to send shutdown signal to grpc server"))?;
+            .map_err(|()| eyre!("failed to send shutdown signal to grpc server"))?;
         grpc_server_handle
             .await
-            .context("grpc server task failed")?
-            .context("grpc server failed")?;
+            .wrap_err("grpc server task failed")?
+            .wrap_err("grpc server failed")?;
         server_handle.abort();
         Ok(())
     }

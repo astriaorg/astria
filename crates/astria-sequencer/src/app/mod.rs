@@ -20,11 +20,6 @@ use std::{
 };
 
 pub(crate) use action_handler::ActionHandler;
-use anyhow::{
-    anyhow,
-    ensure,
-    Context,
-};
 use astria_core::{
     generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
@@ -38,11 +33,24 @@ use astria_core::{
     },
     sequencerblock::v1alpha1::block::SequencerBlock,
 };
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        ensure,
+        eyre,
+        ContextCompat as _,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
+};
 use cnidarium::{
     ArcStateDeltaExt,
     Snapshot,
     StagedWriteBatch,
     StateDelta,
+    StateRead,
     Storage,
 };
 use prost::Message as _;
@@ -73,12 +81,10 @@ use tracing::{
 
 use crate::{
     accounts::{
-        self,
         component::AccountsComponent,
-        StateReadExt,
         StateWriteExt as _,
     },
-    address::StateWriteExt,
+    address::StateWriteExt as _,
     api_state_ext::StateWriteExt as _,
     app::vote_extension::ProposalHandler,
     assets::{
@@ -162,6 +168,10 @@ pub(crate) struct App {
     // `prepare_proposal` was not called.
     executed_proposal_hash: Hash,
 
+    // This is set when a `FeeChange` or `FeeAssetChange` action is seen in a block to flag
+    // to the mempool to recost all transactions.
+    recost_mempool: bool,
+
     // cache of results of executing of transactions in `prepare_proposal` or `process_proposal`.
     // cleared at the end of each block.
     execution_results: Option<Vec<tendermint::abci::types::ExecTxResult>>,
@@ -191,13 +201,14 @@ impl App {
         mempool: Mempool,
         vote_extension_handler: vote_extension::Handler,
         metrics: &'static Metrics,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         debug!("initializing App instance");
 
         let app_hash: AppHash = snapshot
             .root_hash()
             .await
-            .context("failed to get current root hash")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to get current root hash")?
             .0
             .to_vec()
             .try_into()
@@ -213,6 +224,7 @@ impl App {
             validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_results: None,
+            recost_mempool: false,
             write_batch: None,
             app_hash,
             vote_extension_handler,
@@ -227,7 +239,7 @@ impl App {
         genesis_state: GenesisAppState,
         genesis_validators: Vec<ValidatorUpdate>,
         chain_id: String,
-    ) -> anyhow::Result<AppHash> {
+    ) -> Result<AppHash> {
         let mut state_tx = self
             .state
             .try_begin_transaction()
@@ -240,9 +252,10 @@ impl App {
         state_tx.put_native_asset(native_asset);
         state_tx
             .put_ibc_asset(native_asset)
-            .context("failed to commit native asset as ibc asset to state")?;
+            .wrap_err("failed to commit native asset as ibc asset to state")?;
 
-        state_tx.put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?);
+        state_tx
+            .put_chain_id_and_revision_number(chain_id.try_into().wrap_err("invalid chain ID")?);
         state_tx.put_block_height(0);
 
         for fee_asset in genesis_state.allowed_fee_assets() {
@@ -252,7 +265,7 @@ impl App {
         // call init_chain on all components
         AccountsComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .context("failed to call init_chain on AccountsComponent")?;
+            .wrap_err("failed to call init_chain on AccountsComponent")?;
         AuthorityComponent::init_chain(
             &mut state_tx,
             &AuthorityComponentAppState {
@@ -261,29 +274,29 @@ impl App {
             },
         )
         .await
-        .context("failed to call init_chain on AuthorityComponent")?;
+        .wrap_err("failed to call init_chain on AuthorityComponent")?;
         BridgeComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .context("failed to call init_chain on BridgeComponent")?;
+            .wrap_err("failed to call init_chain on BridgeComponent")?;
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .context("failed to call init_chain on IbcComponent")?;
+            .wrap_err("failed to call init_chain on IbcComponent")?;
         SequenceComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .context("failed to call init_chain on SequenceComponent")?;
+            .wrap_err("failed to call init_chain on SequenceComponent")?;
         MarketMapComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .context("failed to call init_chain on MarketMapComponent")?;
+            .wrap_err("failed to call init_chain on MarketMapComponent")?;
         OracleComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .context("failed to call init_chain on OracleComponent")?;
+            .wrap_err("failed to call init_chain on OracleComponent")?;
 
         state_tx.apply();
 
         let app_hash = self
             .prepare_commit(storage)
             .await
-            .context("failed to prepare commit")?;
+            .wrap_err("failed to prepare commit")?;
         debug!(app_hash = %telemetry::display::base64(&app_hash), "init_chain completed");
         Ok(app_hash)
     }
@@ -313,13 +326,13 @@ impl App {
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
-    ) -> anyhow::Result<abci::response::PrepareProposal> {
+    ) -> Result<abci::response::PrepareProposal> {
         self.validator_address = Some(prepare_proposal.proposer_address);
         self.update_state_for_new_round(&storage);
 
         // create the extended commit info from the local last commit
         let Some(last_commit) = prepare_proposal.local_last_commit else {
-            anyhow::bail!("local last commit is empty; this should not occur")
+            bail!("local last commit is empty; this should not occur")
         };
 
         // if this fails, we shouldn't return an error, but instead leave
@@ -349,7 +362,7 @@ impl App {
         let mut extended_commit_info_bytes =
             ExtendedCommitInfo::from(extended_commit_info).encode_to_vec();
         let max_tx_bytes = usize::try_from(prepare_proposal.max_tx_bytes)
-            .context("failed to convert max_tx_bytes to usize")?;
+            .wrap_err("failed to convert max_tx_bytes to usize")?;
 
         // adjust max block size to account for extended commit info
         let adjusted_max_tx_bytes = max_tx_bytes
@@ -366,7 +379,7 @@ impl App {
                 max_tx_bytes
             });
         let mut block_size_constraints = BlockSizeConstraints::new(adjusted_max_tx_bytes)
-            .context("failed to create block size constraints")?;
+            .wrap_err("failed to create block size constraints")?;
 
         let block_data = BlockData {
             misbehavior: prepare_proposal.misbehavior,
@@ -378,13 +391,13 @@ impl App {
 
         self.pre_execute_transactions(block_data)
             .await
-            .context("failed to prepare for executing block")?;
+            .wrap_err("failed to prepare for executing block")?;
 
         // ignore the txs passed by cometbft in favour of our app-side mempool
         let (included_tx_bytes, signed_txs_included) = self
             .execute_transactions_prepare_proposal(&mut block_size_constraints)
             .await
-            .context("failed to execute transactions")?;
+            .wrap_err("failed to execute transactions")?;
         self.metrics
             .record_proposal_transactions(signed_txs_included.len());
 
@@ -392,7 +405,7 @@ impl App {
             .state
             .get_block_deposits()
             .await
-            .context("failed to get block deposits in prepare_proposal")?;
+            .wrap_err("failed to get block deposits in prepare_proposal")?;
         self.metrics.record_proposal_deposits(deposits.len());
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
@@ -416,7 +429,7 @@ impl App {
         &mut self,
         process_proposal: abci::request::ProcessProposal,
         storage: Storage,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         // if we proposed this block (ie. prepare_proposal was called directly before this), then
         // we skip execution for this `process_proposal` call.
         //
@@ -444,16 +457,16 @@ impl App {
         // the first transaction in the block should be the extended commit info
         let extended_commit_info_bytes = txs
             .pop_front()
-            .context("no extended commit info in proposal")?;
+            .wrap_err("no extended commit info in proposal")?;
 
         // decode the extended commit info and validate it
         let extended_commit_info = ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
-            .context("failed to decode extended commit info")?;
+            .wrap_err("failed to decode extended commit info")?;
         let extended_commit_info = extended_commit_info
             .try_into()
-            .context("failed to convert extended commit info from proto to native")?;
+            .wrap_err("failed to convert extended commit info from proto to native")?;
         let Some(last_commit) = process_proposal.proposed_last_commit else {
-            anyhow::bail!("proposed last commit is empty; this should not occur")
+            bail!("proposed last commit is empty; this should not occur")
         };
         ProposalHandler::validate_extended_commit_info(
             &self.state,
@@ -462,21 +475,21 @@ impl App {
             &extended_commit_info,
         )
         .await
-        .context("failed to validate extended commit info")?;
+        .wrap_err("failed to validate extended commit info")?;
 
         let received_rollup_datas_root: [u8; 32] = txs
             .pop_front()
-            .context("no transaction commitment in proposal")?
+            .ok_or_eyre("no transaction commitment in proposal")?
             .to_vec()
             .try_into()
-            .map_err(|_| anyhow!("transaction commitment must be 32 bytes"))?;
+            .map_err(|_| eyre!("transaction commitment must be 32 bytes"))?;
 
         let received_rollup_ids_root: [u8; 32] = txs
             .pop_front()
-            .context("no chain IDs commitment in proposal")?
+            .ok_or_eyre("no chain IDs commitment in proposal")?
             .to_vec()
             .try_into()
-            .map_err(|_| anyhow!("chain IDs commitment must be 32 bytes"))?;
+            .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
 
         let expected_txs_len = txs.len();
 
@@ -490,7 +503,7 @@ impl App {
 
         self.pre_execute_transactions(block_data)
             .await
-            .context("failed to prepare for executing block")?;
+            .wrap_err("failed to prepare for executing block")?;
 
         // we don't care about the cometbft max_tx_bytes here, as cometbft would have
         // rejected the proposal if it was too large.
@@ -509,10 +522,10 @@ impl App {
 
         self.execute_transactions_process_proposal(signed_txs.clone(), &mut block_size_constraints)
             .await
-            .context("failed to execute transactions")?;
+            .wrap_err("failed to execute transactions")?;
 
         let Some(execution_results) = self.execution_results.as_ref() else {
-            anyhow::bail!("execution results must be present after executing transactions")
+            bail!("execution results must be present after executing transactions")
         };
 
         // all txs in the proposal should be deserializable and executable
@@ -529,7 +542,7 @@ impl App {
             .state
             .get_block_deposits()
             .await
-            .context("failed to get block deposits in process_proposal")?;
+            .wrap_err("failed to get block deposits in process_proposal")?;
         self.metrics.record_proposal_deposits(deposits.len());
 
         let GeneratedCommitments {
@@ -574,7 +587,7 @@ impl App {
     async fn execute_transactions_prepare_proposal(
         &mut self,
         block_size_constraints: &mut BlockSizeConstraints,
-    ) -> anyhow::Result<(Vec<bytes::Bytes>, Vec<SignedTransaction>)> {
+    ) -> Result<(Vec<bytes::Bytes>, Vec<SignedTransaction>)> {
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "executing transactions from mempool");
 
@@ -585,11 +598,9 @@ impl App {
         let mut excluded_txs: usize = 0;
 
         // get copy of transactions to execute from mempool
-        let current_account_nonce_getter =
-            |address: [u8; 20]| self.state.get_account_nonce(address);
         let pending_txs = self
             .mempool
-            .builder_queue(current_account_nonce_getter)
+            .builder_queue(&self.state)
             .await
             .expect("failed to fetch pending transactions");
 
@@ -649,10 +660,10 @@ impl App {
                     });
                     block_size_constraints
                         .sequencer_checked_add(tx_sequence_data_bytes)
-                        .context("error growing sequencer block size")?;
+                        .wrap_err("error growing sequencer block size")?;
                     block_size_constraints
                         .cometbft_checked_add(tx_len)
-                        .context("error growing cometBFT block size")?;
+                        .wrap_err("error growing cometBFT block size")?;
                     validated_txs.push(bytes.into());
                     included_signed_txs.push((*tx).clone());
                 }
@@ -728,7 +739,7 @@ impl App {
         &mut self,
         txs: Vec<SignedTransaction>,
         block_size_constraints: &mut BlockSizeConstraints,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let mut excluded_tx_count = 0_f64;
         let mut execution_results = Vec::new();
 
@@ -765,10 +776,10 @@ impl App {
                     });
                     block_size_constraints
                         .sequencer_checked_add(tx_sequence_data_bytes)
-                        .context("error growing sequencer block size")?;
+                        .wrap_err("error growing sequencer block size")?;
                     block_size_constraints
                         .cometbft_checked_add(tx_len)
-                        .context("error growing cometBFT block size")?;
+                        .wrap_err("error growing cometBFT block size")?;
                 }
                 Err(e) => {
                     debug!(
@@ -798,13 +809,16 @@ impl App {
     ///
     /// this *must* be called anytime before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
-    #[instrument(name = "App::pre_execute_transactions", skip_all)]
-    async fn pre_execute_transactions(&mut self, block_data: BlockData) -> anyhow::Result<()> {
+    #[instrument(name = "App::pre_execute_transactions", skip_all, err)]
+    async fn pre_execute_transactions(&mut self, block_data: BlockData) -> Result<()> {
         let chain_id = self
             .state
             .get_chain_id()
             .await
-            .context("failed to get chain ID from state")?;
+            .wrap_err("failed to get chain ID from state")?;
+
+        // reset recost flag
+        self.recost_mempool = false;
 
         // call begin_block on all components
         // NOTE: the fields marked `unused` are not used by any of the components;
@@ -841,7 +855,7 @@ impl App {
 
         self.begin_block(&begin_block)
             .await
-            .context("failed to call begin_block")?;
+            .wrap_err("failed to call begin_block")?;
 
         Ok(())
     }
@@ -850,7 +864,7 @@ impl App {
     pub(crate) async fn extend_vote(
         &mut self,
         _extend_vote: abci::request::ExtendVote,
-    ) -> anyhow::Result<abci::response::ExtendVote> {
+    ) -> Result<abci::response::ExtendVote> {
         self.vote_extension_handler.extend_vote(&self.state).await
     }
 
@@ -874,17 +888,17 @@ impl App {
         &mut self,
         finalize_block: abci::request::FinalizeBlock,
         storage: Storage,
-    ) -> anyhow::Result<abci::response::FinalizeBlock> {
+    ) -> Result<abci::response::FinalizeBlock> {
         let chain_id = self
             .state
             .get_chain_id()
             .await
-            .context("failed to get chain ID from state")?;
+            .wrap_err("failed to get chain ID from state")?;
         let sudo_address = self
             .state
             .get_sudo_address()
             .await
-            .context("failed to get sudo address from state")?;
+            .wrap_err("failed to get sudo address from state")?;
 
         // convert tendermint id to astria address; this assumes they are
         // the same address, as they are both ed25519 keys
@@ -893,7 +907,7 @@ impl App {
         let height = finalize_block.height;
         let time = finalize_block.time;
         let Hash::Sha256(block_hash) = finalize_block.hash else {
-            anyhow::bail!("finalized block hash is empty; this should not occur")
+            bail!("finalized block hash is empty; this should not occur")
         };
 
         // If we previously executed txs in a different proposal than is being processed,
@@ -910,10 +924,10 @@ impl App {
 
         let extended_commit_info_bytes = &finalize_block.txs[0];
         let extended_commit_info = ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
-            .context("failed to decode extended commit info")?;
+            .wrap_err("failed to decode extended commit info")?;
         let extended_commit_info = extended_commit_info
             .try_into()
-            .context("failed to convert extended commit info from proto to native")?;
+            .wrap_err("failed to convert extended commit info from proto to native")?;
         let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
             StateDelta::new(self.state.clone());
         crate::app::vote_extension::apply_prices_from_vote_extensions(
@@ -923,7 +937,7 @@ impl App {
             finalize_block.height.value(),
         )
         .await
-        .context("failed to apply prices from vote extensions")?;
+        .wrap_err("failed to apply prices from vote extensions")?;
         let _ = self.apply(state_tx);
 
         // cometbft expects a result for every tx in the block, so we need to return a
@@ -944,12 +958,12 @@ impl App {
 
             self.pre_execute_transactions(block_data)
                 .await
-                .context("failed to execute block")?;
+                .wrap_err("failed to execute block")?;
 
             // skip the first three transactions, as they are injected transactions
             for tx in finalize_block.txs.iter().skip(3) {
                 let signed_tx = signed_transaction_from_bytes(tx)
-                    .context("protocol error; only valid txs should be finalized")?;
+                    .wrap_err("protocol error; only valid txs should be finalized")?;
 
                 match self.execute_transaction(Arc::new(signed_tx)).await {
                     Ok(events) => tx_results.push(ExecTxResult {
@@ -992,11 +1006,11 @@ impl App {
             .state
             .get_block_deposits()
             .await
-            .context("failed to get block deposits in end_block")?;
+            .wrap_err("failed to get block deposits in end_block")?;
         state_tx
             .clear_block_deposits()
             .await
-            .context("failed to clear block deposits")?;
+            .wrap_err("failed to clear block deposits")?;
         debug!(
             deposits = %telemetry::display::json(&deposits),
             "got block deposits from state"
@@ -1015,13 +1029,16 @@ impl App {
                 .collect(),
             deposits,
         )
-        .context("failed to convert block info and data to SequencerBlock")?;
+        .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
             .put_sequencer_block(sequencer_block)
-            .context("failed to write sequencer block to state")?;
+            .wrap_err("failed to write sequencer block to state")?;
 
         // update the priority of any txs in the mempool based on the updated app state
-        update_mempool_after_finalization(&mut self.mempool, &state_tx).await;
+        if self.recost_mempool {
+            self.metrics.increment_mempool_recosted();
+        }
+        update_mempool_after_finalization(&mut self.mempool, &state_tx, self.recost_mempool).await;
 
         // events that occur after end_block are ignored here;
         // there should be none anyways.
@@ -1031,7 +1048,7 @@ impl App {
         let app_hash = self
             .prepare_commit(storage.clone())
             .await
-            .context("failed to prepare commit")?;
+            .wrap_err("failed to prepare commit")?;
 
         Ok(abci::response::FinalizeBlock {
             events: end_block.events,
@@ -1042,7 +1059,8 @@ impl App {
         })
     }
 
-    async fn prepare_commit(&mut self, storage: Storage) -> anyhow::Result<AppHash> {
+    #[instrument(skip_all, err)]
+    async fn prepare_commit(&mut self, storage: Storage) -> Result<AppHash> {
         // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
         let mut state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
@@ -1064,13 +1082,14 @@ impl App {
         let write_batch = storage
             .prepare_commit(state)
             .await
-            .context("failed to prepare commit")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to prepare commit")?;
         let app_hash: AppHash = write_batch
             .root_hash()
             .0
             .to_vec()
             .try_into()
-            .context("failed to convert app hash")?;
+            .wrap_err("failed to convert app hash")?;
         self.write_batch = Some(write_batch);
         Ok(app_hash)
     }
@@ -1079,9 +1098,8 @@ impl App {
     async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
-    ) -> anyhow::Result<Vec<abci::Event>> {
-        let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
-            StateDelta::new(self.state.clone());
+    ) -> Result<Vec<abci::Event>> {
+        let mut state_tx = StateDelta::new(self.state.clone());
 
         // store the block height
         state_tx.put_block_height(begin_block.header.height.into());
@@ -1092,25 +1110,25 @@ impl App {
         let mut arc_state_tx = Arc::new(state_tx);
         AccountsComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on AccountsComponent")?;
+            .wrap_err("failed to call begin_block on AccountsComponent")?;
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on AuthorityComponent")?;
+            .wrap_err("failed to call begin_block on AuthorityComponent")?;
         BridgeComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on BridgeComponent")?;
+            .wrap_err("failed to call begin_block on BridgeComponent")?;
         IbcComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on IbcComponent")?;
+            .wrap_err("failed to call begin_block on IbcComponent")?;
         SequenceComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on SequenceComponent")?;
+            .wrap_err("failed to call begin_block on SequenceComponent")?;
         MarketMapComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on MarketMapComponent")?;
+            .wrap_err("failed to call begin_block on MarketMapComponent")?;
         OracleComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .context("failed to call begin_block on OracleComponent")?;
+            .wrap_err("failed to call begin_block on OracleComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1123,11 +1141,11 @@ impl App {
     async fn execute_transaction(
         &mut self,
         signed_tx: Arc<SignedTransaction>,
-    ) -> anyhow::Result<Vec<Event>> {
+    ) -> Result<Vec<Event>> {
         signed_tx
             .check_stateless()
             .await
-            .context("stateless check failed")?;
+            .wrap_err("stateless check failed")?;
 
         let mut state_tx = self
             .state
@@ -1137,7 +1155,14 @@ impl App {
         signed_tx
             .check_and_execute(&mut state_tx)
             .await
-            .context("failed executing transaction")?;
+            .wrap_err("failed executing transaction")?;
+
+        // flag mempool for cleaning if we ran a fee change action
+        self.recost_mempool = self.recost_mempool
+            || signed_tx
+                .actions()
+                .iter()
+                .any(|action| matches!(action, Action::FeeAssetChange(_) | Action::FeeChange(_)));
 
         Ok(state_tx.apply().1)
     }
@@ -1147,7 +1172,7 @@ impl App {
         &mut self,
         height: u64,
         fee_recipient: [u8; 20],
-    ) -> anyhow::Result<abci::response::EndBlock> {
+    ) -> Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
@@ -1160,25 +1185,25 @@ impl App {
         // call end_block on all components
         AccountsComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on AccountsComponent")?;
+            .wrap_err("failed to call end_block on AccountsComponent")?;
         AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on AuthorityComponent")?;
+            .wrap_err("failed to call end_block on AuthorityComponent")?;
         BridgeComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on BridgeComponent")?;
+            .wrap_err("failed to call end_block on BridgeComponent")?;
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on IbcComponent")?;
+            .wrap_err("failed to call end_block on IbcComponent")?;
         SequenceComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on SequenceComponent")?;
+            .wrap_err("failed to call end_block on SequenceComponent")?;
         MarketMapComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on MarketMapComponent")?;
+            .wrap_err("failed to call end_block on MarketMapComponent")?;
         OracleComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .context("failed to call end_block on OracleComponent")?;
+            .wrap_err("failed to call end_block on OracleComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1198,13 +1223,13 @@ impl App {
             .state
             .get_block_fees()
             .await
-            .context("failed to get block fees")?;
+            .wrap_err("failed to get block fees")?;
 
         for (asset, amount) in fees {
             state_tx
                 .increase_balance(fee_recipient, asset, amount)
                 .await
-                .context("failed to increase fee recipient balance")?;
+                .wrap_err("failed to increase fee recipient balance")?;
         }
 
         // clear block fees
@@ -1214,7 +1239,7 @@ impl App {
         Ok(abci::response::EndBlock {
             validator_updates: validator_updates
                 .try_into_cometbft()
-                .context("failed converting astria validators to cometbft compatible type")?,
+                .wrap_err("failed converting astria validators to cometbft compatible type")?,
             events,
             ..Default::default()
         })
@@ -1264,18 +1289,17 @@ impl App {
     }
 }
 
-// updates the priority of the txs in the mempool based on the current state,
-// and removes any txs that are now invalid.
+// updates the mempool to reflect current state
 //
-// NOTE: this function locks the mempool until every tx has been checked.
+// NOTE: this function locks the mempool until all accounts have been cleaned.
 // this could potentially stall consensus from moving to the next round if
-// the mempool is large.
-async fn update_mempool_after_finalization<S: accounts::StateReadExt>(
+// the mempool is large, especially if recosting transactions.
+async fn update_mempool_after_finalization<S: StateRead>(
     mempool: &mut Mempool,
     state: &S,
+    recost: bool,
 ) {
-    let current_account_nonce_getter = |address: [u8; 20]| state.get_account_nonce(address);
-    mempool.run_maintenance(current_account_nonce_getter).await;
+    mempool.run_maintenance(state, recost).await;
 }
 
 /// relevant data of a block being executed.
@@ -1290,11 +1314,11 @@ struct BlockData {
     proposer_address: account::Id,
 }
 
-fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransaction> {
+fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<SignedTransaction> {
     let raw = raw::SignedTransaction::decode(bytes)
-        .context("failed to decode protobuf to signed transaction")?;
+        .wrap_err("failed to decode protobuf to signed transaction")?;
     let tx = SignedTransaction::try_from_raw(raw)
-        .context("failed to transform raw signed transaction to verified type")?;
+        .wrap_err("failed to transform raw signed transaction to verified type")?;
 
     Ok(tx)
 }

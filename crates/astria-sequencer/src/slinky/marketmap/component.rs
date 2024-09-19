@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use anyhow::{
-    Context,
-    Result,
-};
 use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
+use astria_eyre::eyre::{
+    Result,
+    WrapErr as _,
+};
 use tendermint::abci::request::{
     BeginBlock,
     EndBlock,
@@ -28,10 +28,10 @@ impl Component for MarketMapComponent {
 
         state
             .put_market_map(app_state.slinky().market_map().market_map.clone())
-            .context("failed to put market map")?;
+            .wrap_err("failed to put market map")?;
         state
             .put_params(app_state.slinky().market_map().params.clone())
-            .context("failed to put params")?;
+            .wrap_err("failed to put params")?;
         Ok(())
     }
 

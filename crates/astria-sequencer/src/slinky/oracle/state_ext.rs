@@ -7,17 +7,21 @@ use std::{
     },
 };
 
-use anyhow::{
-    bail,
-    Context as _,
-    Result,
-};
 use astria_core::slinky::{
     oracle::v1::{
         CurrencyPairState,
         QuotePrice,
     },
     types::v1::CurrencyPair,
+};
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        ContextCompat as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -74,16 +78,16 @@ pub(crate) struct CurrencyPairWithId {
 
 impl<St> Stream for CurrencyPairsWithIdsStream<St>
 where
-    St: Stream<Item = anyhow::Result<(String, Vec<u8>)>>,
+    St: Stream<Item = Result<(String, Vec<u8>)>>,
 {
-    type Item = anyhow::Result<CurrencyPairWithId>;
+    type Item = Result<CurrencyPairWithId>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
         let (key, bytes) = match ready!(this.underlying.as_mut().poll_next(cx)) {
             Some(Ok(item)) => item,
             Some(Err(err)) => {
-                return Poll::Ready(Some(Err(err).context("failed reading from state")));
+                return Poll::Ready(Some(Err(err).wrap_err("failed reading from state")));
             }
             None => return Poll::Ready(None),
         };
@@ -114,16 +118,16 @@ pin_project! {
 
 impl<St> Stream for CurrencyPairsStream<St>
 where
-    St: Stream<Item = anyhow::Result<String>>,
+    St: Stream<Item = Result<String>>,
 {
-    type Item = anyhow::Result<CurrencyPair>;
+    type Item = Result<CurrencyPair>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
         let key = match ready!(this.underlying.as_mut().poll_next(cx)) {
             Some(Ok(item)) => item,
             Some(Err(err)) => {
-                return Poll::Ready(Some(Err(err).context("failed reading from state")));
+                return Poll::Ready(Some(Err(err).wrap_err("failed reading from state")));
             }
             None => return Poll::Ready(None),
         };
@@ -139,11 +143,11 @@ where
     }
 }
 
-fn extract_currency_pair_from_key(key: &str) -> anyhow::Result<CurrencyPair> {
+fn extract_currency_pair_from_key(key: &str) -> Result<CurrencyPair> {
     key.strip_prefix(CURRENCY_PAIR_TO_ID_PREFIX)
-        .context("failed to strip prefix from currency pair state key")?
+        .wrap_err("failed to strip prefix from currency pair state key")?
         .parse::<CurrencyPair>()
-        .context("failed to parse storage key suffix as currency pair")
+        .wrap_err("failed to parse storage key suffix as currency pair")
 }
 
 #[async_trait]
@@ -153,11 +157,12 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&currency_pair_to_id_storage_key(currency_pair))
             .await
-            .context("failed reading currency pair id from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading currency pair id from state")?
         else {
             bail!("currency pair not found in state")
         };
-        let Id(id) = Id::try_from_slice(&bytes).context("invalid currency pair id bytes")?;
+        let Id(id) = Id::try_from_slice(&bytes).wrap_err("invalid currency pair id bytes")?;
         Ok(id)
     }
 
@@ -166,11 +171,12 @@ pub(crate) trait StateReadExt: StateRead {
         let bytes = self
             .get_raw(&id_to_currency_pair_storage_key(id))
             .await
-            .context("failed to get currency pair from state")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to get currency pair from state")?;
         match bytes {
             Some(bytes) => {
                 let currency_pair = serde_json::from_slice(&bytes)
-                    .context("failed to deserialize currency pair")?;
+                    .wrap_err("failed to deserialize currency pair")?;
                 Ok(Some(currency_pair))
             }
             None => Ok(None),
@@ -196,12 +202,13 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(NUM_CURRENCY_PAIRS_KEY)
             .await
-            .context("failed reading number of currency pairs from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading number of currency pairs from state")?
         else {
             return Ok(0);
         };
         let Count(num_currency_pairs) =
-            Count::try_from_slice(&bytes).context("invalid number of currency pairs bytes")?;
+            Count::try_from_slice(&bytes).wrap_err("invalid number of currency pairs bytes")?;
         Ok(num_currency_pairs)
     }
 
@@ -210,12 +217,13 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(NUM_REMOVED_CURRENCY_PAIRS_KEY)
             .await
-            .context("failed reading number of removed currency pairs from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading number of removed currency pairs from state")?
         else {
             return Ok(0);
         };
         let Count(num_removed_currency_pairs) = Count::try_from_slice(&bytes)
-            .context("invalid number of removed currency pairs bytes")?;
+            .wrap_err("invalid number of removed currency pairs bytes")?;
         Ok(num_removed_currency_pairs)
     }
 
@@ -227,11 +235,12 @@ pub(crate) trait StateReadExt: StateRead {
         let bytes = self
             .get_raw(&currency_pair_state_storage_key(currency_pair))
             .await
-            .context("failed to get currency pair state from state")?;
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to get currency pair state from state")?;
         match bytes {
             Some(bytes) => {
                 let currency_pair_state = serde_json::from_slice(&bytes)
-                    .context("failed to deserialize currency pair state")?;
+                    .wrap_err("failed to deserialize currency pair state")?;
                 Ok(Some(currency_pair_state))
             }
             None => Ok(None),
@@ -243,12 +252,13 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(NEXT_CURRENCY_PAIR_ID_KEY)
             .await
-            .context("failed reading next currency pair id from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading next currency pair id from state")?
         else {
             return Ok(0);
         };
         let Id(next_currency_pair_id) =
-            Id::try_from_slice(&bytes).context("invalid next currency pair id bytes")?;
+            Id::try_from_slice(&bytes).wrap_err("invalid next currency pair id bytes")?;
         Ok(next_currency_pair_id)
     }
 }
@@ -259,7 +269,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_currency_pair_id(&mut self, currency_pair: &CurrencyPair, id: u64) -> Result<()> {
-        let bytes = borsh::to_vec(&Id(id)).context("failed to serialize currency pair id")?;
+        let bytes = borsh::to_vec(&Id(id)).wrap_err("failed to serialize currency pair id")?;
         self.put_raw(currency_pair_to_id_storage_key(currency_pair), bytes);
         Ok(())
     }
@@ -267,7 +277,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_currency_pair(&mut self, id: u64, currency_pair: &CurrencyPair) -> Result<()> {
         let bytes =
-            serde_json::to_vec(&currency_pair).context("failed to serialize currency pair")?;
+            serde_json::to_vec(&currency_pair).wrap_err("failed to serialize currency pair")?;
         self.put_raw(id_to_currency_pair_storage_key(id), bytes);
         Ok(())
     }
@@ -275,7 +285,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_num_currency_pairs(&mut self, num_currency_pairs: u64) -> Result<()> {
         let bytes = borsh::to_vec(&Count(num_currency_pairs))
-            .context("failed to serialize number of currency pairs")?;
+            .wrap_err("failed to serialize number of currency pairs")?;
         self.put_raw(NUM_CURRENCY_PAIRS_KEY.to_string(), bytes);
         Ok(())
     }
@@ -283,7 +293,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_num_removed_currency_pairs(&mut self, num_removed_currency_pairs: u64) -> Result<()> {
         let bytes = borsh::to_vec(&Count(num_removed_currency_pairs))
-            .context("failed to serialize number of removed currency pairs")?;
+            .wrap_err("failed to serialize number of removed currency pairs")?;
         self.put_raw(NUM_REMOVED_CURRENCY_PAIRS_KEY.to_string(), bytes);
         Ok(())
     }
@@ -295,19 +305,19 @@ pub(crate) trait StateWriteExt: StateWrite {
         currency_pair_state: CurrencyPairState,
     ) -> Result<()> {
         let bytes = serde_json::to_vec(&currency_pair_state)
-            .context("failed to serialize currency pair state")?;
+            .wrap_err("failed to serialize currency pair state")?;
         self.put_raw(currency_pair_state_storage_key(currency_pair), bytes);
         self.put_currency_pair_id(currency_pair, currency_pair_state.id)
-            .context("failed to put currency pair id")?;
+            .wrap_err("failed to put currency pair id")?;
         self.put_currency_pair(currency_pair_state.id, currency_pair)
-            .context("failed to put currency pair")?;
+            .wrap_err("failed to put currency pair")?;
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn put_next_currency_pair_id(&mut self, next_currency_pair_id: u64) -> Result<()> {
         let bytes = borsh::to_vec(&Id(next_currency_pair_id))
-            .context("failed to serialize next currency pair id")?;
+            .wrap_err("failed to serialize next currency pair id")?;
         self.put_raw(NEXT_CURRENCY_PAIR_ID_KEY.to_string(), bytes);
         Ok(())
     }
@@ -321,10 +331,10 @@ pub(crate) trait StateWriteExt: StateWrite {
         let state = if let Some(mut state) = self
             .get_currency_pair_state(currency_pair)
             .await
-            .context("failed to get currency pair state")?
+            .wrap_err("failed to get currency pair state")?
         {
             state.price = price;
-            state.nonce.checked_add(1).context("nonce overflow")?;
+            state.nonce.checked_add(1).wrap_err("nonce overflow")?;
             state
         } else {
             let id = self.get_next_currency_pair_id().await?;
@@ -335,7 +345,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             }
         };
         self.put_currency_pair_state(currency_pair, state)
-            .context("failed to put currency pair state")?;
+            .wrap_err("failed to put currency pair state")?;
         Ok(())
     }
 }

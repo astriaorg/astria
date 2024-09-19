@@ -1,10 +1,5 @@
 use std::collections::HashMap;
 
-use anyhow::{
-    bail,
-    ensure,
-    Context as _,
-};
 use astria_core::{
     crypto::Signature,
     generated::astria_vendored::slinky::{
@@ -20,6 +15,13 @@ use astria_core::{
         oracle::v1::QuotePrice,
         types::v1::CurrencyPair,
     },
+};
+use astria_eyre::eyre::{
+    bail,
+    ensure,
+    ContextCompat as _,
+    Result,
+    WrapErr as _,
 };
 use indexmap::IndexMap;
 use prost::Message as _;
@@ -66,7 +68,7 @@ impl Handler {
     pub(crate) async fn extend_vote<S: StateReadExt>(
         &mut self,
         state: &S,
-    ) -> anyhow::Result<abci::response::ExtendVote> {
+    ) -> Result<abci::response::ExtendVote> {
         let Some(oracle_client) = self.oracle_client.as_mut() else {
             // we allow validators to *not* use the oracle sidecar currently,
             // so this will get converted to an empty vote extension when bubbled up.
@@ -122,7 +124,7 @@ async fn verify_vote_extension<S: StateReadExt>(
     state: &S,
     oracle_vote_extension_bytes: bytes::Bytes,
     is_proposal_phase: bool,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let oracle_vote_extension = RawOracleVoteExtension::decode(oracle_vote_extension_bytes)
         .context("failed to decode oracle vote extension")?;
     let max_num_currency_pairs =
@@ -149,7 +151,7 @@ async fn verify_vote_extension<S: StateReadExt>(
 async fn transform_oracle_service_prices<S: StateReadExt>(
     state: &S,
     prices: QueryPricesResponse,
-) -> anyhow::Result<OracleVoteExtension> {
+) -> Result<OracleVoteExtension> {
     let mut strategy_prices = IndexMap::new();
     for (currency_pair_id, price_string) in prices.prices {
         let currency_pair = currency_pair_id
@@ -190,7 +192,7 @@ impl ProposalHandler {
         state: &S,
         height: u64,
         mut extended_commit_info: ExtendedCommitInfo,
-    ) -> anyhow::Result<ExtendedCommitInfo> {
+    ) -> Result<ExtendedCommitInfo> {
         if height == 1 {
             // we're proposing block 1, so nothing to validate
             return Ok(extended_commit_info);
@@ -225,7 +227,7 @@ impl ProposalHandler {
         height: u64,
         last_commit: &CommitInfo,
         extended_commit_info: &ExtendedCommitInfo,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         if height == 1 {
             // we're processing block 1, so nothing to validate (no last commit yet)
             return Ok(());
@@ -247,7 +249,7 @@ async fn validate_vote_extensions<S: StateReadExt>(
     state: &S,
     height: u64,
     extended_commit_info: &ExtendedCommitInfo,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     use tendermint_proto::v0_38::types::CanonicalVoteExtension;
 
     let chain_id = state
@@ -276,19 +278,19 @@ async fn validate_vote_extensions<S: StateReadExt>(
         if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Commit)
             && vote.extension_signature.is_none()
         {
-            anyhow::bail!("vote extension signature is missing for validator {address}",);
+            bail!("vote extension signature is missing for validator {address}",);
         }
 
         if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit)
             && !vote.vote_extension.is_empty()
         {
-            anyhow::bail!("non-commit vote extension present for validator {address}",);
+            bail!("non-commit vote extension present for validator {address}",);
         }
 
         if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit)
             && vote.extension_signature.is_some()
         {
-            anyhow::bail!("non-commit extension signature present for validator {address}",);
+            bail!("non-commit extension signature present for validator {address}",);
         }
 
         if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit) {
@@ -328,7 +330,7 @@ async fn validate_vote_extensions<S: StateReadExt>(
 
     // this shouldn't happen, but good to check anyways
     if total_voting_power == 0 {
-        anyhow::bail!("total voting power is zero");
+        bail!("total voting power is zero");
     }
 
     let required_voting_power = total_voting_power
@@ -353,7 +355,7 @@ async fn validate_vote_extensions<S: StateReadExt>(
 fn validate_extended_commit_against_last_commit(
     last_commit: &CommitInfo,
     extended_commit_info: &ExtendedCommitInfo,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     ensure!(
         last_commit.round == extended_commit_info.round,
         "last commit round does not match extended commit round"
@@ -416,7 +418,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
     extended_commit_info: ExtendedCommitInfo,
     timestamp: Timestamp,
     height: u64,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let votes = extended_commit_info
         .votes
         .iter()
@@ -425,7 +427,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
                 .context("failed to decode oracle vote extension")?;
             Ok(OracleVoteExtension::from_raw(raw))
         })
-        .collect::<anyhow::Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>>>()?;
 
     let prices = aggregate_oracle_votes(state, votes)
         .await
@@ -459,7 +461,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
 async fn aggregate_oracle_votes<S: StateReadExt>(
     state: &S,
     votes: Vec<OracleVoteExtension>,
-) -> anyhow::Result<HashMap<CurrencyPair, u128>> {
+) -> Result<HashMap<CurrencyPair, u128>> {
     // validators are not weighted right now, so we just take the median price for each currency
     // pair
     //

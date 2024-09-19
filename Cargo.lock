@@ -733,6 +733,7 @@ dependencies = [
 name = "astria-eyre"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "eyre",
  "itoa",
  "tokio-test",
@@ -792,10 +793,10 @@ dependencies = [
 name = "astria-sequencer"
 version = "0.17.0"
 dependencies = [
- "anyhow",
  "astria-build-info",
  "astria-config",
  "astria-core",
+ "astria-eyre",
  "astria-merkle",
  "astria-telemetry",
  "async-trait",
@@ -839,11 +840,13 @@ name = "astria-sequencer-client"
 version = "0.1.0"
 dependencies = [
  "astria-core",
+ "astria-eyre",
  "async-trait",
  "futures",
  "futures-util",
  "hex",
  "hex-literal",
+ "humantime",
  "prost",
  "regex",
  "serde",
@@ -856,6 +859,7 @@ dependencies = [
  "tokio-stream",
  "tokio-test",
  "tracing",
+ "tryhard",
  "wiremock",
 ]
 

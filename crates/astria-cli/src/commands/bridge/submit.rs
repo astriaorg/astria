@@ -12,7 +12,7 @@ use astria_core::{
     },
 };
 use astria_sequencer_client::{
-    tendermint_rpc::endpoint,
+    tendermint_rpc::endpoint::tx::Response,
     Address,
     HttpClient,
     SequencerClientExt as _,
@@ -117,7 +117,7 @@ async fn submit_transaction(
     prefix: &str,
     signing_key: &SigningKey,
     actions: Vec<Action>,
-) -> eyre::Result<endpoint::broadcast::tx_commit::Response> {
+) -> eyre::Result<Response> {
     let from_address = Address::builder()
         .array(signing_key.verification_key().address_bytes())
         .prefix(prefix)
@@ -138,18 +138,17 @@ async fn submit_transaction(
     }
     .into_signed(signing_key);
     let res = client
-        .submit_transaction_commit(tx)
+        .submit_transaction_sync(tx)
         .await
         .wrap_err("failed to submit transaction")?;
+
+    let tx_response = client.wait_for_tx_inclusion(res.hash).await;
+
+    ensure!(res.code.is_ok(), "failed to check tx: {}", res.log);
     ensure!(
-        res.check_tx.code.is_ok(),
-        "failed to check tx: {}",
-        res.check_tx.log
-    );
-    ensure!(
-        res.tx_result.code.is_ok(),
+        tx_response.tx_result.code.is_ok(),
         "failed to execute tx: {}",
-        res.tx_result.log
+        tx_response.tx_result.log
     );
-    Ok(res)
+    Ok(tx_response)
 }
