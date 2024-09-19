@@ -299,6 +299,6 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
-    
+
     insta::assert_json_snapshot!(app.app_hash.as_bytes());
 }
