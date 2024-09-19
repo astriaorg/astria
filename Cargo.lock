@@ -499,7 +499,7 @@ dependencies = [
 
 [[package]]
 name = "astria-bridge-contracts"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "astria-core",
  "ethers",
@@ -514,7 +514,7 @@ dependencies = [
 
 [[package]]
 name = "astria-bridge-withdrawer"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "astria-bridge-contracts",
  "astria-build-info",
@@ -561,7 +561,7 @@ dependencies = [
 
 [[package]]
 name = "astria-cli"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "astria-bridge-contracts",
  "astria-core",
@@ -632,7 +632,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -695,7 +695,7 @@ dependencies = [
 
 [[package]]
 name = "astria-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "astria-core",
  "astria-merkle",
@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -834,7 +834,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "astria-core",
  "astria-eyre",
