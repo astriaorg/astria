@@ -756,21 +756,6 @@ async fn emit_deposit<S: StateWrite>(
     Ok(())
 }
 
-#[instrument(skip_all, err)]
-async fn denom_trace<S: ibc::StateWriteExt>(
-    packet_data: FungibleTokenPacketData,
-    state: &mut S,
-) -> Result<denom::TracePrefixed> {
-    let denom = packet_data
-        .denom
-        .parse::<Denom>()
-        .wrap_err("failed parsing denom in packet data as Denom")?;
-    // convert denomination if it's prefixed with `ibc/`
-    // note: this denomination might have a prefix, but it wasn't prefixed by us right now.
-    convert_denomination_if_ibc_prefixed(state, denom)
-        .await
-        .context("failed to convert denomination if ibc/ prefixed")
-}
 
 #[cfg(test)]
 mod tests {
