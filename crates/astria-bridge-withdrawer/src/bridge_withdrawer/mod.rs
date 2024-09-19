@@ -93,8 +93,9 @@ impl BridgeWithdrawer {
             .parse()
             .wrap_err("failed to parse sequencer bridge address")?;
 
-        let sequencer_grpc_connection =
-            tonic::transport::Endpoint::new(sequencer_grpc_endpoint)?.connect_lazy();
+        let sequencer_grpc_connection = tonic::transport::Endpoint::new(sequencer_grpc_endpoint)
+            .wrap_err("failed constructing sequencer grpc endpoint")?
+            .connect_lazy();
         let sequencer_grpc_client =
             sequencer_service_client::SequencerServiceClient::new(sequencer_grpc_connection);
         let sequencer_cometbft_client =
