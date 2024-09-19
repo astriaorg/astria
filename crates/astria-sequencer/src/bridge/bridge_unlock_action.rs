@@ -35,8 +35,8 @@ impl ActionHandler for BridgeUnlockAction {
             "rollup withdrawal event id must be non-empty",
         );
         ensure!(
-            self.rollup_withdrawal_event_id.len() <= 64,
-            "rollup withdrawal event id must not be more than 64 bytes",
+            self.rollup_withdrawal_event_id.len() <= 256,
+            "rollup withdrawal event id must not be more than 256 bytes",
         );
         ensure!(
             self.rollup_block_number > 0,

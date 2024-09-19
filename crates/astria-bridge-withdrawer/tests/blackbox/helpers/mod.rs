@@ -13,8 +13,10 @@ pub use self::{
     test_bridge_withdrawer::{
         assert_actions_eq,
         default_sequencer_address,
-        make_bridge_unlock_action,
-        make_ics20_withdrawal_action,
+        make_erc20_bridge_unlock_action,
+        make_erc20_ics20_withdrawal_action,
+        make_native_bridge_unlock_action,
+        make_native_ics20_withdrawal_action,
         TestBridgeWithdrawerConfig,
     },
 };

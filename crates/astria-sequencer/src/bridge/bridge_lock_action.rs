@@ -78,7 +78,7 @@ impl ActionHandler for BridgeLockAction {
             .await
             .context("failed to get transfer base fee")?;
 
-        let transaction_id = state
+        let source_transaction_id = state
             .get_transaction_context()
             .expect("current source should be set before executing action")
             .transaction_id;
@@ -87,15 +87,15 @@ impl ActionHandler for BridgeLockAction {
             .expect("current source should be set before executing action")
             .source_action_index;
 
-        let deposit = Deposit::new(
-            self.to,
+        let deposit = Deposit {
+            bridge_address: self.to,
             rollup_id,
-            self.amount,
-            self.asset.clone(),
-            self.destination_chain_address.clone(),
-            transaction_id,
+            amount: self.amount,
+            asset: self.asset.clone(),
+            destination_chain_address: self.destination_chain_address.clone(),
+            source_transaction_id,
             source_action_index,
-        );
+        };
         let deposit_abci_event = create_deposit_event(&deposit);
 
         let byte_cost_multiplier = state
@@ -247,15 +247,15 @@ mod tests {
 
         // enough balance; should pass
         let expected_deposit_fee = transfer_fee
-            + calculate_base_deposit_fee(&Deposit::new(
+            + calculate_base_deposit_fee(&Deposit {
                 bridge_address,
                 rollup_id,
-                100,
-                asset.clone(),
-                "someaddress".to_string(),
-                transaction_id,
-                0,
-            ))
+                amount: 100,
+                asset: asset.clone(),
+                destination_chain_address: "someaddress".to_string(),
+                source_transaction_id: transaction_id,
+                source_action_index: 0,
+            })
             .unwrap()
                 * 2;
         state

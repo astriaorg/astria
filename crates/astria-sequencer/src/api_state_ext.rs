@@ -419,15 +419,15 @@ mod test {
             let amount = rng.gen::<u128>();
             let asset = "testasset".parse().unwrap();
             let destination_chain_address = rng.gen::<u8>().to_string();
-            let deposit = Deposit::new(
+            let deposit = Deposit {
                 bridge_address,
                 rollup_id,
                 amount,
                 asset,
                 destination_chain_address,
-                TransactionId::new([0; 32]),
-                0,
-            );
+                source_transaction_id: TransactionId::new([0; 32]),
+                source_action_index: 9,
+            };
             deposits.push(deposit);
         }
 

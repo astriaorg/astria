@@ -164,8 +164,8 @@ impl ActionHandler for action::Ics20Withdrawal {
                 "rollup withdrawal event id must be non-empty",
             );
             ensure!(
-                parsed_bridge_memo.rollup_withdrawal_event_id.len() <= 64,
-                "rollup withdrawal event id must be no more than 64 bytes",
+                parsed_bridge_memo.rollup_withdrawal_event_id.len() <= 256,
+                "rollup withdrawal event id must be no more than 256 bytes",
             );
             ensure!(
                 parsed_bridge_memo.rollup_block_number != 0,
@@ -272,7 +272,7 @@ impl ActionHandler for action::Ics20Withdrawal {
 
 fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
     if let Denom::TracePrefixed(trace) = asset {
-        !trace.starts_with_str(&format!("{source_port}/{source_channel}"))
+        !trace.has_leading_port(source_port) || !trace.has_leading_channel(source_channel)
     } else {
         false
     }

@@ -42,6 +42,16 @@ spec:
         namespace: pr-{{.number}}
         server: https://kubernetes.default.svc
       project: default
+      info:
+        - name: 'Github Project:'
+          value: >-
+            https://github.com/astriaorg/astria
+        - name: 'Github Pull Request:'
+          value: >-
+            https://github.com/astriaorg/astria/pull/{{.number}}
+        - name: 'Github Commit:'
+          value: >-
+            https://github.com/astriaorg/astria/pull/{{.number}}/commits/{{.head_sha}}
       sources:
         - repoURL: https://github.com/astriaorg/astria.git
           targetRevision: pull/{{.number}}/head
@@ -108,10 +118,10 @@ spec:
                     token: http://celestia-service.pr-{{.number}}.svc.cluster.local:5353
                 images:
                   composer:
-                    devTag: pr-{{.number}}
+                    devTag: sha-{{.head_sha}}
                     pullPolicy: Always
                   conductor:
-                    devTag: pr-{{.number}}
+                    devTag: sha-{{.head_sha}}
                     pullPolicy: Always
                 ingress:
                   enabled: true
