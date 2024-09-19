@@ -36,7 +36,7 @@ use crate::{
 
 // The base byte length of a deposit, as determined by the unit test
 // `get_base_deposit_byte_length()` below.
-const DEPOSIT_BASE_BYTE_LENGTH: u128 = 16;
+const DEPOSIT_BASE_FEE: u128 = 16;
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeLockAction {
@@ -103,7 +103,10 @@ impl ActionHandler for BridgeLockAction {
             .await
             .wrap_err("failed to get byte cost multiplier")?;
         let fee = byte_cost_multiplier
-            .saturating_mul(get_deposit_byte_len(&deposit))
+            .saturating_mul(
+                calculate_base_deposit_fee(&deposit)
+                    .expect("deposit fee calculation should not fail"),
+            )
             .saturating_add(transfer_fee);
         ensure!(from_balance >= fee, "insufficient funds for fee payment");
 
@@ -130,7 +133,9 @@ impl ActionHandler for BridgeLockAction {
             .get_bridge_lock_byte_cost_multiplier()
             .await
             .wrap_err("failed to get byte cost multiplier")?;
-        let fee = byte_cost_multiplier.saturating_mul(get_deposit_byte_len(&deposit));
+        let fee = byte_cost_multiplier.saturating_mul(
+            calculate_base_deposit_fee(&deposit).expect("deposit fee calculation should not fail"),
+        );
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
@@ -152,16 +157,14 @@ impl ActionHandler for BridgeLockAction {
 /// Returns a modified byte length of the deposit event. Length is calculated with reasonable values
 /// for all fields except `asset` and `destination_chain_address`, ergo it may not be representative
 /// of on-wire length.
-pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
+pub(crate) fn calculate_base_deposit_fee(deposit: &Deposit) -> Option<u128> {
     let variable_length = deposit
         .asset()
         .to_string()
         .len()
         .checked_add(deposit.destination_chain_address().len())
         .expect("deposit byte length overflowed usize") as u128;
-    DEPOSIT_BASE_BYTE_LENGTH
-        .checked_add(variable_length)
-        .expect("deposit byte length overflowed u128")
+    DEPOSIT_BASE_FEE.checked_add(variable_length)
 }
 
 #[cfg(test)]
@@ -178,7 +181,6 @@ mod tests {
         TRANSACTION_ID_LEN,
     };
     use cnidarium::StateDelta;
-    use insta::assert_json_snapshot;
 
     use super::*;
     use crate::{
@@ -245,7 +247,7 @@ mod tests {
 
         // enough balance; should pass
         let expected_deposit_fee = transfer_fee
-            + get_deposit_byte_len(&Deposit::new(
+            + calculate_base_deposit_fee(&Deposit::new(
                 bridge_address,
                 rollup_id,
                 100,
@@ -253,7 +255,9 @@ mod tests {
                 "someaddress".to_string(),
                 transaction_id,
                 0,
-            )) * 2;
+            ))
+            .unwrap()
+                * 2;
         state
             .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
@@ -261,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_deposit_byte_len() {
+    fn test_calculate_base_deposit_fee() {
         // Test for length equality with drastically different int values
         let deposit = Deposit::new(
             astria_address(&[1; 20]),
@@ -272,7 +276,7 @@ mod tests {
             TransactionId::new([0; 32]),
             u64::MAX,
         );
-        let calculated_len_0 = get_deposit_byte_len(&deposit);
+        let calculated_len_0 = calculate_base_deposit_fee(&deposit).unwrap();
 
         let deposit = Deposit::new(
             astria_address(&[1; 20]),
@@ -283,7 +287,7 @@ mod tests {
             TransactionId::new([0; 32]),
             0,
         );
-        let calculated_len_1 = get_deposit_byte_len(&deposit);
+        let calculated_len_1 = calculate_base_deposit_fee(&deposit).unwrap();
         assert_eq!(calculated_len_0, calculated_len_1);
 
         // Ensure longer asset name results in longer byte length.
@@ -296,7 +300,7 @@ mod tests {
             TransactionId::new([0; 32]),
             0,
         );
-        let calculated_len_2 = get_deposit_byte_len(&deposit);
+        let calculated_len_2 = calculate_base_deposit_fee(&deposit).unwrap();
         assert!(calculated_len_2 >= calculated_len_1);
 
         // Ensure longer destination chain address results in longer byte length.
@@ -309,7 +313,7 @@ mod tests {
             TransactionId::new([0; 32]),
             0,
         );
-        let calculated_len_3 = get_deposit_byte_len(&deposit);
+        let calculated_len_3 = calculate_base_deposit_fee(&deposit).unwrap();
         assert!(calculated_len_3 >= calculated_len_2);
 
         // Ensure calculated length is as expected with absurd string
@@ -324,23 +328,9 @@ mod tests {
             TransactionId::new([0; 32]),
             u64::MAX,
         );
-        let calculated_len = get_deposit_byte_len(&deposit);
+        let calculated_len = calculate_base_deposit_fee(&deposit).unwrap();
         let expected_len = 16 + u128::from(u16::MAX) * 2;
         assert_eq!(calculated_len, expected_len);
-    }
-
-    #[test]
-    fn get_deposit_byte_length_snapshot() {
-        let deposit = Deposit::new(
-            astria_address(&[1; 20]),
-            RollupId::from_unhashed_bytes(b"test_rollup_id"),
-            u128::MAX,
-            test_asset(),
-            "someaddress".to_string(),
-            TransactionId::new([0; 32]),
-            u64::MAX,
-        );
-        assert_json_snapshot!(get_deposit_byte_len(&deposit));
     }
 
     /// Used to determine the base deposit byte length for `get_deposit_byte_len()`. This is based
@@ -353,8 +343,7 @@ mod tests {
     /// is to allow for more flexibility in overall fees (we have more flexibility multiplying by a
     /// lower number, and if we want fees to be higher we can just raise the multiplier).
     #[test]
-    #[ignore]
-    fn get_base_deposit_byte_length() {
+    fn get_base_deposit_fee() {
         use prost::Message as _;
         let bridge_address = Address::builder()
             .prefix("astria-bridge")
@@ -370,6 +359,6 @@ mod tests {
             source_transaction_id: Some(TransactionId::new([0; TRANSACTION_ID_LEN]).to_raw()),
             source_action_index: 0,
         };
-        println!("Deposit byte length: {}", raw_deposit.encoded_len());
+        assert_eq!(DEPOSIT_BASE_FEE, raw_deposit.encoded_len() as u128 / 10);
     }
 }
