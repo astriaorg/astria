@@ -478,17 +478,11 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
 
     if is_source {
         // the asset being transferred in is an asset that originated on Astria;
-        // subtract balance from escrow account and transfer to `recipient`.
-
+        // subtract balance from escrow account.
         state
             .decrease_ibc_channel_balance(&packet.chan_on_b, &asset, amount)
             .await
             .context("failed to deduct funds from IBC escrow account")?;
-
-        state
-            .increase_balance(recipient, &asset, amount)
-            .await
-            .wrap_err("failed to update user account balance")?;
     } else {
         // register denomination in global ID -> denom map if it's not already there
         if !state
@@ -500,12 +494,12 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
                 .put_ibc_asset(&asset)
                 .wrap_err("failed to write IBC asset to state")?;
         }
-
-        state
-            .increase_balance(recipient, &asset, amount)
-            .await
-            .context("failed to update user account balance")?;
     }
+
+    state
+        .increase_balance(recipient, &asset, amount)
+        .await
+        .context("failed to update user account balance")?;
 
     Ok(())
 }
@@ -595,13 +589,12 @@ async fn refund_tokens_to_sequencer_address<S: StateWrite>(
             .decrease_ibc_channel_balance(source_channel, &asset, amount)
             .await
             .context("failed to withdraw refund amount from escrow account")?;
-    } 
-    
-   state
-          .increase_balance(recipient, asset, amount)
-          .await
-          .wrap_err("failed to update user account balance when refunding")?;
- 
+    }
+    state
+        .increase_balance(recipient, asset, amount)
+        .await
+        .wrap_err("failed to update user account balance when refunding")?;
+
     Ok(())
 }
 
