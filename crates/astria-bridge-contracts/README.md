@@ -19,5 +19,5 @@ git checkout <commit-ish>
 cd ../../../
 just compile-solidity-contracts
 git add .
-git commit -m "chore(bridge-contracts)!: bumped bridge contracts
+git commit -m "chore(bridge-contracts)!: bumped bridge contracts"
 ```
