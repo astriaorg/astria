@@ -73,7 +73,7 @@ pub struct Conductor {
     shutdown_token: CancellationToken,
 
     /// Handle for the inner conductor task.
-    handle: InnerHandle,
+    inner: InnerHandle,
 
     /// Configuration for the conductor, necessary upon a restart.
     cfg: Config,
@@ -93,7 +93,7 @@ impl Conductor {
             ConductorInner::spawn(cfg.clone(), metrics, shutdown_token.child_token())?;
         Ok(Self {
             shutdown_token,
-            handle: conductor_inner_handle,
+            inner: conductor_inner_handle,
             cfg,
             metrics,
         })
@@ -101,7 +101,7 @@ impl Conductor {
 
     async fn run_until_stopped(mut self) -> eyre::Result<()> {
         loop {
-            let exit_reason = (&mut self.handle).await;
+            let exit_reason = (&mut self.inner).await;
             self.shutdown_or_restart(exit_reason).await?;
             if self.shutdown_token.is_cancelled() {
                 break;
@@ -121,24 +121,23 @@ impl Conductor {
             self.shutdown_token.child_token(),
         )
         .expect("failed to create new conductor after restart");
-        self.handle = new_handle;
+        self.inner = new_handle;
     }
 
     /// Initiates either a restart or a shutdown of all conductor tasks.
     #[instrument(skip_all, err)]
     async fn shutdown_or_restart(
         &mut self,
-        exit_reason: Result<eyre::Result<RestartOrShutdown>, JoinError>,
+        exit_reason: Result<RestartOrShutdown, JoinError>,
     ) -> eyre::Result<&'static str> {
         match exit_reason {
-            Ok(Ok(restart_or_shutdown)) => match restart_or_shutdown {
+            Ok(restart_or_shutdown) => match restart_or_shutdown {
                 RestartOrShutdown::Restart => {
                     self.restart();
                     return Ok("restarting");
                 }
                 RestartOrShutdown::Shutdown => Ok("conductor exiting"),
             },
-            Ok(Err(err)) => Err(err.wrap_err("conductor inner task failed")),
             Err(err) => Err(eyre::ErrReport::from(err).wrap_err("conductor failed")),
         }
     }

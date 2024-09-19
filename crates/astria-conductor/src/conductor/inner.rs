@@ -36,22 +36,31 @@ use crate::{
     Metrics,
 };
 
-/// Token to signal whether the conductor should restart or shut down.
+/// Exit value of the inner conductor impl to signal to the outer task whether to restart or
+/// shutdown
 pub(super) enum RestartOrShutdown {
     Restart,
     Shutdown,
+}
+
+enum ExitReason {
+    Shutdown,
+    TaskFailed {
+        name: &'static str,
+        error: eyre::ErrReport,
+    },
 }
 
 pin_project! {
     /// A handle returned by [`ConductorInner::spawn`].
     pub(super) struct InnerHandle {
         shutdown_token: CancellationToken,
-        task: Option<tokio::task::JoinHandle<eyre::Result<RestartOrShutdown>>>,
+        task: Option<tokio::task::JoinHandle<RestartOrShutdown>>,
     }
 }
 
 impl Future for InnerHandle {
-    type Output = Result<eyre::Result<RestartOrShutdown>, tokio::task::JoinError>;
+    type Output = Result<RestartOrShutdown, tokio::task::JoinError>;
 
     fn poll(
         self: std::pin::Pin<&mut Self>,
@@ -163,22 +172,20 @@ impl ConductorInner {
     ///
     /// # Panics
     /// Panics if it could not install a signal handler.
-    async fn run_until_stopped(mut self) -> eyre::Result<RestartOrShutdown> {
+    async fn run_until_stopped(mut self) -> RestartOrShutdown {
         info_span!("Conductor::run_until_stopped").in_scope(|| info!("conductor is running"));
 
         let exit_reason = select! {
             biased;
 
             () = self.shutdown_token.cancelled() => {
-                Ok("received shutdown signal")
-            }
+                ExitReason::Shutdown
+            },
 
             Some((name, res)) = self.tasks.join_next() => {
                 match flatten(res) {
-                    Ok(()) => Err(eyre!("task `{name}` exited unexpectedly")),
-                    Err(err) => {
-                        Err(err).wrap_err_with(|| format!("task `{name}` failed"))
-                    },
+                    Ok(()) => ExitReason::TaskFailed{name, error: eyre!("task `{name}` exited unexpectedly")},
+                    Err(err) => ExitReason::TaskFailed{name, error: err.wrap_err(format!("task `{name}` failed"))},
                 }
             }
         };
@@ -212,29 +219,42 @@ impl ConductorInner {
     /// because kubernetes issues SIGKILL 30 seconds after SIGTERM, giving 5 seconds
     /// to abort the remaining tasks.
     #[instrument(skip_all)]
-    async fn shutdown(
-        mut self,
-        exit_reason: eyre::Result<&str>,
-    ) -> eyre::Result<RestartOrShutdown> {
+    async fn shutdown(mut self, exit_reason: ExitReason) -> RestartOrShutdown {
         self.shutdown_token.cancel();
-        let mut finished_tasks = vec![exit_reason];
+        let mut restart_or_shutdown = RestartOrShutdown::Shutdown;
+
+        match &exit_reason {
+            ExitReason::Shutdown => {
+                info!("received shutdown signal, skipping check for restart");
+            }
+            ExitReason::TaskFailed {
+                name,
+                error,
+            } => {
+                if check_for_restart(name, error) {
+                    restart_or_shutdown = RestartOrShutdown::Restart;
+                }
+            }
+        }
 
         info!("signalled all tasks to shut down; waiting for 25 seconds to exit");
 
         let shutdown_loop = async {
             while let Some((name, res)) = self.tasks.join_next().await {
                 let message = "task shut down";
-                let res = match flatten(res) {
+                match flatten(res) {
                     Ok(()) => {
                         info!(name, message);
-                        Ok("task exited successfullly")
                     }
                     Err(error) => {
+                        if check_for_restart(name, &error)
+                            && !matches!(exit_reason, ExitReason::Shutdown)
+                        {
+                            restart_or_shutdown = RestartOrShutdown::Restart;
+                        }
                         error!(name, %error, message);
-                        Err(error).wrap_err_with(|| format!("task `{name}` failed"))
                     }
                 };
-                finished_tasks.push(res);
             }
         };
 
@@ -253,34 +273,26 @@ impl ConductorInner {
         }
         info!("shutting down");
 
-        finished_tasks.reverse();
-        // If any tasks failed and don't warrant a restart, return their error
-        for task_res in finished_tasks {
-            if let Err(err) = task_res {
-                let Some(task_name) = task_failed(&err) else {
-                    continue;
-                };
-                if task_name == "executor" && check_for_restart(&err) {
-                    return Ok(RestartOrShutdown::Restart);
-                }
-                return Err(err);
-            }
-        }
-
-        Ok(RestartOrShutdown::Shutdown)
+        restart_or_shutdown
     }
 }
 
 #[instrument(skip_all)]
-fn report_exit(exit_reason: &eyre::Result<&str>, message: &str) {
+fn report_exit(exit_reason: &ExitReason, message: &str) {
     match exit_reason {
-        Ok(reason) => info!(%reason, message),
-        Err(reason) => error!(%reason, message),
+        ExitReason::Shutdown => info!("received shutdown signal, {}", message),
+        ExitReason::TaskFailed {
+            name: _,
+            error,
+        } => error!(%error, message),
     }
 }
 
 #[instrument(skip_all)]
-fn check_for_restart(err: &eyre::ErrReport) -> bool {
+fn check_for_restart(name: &str, err: &eyre::ErrReport) -> bool {
+    if name != ConductorInner::EXECUTOR {
+        return false;
+    }
     let mut current = Some(err.as_ref() as &dyn std::error::Error);
     while let Some(err) = current {
         if let Some(status) = err.downcast_ref::<tonic::Status>() {
@@ -293,16 +305,17 @@ fn check_for_restart(err: &eyre::ErrReport) -> bool {
     false
 }
 
-fn task_failed(err: &eyre::ErrReport) -> Option<String> {
-    let err = err.to_string();
-    if err.contains("task `executor` failed") {
-        return Some("executor".to_string());
+#[cfg(test)]
+mod test {
+    use astria_eyre::eyre::WrapErr as _;
+
+    #[test]
+    fn check_for_restart_ok() {
+        let tonic_error: Result<&str, tonic::Status> =
+            Err(tonic::Status::new(tonic::Code::PermissionDenied, "error"));
+        let err = tonic_error.wrap_err("wrapper_1");
+        let err = err.wrap_err("wrapper_2");
+        let err = err.wrap_err("wrapper_3");
+        assert!(super::check_for_restart("executor", &err.unwrap_err()));
     }
-    if err.contains("task `sequencer` failed") {
-        return Some("sequencer".to_string());
-    }
-    if err.contains("task `celestia` failed") {
-        return Some("celestia".to_string());
-    }
-    None
 }
