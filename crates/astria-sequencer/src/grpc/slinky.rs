@@ -174,12 +174,20 @@ impl OracleService for SequencerServer {
         let Some(currency_pair) = request.currency_pair else {
             return Err(Status::invalid_argument("currency pair is required"));
         };
-        let currency_pair = CurrencyPair::from_raw(currency_pair);
+        let currency_pair = CurrencyPair::try_from_raw(currency_pair).map_err(|e| {
+            Status::invalid_argument(format!(
+                "failed to validate currency pair provided in request: {e:#}"
+            ))
+        })?;
         let snapshot = self.storage.latest_snapshot();
         let Some(state) = snapshot
             .get_currency_pair_state(&currency_pair)
             .await
-            .map_err(|e| Status::internal(format!("failed to get state from storage: {e:#}")))?
+            .map_err(|e| {
+                Status::internal(format!(
+                    "failed to get currency pair state from storage: {e:#}"
+                ))
+            })?
         else {
             return Err(Status::not_found("currency pair state not found"));
         };
@@ -201,8 +209,8 @@ impl OracleService for SequencerServer {
 
         Ok(Response::new(GetPriceResponse {
             price: Some(state.price.into_raw()),
-            nonce: state.nonce,
-            id: state.id,
+            nonce: state.nonce.get(),
+            id: state.id.get(),
             decimals: market.ticker.decimals,
         }))
     }
@@ -259,8 +267,8 @@ impl OracleService for SequencerServer {
 
             prices.push(GetPriceResponse {
                 price: Some(state.price.into_raw()),
-                nonce: state.nonce,
-                id: state.id,
+                nonce: state.nonce.get(),
+                id: state.id.get(),
                 decimals: market.ticker.decimals,
             });
         }
@@ -275,9 +283,9 @@ impl OracleService for SequencerServer {
         _request: Request<GetCurrencyPairMappingRequest>,
     ) -> Result<Response<GetCurrencyPairMappingResponse>, Status> {
         let snapshot = self.storage.latest_snapshot();
-        let currency_pair_mapping = snapshot
-            .currency_pairs_with_ids()
-            .map(
+        let stream = snapshot.currency_pairs_with_ids();
+        let currency_pair_mapping = stream
+            .map_ok(
                 |CurrencyPairWithId {
                      id,
                      currency_pair,

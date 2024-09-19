@@ -5,7 +5,6 @@ use astria_core::slinky::market_map::v1::{
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        ContextCompat as _,
         Result,
         WrapErr as _,
     },

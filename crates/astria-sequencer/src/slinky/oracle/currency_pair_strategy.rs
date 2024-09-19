@@ -1,6 +1,8 @@
-use astria_core::slinky::types::v1::CurrencyPair;
+use astria_core::slinky::types::v1::{
+    CurrencyPair,
+    CurrencyPairId,
+};
 use astria_eyre::eyre::{
-    ensure,
     Result,
     WrapErr as _,
 };
@@ -14,29 +16,15 @@ impl DefaultCurrencyPairStrategy {
     pub(crate) async fn id<S: StateReadExt>(
         state: &S,
         currency_pair: &CurrencyPair,
-    ) -> Result<u64> {
+    ) -> Result<Option<CurrencyPairId>> {
         state.get_currency_pair_id(currency_pair).await
     }
 
     pub(crate) async fn from_id<S: StateReadExt>(
         state: &S,
-        id: u64,
+        id: CurrencyPairId,
     ) -> Result<Option<CurrencyPair>> {
         state.get_currency_pair(id).await
-    }
-
-    pub(crate) fn get_encoded_price<S: StateReadExt>(_state: &S, price: u128) -> Vec<u8> {
-        price.to_be_bytes().to_vec()
-    }
-
-    pub(crate) fn get_decoded_price<S: StateReadExt>(
-        _state: &S,
-        encoded_price: &[u8],
-    ) -> Result<u128> {
-        ensure!(encoded_price.len() == 16, "invalid encoded price length");
-        let mut bytes = [0; 16];
-        bytes.copy_from_slice(encoded_price);
-        Ok(u128::from_be_bytes(bytes))
     }
 
     pub(crate) async fn get_max_num_currency_pairs<S: StateReadExt>(

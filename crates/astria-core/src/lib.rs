@@ -10,6 +10,7 @@ compile_error!(
 pub mod generated;
 
 pub mod crypto;
+pub mod display;
 pub mod execution;
 pub mod primitive;
 pub mod protocol;

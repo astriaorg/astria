@@ -20,7 +20,6 @@ colour = "2.1.0"
 ethers-core = "2.0.14"
 hex = { workspace = true }
 indenter = "0.3.3"
-indexmap = { workspace = true }
 itertools = { workspace = true }
 pbjson-types = { workspace = true }
 prost = { workspace = true }
@@ -31,6 +30,7 @@ serde_json = { workspace = true }
 astria-core = { path = "../astria-core", features = ["brotli", "serde"] }
 astria-eyre = { path = "../astria-eyre" }
 astria-merkle = { path = "../astria-merkle" }
+maplit = "1.0.2"
 
 [dev-dependencies]
 assert_cmd = "2.0.14"
