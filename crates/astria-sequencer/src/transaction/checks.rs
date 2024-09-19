@@ -275,16 +275,16 @@ fn bridge_lock_update_fees(
     use astria_core::sequencerblock::v1alpha1::block::Deposit;
 
     let expected_deposit_fee = transfer_fee.saturating_add(
-        crate::bridge::get_deposit_byte_len(&Deposit::new(
-            act.to,
+        crate::bridge::get_deposit_byte_len(&Deposit {
+            bridge_address: act.to,
             // rollup ID doesn't matter here, as this is only used as a size-check
-            RollupId::from_unhashed_bytes([0; 32]),
-            act.amount,
-            act.asset.clone(),
-            act.destination_chain_address.clone(),
-            TransactionId::new([0; 32]),
-            tx_index_of_action,
-        ))
+            rollup_id: RollupId::from_unhashed_bytes([0; 32]),
+            amount: act.amount,
+            asset: act.asset.clone(),
+            destination_chain_address: act.destination_chain_address.clone(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: tx_index_of_action,
+        })
         .saturating_mul(bridge_lock_byte_cost_multiplier),
     );
 
