@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM rust:1.76-bookworm AS rust
+FROM --platform=$BUILDPLATFORM rust:1.81-bookworm AS rust
 
 WORKDIR /build/
 
