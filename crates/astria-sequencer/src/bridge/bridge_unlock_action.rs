@@ -128,7 +128,7 @@ impl FeeHandler for BridgeUnlockAction {
         let transfer_fee = state
             .get_transfer_base_fee()
             .await
-            .wrap_err("failed to get transfer base fee")?;
+            .wrap_err("failed to get transfer base fee for bridge unlock action")?;
 
         ensure!(
             state

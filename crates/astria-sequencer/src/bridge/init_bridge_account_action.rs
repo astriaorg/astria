@@ -103,7 +103,7 @@ impl FeeHandler for InitBridgeAccountAction {
         let fee = state
             .get_init_bridge_account_base_fee()
             .await
-            .wrap_err("failed to get transfer base fee")?;
+            .wrap_err("failed to get init bridge account base fee")?;
 
         ensure!(
             state

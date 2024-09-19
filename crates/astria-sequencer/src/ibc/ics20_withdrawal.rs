@@ -277,7 +277,7 @@ impl FeeHandler for action::Ics20Withdrawal {
         let fee = state
             .get_ics20_withdrawal_base_fee()
             .await
-            .wrap_err("failed to get transfer base fee")?;
+            .wrap_err("failed to get ics20 withdrawal base fee")?;
 
         ensure!(
             state

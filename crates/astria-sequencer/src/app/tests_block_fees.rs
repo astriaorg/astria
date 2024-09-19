@@ -137,14 +137,7 @@ async fn ensure_correct_block_fees_transfer() {
         .get_block_fees()
         .unwrap()
         .into_iter()
-        .map(
-            |Fee {
-                 asset: _,
-                 amount: fee,
-                 source_transaction_id: _,
-                 source_action_index: _,
-             }| fee,
-        )
+        .map(|fee| fee.amount)
         .sum();
     assert_eq!(total_block_fees, transfer_base_fee);
 }
@@ -184,14 +177,7 @@ async fn ensure_correct_block_fees_sequence() {
         .get_block_fees()
         .unwrap()
         .into_iter()
-        .map(
-            |Fee {
-                 asset: _,
-                 amount: fee,
-                 source_transaction_id: _,
-                 source_action_index: _,
-             }| fee,
-        )
+        .map(|fee| fee.amount)
         .sum();
     let expected_fees = calculate_fee_from_state(&data, &app.state).await.unwrap();
     assert_eq!(total_block_fees, expected_fees);
@@ -233,14 +219,7 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
         .get_block_fees()
         .unwrap()
         .into_iter()
-        .map(
-            |Fee {
-                 asset: _,
-                 amount: fee,
-                 source_transaction_id: _,
-                 source_action_index: _,
-             }| fee,
-        )
+        .map(|fee| fee.amount)
         .sum();
     assert_eq!(total_block_fees, init_bridge_account_base_fee);
 }
@@ -303,14 +282,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .get_block_fees()
         .unwrap()
         .into_iter()
-        .map(
-            |Fee {
-                 asset: _,
-                 amount: fee,
-                 source_transaction_id: _,
-                 source_action_index: _,
-             }| fee,
-        )
+        .map(|fee| fee.amount)
         .sum();
     let expected_fees = transfer_base_fee
         + (get_deposit_byte_len(&test_deposit) * bridge_lock_byte_cost_multiplier);
@@ -361,14 +333,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
         .get_block_fees()
         .unwrap()
         .into_iter()
-        .map(
-            |Fee {
-                 asset: _,
-                 amount: fee,
-                 source_transaction_id: _,
-                 source_action_index: _,
-             }| fee,
-        )
+        .map(|fee| fee.amount)
         .sum();
     assert_eq!(total_block_fees, sudo_change_base_fee);
 }
