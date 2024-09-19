@@ -595,16 +595,13 @@ async fn refund_tokens_to_sequencer_address<S: StateWrite>(
             .decrease_ibc_channel_balance(source_channel, &asset, amount)
             .await
             .context("failed to withdraw refund amount from escrow account")?;
-        state
-            .increase_balance(recipient, &asset, amount)
-            .await
-            .context("failed to increase user account balance")?;
-    } else {
-        state
-            .increase_balance(recipient, asset, amount)
-            .await
-            .wrap_err("failed to update user account balance in execute_ics20_transfer")?;
-    }
+    } 
+    
+   state
+          .increase_balance(recipient, asset, amount)
+          .await
+          .wrap_err("failed to update user account balance when refunding")?;
+ 
     Ok(())
 }
 
