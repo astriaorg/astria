@@ -254,7 +254,10 @@ mod tests {
             .put_account_balance(from_address, &asset, 100 + transfer_fee)
             .unwrap();
         assert_eyre_error(
-            &bridge_lock.check_execute_and_pay_fees(&mut state).await.unwrap_err(),
+            &bridge_lock
+                .check_execute_and_pay_fees(&mut state)
+                .await
+                .unwrap_err(),
             "failed to deduct fee from account balance",
         );
 

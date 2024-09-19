@@ -22,7 +22,8 @@ use crate::{
     accounts::{
         StateReadExt as _,
         StateWriteExt as _,
-    }, app::{
+    },
+    app::{
         test_utils::{
             get_alice_signing_key,
             get_bridge_signing_key,
@@ -30,17 +31,22 @@ use crate::{
             BOB_ADDRESS,
         },
         Fee,
-    }, assets::StateReadExt as _, authority::StateReadExt as _, bridge::{
+    },
+    assets::StateReadExt as _,
+    authority::StateReadExt as _,
+    bridge::{
         get_deposit_byte_len,
         StateWriteExt as _,
-    }, sequence::{
+    },
+    sequence::{
         calculate_fee_from_state,
         StateWriteExt as _,
-    }, test_utils::{
+    },
+    test_utils::{
         astria_address,
         astria_address_from_hex_string,
         nria,
-    }
+    },
 };
 
 #[tokio::test]
@@ -88,21 +94,11 @@ async fn transaction_execution_records_fee_event() {
     );
     assert_eq!(
         event.attributes[2],
-        (
-            "sourceTransactionId",
-            tx_id.to_string(),
-        )
-            .index()
-            .into()
+        ("sourceTransactionId", tx_id.to_string(),).index().into()
     );
     assert_eq!(
         event.attributes[3],
-        (
-            "sourceActionIndex",
-            "0",
-        )
-            .index()
-            .into()
+        ("sourceActionIndex", "0",).index().into()
     );
 }
 

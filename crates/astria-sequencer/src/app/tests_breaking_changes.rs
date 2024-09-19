@@ -301,9 +301,27 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.commit(storage.clone()).await;
 
     use crate::accounts::StateReadExt as _;
-    println!("alice amount: {}", app.state.get_account_balance(alice.try_address(ASTRIA_PREFIX).unwrap(), nria()).await.unwrap());
-    println!("bob amount: {}", app.state.get_account_balance(bob_address, nria()).await.unwrap());
-    println!("carol amount: {}", app.state.get_account_balance(carol_address, nria()).await.unwrap());
+    println!(
+        "alice amount: {}",
+        app.state
+            .get_account_balance(alice.try_address(ASTRIA_PREFIX).unwrap(), nria())
+            .await
+            .unwrap()
+    );
+    println!(
+        "bob amount: {}",
+        app.state
+            .get_account_balance(bob_address, nria())
+            .await
+            .unwrap()
+    );
+    println!(
+        "carol amount: {}",
+        app.state
+            .get_account_balance(carol_address, nria())
+            .await
+            .unwrap()
+    );
 
     insta::assert_json_snapshot!(app.app_hash.as_bytes());
 }
