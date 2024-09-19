@@ -28,7 +28,10 @@ use astria_core::{
         },
     },
 };
-use ethers::types::TransactionReceipt;
+use ethers::{
+    abi::AbiEncode,
+    types::TransactionReceipt,
+};
 use futures::Future;
 use ibc_types::core::{
     channel::ChannelId,
@@ -427,13 +430,16 @@ impl From<Ics20Withdrawal> for SubsetOfIcs20Withdrawal {
 }
 
 #[must_use]
-pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
+pub fn make_native_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
     let denom = default_native_asset();
+    let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
+    let event_index = receipt.logs[0].log_index.unwrap().encode_hex();
+
     let inner = BridgeUnlockAction {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),
-        rollup_withdrawal_event_id: receipt.transaction_hash.to_string(),
+        rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
         memo: String::new(),
         fee_asset: denom,
         bridge_address: default_bridge_address(),
@@ -442,10 +448,13 @@ pub fn make_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
 }
 
 #[must_use]
-pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
+pub fn make_native_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
     let timeout_height = IbcHeight::new(u64::MAX, u64::MAX).unwrap();
     let timeout_time = make_ibc_timeout_time();
     let denom = default_ibc_asset();
+    let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
+    let event_index = receipt.logs[0].log_index.unwrap().encode_hex();
+
     let inner = Ics20Withdrawal {
         denom: denom.clone(),
         destination_chain_address: default_sequencer_address().to_string(),
@@ -455,7 +464,58 @@ pub fn make_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
             memo: "nootwashere".to_string(),
             rollup_return_address: receipt.from.to_string(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
-            rollup_withdrawal_event_id: receipt.transaction_hash.to_string(),
+            rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
+        })
+        .unwrap(),
+        fee_asset: denom,
+        timeout_height,
+        timeout_time,
+        source_channel: "channel-0".parse().unwrap(),
+        bridge_address: Some(default_bridge_address()),
+        use_compat_address: false,
+    };
+
+    Action::Ics20Withdrawal(inner)
+}
+
+#[must_use]
+pub fn make_erc20_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
+    let denom = default_native_asset();
+    let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
+    // use the second event because the erc20 transfer also emits an event
+    let event_index = receipt.logs[1].log_index.unwrap().encode_hex();
+
+    let inner = BridgeUnlockAction {
+        to: default_sequencer_address(),
+        amount: 1_000_000u128,
+        rollup_block_number: receipt.block_number.unwrap().as_u64(),
+        rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
+        memo: String::new(),
+        fee_asset: denom,
+        bridge_address: default_bridge_address(),
+    };
+    Action::BridgeUnlock(inner)
+}
+
+#[must_use]
+pub fn make_erc20_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Action {
+    let timeout_height = IbcHeight::new(u64::MAX, u64::MAX).unwrap();
+    let timeout_time = make_ibc_timeout_time();
+    let denom = default_ibc_asset();
+    let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
+    // use the second event because the erc20 transfer also emits an event
+    let event_index = receipt.logs[1].log_index.unwrap().encode_hex();
+
+    let inner = Ics20Withdrawal {
+        denom: denom.clone(),
+        destination_chain_address: default_sequencer_address().to_string(),
+        return_address: default_bridge_address(),
+        amount: 1_000_000u128,
+        memo: serde_json::to_string(&Ics20WithdrawalFromRollup {
+            memo: "nootwashere".to_string(),
+            rollup_return_address: receipt.from.to_string(),
+            rollup_block_number: receipt.block_number.unwrap().as_u64(),
+            rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
         })
         .unwrap(),
         fee_asset: denom,

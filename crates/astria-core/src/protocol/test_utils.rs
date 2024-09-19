@@ -116,10 +116,10 @@ impl ConfigureSequencerBlock {
 
         let mut deposits_map: HashMap<RollupId, Vec<Deposit>> = HashMap::new();
         for deposit in deposits {
-            if let Some(entry) = deposits_map.get_mut(deposit.rollup_id()) {
+            if let Some(entry) = deposits_map.get_mut(&deposit.rollup_id) {
                 entry.push(deposit);
             } else {
-                deposits_map.insert(*deposit.rollup_id(), vec![deposit]);
+                deposits_map.insert(deposit.rollup_id, vec![deposit]);
             }
         }
 

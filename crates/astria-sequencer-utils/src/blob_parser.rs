@@ -537,11 +537,11 @@ impl TryFrom<&RawDeposit> for PrintableDeposit {
     fn try_from(raw_deposit: &RawDeposit) -> Result<Self, Self::Error> {
         let deposit = Deposit::try_from_raw(raw_deposit.clone())?;
         Ok(PrintableDeposit {
-            bridge_address: deposit.bridge_address().to_string(),
-            rollup_id: deposit.rollup_id().to_string(),
-            amount: deposit.amount(),
-            asset: deposit.asset().to_string(),
-            destination_chain_address: deposit.destination_chain_address().to_string(),
+            bridge_address: deposit.bridge_address.to_string(),
+            rollup_id: deposit.rollup_id.to_string(),
+            amount: deposit.amount,
+            asset: deposit.asset.to_string(),
+            destination_chain_address: deposit.destination_chain_address.to_string(),
         })
     }
 }
