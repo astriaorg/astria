@@ -44,7 +44,7 @@ pub(super) enum RestartOrShutdown {
 }
 
 enum ExitReason {
-    Shutdown,
+    ShutdownSignal,
     TaskFailed {
         name: &'static str,
         error: eyre::ErrReport,
@@ -179,7 +179,7 @@ impl ConductorInner {
             biased;
 
             () = self.shutdown_token.cancelled() => {
-                ExitReason::Shutdown
+                ExitReason::ShutdownSignal
             },
 
             Some((name, res)) = self.tasks.join_next() => {
@@ -224,7 +224,7 @@ impl ConductorInner {
         let mut restart_or_shutdown = RestartOrShutdown::Shutdown;
 
         match &exit_reason {
-            ExitReason::Shutdown => {
+            ExitReason::ShutdownSignal => {
                 info!("received shutdown signal, skipping check for restart");
             }
             ExitReason::TaskFailed {
@@ -248,7 +248,7 @@ impl ConductorInner {
                     }
                     Err(error) => {
                         if check_for_restart(name, &error)
-                            && !matches!(exit_reason, ExitReason::Shutdown)
+                            && !matches!(exit_reason, ExitReason::ShutdownSignal)
                         {
                             restart_or_shutdown = RestartOrShutdown::Restart;
                         }
@@ -280,7 +280,7 @@ impl ConductorInner {
 #[instrument(skip_all)]
 fn report_exit(exit_reason: &ExitReason, message: &str) {
     match exit_reason {
-        ExitReason::Shutdown => info!("received shutdown signal, {}", message),
+        ExitReason::ShutdownSignal => info!("received shutdown signal, {}", message),
         ExitReason::TaskFailed {
             name: _,
             error,
