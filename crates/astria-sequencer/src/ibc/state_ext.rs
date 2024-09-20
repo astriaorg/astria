@@ -113,7 +113,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(address_bytes)
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn is_ibc_relayer<T: AddressBytes>(&self, address: T) -> Result<bool> {
         Ok(self
             .get_raw(&ibc_relayer_key(&address))
@@ -185,7 +185,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address()), err)]
     fn put_ibc_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
         self.put_raw(
             IBC_SUDO_STORAGE_KEY.to_string(),
@@ -205,7 +205,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.delete(ibc_relayer_key(&address));
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%fee), err)]
     fn put_ics20_withdrawal_base_fee(&mut self, fee: u128) -> Result<()> {
         self.put_raw(
             ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(),

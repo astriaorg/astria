@@ -31,7 +31,7 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
-#[instrument(skip_all, err)]
+#[instrument(skip_all, fields(nonce = %tx.nonce()), err)]
 pub(crate) async fn check_nonce_mempool<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,
@@ -51,7 +51,7 @@ pub(crate) async fn check_nonce_mempool<S: StateRead>(
     Ok(())
 }
 
-#[instrument(skip_all, err)]
+#[instrument(skip_all, fields(chain_id = %tx.chain_id()), err)]
 pub(crate) async fn check_chain_id_mempool<S: StateRead>(
     tx: &SignedTransaction,
     state: &S,

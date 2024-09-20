@@ -36,7 +36,7 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
-#[instrument(skip_all, err)]
+#[instrument(skip_all, fields(%asset), err)]
 async fn ibc_to_trace<S: StateRead>(
     state: S,
     asset: asset::IbcPrefixed,
@@ -157,7 +157,7 @@ pub(crate) async fn nonce_request(
     }
 }
 
-#[instrument(skip_all, err)]
+#[instrument(skip_all, fields(%height),  err)]
 async fn get_snapshot_and_height(storage: &Storage, height: Height) -> Result<(Snapshot, Height)> {
     let snapshot = match height.value() {
         0 => storage.latest_snapshot(),

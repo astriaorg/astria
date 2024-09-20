@@ -215,7 +215,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(asset::IbcPrefixed::new(id.0))
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(bridge_address = %bridge_address.display_address()), err)]
     async fn get_bridge_account_sudo_address<T: AddressBytes>(
         &self,
         bridge_address: T,
@@ -238,7 +238,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(Some(sudo_address))
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(bridge_address = %bridge_address.display_address()), err)]
     async fn get_bridge_account_withdrawer_address<T: AddressBytes>(
         &self,
         bridge_address: T,
@@ -265,7 +265,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(Some(addr))
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(%rollup_id), err)]
     async fn get_deposit_nonce(&self, rollup_id: &RollupId) -> Result<u32> {
         let bytes = self
             .nonverifiable_get_raw(&deposit_nonce_storage_key(rollup_id))
@@ -305,7 +305,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(rollup_ids)
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(%rollup_id), err)]
     async fn get_deposit_events(&self, rollup_id: &RollupId) -> Result<Vec<Deposit>> {
         let mut stream = std::pin::pin!(
             self.nonverifiable_prefix_raw(deposit_storage_key_prefix(rollup_id).as_bytes())
@@ -372,7 +372,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(fee)
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(%address), err)]
     async fn get_last_transaction_id_for_bridge_account(
         &self,
         address: &Address,
@@ -451,7 +451,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %withdrawal_event_id), err)]
     async fn check_and_set_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
         &mut self,
         address: T,

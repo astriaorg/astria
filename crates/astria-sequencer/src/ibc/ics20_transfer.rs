@@ -302,7 +302,7 @@ impl AppHandlerCheck for Ics20Transfer {
     }
 }
 
-#[instrument(skip_all, err)]
+#[instrument(skip_all, fields(%source_port, %source_channel), err)]
 async fn refund_tokens_check<S: StateRead>(
     state: S,
     data: &[u8],
@@ -755,7 +755,6 @@ async fn emit_deposit<S: StateWrite>(
         .wrap_err("failed to put deposit event into state")?;
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {

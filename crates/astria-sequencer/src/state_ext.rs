@@ -92,7 +92,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("failed to parse timestamp from raw timestamp bytes")
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(%height), err)]
     async fn get_storage_version_by_height(&self, height: u64) -> Result<u64> {
         use astria_eyre::eyre::WrapErr as _;
 

@@ -28,7 +28,7 @@ fn ibc_compat_prefix_key() -> &'static str {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(%address), err)]
     async fn ensure_base_prefix(&self, address: &Address<Bech32m>) -> Result<()> {
         let prefix = self
             .get_base_prefix()

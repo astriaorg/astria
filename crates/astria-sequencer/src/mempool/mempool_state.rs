@@ -10,7 +10,7 @@ use crate::accounts::{
     StateReadExt as _,
 };
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(address = %address.display_address()), err)]
 pub(crate) async fn get_account_balances<S: StateRead>(
     state: S,
     address: impl AddressBytes,

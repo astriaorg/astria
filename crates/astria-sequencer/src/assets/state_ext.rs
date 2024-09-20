@@ -86,7 +86,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(asset)
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(%asset), err)]
     async fn has_ibc_asset<TAsset>(&self, asset: TAsset) -> Result<bool>
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
@@ -151,7 +151,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(fees)
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(%asset), err)]
     async fn is_allowed_fee_asset<TAsset>(&self, asset: TAsset) -> Result<bool>
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
@@ -205,7 +205,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     /// Adds `amount` to the block fees for `asset`.
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(%asset, %amount), err)]
     async fn get_and_increase_block_fees<TAsset>(
         &mut self,
         asset: TAsset,

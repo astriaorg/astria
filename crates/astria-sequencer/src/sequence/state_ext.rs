@@ -55,7 +55,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%fee))]
     fn put_sequence_action_base_fee(&mut self, fee: u128) {
         self.put_raw(
             SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY.to_string(),
@@ -63,7 +63,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%fee))]
     fn put_sequence_action_byte_cost_multiplier(&mut self, fee: u128) {
         self.put_raw(
             SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY.to_string(),

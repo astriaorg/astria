@@ -88,7 +88,7 @@ impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, fields(address = %address.display_address()), err)]
     fn put_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
         self.put_raw(
             SUDO_STORAGE_KEY.to_string(),

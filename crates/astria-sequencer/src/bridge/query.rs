@@ -45,7 +45,7 @@ fn error_query_response(
 // allow / FIXME: there is a lot of code duplication due to `error_query_response`.
 // this could be significantly shortened.
 #[allow(clippy::too_many_lines)]
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(%address))]
 async fn get_bridge_account_info(
     snapshot: cnidarium::Snapshot,
     address: Address,
