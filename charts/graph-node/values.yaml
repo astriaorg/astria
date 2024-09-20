@@ -1,3 +1,7 @@
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+
 serviceMonitor:
   enabled: false
   additionalLabels: {}
