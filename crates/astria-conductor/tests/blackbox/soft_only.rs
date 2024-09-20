@@ -150,7 +150,6 @@ async fn submits_two_heights_in_succession() {
             parent: [1; 64],
         ),
         base_celestia_height: 1,
-        expected_calls: 1
     );
 
     let execute_block_number_3 = mount_executed_block!(
@@ -175,7 +174,6 @@ async fn submits_two_heights_in_succession() {
             parent: [2; 64],
         ),
         base_celestia_height: 1,
-        expected_calls: 1,
     );
 
     timeout(

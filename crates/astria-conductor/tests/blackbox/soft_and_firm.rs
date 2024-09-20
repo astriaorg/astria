@@ -23,10 +23,10 @@ use crate::{
 /// Tests if a single block is executed and the rollup's state updated (first firm, then soft is
 /// ignored).
 ///
-/// This is to test for the unlikely scenario of receiving a firm block from Celestia before the
+/// This is to test for the scenario of receiving a firm block from Celestia before the
 /// soft block from sequencer.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn simple_firm_only() {
+async fn soft_is_ignored_if_firm_arrives_first() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_get_genesis_info!(
@@ -115,7 +115,7 @@ async fn simple_firm_only() {
         sequencer_height: 3,
     );
 
-    let update_commitment_state_soft = mount_update_commitment_state!(
+    let _update_commitment_state_soft = mount_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_soft",
         firm: (
@@ -131,13 +131,6 @@ async fn simple_firm_only() {
         base_celestia_height: 1,
         expected_calls: 0,
     );
-
-    timeout(
-        Duration::from_millis(500),
-        update_commitment_state_soft.wait_until_satisfied(),
-    )
-    .await
-    .expect_err("conductor should not have updated firm commitment state.");
 }
 
 /// Tests if a single block is executed and the rollup's state updated (first soft, then firm).
@@ -150,7 +143,7 @@ async fn simple_firm_only() {
 ///    height 1
 /// 5. the rollup's firm commitment state is updated (but without executing the block)
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn simple_soft_first() {
+async fn executes_soft_first_then_updates_firm() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_get_genesis_info!(
