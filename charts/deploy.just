@@ -19,7 +19,7 @@ run-smoke type *ARGS:
 load-image image:
   kind load docker-image {{image}} --name astria-dev-cluster
 
-deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer (deploy-chart "sequencer-faucet") deploy-rollup
+deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer deploy-astrotrek (deploy-chart "sequencer-faucet") deploy-rollup
 delete-all: clean clean-persisted-data
 
 deploy-astria-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace) (deploy-sequencer)
