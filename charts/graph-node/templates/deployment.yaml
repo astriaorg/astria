@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: graph-node
+  namespace: {{ .Values.global.namespaceOverride | default .Release.Namespace }}
 spec:
   replicas: {{ .Values.graphNode.replicas }}
   selector:
@@ -43,6 +44,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: ipfs
+  namespace: {{ .Values.global.namespaceOverride | default .Release.Namespace }}
 spec:
   replicas: 1
   selector:
@@ -71,6 +73,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgres
+  namespace: {{ .Values.global.namespaceOverride | default .Release.Namespace }}
 spec:
   replicas: 1
   selector:
