@@ -86,7 +86,7 @@ impl Denom {
                     len = len
                         .checked_add(segment.port.len())
                         .and_then(|len| len.checked_add(segment.channel.len()))
-                        .and_then(|len| len.checked_add(2))?;
+                        .and_then(|len| len.checked_add(2))?; // 2 additional "/" characters
                 }
                 len.checked_add(trace.base_denom.len())
             }
