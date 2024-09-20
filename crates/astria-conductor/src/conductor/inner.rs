@@ -10,7 +10,7 @@ use astria_eyre::eyre::{
 };
 use itertools::Itertools as _;
 use pin_project_lite::pin_project;
-use tendermint_rpc::HttpClient;
+use sequencer_client::HttpClient;
 use tokio::{
     select,
     time::timeout,
@@ -282,9 +282,9 @@ fn report_exit(exit_reason: &ExitReason, message: &str) {
     match exit_reason {
         ExitReason::ShutdownSignal => info!("received shutdown signal, {}", message),
         ExitReason::TaskFailed {
-            name: _,
-            error,
-        } => error!(%error, message),
+            name: task,
+            error: reason,
+        } => error!(%reason, %task, message),
     }
 }
 
