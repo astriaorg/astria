@@ -1,4 +1,9 @@
 [advisories]
-# RUSTSEC-2021-0139: `ansi_term` is Unmaintained. It is a transient dependency of penumbra crates
-# and dylint, so cannot easily be replaced.
-ignore = ["RUSTSEC-2021-0139"]
+ignore = [
+  # `ansi_term` is Unmaintained. It is a transient dependency of penumbra crates and dylint, so
+  # cannot easily be replaced.
+  "RUSTSEC-2021-0139",
+  # `proc-macro-error` is Unmaintained. It is a transient dependency of borsh crates, so cannot
+  # easily be replaced.
+  "RUSTSEC-2024-0370",
+]
