@@ -280,7 +280,7 @@ impl ConductorInner {
 #[instrument(skip_all)]
 fn report_exit(exit_reason: &ExitReason, message: &str) {
     match exit_reason {
-        ExitReason::ShutdownSignal => info!("received shutdown signal, {}", message),
+        ExitReason::ShutdownSignal => info!(reason = "received shutdown signal", message),
         ExitReason::TaskFailed {
             name: task,
             error: reason,
