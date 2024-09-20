@@ -97,14 +97,6 @@ use crate::{
     executor,
 };
 
-#[derive(Debug, thiserror::Error)]
-pub enum ValidateChainIdError {
-    #[error("failed to get the Celestia network head")]
-    GetCelestiaNetworkHead(#[source] jsonrpsee::core::Error),
-    #[error("expected Celestia chain id `{expected}` does not match actual: `{actual}`")]
-    MismatchedCelestiaChainId { expected: String, actual: String },
-}
-
 /// Sequencer Block information reconstructed from Celestia blobs.
 ///
 /// Will be forwarded to the executor as a firm block.
@@ -150,7 +142,7 @@ pub(crate) struct Reader {
     sequencer_requests_per_second: u32,
 
     /// The chain ID of the Celestia network the reader should be communicating with.
-    celestia_chain_id: String,
+    expected_celestia_chain_id: String,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -183,15 +175,14 @@ impl Reader {
     async fn initialize(
         &mut self,
     ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
-        let actual_chain_id = get_celestia_chain_id(&self.celestia_client)
+        let actual_celestia_chain_id = get_celestia_chain_id(&self.celestia_client)
             .await
             .wrap_err("failed to fetch Celestia chain ID")?;
+        let expected_celestia_chain_id = &self.expected_celestia_chain_id;
         ensure!(
-            self.celestia_chain_id == actual_chain_id,
-            ValidateChainIdError::MismatchedCelestiaChainId {
-                expected: self.celestia_chain_id.clone(),
-                actual: actual_chain_id,
-            }
+            self.expected_celestia_chain_id == actual_celestia_chain_id,
+            "expected Celestia chain id `{expected_celestia_chain_id}` does not match actual: \
+             `{actual_celestia_chain_id}`"
         );
 
         let wait_for_init_executor = async {
@@ -212,9 +203,7 @@ impl Reader {
 }
 
 #[instrument(skip_all, err)]
-async fn get_celestia_chain_id(
-    celestia_client: &CelestiaClient,
-) -> Result<String, ValidateChainIdError> {
+async fn get_celestia_chain_id(celestia_client: &CelestiaClient) -> eyre::Result<String> {
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
         .exponential_backoff(Duration::from_millis(100))
         .max_delay(Duration::from_secs(20))
@@ -234,8 +223,7 @@ async fn get_celestia_chain_id(
         );
     let network_head = tryhard::retry_fn(|| celestia_client.header_network_head())
         .with_config(retry_config)
-        .await
-        .map_err(ValidateChainIdError::GetCelestiaNetworkHead)?;
+        .await?;
     Ok(network_head.chain_id().to_string())
 }
 

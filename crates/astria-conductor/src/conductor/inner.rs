@@ -6,6 +6,7 @@ use std::{
 use astria_eyre::eyre::{
     self,
     eyre,
+    Result,
     WrapErr as _,
 };
 use itertools::Itertools as _;
@@ -55,12 +56,12 @@ pin_project! {
     /// A handle returned by [`ConductorInner::spawn`].
     pub(super) struct InnerHandle {
         shutdown_token: CancellationToken,
-        task: Option<tokio::task::JoinHandle<RestartOrShutdown>>,
+        task: Option<tokio::task::JoinHandle<Result<RestartOrShutdown>>>,
     }
 }
 
 impl Future for InnerHandle {
-    type Output = Result<RestartOrShutdown, tokio::task::JoinError>;
+    type Output = Result<Result<RestartOrShutdown>, tokio::task::JoinError>;
 
     fn poll(
         self: std::pin::Pin<&mut Self>,
@@ -132,6 +133,7 @@ impl ConductorInner {
                 sequencer_grpc_client,
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
+                expected_sequencer_chain_id: cfg.expected_sequencer_chain_id,
                 shutdown: shutdown_token.clone(),
                 executor: executor_handle.clone(),
             }
@@ -153,6 +155,7 @@ impl ConductorInner {
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_requests_per_second: cfg.sequencer_requests_per_second,
+                expected_celestia_chain_id: cfg.expected_celestia_chain_id,
                 shutdown: shutdown_token.clone(),
                 metrics,
             }
@@ -172,7 +175,7 @@ impl ConductorInner {
     ///
     /// # Panics
     /// Panics if it could not install a signal handler.
-    async fn run_until_stopped(mut self) -> RestartOrShutdown {
+    async fn run_until_stopped(mut self) -> Result<RestartOrShutdown> {
         info_span!("Conductor::run_until_stopped").in_scope(|| info!("conductor is running"));
 
         let exit_reason = select! {
@@ -219,7 +222,7 @@ impl ConductorInner {
     /// because kubernetes issues SIGKILL 30 seconds after SIGTERM, giving 5 seconds
     /// to abort the remaining tasks.
     #[instrument(skip_all)]
-    async fn shutdown(mut self, exit_reason: ExitReason) -> RestartOrShutdown {
+    async fn shutdown(mut self, exit_reason: ExitReason) -> Result<RestartOrShutdown> {
         self.shutdown_token.cancel();
         let mut restart_or_shutdown = RestartOrShutdown::Shutdown;
 
@@ -273,7 +276,15 @@ impl ConductorInner {
         }
         info!("shutting down");
 
-        restart_or_shutdown
+        if let ExitReason::TaskFailed {
+            error, ..
+        } = exit_reason
+        {
+            if matches!(restart_or_shutdown, RestartOrShutdown::Shutdown) {
+                return Err(error);
+            }
+        }
+        Ok(restart_or_shutdown)
     }
 }
 

@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use astria_conductor::{
-    conductor::SequencerChainIdError,
     config::CommitLevel,
     Conductor,
     Config,
@@ -427,7 +426,8 @@ async fn exits_on_sequencer_chain_id_mismatch() {
     .mount(&mock_grpc.mock_server)
     .await;
 
-    mount_genesis(&mock_http, "bad_chain_id").await;
+    let bad_chain_id = "bad_chain_id";
+    mount_genesis(&mock_http, bad_chain_id).await;
 
     let res = conductor.await;
     match res {
@@ -436,20 +436,18 @@ async fn exits_on_sequencer_chain_id_mismatch() {
             let mut source = e.source();
             while source.is_some() {
                 let err = source.unwrap();
-                if let Some(SequencerChainIdError::MismatchedSequencerChainId {
-                    expected,
-                    actual,
-                }) = err.downcast_ref::<SequencerChainIdError>()
-                {
-                    assert_eq!(expected, SEQUENCER_CHAIN_ID);
-                    assert_eq!(actual, "bad_chain_id");
+                if err.to_string().contains(
+                    format!(
+                        "expected chain id `{SEQUENCER_CHAIN_ID}` does not match actual: \
+                         `{bad_chain_id}`"
+                    )
+                    .as_str(),
+                ) {
                     return;
                 }
                 source = err.source();
             }
-            panic!(
-                "conductor did not exit with MismatchedSequencerChainId error, but with error: {e}"
-            )
+            panic!("conductor did not exit with incorrect error: {e}")
         }
         Err(e) => panic!("conductor handle resulted in an error: {e}"),
     }

@@ -15,6 +15,9 @@ macro_rules! block {
 
 #[macro_export]
 macro_rules! celestia_network_head {
+    (height: $height:expr) => {
+        celestia_network_head!(height: $height, chain_id: $crate::helpers::CELESTIA_CHAIN_ID)
+    };
     (height: $height:expr,chain_id: $chain_id:expr $(,)?) => {
         ::celestia_types::ExtendedHeader {
             header: ::celestia_tendermint::block::header::Header {
@@ -320,6 +323,9 @@ macro_rules! mount_sequencer_validator_set {
 
 #[macro_export]
 macro_rules! mount_sequencer_genesis {
+    ($test_env:ident) => {
+        $test_env.mount_genesis(SEQUENCER_CHAIN_ID).await;
+    };
     ($test_env:ident,chain_id: $chain_id:expr $(,)?) => {
         $test_env.mount_genesis($chain_id).await;
     };

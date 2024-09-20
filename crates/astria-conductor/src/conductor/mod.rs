@@ -2,7 +2,10 @@ mod inner;
 
 use std::future::Future;
 
-use astria_eyre::eyre;
+use astria_eyre::eyre::{
+    self,
+    Result,
+};
 use inner::{
     ConductorInner,
     InnerHandle,
@@ -128,16 +131,17 @@ impl Conductor {
     #[instrument(skip_all, err)]
     async fn shutdown_or_restart(
         &mut self,
-        exit_reason: Result<RestartOrShutdown, JoinError>,
+        exit_reason: Result<Result<RestartOrShutdown>, JoinError>,
     ) -> eyre::Result<&'static str> {
         match exit_reason {
-            Ok(restart_or_shutdown) => match restart_or_shutdown {
+            Ok(Ok(restart_or_shutdown)) => match restart_or_shutdown {
                 RestartOrShutdown::Restart => {
                     self.restart();
                     return Ok("restarting");
                 }
                 RestartOrShutdown::Shutdown => Ok("conductor exiting"),
             },
+            Ok(Err(err)) => Err(err.wrap_err("conductor failed failed")),
             Err(err) => Err(eyre::ErrReport::from(err).wrap_err("conductor failed")),
         }
     }

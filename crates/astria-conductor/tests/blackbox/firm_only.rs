@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use astria_conductor::{
-    conductor::CelestiaChainIdError,
     config::CommitLevel,
     Conductor,
     Config,
@@ -473,6 +472,8 @@ async fn exits_on_celestia_chain_id_mismatch() {
     .mount(&mock_grpc.mock_server)
     .await;
 
+    let bad_chain_id = "bad_chain_id";
+
     Mock::given(body_partial_json(
         json!({"jsonrpc": "2.0", "method": "header.NetworkHead"}),
     ))
@@ -483,7 +484,7 @@ async fn exits_on_celestia_chain_id_mismatch() {
     .respond_with(ResponseTemplate::new(200).set_body_json(json!({
         "jsonrpc": "2.0",
         "id": 0,
-        "result": celestia_network_head!(height: 1u32, chain_id: "bad_chain_id"),
+        "result": celestia_network_head!(height: 1u32, chain_id: bad_chain_id),
     })))
     .expect(1..)
     .mount(&mock_http)
@@ -496,18 +497,18 @@ async fn exits_on_celestia_chain_id_mismatch() {
             let mut source = e.source();
             while source.is_some() {
                 let err = source.unwrap();
-                if let Some(CelestiaChainIdError::MismatchedCelestiaChainId {
-                    expected,
-                    actual,
-                }) = err.downcast_ref::<CelestiaChainIdError>()
-                {
-                    assert_eq!(expected, CELESTIA_CHAIN_ID);
-                    assert_eq!(actual, "bad_chain_id");
+                if err.to_string().contains(
+                    format!(
+                        "expected Celestia chain id `{CELESTIA_CHAIN_ID}` does not match actual: \
+                         `{bad_chain_id}`"
+                    )
+                    .as_str(),
+                ) {
                     return;
                 }
                 source = err.source();
             }
-            panic!("conductor did not exit with MismatchedCelestiaChainId, but with error: {e}")
+            panic!("conductor exited with incorrect error: {e}")
         }
         Err(e) => panic!("conductor handle resulted in an error: {e}"),
     }
