@@ -12,6 +12,7 @@ use crate::{
     mount_abci_info,
     mount_celestia_blobs,
     mount_celestia_header_network_head,
+    mount_execute_block_tonic_code,
     mount_executed_block,
     mount_get_block,
     mount_get_commitment_state,
@@ -260,6 +261,134 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
     .await
     .expect(
         "conductor should have executed the soft block and updated the soft commitment state \
+         within 1000ms",
+    );
+}
+
+/// Tests if conductor restarts internal services if rollup shows signs of a restart.
+///
+/// Astria Geth will return a `PermissionDenied` error if the `execute_block` RPC is called
+/// before `get_genesis_info` and `get_commitment_state` are called, which would happen in the
+/// case of a restart. This response is mounted to cause the conductor to restart.
+#[allow(clippy::too_many_lines)] // allow: all lines fairly necessary, and I don't think a test warrants a refactor
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn conductor_restarts_on_permission_denied() {
+    let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
+
+    mount_get_genesis_info!(
+        test_conductor,
+        sequencer_genesis_block_height: 1,
+        celestia_block_variance: 10,
+    );
+
+    mount_get_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        base_celestia_height: 1,
+    );
+
+    mount_sequencer_genesis!(test_conductor);
+
+    mount_celestia_header_network_head!(
+        test_conductor,
+        height: 1u32,
+    );
+
+    mount_celestia_blobs!(
+        test_conductor,
+        celestia_height: 1,
+        sequencer_heights: [3],
+    );
+
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 3u32,
+    );
+
+    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+
+    mount_abci_info!(
+        test_conductor,
+        latest_sequencer_height: 3,
+    );
+
+    mount_get_filtered_sequencer_block!(
+        test_conductor,
+        sequencer_height: 3,
+    );
+
+    // mount tonic `PermissionDenied` error to cause the conductor to restart.
+    // This mock can only be called up to 1 time, allowing a normal `execute_block` call after.
+    let execute_block_tonic_code = mount_execute_block_tonic_code!(
+        test_conductor,
+        parent: [1; 64],
+        status_code: tonic::Code::PermissionDenied,
+    );
+
+    timeout(
+        Duration::from_millis(1000),
+        execute_block_tonic_code.wait_until_satisfied(),
+    )
+    .await
+    .expect("conductor should have restarted after a permission denied error within 1000ms");
+
+    let execute_block = mount_executed_block!(
+        test_conductor,
+        number: 2,
+        hash: [2; 64],
+        parent: [1; 64],
+    );
+
+    let update_commitment_state_soft = mount_update_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+    );
+
+    let update_commitment_state_firm = mount_update_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+    );
+
+    timeout(
+        Duration::from_millis(1000),
+        join3(
+            execute_block.wait_until_satisfied(),
+            update_commitment_state_soft.wait_until_satisfied(),
+            update_commitment_state_firm.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect(
+        "conductor should have executed the block and updated the soft and firm commitment states \
          within 1000ms",
     );
 }
