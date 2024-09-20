@@ -1,3 +1,5 @@
+use std::env;
+
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
@@ -36,17 +38,24 @@ use color_eyre::{
 };
 use rand::rngs::OsRng;
 
-use crate::cli::sequencer::{
-    BasicAccountArgs,
-    Bech32mAddressArgs,
-    BlockHeightGetArgs,
-    BridgeLockArgs,
-    FeeAssetChangeArgs,
-    IbcRelayerChangeArgs,
-    InitBridgeAccountArgs,
-    SudoAddressChangeArgs,
-    TransferArgs,
-    ValidatorUpdateArgs,
+// use serde::de;
+use crate::{
+    cli::{
+        config::NetworkConfig,
+        sequencer::{
+            BasicAccountArgs,
+            Bech32mAddressArgs,
+            BlockHeightGetArgs,
+            BridgeLockArgs,
+            FeeAssetChangeArgs,
+            IbcRelayerChangeArgs,
+            InitBridgeAccountArgs,
+            SudoAddressChangeArgs,
+            TransferArgs,
+            ValidatorUpdateArgs,
+        },
+    },
+    DEFAULT_SEQUENCER_RPC,
 };
 
 /// Generate a new signing key (this is also called a secret key by other implementations)
@@ -123,9 +132,47 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
 ///
 /// * If the http client cannot be created
 /// * If the balance cannot be retrieved
-pub(crate) async fn get_nonce(args: &BasicAccountArgs) -> eyre::Result<()> {
-    let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
-        .wrap_err("failed constructing http sequencer client")?;
+pub(crate) async fn get_nonce(args: &BasicAccountArgs, network: NetworkConfig) -> eyre::Result<()> {
+    // update the sequencer_url if the config is in use
+    // Retrieve the default value manually
+    // let default_value = DEFAULT_SEQUENCER_RPC;
+    println!("Default value: {:?}", DEFAULT_SEQUENCER_RPC);
+    println!("Argument value: {:?}", network.sequencer_url);
+
+    let mut seq_url = String::from(DEFAULT_SEQUENCER_RPC);
+
+    let default = String::from(DEFAULT_SEQUENCER_RPC);
+
+    // Check if the environment variable is set
+    let env_var = env::var("SEQUENCER_URL")
+        .ok()
+        .unwrap_or_else(|| default.clone());
+    // let env_var = env_var_value.unwrap_or_else(default);
+    println!("Environment variable: {:?}", env_var);
+
+    // Compare the final value with the default and environment variable
+    // this will fail if the user uses the default value as a flag argument
+    if args.sequencer_url != DEFAULT_SEQUENCER_RPC {
+        println!("Using command line value: {}", DEFAULT_SEQUENCER_RPC);
+        seq_url = args.sequencer_url.clone();
+    } else if env_var != default.as_str() {
+        println!(
+            "Argument is using the value from the environment variable: {}",
+            args.sequencer_url
+        );
+        seq_url = env_var;
+    } else if network.sequencer_url != DEFAULT_SEQUENCER_RPC {
+        println!("Using network config value: {}", network.sequencer_url);
+        seq_url = network.sequencer_url.clone();
+    } else {
+        println!(
+            "Argument was explicitly set by the user: {}",
+            args.sequencer_url
+        );
+    }
+
+    let sequencer_client =
+        HttpClient::new(seq_url.as_str()).wrap_err("failed constructing http sequencer client")?;
 
     let res = sequencer_client
         .get_latest_nonce(args.address)
