@@ -15,6 +15,7 @@ use axum::{
     Server,
 };
 use ethereum::watcher::Watcher;
+use http::Uri;
 use hyper::server::conn::AddrIncoming;
 use startup::Startup;
 use tokio::{
@@ -93,9 +94,11 @@ impl BridgeWithdrawer {
             .parse()
             .wrap_err("failed to parse sequencer bridge address")?;
 
-        let sequencer_grpc_connection = tonic::transport::Endpoint::new(sequencer_grpc_endpoint)
-            .wrap_err("failed constructing sequencer grpc endpoint")?
-            .connect_lazy();
+        let sequencer_grpc_uri = sequencer_grpc_endpoint
+            .parse::<Uri>()
+            .wrap_err("failed to parse sequencer grpc endpoint to Uri")?;
+        let sequencer_grpc_connection =
+            tonic::transport::Endpoint::from(sequencer_grpc_uri).connect_lazy();
         let sequencer_grpc_client =
             sequencer_service_client::SequencerServiceClient::new(sequencer_grpc_connection);
         let sequencer_cometbft_client =
