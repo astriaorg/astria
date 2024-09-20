@@ -105,7 +105,7 @@ impl ActionHandler for BridgeLockAction {
         let fee = byte_cost_multiplier
             .saturating_mul(
                 calculate_base_deposit_fee(&deposit)
-                    .expect("deposit fee calculation should not fail"),
+                    .ok_or_eyre("deposit fee calculation overflowed u128")?,
             )
             .saturating_add(transfer_fee);
         ensure!(from_balance >= fee, "insufficient funds for fee payment");
@@ -134,7 +134,8 @@ impl ActionHandler for BridgeLockAction {
             .await
             .wrap_err("failed to get byte cost multiplier")?;
         let fee = byte_cost_multiplier.saturating_mul(
-            calculate_base_deposit_fee(&deposit).expect("deposit fee calculation should not fail"),
+            calculate_base_deposit_fee(&deposit)
+                .ok_or_eyre("deposit fee calculation overflowed u128")?,
         );
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
@@ -158,13 +159,11 @@ impl ActionHandler for BridgeLockAction {
 /// for all fields except `asset` and `destination_chain_address`, ergo it may not be representative
 /// of on-wire length.
 pub(crate) fn calculate_base_deposit_fee(deposit: &Deposit) -> Option<u128> {
-    let variable_length = deposit
+    deposit
         .asset
-        .to_string()
-        .len()
-        .checked_add(deposit.destination_chain_address.len())
-        .expect("deposit byte length overflowed usize") as u128;
-    DEPOSIT_BASE_FEE.checked_add(variable_length)
+        .display_len()
+        .and_then(|asset_len| asset_len.checked_add(deposit.destination_chain_address.len()))
+        .and_then(|var_len| DEPOSIT_BASE_FEE.checked_add(var_len as u128))
 }
 
 #[cfg(test)]

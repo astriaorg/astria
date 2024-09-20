@@ -75,6 +75,24 @@ impl Denom {
         };
         trace
     }
+
+    /// Calculates the length of the display formatted [Denom] without allocating a String.
+    #[must_use]
+    pub fn display_len(&self) -> Option<usize> {
+        match self {
+            Denom::TracePrefixed(trace) => {
+                let mut len: usize = 0;
+                for segment in &trace.trace.inner {
+                    len = len
+                        .checked_add(segment.port.len())
+                        .and_then(|len| len.checked_add(segment.channel.len()))
+                        .and_then(|len| len.checked_add(2))?;
+                }
+                len.checked_add(trace.base_denom.len())
+            }
+            Denom::IbcPrefixed(_) => Some(68), // "ibc/" + 64 hex characters
+        }
+    }
 }
 
 impl From<IbcPrefixed> for Denom {
@@ -690,5 +708,19 @@ mod tests {
         assert_eq!("to", port_and_channel.channel());
 
         assert_eq!(None, denom.pop_leading_port_and_channel());
+    }
+
+    #[test]
+    fn display_len_ok() {
+        let trace_denom = Denom::from("a/long/path/to/denom".parse::<TracePrefixed>().unwrap());
+        assert_eq!(
+            trace_denom.to_string().len(),
+            trace_denom.display_len().unwrap()
+        );
+        let ibc_denom = Denom::from(IbcPrefixed::new([42u8; 32]));
+        assert_eq!(
+            ibc_denom.to_string().len(),
+            ibc_denom.display_len().unwrap()
+        );
     }
 }
