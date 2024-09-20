@@ -42,25 +42,21 @@ pub(crate) fn create_deposit_event(deposit: &Deposit) -> abci::Event {
     abci::Event::new(
         "tx.deposit",
         [
-            ("bridgeAddress", deposit.bridge_address().to_string()).index(),
-            ("rollupId", deposit.rollup_id().to_string()).index(),
-            ("amount", deposit.amount().to_string()).index(),
-            ("asset", deposit.asset().to_string()).index(),
+            ("bridgeAddress", deposit.bridge_address.to_string()).index(),
+            ("rollupId", deposit.rollup_id.to_string()).index(),
+            ("amount", deposit.amount.to_string()).index(),
+            ("asset", deposit.asset.to_string()).index(),
             (
                 "destinationChainAddress",
-                deposit.destination_chain_address().to_string(),
+                deposit.destination_chain_address.to_string(),
             )
                 .index(),
             (
                 "sourceTransactionId",
-                deposit.source_transaction_id().to_string(),
+                deposit.source_transaction_id.to_string(),
             )
                 .index(),
-            (
-                "sourceActionIndex",
-                deposit.source_action_index().to_string(),
-            )
-                .index(),
+            ("sourceActionIndex", deposit.source_action_index.to_string()).index(),
         ],
     )
 }

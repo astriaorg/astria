@@ -19,6 +19,11 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
+use astria_grpc_mock::{
+    response::ResponseResult,
+    AnyMessage,
+    Respond,
+};
 use bytes::Bytes;
 use celestia_types::{
     nmt::Namespace,
@@ -129,8 +134,7 @@ impl Drop for TestConductor {
             let err_msg =
                 match tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown()).await
                 {
-                    Ok(Ok(Ok(()))) => None,
-                    Ok(Ok(Err(e))) => Some(format!("conductor shut down with an error: {e:?}")),
+                    Ok(Ok(_)) => None,
                     Ok(Err(conductor_err)) => Some(format!(
                         "conductor failed during shutdown:\n{conductor_err:?}"
                     )),
@@ -226,7 +230,7 @@ impl TestConductor {
                 "result": blobs,
             }))
         })
-        .expect(1)
+        .expect(1..)
         .mount(&self.mock_http)
         .await;
     }
@@ -422,71 +426,27 @@ impl TestConductor {
         .mount(&self.mock_http)
         .await;
     }
+
+    pub async fn mount_tonic_status_code<S: serde::Serialize>(
+        &self,
+        expected_pbjson: S,
+        code: tonic::Code,
+    ) -> astria_grpc_mock::MockGuard {
+        use astria_grpc_mock::{
+            matcher::message_partial_pbjson,
+            Mock,
+        };
+
+        let mock = Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
+            .respond_with(error_response(code))
+            .up_to_n_times(1);
+        mock.expect(1)
+            .mount_as_scoped(&self.mock_grpc.mock_server)
+            .await
+    }
 }
 
-pub async fn mount_genesis(mock_http: &MockServer, chain_id: &str) {
-    use tendermint::{
-        consensus::{
-            params::{
-                AbciParams,
-                ValidatorParams,
-            },
-            Params,
-        },
-        genesis::Genesis,
-        time::Time,
-    };
-    use wiremock::{
-        matchers::body_partial_json,
-        Mock,
-        ResponseTemplate,
-    };
-    Mock::given(body_partial_json(
-        json!({"jsonrpc": "2.0", "method": "genesis", "params": null}),
-    ))
-    .respond_with(ResponseTemplate::new(200).set_body_json(
-        tendermint_rpc::response::Wrapper::new_with_id(
-            tendermint_rpc::Id::uuid_v4(),
-            Some(
-                tendermint_rpc::endpoint::genesis::Response::<serde_json::Value> {
-                    genesis: Genesis {
-                        genesis_time: Time::from_unix_timestamp(1, 1).unwrap(),
-                        chain_id: chain_id.try_into().unwrap(),
-                        initial_height: 1,
-                        consensus_params: Params {
-                            block: tendermint::block::Size {
-                                max_bytes: 1024,
-                                max_gas: 1024,
-                                time_iota_ms: 1000,
-                            },
-                            evidence: tendermint::evidence::Params {
-                                max_age_num_blocks: 1000,
-                                max_age_duration: tendermint::evidence::Duration(
-                                    Duration::from_secs(3600),
-                                ),
-                                max_bytes: 1_048_576,
-                            },
-                            validator: ValidatorParams {
-                                pub_key_types: vec![tendermint::public_key::Algorithm::Ed25519],
-                            },
-                            version: None,
-                            abci: AbciParams::default(),
-                        },
-                        validators: vec![],
-                        app_hash: tendermint::hash::AppHash::default(),
-                        app_state: serde_json::Value::Null,
-                    },
-                },
-            ),
-            None,
-        ),
-    ))
-    .expect(1..)
-    .mount(mock_http)
-    .await;
-}
-
-pub(crate) fn make_config() -> Config {
+fn make_config() -> Config {
     Config {
         celestia_block_time_ms: 12000,
         celestia_node_http_url: "http://127.0.0.1:26658".into(),
@@ -687,4 +647,21 @@ pub fn rollup_namespace() -> Namespace {
 #[must_use]
 pub fn sequencer_namespace() -> Namespace {
     astria_core::celestia::namespace_v0_from_sha256_of_bytes(SEQUENCER_CHAIN_ID.as_bytes())
+}
+
+pub struct ErrorResponse {
+    status: tonic::Status,
+}
+
+impl Respond for ErrorResponse {
+    fn respond(&self, _req: &tonic::Request<AnyMessage>) -> ResponseResult {
+        Err(self.status.clone())
+    }
+}
+
+#[must_use]
+pub fn error_response(code: tonic::Code) -> ErrorResponse {
+    ErrorResponse {
+        status: tonic::Status::new(code, "error"),
+    }
 }
