@@ -68,7 +68,7 @@ async fn simple() {
         latest_sequencer_height: 3,
     );
 
-    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
+    mount_sequencer_genesis!(test_conductor);
 
     mount_celestia_header_network_head!(
         test_conductor,
@@ -176,7 +176,7 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
         latest_sequencer_height: 4,
     );
 
-    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
+    mount_sequencer_genesis!(test_conductor);
 
     mount_get_block!(
         test_conductor,

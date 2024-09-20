@@ -60,7 +60,7 @@ async fn simple() {
         base_celestia_height: 1,
     );
 
-    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
+    mount_sequencer_genesis!(test_conductor);
 
     mount_abci_info!(
         test_conductor,
@@ -133,7 +133,7 @@ async fn submits_two_heights_in_succession() {
         base_celestia_height: 1,
     );
 
-    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
+    mount_sequencer_genesis!(test_conductor);
 
     mount_abci_info!(
         test_conductor,
@@ -239,7 +239,7 @@ async fn skips_already_executed_heights() {
         base_celestia_height: 1,
     );
 
-    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
+    mount_sequencer_genesis!(test_conductor);
 
     mount_abci_info!(
         test_conductor,
@@ -312,7 +312,7 @@ async fn requests_from_later_genesis_height() {
         base_celestia_height: 1,
     );
 
-    mount_sequencer_genesis!(test_conductor, chain_id: SEQUENCER_CHAIN_ID);
+    mount_sequencer_genesis!(test_conductor);
 
     mount_abci_info!(
         test_conductor,

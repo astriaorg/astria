@@ -326,9 +326,6 @@ macro_rules! mount_sequencer_genesis {
     ($test_env:ident) => {
         $test_env.mount_genesis(SEQUENCER_CHAIN_ID).await;
     };
-    ($test_env:ident,chain_id: $chain_id:expr $(,)?) => {
-        $test_env.mount_genesis($chain_id).await;
-    };
 }
 
 #[macro_export]
