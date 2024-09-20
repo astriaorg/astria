@@ -3,48 +3,51 @@ apiVersion: v1
 kind: Service
 metadata:
   name: graph-node
+  namespace: {{ .Values.global.namespaceOverride | default .Release.Namespace }}
 spec:
   selector:
     app: graph-node
   ports:
     - name: http
-      port: 8000
-      targetPort: 8000
+      port: {{ .Values.graphNode.ports.http | default 8000 }}
+      targetPort: {{ .Values.graphNode.ports.http | default 8000 }}
     - name: json-rpc
-      port: 8001
-      targetPort: 8001
+      port: {{ .Values.graphNode.ports.jsonRpc | default 8001 }}
+      targetPort: {{ .Values.graphNode.ports.jsonRpc | default 8001 }}
     - name: index-node
-      port: 8020
-      targetPort: 8020
+      port: {{ .Values.graphNode.ports.indexNode | default 8020 }}
+      targetPort: {{ .Values.graphNode.ports.indexNode | default 8020 }}
     - name: metrics
-      port: 8030
-      targetPort: 8030
+      port: {{ .Values.graphNode.ports.metrics | default 8030 }}
+      targetPort: {{ .Values.graphNode.ports.metrics | default 8030 }}
     - name: subgraph-metrics
-      port: 8040
-      targetPort: 8040
+      port: {{ .Values.graphNode.ports.subgraphMetrics | default 8040 }}
+      targetPort: {{ .Values.graphNode.ports.subgraphMetrics | default 8040 }}
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: ipfs
+  namespace: {{ .Values.global.namespaceOverride | default .Release.Namespace }}
 spec:
   selector:
     app: ipfs
   ports:
     - name: api
-      port: 5001
-      targetPort: 5001
+      port: {{ .Values.ipfs.ports.api | default 5001 }}
+      targetPort: {{ .Values.ipfs.ports.api | default 5001 }}
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: postgres
+  namespace: {{ .Values.global.namespaceOverride | default .Release.Namespace }}
 spec:
   selector:
     app: postgres
   ports:
     - name: postgres
-      port: 5432
-      targetPort: 5432
+      port: {{ .Values.postgres.ports.postgres | default 5432 }}
+      targetPort: {{ .Values.postgres.ports.postgres | default 5432 }}

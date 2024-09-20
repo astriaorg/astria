@@ -18,11 +18,11 @@ spec:
       - name: graph-node
         image: {{ .Values.graphNode.image }}:{{ .Values.graphNode.tag }}
         ports:
-        - containerPort: 8000
-        - containerPort: 8001
-        - containerPort: 8020
-        - containerPort: 8030
-        - containerPort: 8040
+        - containerPort: {{ .Values.graphNode.ports.http | default 8000 }}
+        - containerPort: {{ .Values.graphNode.ports.jsonRpc | default 8001 }}
+        - containerPort: {{ .Values.graphNode.ports.indexNode | default 8020 }}
+        - containerPort: {{ .Values.graphNode.ports.metrics | default 8030 }}
+        - containerPort: {{ .Values.graphNode.ports.subgraphMetrics | default 8040 }}
         env:
         - name: postgres_host
           value: postgres
@@ -59,7 +59,7 @@ spec:
       - name: ipfs
         image: {{ .Values.ipfs.image }}:{{ .Values.ipfs.tag }}
         ports:
-        - containerPort: 5001
+        - containerPort: {{ .Values.ipfs.ports.api | default 5001 }}
         volumeMounts:
         - name: ipfs-storage
           mountPath: /data/ipfs
@@ -90,7 +90,7 @@ spec:
       - name: postgres
         image: {{ .Values.postgres.image }}:{{ .Values.postgres.tag }}
         ports:
-        - containerPort: 5432
+        - containerPort: {{ .Values.postgres.ports.postgres | default 5432 }}
         env:
         - name: POSTGRES_USER
           value: {{ .Values.postgres.user }}

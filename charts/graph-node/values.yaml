@@ -14,6 +14,12 @@ graphNode:
   replicas: 1
   metrics:
     enabled: false
+  ports:
+    http: 8000
+    jsonRpc: 8001
+    indexNode: 8020
+    metrics: 8030
+    subgraphMetrics: 8040
 
 ingress:
   enabled: true
@@ -32,6 +38,8 @@ ipfs:
   tag: v0.17.0
   storage:
     size: 5Gi
+  ports:
+    api: 5001
 
 postgres:
   image: postgres
@@ -41,6 +49,8 @@ postgres:
   database: graph-node
   storage:
     size: 10Gi
+  ports:
+    postgres: 5432
 
 environment:
   ethereumNetwork: flame-local
