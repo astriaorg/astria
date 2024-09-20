@@ -133,9 +133,6 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
 /// * If the http client cannot be created
 /// * If the balance cannot be retrieved
 pub(crate) async fn get_nonce(args: &BasicAccountArgs, network: NetworkConfig) -> eyre::Result<()> {
-    // update the sequencer_url if the config is in use
-    // Retrieve the default value manually
-    // let default_value = DEFAULT_SEQUENCER_RPC;
     println!("Default value: {:?}", DEFAULT_SEQUENCER_RPC);
     println!("Argument value: {:?}", network.sequencer_url);
 
@@ -147,10 +144,9 @@ pub(crate) async fn get_nonce(args: &BasicAccountArgs, network: NetworkConfig) -
     let env_var = env::var("SEQUENCER_URL")
         .ok()
         .unwrap_or_else(|| default.clone());
-    // let env_var = env_var_value.unwrap_or_else(default);
     println!("Environment variable: {:?}", env_var);
 
-    // Compare the final value with the default and environment variable
+    // Compare the input value with the default and environment variable
     // this will fail if the user uses the default value as a flag argument
     if args.sequencer_url != DEFAULT_SEQUENCER_RPC {
         println!("Using command line value: {}", DEFAULT_SEQUENCER_RPC);
