@@ -207,82 +207,42 @@ impl TracePrefixed {
         self.trace.is_empty()
     }
 
-    /// Checks if the trace prefixed denom starts with `s`.
+    /// Checks if the trace prefixed denom has `port` in left-most position.
     ///
     /// # Examples
     ///
     /// ```
     /// use astria_core::primitive::v1::asset::denom::TracePrefixed;
     /// let denom = "four/segments/of/a/denom".parse::<TracePrefixed>().unwrap();
-    ///
-    /// // Empty string is always true:
-    /// assert!(denom.starts_with_str(""));
-    /// // Single slash is always false:
-    /// assert!(!denom.starts_with_str("/"));
-    /// // Emptry strings are false:
-    /// assert!(!denom.starts_with_str(" "));
-    ///
-    /// // In general, whitespace is not trimmed and leads to false
-    /// assert!(!denom.starts_with_str("four/segments /"));
-    ///
-    /// // Trailing slashes don't change the result if they are part of the trace prefix:
-    /// assert!(denom.starts_with_str("four/segments"));
-    /// assert!(denom.starts_with_str("four/segments/"));
-    ///
-    /// // Trailing slashes on the full trace prefix denom however return false:
-    /// assert!(!denom.starts_with_str("four/segments/of/a/denom/"));
-    ///
-    /// // Providing only a port is true
-    /// assert!(denom.starts_with_str("four"));
-    /// // Providing a full port/channel pair followed by just a port is also true
-    /// assert!(denom.starts_with_str("four/segments/of"));
-    ///
-    /// // Half of a port or channel is false
-    /// assert!(!denom.starts_with_str("four/segm"));
-    ///
-    /// // The full trace prefixed denom is true:
-    /// assert!(denom.starts_with_str("four/segments/of/a/denom"));
+    /// assert!(denom.has_leading_port("four"));
+    /// assert!(!denom.has_leading_port("segments"));
+    /// assert!(!denom.has_leading_port("of"));
+    /// assert!(!denom.has_leading_port("a"));
+    /// assert!(!denom.has_leading_port("denom"));
+    /// assert!(!denom.has_leading_port(""));
     /// ```
     #[must_use]
-    pub fn starts_with_str(&self, s: &str) -> bool {
-        if s.is_empty() {
-            return true;
-        }
-        let mut had_trailing_slash = false;
-        let s = s
-            .strip_suffix('/')
-            .inspect(|_| had_trailing_slash = true)
-            .unwrap_or(s);
-        if s.is_empty() {
-            return false;
-        }
-        let mut parts = s.split('/');
-        for segment in self.trace.iter() {
-            // first iteration: we know that s is not empty after stripping the /
-            // so that this is not wrongly returning true.
-            let Some(port) = parts.next() else {
-                return true;
-            };
-            if segment.port() != port {
-                return false;
-            }
-            let Some(channel) = parts.next() else {
-                return true;
-            };
-            if segment.channel() != channel {
-                return false;
-            }
-        }
-        let Some(base_denom) = parts.next() else {
-            return true;
-        };
-        if base_denom != self.base_denom {
-            return false;
-        }
-        if had_trailing_slash {
-            return false;
-        }
-        parts.next().is_none()
+    pub fn has_leading_port<T: AsRef<str>>(&self, port: T) -> bool {
+        self.trace.leading_port() == Some(port.as_ref())
+    }
+
+    /// Checks if the trace prefixed denom has `channel` in left-most position.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use astria_core::primitive::v1::asset::denom::TracePrefixed;
+    /// let denom = "four/segments/of/a/denom".parse::<TracePrefixed>().unwrap();
+    /// assert!(!denom.has_leading_channel("four"));
+    /// assert!(denom.has_leading_channel("segments"));
+    /// assert!(!denom.has_leading_channel("of"));
+    /// assert!(!denom.has_leading_channel("a"));
+    /// assert!(!denom.has_leading_channel("denom"));
+    /// assert!(!denom.has_leading_channel(""));
+    /// ```
+    #[must_use]
+    pub fn has_leading_channel<T: AsRef<str>>(&self, channel: T) -> bool {
+        self.trace.leading_channel() == Some(channel.as_ref())
     }
 
     #[must_use]
@@ -290,7 +250,7 @@ impl TracePrefixed {
         self.trace.last_channel()
     }
 
-    pub fn pop_trace_segment(&mut self) -> Option<PortAndChannel> {
+    pub fn pop_leading_port_and_channel(&mut self) -> Option<PortAndChannel> {
         self.trace.pop()
     }
 
@@ -311,6 +271,14 @@ impl TraceSegments {
         }
     }
 
+    fn leading_port(&self) -> Option<&str> {
+        self.inner.front().map(|segment| &*segment.port)
+    }
+
+    fn leading_channel(&self) -> Option<&str> {
+        self.inner.front().map(|segment| &*segment.channel)
+    }
+
     fn push(&mut self, seg: PortAndChannel) {
         self.inner.push_back(seg);
     }
@@ -325,10 +293,6 @@ impl TraceSegments {
 
     fn is_empty(&self) -> bool {
         self.inner.is_empty()
-    }
-
-    fn iter(&self) -> impl Iterator<Item = &PortAndChannel> {
-        self.inner.iter()
     }
 }
 
@@ -717,37 +681,14 @@ mod tests {
     #[test]
     fn pop_path() {
         let mut denom = "a/long/path/to/denom".parse::<TracePrefixed>().unwrap();
-        let port_and_channel = denom.pop_trace_segment().unwrap();
+        let port_and_channel = denom.pop_leading_port_and_channel().unwrap();
         assert_eq!("a", port_and_channel.port());
         assert_eq!("long", port_and_channel.channel());
 
-        let port_and_channel = denom.pop_trace_segment().unwrap();
+        let port_and_channel = denom.pop_leading_port_and_channel().unwrap();
         assert_eq!("path", port_and_channel.port());
         assert_eq!("to", port_and_channel.channel());
 
-        assert_eq!(None, denom.pop_trace_segment());
-    }
-
-    #[test]
-    fn start_prefixes() {
-        let denom = "four/segments/of/a/denom".parse::<TracePrefixed>().unwrap();
-
-        assert!(denom.starts_with_str(""));
-        assert!(!denom.starts_with_str("/"));
-        assert!(!denom.starts_with_str(" "));
-
-        assert!(!denom.starts_with_str("four/segments /"));
-
-        assert!(denom.starts_with_str("four/segments"));
-        assert!(denom.starts_with_str("four/segments/"));
-
-        assert!(!denom.starts_with_str("four/segments/of/a/denom/"));
-
-        assert!(denom.starts_with_str("four"));
-        assert!(denom.starts_with_str("four/segments/of"));
-
-        assert!(!denom.starts_with_str("four/segm"));
-
-        assert!(denom.starts_with_str("four/segments/of/a/denom"));
+        assert_eq!(None, denom.pop_leading_port_and_channel());
     }
 }

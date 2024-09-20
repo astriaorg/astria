@@ -1,11 +1,12 @@
-use anyhow::{
-    ensure,
-    Context as _,
-    Result,
-};
 use astria_core::{
     protocol::transaction::v1alpha1::action::BridgeSudoChangeAction,
     Protobuf as _,
+};
+use astria_eyre::eyre::{
+    bail,
+    ensure,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::StateWrite;
 
@@ -31,31 +32,31 @@ impl ActionHandler for BridgeSudoChangeAction {
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         state
             .ensure_base_prefix(&self.bridge_address)
             .await
-            .context("failed check for base prefix of bridge address")?;
+            .wrap_err("failed check for base prefix of bridge address")?;
         if let Some(new_sudo_address) = &self.new_sudo_address {
             state
                 .ensure_base_prefix(new_sudo_address)
                 .await
-                .context("failed check for base prefix of new sudo address")?;
+                .wrap_err("failed check for base prefix of new sudo address")?;
         }
         if let Some(new_withdrawer_address) = &self.new_withdrawer_address {
             state
                 .ensure_base_prefix(new_withdrawer_address)
                 .await
-                .context("failed check for base prefix of new withdrawer address")?;
+                .wrap_err("failed check for base prefix of new withdrawer address")?;
         }
 
         ensure!(
             state
                 .is_allowed_fee_asset(&self.fee_asset)
                 .await
-                .context("failed to check allowed fee assets in state")?,
+                .wrap_err("failed to check allowed fee assets in state")?,
             "invalid fee asset",
         );
 
@@ -63,11 +64,11 @@ impl ActionHandler for BridgeSudoChangeAction {
         let Some(sudo_address) = state
             .get_bridge_account_sudo_address(self.bridge_address)
             .await
-            .context("failed to get bridge account sudo address")?
+            .wrap_err("failed to get bridge account sudo address")?
         else {
             // TODO: if the sudo address is unset, should we still allow this action
             // if the sender if the bridge address itself?
-            anyhow::bail!("bridge account does not have an associated sudo address");
+            bail!("bridge account does not have an associated sudo address");
         };
 
         ensure!(
@@ -78,15 +79,15 @@ impl ActionHandler for BridgeSudoChangeAction {
         let fee = state
             .get_bridge_sudo_change_base_fee()
             .await
-            .context("failed to get bridge sudo change fee")?;
+            .wrap_err("failed to get bridge sudo change fee")?;
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
-            .context("failed to add to block fees")?;
+            .wrap_err("failed to add to block fees")?;
         state
             .decrease_balance(self.bridge_address, &self.fee_asset, fee)
             .await
-            .context("failed to decrease balance for bridge sudo change fee")?;
+            .wrap_err("failed to decrease balance for bridge sudo change fee")?;
 
         if let Some(sudo_address) = self.new_sudo_address {
             state.put_bridge_account_sudo_address(self.bridge_address, sudo_address);
@@ -102,7 +103,10 @@ impl ActionHandler for BridgeSudoChangeAction {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::asset;
+    use astria_core::primitive::v1::{
+        asset,
+        TransactionId,
+    };
     use cnidarium::StateDelta;
 
     use super::*;
@@ -128,10 +132,12 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         let asset = test_asset();
         state.put_allowed_fee_asset(&asset);
@@ -164,10 +170,12 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let sudo_address = astria_address(&[98; 20]);
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: sudo_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
         state.put_bridge_sudo_change_base_fee(10);
 
         let fee_asset = test_asset();

@@ -515,7 +515,7 @@ dependencies = [
 
 [[package]]
 name = "astria-bridge-withdrawer"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "astria-bridge-contracts",
  "astria-build-info",
@@ -562,7 +562,7 @@ dependencies = [
 
 [[package]]
 name = "astria-cli"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "astria-bridge-contracts",
  "astria-core",
@@ -589,7 +589,7 @@ dependencies = [
 
 [[package]]
 name = "astria-composer"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -633,7 +633,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.20.0"
+version = "0.20.1"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -733,6 +733,7 @@ dependencies = [
 name = "astria-eyre"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "eyre",
  "itoa",
  "tokio-test",
@@ -790,12 +791,12 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
- "anyhow",
  "astria-build-info",
  "astria-config",
  "astria-core",
+ "astria-eyre",
  "astria-merkle",
  "astria-telemetry",
  "async-trait",
@@ -812,6 +813,7 @@ dependencies = [
  "penumbra-ibc",
  "penumbra-proto",
  "penumbra-tower-trace",
+ "pin-project-lite",
  "prost",
  "quick_cache",
  "rand 0.8.5",
@@ -837,11 +839,13 @@ name = "astria-sequencer-client"
 version = "0.1.0"
 dependencies = [
  "astria-core",
+ "astria-eyre",
  "async-trait",
  "futures",
  "futures-util",
  "hex",
  "hex-literal",
+ "humantime",
  "prost",
  "regex",
  "serde",
@@ -854,12 +858,13 @@ dependencies = [
  "tokio-stream",
  "tokio-test",
  "tracing",
+ "tryhard",
  "wiremock",
 ]
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",

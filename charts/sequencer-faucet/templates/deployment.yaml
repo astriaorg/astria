@@ -19,6 +19,7 @@ spec:
       containers:
         - name: sequencer-faucet
           image: {{ .Values.images.sequencerFaucet }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
           command: [ "/app/seq-faucet" ]
           args:
             - -httpport=$(SEQUENCER_FAUCET_PORT)

@@ -689,7 +689,7 @@ impl Future for SubmitFut {
                     info!(
                         nonce.actual = *this.nonce,
                         bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
-                        transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
+                        transaction.id = %tx.id(),
                         "submitting transaction to sequencer",
                     );
                     SubmitState::WaitingForSend {
@@ -767,7 +767,7 @@ impl Future for SubmitFut {
                         info!(
                             nonce.resubmission = *this.nonce,
                             bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
-                            transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
+                            transaction.id = %tx.id(),
                             "resubmitting transaction to sequencer with new nonce",
                         );
                         SubmitState::WaitingForSend {

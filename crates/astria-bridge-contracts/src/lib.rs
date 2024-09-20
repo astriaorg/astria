@@ -25,6 +25,8 @@ use astria_withdrawer::{
     SequencerWithdrawalFilter,
 };
 use ethers::{
+    self,
+    abi::AbiEncode,
     contract::EthEvent,
     providers::Middleware,
     types::{
@@ -378,10 +380,16 @@ where
             .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
             .as_u64();
 
-        let rollup_withdrawal_event_id = log
+        let transaction_hash = log
             .transaction_hash
             .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .to_string();
+            .encode_hex();
+        let event_index = log
+            .log_index
+            .ok_or_else(|| GetWithdrawalActionsError::log_without_log_index(&log))?
+            .encode_hex();
+
+        let rollup_withdrawal_event_id = format!("{transaction_hash}.{event_index}");
 
         let event = decode_log::<Ics20WithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
@@ -420,6 +428,9 @@ where
             timeout_time: timeout_in_5_min(),
             source_channel,
             bridge_address: Some(self.bridge_address),
+            // FIXME: this needs a way to determine when to use compat address
+            // https://github.com/astriaorg/astria/issues/1424
+            use_compat_address: false,
         };
         Ok(Action::Ics20Withdrawal(action))
     }
@@ -433,10 +444,16 @@ where
             .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
             .as_u64();
 
-        let rollup_withdrawal_event_id = log
+        let transaction_hash = log
             .transaction_hash
             .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .to_string();
+            .encode_hex();
+        let event_index = log
+            .log_index
+            .ok_or_else(|| GetWithdrawalActionsError::log_without_log_index(&log))?
+            .encode_hex();
+
+        let rollup_withdrawal_event_id = format!("{transaction_hash}.{event_index}");
 
         let event = decode_log::<SequencerWithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
@@ -499,6 +516,11 @@ impl GetWithdrawalActionsError {
     fn log_without_transaction_hash(_log: &Log) -> Self {
         Self(GetWithdrawalActionsErrorKind::LogWithoutTransactionHash)
     }
+
+    // XXX: Somehow identify the log?
+    fn log_without_log_index(_log: &Log) -> Self {
+        Self(GetWithdrawalActionsErrorKind::LogWithoutLogIndex)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -515,6 +537,8 @@ enum GetWithdrawalActionsErrorKind {
     LogWithoutBlockNumber,
     #[error("log did not contain a transaction hash")]
     LogWithoutTransactionHash,
+    #[error("log did not contain a log index")]
+    LogWithoutLogIndex,
     #[error(transparent)]
     CalculateWithdrawalAmount(CalculateWithdrawalAmountError),
 }

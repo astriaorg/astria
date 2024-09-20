@@ -1,10 +1,13 @@
-use anyhow::Context as _;
 use astria_core::{
     primitive::v1::Address,
     protocol::{
         abci::AbciErrorCode,
         bridge::v1alpha1::BridgeAccountInfo,
     },
+};
+use astria_eyre::eyre::{
+    eyre,
+    WrapErr as _,
 };
 use cnidarium::Storage;
 use prost::Message as _;
@@ -22,7 +25,7 @@ use crate::{
 };
 
 fn error_query_response(
-    err: Option<anyhow::Error>,
+    err: Option<astria_eyre::eyre::Error>,
     code: AbciErrorCode,
     msg: &str,
 ) -> response::Query {
@@ -44,7 +47,7 @@ fn error_query_response(
 async fn get_bridge_account_info(
     snapshot: cnidarium::Snapshot,
     address: Address,
-) -> anyhow::Result<Option<BridgeAccountInfo>, response::Query> {
+) -> Result<Option<BridgeAccountInfo>, response::Query> {
     let rollup_id = match snapshot.get_bridge_account_rollup_id(address).await {
         Ok(Some(rollup_id)) => rollup_id,
         Ok(None) => {
@@ -176,7 +179,7 @@ pub(crate) async fn bridge_account_info_request(
         Ok(height) => height,
         Err(err) => {
             return error_query_response(
-                Some(err),
+                Some(eyre!(err)),
                 AbciErrorCode::INTERNAL_ERROR,
                 "failed to get block height",
             );
@@ -225,7 +228,7 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
         Ok(height) => height,
         Err(err) => {
             return error_query_response(
-                Some(err),
+                Some(eyre!(err)),
                 AbciErrorCode::INTERNAL_ERROR,
                 "failed to get block height",
             );
@@ -233,12 +236,12 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
     };
 
     let resp = match snapshot
-        .get_last_transaction_hash_for_bridge_account(&address)
+        .get_last_transaction_id_for_bridge_account(&address)
         .await
     {
-        Ok(Some(tx_hash)) => BridgeAccountLastTxHashResponse {
+        Ok(Some(tx_id)) => BridgeAccountLastTxHashResponse {
             height,
-            tx_hash: Some(tx_hash),
+            tx_hash: Some(tx_id.get()),
         },
         Ok(None) => BridgeAccountLastTxHashResponse {
             height,
@@ -264,7 +267,7 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
     }
 }
 
-fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<Address, response::Query> {
+fn preprocess_request(params: &[(String, String)]) -> Result<Address, response::Query> {
     let Some(address) = params
         .iter()
         .find_map(|(k, v)| (k == "address").then_some(v))
@@ -277,7 +280,7 @@ fn preprocess_request(params: &[(String, String)]) -> anyhow::Result<Address, re
     };
     let address = address
         .parse()
-        .context("failed to parse argument as address")
+        .wrap_err("failed to parse argument as address")
         .map_err(|err| response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
             info: AbciErrorCode::INVALID_PARAMETER.info(),
@@ -314,7 +317,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         let asset: astria_core::primitive::v1::asset::Denom = "test".parse().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes("test");

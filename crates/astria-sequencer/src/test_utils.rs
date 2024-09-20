@@ -1,13 +1,24 @@
 use astria_core::primitive::v1::{
     asset::TracePrefixed,
     Address,
+    Bech32,
 };
 
 pub(crate) const ASTRIA_PREFIX: &str = "astria";
+pub(crate) const ASTRIA_COMPAT_PREFIX: &str = "astriacompat";
 
 pub(crate) fn astria_address(bytes: &[u8]) -> Address {
     Address::builder()
         .prefix(ASTRIA_PREFIX)
+        .slice(bytes)
+        .try_build()
+        .unwrap()
+}
+
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) fn astria_compat_address(bytes: &[u8]) -> Address<Bech32> {
+    Address::builder()
+        .prefix(ASTRIA_COMPAT_PREFIX)
         .slice(bytes)
         .try_build()
         .unwrap()
@@ -36,7 +47,7 @@ pub(crate) fn verification_key(seed: u64) -> astria_core::crypto::VerificationKe
 
 #[cfg(test)]
 #[track_caller]
-pub(crate) fn assert_anyhow_error(error: &anyhow::Error, expected: &'static str) {
+pub(crate) fn assert_eyre_error(error: &astria_eyre::eyre::Error, expected: &'static str) {
     let msg = error.to_string();
     assert!(
         msg.contains(expected),

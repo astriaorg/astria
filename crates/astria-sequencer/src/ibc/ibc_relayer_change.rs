@@ -1,9 +1,9 @@
-use anyhow::{
-    ensure,
-    Context as _,
-    Result,
-};
 use astria_core::protocol::transaction::v1alpha1::action::IbcRelayerChangeAction;
+use astria_eyre::eyre::{
+    ensure,
+    Result,
+    WrapErr as _,
+};
 use async_trait::async_trait;
 use cnidarium::StateWrite;
 
@@ -25,12 +25,12 @@ impl ActionHandler for IbcRelayerChangeAction {
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         match self {
             IbcRelayerChangeAction::Addition(addr) | IbcRelayerChangeAction::Removal(addr) => {
-                state.ensure_base_prefix(addr).await.context(
+                state.ensure_base_prefix(addr).await.wrap_err(
                     "failed check for base prefix of provided address to be added/removed",
                 )?;
             }
@@ -39,7 +39,7 @@ impl ActionHandler for IbcRelayerChangeAction {
         let ibc_sudo_address = state
             .get_ibc_sudo_address()
             .await
-            .context("failed to get IBC sudo address")?;
+            .wrap_err("failed to get IBC sudo address")?;
         ensure!(
             ibc_sudo_address == from,
             "unauthorized address for IBC relayer change"

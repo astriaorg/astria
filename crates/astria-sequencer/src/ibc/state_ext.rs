@@ -1,11 +1,15 @@
-use anyhow::{
-    bail,
-    Context,
-    Result,
-};
 use astria_core::primitive::v1::{
     asset,
     ADDRESS_LEN,
+};
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use borsh::{
@@ -68,7 +72,9 @@ fn ibc_relayer_key<T: AddressBytes>(address: &T) -> String {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, fields(%channel, %asset), err)]
     async fn get_ibc_channel_balance<TAsset>(
         &self,
         channel: &ChannelId,
@@ -80,12 +86,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&channel_balance_storage_key(channel, asset))
             .await
-            .context("failed reading ibc channel balance from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading ibc channel balance from state")?
         else {
             debug!("ibc channel balance not found, returning 0");
             return Ok(0);
         };
-        let Balance(balance) = Balance::try_from_slice(&bytes).context("invalid balance bytes")?;
+        let Balance(balance) =
+            Balance::try_from_slice(&bytes).wrap_err("invalid balance bytes read from state")?;
         Ok(balance)
     }
 
@@ -94,13 +102,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(IBC_SUDO_STORAGE_KEY)
             .await
-            .context("failed reading raw ibc sudo key from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw ibc sudo key from state")?
         else {
             // ibc sudo key must be set
             bail!("ibc sudo key not found");
         };
         let SudoAddress(address_bytes) =
-            SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
+            SudoAddress::try_from_slice(&bytes).wrap_err("invalid ibc sudo key bytes")?;
         Ok(address_bytes)
     }
 
@@ -109,7 +118,8 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(self
             .get_raw(&ibc_relayer_key(&address))
             .await
-            .context("failed to read ibc relayer key from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read ibc relayer key from state")?
             .is_some())
     }
 
@@ -118,20 +128,49 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY)
             .await
-            .context("failed reading ics20 withdrawal fee from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading ics20 withdrawal fee from state")?
         else {
             bail!("ics20 withdrawal fee not found");
         };
-        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
+        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
         Ok(fee)
     }
 }
 
-impl<T: StateRead> StateReadExt for T {}
+impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, fields(%channel, %asset, amount), err)]
+    async fn decrease_ibc_channel_balance<TAsset>(
+        &mut self,
+        channel: &ChannelId,
+        asset: TAsset,
+        amount: u128,
+    ) -> Result<()>
+    where
+        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+    {
+        let asset = asset.into();
+        let old_balance = self
+            .get_ibc_channel_balance(channel, asset)
+            .await
+            .wrap_err("failed to get ibc channel balance")?;
+
+        let new_balance = old_balance
+            .checked_sub(amount)
+            .ok_or_eyre("insufficient funds on ibc channel")?;
+
+        self.put_ibc_channel_balance(channel, asset, new_balance)
+            .wrap_err("failed to write new balance to ibc channel")?;
+
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(%channel, %asset, balance), err)]
     fn put_ibc_channel_balance<TAsset>(
         &mut self,
         channel: &ChannelId,
@@ -141,7 +180,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
     {
-        let bytes = borsh::to_vec(&Balance(balance)).context("failed to serialize balance")?;
+        let bytes = borsh::to_vec(&Balance(balance)).wrap_err("failed to serialize balance")?;
         self.put_raw(channel_balance_storage_key(channel, asset), bytes);
         Ok(())
     }
@@ -151,7 +190,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(
             IBC_SUDO_STORAGE_KEY.to_string(),
             borsh::to_vec(&SudoAddress(address.address_bytes()))
-                .context("failed to convert sudo address to vec")?,
+                .wrap_err("failed to convert sudo address to vec")?,
         );
         Ok(())
     }
@@ -170,7 +209,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_ics20_withdrawal_base_fee(&mut self, fee: u128) -> Result<()> {
         self.put_raw(
             ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(),
-            borsh::to_vec(&Fee(fee)).context("failed to serialize fee")?,
+            borsh::to_vec(&Fee(fee)).wrap_err("failed to serialize fee")?,
         );
         Ok(())
     }
@@ -215,7 +254,7 @@ mod tests {
         let state = StateDelta::new(snapshot);
 
         // should fail if not set
-        state
+        let _ = state
             .get_ibc_sudo_address()
             .await
             .expect_err("sudo address should be set");
@@ -227,7 +266,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         // can write new
         let mut address = [42u8; 20];
@@ -264,7 +303,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         // unset address returns false
         let address = astria_address(&[42u8; 20]);
@@ -283,7 +322,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         // can write
         let address = astria_address(&[42u8; 20]);
@@ -313,7 +352,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX);
 
         // can write
         let address = astria_address(&[42u8; 20]);

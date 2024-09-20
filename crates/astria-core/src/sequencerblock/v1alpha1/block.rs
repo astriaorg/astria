@@ -29,6 +29,8 @@ use crate::{
         AddressError,
         IncorrectRollupIdLength,
         RollupId,
+        TransactionId,
+        TransactionIdError,
     },
     protocol::transaction::v1alpha1::{
         action,
@@ -1289,66 +1291,23 @@ impl FilteredSequencerBlockError {
 )]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.
-    bridge_address: Address,
+    pub bridge_address: Address,
     // the rollup ID registered to the `bridge_address`
-    rollup_id: RollupId,
+    pub rollup_id: RollupId,
     // the amount that was transferred to `bridge_address`
-    amount: u128,
+    pub amount: u128,
     // the IBC ICS20 denom of the asset that was transferred
-    asset: asset::Denom,
+    pub asset: asset::Denom,
     // the address on the destination chain (rollup) which to send the bridged funds to
-    destination_chain_address: String,
-}
-
-impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
-    fn from(deposit: Deposit) -> Self {
-        deposit.into_raw()
-    }
+    pub destination_chain_address: String,
+    // the transaction ID of the source action for the deposit, consisting
+    // of the transaction hash.
+    pub source_transaction_id: TransactionId,
+    // index of the deposit's source action within its transaction
+    pub source_action_index: u64,
 }
 
 impl Deposit {
-    #[must_use]
-    pub fn new(
-        bridge_address: Address,
-        rollup_id: RollupId,
-        amount: u128,
-        asset: asset::Denom,
-        destination_chain_address: String,
-    ) -> Self {
-        Self {
-            bridge_address,
-            rollup_id,
-            amount,
-            asset,
-            destination_chain_address,
-        }
-    }
-
-    #[must_use]
-    pub fn bridge_address(&self) -> &Address {
-        &self.bridge_address
-    }
-
-    #[must_use]
-    pub fn rollup_id(&self) -> &RollupId {
-        &self.rollup_id
-    }
-
-    #[must_use]
-    pub fn amount(&self) -> u128 {
-        self.amount
-    }
-
-    #[must_use]
-    pub fn asset(&self) -> &asset::Denom {
-        &self.asset
-    }
-
-    #[must_use]
-    pub fn destination_chain_address(&self) -> &str {
-        &self.destination_chain_address
-    }
-
     #[must_use]
     pub fn into_raw(self) -> raw::Deposit {
         let Self {
@@ -1357,6 +1316,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
+            source_transaction_id,
+            source_action_index,
         } = self;
         raw::Deposit {
             bridge_address: Some(bridge_address.into_raw()),
@@ -1364,6 +1325,8 @@ impl Deposit {
             amount: Some(amount.into()),
             asset: asset.to_string(),
             destination_chain_address,
+            source_transaction_id: Some(source_transaction_id.into_raw()),
+            source_action_index,
         }
     }
 
@@ -1382,6 +1345,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
+            source_transaction_id,
+            source_action_index,
         } = raw;
         let Some(bridge_address) = bridge_address else {
             return Err(DepositError::field_not_set("bridge_address"));
@@ -1395,13 +1360,26 @@ impl Deposit {
         let rollup_id =
             RollupId::try_from_raw(&rollup_id).map_err(DepositError::incorrect_rollup_id_length)?;
         let asset = asset.parse().map_err(DepositError::incorrect_asset)?;
+        let Some(source_transaction_id) = source_transaction_id else {
+            return Err(DepositError::field_not_set("transaction_id"));
+        };
+        let source_transaction_id = TransactionId::try_from_raw_ref(&source_transaction_id)
+            .map_err(DepositError::transaction_id_error)?;
         Ok(Self {
             bridge_address,
             rollup_id,
             amount,
             asset,
             destination_chain_address,
+            source_transaction_id,
+            source_action_index,
         })
+    }
+}
+
+impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
+    fn from(deposit: Deposit) -> Self {
+        deposit.into_raw()
     }
 }
 
@@ -1427,6 +1405,10 @@ impl DepositError {
     fn incorrect_asset(source: asset::ParseDenomError) -> Self {
         Self(DepositErrorKind::IncorrectAsset(source))
     }
+
+    fn transaction_id_error(source: TransactionIdError) -> Self {
+        Self(DepositErrorKind::TransactionIdError(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1439,6 +1421,8 @@ enum DepositErrorKind {
     IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the `asset` field could not be parsed")]
     IncorrectAsset(#[source] asset::ParseDenomError),
+    #[error("field `source_transaction_id` was invalid")]
+    TransactionIdError(#[source] TransactionIdError),
 }
 
 /// A piece of data that is sent to a rollup execution node.
