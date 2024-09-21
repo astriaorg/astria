@@ -1,6 +1,7 @@
 use astria_core::primitive::v1::asset;
 use astria_sequencer_client::Address;
 use clap::{
+    builder::BoolValueParser,
     Args,
     Subcommand,
 };
@@ -40,6 +41,10 @@ pub(crate) enum Command {
     InitBridgeAccount(InitBridgeAccountArgs),
     /// Command for transferring to a bridge account
     BridgeLock(BridgeLockArgs),
+    /// Command for changing the bridge account sudo address or withdrawer address
+    BridgeSudoChange(BridgeSudoChangeArgs),
+    /// Command for withdrawing ICS20 assets
+    Ics20Withdrawal(Ics20WithdrawalArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -260,6 +265,100 @@ pub(crate) struct BridgeLockArgs {
     pub(crate) amount: u128,
     #[arg(long)]
     pub(crate) destination_chain_address: String,
+    /// The prefix to construct a bech32m address given the private key.
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[arg(
+        long,
+        env = "SEQUENCER_URL",
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[arg(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub(crate) sequencer_chain_id: String,
+    /// The asset to lock.
+    #[arg(long, default_value = "nria")]
+    pub(crate) asset: asset::Denom,
+    /// The asset to pay the transfer fees with.
+    #[arg(long, default_value = "nria")]
+    pub(crate) fee_asset: asset::Denom,
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct BridgeSudoChangeArgs {
+    /// The bridge account to modify
+    pub(crate) bridge_address: Address,
+    /// The new address to get previleges
+    #[arg(long, default_value = None)]
+    pub(crate) new_sudo_address: Option<Address>,
+    #[arg(long, default_value = None)]
+    pub(crate) new_withdrawer_address: Option<Address>,
+    /// The prefix to construct a bech32m address given the private key.
+    #[arg(long, default_value = "astria")]
+    pub(crate) prefix: String,
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[arg(
+        long,
+        env = "SEQUENCER_URL",
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The chain id of the sequencing chain being used
+    #[arg(
+        long = "sequencer.chain-id",
+        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        default_value = crate::cli::DEFAULT_SEQUENCER_CHAIN_ID
+    )]
+    pub(crate) sequencer_chain_id: String,
+    /// The asset to lock.
+    #[arg(long, default_value = "nria")]
+    pub(crate) asset: asset::Denom,
+    /// The asset to pay the transfer fees with.
+    #[arg(long, default_value = "nria")]
+    pub(crate) fee_asset: asset::Denom,
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct Ics20WithdrawalArgs {
+    #[arg(long)]
+    pub(crate) amount: u128,
+    #[arg(long)]
+    pub(crate) destination_chain_address: String,
+    /// The source channel used for withdrawal
+    #[arg(long)]
+    pub(crate) source_channel: String,
+    /// The address to refund on timeout, if unset will refund the signer
+    #[arg(long, default_value = None)]
+    pub(crate) return_address: Option<Address>,
+    /// A memo to send with transaction
+    #[arg(long, default_value = "")]
+    pub(crate) memo: String,
+    /// Whether to use a bech32-compatible format of the `.return_address` when generating
+    /// fungible token packets
+    #[arg(long, default_value = "0")]
+    pub(crate) ibc_compact: u64,
+    /// The bridge account to transfer from
+    #[arg(long, default_value = None)]
+    pub(crate) bridge_address: Option<Address>,
+
     /// The prefix to construct a bech32m address given the private key.
     #[arg(long, default_value = "astria")]
     pub(crate) prefix: String,

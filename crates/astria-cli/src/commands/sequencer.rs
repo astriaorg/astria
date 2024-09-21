@@ -1,3 +1,5 @@
+use std::u64;
+
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
@@ -9,8 +11,10 @@ use astria_core::{
         action::{
             Action,
             BridgeLockAction,
+            BridgeSudoChangeAction,
             FeeAssetChangeAction,
             IbcRelayerChangeAction,
+            Ics20Withdrawal,
             InitBridgeAccountAction,
             SudoAddressChangeAction,
             TransferAction,
@@ -27,12 +31,13 @@ use astria_sequencer_client::{
     SequencerClientExt,
 };
 use color_eyre::{
-    eyre,
     eyre::{
+        self,
         ensure,
         eyre,
         Context,
     },
+    owo_colors::OwoColorize,
 };
 use rand::rngs::OsRng;
 
@@ -41,8 +46,10 @@ use crate::cli::sequencer::{
     Bech32mAddressArgs,
     BlockHeightGetArgs,
     BridgeLockArgs,
+    BridgeSudoChangeArgs,
     FeeAssetChangeArgs,
     IbcRelayerChangeArgs,
+    Ics20WithdrawalArgs,
     InitBridgeAccountArgs,
     SudoAddressChangeArgs,
     TransferArgs,
@@ -327,6 +334,101 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
     .wrap_err("failed to submit BridgeLock transaction")?;
 
     println!("BridgeLock completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+/// Bridge Sudo Change action
+/// # Arguments
+/// * `args` - The arguments passed to the command
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be included
+pub(crate) async fn bridge_sudo_change(args: &BridgeSudoChangeArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
+        &args.prefix,
+        args.private_key.as_str(),
+        Action::BridgeSudoChange(BridgeSudoChangeAction {
+            bridge_address: args.bridge_address,
+            new_sudo_address: args.new_sudo_address,
+            new_withdrawer_address: args.new_withdrawer_address,
+            fee_asset: args.fee_asset.clone(),
+        }),
+    )
+    .await
+    .wrap_err("failed to submit BridgeLock transaction")?;
+
+    println!("BridgeSudoChange completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+fn timeout_in_5_min() -> u64 {
+    use std::time::Duration;
+    tendermint::Time::now()
+        .checked_add(Duration::from_secs(300))
+        .expect("adding 5 minutes to the current time should never fail")
+        .unix_timestamp_nanos()
+        .try_into()
+        .expect("timestamp must be positive, so this conversion would only fail if negative")
+}
+
+/// Bridge Sudo Change action
+/// # Arguments
+/// * `args` - The arguments passed to the command
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be included
+pub(crate) async fn ics20_withdrawal(args: &Ics20WithdrawalArgs) -> eyre::Result<()> {
+    let return_address = match args.return_address {
+        Some(address) => address,
+        None => {
+            let private_key_bytes: [u8; 32] = hex::decode(&args.private_key.as_str())
+                .wrap_err("failed to decode private key bytes from hex string")?
+                .try_into()
+                .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
+            let sequencer_key = SigningKey::from(private_key_bytes);
+
+            let from_address = astria_sequencer_client::Address::builder()
+                .array(sequencer_key.verification_key().address_bytes())
+                .prefix(args.prefix.clone())
+                .try_build()
+                .wrap_err("failed constructing a valid from address from the provided prefix")?;
+
+            from_address
+        }
+    };
+
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
+        &args.prefix,
+        args.private_key.as_str(),
+        Action::Ics20Withdrawal(Ics20Withdrawal {
+            amount: args.amount,
+            denom: args.asset.clone(),
+            destination_chain_address: args.destination_chain_address.clone(),
+            return_address,
+            timeout_height: ibc_types::core::client::Height {
+                revision_number: u64::MAX,
+                revision_height: u64::MAX,
+            },
+            timeout_time: timeout_in_5_min(),
+            source_channel: ibc_types::core::channel::ChannelId(args.source_channel.clone()),
+            fee_asset: args.fee_asset.clone(),
+            memo: args.memo.clone(),
+            bridge_address: args.bridge_address,
+            use_compat_address: false,
+        }),
+    )
+    .await
+    .wrap_err("failed to submit BridgeLock transaction")?;
+
+    println!("BridgeSudoChange completed!");
     println!("Included in block: {}", res.height);
     Ok(())
 }

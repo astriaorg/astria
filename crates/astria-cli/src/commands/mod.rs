@@ -98,6 +98,12 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                     sequencer::init_bridge_account(&args).await?;
                 }
                 SequencerCommand::BridgeLock(args) => sequencer::bridge_lock(&args).await?,
+                SequencerCommand::BridgeSudoChange(args) => {
+                    sequencer::bridge_sudo_change(&args).await?;
+                }
+                SequencerCommand::Ics20Withdrawal(args) => {
+                    sequencer::ics20_withdrawal(&args).await?;
+                }
             },
         }
     } else {
