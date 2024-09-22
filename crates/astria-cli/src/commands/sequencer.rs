@@ -13,6 +13,8 @@ use astria_core::{
             BridgeLockAction,
             BridgeSudoChangeAction,
             FeeAssetChangeAction,
+            FeeChange,
+            FeeChangeAction,
             IbcRelayerChangeAction,
             Ics20Withdrawal,
             InitBridgeAccountAction,
@@ -30,14 +32,15 @@ use astria_sequencer_client::{
     HttpClient,
     SequencerClientExt,
 };
-use color_eyre::{
-    eyre::{
-        self,
-        ensure,
-        eyre,
-        Context,
-    },
-    owo_colors::OwoColorize,
+use color_eyre::eyre::{
+    self,
+    ensure,
+    eyre,
+    Context,
+};
+use ibc_types::core::{
+    channel::ChannelId,
+    client::Height,
 };
 use rand::rngs::OsRng;
 
@@ -48,6 +51,7 @@ use crate::cli::sequencer::{
     BridgeLockArgs,
     BridgeSudoChangeArgs,
     FeeAssetChangeArgs,
+    FeeChangeArgs,
     IbcRelayerChangeArgs,
     Ics20WithdrawalArgs,
     InitBridgeAccountArgs,
@@ -76,6 +80,17 @@ fn get_private_key_pretty(signing_key: &SigningKey) -> String {
 /// Get the address from the signing key
 fn get_address_pretty(signing_key: &SigningKey) -> String {
     hex::encode(signing_key.verification_key().address_bytes())
+}
+
+/// Get the UNIX timestamp in nanoseconds for 5 minutes from now
+fn now_plus_5_minutes() -> u64 {
+    use std::time::Duration;
+    tendermint::Time::now()
+        .checked_add(Duration::from_secs(300))
+        .expect("adding 5 minutes to the current time should never fail")
+        .unix_timestamp_nanos()
+        .try_into()
+        .expect("timestamp must be positive, so this conversion would only fail if negative")
 }
 
 /// Generates a new ED25519 keypair and prints the public key, private key, and address
@@ -366,41 +381,32 @@ pub(crate) async fn bridge_sudo_change(args: &BridgeSudoChangeArgs) -> eyre::Res
     Ok(())
 }
 
-fn timeout_in_5_min() -> u64 {
-    use std::time::Duration;
-    tendermint::Time::now()
-        .checked_add(Duration::from_secs(300))
-        .expect("adding 5 minutes to the current time should never fail")
-        .unix_timestamp_nanos()
-        .try_into()
-        .expect("timestamp must be positive, so this conversion would only fail if negative")
-}
-
-/// Bridge Sudo Change action
+/// Ics20 withdrawal action
 /// # Arguments
+///
 /// * `args` - The arguments passed to the command
+///
 /// # Errors
 ///
 /// * If the http client cannot be created
 /// * If the transaction failed to be included
 pub(crate) async fn ics20_withdrawal(args: &Ics20WithdrawalArgs) -> eyre::Result<()> {
-    let return_address = match args.return_address {
-        Some(address) => address,
-        None => {
-            let private_key_bytes: [u8; 32] = hex::decode(&args.private_key.as_str())
-                .wrap_err("failed to decode private key bytes from hex string")?
-                .try_into()
-                .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
-            let sequencer_key = SigningKey::from(private_key_bytes);
+    let return_address = if let Some(address) = args.return_address {
+        address
+    } else {
+        let private_key_bytes: [u8; 32] = hex::decode(&args.private_key.as_str())
+            .wrap_err("failed to decode private key bytes from hex string")?
+            .try_into()
+            .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
+        let sequencer_key = SigningKey::from(private_key_bytes);
 
-            let from_address = astria_sequencer_client::Address::builder()
-                .array(sequencer_key.verification_key().address_bytes())
-                .prefix(args.prefix.clone())
-                .try_build()
-                .wrap_err("failed constructing a valid from address from the provided prefix")?;
+        let from_address = astria_sequencer_client::Address::builder()
+            .array(sequencer_key.verification_key().address_bytes())
+            .prefix(args.prefix.clone())
+            .try_build()
+            .wrap_err("failed constructing a valid from address from the provided prefix")?;
 
-            from_address
-        }
+        from_address
     };
 
     let res = submit_transaction(
@@ -413,12 +419,12 @@ pub(crate) async fn ics20_withdrawal(args: &Ics20WithdrawalArgs) -> eyre::Result
             denom: args.asset.clone(),
             destination_chain_address: args.destination_chain_address.clone(),
             return_address,
-            timeout_height: ibc_types::core::client::Height {
+            timeout_height: Height {
                 revision_number: u64::MAX,
                 revision_height: u64::MAX,
             },
-            timeout_time: timeout_in_5_min(),
-            source_channel: ibc_types::core::channel::ChannelId(args.source_channel.clone()),
+            timeout_time: now_plus_5_minutes(),
+            source_channel: ChannelId(args.source_channel.clone()),
             fee_asset: args.fee_asset.clone(),
             memo: args.memo.clone(),
             bridge_address: args.bridge_address,
@@ -450,6 +456,35 @@ pub(crate) async fn fee_asset_add(args: &FeeAssetChangeArgs) -> eyre::Result<()>
         &args.prefix,
         args.private_key.as_str(),
         Action::FeeAssetChange(FeeAssetChangeAction::Addition(args.asset.clone())),
+    )
+    .await
+    .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
+
+    println!("FeeAssetChangeAction::Addition completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+/// Adds a fee change
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be included
+pub(crate) async fn fee_change(args: &FeeChangeArgs, fee_change: FeeChange) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
+        &args.prefix,
+        args.private_key.as_str(),
+        Action::FeeChange(FeeChangeAction {
+            fee_change,
+            new_value: args.new_fee,
+        }),
     )
     .await
     .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;

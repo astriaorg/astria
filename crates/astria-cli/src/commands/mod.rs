@@ -1,6 +1,9 @@
 pub(crate) mod bridge;
 mod sequencer;
 
+use std::env::consts::ARCH;
+
+use astria_core::protocol::transaction::v1alpha1::action::FeeChange;
 use color_eyre::{
     eyre,
     eyre::eyre,
@@ -14,6 +17,7 @@ use crate::cli::{
         BlockHeightCommand,
         Command as SequencerCommand,
         FeeAssetChangeCommand,
+        FeeChangeCommand,
         IbcRelayerChangeCommand,
         SudoCommand,
     },
@@ -63,6 +67,34 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                 SequencerCommand::Sudo {
                     command,
                 } => match command {
+                    SudoCommand::FeeChange {
+                        command,
+                    } => match command {
+                        FeeChangeCommand::TransferBaseFee(args) => {
+                            sequencer::fee_change(&args, FeeChange::TransferBaseFee).await?;
+                        }
+                        FeeChangeCommand::SequenceBaseFee(args) => {
+                            sequencer::fee_change(&args, FeeChange::SequenceBaseFee).await?
+                        }
+                        FeeChangeCommand::SequenceByteCostMul(args) => {
+                            sequencer::fee_change(&args, FeeChange::SequenceByteCostMultiplier)
+                                .await?
+                        }
+                        FeeChangeCommand::InitBridgeAccountBaseFee(args) => {
+                            sequencer::fee_change(&args, FeeChange::InitBridgeAccountBaseFee)
+                                .await?
+                        }
+                        FeeChangeCommand::BridgeLockByteCostMul(args) => {
+                            sequencer::fee_change(&args, FeeChange::BridgeLockByteCostMultiplier)
+                                .await?
+                        }
+                        FeeChangeCommand::BridgeSudoChangeBaseFee(args) => {
+                            sequencer::fee_change(&args, FeeChange::BridgeSudoChangeBaseFee).await?
+                        }
+                        FeeChangeCommand::Ics20WithdrawalBaseFee(args) => {
+                            sequencer::fee_change(&args, FeeChange::Ics20WithdrawalBaseFee).await?
+                        }
+                    },
                     SudoCommand::IbcRelayer {
                         command,
                     } => match command {
