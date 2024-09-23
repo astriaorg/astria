@@ -129,17 +129,15 @@ async fn submit_transaction(
         .await
         .wrap_err("failed to get nonce")?;
 
-    let tx = UnsignedTransaction::builder()
-        .actions(actions)
-        .params(
-            TransactionParams::builder()
-                .nonce(nonce_res.nonce)
-                .chain_id(chain_id)
-                .build(),
-        )
-        .build()
-        .expect("failed to build transaction from actions")
-        .into_signed(signing_key);
+    let tx = UnsignedTransaction::new(
+        actions,
+        TransactionParams::builder()
+            .nonce(nonce_res.nonce)
+            .chain_id(chain_id)
+            .build(),
+    )
+    .wrap_err("failed to build transaction from actions")?
+    .into_signed(signing_key);
     let res = client
         .submit_transaction_sync(tx)
         .await

@@ -231,8 +231,8 @@ async fn app_transfer_block_fees_to_sudo() {
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let amount = 333_333;
-    let tx = UnsignedTransaction::builder()
-        .actions(vec![
+    let tx = UnsignedTransaction::new(
+        vec![
             TransferAction {
                 to: bob_address,
                 amount,
@@ -240,15 +240,13 @@ async fn app_transfer_block_fees_to_sudo() {
                 fee_asset: nria().into(),
             }
             .into(),
-        ])
-        .params(
-            TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test")
-                .build(),
-        )
-        .build()
-        .expect("failed to build unsigned transaction");
+        ],
+        TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+    )
+    .expect("failed to build unsigned transaction");
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -325,16 +323,14 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         fee_asset: nria().into(),
     };
 
-    let tx = UnsignedTransaction::builder()
-        .actions(vec![lock_action.into(), sequence_action.into()])
-        .params(
-            TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test")
-                .build(),
-        )
-        .build()
-        .expect("failed to build unsigned transaction");
+    let tx = UnsignedTransaction::new(
+        vec![lock_action.into(), sequence_action.into()],
+        TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+    )
+    .expect("failed to build unsigned transaction");
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -422,16 +418,14 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         fee_asset: nria().into(),
     };
 
-    let tx = UnsignedTransaction::builder()
-        .actions(vec![lock_action.into(), sequence_action.into()])
-        .params(
-            TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test")
-                .build(),
-        )
-        .build()
-        .expect("failed to build unsigned transaction");
+    let tx = UnsignedTransaction::new(
+        vec![lock_action.into(), sequence_action.into()],
+        TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+    )
+    .expect("failed to build unsigned transaction");
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -562,43 +556,39 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     // create txs which will cause cometBFT overflow
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction::builder()
-        .actions(vec![
+    let tx_pass = UnsignedTransaction::new(
+        vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ])
-        .params(
-            TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test")
-                .build(),
-        )
-        .build()
-        .expect("failed to build unsigned transaction")
-        .into_signed(&alice);
+        ],
+        TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+    )
+    .expect("failed to build unsigned transaction")
+    .into_signed(&alice);
 
-    let tx_overflow = UnsignedTransaction::builder()
-        .actions(vec![
+    let tx_overflow = UnsignedTransaction::new(
+        vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ])
-        .params(
-            TransactionParams::builder()
-                .nonce(1)
-                .chain_id("test")
-                .build(),
-        )
-        .build()
-        .expect("failed to build unsigned transaction")
-        .into_signed(&alice);
+        ],
+        TransactionParams::builder()
+            .nonce(1)
+            .chain_id("test")
+            .build(),
+    )
+    .expect("failed to build unsigned transaction")
+    .into_signed(&alice);
 
     app.mempool
         .insert(
@@ -661,43 +651,39 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction::builder()
-        .actions(vec![
+    let tx_pass = UnsignedTransaction::new(
+        vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 200_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ])
-        .params(
-            TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test")
-                .build(),
-        )
-        .build()
-        .expect("failed to build unsigned transaction")
-        .into_signed(&alice);
+        ],
+        TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+    )
+    .expect("failed to build unsigned transaction")
+    .into_signed(&alice);
 
-    let tx_overflow = UnsignedTransaction::builder()
-        .actions(vec![
+    let tx_overflow = UnsignedTransaction::new(
+        vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ])
-        .params(
-            TransactionParams::builder()
-                .nonce(1)
-                .chain_id("test")
-                .build(),
-        )
-        .build()
-        .expect("failed to build unsigned transaction")
-        .into_signed(&alice);
+        ],
+        TransactionParams::builder()
+            .nonce(1)
+            .chain_id("test")
+            .build(),
+    )
+    .expect("failed to build unsigned transaction")
+    .into_signed(&alice);
 
     app.mempool
         .insert(

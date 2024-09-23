@@ -154,16 +154,14 @@ impl Submitter {
         .wrap_err("failed to get nonce from sequencer")?;
         debug!(nonce, "fetched latest nonce");
 
-        let unsigned = UnsignedTransaction::builder()
-            .actions(actions)
-            .params(
-                TransactionParams::builder()
-                    .nonce(nonce)
-                    .chain_id(sequencer_chain_id)
-                    .build(),
-            )
-            .build()
-            .wrap_err("failed to build unsigned transaction")?;
+        let unsigned = UnsignedTransaction::new(
+            actions,
+            TransactionParams::builder()
+                .nonce(nonce)
+                .chain_id(sequencer_chain_id)
+                .build(),
+        )
+        .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
         let signed = unsigned.into_signed(signer.signing_key());

@@ -83,6 +83,8 @@ mod sized_bundle {
 
 #[cfg(test)]
 mod bundle_factory {
+    use astria_core::protocol::transaction::v1alpha1::TransactionParams;
+
     use super::*;
     use crate::{
         executor::bundle_factory::{
@@ -332,5 +334,28 @@ mod bundle_factory {
         let _actions_finished = bundle_factory.pop_now();
         assert_eq!(bundle_factory.finished.len(), 0);
         assert!(!bundle_factory.is_full());
+    }
+
+    #[test]
+    fn unsigned_transaction_construction() {
+        let mut bundle_factory = BundleFactory::new(1000, 10);
+
+        bundle_factory
+            .try_push(sequence_action_with_n_bytes(50))
+            .unwrap();
+        bundle_factory
+            .try_push(sequence_action_with_n_bytes(50))
+            .unwrap();
+
+        let bundle = bundle_factory.pop_now();
+
+        let transaction_params = TransactionParams::builder()
+            .chain_id("astria-testnet-1".to_string())
+            .build();
+
+        // construction of multiple sequence actions should not panic
+        let unsigned_tx = bundle.to_unsigned_transaction(transaction_params);
+
+        assert_eq!(unsigned_tx.actions().len(), 2);
     }
 }

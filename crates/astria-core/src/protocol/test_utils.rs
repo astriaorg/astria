@@ -104,17 +104,16 @@ impl ConfigureSequencerBlock {
         let txs = if actions.is_empty() {
             vec![]
         } else {
-            let unsigned_transaction = UnsignedTransaction::builder()
-                .actions(actions)
-                .params(
-                    TransactionParams::builder()
-                        .nonce(1)
-                        .chain_id(chain_id.clone())
-                        .build(),
-                )
-                .build()
-                .expect("failed to build unsigned transaction");
-
+            let unsigned_transaction = UnsignedTransaction::new(
+                actions,
+                TransactionParams::builder()
+                    .nonce(1)
+                    .chain_id(chain_id.clone())
+                    .build(),
+            )
+            .expect(
+                "failed to build unsigned transaction, should be okay since only sequence actions",
+            );
             vec![unsigned_transaction.into_signed(&signing_key)]
         };
         let mut deposits_map: HashMap<RollupId, Vec<Deposit>> = HashMap::new();

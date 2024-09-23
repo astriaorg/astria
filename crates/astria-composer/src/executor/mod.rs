@@ -18,7 +18,6 @@ use astria_core::{
             action::SequenceAction,
             SignedTransaction,
             TransactionParams,
-            UnsignedTransaction,
         },
     },
 };
@@ -681,11 +680,9 @@ impl Future for SubmitFut {
                         .nonce(*this.nonce)
                         .chain_id(&*this.chain_id)
                         .build();
-                    let tx = UnsignedTransaction::builder()
-                        .actions(this.bundle.clone().into_actions())
-                        .params(params)
-                        .build()
-                        .expect("failed to build transaction from actions")
+                    let tx = this
+                        .bundle
+                        .to_unsigned_transaction(params)
                         .into_signed(this.signing_key);
                     info!(
                         nonce.actual = *this.nonce,
@@ -760,11 +757,9 @@ impl Future for SubmitFut {
                             .nonce(*this.nonce)
                             .chain_id(&*this.chain_id)
                             .build();
-                        let tx = UnsignedTransaction::builder()
-                            .actions(this.bundle.clone().into_actions())
-                            .params(params)
-                            .build()
-                            .expect("failed to build transaction from actions")
+                        let tx = this
+                            .bundle
+                            .to_unsigned_transaction(params)
                             .into_signed(this.signing_key);
                         info!(
                             nonce.resubmission = *this.nonce,

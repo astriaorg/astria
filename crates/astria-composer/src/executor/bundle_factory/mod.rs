@@ -13,6 +13,8 @@ use astria_core::{
     protocol::transaction::v1alpha1::{
         action::SequenceAction,
         Action,
+        TransactionParams,
+        UnsignedTransaction,
     },
     Protobuf as _,
 };
@@ -74,6 +76,12 @@ impl SizedBundle {
         }
     }
 
+    #[allow(clippy::allow_panic)] // method is expected to never panic as an invariant of the type
+    /// Constructs an [`UnsignedTransaction`] from the actions contained in the bundle and `params`.
+    pub(super) fn to_unsigned_transaction(&self, params: TransactionParams) -> UnsignedTransaction {
+        UnsignedTransaction::new(self.buffer.clone(), params).unwrap()
+    }
+
     /// Buffer `seq_action` into the bundle.
     /// # Errors
     /// - `seq_action` is beyond the max size allowed for the entire bundle
@@ -112,6 +120,7 @@ impl SizedBundle {
     }
 
     /// Consume self and return the underlying buffer of actions.
+    #[cfg(test)]
     pub(super) fn into_actions(self) -> Vec<Action> {
         self.buffer
     }

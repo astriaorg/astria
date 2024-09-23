@@ -405,11 +405,7 @@ mod tests {
             .nonce(0)
             .chain_id("test-chain-id")
             .build();
-        let tx = UnsignedTransaction::builder()
-            .actions(actions)
-            .params(params)
-            .build()
-            .unwrap();
+        let tx = UnsignedTransaction::new(actions, params).unwrap();
 
         let signed_tx = tx.into_signed(&alice);
         check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
@@ -472,11 +468,7 @@ mod tests {
             .nonce(0)
             .chain_id("test-chain-id")
             .build();
-        let tx = UnsignedTransaction::builder()
-            .actions(actions)
-            .params(params)
-            .build()
-            .unwrap();
+        let tx = UnsignedTransaction::new(actions, params).unwrap();
 
         let signed_tx = tx.into_signed(&alice);
         let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)

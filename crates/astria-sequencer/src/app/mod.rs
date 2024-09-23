@@ -25,7 +25,7 @@ use astria_core::{
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
             action::ValidatorUpdate,
-            action_groups::ActionGroup,
+            action_group::ActionGroup,
             Action,
             SignedTransaction,
         },
@@ -1026,9 +1026,10 @@ impl App {
         // flag mempool for cleaning if we ran a fee change action
         self.recost_mempool = self.recost_mempool
             || matches!(signed_tx.group(), Some(ActionGroup::BundlableSudo(_)))
-                && signed_tx.actions().iter().any(|action| {
-                    matches!(action, Action::FeeAssetChange(_) | Action::FeeChange(_))
-                });
+                && signed_tx
+                    .actions()
+                    .iter()
+                    .any(|act| act.is_fee_asset_change() || act.is_fee_change());
 
         Ok(state_tx.apply().1)
     }
