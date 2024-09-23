@@ -1,0 +1,140 @@
+use std::time::Duration;
+
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
+use itertools::Itertools as _;
+use tokio::{
+    select,
+    task::JoinError,
+    time::timeout,
+};
+use tokio_util::{
+    sync::CancellationToken,
+    task::JoinMap,
+};
+use tracing::{
+    error,
+    info,
+    warn,
+};
+
+use crate::{
+    auction_driver,
+    Config,
+    Metrics,
+};
+
+pub(super) struct Auctioneer {
+    /// Used to signal the service to shutdown
+    shutdown_token: CancellationToken,
+
+    /// The different long-running tasks that make up the Auctioneer
+    tasks: JoinMap<&'static str, eyre::Result<()>>,
+}
+
+impl Auctioneer {
+    const AUCTION_DRIVER: &'static str = "auction_driver";
+    const _BUNDLE_COLLECTOR: &'static str = "bundle_collector";
+    const _OPTIMISTIC_EXECUTOR: &'static str = "optimistic_executor";
+
+    /// Creates an [`Auctioneer`] service from a [`Config`] and [`Metrics`].
+    pub(super) fn new(
+        cfg: Config,
+        metrics: &'static Metrics,
+        shutdown_token: CancellationToken,
+    ) -> eyre::Result<Self> {
+        let Config {
+            ..
+        } = cfg;
+
+        let mut tasks = JoinMap::new();
+
+        // TODO: add tasks here
+        // - optimistic executor
+        // - bundle collector
+        // - auction driver
+        //  - runs the auction
+        //  - runs the sequencer submitter
+        let auction_driver = auction_driver::Builder {
+            metrics,
+        }
+        .build()
+        .wrap_err("failed to initialize the auction driver")?;
+        tasks.spawn(Self::AUCTION_DRIVER, auction_driver.run());
+
+        Ok(Self {
+            shutdown_token,
+            tasks,
+        })
+    }
+
+    /// Runs the [`Auctioneer`] service until it received an exit signal, or one of the constituent
+    /// tasks either ends unexpectedly or returns an error.
+    pub(super) async fn run(mut self) -> eyre::Result<()> {
+        let reason = select! {
+            biased;
+
+            () = self.shutdown_token.cancelled() => {
+                Ok("auctioneer received shutdown signal")
+            },
+
+            Some((name, res)) = self.tasks.join_next() => {
+                flatten(res)
+                    .wrap_err_with(|| format!("task `{name}` failed"))
+                    .map(|_| "task `{name}` exited unexpectedly")
+            }
+        };
+
+        match reason {
+            Ok(msg) => info!(%msg, "received shutdown signal"),
+            Err(err) => error!(%err, "shutting down due to error"),
+        }
+
+        self.shutdown().await;
+        Ok(())
+    }
+
+    /// Initiates shutdown of the Auctioneer and waits for all the constituent tasks to shut down.
+    async fn shutdown(mut self) {
+        self.shutdown_token.cancel();
+
+        let shutdown_loop = async {
+            while let Some((name, res)) = self.tasks.join_next().await {
+                let message = "task shut down";
+                match flatten(res) {
+                    Ok(()) => {
+                        info!(name, message)
+                    }
+                    Err(err) => {
+                        error!(name, %err, message)
+                    }
+                }
+            }
+        };
+
+        info!("signalling all tasks to shut down; waiting 25 seconds for exit");
+        if timeout(Duration::from_secs(25), shutdown_loop)
+            .await
+            .is_err()
+        {
+            let tasks = self.tasks.keys().join(", ");
+            warn!(
+                tasks = format_args!("[{tasks}]"),
+                "aborting all tasks that have not yet shut down"
+            )
+        } else {
+            info!("all tasks have shut down regularly");
+        }
+        info!("shutting down");
+    }
+}
+
+pub(super) fn flatten<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {
+    match res {
+        Ok(Ok(val)) => Ok(val),
+        Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
+        Err(err) => Err(err).wrap_err("task panicked"),
+    }
+}
