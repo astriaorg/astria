@@ -4,6 +4,7 @@ global:
   logLevel: debug
 
 image: ghcr.io/penumbra-zone/hermes:main
+imagePullPolicy: IfNotPresent
 
 fullnameOverride: ""
 nameOverride: ""
