@@ -3,7 +3,7 @@ env:
   CI: true
   RUSTFLAGS: "-D warnings -D unreachable-pub --cfg tokio_unstable"
 
-  # This must match the entry in rustup-toolchain.toml at the repository root
+  # This must match the entry in rust-toolchain.toml at the repository root
   RUSTUP_TOOLCHAIN: "1.81.0"
 on:
   pull_request:
