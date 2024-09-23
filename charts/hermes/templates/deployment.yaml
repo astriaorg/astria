@@ -20,23 +20,23 @@ spec:
       initContainers:
       {{- range $index, $channel := .Values.createChannels }}
       {{- if $channel.enabled }}
-      - name: create-channel-{{ $index }}
-        image: {{ $.Values.image }}
-        imagePullPolicy: {{ .Values.imagePullPolicy }}
-        command: [ "hermes",  "create", "channel" ]
-        args:
-          - --new-client-connection
-          - --yes
-          - --a-chain={{ $channel.chainA }}
-          - --b-chain={{ $channel.chainB }}
-          - --a-port={{ $channel.portA }}
-          - --b-port={{ $channel.portB }}
-        volumeMounts:
-        - mountPath: /home/hermes/.hermes
-          name: {{ include "hermes.fullname" $ }}-config-volume
+        - name: create-channel-{{ $index }}
+          image: {{ $.Values.image }}
+          imagePullPolicy: {{ $.Values.imagePullPolicy }}
+          command: [ "hermes",  "create", "channel" ]
+          args:
+            - --new-client-connection
+            - --yes
+            - --a-chain={{ $channel.chainA }}
+            - --b-chain={{ $channel.chainB }}
+            - --a-port={{ $channel.portA }}
+            - --b-port={{ $channel.portB }}
+          volumeMounts:
+            - mountPath: /home/hermes/.hermes
+              name: {{ include "hermes.fullname" $ }}-config-volume
         {{- range $chainId, $chain := $.Values.chains }}
-        - mountPath: "/home/hermes/.hermes/keys/{{ $chainId }}/keyring-test"
-          name: {{ include "hermes.fullname" $ }}-{{$chainId}}-key-volume
+            - mountPath: "/home/hermes/.hermes/keys/{{ $chainId }}/keyring-test"
+              name: {{ include "hermes.fullname" $ }}-{{$chainId}}-key-volume
         {{- end }}
       {{- end }}
       {{- end }}
@@ -45,13 +45,13 @@ spec:
         - name: hermes
           image: {{ .Values.image }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
-          command: [ "hermes", "start" ]
+          command: ["hermes", "start"]
           volumeMounts:
-          - mountPath: /home/hermes/.hermes
-            name: {{ include "hermes.fullname" . }}-config-volume
+            - mountPath: /home/hermes/.hermes
+              name: {{ include "hermes.fullname" . }}-config-volume
           {{- range $chainId, $chain := .Values.chains }}
-          - mountPath: "/home/hermes/.hermes/keys/{{ $chainId }}/keyring-test"
-            name: {{ include "hermes.fullname" $ }}-{{$chainId}}-key-volume
+            - mountPath: "/home/hermes/.hermes/keys/{{ $chainId }}/keyring-test"
+              name: {{ include "hermes.fullname" $ }}-{{$chainId}}-key-volume
           {{- end }}
           ports:
             - containerPort: {{ .Values.ports.rest }}
