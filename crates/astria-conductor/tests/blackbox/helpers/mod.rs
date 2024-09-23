@@ -198,6 +198,7 @@ impl TestConductor {
         celestia_height: u64,
         namespace: Namespace,
         blobs: Vec<Blob>,
+        delay: Option<Duration>,
     ) {
         use base64::prelude::*;
         use wiremock::{
@@ -209,6 +210,7 @@ impl TestConductor {
             Request,
             ResponseTemplate,
         };
+        let delay = delay.unwrap_or(Duration::from_millis(0));
         let namespace_params = BASE64_STANDARD.encode(namespace.as_bytes());
         Mock::given(body_partial_json(json!({
             "jsonrpc": "2.0",
@@ -222,11 +224,13 @@ impl TestConductor {
         .respond_with(move |request: &Request| {
             let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
             let id = body.get("id");
-            ResponseTemplate::new(200).set_body_json(json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": blobs,
-            }))
+            ResponseTemplate::new(200)
+                .set_body_json(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": blobs,
+                }))
+                .set_delay(delay)
         })
         .expect(1..)
         .mount(&self.mock_http)

@@ -113,7 +113,8 @@ macro_rules! mount_celestia_blobs {
     (
         $test_env:ident,
         celestia_height: $celestia_height:expr,
-        sequencer_heights: [ $($sequencer_height:expr),+ ]
+        sequencer_heights: [ $($sequencer_height:expr),+ ],
+        delay: $delay:expr
         $(,)?
     ) => {{
         let blobs = $crate::helpers::make_blobs(&[ $( $sequencer_height ),+ ]);
@@ -122,6 +123,7 @@ macro_rules! mount_celestia_blobs {
                 $celestia_height,
                 $crate::sequencer_namespace(),
                 vec![blobs.header],
+                $delay,
             )
             .await;
         $test_env
@@ -129,9 +131,23 @@ macro_rules! mount_celestia_blobs {
                 $celestia_height,
                 $crate::rollup_namespace(),
                 vec![blobs.rollup],
+                $delay,
             )
             .await
     }};
+    (
+        $test_env:ident,
+        celestia_height: $celestia_height:expr,
+        sequencer_heights: [ $($sequencer_height:expr),+ ]
+        $(,)?
+    ) => {
+        mount_celestia_blobs!(
+            $test_env,
+            celestia_height: $celestia_height,
+            sequencer_heights: [ $($sequencer_height),+ ],
+            delay: None,
+        )
+    };
 }
 
 #[macro_export]
@@ -211,7 +227,7 @@ macro_rules! mount_update_commitment_state {
         mock_name: $mock_name:expr,
         firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
         soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
-        base_celestia_height: $base_celestia_height:expr,
+        base_celestia_height: $base_celestia_height:expr
         $(,)?
     ) => {
         mount_update_commitment_state!(
