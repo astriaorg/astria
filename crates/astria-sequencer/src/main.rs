@@ -15,7 +15,7 @@ const EX_CONFIG: u8 = 78;
 #[tokio::main]
 async fn main() -> ExitCode {
     astria_eyre::install().expect("astria eyre hook must be the first hook installed");
-    
+
     eprintln!(
         "{}",
         serde_json::to_string(&BUILD_INFO)
