@@ -34,7 +34,6 @@ use cnidarium::{
     StateWrite,
 };
 use futures::StreamExt as _;
-use hex::ToHex as _;
 use prost::Message as _;
 use tracing::{
     debug,
@@ -45,6 +44,25 @@ use tracing::{
 use crate::{
     accounts::AddressBytes,
     address,
+    storage::{
+        nonverifiable_keys::bridge::{
+            deposit_key,
+            deposit_key_prefix,
+            deposit_nonce_key,
+            last_transaction_id_for_bridge_account_key,
+            DEPOSIT_PREFIX,
+        },
+        verifiable_keys::bridge::{
+            asset_id_key,
+            bridge_account_sudo_address_key,
+            bridge_account_withdrawal_event_key,
+            bridge_account_withdrawer_address_key,
+            rollup_id_key,
+            BRIDGE_LOCK_BYTE_COST_MULTIPLIER_KEY,
+            BRIDGE_SUDO_CHANGE_FEE_KEY,
+            INIT_BRIDGE_ACCOUNT_BASE_FEE_KEY,
+        },
+    },
 };
 
 /// Newtype wrapper to read and write a u128 from rocksdb.
@@ -63,111 +81,6 @@ struct AssetId([u8; 32]);
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Fee(u128);
 
-const BRIDGE_ACCOUNT_PREFIX: &str = "bridgeacc";
-const BRIDGE_ACCOUNT_SUDO_PREFIX: &str = "bsudo";
-const BRIDGE_ACCOUNT_WITHDRAWER_PREFIX: &str = "bwithdrawer";
-const DEPOSIT_PREFIX: &[u8] = b"deposit/";
-const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
-const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
-const BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY: &str = "bridgesudofee";
-
-struct BridgeAccountKey<'a, T> {
-    prefix: &'static str,
-    address: &'a T,
-}
-
-impl<'a, T> std::fmt::Display for BridgeAccountKey<'a, T>
-where
-    T: AddressBytes,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.prefix)?;
-        f.write_str("/")?;
-        for byte in self.address.address_bytes() {
-            f.write_fmt(format_args!("{byte:02x}"))?;
-        }
-        Ok(())
-    }
-}
-
-fn rollup_id_storage_key<T: AddressBytes>(address: &T) -> String {
-    format!(
-        "{}/rollupid",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_PREFIX,
-            address
-        }
-    )
-}
-
-fn asset_id_storage_key<T: AddressBytes>(address: &T) -> String {
-    format!(
-        "{}/assetid",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_PREFIX,
-            address
-        }
-    )
-}
-
-fn deposit_storage_key_prefix(rollup_id: &RollupId) -> Vec<u8> {
-    [DEPOSIT_PREFIX, rollup_id.as_ref()].concat()
-}
-
-fn deposit_storage_key(rollup_id: &RollupId, nonce: u32) -> Vec<u8> {
-    [DEPOSIT_PREFIX, rollup_id.as_ref(), &nonce.to_le_bytes()].concat()
-}
-
-fn deposit_nonce_storage_key(rollup_id: &RollupId) -> Vec<u8> {
-    format!("depositnonce/{}", rollup_id.encode_hex::<String>()).into()
-}
-
-fn bridge_account_sudo_address_storage_key<T: AddressBytes>(address: &T) -> String {
-    format!(
-        "{}",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_SUDO_PREFIX,
-            address
-        }
-    )
-}
-
-fn bridge_account_withdrawer_address_storage_key<T: AddressBytes>(address: &T) -> String {
-    format!(
-        "{}",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_WITHDRAWER_PREFIX,
-            address
-        }
-    )
-}
-
-fn bridge_account_withdrawal_event_storage_key<T: AddressBytes>(
-    address: &T,
-    withdrawal_event_id: &str,
-) -> String {
-    format!(
-        "{}/withdrawalevent/{}",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_PREFIX,
-            address
-        },
-        withdrawal_event_id
-    )
-}
-
-fn last_transaction_id_for_bridge_account_storage_key<T: AddressBytes>(address: &T) -> Vec<u8> {
-    format!(
-        "{}/lasttx",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_PREFIX,
-            address
-        }
-    )
-    .as_bytes()
-    .to_vec()
-}
-
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
@@ -184,7 +97,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         address: T,
     ) -> Result<Option<RollupId>> {
         let Some(rollup_id_bytes) = self
-            .get_raw(&rollup_id_storage_key(&address))
+            .get_raw(&rollup_id_key(&address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw account rollup ID from state")?
@@ -206,7 +119,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         address: T,
     ) -> Result<asset::IbcPrefixed> {
         let bytes = self
-            .get_raw(&asset_id_storage_key(&address))
+            .get_raw(&asset_id_key(&address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw asset ID from state")?
@@ -222,7 +135,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         bridge_address: T,
     ) -> Result<Option<[u8; ADDRESS_LEN]>> {
         let Some(sudo_address_bytes) = self
-            .get_raw(&bridge_account_sudo_address_storage_key(&bridge_address))
+            .get_raw(&bridge_account_sudo_address_key(&bridge_address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge account sudo address from state")?
@@ -245,9 +158,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         bridge_address: T,
     ) -> Result<Option<[u8; ADDRESS_LEN]>> {
         let Some(withdrawer_address_bytes) = self
-            .get_raw(&bridge_account_withdrawer_address_storage_key(
-                &bridge_address,
-            ))
+            .get_raw(&bridge_account_withdrawer_address_key(&bridge_address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge account withdrawer address from state")?
@@ -305,7 +216,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
     async fn get_init_bridge_account_base_fee(&self) -> Result<u128> {
         let bytes = self
-            .get_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY)
+            .get_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw init bridge account base fee from state")?
@@ -317,7 +228,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
     async fn get_bridge_lock_byte_cost_multiplier(&self) -> Result<u128> {
         let bytes = self
-            .get_raw(BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY)
+            .get_raw(BRIDGE_LOCK_BYTE_COST_MULTIPLIER_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge lock byte cost multiplier from state")?
@@ -329,7 +240,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
     async fn get_bridge_sudo_change_base_fee(&self) -> Result<u128> {
         let bytes = self
-            .get_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY)
+            .get_raw(BRIDGE_SUDO_CHANGE_FEE_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge sudo change fee from state")?
@@ -344,7 +255,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         address: &Address,
     ) -> Result<Option<TransactionId>> {
         let Some(tx_hash_bytes) = self
-            .nonverifiable_get_raw(&last_transaction_id_for_bridge_account_storage_key(address))
+            .nonverifiable_get_raw(&last_transaction_id_for_bridge_account_key(address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw last transaction hash for bridge account from state")?
@@ -366,7 +277,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_bridge_account_rollup_id<T: AddressBytes>(&mut self, address: T, rollup_id: &RollupId) {
-        self.put_raw(rollup_id_storage_key(&address), rollup_id.to_vec());
+        self.put_raw(rollup_id_key(&address), rollup_id.to_vec());
     }
 
     #[instrument(skip_all)]
@@ -381,8 +292,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     {
         let ibc = asset.into();
         self.put_raw(
-            asset_id_storage_key(&address),
-            borsh::to_vec(&AssetId(ibc.get())).wrap_err("failed to serialize asset IDs")?,
+            asset_id_key(&address),
+            borsh::to_vec(&AssetId(ibc.get())).context("failed to serialize asset IDs")?,
         );
         Ok(())
     }
@@ -397,7 +308,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         TSudoAddress: AddressBytes,
     {
         self.put_raw(
-            bridge_account_sudo_address_storage_key(&bridge_address),
+            bridge_account_sudo_address_key(&bridge_address),
             sudo_address.address_bytes().to_vec(),
         );
     }
@@ -412,7 +323,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         TWithdrawerAddress: AddressBytes,
     {
         self.put_raw(
-            bridge_account_withdrawer_address_storage_key(&bridge_address),
+            bridge_account_withdrawer_address_key(&bridge_address),
             withdrawer_address.address_bytes().to_vec(),
         );
     }
@@ -424,7 +335,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         withdrawal_event_id: &str,
         block_num: u64,
     ) -> Result<()> {
-        let key = bridge_account_withdrawal_event_storage_key(&address, withdrawal_event_id);
+        let key = bridge_account_withdrawal_event_key(&address, withdrawal_event_id);
 
         // Check if the withdrawal ID has already been used, if so return an error.
         let bytes = self
@@ -460,7 +371,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             nonce.checked_add(1).ok_or_eyre("nonce overflowed")?,
         );
 
-        let key = deposit_storage_key(&deposit.rollup_id, nonce);
+        let key = deposit_key(&deposit.rollup_id, nonce);
         self.nonverifiable_put_raw(key, deposit.into_raw().encode_to_vec());
         Ok(())
     }
@@ -472,7 +383,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             .await
             .wrap_err("failed to get deposit rollup ids")?;
         for rollup_id in deposit_rollup_ids {
-            self.nonverifiable_delete(deposit_nonce_storage_key(&rollup_id));
+            self.nonverifiable_delete(deposit_nonce_key(&rollup_id));
         }
         Ok(())
     }
@@ -480,7 +391,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_init_bridge_account_base_fee(&mut self, fee: u128) {
         self.put_raw(
-            INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY.to_string(),
+            INIT_BRIDGE_ACCOUNT_BASE_FEE_KEY.to_string(),
             borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
         );
     }
@@ -488,7 +399,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_bridge_lock_byte_cost_multiplier(&mut self, fee: u128) {
         self.put_raw(
-            BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY.to_string(),
+            BRIDGE_LOCK_BYTE_COST_MULTIPLIER_KEY.to_string(),
             borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
         );
     }
@@ -496,7 +407,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_bridge_sudo_change_base_fee(&mut self, fee: u128) {
         self.put_raw(
-            BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY.to_string(),
+            BRIDGE_SUDO_CHANGE_FEE_KEY.to_string(),
             borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
         );
     }
@@ -508,7 +419,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         tx_id: &TransactionId,
     ) {
         self.nonverifiable_put_raw(
-            last_transaction_id_for_bridge_account_storage_key(&address),
+            last_transaction_id_for_bridge_account_key(&address),
             tx_id.get().to_vec(),
         );
     }
@@ -521,8 +432,7 @@ async fn get_deposit_events<T: StateRead + ?Sized>(
     state: &T,
     rollup_id: &RollupId,
 ) -> Result<Vec<Deposit>> {
-    let mut stream =
-        std::pin::pin!(state.nonverifiable_prefix_raw(&deposit_storage_key_prefix(rollup_id)));
+    let mut stream = std::pin::pin!(state.nonverifiable_prefix_raw(&deposit_key_prefix(rollup_id)));
     let mut deposits = Vec::new();
     while let Some(Ok((_, value))) = stream.next().await {
         let raw = RawDeposit::decode(value.as_ref()).wrap_err("invalid deposit bytes")?;
@@ -535,7 +445,7 @@ async fn get_deposit_events<T: StateRead + ?Sized>(
 #[instrument(skip_all)]
 async fn get_deposit_nonce<T: StateRead + ?Sized>(state: &T, rollup_id: &RollupId) -> Result<u32> {
     let bytes = state
-        .nonverifiable_get_raw(&deposit_nonce_storage_key(rollup_id))
+        .nonverifiable_get_raw(&deposit_nonce_key(rollup_id))
         .await
         .map_err(anyhow_to_eyre)
         .wrap_err("failed reading raw deposit nonce from state")?;
@@ -556,10 +466,7 @@ async fn get_deposit_nonce<T: StateRead + ?Sized>(state: &T, rollup_id: &RollupI
 // and is reset to 0 at the beginning of each block.
 #[instrument(skip_all)]
 fn put_deposit_nonce<T: StateWrite + ?Sized>(state: &mut T, rollup_id: &RollupId, nonce: u32) {
-    state.nonverifiable_put_raw(
-        deposit_nonce_storage_key(rollup_id),
-        nonce.to_be_bytes().to_vec(),
-    );
+    state.nonverifiable_put_raw(deposit_nonce_key(rollup_id), nonce.to_be_bytes().to_vec());
 }
 
 #[cfg(test)]
@@ -569,7 +476,7 @@ pub(crate) async fn assert_deposit_nonce_cleared<T: StateRead + ?Sized>(
 ) {
     assert!(
         state
-            .nonverifiable_get_raw(&deposit_nonce_storage_key(rollup_id))
+            .nonverifiable_get_raw(&deposit_nonce_key(rollup_id))
             .await
             .expect("failed reading deposit nonce")
             .is_none(),
@@ -582,14 +489,12 @@ mod test {
     use astria_core::{
         primitive::v1::{
             asset,
-            Address,
             RollupId,
             TransactionId,
         },
         sequencerblock::v1alpha1::block::Deposit,
     };
     use cnidarium::StateDelta;
-    use insta::assert_snapshot;
 
     use super::*;
     use crate::test_utils::astria_address;
@@ -1095,25 +1000,5 @@ mod test {
             vec![deposit_1],
             "deposits were cleared and should return empty vector"
         );
-    }
-
-    #[test]
-    fn deposit_prefix_is_prefix_of_deposit_key() {
-        let rollup_id = RollupId::new([1; 32]);
-        let prefix = deposit_storage_key_prefix(&rollup_id);
-        let key = deposit_storage_key(&rollup_id, 99);
-        assert!(key.strip_prefix(prefix.as_slice()).is_some());
-    }
-
-    #[test]
-    fn storage_keys_have_not_changed() {
-        let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
-            .parse()
-            .unwrap();
-
-        assert_snapshot!(rollup_id_storage_key(&address));
-        assert_snapshot!(asset_id_storage_key(&address));
-        assert_snapshot!(bridge_account_sudo_address_storage_key(&address));
-        assert_snapshot!(bridge_account_withdrawer_address_storage_key(&address));
     }
 }

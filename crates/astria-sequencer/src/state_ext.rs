@@ -15,18 +15,22 @@ use cnidarium::{
 use tendermint::Time;
 use tracing::instrument;
 
-const REVISION_NUMBER_KEY: &str = "revision_number";
-
-fn storage_version_by_height_key(height: u64) -> Vec<u8> {
-    format!("storage_version/{height}").into()
-}
+use crate::storage::{
+    nonverifiable_keys::app::storage_version_by_height_key,
+    verifiable_keys::app::{
+        BLOCK_HEIGHT_KEY,
+        BLOCK_TIMESTAMP_KEY,
+        CHAIN_ID_KEY,
+        REVISION_NUMBER_KEY,
+    },
+};
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_chain_id(&self) -> Result<tendermint::chain::Id> {
         let Some(bytes) = self
-            .get_raw("chain_id")
+            .get_raw(CHAIN_ID_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw chain_id from state")?
@@ -64,7 +68,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_block_height(&self) -> Result<u64> {
         let Some(bytes) = self
-            .get_raw("block_height")
+            .get_raw(BLOCK_HEIGHT_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw block_height from state")?
@@ -80,7 +84,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_block_timestamp(&self) -> Result<Time> {
         let Some(bytes) = self
-            .get_raw("block_timestamp")
+            .get_raw(BLOCK_TIMESTAMP_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw block_timestamp from state")?
@@ -119,26 +123,29 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_chain_id_and_revision_number(&mut self, chain_id: tendermint::chain::Id) {
         let revision_number = revision_number_from_chain_id(chain_id.as_str());
-        self.put_raw("chain_id".into(), chain_id.as_bytes().to_vec());
+        self.put_raw(CHAIN_ID_KEY.to_string(), chain_id.as_bytes().to_vec());
         self.put_revision_number(revision_number);
     }
 
     #[instrument(skip_all)]
     fn put_revision_number(&mut self, revision_number: u64) {
         self.put_raw(
-            REVISION_NUMBER_KEY.into(),
+            REVISION_NUMBER_KEY.to_string(),
             revision_number.to_be_bytes().to_vec(),
         );
     }
 
     #[instrument(skip_all)]
     fn put_block_height(&mut self, height: u64) {
-        self.put_raw("block_height".into(), height.to_be_bytes().to_vec());
+        self.put_raw(BLOCK_HEIGHT_KEY.to_string(), height.to_be_bytes().to_vec());
     }
 
     #[instrument(skip_all)]
     fn put_block_timestamp(&mut self, timestamp: Time) {
-        self.put_raw("block_timestamp".into(), timestamp.to_rfc3339().into());
+        self.put_raw(
+            BLOCK_TIMESTAMP_KEY.to_string(),
+            timestamp.to_rfc3339().into(),
+        );
     }
 
     #[instrument(skip_all)]

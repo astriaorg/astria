@@ -34,29 +34,14 @@ use cnidarium::{
 use prost::Message;
 use tracing::instrument;
 
-fn block_hash_by_height_key(height: u64) -> Vec<u8> {
-    [b"blockhash/".as_slice(), &height.to_le_bytes()].concat()
-}
-
-fn sequencer_block_header_by_hash_key(hash: &[u8]) -> Vec<u8> {
-    [b"blockheader/", hash].concat()
-}
-
-fn rollup_data_by_hash_and_rollup_id_key(hash: &[u8], rollup_id: &RollupId) -> Vec<u8> {
-    [b"rollupdata/", hash, rollup_id.as_ref()].concat()
-}
-
-fn rollup_ids_by_hash_key(hash: &[u8]) -> Vec<u8> {
-    [b"rollupids/", hash].concat()
-}
-
-fn rollup_transactions_proof_by_hash_key(hash: &[u8]) -> Vec<u8> {
-    [b"rolluptxsproof/", hash].concat()
-}
-
-fn rollup_ids_proof_by_hash_key(hash: &[u8]) -> Vec<u8> {
-    [b"rollupidsproof/", hash].concat()
-}
+use crate::storage::nonverifiable_keys::api::{
+    block_hash_by_height_key,
+    rollup_data_by_hash_and_rollup_id_key,
+    rollup_ids_by_hash_key,
+    rollup_ids_proof_by_hash_key,
+    rollup_transactions_proof_by_hash_key,
+    sequencer_block_header_by_hash_key,
+};
 
 #[derive(BorshSerialize, BorshDeserialize)]
 struct RollupIdSeq(

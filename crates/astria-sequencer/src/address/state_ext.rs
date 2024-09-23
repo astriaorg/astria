@@ -18,13 +18,10 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-fn base_prefix_key() -> &'static str {
-    "prefixes/base"
-}
-
-fn ibc_compat_prefix_key() -> &'static str {
-    "prefixes/ibc-compat"
-}
+use crate::storage::verifiable_keys::address::{
+    BASE_PREFIX_KEY,
+    IBC_COMPAT_PREFIX_KEY,
+};
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -58,7 +55,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all, err)]
     async fn get_base_prefix(&self) -> Result<String> {
         let Some(bytes) = self
-            .get_raw(base_prefix_key())
+            .get_raw(BASE_PREFIX_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading address base prefix from state")?
@@ -73,7 +70,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all, err)]
     async fn get_ibc_compat_prefix(&self) -> Result<String> {
         let Some(bytes) = self
-            .get_raw(ibc_compat_prefix_key())
+            .get_raw(IBC_COMPAT_PREFIX_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading address ibc compat prefix from state")?
@@ -90,12 +87,12 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_base_prefix(&mut self, prefix: &str) {
-        self.put_raw(base_prefix_key().into(), prefix.into());
+        self.put_raw(BASE_PREFIX_KEY.to_string(), prefix.into());
     }
 
     #[instrument(skip_all)]
     fn put_ibc_compat_prefix(&mut self, prefix: &str) {
-        self.put_raw(ibc_compat_prefix_key().into(), prefix.into());
+        self.put_raw(IBC_COMPAT_PREFIX_KEY.to_string(), prefix.into());
     }
 }
 

@@ -26,7 +26,15 @@ use tracing::{
     instrument,
 };
 
-use crate::accounts::AddressBytes;
+use crate::{
+    accounts::AddressBytes,
+    storage::verifiable_keys::ibc::{
+        channel_balance_key,
+        ibc_relayer_key,
+        IBC_SUDO_KEY,
+        ICS20_WITHDRAWAL_BASE_FEE_KEY,
+    },
+};
 
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -39,36 +47,6 @@ struct SudoAddress([u8; ADDRESS_LEN]);
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Fee(u128);
-
-const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
-const ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY: &str = "ics20withdrawalfee";
-
-struct IbcRelayerKey<'a, T>(&'a T);
-
-impl<'a, T: AddressBytes> std::fmt::Display for IbcRelayerKey<'a, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("ibc-relayer")?;
-        f.write_str("/")?;
-        for byte in self.0.address_bytes() {
-            f.write_fmt(format_args!("{byte:02x}"))?;
-        }
-        Ok(())
-    }
-}
-
-fn channel_balance_storage_key<TAsset: Into<asset::IbcPrefixed>>(
-    channel: &ChannelId,
-    asset: TAsset,
-) -> String {
-    format!(
-        "ibc-data/{channel}/balance/{}",
-        crate::storage_keys::hunks::Asset::from(asset),
-    )
-}
-
-fn ibc_relayer_key<T: AddressBytes>(address: &T) -> String {
-    IbcRelayerKey(address).to_string()
-}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -84,7 +62,7 @@ pub(crate) trait StateReadExt: StateRead {
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
     {
         let Some(bytes) = self
-            .get_raw(&channel_balance_storage_key(channel, asset))
+            .get_raw(&channel_balance_key(channel, asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading ibc channel balance from state")?
@@ -100,7 +78,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
-            .get_raw(IBC_SUDO_STORAGE_KEY)
+            .get_raw(IBC_SUDO_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw ibc sudo key from state")?
@@ -126,7 +104,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ics20_withdrawal_base_fee(&self) -> Result<u128> {
         let Some(bytes) = self
-            .get_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY)
+            .get_raw(ICS20_WITHDRAWAL_BASE_FEE_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading ics20 withdrawal fee from state")?
@@ -180,15 +158,15 @@ pub(crate) trait StateWriteExt: StateWrite {
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
     {
-        let bytes = borsh::to_vec(&Balance(balance)).wrap_err("failed to serialize balance")?;
-        self.put_raw(channel_balance_storage_key(channel, asset), bytes);
+        let bytes = borsh::to_vec(&Balance(balance)).context("failed to serialize balance")?;
+        self.put_raw(channel_balance_key(channel, asset), bytes);
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn put_ibc_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
         self.put_raw(
-            IBC_SUDO_STORAGE_KEY.to_string(),
+            IBC_SUDO_KEY.to_string(),
             borsh::to_vec(&SudoAddress(address.address_bytes()))
                 .wrap_err("failed to convert sudo address to vec")?,
         );
@@ -208,8 +186,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_ics20_withdrawal_base_fee(&mut self, fee: u128) -> Result<()> {
         self.put_raw(
-            ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(),
-            borsh::to_vec(&Fee(fee)).wrap_err("failed to serialize fee")?,
+            ICS20_WITHDRAWAL_BASE_FEE_KEY.to_string(),
+            borsh::to_vec(&Fee(fee)).context("failed to serialize fee")?,
         );
         Ok(())
     }
@@ -233,7 +211,7 @@ mod tests {
     };
     use crate::{
         address::StateWriteExt,
-        ibc::state_ext::channel_balance_storage_key,
+        ibc::state_ext::channel_balance_key,
         test_utils::{
             astria_address,
             ASTRIA_PREFIX,
@@ -528,9 +506,9 @@ mod tests {
             .parse::<astria_core::primitive::v1::asset::Denom>()
             .unwrap();
         assert_eq!(
-            channel_balance_storage_key(&channel, &asset),
-            channel_balance_storage_key(&channel, asset.to_ibc_prefixed()),
+            channel_balance_key(&channel, &asset),
+            channel_balance_key(&channel, asset.to_ibc_prefixed()),
         );
-        assert_snapshot!(channel_balance_storage_key(&channel, &asset));
+        assert_snapshot!(channel_balance_key(&channel, &asset));
     }
 }

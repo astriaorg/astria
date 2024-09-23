@@ -21,15 +21,20 @@ use cnidarium::{
 use tracing::instrument;
 
 use super::ValidatorSet;
-use crate::accounts::AddressBytes;
+use crate::{
+    accounts::AddressBytes,
+    storage::{
+        nonverifiable_keys::authority::VALIDATOR_UPDATES_KEY,
+        verifiable_keys::authority::{
+            SUDO_STORAGE_KEY,
+            VALIDATOR_SET_STORAGE_KEY,
+        },
+    },
+};
 
 /// Newtype wrapper to read and write an address from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct SudoAddress([u8; ADDRESS_LEN]);
-
-const SUDO_STORAGE_KEY: &str = "sudo";
-const VALIDATOR_SET_STORAGE_KEY: &str = "valset";
-const VALIDATOR_UPDATES_KEY: &[u8] = b"valupdates";
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
