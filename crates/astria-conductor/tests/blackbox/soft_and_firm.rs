@@ -1,7 +1,10 @@
 use std::time::Duration;
 
 use astria_conductor::config::CommitLevel;
-use futures::future::join;
+use futures::future::{
+    join,
+    join3,
+};
 use tokio::time::timeout;
 
 use crate::{
