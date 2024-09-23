@@ -13,7 +13,7 @@ on:
 env:
   REGISTRY: ghcr.io
   FULL_REF: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
-  # This must match the entry in rustup-toolchain.toml at the repository root
+  # This must match the entry in rust-toolchain.toml at the repository root
   RUSTUP_TOOLCHAIN: "1.81.0"
 
 jobs:
