@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client;
+use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient as SequencerGrpcClient;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -94,13 +94,10 @@ impl BridgeWithdrawer {
             .parse()
             .wrap_err("failed to parse sequencer bridge address")?;
 
-        let sequencer_grpc_uri = sequencer_grpc_endpoint
-            .parse::<Uri>()
-            .wrap_err("failed to parse sequencer grpc endpoint to Uri")?;
-        let sequencer_grpc_connection =
-            tonic::transport::Endpoint::from(sequencer_grpc_uri).connect_lazy();
-        let sequencer_grpc_client =
-            sequencer_service_client::SequencerServiceClient::new(sequencer_grpc_connection);
+        let sequencer_grpc_client = connect_sequencer_grpc(&sequencer_grpc_endpoint)
+            .wrap_err_with(|| {
+                format!("failed to connect to Sequencer over gRPC at `{sequencer_grpc_endpoint}`")
+            })?;
         let sequencer_cometbft_client =
             sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
                 .wrap_err("failed constructing cometbft http client")?;
@@ -469,4 +466,15 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
+}
+
+fn connect_sequencer_grpc(
+    sequencer_grpc_endpoint: &str,
+) -> eyre::Result<SequencerGrpcClient<tonic::transport::Channel>> {
+    let uri: Uri = sequencer_grpc_endpoint
+        .parse()
+        .wrap_err("failed to parse endpoint as URI")?;
+    Ok(SequencerGrpcClient::new(
+        tonic::transport::Endpoint::from(uri).connect_lazy(),
+    ))
 }
