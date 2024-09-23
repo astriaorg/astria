@@ -1018,11 +1018,11 @@ mod test {
         state
             .clear_block_deposit_nonces()
             .await
-            .expect("calls to clear block deposit should succeed");
+            .expect("calls to clear block deposit nonces should succeed");
     }
 
     #[tokio::test]
-    async fn clear_block_deposits() {
+    async fn retain_block_deposits_but_clear_nonces() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -1084,16 +1084,16 @@ mod test {
         assert_eq!(
             super::get_deposit_events(&state, &rollup_id)
                 .await
-                .expect("deposit should return empty when none exists"),
+                .expect("deposit should be retrieved"),
             vec![deposit],
-            "deposits were cleared and should return empty vector"
+            "retrieved deposit not as expected"
         );
         assert_eq!(
             super::get_deposit_events(&state, &rollup_id_1)
                 .await
-                .expect("deposit should return empty when none exists"),
+                .expect("deposit should be retrieved"),
             vec![deposit_1],
-            "deposits were cleared and should return empty vector"
+            "retrieved deposit not as expected"
         );
     }
 
