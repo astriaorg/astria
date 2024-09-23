@@ -59,7 +59,7 @@ impl ::prost::Name for TransactionParams {
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -100,6 +100,8 @@ pub mod action {
         FeeAssetChangeAction(super::FeeAssetChangeAction),
         #[prost(message, tag = "55")]
         FeeChangeAction(super::FeeChangeAction),
+        #[prost(message, tag = "56")]
+        IbcSudoChangeAction(super::IbcSudoChangeAction),
     }
 }
 impl ::prost::Name for Action {
@@ -486,6 +488,19 @@ pub mod fee_change_action {
 }
 impl ::prost::Name for FeeChangeAction {
     const NAME: &'static str = "FeeChangeAction";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IbcSudoChangeAction {
+    #[prost(message, optional, tag = "1")]
+    pub new_address: ::core::option::Option<super::super::super::primitive::v1::Address>,
+}
+impl ::prost::Name for IbcSudoChangeAction {
+    const NAME: &'static str = "IbcSudoChangeAction";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
