@@ -1,0 +1,60 @@
+[package]
+name = "astria-auctioneer"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.76"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
+
+[[bin]]
+name = "astria-auctioneer"
+
+[dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
+astria-core = { path = "../astria-core", features = ["serde", "server"] }
+astria-eyre = { path = "../astria-eyre" }
+config = { package = "astria-config", path = "../astria-config" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+  "display",
+] }
+
+async-trait = { workspace = true }
+axum = { workspace = true }
+futures = { workspace = true }
+itertools = { workspace = true }
+once_cell = { workspace = true }
+pin-project-lite = { workspace = true }
+prost = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true, features = [
+  "macros",
+  "rt-multi-thread",
+  "sync",
+  "time",
+  "signal",
+] }
+tokio-util = { workspace = true, features = ["rt"] }
+tracing = { workspace = true, features = ["attributes"] }
+tryhard = { workspace = true }
+tonic = { workspace = true }
+tokio-stream = { workspace = true, features = ["net"] }
+
+[dev-dependencies]
+astria-core = { path = "../astria-core", features = ["client"] }
+config = { package = "astria-config", path = "../astria-config", features = [
+  "tests",
+] }
+insta = { workspace = true, features = ["json"] }
+tempfile = { workspace = true }
+test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
+  "geth",
+] }
+tokio-test = { workspace = true }
+wiremock = { workspace = true }
+
+[build-dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["build"] }
