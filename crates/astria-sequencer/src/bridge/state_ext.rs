@@ -563,6 +563,21 @@ fn put_deposit_nonce<T: StateWrite + ?Sized>(state: &mut T, rollup_id: &RollupId
 }
 
 #[cfg(test)]
+pub(crate) async fn assert_deposit_nonce_cleared<T: StateRead + ?Sized>(
+    state: &T,
+    rollup_id: &RollupId,
+) {
+    assert!(
+        state
+            .nonverifiable_get_raw(&deposit_nonce_storage_key(rollup_id))
+            .await
+            .expect("failed reading deposit nonce")
+            .is_none(),
+        "deposit nonce not cleared from state"
+    );
+}
+
+#[cfg(test)]
 mod test {
     use astria_core::{
         primitive::v1::{

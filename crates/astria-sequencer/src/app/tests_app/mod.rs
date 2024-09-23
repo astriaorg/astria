@@ -358,6 +358,9 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         .unwrap();
     app.commit(storage).await;
 
+    // ensure deposit nonces are cleared at the end of the block
+    crate::bridge::assert_deposit_nonce_cleared(&app.state, &rollup_id).await;
+
     let block = app.state.get_sequencer_block_by_height(1).await.unwrap();
     let mut deposits = vec![];
     for (_, rollup_data) in block.rollup_transactions() {
