@@ -33,6 +33,9 @@ impl Cli {
 }
 
 /// Commands that can be run
+// allow: these are one-shot variants. the size doesn't matter as they are
+// passed around only once.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
     Bridge {

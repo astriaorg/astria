@@ -97,7 +97,7 @@ deploy-astrotrek:
     -n astria-dev-cluster \
 
 delete-astrotrek:
-  @just delete chart astrotrek 
+  @just delete chart astrotrek
 
 deploy-hermes-local:
   helm install hermes-local-chart ./charts/hermes \
@@ -222,6 +222,8 @@ rollup_multiplier := "1000000000"
 # 10 RIA
 sequencer_transfer_amount := "10"
 sequencer_rpc_url := "http://rpc.sequencer.localdev.me"
+sequencer_funded_address:= "astria1qrt4kfc9ggyy548u7rg0d64sgq5c952kzk9tg9"
+sequencer_funded_pkey := "934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
 sequencer_bridge_address := "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
 sequencer_bridge_pkey := "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
 sequencer_chain_id := "sequencer-test-chain-0"
@@ -335,7 +337,6 @@ run-smoke-test tag=defaultTag:
     echo "Bridge Out Sequencer failure"
     exit 1
   fi
-
   echo "Testing TX Finalization"
   CHECKS=0
   BLOCK_NUM_HEX=$(just evm-get-transaction-receipt {{bridge_tx_hash}} | jq -r '.blockNumber')
@@ -461,6 +462,43 @@ run-smoke-cli tag=defaultTag:
     exit 1
   fi
 
+  echo "Testing Bridge sudo address change"
+  astria-cli sequencer bridge-sudo-change {{sequencer_bridge_address}} --private-key={{sequencer_bridge_pkey}} --new-sudo-address={{sequencer_funded_address}} --sequencer-url={{sequencer_rpc_url}} --sequencer.chain-id={{sequencer_chain_id}}
+  CHECKS=0
+  while (( $CHECKS < $MAX_CHECKS )); do
+    CHECKS=$((CHECKS+1))
+    SUDO_ADDRESS=$(astria-cli sequencer get-bridge-account {{sequencer_bridge_address}} --sequencer-url {{sequencer_rpc_url}}  | awk '/Sudo Address/{print $(NF)}')
+    echo "Check $CHECKS, Sudo address: $SUDO_ADDRESS, Expected: {{sequencer_funded_address}}"
+    if [ "$SUDO_ADDRESS" == "{{sequencer_funded_address}}" ]; then
+      echo "Bridge Sudo change success"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if (( $CHECKS >= $MAX_CHECKS )); then
+    echo "Bridge Sudo Change failure"
+    exit 1
+  fi
+
+  echo "Reverting Bridge sudo address"
+  astria-cli sequencer bridge-sudo-change {{sequencer_bridge_address}} --private-key={{sequencer_funded_pkey}} --new-sudo-address={{sequencer_bridge_address}} --sequencer-url={{sequencer_rpc_url}} --sequencer.chain-id={{sequencer_chain_id}}
+  CHECKS=0
+  while (( $CHECKS < $MAX_CHECKS )); do
+    CHECKS=$((CHECKS+1))
+    SUDO_ADDRESS=$(astria-cli sequencer get-bridge-account {{sequencer_bridge_address}} --sequencer-url {{sequencer_rpc_url}}  | awk '/Sudo Address/{print $(NF)}')
+    echo "Check $CHECKS, Sudo address: $SUDO_ADDRESS, Expected: {{sequencer_bridge_address}}"
+    if [ "$SUDO_ADDRESS" == "{{sequencer_bridge_address}}" ]; then
+        echo "Bridge Sudo change back success"
+        break
+    else
+        sleep 1
+    fi
+  done
+  if (( $CHECKS >= $MAX_CHECKS )); then
+    echo "Bridge Sudo Change failure"
+    exit 1
+  fi
   exit 0
 
 #############################################

@@ -7,6 +7,9 @@ use clap::{
 };
 
 /// Interact with a Sequencer node
+// allow: these are one-shot variants. the size doesn't matter as they are
+// passed around only once.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
     /// Commands for interacting with Sequencer accounts
@@ -43,6 +46,8 @@ pub(crate) enum Command {
     BridgeLock(BridgeLockArgs),
     /// Command for changing the bridge account sudo address or withdrawer address
     BridgeSudoChange(BridgeSudoChangeArgs),
+    /// Command for getting bridge account information
+    GetBridgeAccount(BridgeAccountArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -105,6 +110,19 @@ pub(crate) struct BasicAccountArgs {
     )]
     pub(crate) sequencer_url: String,
     /// The address of the Sequencer account
+    pub(crate) address: Address,
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct BridgeAccountArgs {
+    /// The url of the Sequencer node
+    #[arg(
+        long,
+        env = "SEQUENCER_URL",
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
+    /// The address of the Sequencer bridge account
     pub(crate) address: Address,
 }
 
@@ -297,6 +315,7 @@ pub(crate) struct BridgeLockArgs {
 #[derive(Args, Debug)]
 #[command(group(ArgGroup::new("new_address")
     .required(true)
+    .multiple(true)
     .args(&["new_sudo_address", "new_withdrawer_address"])))]
 pub(crate) struct BridgeSudoChangeArgs {
     /// The bridge account whose privileges will be modified.

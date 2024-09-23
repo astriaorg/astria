@@ -40,6 +40,7 @@ use crate::cli::sequencer::{
     BasicAccountArgs,
     Bech32mAddressArgs,
     BlockHeightGetArgs,
+    BridgeAccountArgs,
     BridgeLockArgs,
     BridgeSudoChangeArgs,
     FeeAssetChangeArgs,
@@ -160,6 +161,36 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
 
     println!("Block Height:");
     println!("    {}", res.block.header.height);
+
+    Ok(())
+}
+
+/// Gets bridge account information
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the bridge account information cannot be retrieved
+pub(crate) async fn get_bridge_account(args: &BridgeAccountArgs) -> eyre::Result<()> {
+    let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
+        .wrap_err("failed constructing http sequencer client")?;
+
+    let res = sequencer_client
+        .get_bridge_account_info(args.address)
+        .await
+        .wrap_err("failed to get bridge account")?;
+    let Some(info) = res.info else {
+        return Err(eyre::eyre!("no bridge account information found"));
+    };
+    println!("Bridge Account Information for address: {}", args.address);
+    println!("    Rollup Id: {}", info.rollup_id);
+    println!("    Asset: {}", info.asset);
+    println!("    Sudo Address: {}", info.sudo_address);
+    println!("    Withdrawer Address {}", info.withdrawer_address);
 
     Ok(())
 }
@@ -356,7 +387,7 @@ pub(crate) async fn bridge_sudo_change(args: &BridgeSudoChangeArgs) -> eyre::Res
         }),
     )
     .await
-    .wrap_err("failed to submit BridgeLock transaction")?;
+    .wrap_err("failed to submit BridgeSudoChnage transaction")?;
     println!("BridgeSudoChange completed!");
     println!("Included in block: {}", res.height);
     Ok(())

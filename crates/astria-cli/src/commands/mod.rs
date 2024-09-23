@@ -101,6 +101,9 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                 SequencerCommand::BridgeSudoChange(args) => {
                     sequencer::bridge_sudo_change(&args).await?;
                 }
+                SequencerCommand::GetBridgeAccount(args) => {
+                    sequencer::get_bridge_account(&args).await?;
+                }
             },
         }
     } else {
