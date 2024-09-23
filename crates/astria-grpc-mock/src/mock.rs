@@ -36,6 +36,8 @@ pub struct Mock {
     pub(crate) max_n_matches: Option<u64>,
     pub(crate) expectation_range: Times,
     pub(crate) name: Option<String>,
+    pub(crate) delay: Option<std::time::Duration>,
+    pub(crate) delay_start_time: std::time::Instant,
 }
 
 impl Mock {
@@ -73,6 +75,12 @@ impl Mock {
     pub async fn mount_as_scoped(self, server: &MockServer) -> MockGuard {
         server.register_as_scoped(self).await
     }
+
+    #[must_use = "a mock must be mounted on a server to be useful"]
+    pub fn set_delay(mut self, delay: Option<std::time::Duration>) -> Self {
+        self.delay = delay;
+        self
+    }
 }
 
 pub struct MockBuilder {
@@ -98,6 +106,8 @@ impl MockBuilder {
             max_n_matches: None,
             name: None,
             expectation_range: Times(TimesEnum::Unbounded(RangeFull)),
+            delay: None,
+            delay_start_time: std::time::Instant::now(),
         }
     }
 }

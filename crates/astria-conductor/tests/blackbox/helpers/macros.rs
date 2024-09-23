@@ -290,7 +290,7 @@ macro_rules! mount_executed_block {
 
 #[macro_export]
 macro_rules! mount_get_filtered_sequencer_block {
-    ($test_env:ident, sequencer_height: $height:expr $(,)?) => {
+    ($test_env:ident, sequencer_height: $height:expr, delay: $delay:expr $(,)?) => {
         $test_env
             .mount_get_filtered_sequencer_block(
                 ::astria_core::generated::sequencerblock::v1alpha1::GetFilteredSequencerBlockRequest {
@@ -298,8 +298,16 @@ macro_rules! mount_get_filtered_sequencer_block {
                     rollup_ids: vec![$crate::ROLLUP_ID.to_raw()],
                 },
                 $crate::filtered_sequencer_block!(sequencer_height: $height),
+                $delay,
             )
             .await;
+    };
+    ($test_env:ident, sequencer_height: $height:expr$(,)?) => {
+        mount_get_filtered_sequencer_block!(
+            $test_env,
+            sequencer_height: $height,
+            delay: None,
+        )
     };
 }
 

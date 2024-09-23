@@ -20,119 +20,6 @@ use crate::{
     mount_update_commitment_state,
 };
 
-/// Tests if a single block is executed and the rollup's state updated (first firm, then soft is
-/// ignored).
-///
-/// This is to test for the scenario of receiving a firm block from Celestia before the
-/// soft block from sequencer.
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn soft_is_ignored_if_firm_arrives_first() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
-
-    mount_get_genesis_info!(
-        test_conductor,
-        sequencer_genesis_block_height: 1,
-        celestia_block_variance: 10,
-    );
-
-    mount_get_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        base_celestia_height: 1,
-    );
-
-    mount_abci_info!(
-        test_conductor,
-        latest_sequencer_height: 3,
-    );
-
-    mount_sequencer_genesis!(test_conductor);
-
-    mount_celestia_header_network_head!(
-        test_conductor,
-        height: 1u32,
-    );
-
-    let execute_block = mount_executed_block!(
-        test_conductor,
-        number: 2,
-        hash: [2; 64],
-        parent: [1; 64],
-    );
-
-    mount_celestia_blobs!(
-        test_conductor,
-        celestia_height: 1,
-        sequencer_heights: [3],
-    );
-
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 3u32,
-    );
-
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
-
-    let update_commitment_state_firm = mount_update_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        soft: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        base_celestia_height: 1,
-    );
-
-    timeout(
-        Duration::from_millis(1000),
-        join(
-            execute_block.wait_until_satisfied(),
-            update_commitment_state_firm.wait_until_satisfied(),
-        ),
-    )
-    .await
-    .expect(
-        "conductor should have executed the block and updated the firm commitment state within \
-         1000ms",
-    );
-
-    mount_get_filtered_sequencer_block!(
-        test_conductor,
-        sequencer_height: 3,
-    );
-
-    let _update_commitment_state_soft = mount_update_commitment_state!(
-        test_conductor,
-        mock_name: "update_commitment_state_soft",
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        base_celestia_height: 1,
-        expected_calls: 0,
-    );
-}
-
 /// Tests if a single block is executed and the rollup's state updated (first soft, then firm).
 ///
 /// The following steps are most important:
@@ -256,7 +143,21 @@ async fn executes_soft_first_then_updates_firm() {
 }
 
 /// Tests if a single block is executed and the rollup's state updated after first receiving a firm
-/// block, then for the soft block at the next height.
+/// block, ensuring that update commitment state is not called upon receiving a tardy soft block.
+/// Then, ensures the conductor updates the state for the soft block at the next height.
+///
+/// The following steps occur:
+/// 1. Firm and soft blocks at the current height are mounted, the soft block with a 500ms delay to
+///    allow for the firm block to be received first.
+/// 2. The soft block for the next height is mounted with a 1000ms delay, so that execution and
+///    state update of the current height happen before receipt of the next block.
+/// 3. Mounts are made for firm and soft update commitment state calls, with the soft mount
+///    expecting exactly 0 calls.
+/// 4. 1000ms is allotted for the conductor to execute the block and update the firm commitment
+///    state, noting that this allows time to test for an erroneously updated soft commitment state
+///    before the conductor receives the next block.
+/// 5. 2000ms is allotted for the conductor to execute the next block and update the soft commitment
+///    state at the next height.
 #[allow(clippy::too_many_lines)] // allow: all mounts and test logic are necessary.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn executes_firm_then_soft_at_next_height() {
@@ -315,6 +216,20 @@ async fn executes_firm_then_soft_at_next_height() {
         parent: [1; 64],
     );
 
+    // Mount soft block at current height with a slight delay
+    mount_get_filtered_sequencer_block!(
+        test_conductor,
+        sequencer_height: 3,
+        delay: Some(Duration::from_millis(500)),
+    );
+
+    // Mount soft block at next height with substantial delay
+    mount_get_filtered_sequencer_block!(
+        test_conductor,
+        sequencer_height: 4,
+        delay: Some(Duration::from_millis(1000)),
+    );
+
     let update_commitment_state_firm = mount_update_commitment_state!(
         test_conductor,
         firm: (
@@ -330,6 +245,23 @@ async fn executes_firm_then_soft_at_next_height() {
         base_celestia_height: 1,
     );
 
+    let _stale_update_soft_commitment_state = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "should_be_ignored_update_commitment_state_soft",
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 0,
+    );
+
     timeout(
         Duration::from_millis(1000),
         join(
@@ -341,11 +273,6 @@ async fn executes_firm_then_soft_at_next_height() {
     .expect(
         "Conductor should have executed the block and updated the firm commitment state within \
          1000ms",
-    );
-
-    mount_get_filtered_sequencer_block!(
-        test_conductor,
-        sequencer_height: 4,
     );
 
     let execute_block = mount_executed_block!(
@@ -371,7 +298,7 @@ async fn executes_firm_then_soft_at_next_height() {
     );
 
     timeout(
-        Duration::from_millis(1000),
+        Duration::from_millis(2000),
         join(
             execute_block.wait_until_satisfied(),
             update_commitment_state_soft.wait_until_satisfied(),
@@ -380,7 +307,7 @@ async fn executes_firm_then_soft_at_next_height() {
     .await
     .expect(
         "conductor should have executed the block and updated the soft commitment state within \
-         1000ms",
+         2000ms",
     );
 }
 

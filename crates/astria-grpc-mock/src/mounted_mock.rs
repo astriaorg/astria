@@ -125,6 +125,12 @@ impl MountedMock {
             return MockResult::NoMatch;
         }
 
+        if let Some(delay) = self.inner.delay {
+            if self.inner.delay_start_time.elapsed() < delay {
+                return MockResult::NoMatch;
+            }
+        }
+
         let response = match self.inner.response.respond(request) {
             Err(status) => {
                 self.successful_responses

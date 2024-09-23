@@ -407,6 +407,7 @@ impl TestConductor {
         &self,
         expected_pbjson: S,
         response: FilteredSequencerBlock,
+        delay: Option<Duration>,
     ) {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
@@ -419,6 +420,7 @@ impl TestConductor {
         )
         .respond_with(constant_response(response))
         .expect(1..)
+        .set_delay(delay)
         .mount(&self.mock_grpc.mock_server)
         .await;
     }
