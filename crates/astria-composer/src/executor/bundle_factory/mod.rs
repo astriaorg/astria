@@ -76,7 +76,7 @@ impl SizedBundle {
         }
     }
 
-    #[allow(clippy::allow_panic)] // method is expected to never panic as an invariant of the type
+    #[allow(clippy::panic)] // method is expected to never panic as an invariant of the type
     /// Constructs an [`UnsignedTransaction`] from the actions contained in the bundle and `params`.
     pub(super) fn to_unsigned_transaction(&self, params: TransactionParams) -> UnsignedTransaction {
         UnsignedTransaction::new(self.buffer.clone(), params).unwrap()

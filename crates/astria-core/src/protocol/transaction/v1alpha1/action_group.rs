@@ -300,52 +300,46 @@ mod test {
                 rollup_id: RollupId::from([8; 32]),
                 data: vec![].into(),
                 fee_asset: asset.clone(),
-            })
-            .into(),
+            }),
             Action::Transfer(TransferAction {
                 to: address,
                 amount: 100,
                 asset: asset.clone(),
                 fee_asset: asset.clone(),
-            })
-            .into(),
+            }),
             Action::BridgeLock(BridgeLockAction {
                 to: address,
                 amount: 100,
                 asset: asset.clone(),
                 fee_asset: asset.clone(),
-                destination_chain_address: "".to_string(),
-            })
-            .into(),
+                destination_chain_address: String::new(),
+            }),
             Action::BridgeUnlock(BridgeUnlockAction {
                 to: address,
                 amount: 100,
                 fee_asset: asset.clone(),
                 bridge_address: address,
-                memo: "".to_string(),
+                memo: String::new(),
                 rollup_block_number: 0,
-                rollup_withdrawal_event_id: "".to_string(),
-            })
-            .into(),
+                rollup_withdrawal_event_id: String::new(),
+            }),
             Action::ValidatorUpdate(ValidatorUpdate {
                 power: 100,
                 verification_key: VerificationKey::try_from([0; 32]).unwrap(),
-            })
-            .into(),
+            }),
             Action::Ics20Withdrawal(Ics20Withdrawal {
                 denom: asset.clone(),
-                destination_chain_address: "test".to_string(),
+                destination_chain_address: String::new(),
                 return_address: address,
                 amount: 1_000_000u128,
-                memo: "test".to_string(),
+                memo: String::new(),
                 fee_asset: asset.clone(),
                 timeout_height: Height::new(1, 1).unwrap(),
                 timeout_time: 0,
                 source_channel: "channel-0".parse().unwrap(),
                 bridge_address: Some(address),
                 use_compat_address: false,
-            })
-            .into(),
+            }),
         ];
 
         assert!(matches!(
@@ -367,10 +361,9 @@ mod test {
             Action::FeeChange(FeeChangeAction {
                 fee_change: FeeChange::TransferBaseFee,
                 new_value: 100,
-            })
-            .into(),
-            Action::FeeAssetChange(FeeAssetChangeAction::Addition(asset).into()).into(),
-            Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(address)).into(),
+            }),
+            Action::FeeAssetChange(FeeAssetChangeAction::Addition(asset)),
+            Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(address)),
         ];
 
         assert!(matches!(
@@ -387,12 +380,9 @@ mod test {
             .try_build()
             .unwrap();
 
-        let actions = vec![
-            Action::SudoAddressChange(SudoAddressChangeAction {
-                new_address: address,
-            })
-            .into(),
-        ];
+        let actions = vec![Action::SudoAddressChange(SudoAddressChangeAction {
+            new_address: address,
+        })];
 
         assert!(matches!(
             Actions::from_list_of_actions(actions).unwrap().group(),
@@ -402,12 +392,10 @@ mod test {
         let actions = vec![
             Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address: address,
-            })
-            .into(),
+            }),
             Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address: address,
-            })
-            .into(),
+            }),
         ];
 
         assert_eq!(
@@ -486,12 +474,10 @@ mod test {
                 rollup_id: RollupId::from([8; 32]),
                 data: vec![].into(),
                 fee_asset: asset.clone(),
-            })
-            .into(),
+            }),
             Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address: address,
-            })
-            .into(),
+            }),
         ];
 
         assert_eq!(
