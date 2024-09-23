@@ -1,8 +1,9 @@
-use anyhow::{
-    bail,
-    Context,
-};
 use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
+use astria_eyre::eyre::{
+    bail,
+    Result,
+    WrapErr as _,
+};
 use cnidarium::Storage;
 use tendermint::v0_38::abci::{
     request,
@@ -74,13 +75,13 @@ impl Consensus {
             ConsensusRequest::InitChain(init_chain) => ConsensusResponse::InitChain(
                 self.init_chain(init_chain)
                     .await
-                    .context("failed initializing chain")?,
+                    .wrap_err("failed initializing chain")?,
             ),
             ConsensusRequest::PrepareProposal(prepare_proposal) => {
                 ConsensusResponse::PrepareProposal(
                     self.handle_prepare_proposal(prepare_proposal)
                         .await
-                        .context("failed to prepare proposal")?,
+                        .wrap_err("failed to prepare proposal")?,
                 )
             }
             ConsensusRequest::ProcessProposal(process_proposal) => {
@@ -108,26 +109,23 @@ impl Consensus {
             ConsensusRequest::FinalizeBlock(finalize_block) => ConsensusResponse::FinalizeBlock(
                 self.finalize_block(finalize_block)
                     .await
-                    .context("failed to finalize block")?,
+                    .wrap_err("failed to finalize block")?,
             ),
             ConsensusRequest::Commit => {
-                ConsensusResponse::Commit(self.commit().await.context("failed to commit")?)
+                ConsensusResponse::Commit(self.commit().await.wrap_err("failed to commit")?)
             }
         })
     }
 
-    #[instrument(skip_all)]
-    async fn init_chain(
-        &mut self,
-        init_chain: request::InitChain,
-    ) -> anyhow::Result<response::InitChain> {
+    #[instrument(skip_all, err)]
+    async fn init_chain(&mut self, init_chain: request::InitChain) -> Result<response::InitChain> {
         // the storage version is set to u64::MAX by default when first created
         if self.storage.latest_version() != u64::MAX {
             bail!("database already initialized");
         }
 
         let genesis_state: GenesisAppState = serde_json::from_slice(&init_chain.app_state_bytes)
-            .context("failed to parse genesis app state from init chain request")?;
+            .wrap_err("failed to parse app_state in genesis file")?;
         let app_hash = self
             .app
             .init_chain(
@@ -139,13 +137,13 @@ impl Consensus {
                     .cloned()
                     .map(crate::utils::cometbft_to_sequencer_validator)
                     .collect::<Result<_, _>>()
-                    .context(
+                    .wrap_err(
                         "failed converting cometbft genesis validators to astria validators",
                     )?,
                 init_chain.chain_id,
             )
             .await
-            .context("failed to call init_chain")?;
+            .wrap_err("failed to call init_chain")?;
         self.app.commit(self.storage.clone()).await;
 
         Ok(response::InitChain {
@@ -159,7 +157,7 @@ impl Consensus {
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
-    ) -> anyhow::Result<response::PrepareProposal> {
+    ) -> Result<response::PrepareProposal> {
         self.app
             .prepare_proposal(prepare_proposal, self.storage.clone())
             .await
@@ -169,7 +167,7 @@ impl Consensus {
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         self.app
             .process_proposal(process_proposal, self.storage.clone())
             .await?;
@@ -181,17 +179,17 @@ impl Consensus {
     async fn finalize_block(
         &mut self,
         finalize_block: request::FinalizeBlock,
-    ) -> anyhow::Result<response::FinalizeBlock> {
+    ) -> Result<response::FinalizeBlock> {
         let finalize_block = self
             .app
             .finalize_block(finalize_block, self.storage.clone())
             .await
-            .context("failed to call App::finalize_block")?;
+            .wrap_err("failed to call App::finalize_block")?;
         Ok(finalize_block)
     }
 
     #[instrument(skip_all)]
-    async fn commit(&mut self) -> anyhow::Result<response::Commit> {
+    async fn commit(&mut self) -> Result<response::Commit> {
         self.app.commit(self.storage.clone()).await;
         Ok(response::Commit::default())
     }
@@ -229,6 +227,10 @@ mod test {
 
     use super::*;
     use crate::{
+        app::test_utils::{
+            mock_balances,
+            mock_tx_cost,
+        },
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
@@ -286,7 +288,15 @@ mod test {
         let signed_tx = Arc::new(tx.into_signed(&signing_key));
         let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        mempool.insert(signed_tx.clone(), 0).await.unwrap();
+        mempool
+            .insert(
+                signed_tx.clone(),
+                0,
+                mock_balances(0, 0),
+                mock_tx_cost(0, 0, 0),
+            )
+            .await
+            .unwrap();
 
         let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
@@ -501,7 +511,10 @@ mod test {
             .await
             .unwrap();
 
-        mempool.insert(signed_tx, 0).await.unwrap();
+        mempool
+            .insert(signed_tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+            .await
+            .unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),

@@ -132,7 +132,7 @@ impl Drop for TestConductor {
             let err_msg =
                 match tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown()).await
                 {
-                    Ok(Ok(())) => None,
+                    Ok(Ok(_)) => None,
                     Ok(Err(conductor_err)) => Some(format!(
                         "conductor shut down with an error:\n{conductor_err:?}"
                     )),

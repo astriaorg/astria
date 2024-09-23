@@ -1,38 +1,7 @@
 ---
 source: crates/astria-core/src/protocol/transaction/v1alpha1/mod.rs
-expression: tx.sha256_of_proto_encoding()
+expression: tx.id()
 ---
-[
-  69,
-  121,
-  100,
-  127,
-  170,
-  148,
-  126,
-  89,
-  26,
-  55,
-  220,
-  69,
-  192,
-  9,
-  204,
-  228,
-  198,
-  50,
-  224,
-  128,
-  204,
-  76,
-  243,
-  148,
-  32,
-  203,
-  177,
-  19,
-  14,
-  106,
-  67,
-  114
-]
+{
+  "inner": "4579647faa947e591a37dc45c009cce4c632e080cc4cf39420cbb1130e6a4372"
+}

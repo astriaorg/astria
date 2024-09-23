@@ -1,7 +1,11 @@
-use anyhow::{
-    bail,
-    Context as _,
-    Result,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        eyre,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
 use cnidarium::{
@@ -24,13 +28,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw("chain_id")
             .await
-            .context("failed to read raw chain_id from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw chain_id from state")?
         else {
             bail!("chain id not found in state");
         };
 
         Ok(String::from_utf8(bytes)
-            .context("failed to parse chain id from raw bytes")?
+            .wrap_err("failed to parse chain id from raw bytes")?
             .try_into()
             .expect("only valid chain ids should be stored in the state"))
     }
@@ -40,13 +45,14 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(REVISION_NUMBER_KEY)
             .await
-            .context("failed to read raw revision number from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw revision number from state")?
         else {
             bail!("revision number not found in state");
         };
 
         let bytes = TryInto::<[u8; 8]>::try_into(bytes).map_err(|b| {
-            anyhow::anyhow!(
+            eyre!(
                 "expected 8 revision number bytes but got {}; this is a bug",
                 b.len()
             )
@@ -60,7 +66,8 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw("block_height")
             .await
-            .context("failed to read raw block_height from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw block_height from state")?
         else {
             bail!("block height not found state");
         };
@@ -75,22 +82,26 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw("block_timestamp")
             .await
-            .context("failed to read raw block_timestamp from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw block_timestamp from state")?
         else {
             bail!("block timestamp not found");
         };
         // no extra allocations in the happy path (meaning the bytes are utf8)
         Time::parse_from_rfc3339(&String::from_utf8_lossy(&bytes))
-            .context("failed to parse timestamp from raw timestamp bytes")
+            .wrap_err("failed to parse timestamp from raw timestamp bytes")
     }
 
     #[instrument(skip_all)]
     async fn get_storage_version_by_height(&self, height: u64) -> Result<u64> {
+        use astria_eyre::eyre::WrapErr as _;
+
         let key = storage_version_by_height_key(height);
         let Some(bytes) = self
             .nonverifiable_get_raw(&key)
             .await
-            .context("failed to read raw storage_version from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw storage_version from state")?
         else {
             bail!("storage version not found");
         };
@@ -197,7 +208,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_chain_id()
             .await
             .expect_err("no chain ID should exist at first");
@@ -273,7 +284,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_block_height()
             .await
             .expect_err("no block height should exist at first");
@@ -310,7 +321,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_block_timestamp()
             .await
             .expect_err("no block timestamp should exist at first");
@@ -348,7 +359,7 @@ mod tests {
 
         // doesn't exist at first
         let block_height_orig = 0;
-        state
+        let _ = state
             .get_storage_version_by_height(block_height_orig)
             .await
             .expect_err("no block height should exist at first");

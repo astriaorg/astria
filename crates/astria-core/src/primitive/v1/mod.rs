@@ -25,6 +25,8 @@ pub const ADDRESS_LEN: usize = 20;
 
 pub const ROLLUP_ID_LEN: usize = 32;
 
+pub const TRANSACTION_ID_LEN: usize = 32;
+
 impl Protobuf for merkle::Proof {
     type Error = merkle::audit::InvalidProof;
     type Raw = raw::Proof;
@@ -659,6 +661,98 @@ where
         tree.build_leaf().write(rollup_id.as_ref()).write(&root);
     }
     tree
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(try_from = "raw::TransactionId", into = "raw::TransactionId")
+)]
+pub struct TransactionId {
+    inner: [u8; TRANSACTION_ID_LEN],
+}
+
+impl TransactionId {
+    /// Constructs a new `TransactionId` from a 32-byte array.
+    #[must_use]
+    pub const fn new(inner: [u8; TRANSACTION_ID_LEN]) -> Self {
+        Self {
+            inner,
+        }
+    }
+
+    /// Returns the 32-byte transaction hash.
+    #[must_use]
+    pub fn get(self) -> [u8; TRANSACTION_ID_LEN] {
+        self.inner
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::TransactionId {
+        raw::TransactionId {
+            inner: hex::encode(self.inner),
+        }
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> raw::TransactionId {
+        raw::TransactionId {
+            inner: hex::encode(self.inner),
+        }
+    }
+
+    /// Convert from a reference to raw protobuf type to a rust type for a transaction ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the transaction ID buffer was not 32 bytes long or if it was not hex
+    /// encoded.
+    pub fn try_from_raw_ref(raw: &raw::TransactionId) -> Result<Self, TransactionIdError> {
+        use hex::FromHex as _;
+
+        let inner = <[u8; TRANSACTION_ID_LEN]>::from_hex(&raw.inner).map_err(|err| {
+            TransactionIdError(TransactionIdErrorKind::HexDecode {
+                source: err,
+            })
+        })?;
+        Ok(Self {
+            inner,
+        })
+    }
+}
+
+impl From<TransactionId> for raw::TransactionId {
+    fn from(val: TransactionId) -> Self {
+        val.into_raw()
+    }
+}
+
+impl TryFrom<raw::TransactionId> for TransactionId {
+    type Error = TransactionIdError;
+
+    fn try_from(value: raw::TransactionId) -> Result<Self, Self::Error> {
+        Self::try_from_raw_ref(&value)
+    }
+}
+
+impl std::fmt::Display for TransactionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for byte in self.inner {
+            write!(f, "{byte:02x}")?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TransactionIdError(TransactionIdErrorKind);
+
+#[derive(Debug, thiserror::Error)]
+enum TransactionIdErrorKind {
+    #[error("error decoding hex string `inner` to bytes")]
+    HexDecode { source: hex::FromHexError },
 }
 
 #[cfg(test)]

@@ -70,13 +70,14 @@ use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
 use tendermint_rpc::WebSocketClient;
 use tendermint_rpc::{
-    endpoint::broadcast::{
-        tx_commit,
-        tx_sync,
-    },
+    endpoint::broadcast::tx_sync,
     event::EventData,
     Client,
     SubscriptionClient,
+};
+use tracing::{
+    instrument,
+    warn,
 };
 
 #[cfg(feature = "http")]
@@ -664,21 +665,59 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_sync", e))
     }
 
-    /// Submits the given transaction to the Sequencer node.
-    ///
-    /// This method blocks until the transaction is committed.
-    /// It returns the results of `CheckTx` and `DeliverTx`.
+    /// Probes the sequencer for a transaction of given hash with a backoff.
     ///
     /// # Errors
     ///
-    /// - If calling the tendermint RPC endpoint fails.
-    async fn submit_transaction_commit(
+    /// - If the transaction is not found.
+    /// - If the transaction execution failed.
+    /// - If the transaction proof is missing.
+    #[allow(clippy::blocks_in_conditions)] // Allow: erroneous clippy warning. Should be fixed in Rust 1.81
+    #[instrument(skip_all)]
+    async fn wait_for_tx_inclusion(
         &self,
-        tx: SignedTransaction,
-    ) -> Result<tx_commit::Response, Error> {
-        let tx_bytes = tx.into_raw().encode_to_vec();
-        self.broadcast_tx_commit(tx_bytes)
-            .await
-            .map_err(|e| Error::tendermint_rpc("broadcast_tx_commit", e))
+        tx_hash: tendermint::hash::Hash,
+    ) -> tendermint_rpc::endpoint::tx::Response {
+        use std::time::Duration;
+
+        use tokio::time::Instant;
+
+        // The min seconds to sleep after receiving a GetTx response and sending the next request.
+        const MIN_POLL_INTERVAL_MILLIS: u64 = 100;
+        // The max seconds to sleep after receiving a GetTx response and sending the next request.
+        const MAX_POLL_INTERVAL_MILLIS: u64 = 2000;
+        // How long to wait after starting `confirm_submission` before starting to log errors.
+        const START_LOGGING_DELAY: Duration = Duration::from_millis(2000);
+        // The minimum duration between logging errors.
+        const LOG_ERROR_INTERVAL: Duration = Duration::from_millis(2000);
+
+        let start = Instant::now();
+        let mut logged_at = start;
+
+        let mut log_if_due = |error: tendermint_rpc::Error| {
+            if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_ERROR_INTERVAL {
+                return;
+            }
+            warn!(
+                %error,
+                %tx_hash,
+                elapsed_seconds = start.elapsed().as_secs_f32(),
+                "waiting to confirm transaction inclusion"
+            );
+            logged_at = Instant::now();
+        };
+
+        let mut sleep_millis = MIN_POLL_INTERVAL_MILLIS;
+        loop {
+            tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
+            match self.tx(tx_hash, false).await {
+                Ok(tx) => return tx,
+                Err(error) => {
+                    sleep_millis =
+                        std::cmp::min(sleep_millis.saturating_mul(2), MAX_POLL_INTERVAL_MILLIS);
+                    log_if_due(error);
+                }
+            }
+        }
     }
 }

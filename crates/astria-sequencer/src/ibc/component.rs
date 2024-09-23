@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use anyhow::{
-    Context,
-    Result,
-};
 use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
+use astria_eyre::eyre::{
+    Result,
+    WrapErr as _,
+};
 use penumbra_ibc::{
     component::Ibc,
     genesis::Content,
@@ -42,7 +42,7 @@ impl Component for IbcComponent {
 
         state
             .put_ibc_sudo_address(*app_state.ibc_sudo_address())
-            .context("failed to set IBC sudo key")?;
+            .wrap_err("failed to set IBC sudo key")?;
 
         for address in app_state.ibc_relayer_addresses() {
             state.put_ibc_relayer_address(address);
@@ -50,7 +50,7 @@ impl Component for IbcComponent {
 
         state
             .put_ics20_withdrawal_base_fee(app_state.fees().ics20_withdrawal_base_fee)
-            .context("failed to put ics20 withdrawal base fee")?;
+            .wrap_err("failed to put ics20 withdrawal base fee")?;
         Ok(())
     }
 

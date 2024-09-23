@@ -225,6 +225,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let bridge = get_bridge_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+    let starting_index_of_action = 0;
 
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
@@ -259,15 +260,17 @@ async fn ensure_correct_block_fees_bridge_lock() {
         actions,
     };
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    app.execute_transaction(signed_tx.clone()).await.unwrap();
 
-    let test_deposit = Deposit::new(
+    let test_deposit = Deposit {
         bridge_address,
         rollup_id,
-        1,
-        nria().into(),
-        rollup_id.to_string(),
-    );
+        amount: 1,
+        asset: nria().into(),
+        destination_chain_address: rollup_id.to_string(),
+        source_transaction_id: signed_tx.id(),
+        source_action_index: starting_index_of_action,
+    };
 
     let total_block_fees: u128 = app
         .state

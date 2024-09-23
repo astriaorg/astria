@@ -15,17 +15,26 @@ use astria_core::{
     protocol::transaction::v1alpha1::SignedTransaction,
 };
 pub(crate) use state_ext::{
+    AssetBalance,
     StateReadExt,
     StateWriteExt,
 };
 
 pub(crate) trait AddressBytes: Send + Sync {
     fn address_bytes(&self) -> [u8; ADDRESS_LEN];
+
+    fn display_address(&self) -> impl std::fmt::Display {
+        telemetry::display::base64(self.address_bytes())
+    }
 }
 
 impl AddressBytes for Address {
     fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
         self.bytes()
+    }
+
+    fn display_address(&self) -> impl std::fmt::Display {
+        self
     }
 }
 
