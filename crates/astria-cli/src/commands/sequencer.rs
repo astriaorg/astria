@@ -9,6 +9,7 @@ use astria_core::{
         action::{
             Action,
             BridgeLockAction,
+            BridgeSudoChangeAction,
             FeeAssetChangeAction,
             IbcRelayerChangeAction,
             InitBridgeAccountAction,
@@ -40,6 +41,7 @@ use crate::cli::sequencer::{
     Bech32mAddressArgs,
     BlockHeightGetArgs,
     BridgeLockArgs,
+    BridgeSudoChangeArgs,
     FeeAssetChangeArgs,
     IbcRelayerChangeArgs,
     InitBridgeAccountArgs,
@@ -326,6 +328,36 @@ pub(crate) async fn bridge_lock(args: &BridgeLockArgs) -> eyre::Result<()> {
     .wrap_err("failed to submit BridgeLock transaction")?;
 
     println!("BridgeLock completed!");
+    println!("Included in block: {}", res.height);
+    Ok(())
+}
+
+/// Bridge Sudo Change action
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the transaction failed to be included
+pub(crate) async fn bridge_sudo_change(args: &BridgeSudoChangeArgs) -> eyre::Result<()> {
+    let res = submit_transaction(
+        args.sequencer_url.as_str(),
+        args.sequencer_chain_id.clone(),
+        &args.prefix,
+        args.private_key.as_str(),
+        Action::BridgeSudoChange(BridgeSudoChangeAction {
+            bridge_address: args.bridge_address,
+            new_sudo_address: args.new_sudo_address,
+            new_withdrawer_address: args.new_withdrawer_address,
+            fee_asset: args.fee_asset.clone(),
+        }),
+    )
+    .await
+    .wrap_err("failed to submit BridgeLock transaction")?;
+    println!("BridgeSudoChange completed!");
     println!("Included in block: {}", res.height);
     Ok(())
 }
