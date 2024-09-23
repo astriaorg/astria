@@ -34,8 +34,8 @@ use crate::{
     utils::create_deposit_event,
 };
 
-// The base byte length of a deposit, as determined by the unit test
-// `get_base_deposit_byte_length()` below.
+/// The base byte length of a deposit, as determined by
+/// [`tests::get_base_deposit_fee()`].
 const DEPOSIT_BASE_FEE: u128 = 16;
 
 #[async_trait::async_trait]
@@ -103,10 +103,7 @@ impl ActionHandler for BridgeLockAction {
             .await
             .wrap_err("failed to get byte cost multiplier")?;
         let fee = byte_cost_multiplier
-            .saturating_mul(
-                calculate_base_deposit_fee(&deposit)
-                    .ok_or_eyre("deposit fee calculation overflowed u128")?,
-            )
+            .saturating_mul(calculate_base_deposit_fee(&deposit).unwrap_or(u128::MAX))
             .saturating_add(transfer_fee);
         ensure!(from_balance >= fee, "insufficient funds for fee payment");
 
@@ -133,10 +130,8 @@ impl ActionHandler for BridgeLockAction {
             .get_bridge_lock_byte_cost_multiplier()
             .await
             .wrap_err("failed to get byte cost multiplier")?;
-        let fee = byte_cost_multiplier.saturating_mul(
-            calculate_base_deposit_fee(&deposit)
-                .ok_or_eyre("deposit fee calculation overflowed u128")?,
-        );
+        let fee = byte_cost_multiplier
+            .saturating_mul(calculate_base_deposit_fee(&deposit).unwrap_or(u128::MAX));
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
@@ -162,7 +157,7 @@ pub(crate) fn calculate_base_deposit_fee(deposit: &Deposit) -> Option<u128> {
     deposit
         .asset
         .display_len()
-        .and_then(|asset_len| asset_len.checked_add(deposit.destination_chain_address.len()))
+        .checked_add(deposit.destination_chain_address.len())
         .and_then(|var_len| DEPOSIT_BASE_FEE.checked_add(var_len as u128))
 }
 
@@ -264,71 +259,41 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_base_deposit_fee() {
-        // Test for length equality with drastically different int values
-        let deposit = Deposit {
-            bridge_address: astria_address(&[1; 20]),
-            rollup_id: RollupId::from_unhashed_bytes(b"test_rollup_id"),
+    fn calculated_base_deposit_fee_matches_expected_value() {
+        assert_correct_base_deposit_fee(&Deposit {
             amount: u128::MAX,
-            asset: test_asset(),
-            destination_chain_address: "someaddress".to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
             source_action_index: u64::MAX,
-        };
-        let calculated_len_0 = calculate_base_deposit_fee(&deposit).unwrap();
-
-        let deposit = Deposit {
-            bridge_address: astria_address(&[1; 20]),
-            rollup_id: RollupId::from_unhashed_bytes(b"test_rollup_id"),
-            amount: 0,
-            asset: test_asset(),
-            destination_chain_address: "someaddress".to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        };
-        let calculated_len_1 = calculate_base_deposit_fee(&deposit).unwrap();
-        assert_eq!(calculated_len_0, calculated_len_1);
-
-        // Ensure longer asset name results in longer byte length.
-        let deposit = Deposit {
-            bridge_address: astria_address(&[1; 20]),
-            rollup_id: RollupId::from_unhashed_bytes(b"test_rollup_id"),
-            amount: 0,
+            ..default_deposit()
+        });
+        assert_correct_base_deposit_fee(&Deposit {
             asset: "test_asset".parse().unwrap(),
-            destination_chain_address: "someaddress".to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        };
-        let calculated_len_2 = calculate_base_deposit_fee(&deposit).unwrap();
-        assert!(calculated_len_2 >= calculated_len_1);
-
-        // Ensure longer destination chain address results in longer byte length.
-        let deposit = Deposit {
-            bridge_address: astria_address(&[1; 20]),
-            rollup_id: RollupId::from_unhashed_bytes(b"test_rollup_id"),
-            amount: 0,
-            asset: "test_asset".parse().unwrap(),
+            ..default_deposit()
+        });
+        assert_correct_base_deposit_fee(&Deposit {
             destination_chain_address: "someaddresslonger".to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        };
-        let calculated_len_3 = calculate_base_deposit_fee(&deposit).unwrap();
-        assert!(calculated_len_3 >= calculated_len_2);
+            ..default_deposit()
+        });
 
         // Ensure calculated length is as expected with absurd string
         // lengths (have tested up to 99999999, but this makes testing very slow)
         let absurd_string: String = ['a'; u16::MAX as usize].iter().collect();
-        let deposit = Deposit {
-            bridge_address: astria_address(&[1; 20]),
-            rollup_id: RollupId::from_unhashed_bytes(b"test_rollup_id"),
-            amount: 0,
+        assert_correct_base_deposit_fee(&Deposit {
             asset: absurd_string.parse().unwrap(),
-            destination_chain_address: absurd_string.to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        };
-        let calculated_len = calculate_base_deposit_fee(&deposit).unwrap();
-        let expected_len = 16 + u128::from(u16::MAX) * 2;
+            ..default_deposit()
+        });
+        assert_correct_base_deposit_fee(&Deposit {
+            destination_chain_address: absurd_string,
+            ..default_deposit()
+        });
+    }
+
+    #[track_caller]
+    #[allow(clippy::arithmetic_side_effects)] // allow: test will never overflow u128
+    fn assert_correct_base_deposit_fee(deposit: &Deposit) {
+        let calculated_len = calculate_base_deposit_fee(deposit).unwrap();
+        let expected_len = DEPOSIT_BASE_FEE
+            + deposit.asset.to_string().len() as u128
+            + deposit.destination_chain_address.len() as u128;
         assert_eq!(calculated_len, expected_len);
     }
 
@@ -359,5 +324,17 @@ mod tests {
             source_action_index: 0,
         };
         assert_eq!(DEPOSIT_BASE_FEE, raw_deposit.encoded_len() as u128 / 10);
+    }
+
+    fn default_deposit() -> Deposit {
+        Deposit {
+            bridge_address: astria_address(&[1; 20]),
+            rollup_id: RollupId::from_unhashed_bytes(b"test_rollup_id"),
+            amount: 0,
+            asset: "test".parse().unwrap(),
+            destination_chain_address: "someaddress".to_string(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        }
     }
 }
