@@ -81,19 +81,9 @@ pub(crate) mod accounts {
                 balance_key(address, &asset),
                 balance_key(address, asset.to_ibc_prefixed())
             );
-            insta::assert_snapshot!(
-                balance_prefix(&address),
-                @"accounts/1c0c490f1b5528d8173c5de46d131160e4b2c0c3/balance/"
-            );
-            insta::assert_snapshot!(
-                balance_key(address, asset),
-                @"accounts/1c0c490f1b5528d8173c5de46d131160e4b2c0c3/balance/be429a02d00837245167a26\
-                16674a979a2ac6f9806468b48a975b156ad711320"
-            );
-            insta::assert_snapshot!(
-                nonce_key(&address),
-                @"accounts/1c0c490f1b5528d8173c5de46d131160e4b2c0c3/nonce"
-            );
+            insta::assert_snapshot!(balance_prefix(&address));
+            insta::assert_snapshot!(balance_key(address, asset));
+            insta::assert_snapshot!(nonce_key(&address));
         }
 
         #[test]
@@ -152,10 +142,7 @@ pub(crate) mod assets {
         #[test]
         fn keys_should_not_change() {
             let asset = "an/asset/with/a/prefix".parse::<Denom>().unwrap();
-            insta::assert_snapshot!(
-                asset_key(asset),
-                @"asset/be429a02d00837245167a2616674a979a2ac6f9806468b48a975b156ad711320"
-            );
+            insta::assert_snapshot!(asset_key(asset));
         }
     }
 }
@@ -234,26 +221,11 @@ pub(crate) mod bridge {
                 .parse()
                 .unwrap();
 
-            insta::assert_snapshot!(
-                rollup_id_key(&address),
-                @"bridgeacc/1c0c490f1b5528d8173c5de46d131160e4b2c0c3/rollupid"
-            );
-            insta::assert_snapshot!(
-                asset_id_key(&address),
-                @"bridgeacc/1c0c490f1b5528d8173c5de46d131160e4b2c0c3/assetid"
-            );
-            insta::assert_snapshot!(
-                bridge_account_sudo_address_key(&address),
-                @"bsudo/1c0c490f1b5528d8173c5de46d131160e4b2c0c3"
-            );
-            insta::assert_snapshot!(
-                bridge_account_withdrawer_address_key(&address),
-                @"bwithdrawer/1c0c490f1b5528d8173c5de46d131160e4b2c0c3"
-            );
-            insta::assert_snapshot!(
-                bridge_account_withdrawal_event_key(&address, "the-event"),
-                @"bridgeacc/1c0c490f1b5528d8173c5de46d131160e4b2c0c3/withdrawalevent/the-event"
-            );
+            insta::assert_snapshot!(rollup_id_key(&address));
+            insta::assert_snapshot!(asset_id_key(&address));
+            insta::assert_snapshot!(bridge_account_sudo_address_key(&address));
+            insta::assert_snapshot!(bridge_account_withdrawer_address_key(&address));
+            insta::assert_snapshot!(bridge_account_withdrawal_event_key(&address, "the-event"));
         }
     }
 }
@@ -306,19 +278,12 @@ pub(crate) mod ibc {
                 channel_balance_key(&channel, &asset),
                 channel_balance_key(&channel, asset.to_ibc_prefixed()),
             );
-            insta::assert_snapshot!(
-                channel_balance_key(&channel, &asset),
-                @"ibc-data/channel-5/balance/be429a02d00837245167a2616674a979a2ac6f9806468b48a975b1\
-                56ad711320"
-            );
+            insta::assert_snapshot!(channel_balance_key(&channel, &asset));
 
             let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
                 .parse()
                 .unwrap();
-            insta::assert_snapshot!(
-                ibc_relayer_key(&address),
-                @"ibc-relayer/1c0c490f1b5528d8173c5de46d131160e4b2c0c3"
-            );
+            insta::assert_snapshot!(ibc_relayer_key(&address));
         }
     }
 }

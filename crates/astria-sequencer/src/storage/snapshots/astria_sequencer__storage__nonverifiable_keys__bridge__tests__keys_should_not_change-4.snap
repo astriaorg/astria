@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/storage/nonverifiable_keys.rs
+assertion_line: 191
+expression: "std::str::from_utf8(&last_transaction_id_for_bridge_account_key(&[2;\n20])).unwrap()"
+---
+bridgeacc/0202020202020202020202020202020202020202/lasttx

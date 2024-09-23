@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/storage/nonverifiable_keys.rs
+assertion_line: 45
+expression: "base64(&rollup_data_by_hash_and_rollup_id_key(&hash, &rollup_id))"
+---
+cm9sbHVwZGF0YS8BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIC

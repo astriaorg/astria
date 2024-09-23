@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/storage/nonverifiable_keys.rs
+assertion_line: 42
+expression: base64(&sequencer_block_header_by_hash_key(&hash))
+---
+YmxvY2toZWFkZXIvAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=

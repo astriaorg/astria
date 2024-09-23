@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/storage/nonverifiable_keys.rs
+assertion_line: 189
+expression: "base64(&deposit_key(&rollup_id, 42))"
+---
+ZGVwb3NpdC8BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASoAAAA=

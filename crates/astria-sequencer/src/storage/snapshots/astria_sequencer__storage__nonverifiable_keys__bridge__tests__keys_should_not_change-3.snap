@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/storage/nonverifiable_keys.rs
+assertion_line: 190
+expression: "std::str::from_utf8(&deposit_nonce_key(&rollup_id)).unwrap()"
+---
+depositnonce/0101010101010101010101010101010101010101010101010101010101010101

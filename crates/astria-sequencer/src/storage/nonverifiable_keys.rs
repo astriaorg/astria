@@ -36,38 +36,21 @@ pub(crate) mod api {
 
         #[test]
         fn keys_should_not_change() {
-            insta::assert_snapshot!(
-                base64(&block_hash_by_height_key(42)),
-                @"YmxvY2toYXNoLyoAAAAAAAAA"
-            );
+            insta::assert_snapshot!(base64(&block_hash_by_height_key(42)));
 
             let hash = [1; 32];
-            insta::assert_snapshot!(
-                base64(&sequencer_block_header_by_hash_key(&hash)),
-                @"YmxvY2toZWFkZXIvAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
-            );
+            insta::assert_snapshot!(base64(&sequencer_block_header_by_hash_key(&hash)));
 
             let rollup_id = RollupId::new([2; 32]);
-            insta::assert_snapshot!(
-                base64(&rollup_data_by_hash_and_rollup_id_key(&hash, &rollup_id)),
-                @"cm9sbHVwZGF0YS8BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQICAgICAgICAgICAgICAgICA\
-                gICAgICAgICAgICAgIC"
-            );
+            insta::assert_snapshot!(base64(&rollup_data_by_hash_and_rollup_id_key(
+                &hash, &rollup_id
+            )));
 
-            insta::assert_snapshot!(
-                base64(&rollup_ids_by_hash_key(&hash)),
-                @"cm9sbHVwaWRzLwEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB"
-            );
+            insta::assert_snapshot!(base64(&rollup_ids_by_hash_key(&hash)));
 
-            insta::assert_snapshot!(
-                base64(&rollup_transactions_proof_by_hash_key(&hash)),
-                @"cm9sbHVwdHhzcHJvb2YvAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
-            );
+            insta::assert_snapshot!(base64(&rollup_transactions_proof_by_hash_key(&hash)));
 
-            insta::assert_snapshot!(
-                base64(&rollup_ids_proof_by_hash_key(&hash)),
-                @"cm9sbHVwaWRzcHJvb2YvAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
-            );
+            insta::assert_snapshot!(base64(&rollup_ids_proof_by_hash_key(&hash)));
         }
     }
 }
@@ -134,14 +117,8 @@ pub(crate) mod assets {
         #[test]
         fn keys_should_not_change() {
             let trace_prefixed = "a/denom/with/a/prefix".parse::<Denom>().unwrap();
-            insta::assert_snapshot!(
-                std::str::from_utf8(&fee_asset_key(&trace_prefixed)).unwrap(),
-                @"fee_asset/ce072174ebc356c6ead681d61ab417ee72fdedd8155eb76478ece374bb04dc1d"
-            );
-            insta::assert_snapshot!(
-                std::str::from_utf8(&block_fees_key(&trace_prefixed)).unwrap(),
-                @"block_fees/ce072174ebc356c6ead681d61ab417ee72fdedd8155eb76478ece374bb04dc1d"
-            );
+            insta::assert_snapshot!(std::str::from_utf8(&fee_asset_key(&trace_prefixed)).unwrap());
+            insta::assert_snapshot!(std::str::from_utf8(&block_fees_key(&trace_prefixed)).unwrap());
         }
 
         #[test]
@@ -208,21 +185,11 @@ pub(crate) mod bridge {
         #[test]
         fn keys_should_not_change() {
             let rollup_id = RollupId::new([1; 32]);
+            insta::assert_snapshot!(base64(&deposit_key_prefix(&rollup_id)));
+            insta::assert_snapshot!(base64(&deposit_key(&rollup_id, 42)));
+            insta::assert_snapshot!(std::str::from_utf8(&deposit_nonce_key(&rollup_id)).unwrap());
             insta::assert_snapshot!(
-                base64(&deposit_key_prefix(&rollup_id)),
-                @"ZGVwb3NpdC8BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=="
-            );
-            insta::assert_snapshot!(
-                base64(&deposit_key(&rollup_id, 42)),
-                @"ZGVwb3NpdC8BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASoAAAA="
-            );
-            insta::assert_snapshot!(
-                std::str::from_utf8(&deposit_nonce_key(&rollup_id)).unwrap(),
-                @"depositnonce/0101010101010101010101010101010101010101010101010101010101010101"
-            );
-            insta::assert_snapshot!(
-                std::str::from_utf8(&last_transaction_id_for_bridge_account_key(&[2; 20])).unwrap(),
-                @"bridgeacc/0202020202020202020202020202020202020202/lasttx"
+                std::str::from_utf8(&last_transaction_id_for_bridge_account_key(&[2; 20])).unwrap()
             );
         }
 
