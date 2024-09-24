@@ -175,7 +175,9 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(maybe_id.is_some())
     }
 
-    #[instrument(skip_all)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn get_bridge_account_rollup_id<T: AddressBytes>(
         &self,
         address: T,
@@ -195,7 +197,9 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(Some(rollup_id))
     }
 
-    #[instrument(skip_all)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn get_bridge_account_ibc_asset<T: AddressBytes>(
         &self,
         address: T,
@@ -490,15 +494,17 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip_all)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, err)]
     async fn put_deposit_event(&mut self, deposit: Deposit) -> Result<()> {
-        let nonce = self.get_deposit_nonce(deposit.rollup_id()).await?;
+        let nonce = self.get_deposit_nonce(&deposit.rollup_id).await?;
         self.put_deposit_nonce(
-            deposit.rollup_id(),
+            &deposit.rollup_id,
             nonce.checked_add(1).ok_or_eyre("nonce overflowed")?,
         );
 
-        let key = deposit_storage_key(deposit.rollup_id(), nonce);
+        let key = deposit_storage_key(&deposit.rollup_id, nonce);
         self.nonverifiable_put_raw(key, deposit.into_raw().encode_to_vec());
         Ok(())
     }
@@ -853,24 +859,25 @@ mod test {
 
         let rollup_id = RollupId::new([1u8; 32]);
         let bridge_address = astria_address(&[42u8; 20]);
-        let mut amount = 10u128;
+        let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
-        let mut deposit = Deposit::new(
+
+        let mut deposit = Deposit {
             bridge_address,
             rollup_id,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            0,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.to_string(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
 
         let mut deposits = vec![deposit.clone()];
 
         // can write
         state
-            .put_deposit_event(deposit)
+            .put_deposit_event(deposit.clone())
             .await
             .expect("writing deposit events should be ok");
         assert_eq!(
@@ -892,27 +899,22 @@ mod test {
         );
 
         // can write additional
-        amount = 20u128;
-        deposit = Deposit::new(
-            bridge_address,
-            rollup_id,
+        deposit = Deposit {
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            1,
-        );
+            source_action_index: 1,
+            ..deposit
+        };
         deposits.append(&mut vec![deposit.clone()]);
         state
-            .put_deposit_event(deposit)
+            .put_deposit_event(deposit.clone())
             .await
             .expect("writing deposit events should be ok");
         let mut returned_deposits = state
             .get_deposit_events(&rollup_id)
             .await
             .expect("deposit info was written to the database and must exist");
-        returned_deposits.sort_by_key(Deposit::amount);
-        deposits.sort_by_key(Deposit::amount);
+        returned_deposits.sort_by_key(|d| d.amount);
+        deposits.sort_by_key(|d| d.amount);
         assert_eq!(
             returned_deposits, deposits,
             "stored deposits do not match what was expected"
@@ -929,15 +931,11 @@ mod test {
 
         // can write different rollup id and both ok
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit::new(
-            bridge_address,
-            rollup_id_1,
-            amount,
-            asset,
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            2,
-        );
+        deposit = Deposit {
+            rollup_id: rollup_id_1,
+            source_action_index: 2,
+            ..deposit
+        };
         let deposits_1 = vec![deposit.clone()];
         state
             .put_deposit_event(deposit)
@@ -956,7 +954,7 @@ mod test {
             .get_deposit_events(&rollup_id)
             .await
             .expect("deposit info was written to the database and must exist");
-        returned_deposits.sort_by_key(Deposit::amount);
+        returned_deposits.sort_by_key(|d| d.amount);
         assert_eq!(
             returned_deposits, deposits,
             "stored deposits do not match what was expected"
@@ -974,15 +972,16 @@ mod test {
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
-        let mut deposit = Deposit::new(
+
+        let mut deposit = Deposit {
             bridge_address,
-            rollup_id_0,
+            rollup_id: rollup_id_0,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            0,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.to_string(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
 
         // write same rollup id twice
         state
@@ -998,15 +997,11 @@ mod test {
 
         // writing additional different rollup id
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit::new(
-            bridge_address,
-            rollup_id_1,
-            amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            1,
-        );
+        deposit = Deposit {
+            rollup_id: rollup_id_1,
+            source_action_index: 1,
+            ..deposit
+        };
         state
             .put_deposit_event(deposit)
             .await
@@ -1049,15 +1044,16 @@ mod test {
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
-        let deposit = Deposit::new(
+
+        let deposit = Deposit {
             bridge_address,
             rollup_id,
             amount,
-            asset,
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            0,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.to_string(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
 
         let deposits = vec![deposit.clone()];
 
@@ -1106,15 +1102,15 @@ mod test {
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
-        let mut deposit = Deposit::new(
+        let mut deposit = Deposit {
             bridge_address,
             rollup_id,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            0,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.to_string(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
 
         // write to first
         state
@@ -1124,15 +1120,15 @@ mod test {
 
         // write to second
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit::new(
+        deposit = Deposit {
             bridge_address,
-            rollup_id_1,
+            rollup_id: rollup_id_1,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            1,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.to_string(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 1,
+        };
         let deposits_1 = vec![deposit.clone()];
 
         state
@@ -1202,35 +1198,31 @@ mod test {
         let amount = 10u128;
         let asset = asset_0();
         let destination_chain_address = "0xdeadbeef";
-        let mut deposit = Deposit::new(
+        let mut deposit = Deposit {
             bridge_address,
             rollup_id,
             amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            0,
-        );
+            asset: asset.clone(),
+            destination_chain_address: destination_chain_address.to_string(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
 
         // write to first
         state
-            .put_deposit_event(deposit)
+            .put_deposit_event(deposit.clone())
             .await
             .expect("writing deposit events should be ok");
 
         // write to second
         let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit::new(
-            bridge_address,
-            rollup_id_1,
-            amount,
-            asset.clone(),
-            destination_chain_address.to_string(),
-            TransactionId::new([0; 32]),
-            1,
-        );
+        deposit = Deposit {
+            rollup_id: rollup_id_1,
+            source_action_index: 1,
+            ..deposit
+        };
         state
-            .put_deposit_event(deposit)
+            .put_deposit_event(deposit.clone())
             .await
             .expect("writing deposit events for rollup 2 should be ok");
 
