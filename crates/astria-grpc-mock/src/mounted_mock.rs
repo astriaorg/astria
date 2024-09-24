@@ -1,9 +1,6 @@
-use std::{
-    sync::{
-        atomic::AtomicBool,
-        Arc,
-    },
-    time::Duration,
+use std::sync::{
+    atomic::AtomicBool,
+    Arc,
 };
 
 use tokio::sync::Notify;
@@ -114,7 +111,7 @@ impl MountedMock {
         &mut self,
         rpc: &'static str,
         request: &Request<AnyMessage>,
-    ) -> (MockResult<U>, Option<Duration>) {
+    ) -> (MockResult<U>, Option<std::time::Duration>) {
         let n_matches =
             u64::try_from(self.successful_responses.len() + self.bad_responses.len()).ok();
         if self.inner.max_n_matches == n_matches
