@@ -68,6 +68,7 @@ use tendermint::{
     AppHash,
     Hash,
 };
+use tokio::sync::watch;
 use tracing::{
     debug,
     info,
@@ -162,9 +163,13 @@ pub(crate) struct App {
     // to the mempool to recost all transactions.
     recost_mempool: bool,
 
-    // cache of results of executing of transactions in `prepare_proposal` or `process_proposal`.
-    // cleared at the end of each block.
-    execution_results: Option<Vec<tendermint::abci::types::ExecTxResult>>,
+    // cache of results of executing of transactions in `prepare_proposal`.
+    // cleared in `process_proposal` if we're the proposer.
+    execution_results: Option<Vec<ExecTxResult>>,
+
+    // cache of results of executing of transactions in `process_proposal`.
+    // cleared at the end of the block.
+    finalize_block: Option<abci::response::FinalizeBlock>,
 
     // the current `StagedWriteBatch` which contains the rocksdb write batch
     // of the current block being executed, created from the state delta,
@@ -179,13 +184,24 @@ pub(crate) struct App {
     #[allow(clippy::struct_field_names)]
     app_hash: AppHash,
 
+    latest_proposed_block: Option<watch::Sender<SequencerBlock>>,
+    latest_committed_block: Option<watch::Sender<SequencerBlockCommit>>,
+
     metrics: &'static Metrics,
+}
+
+// TODO: replace w proto/core type
+pub(crate) struct SequencerBlockCommit {
+    block_hash: Hash,
+    height: u64,
 }
 
 impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
+        latest_proposed_block: Option<watch::Sender<SequencerBlock>>,
+        latest_committed_block: Option<watch::Sender<SequencerBlockCommit>>,
         metrics: &'static Metrics,
     ) -> Result<Self> {
         debug!("initializing App instance");
@@ -210,9 +226,12 @@ impl App {
             validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_results: None,
+            finalize_block: None,
             recost_mempool: false,
             write_batch: None,
             app_hash,
+            latest_proposed_block,
+            latest_committed_block,
             metrics,
         })
     }
@@ -288,7 +307,7 @@ impl App {
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
         // clear the cache of transaction execution results
-        self.execution_results = None;
+        self.finalize_block = None;
         self.executed_proposal_hash = Hash::default();
     }
 
@@ -345,9 +364,9 @@ impl App {
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
         // included in the block
         let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
-
+        let txs = res.into_transactions(included_tx_bytes);
         Ok(abci::response::PrepareProposal {
-            txs: res.into_transactions(included_tx_bytes),
+            txs,
         })
     }
 
@@ -370,6 +389,27 @@ impl App {
                 debug!("skipping process_proposal as we are the proposer for this block");
                 self.validator_address = None;
                 self.executed_proposal_hash = process_proposal.hash;
+
+                // if we're the proposer, we should have the execution results from
+                // `prepare_proposal`. run the post-tx-execution hook to set
+                // `self.finalize_block`. we can't run this in `prepare_proposal` as
+                // we don't know the block hash there.
+                let Some(tx_results) = self.execution_results.take() else {
+                    bail!("execution results must be present after executing transactions")
+                };
+
+                self.post_execute_transactions(
+                    storage,
+                    process_proposal.hash,
+                    process_proposal.height,
+                    process_proposal.time,
+                    process_proposal.proposer_address,
+                    process_proposal.txs,
+                    tx_results,
+                )
+                .await
+                .wrap_err("failed to run post execute transactions handler")?;
+
                 return Ok(());
             }
             self.metrics.increment_process_proposal_skipped_proposal();
@@ -382,7 +422,7 @@ impl App {
 
         self.update_state_for_new_round(&storage);
 
-        let mut txs = VecDeque::from(process_proposal.txs);
+        let mut txs = VecDeque::from(process_proposal.txs.clone());
         let received_rollup_datas_root: [u8; 32] = txs
             .pop_front()
             .ok_or_eyre("no transaction commitment in proposal")?
@@ -426,20 +466,17 @@ impl App {
             .filter_map(|bytes| signed_transaction_from_bytes(bytes.as_ref()).ok())
             .collect::<Vec<_>>();
 
-        self.execute_transactions_process_proposal(signed_txs.clone(), &mut block_size_constraints)
+        let tx_results = self
+            .execute_transactions_process_proposal(signed_txs.clone(), &mut block_size_constraints)
             .await
             .wrap_err("failed to execute transactions")?;
 
-        let Some(execution_results) = self.execution_results.as_ref() else {
-            bail!("execution results must be present after executing transactions")
-        };
-
         // all txs in the proposal should be deserializable and executable
         // if any txs were not deserializeable or executable, they would not have been
-        // added to the `execution_results` list, thus the length of `txs_to_include`
-        // will be shorter than that of `execution_results`.
+        // added to the `tx_results` list, thus the length of `txs_to_include`
+        // will be shorter than that of `tx_results`.
         ensure!(
-            execution_results.len() == expected_txs_len,
+            tx_results.len() == expected_txs_len,
             "transactions to be included do not match expected",
         );
         self.metrics.record_proposal_transactions(signed_txs.len());
@@ -466,6 +503,17 @@ impl App {
         );
 
         self.executed_proposal_hash = process_proposal.hash;
+        self.post_execute_transactions(
+            storage,
+            process_proposal.hash,
+            process_proposal.height,
+            process_proposal.time,
+            process_proposal.proposer_address,
+            process_proposal.txs,
+            tx_results,
+        )
+        .await
+        .wrap_err("failed to run post execute transactions handler")?;
 
         Ok(())
     }
@@ -645,8 +693,8 @@ impl App {
         &mut self,
         txs: Vec<SignedTransaction>,
         block_size_constraints: &mut BlockSizeConstraints,
-    ) -> Result<()> {
-        let mut excluded_tx_count = 0_f64;
+    ) -> Result<Vec<ExecTxResult>> {
+        let mut excluded_tx_count = 0;
         let mut execution_results = Vec::new();
 
         for tx in txs {
@@ -669,7 +717,7 @@ impl App {
                     tx_data_bytes = tx_sequence_data_bytes,
                     "excluding transaction: max block sequenced data limit reached"
                 );
-                excluded_tx_count += 1.0;
+                excluded_tx_count += 1;
                 continue;
             }
 
@@ -693,12 +741,12 @@ impl App {
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
-                    excluded_tx_count += 1.0;
+                    excluded_tx_count += 1;
                 }
             }
         }
 
-        if excluded_tx_count > 0.0 {
+        if excluded_tx_count > 0 {
             info!(
                 excluded_tx_count = excluded_tx_count,
                 included_tx_count = execution_results.len(),
@@ -706,8 +754,7 @@ impl App {
             );
         }
 
-        self.execution_results = Some(execution_results);
-        Ok(())
+        Ok(execution_results)
     }
 
     /// sets up the state for execution of the block's transactions.
@@ -766,6 +813,100 @@ impl App {
         Ok(())
     }
 
+    #[instrument(name = "App::post_execute_transactions", skip_all)]
+    async fn post_execute_transactions(
+        &mut self,
+        storage: Storage,
+        block_hash: Hash,
+        height: tendermint::block::Height,
+        time: tendermint::Time,
+        proposer_address: account::Id,
+        txs: Vec<bytes::Bytes>,
+        tx_results: Vec<ExecTxResult>,
+    ) -> Result<()> {
+        let chain_id = self
+            .state
+            .get_chain_id()
+            .await
+            .wrap_err("failed to get chain ID from state")?;
+        let sudo_address = self
+            .state
+            .get_sudo_address()
+            .await
+            .wrap_err("failed to get sudo address from state")?;
+
+        let end_block = self.end_block(height.value(), sudo_address).await?;
+
+        // get and clear block deposits from state
+        let mut state_tx = StateDelta::new(self.state.clone());
+        let deposits = self
+            .state
+            .get_block_deposits()
+            .await
+            .wrap_err("failed to get block deposits in end_block")?;
+        state_tx
+            .clear_block_deposits()
+            .await
+            .wrap_err("failed to clear block deposits")?;
+        debug!(
+            deposits = %telemetry::display::json(&deposits),
+            "got block deposits from state"
+        );
+
+        let Hash::Sha256(block_hash) = block_hash else {
+            bail!("block hash is empty; this should not occur")
+        };
+
+        // cometbft expects a result for every tx in the block, so we need to return a
+        // tx result for the commitments, even though they're not actually user txs.
+        //
+        // the tx_results passed to this function only contain results for every user
+        // transaction, not the commitment, so its length is len(txs) - 2.
+        let mut finalize_block_tx_results: Vec<ExecTxResult> = Vec::with_capacity(txs.len());
+        finalize_block_tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
+        finalize_block_tx_results.extend(tx_results);
+
+        let sequencer_block = SequencerBlock::try_from_block_info_and_data(
+            block_hash,
+            chain_id,
+            height,
+            time,
+            proposer_address,
+            txs,
+            deposits,
+        )
+        .wrap_err("failed to convert block info and data to SequencerBlock")?;
+        state_tx
+            .put_sequencer_block(sequencer_block)
+            .wrap_err("failed to write sequencer block to state")?;
+
+        // update the priority of any txs in the mempool based on the updated app state
+        if self.recost_mempool {
+            self.metrics.increment_mempool_recosted();
+        }
+        update_mempool_after_finalization(&mut self.mempool, &state_tx, self.recost_mempool).await;
+
+        // events that occur after end_block are ignored here;
+        // there should be none anyways.
+        let _ = self.apply(state_tx);
+
+        // prepare the `StagedWriteBatch` for a later commit.
+        let app_hash = self
+            .prepare_commit(storage.clone())
+            .await
+            .wrap_err("failed to prepare commit")?;
+
+        let finalize_block = abci::response::FinalizeBlock {
+            events: end_block.events,
+            validator_updates: end_block.validator_updates,
+            consensus_param_updates: end_block.consensus_param_updates,
+            app_hash,
+            tx_results: finalize_block_tx_results,
+        };
+        self.finalize_block = Some(finalize_block);
+        Ok(())
+    }
+
     /// Executes the given block, but does not write it to disk.
     ///
     /// `commit` must be called after this to write the block to disk.
@@ -778,26 +919,12 @@ impl App {
         finalize_block: abci::request::FinalizeBlock,
         storage: Storage,
     ) -> Result<abci::response::FinalizeBlock> {
-        let chain_id = self
-            .state
-            .get_chain_id()
-            .await
-            .wrap_err("failed to get chain ID from state")?;
-        let sudo_address = self
-            .state
-            .get_sudo_address()
-            .await
-            .wrap_err("failed to get sudo address from state")?;
-
         // convert tendermint id to astria address; this assumes they are
         // the same address, as they are both ed25519 keys
         let proposer_address = finalize_block.proposer_address;
 
         let height = finalize_block.height;
         let time = finalize_block.time;
-        let Hash::Sha256(block_hash) = finalize_block.hash else {
-            bail!("finalized block hash is empty; this should not occur")
-        };
 
         // If we previously executed txs in a different proposal than is being processed,
         // reset cached state changes.
@@ -810,11 +937,6 @@ impl App {
             "block must contain at least two transactions: the rollup transactions commitment and
              rollup IDs commitment"
         );
-
-        // cometbft expects a result for every tx in the block, so we need to return a
-        // tx result for the commitments, even though they're not actually user txs.
-        let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len());
-        tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
 
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
@@ -831,6 +953,7 @@ impl App {
                 .await
                 .wrap_err("failed to execute block")?;
 
+            let mut tx_results = Vec::with_capacity(finalize_block.txs.len());
             // skip the first two transactions, as they are the rollup data commitments
             for tx in finalize_block.txs.iter().skip(2) {
                 let signed_tx = signed_transaction_from_bytes(tx)
@@ -861,73 +984,26 @@ impl App {
                     }
                 }
             }
-        } else {
-            let execution_results = self.execution_results.take().expect(
-                "execution results must be present if txs were already executed during proposal \
-                 phase",
-            );
-            tx_results.extend(execution_results);
-        };
 
-        let end_block = self.end_block(height.value(), sudo_address).await?;
+            self.post_execute_transactions(
+                storage,
+                finalize_block.hash,
+                height,
+                time,
+                proposer_address,
+                finalize_block.txs,
+                tx_results,
+            )
+            .await
+            .wrap_err("failed to run post execute transactions handler")?;
+        }
 
-        // get and clear block deposits from state
-        let mut state_tx = StateDelta::new(self.state.clone());
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .wrap_err("failed to get block deposits in end_block")?;
-        state_tx
-            .clear_block_deposits()
-            .await
-            .wrap_err("failed to clear block deposits")?;
-        debug!(
-            deposits = %telemetry::display::json(&deposits),
-            "got block deposits from state"
+        let finalize_block = self.finalize_block.take().expect(
+            "finalize_block result must be present, as txs were already executed just now or \
+             during the proposal phase",
         );
 
-        let sequencer_block = SequencerBlock::try_from_block_info_and_data(
-            block_hash,
-            chain_id,
-            height,
-            time,
-            proposer_address,
-            finalize_block
-                .txs
-                .into_iter()
-                .map(std::convert::Into::into)
-                .collect(),
-            deposits,
-        )
-        .wrap_err("failed to convert block info and data to SequencerBlock")?;
-        state_tx
-            .put_sequencer_block(sequencer_block)
-            .wrap_err("failed to write sequencer block to state")?;
-
-        // update the priority of any txs in the mempool based on the updated app state
-        if self.recost_mempool {
-            self.metrics.increment_mempool_recosted();
-        }
-        update_mempool_after_finalization(&mut self.mempool, &state_tx, self.recost_mempool).await;
-
-        // events that occur after end_block are ignored here;
-        // there should be none anyways.
-        let _ = self.apply(state_tx);
-
-        // prepare the `StagedWriteBatch` for a later commit.
-        let app_hash = self
-            .prepare_commit(storage.clone())
-            .await
-            .wrap_err("failed to prepare commit")?;
-
-        Ok(abci::response::FinalizeBlock {
-            events: end_block.events,
-            validator_updates: end_block.validator_updates,
-            consensus_param_updates: end_block.consensus_param_updates,
-            tx_results,
-            app_hash,
-        })
+        Ok(finalize_block)
     }
 
     #[instrument(skip_all, err)]

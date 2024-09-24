@@ -191,7 +191,9 @@ pub(crate) async fn initialize_app_with_storage(
     let snapshot = storage.latest_snapshot();
     let mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
+    let mut app = App::new(snapshot, mempool, None, None, metrics)
+        .await
+        .unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
 
