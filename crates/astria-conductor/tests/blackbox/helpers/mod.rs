@@ -422,9 +422,8 @@ impl TestConductor {
             "get_filtered_sequencer_block",
             message_partial_pbjson(&expected_pbjson),
         )
-        .respond_with(constant_response(response))
+        .respond_with(constant_response(response).set_delay(delay))
         .expect(1..)
-        .set_delay(delay)
         .mount(&self.mock_grpc.mock_server)
         .await;
     }
