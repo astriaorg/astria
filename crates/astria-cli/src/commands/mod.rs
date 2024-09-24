@@ -7,6 +7,7 @@ use color_eyre::{
 };
 
 use crate::cli::{
+    config::NetworkConfig,
     sequencer::{
         AccountCommand,
         AddressCommand,
@@ -48,7 +49,14 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                 } => match command {
                     AccountCommand::Create => sequencer::create_account(),
                     AccountCommand::Balance(args) => sequencer::get_balance(&args).await?,
-                    AccountCommand::Nonce(args) => sequencer::get_nonce(&args).await?,
+                    AccountCommand::Nonce(args) => {
+                        if let Some(network) = &cli.network_config {
+                            sequencer::get_nonce(&args, network.clone()).await?
+                        } else {
+                            let network = NetworkConfig::default();
+                            sequencer::get_nonce(&args, network).await?
+                        }
+                    }
                 },
                 SequencerCommand::Address {
                     command,

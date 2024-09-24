@@ -22,6 +22,8 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> eyre::Result<()> {
+    // Parse the TOML string into our Config struct
     let args = Cli::get_args()?;
+
     commands::run(args).await
 }
