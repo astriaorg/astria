@@ -262,7 +262,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(address = %address.display_address()), err)]
+    #[instrument(skip_all, fields(address = %address.display_address(), nonce), err)]
     fn put_account_nonce<T: AddressBytes>(&mut self, address: T, nonce: u32) -> Result<()> {
         let bytes = borsh::to_vec(&Nonce(nonce)).wrap_err("failed to serialize nonce")?;
         self.put_raw(nonce_storage_key(address), bytes);
@@ -325,7 +325,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(%fee), err)]
+    #[instrument(skip_all, fields(fee), err)]
     fn put_transfer_base_fee(&mut self, fee: u128) -> Result<()> {
         let bytes = borsh::to_vec(&Fee(fee)).wrap_err("failed to serialize fee")?;
         self.put_raw(TRANSFER_BASE_FEE_STORAGE_KEY.to_string(), bytes);
