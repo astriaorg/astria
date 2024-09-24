@@ -7,8 +7,6 @@ pub(crate) mod query;
 mod state_ext;
 
 pub(crate) use bridge_lock_action::get_deposit_byte_len;
-#[cfg(test)]
-pub(crate) use state_ext::assert_deposit_nonce_cleared;
 pub(crate) use state_ext::{
     StateReadExt,
     StateWriteExt,

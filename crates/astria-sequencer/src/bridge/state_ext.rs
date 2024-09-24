@@ -1,7 +1,4 @@
-use std::collections::{
-    HashMap,
-    HashSet,
-};
+use std::collections::HashMap;
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::Deposit as RawDeposit,
@@ -34,11 +31,9 @@ use cnidarium::{
     StateWrite,
 };
 use futures::StreamExt as _;
-use hex::ToHex as _;
 use prost::Message as _;
 use tracing::{
     debug,
-    error,
     instrument,
 };
 
@@ -66,6 +61,7 @@ struct Fee(u128);
 const BRIDGE_ACCOUNT_PREFIX: &str = "bridgeacc";
 const BRIDGE_ACCOUNT_SUDO_PREFIX: &str = "bsudo";
 const BRIDGE_ACCOUNT_WITHDRAWER_PREFIX: &str = "bwithdrawer";
+const DEPOSITS_EPHEMERAL_KEY: &str = "deposits";
 const DEPOSIT_PREFIX: &[u8] = b"deposit/";
 const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
 const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
@@ -116,10 +112,6 @@ fn deposit_storage_key_prefix(rollup_id: &RollupId) -> Vec<u8> {
 
 fn deposit_storage_key(rollup_id: &RollupId, nonce: u32) -> Vec<u8> {
     [DEPOSIT_PREFIX, rollup_id.as_ref(), &nonce.to_le_bytes()].concat()
-}
-
-fn deposit_nonce_storage_key(rollup_id: &RollupId) -> Vec<u8> {
-    format!("depositnonce/{}", rollup_id.encode_hex::<String>()).into()
 }
 
 fn bridge_account_sudo_address_storage_key<T: AddressBytes>(address: &T) -> String {
@@ -267,39 +259,21 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_deposit_rollup_ids(&self) -> Result<HashSet<RollupId>> {
-        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(DEPOSIT_PREFIX));
-        let mut rollup_ids = HashSet::new();
-        while let Some(Ok((key, _))) = stream.next().await {
-            // the deposit key is of the form b"deposit/{32 bytes of rollup_id}{4 bytes of nonce}"
-            let Some(rollup_id_and_nonce) = key.strip_prefix(DEPOSIT_PREFIX) else {
-                error!("got wrong prefix in prefix stream");
-                continue;
-            };
-            let Some(rollup_id_slice) = rollup_id_and_nonce.get(0..32) else {
-                bail!("failed to get rollup id bytes from deposit key {:?}", key);
-            };
-            let rollup_id =
-                RollupId::try_from_slice(rollup_id_slice).wrap_err("invalid rollup ID bytes")?;
-            rollup_ids.insert(rollup_id);
-        }
-        Ok(rollup_ids)
+    fn get_cached_block_deposits(&self) -> HashMap<RollupId, Vec<Deposit>> {
+        self.object_get(DEPOSITS_EPHEMERAL_KEY).unwrap_or_default()
     }
 
     #[instrument(skip_all)]
-    async fn get_block_deposits(&self) -> Result<HashMap<RollupId, Vec<Deposit>>> {
-        let deposit_rollup_ids = self
-            .get_deposit_rollup_ids()
-            .await
-            .wrap_err("failed to get deposit rollup IDs")?;
-        let mut deposit_events = HashMap::new();
-        for rollup_id in deposit_rollup_ids {
-            let rollup_deposit_events = get_deposit_events(self, &rollup_id)
-                .await
-                .wrap_err("failed to get deposit events")?;
-            deposit_events.insert(rollup_id, rollup_deposit_events);
+    async fn get_deposits(&self, rollup_id: &RollupId) -> Result<Vec<Deposit>> {
+        let mut stream =
+            std::pin::pin!(self.nonverifiable_prefix_raw(&deposit_storage_key_prefix(rollup_id)));
+        let mut deposits = Vec::new();
+        while let Some(Ok((_, value))) = stream.next().await {
+            let raw = RawDeposit::decode(value.as_ref()).wrap_err("invalid deposit bytes")?;
+            let deposit = Deposit::try_from_raw(raw).wrap_err("invalid deposit raw proto")?;
+            deposits.push(deposit);
         }
-        Ok(deposit_events)
+        Ok(deposits)
     }
 
     #[instrument(skip_all)]
@@ -449,32 +423,34 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
-    #[instrument(skip_all, err)]
-    async fn put_deposit_event(&mut self, deposit: Deposit) -> Result<()> {
-        let nonce = get_deposit_nonce(self, &deposit.rollup_id).await?;
-        put_deposit_nonce(
-            self,
-            &deposit.rollup_id,
-            nonce.checked_add(1).ok_or_eyre("nonce overflowed")?,
-        );
-
-        let key = deposit_storage_key(&deposit.rollup_id, nonce);
-        self.nonverifiable_put_raw(key, deposit.into_raw().encode_to_vec());
-        Ok(())
+    /// Push the deposit onto the end of a Vec of deposits for this rollup ID.  These are held in
+    /// state's ephemeral store, pending being written to permanent storage during `finalize_block`.
+    #[instrument(skip_all)]
+    fn cache_deposit_event(&mut self, deposit: Deposit) {
+        let mut cached_deposits = self.get_cached_block_deposits();
+        cached_deposits
+            .entry(deposit.rollup_id)
+            .or_default()
+            .push(deposit);
+        self.object_put(DEPOSITS_EPHEMERAL_KEY, cached_deposits);
     }
 
     #[instrument(skip_all)]
-    async fn clear_block_deposit_nonces(&mut self) -> Result<()> {
-        let deposit_rollup_ids = self
-            .get_deposit_rollup_ids()
-            .await
-            .wrap_err("failed to get deposit rollup ids")?;
-        for rollup_id in deposit_rollup_ids {
-            self.nonverifiable_delete(deposit_nonce_storage_key(&rollup_id));
-        }
-        Ok(())
+    fn put_deposits(&mut self, all_deposits: HashMap<RollupId, Vec<Deposit>>) {
+        all_deposits.into_iter().for_each(|(rollup_id, deposits)| {
+            deposits
+                .into_iter()
+                .enumerate()
+                .for_each(|(index, deposit)| {
+                    let Ok(nonce) = u32::try_from(index) else {
+                        // Safe to assume no single rollup will be able to create > 2^32 deposits in
+                        // a single block.
+                        panic!("nonce overflowed when putting deposits for {rollup_id}")
+                    };
+                    let key = deposit_storage_key(&rollup_id, nonce);
+                    self.nonverifiable_put_raw(key, deposit.into_raw().encode_to_vec());
+                })
+        })
     }
 
     #[instrument(skip_all)]
@@ -515,67 +491,6 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
-
-#[instrument(skip_all)]
-async fn get_deposit_events<T: StateRead + ?Sized>(
-    state: &T,
-    rollup_id: &RollupId,
-) -> Result<Vec<Deposit>> {
-    let mut stream =
-        std::pin::pin!(state.nonverifiable_prefix_raw(&deposit_storage_key_prefix(rollup_id)));
-    let mut deposits = Vec::new();
-    while let Some(Ok((_, value))) = stream.next().await {
-        let raw = RawDeposit::decode(value.as_ref()).wrap_err("invalid deposit bytes")?;
-        let deposit = Deposit::try_from_raw(raw).wrap_err("invalid deposit raw proto")?;
-        deposits.push(deposit);
-    }
-    Ok(deposits)
-}
-
-#[instrument(skip_all)]
-async fn get_deposit_nonce<T: StateRead + ?Sized>(state: &T, rollup_id: &RollupId) -> Result<u32> {
-    let bytes = state
-        .nonverifiable_get_raw(&deposit_nonce_storage_key(rollup_id))
-        .await
-        .map_err(anyhow_to_eyre)
-        .wrap_err("failed reading raw deposit nonce from state")?;
-    let Some(bytes) = bytes else {
-        // no deposits for this rollup id yet; return 0
-        return Ok(0);
-    };
-
-    let Nonce(nonce) =
-        Nonce(u32::from_be_bytes(bytes.try_into().expect(
-            "all deposit nonces stored should be 4 bytes; this is a bug",
-        )));
-    Ok(nonce)
-}
-
-// the deposit "nonce" for a given rollup ID during a given block.
-// this is only used to generate storage keys for each of the deposits within a block,
-// and is reset to 0 at the beginning of each block.
-#[instrument(skip_all)]
-fn put_deposit_nonce<T: StateWrite + ?Sized>(state: &mut T, rollup_id: &RollupId, nonce: u32) {
-    state.nonverifiable_put_raw(
-        deposit_nonce_storage_key(rollup_id),
-        nonce.to_be_bytes().to_vec(),
-    );
-}
-
-#[cfg(test)]
-pub(crate) async fn assert_deposit_nonce_cleared<T: StateRead + ?Sized>(
-    state: &T,
-    rollup_id: &RollupId,
-) {
-    assert!(
-        state
-            .nonverifiable_get_raw(&deposit_nonce_storage_key(rollup_id))
-            .await
-            .expect("failed reading deposit nonce")
-            .is_none(),
-        "deposit nonce not cleared from state"
-    );
-}
 
 #[cfg(test)]
 mod test {
@@ -757,75 +672,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn get_deposit_nonce_uninitialized_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
-
-        let rollup_id = RollupId::new([2u8; 32]);
-
-        // uninitialized ok
-        assert_eq!(
-            get_deposit_nonce(&state, &rollup_id)
-                .await
-                .expect("call to get deposit nonce should not fail on uninitialized rollup ids"),
-            0u32,
-            "uninitialized rollup id nonce should be zero"
-        );
-    }
-
-    #[tokio::test]
-    async fn put_deposit_nonce() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let rollup_id = RollupId::new([2u8; 32]);
-        let mut nonce = 1u32;
-
-        // can write
-        super::put_deposit_nonce(&mut state, &rollup_id, nonce);
-        assert_eq!(
-            get_deposit_nonce(&state, &rollup_id)
-                .await
-                .expect("a rollup id nonce was written and must exist inside the database"),
-            nonce,
-            "stored nonce did not match expected"
-        );
-
-        // can update
-        nonce = 2u32;
-        super::put_deposit_nonce(&mut state, &rollup_id, nonce);
-        assert_eq!(
-            get_deposit_nonce(&state, &rollup_id)
-                .await
-                .expect("a rollup id nonce was written and must exist inside the database"),
-            nonce,
-            "stored nonce did not match expected"
-        );
-
-        // writing to different account is ok
-        let rollup_id_1 = RollupId::new([3u8; 32]);
-        let nonce_1 = 3u32;
-        super::put_deposit_nonce(&mut state, &rollup_id_1, nonce_1);
-        assert_eq!(
-            get_deposit_nonce(&state, &rollup_id_1)
-                .await
-                .expect("a rollup id nonce was written and must exist inside the database"),
-            nonce_1,
-            "additional stored nonce did not match expected"
-        );
-        assert_eq!(
-            get_deposit_nonce(&state, &rollup_id)
-                .await
-                .expect("a rollup id nonce was written and must exist inside the database"),
-            nonce,
-            "original stored nonce did not match expected"
-        );
-    }
-
-    #[tokio::test]
-    async fn get_deposit_events_empty_ok() {
+    async fn get_deposits_empty_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
@@ -834,7 +681,8 @@ mod test {
 
         // no events ok
         assert_eq!(
-            super::get_deposit_events(&state, &rollup_id)
+            state
+                .get_deposits(&rollup_id)
                 .await
                 .expect("call for rollup id with no deposit events should not fail"),
             vec![],
@@ -844,12 +692,12 @@ mod test {
 
     #[tokio::test]
     #[allow(clippy::too_many_lines)] // allow: it's a test
-    async fn get_deposit_events() {
+    async fn get_deposits() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let rollup_id = RollupId::new([1u8; 32]);
+        let rollup_id_1 = RollupId::new([1u8; 32]);
         let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
@@ -857,7 +705,7 @@ mod test {
 
         let mut deposit = Deposit {
             bridge_address,
-            rollup_id,
+            rollup_id: rollup_id_1,
             amount,
             asset: asset.clone(),
             destination_chain_address: destination_chain_address.to_string(),
@@ -865,27 +713,19 @@ mod test {
             source_action_index: 0,
         };
 
-        let mut deposits = vec![deposit.clone()];
+        let mut all_deposits = HashMap::new();
+        let mut rollup_1_deposits = vec![deposit.clone()];
+        all_deposits.insert(rollup_id_1, rollup_1_deposits.clone());
 
         // can write
-        state
-            .put_deposit_event(deposit.clone())
-            .await
-            .expect("writing deposit events should be ok");
+        state.put_deposits(all_deposits.clone());
         assert_eq!(
-            super::get_deposit_events(&state, &rollup_id)
+            state
+                .get_deposits(&rollup_id_1)
                 .await
                 .expect("deposit info was written to the database and must exist"),
-            deposits,
+            rollup_1_deposits,
             "stored deposits do not match what was expected"
-        );
-        // nonce is correct
-        assert_eq!(
-            super::get_deposit_nonce(&state, &rollup_id)
-                .await
-                .expect("calls to get nonce should not fail"),
-            1u32,
-            "nonce was consumed and should've been incremented"
         );
 
         // can write additional
@@ -894,206 +734,44 @@ mod test {
             source_action_index: 1,
             ..deposit
         };
-        deposits.append(&mut vec![deposit.clone()]);
-        state
-            .put_deposit_event(deposit.clone())
-            .await
-            .expect("writing deposit events should be ok");
-        let mut returned_deposits = super::get_deposit_events(&state, &rollup_id)
-            .await
-            .expect("deposit info was written to the database and must exist");
-        returned_deposits.sort_by_key(|d| d.amount);
-        deposits.sort_by_key(|d| d.amount);
+        rollup_1_deposits.push(deposit.clone());
+        all_deposits.insert(rollup_id_1, rollup_1_deposits.clone());
+        state.put_deposits(all_deposits.clone());
         assert_eq!(
-            returned_deposits, deposits,
-            "stored deposits do not match what was expected"
-        );
-        // nonce is correct
-        assert_eq!(
-            super::get_deposit_nonce(&state, &rollup_id)
+            state
+                .get_deposits(&rollup_id_1)
                 .await
-                .expect("calls to get nonce should not fail"),
-            2u32,
-            "nonce was consumed and should've been incremented"
+                .expect("deposit info was written to the database and must exist"),
+            rollup_1_deposits,
+            "stored deposits do not match what was expected"
         );
 
         // can write different rollup id and both ok
-        let rollup_id_1 = RollupId::new([2u8; 32]);
+        let rollup_id_2 = RollupId::new([2u8; 32]);
         deposit = Deposit {
-            rollup_id: rollup_id_1,
+            rollup_id: rollup_id_2,
             source_action_index: 2,
             ..deposit
         };
-        let deposits_1 = vec![deposit.clone()];
-        state
-            .put_deposit_event(deposit)
-            .await
-            .expect("writing deposit events should be ok");
+        let rollup_2_deposits = vec![deposit.clone()];
+        all_deposits.insert(rollup_id_2, rollup_2_deposits.clone());
+        state.put_deposits(all_deposits);
         assert_eq!(
-            super::get_deposit_events(&state, &rollup_id_1)
+            state
+                .get_deposits(&rollup_id_2)
                 .await
                 .expect("deposit info was written to the database and must exist"),
-            deposits_1,
+            rollup_2_deposits,
             "stored deposits do not match what was expected"
         );
         // verify original still ok
-        returned_deposits = super::get_deposit_events(&state, &rollup_id)
-            .await
-            .expect("deposit info was written to the database and must exist");
-        returned_deposits.sort_by_key(|d| d.amount);
         assert_eq!(
-            returned_deposits, deposits,
+            state
+                .get_deposits(&rollup_id_1)
+                .await
+                .expect("deposit info was written to the database and must exist"),
+            rollup_1_deposits,
             "stored deposits do not match what was expected"
-        );
-    }
-
-    #[tokio::test]
-    async fn get_deposit_rollup_ids() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let rollup_id_0 = RollupId::new([1u8; 32]);
-        let bridge_address = astria_address(&[42u8; 20]);
-        let amount = 10u128;
-        let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-
-        let mut deposit = Deposit {
-            bridge_address,
-            rollup_id: rollup_id_0,
-            amount,
-            asset: asset.clone(),
-            destination_chain_address: destination_chain_address.to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        };
-
-        // write same rollup id twice
-        state
-            .put_deposit_event(deposit.clone())
-            .await
-            .expect("writing deposit events should be ok");
-
-        // writing to same rollup id does not create duplicates
-        state
-            .put_deposit_event(deposit.clone())
-            .await
-            .expect("writing deposit events should be ok");
-
-        // writing additional different rollup id
-        let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit {
-            rollup_id: rollup_id_1,
-            source_action_index: 1,
-            ..deposit
-        };
-        state
-            .put_deposit_event(deposit)
-            .await
-            .expect("writing deposit events should be ok");
-        // ensure only two rollup ids are in system
-        let rollups = state
-            .get_deposit_rollup_ids()
-            .await
-            .expect("deposit info was written rollup ids should still be in database");
-        assert_eq!(rollups.len(), 2, "only two rollup ids should exits");
-        assert!(
-            rollups.contains(&rollup_id_0),
-            "deposit data was written for rollup and it should exist"
-        );
-        assert!(
-            rollups.contains(&rollup_id_1),
-            "deposit data was written for rollup and it should exist"
-        );
-    }
-
-    #[tokio::test]
-    async fn clear_block_info_uninitialized_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // uninitialized delete ok
-        state
-            .clear_block_deposit_nonces()
-            .await
-            .expect("calls to clear block deposit nonces should succeed");
-    }
-
-    #[tokio::test]
-    async fn retain_block_deposits_but_clear_nonces() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = astria_address(&[42u8; 20]);
-        let amount = 10u128;
-        let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-        let deposit = Deposit {
-            bridge_address,
-            rollup_id,
-            amount,
-            asset: asset.clone(),
-            destination_chain_address: destination_chain_address.to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        };
-
-        // write to first
-        state
-            .put_deposit_event(deposit.clone())
-            .await
-            .expect("writing deposit events should be ok");
-
-        // write to second
-        let rollup_id_1 = RollupId::new([2u8; 32]);
-        let deposit_1 = Deposit {
-            rollup_id: rollup_id_1,
-            source_action_index: 1,
-            ..deposit.clone()
-        };
-        state
-            .put_deposit_event(deposit_1.clone())
-            .await
-            .expect("writing deposit events for rollup 2 should be ok");
-
-        // delete nonce info
-        state
-            .clear_block_deposit_nonces()
-            .await
-            .expect("clearing deposits call should not fail");
-        // check that nonces were deleted
-        assert_eq!(
-            get_deposit_nonce(&state, &rollup_id)
-                .await
-                .expect("deposit should return empty when none exists"),
-            0u32,
-            "nonce should have been deleted also"
-        );
-        assert_eq!(
-            get_deposit_nonce(&state, &rollup_id_1)
-                .await
-                .expect("deposit should return empty when none exists"),
-            0u32,
-            "nonce should have been deleted also"
-        );
-        // check that deposits were not deleted
-        assert_eq!(
-            super::get_deposit_events(&state, &rollup_id)
-                .await
-                .expect("deposit should be retrieved"),
-            vec![deposit],
-            "retrieved deposit not as expected"
-        );
-        assert_eq!(
-            super::get_deposit_events(&state, &rollup_id_1)
-                .await
-                .expect("deposit should be retrieved"),
-            vec![deposit_1],
-            "retrieved deposit not as expected"
         );
     }
 
