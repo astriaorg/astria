@@ -113,6 +113,19 @@ macro_rules! mount_celestia_blobs {
     (
         $test_env:ident,
         celestia_height: $celestia_height:expr,
+        sequencer_heights: [ $($sequencer_height:expr),+ ]
+        $(,)?
+    ) => {
+        mount_celestia_blobs!(
+            $test_env,
+            celestia_height: $celestia_height,
+            sequencer_heights: [ $($sequencer_height),+ ],
+            delay: None,
+        )
+    };
+    (
+        $test_env:ident,
+        celestia_height: $celestia_height:expr,
         sequencer_heights: [ $($sequencer_height:expr),+ ],
         delay: $delay:expr
         $(,)?
@@ -135,19 +148,6 @@ macro_rules! mount_celestia_blobs {
             )
             .await
     }};
-    (
-        $test_env:ident,
-        celestia_height: $celestia_height:expr,
-        sequencer_heights: [ $($sequencer_height:expr),+ ]
-        $(,)?
-    ) => {
-        mount_celestia_blobs!(
-            $test_env,
-            celestia_height: $celestia_height,
-            sequencer_heights: [ $($sequencer_height),+ ],
-            delay: None,
-        )
-    };
 }
 
 #[macro_export]
@@ -195,6 +195,39 @@ macro_rules! mount_get_commitment_state {
 macro_rules! mount_update_commitment_state {
     (
         $test_env:ident,
+        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
+        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
+        base_celestia_height: $base_celestia_height:expr
+        $(,)?
+    ) => {
+        mount_update_commitment_state!(
+            $test_env,
+            mock_name: None,
+            firm: ( number: $firm_number, hash: $firm_hash, parent: $firm_parent, ),
+            soft: ( number: $soft_number, hash: $soft_hash, parent: $soft_parent, ),
+            base_celestia_height: $base_celestia_height,
+            expected_calls: 1,
+        )
+    };
+    (
+        $test_env:ident,
+        mock_name: $mock_name:expr,
+        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
+        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
+        base_celestia_height: $base_celestia_height:expr
+        $(,)?
+    ) => {
+        mount_update_commitment_state!(
+            $test_env,
+            mock_name: $mock_name,
+            firm: ( number: $firm_number, hash: $firm_hash, parent: $firm_parent, ),
+            soft: ( number: $soft_number, hash: $soft_hash, parent: $soft_parent, ),
+            base_celestia_height: $base_celestia_height,
+            expected_calls: 1,
+        )
+    };
+    (
+        $test_env:ident,
         mock_name: $mock_name:expr,
         firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
         soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
@@ -221,39 +254,6 @@ macro_rules! mount_update_commitment_state {
                 $expected_calls,
         )
         .await
-    };
-    (
-        $test_env:ident,
-        mock_name: $mock_name:expr,
-        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
-        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
-        base_celestia_height: $base_celestia_height:expr
-        $(,)?
-    ) => {
-        mount_update_commitment_state!(
-            $test_env,
-            mock_name: $mock_name,
-            firm: ( number: $firm_number, hash: $firm_hash, parent: $firm_parent, ),
-            soft: ( number: $soft_number, hash: $soft_hash, parent: $soft_parent, ),
-            base_celestia_height: $base_celestia_height,
-            expected_calls: 1,
-        )
-    };
-    (
-        $test_env:ident,
-        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
-        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
-        base_celestia_height: $base_celestia_height:expr
-        $(,)?
-    ) => {
-        mount_update_commitment_state!(
-            $test_env,
-            mock_name: None,
-            firm: ( number: $firm_number, hash: $firm_hash, parent: $firm_parent, ),
-            soft: ( number: $soft_number, hash: $soft_hash, parent: $soft_parent, ),
-            base_celestia_height: $base_celestia_height,
-            expected_calls: 1,
-        )
     };
 }
 
