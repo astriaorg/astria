@@ -153,6 +153,8 @@ pub(crate) struct App {
     // `prepare_proposal` was not called.
     executed_proposal_hash: Hash,
 
+    executed_proposal_time: Option<tendermint::Time>,
+
     // cache of results of executing of transactions in `prepare_proposal` or `process_proposal`.
     // cleared at the end of each block.
     execution_results: Option<Vec<tendermint::abci::types::ExecTxResult>>,
@@ -200,6 +202,7 @@ impl App {
             validator_address: None,
             executed_proposal_hash: Hash::default(),
             execution_results: None,
+            executed_proposal_time: None,
             write_batch: None,
             app_hash,
             metrics,
@@ -278,6 +281,7 @@ impl App {
 
         // clear the cache of transaction execution results
         self.execution_results = None;
+        self.executed_proposal_time = None;
         self.executed_proposal_hash = Hash::default();
     }
 
@@ -331,6 +335,8 @@ impl App {
             .context("failed to get block deposits in prepare_proposal")?;
         self.metrics.record_proposal_deposits(deposits.len());
 
+        self.executed_proposal_time = Some(prepare_proposal.time);
+
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
         // included in the block
         let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
@@ -355,12 +361,17 @@ impl App {
         // if we didn't propose this block, `self.validator_address` will be None or a different
         // value, so we will execute the block as normal.
         if let Some(id) = self.validator_address {
-            if id == process_proposal.proposer_address {
-                debug!("skipping process_proposal as we are the proposer for this block");
-                self.validator_address = None;
-                self.executed_proposal_hash = process_proposal.hash;
-                return Ok(());
+            if let Some(time) = self.executed_proposal_time {
+                if id == process_proposal.proposer_address && time == process_proposal.time {
+                    debug!("skipping process_proposal as we are the proposer for this block");
+                    self.validator_address = None;
+                    self.executed_proposal_hash = process_proposal.hash;
+                    return Ok(());
+                } else if time != process_proposal.time && id == process_proposal.proposer_address {
+                    debug!("our validator address was set but the proposal time does not match");
+                }
             }
+
             self.metrics.increment_process_proposal_skipped_proposal();
             debug!(
                 "our validator address was set but we're not the proposer, so our previous \
