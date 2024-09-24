@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient as SequencerGrpcClient;
+use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -470,11 +470,11 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
 
 fn connect_sequencer_grpc(
     sequencer_grpc_endpoint: &str,
-) -> eyre::Result<SequencerGrpcClient<tonic::transport::Channel>> {
+) -> eyre::Result<SequencerServiceClient<tonic::transport::Channel>> {
     let uri: Uri = sequencer_grpc_endpoint
         .parse()
         .wrap_err("failed to parse endpoint as URI")?;
-    Ok(SequencerGrpcClient::new(
+    Ok(SequencerServiceClient::new(
         tonic::transport::Endpoint::from(uri).connect_lazy(),
     ))
 }
