@@ -6,6 +6,7 @@ use astria_core::{
     primitive::v1::{
         asset::TracePrefixed,
         RollupId,
+        TransactionId,
     },
     protocol::{
         genesis::v1alpha1::Account,
@@ -301,6 +302,18 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     state_tx
         .put_bridge_account_ibc_asset(bridge_address, nria())
         .unwrap();
+    // Put a deposit from a previous block to ensure it is not mixed in with deposits for this
+    // block (it has a different amount and tx ID to the later deposit).
+    let old_deposit = Deposit {
+        bridge_address,
+        rollup_id,
+        amount: 99,
+        asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+        source_transaction_id: TransactionId::new([99; 32]),
+        source_action_index: starting_index_of_action,
+    };
+    state_tx.put_deposits(HashMap::from_iter([(rollup_id, vec![old_deposit])]));
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;

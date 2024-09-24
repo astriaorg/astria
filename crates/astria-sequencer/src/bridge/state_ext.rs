@@ -106,6 +106,8 @@ fn asset_id_storage_key<T: AddressBytes>(address: &T) -> String {
     )
 }
 
+// allow: this is only used in `StateReadExt::get_deposits` which is currently unused.
+#[allow(dead_code)]
 fn deposit_storage_key_prefix(rollup_id: &RollupId) -> Vec<u8> {
     [DEPOSIT_PREFIX, rollup_id.as_ref()].concat()
 }
@@ -437,7 +439,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_deposits(&mut self, all_deposits: HashMap<RollupId, Vec<Deposit>>) {
-        all_deposits.into_iter().for_each(|(rollup_id, deposits)| {
+        for (rollup_id, deposits) in all_deposits {
             deposits
                 .into_iter()
                 .enumerate()
@@ -449,8 +451,8 @@ pub(crate) trait StateWriteExt: StateWrite {
                     };
                     let key = deposit_storage_key(&rollup_id, nonce);
                     self.nonverifiable_put_raw(key, deposit.into_raw().encode_to_vec());
-                })
-        })
+                });
+        }
     }
 
     #[instrument(skip_all)]
