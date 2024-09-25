@@ -54,11 +54,11 @@ _fmt-all:
 
 [no-exit-message]
 _fmt-rust:
-  cargo +nightly-2024-02-07 fmt --all
+  cargo +nightly-2024-09-15 fmt --all
 
 [no-exit-message]
 _lint-rust:
-  cargo +nightly-2024-02-07 fmt --all -- --check
+  cargo +nightly-2024-09-15 fmt --all -- --check
   cargo clippy -- --warn clippy::pedantic
   cargo dylint --all
 
