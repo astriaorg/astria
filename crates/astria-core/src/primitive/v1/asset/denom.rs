@@ -75,6 +75,15 @@ impl Denom {
         };
         trace
     }
+
+    /// Calculates the length of the display formatted [Denom] without allocating a String.
+    #[must_use]
+    pub fn display_len(&self) -> usize {
+        match self {
+            Denom::TracePrefixed(trace) => trace.display_len(),
+            Denom::IbcPrefixed(ibc) => ibc.display_len(),
+        }
+    }
 }
 
 impl From<IbcPrefixed> for Denom {
@@ -256,6 +265,22 @@ impl TracePrefixed {
 
     pub fn push_trace_segment(&mut self, segment: PortAndChannel) {
         self.trace.push(segment);
+    }
+
+    /// Calculates the length of the display formatted [`TracePrefixed`] without allocating a
+    /// String.
+    #[must_use]
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "string derived length should never overflow usize::MAX on 64 bit machines \
+                  because of memory constraints"
+    )]
+    fn display_len(&self) -> usize {
+        let mut len: usize = 0;
+        for segment in &self.trace.inner {
+            len += segment.port.len() + segment.channel.len() + 2; // 2 additional "/" characters
+        }
+        len + self.base_denom.len()
     }
 }
 
@@ -485,6 +510,11 @@ impl IbcPrefixed {
     pub fn get(&self) -> [u8; 32] {
         self.id
     }
+
+    #[must_use]
+    pub fn display_len(&self) -> usize {
+        68 // "ibc/" + 64 hex characters
+    }
 }
 
 impl std::fmt::Display for IbcPrefixed {
@@ -690,5 +720,26 @@ mod tests {
         assert_eq!("to", port_and_channel.channel());
 
         assert_eq!(None, denom.pop_leading_port_and_channel());
+    }
+
+    #[test]
+    fn display_len_outputs_expected_length() {
+        assert_correct_display_len("0123456789");
+        assert_correct_display_len("path_with-special^characters!@#$%&*()+={}|;:?<>,.`~");
+
+        assert_correct_display_len("MixedCasePath");
+        assert_correct_display_len("denom");
+        assert_correct_display_len("short/path/denom");
+        assert_correct_display_len("a/very/long/path/to/the/denom");
+        assert_correct_display_len(&format!("ibc/{}", hex::encode([0u8; 32])));
+        assert_correct_display_len(&format!("ibc/{}", hex::encode([1u8; 32])));
+        assert_correct_display_len(&format!("ibc/{}", hex::encode([42u8; 32])));
+        assert_correct_display_len(&format!("ibc/{}", hex::encode([255u8; 32])));
+    }
+
+    #[track_caller]
+    fn assert_correct_display_len(denom_str: &str) {
+        let denom = denom_str.parse::<Denom>().unwrap();
+        assert_eq!(denom_str.len(), denom.display_len());
     }
 }
