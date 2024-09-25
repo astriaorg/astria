@@ -17,6 +17,7 @@ on:
           - sequencer
           - sequencer-relayer
           - evm-bridge-withdrawer
+          - cli
   merge_group:
   push:
     branches:
@@ -118,8 +119,23 @@ jobs:
       force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'evm-bridge-withdrawer' }}
     secrets: inherit
 
+  cli:
+    needs: run_checker
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'cli')
+    uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    with:
+      depot-project-id: kcchkd09m0
+      package-name: astria-cli
+      binary-name: cli
+      tag: ${{ inputs.tag }}
+    secrets: inherit
+
   smoke-test:
-    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer]
+    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
@@ -130,9 +146,6 @@ jobs:
         uses: helm/kind-action@v1
         with:
           install_only: true
-      - name: Install astria cli (rust)
-        run: |
-          just install-cli
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
@@ -149,10 +162,12 @@ jobs:
           just deploy smoke-test $TAG
       - name: Run Smoke test
         timeout-minutes: 3
-        run: just run-smoke-test
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just run-smoke-test $TAG
 
   smoke-cli:
-    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer]
+    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
@@ -163,9 +178,6 @@ jobs:
         uses: helm/kind-action@v1
         with:
           install_only: true
-      - name: Install astria cli (rust)
-        run: |
-          just install-cli
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
@@ -182,10 +194,12 @@ jobs:
           just deploy smoke-cli $TAG
       - name: Run Smoke test
         timeout-minutes: 3
-        run: just run-smoke-cli
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just run-smoke-cli $TAG
 
   ibc-bridge-test:
-    needs: [ run_checker, composer, conductor, sequencer, sequencer-relayer ]
+    needs: [ run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli ]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
@@ -196,8 +210,6 @@ jobs:
         uses: helm/kind-action@v1
         with:
           install_only: true
-      - name: Install astria cli (rust)
-        run: just install-cli
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
@@ -214,11 +226,13 @@ jobs:
           just ibc-test deploy $TAG
       - name: Run IBC ICS20 Transfer test
         timeout-minutes: 3
-        run: just ibc-test run
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just ibc-test run $TAG
 
   docker:
     if: ${{ always() && !cancelled() }}
-    needs: [composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, smoke-test, smoke-cli, ibc-bridge-test]
+    needs: [composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli, smoke-test, smoke-cli, ibc-bridge-test]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

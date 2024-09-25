@@ -1,6 +1,7 @@
 use astria_core::protocol::transaction::v1alpha1::action::{
     FeeChange,
     FeeChangeAction,
+    IbcSudoChangeAction,
     SudoAddressChangeAction,
     ValidatorUpdate,
 };
@@ -151,6 +152,34 @@ impl ActionHandler for FeeChangeAction {
             }
         }
 
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl ActionHandler for IbcSudoChangeAction {
+    async fn check_stateless(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_transaction_context()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
+        state
+            .ensure_base_prefix(&self.new_address)
+            .await
+            .wrap_err("desired new ibc sudo address has an unsupported prefix")?;
+        // ensure signer is the valid `sudo` key in state
+        let sudo_address = state
+            .get_sudo_address()
+            .await
+            .wrap_err("failed to get sudo address from state")?;
+        ensure!(sudo_address == from, "signer is not the sudo key");
+        state
+            .put_ibc_sudo_address(self.new_address)
+            .wrap_err("failed to put ibc sudo address in state")?;
         Ok(())
     }
 }
