@@ -1,7 +1,4 @@
-use action_group::{
-    ActionGroup,
-    Actions,
-};
+use action_group::Actions;
 use bytes::Bytes;
 use prost::{
     Message as _,
@@ -207,8 +204,12 @@ impl SignedTransaction {
     }
 
     #[must_use]
-    pub fn group(&self) -> Option<ActionGroup> {
-        self.transaction.actions.group()
+    pub fn is_sudo_action_group(&self) -> bool {
+        if let Some(group) = self.transaction.actions.group() {
+            group.is_sudo()
+        } else {
+            false
+        }
     }
 
     #[must_use]

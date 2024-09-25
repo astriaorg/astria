@@ -475,8 +475,7 @@ async fn app_transaction_bundle_categories() {
         )
         .unwrap_err()
         .to_string(),
-        "attempted to create bundle with non bundleable `ActionGroup` type: ActionGroup type \
-         'UnbundleableSudo' is not bundleable"
+        "attempted to create bundle with non bundleable `ActionGroup` type: unbundleable sudo"
     );
 
     assert_eq!(
@@ -506,8 +505,7 @@ async fn app_transaction_bundle_categories() {
         )
         .unwrap_err()
         .to_string(),
-        "attempted to create bundle with non bundleable `ActionGroup` type: ActionGroup type \
-         'UnbundleableGeneral' is not bundleable"
+        "attempted to create bundle with non bundleable `ActionGroup` type: unbundleable general"
     );
 
     assert_eq!(
@@ -535,7 +533,6 @@ async fn app_transaction_bundle_categories() {
         )
         .unwrap_err()
         .to_string(),
-        "attempted to create bundle with non bundleable `ActionGroup` type: ActionGroup type \
-         'UnbundleableGeneral' is not bundleable"
+        "attempted to create bundle with non bundleable `ActionGroup` type: unbundleable general"
     );
 }

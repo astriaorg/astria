@@ -246,7 +246,7 @@ async fn app_transfer_block_fees_to_sudo() {
             .chain_id("test")
             .build(),
     )
-    .expect("can build unsigned transaction");
+    .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -330,7 +330,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
             .chain_id("test")
             .build(),
     )
-    .expect("can build unsigned transaction");
+    .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -425,7 +425,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
             .chain_id("test")
             .build(),
     )
-    .expect("can build unsigned transaction");
+    .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -570,7 +570,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             .chain_id("test")
             .build(),
     )
-    .expect("can build unsigned transaction")
+    .unwrap()
     .into_signed(&alice);
 
     let tx_overflow = UnsignedTransaction::new(
@@ -587,7 +587,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             .chain_id("test")
             .build(),
     )
-    .expect("can build unsigned transaction")
+    .unwrap()
     .into_signed(&alice);
 
     app.mempool
@@ -665,7 +665,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             .chain_id("test")
             .build(),
     )
-    .expect("can build unsigned transaction")
+    .unwrap()
     .into_signed(&alice);
 
     let tx_overflow = UnsignedTransaction::new(
@@ -682,7 +682,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             .chain_id("test")
             .build(),
     )
-    .expect("can build unsigned transaction")
+    .unwrap()
     .into_signed(&alice);
 
     app.mempool
