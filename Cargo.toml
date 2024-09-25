@@ -27,6 +27,7 @@ members = [
 # Specify default members so that cargo invocations in github actions will
 # not act on lints
 default-members = [
+  "crates/astria-auctioneer",
   "crates/astria-bridge-contracts",
   "crates/astria-bridge-withdrawer",
   "crates/astria-build-info",
