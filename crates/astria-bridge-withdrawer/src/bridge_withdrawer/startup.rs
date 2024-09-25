@@ -65,40 +65,36 @@ pub(super) struct Builder {
     pub(super) shutdown_token: CancellationToken,
     pub(super) state: Arc<State>,
     pub(super) sequencer_chain_id: String,
-    pub(super) sequencer_cometbft_endpoint: String,
-    pub(super) sequencer_grpc_endpoint: String,
+    pub(super) sequencer_cometbft_client: sequencer_client::HttpClient,
+    pub(super) sequencer_grpc_client: SequencerServiceClient<Channel>,
     pub(super) sequencer_bridge_address: Address,
     pub(super) expected_fee_asset: asset::Denom,
     pub(super) metrics: &'static Metrics,
 }
 
 impl Builder {
-    pub(super) fn build(self) -> eyre::Result<Startup> {
+    pub(super) fn build(self) -> Startup {
         let Self {
             shutdown_token,
             state,
             sequencer_chain_id,
-            sequencer_cometbft_endpoint,
+            sequencer_cometbft_client,
             sequencer_bridge_address,
-            sequencer_grpc_endpoint,
+            sequencer_grpc_client,
             expected_fee_asset,
             metrics,
         } = self;
 
-        let sequencer_cometbft_client =
-            sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
-                .wrap_err("failed constructing cometbft http client")?;
-
-        Ok(Startup {
+        Startup {
             shutdown_token,
             state,
             sequencer_chain_id,
             sequencer_cometbft_client,
-            sequencer_grpc_endpoint,
+            sequencer_grpc_client,
             sequencer_bridge_address,
             expected_fee_asset,
             metrics,
-        })
+        }
     }
 }
 
@@ -141,7 +137,7 @@ pub(super) struct Startup {
     state: Arc<State>,
     sequencer_chain_id: String,
     sequencer_cometbft_client: sequencer_client::HttpClient,
-    sequencer_grpc_endpoint: String,
+    sequencer_grpc_client: SequencerServiceClient<Channel>,
     sequencer_bridge_address: Address,
     expected_fee_asset: asset::Denom,
     metrics: &'static Metrics,
@@ -159,7 +155,7 @@ impl Startup {
 
             wait_for_empty_mempool(
                 self.sequencer_cometbft_client.clone(),
-                self.sequencer_grpc_endpoint.clone(),
+                self.sequencer_grpc_client.clone(),
                 self.sequencer_bridge_address,
                 self.state.clone(),
                 self.metrics,
@@ -400,7 +396,7 @@ async fn ensure_mempool_empty(
 #[instrument(skip_all, err)]
 async fn wait_for_empty_mempool(
     cometbft_client: sequencer_client::HttpClient,
-    sequencer_grpc_endpoint: String,
+    sequencer_grpc_client: SequencerServiceClient<Channel>,
     address: Address,
     state: Arc<State>,
     metrics: &'static Metrics,
@@ -424,14 +420,9 @@ async fn wait_for_empty_mempool(
                 futures::future::ready(())
             },
         );
-    let sequencer_client = SequencerServiceClient::connect(sequencer_grpc_endpoint.clone())
-        .await
-        .wrap_err_with(|| {
-            format!("failed to connect to sequencer at `{sequencer_grpc_endpoint}`")
-        })?;
 
     tryhard::retry_fn(|| {
-        let sequencer_client = sequencer_client.clone();
+        let sequencer_client = sequencer_grpc_client.clone();
         let cometbft_client = cometbft_client.clone();
         let state = state.clone();
         ensure_mempool_empty(cometbft_client, sequencer_client, address, state, metrics)

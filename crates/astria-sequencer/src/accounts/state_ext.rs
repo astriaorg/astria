@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     pin::Pin,
     task::{
         ready,
@@ -173,7 +174,9 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         }
     }
 
-    #[instrument(skip_all)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset), err)]
     async fn get_account_balance<'a, TAddress, TAsset>(
         &self,
         address: &TAddress,
@@ -181,7 +184,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     ) -> Result<u128>
     where
         TAddress: AddressBytes,
-        TAsset: Sync,
+        TAsset: Sync + Display,
         asset::IbcPrefixed: From<&'a TAsset> + Send + Sync,
     {
         let Some(bytes) = self
@@ -233,7 +236,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset, balance), err)]
     fn put_account_balance<'a, TAddress, TAsset>(
         &mut self,
         address: &TAddress,
@@ -242,6 +245,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) -> Result<()>
     where
         TAddress: AddressBytes,
+        TAsset: Display,
         asset::IbcPrefixed: From<&'a TAsset> + Send,
     {
         let bytes = StoredValue::Balance(balance.into())
@@ -260,7 +264,9 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount), err)]
     async fn increase_balance<'a, TAddress, TAsset>(
         &mut self,
         address: &TAddress,
@@ -269,7 +275,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) -> Result<()>
     where
         TAddress: AddressBytes,
-        TAsset: Sync,
+        TAsset: Sync + Display,
         asset::IbcPrefixed: From<&'a TAsset> + Send,
     {
         let balance = self
@@ -287,7 +293,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount))]
     async fn decrease_balance<'a, TAddress, TAsset>(
         &mut self,
         address: &TAddress,
@@ -296,7 +302,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) -> Result<()>
     where
         TAddress: AddressBytes,
-        TAsset: Sync,
+        TAsset: Sync + Display,
         asset::IbcPrefixed: From<&'a TAsset> + Send,
     {
         let balance = self

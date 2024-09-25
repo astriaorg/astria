@@ -140,7 +140,7 @@ impl ActionHandler for SignedTransaction {
                 Action::BridgeUnlock(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for BridgeLockAction")?,
+                    .wrap_err("stateless check failed for BridgeUnlockAction")?,
                 Action::BridgeSudoChange(act) => act
                     .check_stateless()
                     .await

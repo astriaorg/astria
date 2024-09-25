@@ -53,7 +53,9 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("failed to construct address from byte slice and state-provided base prefix")
     }
 
-    #[instrument(skip_all)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, err)]
     async fn get_base_prefix(&self) -> Result<String> {
         let Some(bytes) = self
             .get_raw(BASE_PREFIX_KEY)
@@ -68,7 +70,9 @@ pub(crate) trait StateReadExt: StateRead {
             .context("invalid base prefix bytes")
     }
 
-    #[instrument(skip_all)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, err)]
     async fn get_ibc_compat_prefix(&self) -> Result<String> {
         let Some(bytes) = self
             .get_raw(IBC_COMPAT_PREFIX_KEY)

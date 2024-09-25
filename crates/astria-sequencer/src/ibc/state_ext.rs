@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use astria_core::primitive::v1::{
     asset,
     ADDRESS_LEN,
@@ -6,6 +8,7 @@ use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         bail,
+        OptionExt as _,
         Result,
         WrapErr as _,
     },
@@ -61,14 +64,16 @@ fn ibc_relayer_key<T: AddressBytes>(address: &T) -> String {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, fields(%channel, %asset), err)]
     async fn get_ibc_channel_balance<'a, TAsset>(
         &self,
         channel: &ChannelId,
         asset: &'a TAsset,
     ) -> Result<u128>
     where
-        TAsset: Sync,
+        TAsset: Sync + Display,
         asset::IbcPrefixed: From<&'a TAsset>,
     {
         let Some(bytes) = self
@@ -127,11 +132,11 @@ pub(crate) trait StateReadExt: StateRead {
     }
 }
 
-impl<T: StateRead> StateReadExt for T {}
+impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%channel, %asset, balance), err)]
     fn put_ibc_channel_balance<'a, TAsset>(
         &mut self,
         channel: &ChannelId,
@@ -139,6 +144,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         balance: u128,
     ) -> Result<()>
     where
+        TAsset: Display,
         asset::IbcPrefixed: From<&'a TAsset>,
     {
         let bytes = StoredValue::Balance(balance.into())
@@ -146,6 +152,32 @@ pub(crate) trait StateWriteExt: StateWrite {
             .wrap_err("failed to serialize ibc channel balance")?;
         self.put_raw(channel_balance_storage_key(channel, asset), bytes);
         Ok(())
+    }
+
+    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
+    #[allow(clippy::blocks_in_conditions)]
+    #[instrument(skip_all, fields(%channel, %asset, amount), err)]
+    async fn decrease_ibc_channel_balance<'a, TAsset>(
+        &mut self,
+        channel: &ChannelId,
+        asset: &'a TAsset,
+        amount: u128,
+    ) -> Result<()>
+    where
+        TAsset: Sync + Display,
+        asset::IbcPrefixed: From<&'a TAsset>,
+    {
+        let old_balance = self
+            .get_ibc_channel_balance(channel, asset)
+            .await
+            .wrap_err("failed to get ibc channel balance")?;
+
+        let new_balance = old_balance
+            .checked_sub(amount)
+            .ok_or_eyre("insufficient funds on ibc channel")?;
+
+        self.put_ibc_channel_balance(channel, asset, new_balance)
+            .wrap_err("failed to write new balance to ibc channel")
     }
 
     #[instrument(skip_all)]

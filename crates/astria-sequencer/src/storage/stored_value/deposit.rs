@@ -50,30 +50,30 @@ pub(crate) struct Deposit<'a> {
 impl<'a> From<&'a DomainDeposit> for Deposit<'a> {
     fn from(deposit: &'a DomainDeposit) -> Self {
         let bridge_address = Address {
-            bytes: deposit.bridge_address().bytes().into(),
-            prefix: Cow::Borrowed(deposit.bridge_address().prefix()),
+            bytes: deposit.bridge_address.bytes().into(),
+            prefix: Cow::Borrowed(deposit.bridge_address.prefix()),
         };
-        let asset = match deposit.asset() {
+        let asset = match &deposit.asset {
             DomainDenom::TracePrefixed(denom) => Denom::TracePrefixed(denom.into()),
             DomainDenom::IbcPrefixed(denom) => Denom::IbcPrefixed(denom.into()),
         };
         let source_transaction_id =
-            TransactionId(Cow::Borrowed(deposit.source_transaction_id().get()));
+            TransactionId(Cow::Borrowed(deposit.source_transaction_id.get()));
         Deposit {
             bridge_address,
-            rollup_id: RollupId::from(deposit.rollup_id()),
-            amount: deposit.amount(),
+            rollup_id: RollupId::from(&deposit.rollup_id),
+            amount: deposit.amount,
             asset,
-            destination_chain_address: Cow::Borrowed(deposit.destination_chain_address()),
+            destination_chain_address: Cow::Borrowed(&deposit.destination_chain_address),
             source_transaction_id,
-            source_action_index: deposit.source_action_index(),
+            source_action_index: deposit.source_action_index,
         }
     }
 }
 
 impl<'a> From<Deposit<'a>> for DomainDeposit {
     fn from(deposit: Deposit<'a>) -> Self {
-        let address = DomainAddress::unchecked_from_parts(
+        let bridge_address = DomainAddress::unchecked_from_parts(
             deposit.bridge_address.bytes.into(),
             &deposit.bridge_address.prefix,
         );
@@ -83,15 +83,15 @@ impl<'a> From<Deposit<'a>> for DomainDeposit {
         };
         let source_transaction_id =
             DomainTransactionId::new(deposit.source_transaction_id.0.into_owned());
-        DomainDeposit::new(
-            address,
-            deposit.rollup_id.into(),
-            deposit.amount,
+        DomainDeposit {
+            bridge_address,
+            rollup_id: deposit.rollup_id.into(),
+            amount: deposit.amount,
             asset,
-            deposit.destination_chain_address.into(),
+            destination_chain_address: deposit.destination_chain_address.into(),
             source_transaction_id,
-            deposit.source_action_index,
-        )
+            source_action_index: deposit.source_action_index,
+        }
     }
 }
 
