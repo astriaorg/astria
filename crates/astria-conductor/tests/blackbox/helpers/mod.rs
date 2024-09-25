@@ -407,7 +407,7 @@ impl TestConductor {
         &self,
         expected_pbjson: S,
         response: FilteredSequencerBlock,
-        delay: Option<Duration>,
+        delay: Duration,
     ) {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,

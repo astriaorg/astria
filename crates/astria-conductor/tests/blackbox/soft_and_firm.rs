@@ -225,14 +225,14 @@ async fn executes_firm_then_soft_at_next_height() {
     mount_get_filtered_sequencer_block!(
         test_conductor,
         sequencer_height: 3,
-        delay: Some(Duration::from_millis(500)),
+        delay: Duration::from_millis(500),
     );
 
     // Mount soft block at next height with substantial delay
     mount_get_filtered_sequencer_block!(
         test_conductor,
         sequencer_height: 4,
-        delay: Some(Duration::from_millis(1000)),
+        delay: Duration::from_millis(1000),
     );
 
     let update_commitment_state_firm = mount_update_commitment_state!(
@@ -250,6 +250,12 @@ async fn executes_firm_then_soft_at_next_height() {
         base_celestia_height: 1,
     );
 
+    // This guard's conditions will be checked when it is dropped, ensuring that there have been 0
+    // calls to update the commitment state for the stale soft block. This is done instead of
+    // waiting for the guard to be satisfied because if we call `wait_until_satisfied` on it, it
+    // will succeed immediately and future erroneous calls will not be checked. It would be most
+    // ideal to mount this logic directly to the server, but this workaround functions with the
+    // current setup of the blackbox test helpers.
     let _stale_update_soft_commitment_state = mount_update_commitment_state!(
         test_conductor,
         mock_name: "should_be_ignored_update_commitment_state_soft",

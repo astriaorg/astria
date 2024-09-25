@@ -152,8 +152,8 @@ impl ResponseTemplate {
     }
 
     #[must_use]
-    pub fn set_delay(mut self, delay: Option<Duration>) -> Self {
-        self.delay = delay;
+    pub fn set_delay(mut self, delay: Duration) -> Self {
+        self.delay = Some(delay);
         self
     }
 }

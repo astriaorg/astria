@@ -322,7 +322,7 @@ macro_rules! mount_get_filtered_sequencer_block {
         mount_get_filtered_sequencer_block!(
             $test_env,
             sequencer_height: $height,
-            delay: None,
+            delay: Duration::from_secs(0),
         )
     };
 }
