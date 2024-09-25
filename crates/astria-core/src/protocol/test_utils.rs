@@ -59,7 +59,10 @@ pub struct ConfigureSequencerBlock {
 impl ConfigureSequencerBlock {
     /// Construct a [`SequencerBlock`] with the configured parameters.
     #[must_use]
-    #[allow(clippy::missing_panics_doc)] // This should only be used in tests, so everything here is unwrapped
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "This should only be used in tests, so everything here is unwrapped"
+    )]
     pub fn make(self) -> SequencerBlock {
         use tendermint::Time;
 

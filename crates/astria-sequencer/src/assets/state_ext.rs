@@ -99,8 +99,6 @@ pub(crate) trait StateReadExt: StateRead {
             .is_some())
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, fields(%asset), err)]
     async fn map_ibc_to_trace_prefixed_asset(
         &self,

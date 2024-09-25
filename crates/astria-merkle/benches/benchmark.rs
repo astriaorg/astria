@@ -7,8 +7,10 @@ use divan::{
 };
 use sha2::Sha256;
 
-// allow: unused warning if `bench_include_allocs` feature is not enabled.
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "unused warning if `bench_include_allocs` feature is not enabled"
+)]
 #[cfg_attr(feature = "bench_include_allocs", global_allocator)]
 static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 

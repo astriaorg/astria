@@ -1,5 +1,5 @@
 #[rustfmt::skip]
-#[allow(clippy::pedantic)]
+#[expect(clippy::pedantic, clippy::allow_attributes, clippy::allow_attributes_without_reason)]
 mod generated;
 use std::{
     borrow::Cow,

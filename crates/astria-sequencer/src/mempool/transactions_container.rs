@@ -827,8 +827,10 @@ mod test {
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
     #[test]
-    // allow: we want explicit assertions here to match the documented expected behavior.
-    #[allow(clippy::nonminimal_bool)]
+    #[expect(
+        clippy::nonminimal_bool,
+        reason = "we want explicit assertions here to match the documented expected behavior"
+    )]
     fn transaction_priority_comparisons_should_be_consistent_nonce_diff() {
         let instant = Instant::now();
 
@@ -878,8 +880,10 @@ mod test {
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
     #[test]
-    // allow: we want explicit assertions here to match the documented expected behavior.
-    #[allow(clippy::nonminimal_bool)]
+    #[expect(
+        clippy::nonminimal_bool,
+        reason = "we want explicit assertions here to match the documented expected behavior"
+    )]
     fn transaction_priority_comparisons_should_be_consistent_time_gap() {
         let high = TransactionPriority {
             nonce_diff: 0,
