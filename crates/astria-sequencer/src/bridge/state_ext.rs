@@ -30,7 +30,6 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use futures::StreamExt as _;
 use prost::Message as _;
 use tracing::{
     debug,
@@ -57,6 +56,17 @@ struct AssetId([u8; 32]);
 /// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Fee(u128);
+
+/// A wrapper to support storing a `Vec<Deposit>`.
+///
+/// We don't currently have Borsh-encoding for `Deposit` and we also don't have a standalone
+/// protobuf type representing a collection of `Deposit`s.
+///
+/// This will be replaced (very soon hopefully) by a proper storage type able to be wholly Borsh-
+/// encoded. Until then, we'll protobuf-encode the individual deposits and this is a collection of
+/// those encoded values.
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+struct Deposits(Vec<Vec<u8>>);
 
 const BRIDGE_ACCOUNT_PREFIX: &str = "bridgeacc";
 const BRIDGE_ACCOUNT_SUDO_PREFIX: &str = "bsudo";
@@ -106,14 +116,8 @@ fn asset_id_storage_key<T: AddressBytes>(address: &T) -> String {
     )
 }
 
-// allow: this is only used in `StateReadExt::get_deposits` which is currently unused.
-#[allow(dead_code)]
-fn deposit_storage_key_prefix(rollup_id: &RollupId) -> Vec<u8> {
-    [DEPOSIT_PREFIX, rollup_id.as_ref()].concat()
-}
-
-fn deposit_storage_key(rollup_id: &RollupId, nonce: u32) -> Vec<u8> {
-    [DEPOSIT_PREFIX, rollup_id.as_ref(), &nonce.to_le_bytes()].concat()
+fn deposit_storage_key(block_hash: &[u8; 32], rollup_id: &RollupId) -> Vec<u8> {
+    [DEPOSIT_PREFIX, block_hash, rollup_id.as_ref()].concat()
 }
 
 fn bridge_account_sudo_address_storage_key<T: AddressBytes>(address: &T) -> String {
@@ -266,12 +270,26 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_deposits(&self, rollup_id: &RollupId) -> Result<Vec<Deposit>> {
-        let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(&deposit_storage_key_prefix(rollup_id)));
-        let mut deposits = Vec::new();
-        while let Some(Ok((_, value))) = stream.next().await {
-            let raw = RawDeposit::decode(value.as_ref()).wrap_err("invalid deposit bytes")?;
+    async fn get_deposits(
+        &self,
+        block_hash: &[u8; 32],
+        rollup_id: &RollupId,
+    ) -> Result<Vec<Deposit>> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(&deposit_storage_key(block_hash, rollup_id))
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw deposits from state")?
+        else {
+            return Ok(vec![]);
+        };
+
+        let pb_deposits = borsh::from_slice::<Deposits>(&bytes)
+            .wrap_err("failed to reconstruct protobuf deposits from storage")?;
+
+        let mut deposits = Vec::with_capacity(pb_deposits.0.len());
+        for pb_deposit in pb_deposits.0 {
+            let raw = RawDeposit::decode(pb_deposit.as_ref()).wrap_err("invalid deposit bytes")?;
             let deposit = Deposit::try_from_raw(raw).wrap_err("invalid deposit raw proto")?;
             deposits.push(deposit);
         }
@@ -438,21 +456,22 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_deposits(&mut self, all_deposits: HashMap<RollupId, Vec<Deposit>>) {
+    fn put_deposits(
+        &mut self,
+        block_hash: &[u8; 32],
+        all_deposits: HashMap<RollupId, Vec<Deposit>>,
+    ) -> Result<()> {
         for (rollup_id, deposits) in all_deposits {
-            deposits
+            let key = deposit_storage_key(block_hash, &rollup_id);
+            let serialized_deposits = deposits
                 .into_iter()
-                .enumerate()
-                .for_each(|(index, deposit)| {
-                    let Ok(nonce) = u32::try_from(index) else {
-                        // Safe to assume no single rollup will be able to create > 2^32 deposits in
-                        // a single block.
-                        panic!("nonce overflowed when putting deposits for {rollup_id}")
-                    };
-                    let key = deposit_storage_key(&rollup_id, nonce);
-                    self.nonverifiable_put_raw(key, deposit.into_raw().encode_to_vec());
-                });
+                .map(|deposit| deposit.into_raw().encode_to_vec())
+                .collect();
+            let value = borsh::to_vec(&Deposits(serialized_deposits))
+                .wrap_err("failed to serialize deposits")?;
+            self.nonverifiable_put_raw(key, value);
         }
+        Ok(())
     }
 
     #[instrument(skip_all)]
@@ -679,12 +698,13 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
+        let block_hash = [32; 32];
         let rollup_id = RollupId::new([2u8; 32]);
 
         // no events ok
         assert_eq!(
             state
-                .get_deposits(&rollup_id)
+                .get_deposits(&block_hash, &rollup_id)
                 .await
                 .expect("call for rollup id with no deposit events should not fail"),
             vec![],
@@ -699,6 +719,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        let block_hash = [32; 32];
         let rollup_id_1 = RollupId::new([1u8; 32]);
         let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
@@ -720,10 +741,12 @@ mod test {
         all_deposits.insert(rollup_id_1, rollup_1_deposits.clone());
 
         // can write
-        state.put_deposits(all_deposits.clone());
+        state
+            .put_deposits(&block_hash, all_deposits.clone())
+            .unwrap();
         assert_eq!(
             state
-                .get_deposits(&rollup_id_1)
+                .get_deposits(&block_hash, &rollup_id_1)
                 .await
                 .expect("deposit info was written to the database and must exist"),
             rollup_1_deposits,
@@ -738,10 +761,12 @@ mod test {
         };
         rollup_1_deposits.push(deposit.clone());
         all_deposits.insert(rollup_id_1, rollup_1_deposits.clone());
-        state.put_deposits(all_deposits.clone());
+        state
+            .put_deposits(&block_hash, all_deposits.clone())
+            .unwrap();
         assert_eq!(
             state
-                .get_deposits(&rollup_id_1)
+                .get_deposits(&block_hash, &rollup_id_1)
                 .await
                 .expect("deposit info was written to the database and must exist"),
             rollup_1_deposits,
@@ -757,10 +782,10 @@ mod test {
         };
         let rollup_2_deposits = vec![deposit.clone()];
         all_deposits.insert(rollup_id_2, rollup_2_deposits.clone());
-        state.put_deposits(all_deposits);
+        state.put_deposits(&block_hash, all_deposits).unwrap();
         assert_eq!(
             state
-                .get_deposits(&rollup_id_2)
+                .get_deposits(&block_hash, &rollup_id_2)
                 .await
                 .expect("deposit info was written to the database and must exist"),
             rollup_2_deposits,
@@ -769,20 +794,12 @@ mod test {
         // verify original still ok
         assert_eq!(
             state
-                .get_deposits(&rollup_id_1)
+                .get_deposits(&block_hash, &rollup_id_1)
                 .await
                 .expect("deposit info was written to the database and must exist"),
             rollup_1_deposits,
             "stored deposits do not match what was expected"
         );
-    }
-
-    #[test]
-    fn deposit_prefix_is_prefix_of_deposit_key() {
-        let rollup_id = RollupId::new([1; 32]);
-        let prefix = deposit_storage_key_prefix(&rollup_id);
-        let key = deposit_storage_key(&rollup_id, 99);
-        assert!(key.strip_prefix(prefix.as_slice()).is_some());
     }
 
     #[test]

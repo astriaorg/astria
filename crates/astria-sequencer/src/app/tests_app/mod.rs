@@ -313,7 +313,12 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         source_transaction_id: TransactionId::new([99; 32]),
         source_action_index: starting_index_of_action,
     };
-    state_tx.put_deposits(HashMap::from_iter([(rollup_id, vec![old_deposit])]));
+    state_tx
+        .put_deposits(
+            &[32u8; 32],
+            HashMap::from_iter([(rollup_id, vec![old_deposit])]),
+        )
+        .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;

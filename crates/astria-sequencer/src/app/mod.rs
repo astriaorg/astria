@@ -870,7 +870,9 @@ impl App {
             deposits = %telemetry::display::json(&deposits_in_this_block),
             "got block deposits from state"
         );
-        state_tx.put_deposits(deposits_in_this_block.clone());
+        state_tx
+            .put_deposits(&block_hash, deposits_in_this_block.clone())
+            .wrap_err("failed to put deposits to state")?;
 
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
             block_hash,
