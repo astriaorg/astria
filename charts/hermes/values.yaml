@@ -34,6 +34,13 @@ telemetry:
 tracingServer:
   enabled: false
 
+# ServiceMonitor configuration
+serviceMonitor:
+  enabled: false
+  port: 26660
+  additionalLabels:
+    release: kube-prometheus-stack
+
 mode:
   clients:
     enabled: true

@@ -2,6 +2,8 @@
 kind: Service
 apiVersion: v1
 metadata:
+  labels:
+    app: {{ include "hermes.fullname" . }}
   name: {{ include "hermes.fullname" . }}-service
   namespace: {{ include "hermes.namespace" . }}
 spec:
