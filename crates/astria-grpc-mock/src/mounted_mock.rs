@@ -11,7 +11,7 @@ use super::{
         Match as _,
         Mock,
     },
-    response::ResponseTemplate,
+    response::MockResponse,
     AnyMessage,
 };
 use crate::{
@@ -32,7 +32,7 @@ pub(crate) enum MockResult<U> {
 /// Only used to implement `Clone` because [`Request`] doesn't.
 pub(crate) struct BadResponse {
     pub(crate) request: Request<AnyMessage>,
-    pub(crate) mock_response: ResponseTemplate,
+    pub(crate) mock_response: MockResponse,
 }
 
 impl BadResponse {
@@ -66,12 +66,12 @@ impl BadResponse {
         writeln!(
             buffer,
             "Protobuf type name: {}",
-            self.mock_response.response.get_ref().as_name().full_name()
+            self.mock_response.inner.get_ref().as_name().full_name()
         )?;
         writeln!(buffer, "Rust type name: {}", self.mock_response.type_name)?;
         writeln!(buffer, "Protobuf as JSON:")?;
         if let Ok(body) =
-            serde_json::to_string_pretty(self.mock_response.response.get_ref().as_serialize())
+            serde_json::to_string_pretty(self.mock_response.inner.get_ref().as_serialize())
         {
             writeln!(buffer, "{body}")
         } else {
@@ -80,8 +80,8 @@ impl BadResponse {
     }
 }
 
-impl From<(Request<AnyMessage>, ResponseTemplate)> for BadResponse {
-    fn from(value: (Request<AnyMessage>, ResponseTemplate)) -> Self {
+impl From<(Request<AnyMessage>, MockResponse)> for BadResponse {
+    fn from(value: (Request<AnyMessage>, MockResponse)) -> Self {
         Self {
             request: value.0,
             mock_response: value.1,
@@ -127,15 +127,15 @@ impl MountedMock {
 
         let mut delay = None;
         let response = match self.inner.response.respond(request) {
-            Err(status) => {
+            (Err(status), _) => {
                 self.successful_responses
                     .push((clone_request(request), Err(status.clone())));
                 Ok(Err(status))
             }
-            Ok(mock_response) => {
-                delay = mock_response.delay;
+            (Ok(mock_response), rsp_delay) => {
+                delay = rsp_delay;
                 let (metadata, erased_message, extensions) =
-                    clone_response(&mock_response.response).into_parts();
+                    clone_response(&mock_response.inner).into_parts();
                 if let Ok(message) = erased_message.clone_box().into_any().downcast::<U>() {
                     let rsp = tonic::Response::from_parts(metadata, *message, extensions);
                     self.successful_responses

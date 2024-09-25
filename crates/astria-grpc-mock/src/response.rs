@@ -7,51 +7,33 @@ use super::{
     clone_response,
     AnyMessage,
 };
-use crate::{
-    erase_response,
-    AnyResponse,
-};
+use crate::erase_response;
 
-pub struct ResponseTemplate {
-    pub(crate) type_name: &'static str,
-    pub(crate) response: AnyResponse,
-    pub(crate) delay: Option<Duration>,
-}
-
-impl ResponseTemplate {
-    #[must_use]
-    pub fn set_delay(mut self, delay: Option<Duration>) -> Self {
-        self.delay = delay;
-        self
-    }
-}
-
-impl Respond for ResponseTemplate {
-    fn respond(&self, _req: &tonic::Request<AnyMessage>) -> ResponseResult {
-        Ok(self.clone())
-    }
-}
-
-impl Clone for ResponseTemplate {
-    fn clone(&self) -> Self {
-        Self {
-            type_name: self.type_name,
-            response: clone_response(&self.response),
-            delay: self.delay,
-        }
-    }
-}
-
-#[must_use]
 pub fn constant_response<
     T: erased_serde::Serialize + prost::Name + Clone + Default + Send + Sync + 'static,
 >(
     value: T,
 ) -> ResponseTemplate {
     ResponseTemplate {
-        type_name: std::any::type_name::<T>(),
-        response: erase_response(tonic::Response::new(value)),
+        response: Box::new(ConstantResponse {
+            type_name: std::any::type_name::<T>(),
+            response: erase_response(tonic::Response::new(value)),
+        }),
         delay: None,
+    }
+}
+
+struct ConstantResponse {
+    type_name: &'static str,
+    response: tonic::Response<AnyMessage>,
+}
+
+impl Respond for ConstantResponse {
+    fn respond(&self, _req: &tonic::Request<AnyMessage>) -> ResponseResult {
+        Ok(MockResponse {
+            type_name: self.type_name,
+            inner: clone_response(&self.response),
+        })
     }
 }
 
@@ -61,21 +43,27 @@ pub fn default_response<
 >() -> ResponseTemplate {
     let response = T::default();
     ResponseTemplate {
-        type_name: std::any::type_name::<T>(),
-        response: erase_response(tonic::Response::new(response)),
+        response: Box::new(ConstantResponse {
+            type_name: std::any::type_name::<T>(),
+            response: erase_response(tonic::Response::new(response)),
+        }),
         delay: None,
     }
 }
 
-pub fn dynamic_response<I, O, F>(responder: F) -> DynamicResponse<I, O, F>
+pub fn dynamic_response<I, O, F>(responder: F) -> ResponseTemplate
 where
     O: erased_serde::Serialize + prost::Name + Clone + 'static,
-    F: Fn(&I) -> O,
+    F: Send + Sync + 'static + Fn(&I) -> O,
+    I: Send + Sync + 'static,
 {
-    DynamicResponse {
-        type_name: std::any::type_name::<O>(),
-        responder: Box::new(responder),
-        _phantom_data: PhantomData,
+    ResponseTemplate {
+        response: Box::new(DynamicResponse {
+            type_name: std::any::type_name::<O>(),
+            responder: Box::new(responder),
+            _phantom_data: PhantomData,
+        }),
+        delay: None,
     }
 }
 
@@ -83,6 +71,26 @@ pub struct DynamicResponse<I, O, F> {
     type_name: &'static str,
     responder: Box<F>,
     _phantom_data: PhantomData<(I, O)>,
+}
+
+struct ErrorResponse {
+    status: tonic::Status,
+}
+
+impl Respond for ErrorResponse {
+    fn respond(&self, _req: &tonic::Request<AnyMessage>) -> ResponseResult {
+        Err(self.status.clone())
+    }
+}
+
+#[must_use]
+pub fn error_response(code: tonic::Code) -> ResponseTemplate {
+    ResponseTemplate {
+        response: Box::new(ErrorResponse {
+            status: tonic::Status::new(code, "error"),
+        }),
+        delay: None,
+    }
 }
 
 impl<I, O, F> Respond for DynamicResponse<I, O, F>
@@ -106,15 +114,49 @@ where
         };
 
         let resp = (self.responder)(req);
-        Ok(ResponseTemplate {
+        Ok(MockResponse {
             type_name: self.type_name,
-            response: erase_response(tonic::Response::new(resp)),
-            delay: None,
+            inner: erase_response(tonic::Response::new(resp)),
         })
     }
 }
 
-pub type ResponseResult = Result<ResponseTemplate, tonic::Status>;
+pub struct MockResponse {
+    pub(crate) type_name: &'static str,
+    pub(crate) inner: tonic::Response<AnyMessage>,
+}
+
+pub type ResponseResult = Result<MockResponse, tonic::Status>;
+
+impl Clone for MockResponse {
+    fn clone(&self) -> Self {
+        let inner = clone_response(&self.inner);
+        Self {
+            type_name: self.type_name,
+            inner,
+        }
+    }
+}
+
+pub struct ResponseTemplate {
+    response: Box<dyn Respond>,
+    delay: Option<Duration>,
+}
+
+impl ResponseTemplate {
+    pub(crate) fn respond(
+        &self,
+        req: &tonic::Request<AnyMessage>,
+    ) -> (ResponseResult, Option<Duration>) {
+        (self.response.respond(req), self.delay)
+    }
+
+    #[must_use]
+    pub fn set_delay(mut self, delay: Option<Duration>) -> Self {
+        self.delay = delay;
+        self
+    }
+}
 
 pub trait Respond: Send + Sync {
     fn respond(&self, req: &tonic::Request<AnyMessage>) -> ResponseResult;
