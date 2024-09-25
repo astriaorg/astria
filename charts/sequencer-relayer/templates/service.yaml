@@ -3,6 +3,8 @@ kind: Service
 apiVersion: v1
 metadata:
   name: sequencer-relayer-metrics
+  labels:
+    {{- include "sequencer-relayer.labels" . | nindent 4 }}
   namespace: {{ include "sequencer-relayer.namespace" . }}
 spec:
   selector:

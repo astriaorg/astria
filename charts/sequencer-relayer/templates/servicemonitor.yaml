@@ -4,7 +4,7 @@ kind: ServiceMonitor
 metadata:
   name: sequencer-relayer-metrics
   labels:
-    app: sequencer-relayer
+    {{- include "sequencer-relayer.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -15,7 +15,7 @@ spec:
       - {{ include "sequencer-relayer.namespace" . }}
   selector:
     matchLabels:
-      app: sequencer-relayer
+      {{- include "sequencer-relayer.labels" . | nindent 6 }}
   endpoints:
     - port: metrics
       path: /
