@@ -7,7 +7,6 @@ use astria_eyre::eyre::{
 use itertools::Itertools as _;
 use tokio::{
     select,
-    task::JoinError,
     time::timeout,
 };
 use tokio_util::{
@@ -21,7 +20,8 @@ use tracing::{
 };
 
 use crate::{
-    auction_driver,
+    flatten,
+    optimistic_executor,
     Config,
     Metrics,
 };
@@ -36,8 +36,8 @@ pub(super) struct Auctioneer {
 
 impl Auctioneer {
     const AUCTION_DRIVER: &'static str = "auction_driver";
+    const OPTIMISTIC_EXECUTOR: &'static str = "optimistic_executor";
     const _BUNDLE_COLLECTOR: &'static str = "bundle_collector";
-    const _OPTIMISTIC_EXECUTOR: &'static str = "optimistic_executor";
 
     /// Creates an [`Auctioneer`] service from a [`Config`] and [`Metrics`].
     pub(super) fn new(
@@ -46,23 +46,29 @@ impl Auctioneer {
         shutdown_token: CancellationToken,
     ) -> eyre::Result<Self> {
         let Config {
+            sequencer_grpc_endpoint,
+            sequencer_abci_endpoint,
+            latency_margin_ms,
+            rollup_grpc_endpoint,
+            rollup_id,
             ..
         } = cfg;
 
         let mut tasks = JoinMap::new();
 
-        // TODO: add tasks here
-        // - optimistic executor
-        // - bundle collector
-        // - auction driver
-        //  - runs the auction
-        //  - runs the sequencer submitter
-        let auction_driver = auction_driver::Builder {
+        let optimistic_executor = optimistic_executor::Builder {
             metrics,
+            shutdown_token: shutdown_token.clone(),
+            sequencer_grpc_endpoint,
+            sequencer_abci_endpoint,
+            rollup_id,
+            optimistic_execution_grpc_endpoint: rollup_grpc_endpoint.clone(),
+            bundle_grpc_endpoint: rollup_grpc_endpoint.clone(),
+            latency_margin: Duration::from_millis(latency_margin_ms),
         }
         .build()
-        .wrap_err("failed to initialize the auction driver")?;
-        tasks.spawn(Self::AUCTION_DRIVER, auction_driver.run());
+        .wrap_err("failed to initialize the optimistic executor")?;
+        tasks.spawn(Self::OPTIMISTIC_EXECUTOR, optimistic_executor.run());
 
         Ok(Self {
             shutdown_token,
@@ -128,13 +134,5 @@ impl Auctioneer {
             info!("all tasks have shut down regularly");
         }
         info!("shutting down");
-    }
-}
-
-pub(super) fn flatten<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {
-    match res {
-        Ok(Ok(val)) => Ok(val),
-        Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
-        Err(err) => Err(err).wrap_err("task panicked"),
     }
 }

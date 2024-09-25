@@ -1,3 +1,4 @@
+use astria_core::primitive::v1::asset;
 use serde::{
     Deserialize,
     Serialize,
@@ -9,6 +10,28 @@ use serde::{
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-auctioneer service.
 pub struct Config {
+    /// The endpoint for the sequencer gRPC service used for the optimistic block stream
+    pub sequencer_grpc_endpoint: String,
+    /// The endpoint for the sequencer ABCI service used for submitting the auction winner
+    /// transaction
+    pub sequencer_abci_endpoint: String,
+    /// The chain ID for the sequencer network
+    pub sequencer_chain_id: String,
+    /// The file path for the private key used to sign sequencer transactions with the auction
+    /// results
+    pub sequencer_private_key_path: String,
+    // The fee asset denomination to use for the sequnecer transactions.
+    pub fee_asset_denomination: asset::Denom,
+    // The address prefix to use when constructing sequencer addresses using the signing key.
+    pub sequencer_address_prefix: String,
+    /// The endpoint for the rollup gRPC service used for the optimistic execution and bundle
+    /// streams
+    pub rollup_grpc_endpoint: String,
+    /// The rollup ID used to filter the optimistic blocks stream
+    pub rollup_id: String,
+    /// The amount of time in miliseconds to wait after a commit before closing the auction for
+    /// bids and submitting the result to the sequencer.
+    pub latency_margin_ms: u64,
     /// Log level for the service.
     pub log: String,
     /// Forces writing trace data to stdout no matter if connected to a tty or not.
