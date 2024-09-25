@@ -39,43 +39,19 @@ macro_rules! impl_belong_to_group {
 }
 
 impl_belong_to_group!(
-    (
-        SequenceAction,
-        ActionGroup::BundlableGeneral(BundlableGeneral)
-    ),
-    (
-        TransferAction,
-        ActionGroup::BundlableGeneral(BundlableGeneral)
-    ),
-    (
-        ValidatorUpdate,
-        ActionGroup::BundlableGeneral(BundlableGeneral)
-    ),
-    (SudoAddressChangeAction, ActionGroup::Sudo(Sudo)),
-    (
-        IbcRelayerChangeAction,
-        ActionGroup::BundlableSudo(BundlableSudo)
-    ),
-    (
-        Ics20Withdrawal,
-        ActionGroup::BundlableGeneral(BundlableGeneral)
-    ),
-    (InitBridgeAccountAction, ActionGroup::General(General)),
-    (
-        BridgeLockAction,
-        ActionGroup::BundlableGeneral(BundlableGeneral)
-    ),
-    (
-        BridgeUnlockAction,
-        ActionGroup::BundlableGeneral(BundlableGeneral)
-    ),
-    (BridgeSudoChangeAction, ActionGroup::General(General)),
-    (FeeChangeAction, ActionGroup::BundlableSudo(BundlableSudo)),
-    (
-        FeeAssetChangeAction,
-        ActionGroup::BundlableSudo(BundlableSudo)
-    ),
-    (IbcRelay, ActionGroup::BundlableGeneral(BundlableGeneral)),
+    (SequenceAction, ActionGroup::General),
+    (TransferAction, ActionGroup::General),
+    (ValidatorUpdate, ActionGroup::General),
+    (SudoAddressChangeAction, ActionGroup::UnbundleableSudo),
+    (IbcRelayerChangeAction, ActionGroup::Sudo),
+    (Ics20Withdrawal, ActionGroup::General),
+    (InitBridgeAccountAction, ActionGroup::UnbundleableGeneral),
+    (BridgeLockAction, ActionGroup::General),
+    (BridgeUnlockAction, ActionGroup::General),
+    (BridgeSudoChangeAction, ActionGroup::UnbundleableGeneral),
+    (FeeChangeAction, ActionGroup::Sudo),
+    (FeeAssetChangeAction, ActionGroup::Sudo),
+    (IbcRelay, ActionGroup::General),
 );
 
 pub trait Group {
@@ -103,54 +79,21 @@ impl Group for Action {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct BundlableGeneral;
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct General;
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct BundlableSudo;
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Sudo;
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ActionGroup {
-    BundlableGeneral(BundlableGeneral),
-    General(General),
-    BundlableSudo(BundlableSudo),
-    Sudo(Sudo),
+    General,
+    UnbundleableGeneral,
+    Sudo,
+    UnbundleableSudo,
 }
 
 impl fmt::Display for ActionGroup {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ActionGroup::BundlableGeneral(_) => write!(f, "BundlableGeneral"),
-            ActionGroup::General(_) => write!(f, "General"),
-            ActionGroup::BundlableSudo(_) => write!(f, "BundlableSudo"),
-            ActionGroup::Sudo(_) => write!(f, "Sudo"),
+            ActionGroup::General => write!(f, "General"),
+            ActionGroup::UnbundleableGeneral => write!(f, "UnbundleableGeneral"),
+            ActionGroup::Sudo => write!(f, "Sudo"),
+            ActionGroup::UnbundleableSudo => write!(f, "UnbundleableSudo"),
         }
-    }
-}
-
-impl From<BundlableGeneral> for ActionGroup {
-    fn from(val: BundlableGeneral) -> ActionGroup {
-        ActionGroup::BundlableGeneral(val)
-    }
-}
-
-impl From<General> for ActionGroup {
-    fn from(val: General) -> ActionGroup {
-        ActionGroup::General(val)
-    }
-}
-
-impl From<BundlableSudo> for ActionGroup {
-    fn from(val: BundlableSudo) -> ActionGroup {
-        ActionGroup::BundlableSudo(val)
-    }
-}
-
-impl From<Sudo> for ActionGroup {
-    fn from(val: Sudo) -> ActionGroup {
-        ActionGroup::Sudo(val)
     }
 }
 
@@ -207,7 +150,7 @@ impl Error {
     }
 
     #[must_use]
-    pub fn not_bundlable(group: ActionGroup) -> Self {
+    pub fn not_bundleable(group: ActionGroup) -> Self {
         let context = format!("ActionGroup type '{group}' is not bundleable");
         Self::new(ErrorKind::NotBundleable, Some(context))
     }
@@ -239,7 +182,7 @@ impl Actions {
         }
     }
 
-    pub(super) fn from_list_of_actions(actions: Vec<Action>) -> Result<Self, Error> {
+    pub(super) fn try_from_list_of_actions(actions: Vec<Action>) -> Result<Self, Error> {
         let mut actions_iter = actions.iter();
         let group = match actions_iter.next() {
             Some(action) => action.group(),
@@ -249,9 +192,13 @@ impl Actions {
             }
         };
 
-        // assert size constraints on non-bundlable action groups
-        if matches!(group, ActionGroup::General(_) | ActionGroup::Sudo(_)) && actions.len() > 1 {
-            return Err(Error::not_bundlable(group));
+        // assert size constraints on non-bundleable action groups
+        if matches!(
+            group,
+            ActionGroup::UnbundleableGeneral | ActionGroup::UnbundleableSudo
+        ) && actions.len() > 1
+        {
+            return Err(Error::not_bundleable(group));
         }
 
         // assert the rest of the actions have the same group as the first
@@ -287,7 +234,7 @@ mod test {
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
     #[test]
-    fn from_list_of_actions_bundlable_general() {
+    fn try_from_list_of_actions_bundleable_general() {
         let address: Address<_> = Address::builder()
             .array([0; 20])
             .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -343,13 +290,13 @@ mod test {
         ];
 
         assert!(matches!(
-            Actions::from_list_of_actions(actions).unwrap().group(),
-            Some(ActionGroup::BundlableGeneral(_))
+            Actions::try_from_list_of_actions(actions).unwrap().group(),
+            Some(ActionGroup::General)
         ));
     }
 
     #[test]
-    fn from_list_of_actions_bundlable_sudo() {
+    fn from_list_of_actions_bundleable_sudo() {
         let address: Address<_> = Address::builder()
             .array([0; 20])
             .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -367,8 +314,8 @@ mod test {
         ];
 
         assert!(matches!(
-            Actions::from_list_of_actions(actions).unwrap().group(),
-            Some(ActionGroup::BundlableSudo(_))
+            Actions::try_from_list_of_actions(actions).unwrap().group(),
+            Some(ActionGroup::Sudo)
         ));
     }
 
@@ -385,8 +332,8 @@ mod test {
         })];
 
         assert!(matches!(
-            Actions::from_list_of_actions(actions).unwrap().group(),
-            Some(ActionGroup::Sudo(_))
+            Actions::try_from_list_of_actions(actions).unwrap().group(),
+            Some(ActionGroup::UnbundleableSudo)
         ));
 
         let actions = vec![
@@ -399,7 +346,7 @@ mod test {
         ];
 
         assert_eq!(
-            Actions::from_list_of_actions(actions)
+            Actions::try_from_list_of_actions(actions)
                 .unwrap_err()
                 .to_string(),
             "attempted to create bundle with non bundleable `ActionGroup` type: ActionGroup type \
@@ -435,15 +382,15 @@ mod test {
         let actions = vec![init_bridge_account_action.clone().into()];
 
         assert!(matches!(
-            Actions::from_list_of_actions(actions).unwrap().group(),
-            Some(ActionGroup::General(_))
+            Actions::try_from_list_of_actions(actions).unwrap().group(),
+            Some(ActionGroup::UnbundleableGeneral)
         ));
 
         let actions = vec![sudo_bridge_address_change_action.clone().into()];
 
         assert!(matches!(
-            Actions::from_list_of_actions(actions).unwrap().group(),
-            Some(ActionGroup::General(_))
+            Actions::try_from_list_of_actions(actions).unwrap().group(),
+            Some(ActionGroup::UnbundleableGeneral)
         ));
 
         let actions = vec![
@@ -452,11 +399,11 @@ mod test {
         ];
 
         assert_eq!(
-            Actions::from_list_of_actions(actions)
+            Actions::try_from_list_of_actions(actions)
                 .unwrap_err()
                 .to_string(),
             "attempted to create bundle with non bundleable `ActionGroup` type: ActionGroup type \
-             'General' is not bundleable"
+             'UnbundleableGeneral' is not bundleable"
         );
     }
 
@@ -481,11 +428,11 @@ mod test {
         ];
 
         assert_eq!(
-            Actions::from_list_of_actions(actions)
+            Actions::try_from_list_of_actions(actions)
                 .unwrap_err()
                 .to_string(),
             "input contains mixed action types: Mixed actions of different types. Original group: \
-             'BundlableGeneral', Additional group: 'Sudo', triggering action: 'SudoAddressChange'"
+             'General', Additional group: 'Sudo', triggering action: 'SudoAddressChange'"
         );
     }
 }

@@ -112,7 +112,8 @@ impl ConfigureSequencerBlock {
                     .build(),
             )
             .expect(
-                "failed to build unsigned transaction, should be okay since only sequence actions",
+                "should be able to build unsigned transaction since only sequence actions are \
+                 contained",
             );
             vec![unsigned_transaction.into_signed(&signing_key)]
         };

@@ -237,7 +237,7 @@ pub(crate) fn mock_tx(
             .chain_id("test")
             .build(),
     )
-    .expect("Failed to build unsigned transaction");
+    .expect("can build unsigned transaction");
 
     Arc::new(tx.into_signed(signer))
 }

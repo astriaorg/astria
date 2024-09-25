@@ -63,7 +63,7 @@ async fn trigger_cleaning() {
             .chain_id("test")
             .build(),
     )
-    .expect("failed to build unsigned transaction")
+    .expect("can build unsigned transaction")
     .into_signed(&get_judy_signing_key());
 
     app.mempool
@@ -162,7 +162,7 @@ async fn do_not_trigger_cleaning() {
             .chain_id("test")
             .build(),
     )
-    .expect("failed to build unsigned transaction")
+    .expect("can build unsigned transaction")
     .into_signed(&get_alice_signing_key());
 
     app.mempool
@@ -238,7 +238,7 @@ async fn maintenance_recosting_promotes() {
             .chain_id("test")
             .build(),
     )
-    .expect("failed to build unsigned transaction")
+    .expect("can build unsigned transaction")
     .into_signed(&get_bob_signing_key());
 
     let mut bob_funds = HashMap::new();
@@ -269,7 +269,7 @@ async fn maintenance_recosting_promotes() {
             .chain_id("test")
             .build(),
     )
-    .expect("failed to build unsigned transaction")
+    .expect("can build unsigned transaction")
     .into_signed(&get_judy_signing_key());
 
     let mut judy_funds = HashMap::new();
@@ -413,7 +413,7 @@ async fn maintenance_funds_added_promotes() {
             .chain_id("test")
             .build(),
     )
-    .expect("failed to build unsigned transaction")
+    .expect("can build unsigned transaction")
     .into_signed(&get_carol_signing_key());
 
     let mut carol_funds = HashMap::new();
@@ -446,7 +446,7 @@ async fn maintenance_funds_added_promotes() {
             .chain_id("test")
             .build(),
     )
-    .expect("failed to build unsigned transaction")
+    .expect("can build unsigned transaction")
     .into_signed(&get_alice_signing_key());
 
     let mut alice_funds = HashMap::new();

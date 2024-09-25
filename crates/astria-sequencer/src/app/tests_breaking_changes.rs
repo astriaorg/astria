@@ -207,7 +207,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-    let tx_bundlable_general = UnsignedTransaction::new(
+    let tx_bundleable_general = UnsignedTransaction::new(
         vec![
             TransferAction {
                 to: bob_address,
@@ -231,7 +231,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     )
     .unwrap();
 
-    let tx_bundlable_sudo = UnsignedTransaction::new(
+    let tx_bundleable_sudo = UnsignedTransaction::new(
         vec![
             IbcRelayerChangeAction::Addition(bob_address).into(),
             IbcRelayerChangeAction::Addition(carol_address).into(),
@@ -261,13 +261,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     )
     .unwrap();
 
-    let signed_tx_general_bundlable = Arc::new(tx_bundlable_general.into_signed(&alice));
-    app.execute_transaction(signed_tx_general_bundlable)
+    let signed_tx_general_bundleable = Arc::new(tx_bundleable_general.into_signed(&alice));
+    app.execute_transaction(signed_tx_general_bundleable)
         .await
         .unwrap();
 
-    let signed_tx_sudo_bundlable = Arc::new(tx_bundlable_sudo.into_signed(&alice));
-    app.execute_transaction(signed_tx_sudo_bundlable)
+    let signed_tx_sudo_bundleable = Arc::new(tx_bundleable_sudo.into_signed(&alice));
+    app.execute_transaction(signed_tx_sudo_bundleable)
         .await
         .unwrap();
 
@@ -294,7 +294,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let signed_tx = Arc::new(tx.into_signed(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
-    let tx_bridge_bundlable = UnsignedTransaction::new(
+    let tx_bridge_bundleable = UnsignedTransaction::new(
         vec![
             BridgeLockAction {
                 to: bridge_address,
@@ -322,7 +322,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     )
     .unwrap();
 
-    let signed_tx = Arc::new(tx_bridge_bundlable.into_signed(&bridge));
+    let signed_tx = Arc::new(tx_bridge_bundleable.into_signed(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let tx_bridge = UnsignedTransaction::new(
@@ -355,10 +355,10 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 }
 
 // Note: this test ensures that all actions are in their expected
-// bundlable vs non-bundlable category. Tests all actions except
+// bundleable vs non-bundleable category. Tests all actions except
 // IbcRelay.
 //
-// If any PR changes the bundlable status of an action, the PR must
+// If any PR changes the bundleable status of an action, the PR must
 // be marked as breaking.
 #[allow(clippy::too_many_lines)]
 #[tokio::test]
@@ -476,7 +476,7 @@ async fn app_transaction_bundle_categories() {
         .unwrap_err()
         .to_string(),
         "attempted to create bundle with non bundleable `ActionGroup` type: ActionGroup type \
-         'Sudo' is not bundleable"
+         'UnbundleableSudo' is not bundleable"
     );
 
     assert_eq!(
@@ -507,7 +507,7 @@ async fn app_transaction_bundle_categories() {
         .unwrap_err()
         .to_string(),
         "attempted to create bundle with non bundleable `ActionGroup` type: ActionGroup type \
-         'General' is not bundleable"
+         'UnbundleableGeneral' is not bundleable"
     );
 
     assert_eq!(
@@ -536,6 +536,6 @@ async fn app_transaction_bundle_categories() {
         .unwrap_err()
         .to_string(),
         "attempted to create bundle with non bundleable `ActionGroup` type: ActionGroup type \
-         'General' is not bundleable"
+         'UnbundleableGeneral' is not bundleable"
     );
 }

@@ -1025,7 +1025,7 @@ impl App {
 
         // flag mempool for cleaning if we ran a fee change action
         self.recost_mempool = self.recost_mempool
-            || matches!(signed_tx.group(), Some(ActionGroup::BundlableSudo(_)))
+            || matches!(signed_tx.group(), Some(ActionGroup::Sudo))
                 && signed_tx
                     .actions()
                     .iter()

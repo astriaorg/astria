@@ -255,7 +255,7 @@ impl UnsignedTransaction {
         params: TransactionParams,
     ) -> Result<Self, action_group::Error> {
         Ok(Self {
-            actions: Actions::from_list_of_actions(actions)?,
+            actions: Actions::try_from_list_of_actions(actions)?,
             params,
         })
     }

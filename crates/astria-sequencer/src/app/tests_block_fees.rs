@@ -121,7 +121,7 @@ async fn ensure_correct_block_fees_transfer() {
             .chain_id("test")
             .build(),
     )
-    .expect("failed to build unsigned transaction");
+    .expect("can build unsigned transaction");
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
@@ -163,7 +163,7 @@ async fn ensure_correct_block_fees_sequence() {
             .chain_id("test")
             .build(),
     )
-    .expect("failed to build unsigned transaction");
+    .expect("can build unsigned transaction");
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
@@ -207,7 +207,7 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
             .chain_id("test")
             .build(),
     )
-    .expect("failed to build unsigned transaction");
+    .expect("can build unsigned transaction");
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
@@ -262,7 +262,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
             .chain_id("test")
             .build(),
     )
-    .expect("failed to build unsigned transaction");
+    .expect("can build unsigned transaction");
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx.clone()).await.unwrap();
 

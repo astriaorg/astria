@@ -125,7 +125,7 @@ fn transfers() -> Vec<Arc<SignedTransaction>> {
                     .collect(),
                 params,
             )
-            .expect("failed to build unsigned transaction")
+            .expect("can build unsigned transaction")
             .into_signed(sender);
             Arc::new(tx)
         })
