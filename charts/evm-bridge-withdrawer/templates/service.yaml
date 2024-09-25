@@ -2,6 +2,8 @@
 kind: Service
 apiVersion: v1
 metadata:
+  labels:
+    app: evm-bridge-withdrawer
   name: evm-bridge-withdrawer-metrics
   namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
 spec:
