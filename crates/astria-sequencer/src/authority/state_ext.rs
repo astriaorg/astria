@@ -16,13 +16,13 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-use super::ValidatorSet;
+use super::{
+    storage,
+    ValidatorSet,
+};
 use crate::{
     accounts::AddressBytes,
-    storage::{
-        self,
-        StoredValue,
-    },
+    storage::StoredValue,
 };
 
 const SUDO_STORAGE_KEY: &str = "sudo";
@@ -86,7 +86,7 @@ impl<T: StateRead> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
-        let bytes = StoredValue::AddressBytes((&address).into())
+        let bytes = StoredValue::from(storage::AddressBytes::from(&address))
             .serialize()
             .wrap_err("failed to serialize sudo address")?;
         self.put_raw(SUDO_STORAGE_KEY.to_string(), bytes);
@@ -95,7 +95,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
-        let bytes = StoredValue::ValidatorSet((&validator_set).into())
+        let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_set))
             .serialize()
             .wrap_err("failed to serialize validator set")?;
         self.put_raw(VALIDATOR_SET_STORAGE_KEY.to_string(), bytes);
@@ -104,7 +104,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_validator_updates(&mut self, validator_updates: ValidatorSet) -> Result<()> {
-        let bytes = StoredValue::ValidatorSet((&validator_updates).into())
+        let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_updates))
             .serialize()
             .wrap_err("failed to serialize validator updates")?;
         self.nonverifiable_put_raw(VALIDATOR_UPDATES_KEY.to_vec(), bytes);

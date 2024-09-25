@@ -57,7 +57,6 @@ use crate::{
     },
     bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
-    state_ext::StateReadExt as _,
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -291,7 +290,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         sequencerblock::v1alpha1::block::RollupData,
     };
 
-    use crate::api_state_ext::StateReadExt as _;
+    use crate::grpc::StateReadExt as _;
 
     let alice = get_alice_signing_key();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;

@@ -38,7 +38,10 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    app::ActionHandler,
+    app::{
+        ActionHandler,
+        StateReadExt as _,
+    },
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -47,7 +50,6 @@ use crate::{
         host_interface::AstriaHost,
         StateReadExt as _,
     },
-    state_ext::StateReadExt as _,
 };
 
 #[derive(Debug)]

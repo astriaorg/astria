@@ -24,12 +24,10 @@ use tracing::{
     instrument,
 };
 
+use super::storage;
 use crate::{
     accounts::AddressBytes,
-    storage::{
-        self,
-        StoredValue,
-    },
+    storage::StoredValue,
 };
 
 const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
@@ -147,7 +145,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         TAsset: Display,
         asset::IbcPrefixed: From<&'a TAsset>,
     {
-        let bytes = StoredValue::Balance(balance.into())
+        let bytes = StoredValue::from(storage::Balance::from(balance))
             .serialize()
             .wrap_err("failed to serialize ibc channel balance")?;
         self.put_raw(channel_balance_storage_key(channel, asset), bytes);
@@ -182,7 +180,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_ibc_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
-        let bytes = StoredValue::AddressBytes((&address).into())
+        let bytes = StoredValue::from(storage::AddressBytes::from(&address))
             .serialize()
             .wrap_err("failed to serialize ibc sudo address")?;
         self.put_raw(IBC_SUDO_STORAGE_KEY.to_string(), bytes);
@@ -205,7 +203,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_ics20_withdrawal_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::Fee(fee.into())
+        let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .wrap_err("failed to serialize ics20 withdrawal base fee")?;
         self.put_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(), bytes);

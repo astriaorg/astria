@@ -1,0 +1,59 @@
+use std::{
+    borrow::Cow,
+    fmt::{
+        self,
+        Display,
+        Formatter,
+    },
+};
+
+use astria_eyre::eyre::bail;
+use borsh::{
+    BorshDeserialize,
+    BorshSerialize,
+};
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub(crate) enum Value<'a> {
+    AddressPrefix(AddressPrefix<'a>),
+}
+
+impl<'a> Display for Value<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::AddressPrefix(prefix) => write!(f, "address prefix {}", prefix.0),
+        }
+    }
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub(crate) struct AddressPrefix<'a>(Cow<'a, str>);
+
+impl<'a> From<&'a str> for AddressPrefix<'a> {
+    fn from(prefix: &'a str) -> Self {
+        AddressPrefix(Cow::Borrowed(prefix))
+    }
+}
+
+impl<'a> From<AddressPrefix<'a>> for String {
+    fn from(prefix: AddressPrefix<'a>) -> Self {
+        prefix.0.into_owned()
+    }
+}
+
+impl<'a> From<AddressPrefix<'a>> for crate::storage::StoredValue<'a> {
+    fn from(prefix: AddressPrefix<'a>) -> Self {
+        crate::storage::StoredValue::Address(Value::AddressPrefix(prefix))
+    }
+}
+
+impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressPrefix<'a> {
+    type Error = astria_eyre::eyre::Error;
+
+    fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
+        let crate::storage::StoredValue::Address(Value::AddressPrefix(prefix)) = value else {
+            bail!("address stored value type mismatch: expected address prefix, found {value}");
+        };
+        Ok(prefix)
+    }
+}

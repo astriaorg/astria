@@ -16,8 +16,8 @@ use tendermint::abci::{
 };
 
 use crate::{
+    app::StateReadExt as _,
     assets::StateReadExt as _,
-    state_ext::StateReadExt as _,
 };
 
 // Retrieve the full asset denomination given the asset ID.

@@ -20,10 +20,8 @@ use tendermint::abci::{
 };
 use tracing::instrument;
 
-use crate::storage::{
-    self,
-    StoredValue,
-};
+use super::storage;
+use crate::storage::StoredValue;
 
 const BLOCK_FEES_PREFIX: &str = "block_fees/";
 const FEE_ASSET_PREFIX: &str = "fee_asset/";
@@ -199,7 +197,7 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_native_asset(&mut self, asset: asset::TracePrefixed) -> Result<()> {
-        let bytes = StoredValue::TracePrefixedDenom((&asset).into())
+        let bytes = StoredValue::from(storage::TracePrefixedDenom::from(&asset))
             .serialize()
             .context("failed to serialize native asset")?;
         self.put_raw(NATIVE_ASSET_KEY.to_string(), bytes);
@@ -209,7 +207,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_ibc_asset(&mut self, asset: asset::TracePrefixed) -> Result<()> {
         let key = asset_storage_key(&asset);
-        let bytes = StoredValue::TracePrefixedDenom((&asset).into())
+        let bytes = StoredValue::from(storage::TracePrefixedDenom::from(&asset))
             .serialize()
             .wrap_err("failed to serialize ibc asset")?;
         self.put_raw(key, bytes);
@@ -247,7 +245,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let new_amount = current_amount
             .checked_add(amount)
             .ok_or_eyre("block fees overflowed u128")?;
-        let bytes = StoredValue::Fee(new_amount.into())
+        let bytes = StoredValue::from(storage::Fee::from(new_amount))
             .serialize()
             .wrap_err("failed to serialize block fees")?;
         self.nonverifiable_put_raw(block_fees_key.into(), bytes);

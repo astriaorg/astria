@@ -5,7 +5,7 @@ use astria_eyre::{
 use cnidarium::StateRead;
 use penumbra_ibc::component::HostInterface;
 
-use crate::state_ext::StateReadExt as _;
+use crate::app::StateReadExt as _;
 
 #[derive(Clone)]
 pub(crate) struct AstriaHost;

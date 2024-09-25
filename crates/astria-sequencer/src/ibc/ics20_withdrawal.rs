@@ -42,7 +42,10 @@ use crate::{
         StateWriteExt as _,
     },
     address::StateReadExt as _,
-    app::ActionHandler,
+    app::{
+        ActionHandler,
+        StateReadExt as _,
+    },
     assets::StateWriteExt as _,
     bridge::{
         StateReadExt as _,
@@ -52,7 +55,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    state_ext::StateReadExt as _,
     transaction::StateReadExt as _,
 };
 

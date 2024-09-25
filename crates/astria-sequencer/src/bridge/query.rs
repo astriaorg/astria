@@ -19,9 +19,9 @@ use tendermint::abci::{
 
 use crate::{
     address::StateReadExt,
+    app::StateReadExt as _,
     assets::StateReadExt as _,
     bridge::StateReadExt as _,
-    state_ext::StateReadExt as _,
 };
 
 fn error_query_response(
@@ -302,9 +302,9 @@ mod test {
     use super::*;
     use crate::{
         address::StateWriteExt as _,
+        app::StateWriteExt as _,
         assets::StateWriteExt as _,
         bridge::StateWriteExt as _,
-        state_ext::StateWriteExt as _,
         test_utils::{
             astria_address,
             ASTRIA_PREFIX,

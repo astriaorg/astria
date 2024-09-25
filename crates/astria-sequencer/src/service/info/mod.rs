@@ -37,7 +37,7 @@ use astria_eyre::{
     eyre::Result,
 };
 
-use crate::state_ext::StateReadExt;
+use crate::app::StateReadExt as _;
 
 #[derive(Clone)]
 pub(crate) struct Info {
@@ -200,11 +200,11 @@ mod test {
             StateReadExt as _,
             StateWriteExt as _,
         },
+        app::StateWriteExt as _,
         assets::{
             StateReadExt as _,
             StateWriteExt as _,
         },
-        state_ext::StateWriteExt as _,
     };
 
     #[tokio::test]

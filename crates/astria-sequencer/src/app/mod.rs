@@ -1,5 +1,8 @@
+mod action_handler;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
+mod state_ext;
+pub(crate) mod storage;
 #[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod test_utils;
 #[cfg(test)]
@@ -11,13 +14,11 @@ mod tests_breaking_changes;
 #[cfg(test)]
 mod tests_execute_transaction;
 
-mod action_handler;
 use std::{
     collections::VecDeque,
     sync::Arc,
 };
 
-pub(crate) use action_handler::ActionHandler;
 use astria_core::{
     generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
@@ -75,13 +76,19 @@ use tracing::{
     instrument,
 };
 
+pub(crate) use self::{
+    action_handler::ActionHandler,
+    state_ext::{
+        StateReadExt,
+        StateWriteExt,
+    },
+};
 use crate::{
     accounts::{
         component::AccountsComponent,
         StateWriteExt as _,
     },
     address::StateWriteExt as _,
-    api_state_ext::StateWriteExt as _,
     assets::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -100,6 +107,7 @@ use crate::{
         StateWriteExt as _,
     },
     component::Component as _,
+    grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
     mempool::{
         Mempool,
@@ -114,10 +122,6 @@ use crate::{
         },
     },
     sequence::component::SequenceComponent,
-    state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
     transaction::InvalidNonce,
 };
 

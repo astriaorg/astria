@@ -28,13 +28,11 @@ use tracing::{
     instrument,
 };
 
+use super::storage;
 use crate::{
     accounts::AddressBytes,
     address,
-    storage::{
-        self,
-        StoredValue,
-    },
+    storage::StoredValue,
 };
 
 const BRIDGE_ACCOUNT_PREFIX: &str = "bridgeacc";
@@ -311,13 +309,10 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         else {
             return Ok(None);
         };
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| {
-                storage::TransactionHash::try_from(value).map(|stored_tx_hash_bytes| {
-                    Some(TransactionId::new(<[u8; 32]>::from(stored_tx_hash_bytes)))
-                })
-            })
-            .context("invalid bridge account transaction hash bytes")
+        let tx_id = StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::TransactionId::try_from(value).map(TransactionId::from))
+            .wrap_err("invalid bridge account transaction hash bytes")?;
+        Ok(Some(tx_id))
     }
 }
 
@@ -331,7 +326,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         address: &T,
         rollup_id: RollupId,
     ) -> Result<()> {
-        let bytes = StoredValue::RollupId((&rollup_id).into())
+        let bytes = StoredValue::from(storage::RollupId::from(&rollup_id))
             .serialize()
             .context("failed to serialize bridge account rollup id")?;
         self.put_raw(rollup_id_storage_key(address), bytes);
@@ -349,7 +344,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         TAsset: Into<asset::IbcPrefixed>,
     {
         let ibc = asset.into();
-        let bytes = StoredValue::IbcPrefixedDenom((&ibc).into())
+        let bytes = StoredValue::from(storage::IbcPrefixedDenom::from(&ibc))
             .serialize()
             .wrap_err("failed to serialize asset ids")?;
         self.put_raw(asset_id_storage_key(address), bytes);
@@ -366,7 +361,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         TBridgeAddress: AddressBytes,
         TSudoAddress: AddressBytes,
     {
-        let bytes = StoredValue::AddressBytes((&sudo_address).into())
+        let bytes = StoredValue::from(storage::AddressBytes::from(&sudo_address))
             .serialize()
             .context("failed to serialize bridge account sudo address")?;
         self.put_raw(
@@ -386,7 +381,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         TBridgeAddress: AddressBytes,
         TWithdrawerAddress: AddressBytes,
     {
-        let bytes = StoredValue::AddressBytes((&withdrawer_address).into())
+        let bytes = StoredValue::from(storage::AddressBytes::from(&withdrawer_address))
             .serialize()
             .context("failed to serialize bridge account sudo address")?;
         self.put_raw(
@@ -421,7 +416,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             );
         }
 
-        let bytes = StoredValue::BlockHeight(block_num.into())
+        let bytes = StoredValue::from(storage::BlockHeight::from(block_num))
             .serialize()
             .context("failed to serialize withdrawal event block height")?;
         self.put_raw(key, bytes);
@@ -450,7 +445,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) -> Result<()> {
         for (rollup_id, deposits) in all_deposits {
             let key = deposit_storage_key(block_hash, &rollup_id);
-            let bytes = StoredValue::Deposits(deposits.iter().into())
+            let bytes = StoredValue::from(storage::Deposits::from(deposits.iter()))
                 .serialize()
                 .context("failed to serialize bridge deposit")?;
             self.nonverifiable_put_raw(key, bytes);
@@ -460,7 +455,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_init_bridge_account_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::Fee(fee.into())
+        let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .context("failed to serialize bridge account base fee")?;
         self.put_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY.to_string(), bytes);
@@ -469,7 +464,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_bridge_lock_byte_cost_multiplier(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::Fee(fee.into())
+        let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .context("failed to serialize bridge lock byte cost multiplier")?;
         self.put_raw(
@@ -481,7 +476,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_bridge_sudo_change_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::Fee(fee.into())
+        let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .context("failed to serialize bridge sudo change base fee")?;
         self.put_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY.to_string(), bytes);
@@ -494,7 +489,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         address: &T,
         tx_id: TransactionId,
     ) -> Result<()> {
-        let bytes = StoredValue::TransactionHash(tx_id.get().into())
+        let bytes = StoredValue::from(storage::TransactionId::from(&tx_id))
             .serialize()
             .context("failed to serialize transaction hash for bridge account")?;
         self.nonverifiable_put_raw(

@@ -32,8 +32,8 @@ use tracing::instrument;
 
 use crate::{
     accounts::StateReadExt as _,
+    app::StateReadExt as _,
     assets::StateReadExt as _,
-    state_ext::StateReadExt as _,
 };
 
 async fn ibc_to_trace<S: StateRead>(

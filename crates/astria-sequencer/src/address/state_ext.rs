@@ -18,10 +18,8 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-use crate::storage::{
-    self,
-    StoredValue,
-};
+use super::storage;
+use crate::storage::StoredValue;
 
 const BASE_PREFIX_KEY: &str = "prefixes/base";
 const IBC_COMPAT_PREFIX_KEY: &str = "prefixes/ibc-compat";
@@ -94,7 +92,7 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_base_prefix(&mut self, prefix: String) -> Result<()> {
-        let bytes = StoredValue::AddressPrefix(prefix.as_str().into())
+        let bytes = StoredValue::from(storage::AddressPrefix::from(prefix.as_str()))
             .serialize()
             .context("failed to serialize base prefix")?;
         self.put_raw(BASE_PREFIX_KEY.to_string(), bytes);
@@ -103,7 +101,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_ibc_compat_prefix(&mut self, prefix: String) -> Result<()> {
-        let bytes = StoredValue::AddressPrefix(prefix.as_str().into())
+        let bytes = StoredValue::from(storage::AddressPrefix::from(prefix.as_str()))
             .serialize()
             .context("failed to serialize ibc-compat prefix")?;
         self.put_raw(IBC_COMPAT_PREFIX_KEY.to_string(), bytes);

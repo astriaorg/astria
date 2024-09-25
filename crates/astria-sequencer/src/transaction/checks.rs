@@ -26,9 +26,9 @@ use tracing::instrument;
 use crate::{
     accounts::StateReadExt as _,
     address::StateReadExt as _,
+    app::StateReadExt as _,
     bridge::StateReadExt as _,
     ibc::StateReadExt as _,
-    state_ext::StateReadExt as _,
 };
 
 #[instrument(skip_all)]

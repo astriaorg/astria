@@ -27,10 +27,10 @@ use futures::Stream;
 use pin_project_lite::pin_project;
 use tracing::instrument;
 
-use super::AddressBytes;
-use crate::storage::{
-    self,
-    StoredValue,
+use super::storage;
+use crate::{
+    accounts::AddressBytes,
+    storage::StoredValue,
 };
 
 const ACCOUNTS_PREFIX: &str = "accounts";
@@ -248,7 +248,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         TAsset: Display,
         asset::IbcPrefixed: From<&'a TAsset> + Send,
     {
-        let bytes = StoredValue::Balance(balance.into())
+        let bytes = StoredValue::from(storage::Balance::from(balance))
             .serialize()
             .wrap_err("failed to serialize balance")?;
         self.put_raw(balance_storage_key(address, asset), bytes);
@@ -257,7 +257,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_account_nonce<T: AddressBytes>(&mut self, address: &T, nonce: u32) -> Result<()> {
-        let bytes = StoredValue::Nonce(nonce.into())
+        let bytes = StoredValue::from(storage::Nonce::from(nonce))
             .serialize()
             .wrap_err("failed to serialize nonce")?;
         self.put_raw(nonce_storage_key(address), bytes);
@@ -322,7 +322,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_transfer_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::Fee(fee.into())
+        let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .wrap_err("failed to serialize fee")?;
         self.put_raw(TRANSFER_BASE_FEE_STORAGE_KEY.to_string(), bytes);
@@ -340,14 +340,12 @@ mod tests {
     use insta::assert_snapshot;
 
     use super::{
+        balance_storage_key,
+        nonce_storage_key,
         StateReadExt as _,
         StateWriteExt as _,
     };
     use crate::{
-        accounts::state_ext::{
-            balance_storage_key,
-            nonce_storage_key,
-        },
         assets::{
             StateReadExt as _,
             StateWriteExt as _,

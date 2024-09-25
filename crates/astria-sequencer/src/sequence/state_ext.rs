@@ -13,10 +13,8 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-use crate::storage::{
-    self,
-    StoredValue,
-};
+use super::storage;
+use crate::storage::StoredValue;
 
 const SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY: &str = "seqbasefee";
 const SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "seqmultiplier";
@@ -56,7 +54,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_sequence_action_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::Fee(fee.into())
+        let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .context("failed to serialize sequence action base fee")?;
         self.put_raw(SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY.to_string(), bytes);
@@ -65,7 +63,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_sequence_action_byte_cost_multiplier(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::Fee(fee.into())
+        let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .context("failed to serialize sequence action byte cost multiplier")?;
         self.put_raw(

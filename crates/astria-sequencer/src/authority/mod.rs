@@ -1,6 +1,7 @@
 mod action;
 pub(crate) mod component;
 mod state_ext;
+pub(crate) mod storage;
 
 use std::collections::BTreeMap;
 
@@ -19,9 +20,7 @@ pub(crate) use state_ext::{
 
 use crate::accounts::AddressBytes;
 
-/// Newtype wrapper to read and write a validator set or set of updates from rocksdb.
-///
-/// Contains a map of hex-encoded public keys to validator updates.
+/// A map of public keys to validator updates.
 #[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(Clone))]
 pub(crate) struct ValidatorSet(BTreeMap<[u8; ADDRESS_LEN], ValidatorUpdate>);

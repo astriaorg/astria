@@ -27,9 +27,9 @@ use tracing::{
 };
 
 use crate::{
-    api_state_ext::StateReadExt as _,
+    app::StateReadExt as _,
+    grpc::StateReadExt as _,
     mempool::Mempool,
-    state_ext::StateReadExt as _,
 };
 
 pub(crate) struct SequencerServer {
@@ -232,13 +232,15 @@ mod test {
 
     use super::*;
     use crate::{
-        api_state_ext::StateWriteExt as _,
-        app::test_utils::{
-            get_alice_signing_key,
-            mock_balances,
-            mock_tx_cost,
+        app::{
+            test_utils::{
+                get_alice_signing_key,
+                mock_balances,
+                mock_tx_cost,
+            },
+            StateWriteExt as _,
         },
-        state_ext::StateWriteExt,
+        grpc::StateWriteExt as _,
         test_utils::astria_address,
     };
 
