@@ -24,6 +24,7 @@ use astria_core::{
                 BridgeSudoChangeAction,
                 BridgeUnlockAction,
                 IbcRelayerChangeAction,
+                IbcSudoChangeAction,
                 SequenceAction,
                 TransferAction,
                 ValidatorUpdate,
@@ -228,6 +229,10 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             FeeAssetChangeAction::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChangeAction::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChangeAction::Removal("test-0".parse().unwrap()).into(),
+            IbcSudoChangeAction {
+                new_address: bob_address,
+            }
+            .into(),
             SudoAddressChangeAction {
                 new_address: bob_address,
             }
