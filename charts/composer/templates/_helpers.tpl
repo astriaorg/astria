@@ -6,6 +6,27 @@ Namepsace to deploy elements into.
 {{- end }}
 
 {{/*
+application name to deploy elements into.
+*/}}
+{{- define "composer.appName" -}}
+composer
+{{- end }}
+
+{{/*
+Common labels
+*/}}
+{{- define "composer.labels" -}}
+{{ include "rollup.selectorLabels" . }}
+{{- end }}
+
+{{/*
+Selector labels
+*/}}
+{{- define "composer.selectorLabels" -}}
+app: {{ include "rollup.appName" . }}
+{{- end }}
+
+{{/*
 Single entry of rollup names
 */}}
 {{- define "composer.rollupDefinition" }}

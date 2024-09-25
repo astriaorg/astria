@@ -23,7 +23,7 @@ spec:
   selector:
     app: composer
   ports:
-    - name: metrics
+    - name: composer-metrics
       port: {{ .Values.ports.metrics }}
-      targetPort: geth-metr
+      targetPort: composer-metrics
 {{- end }}
