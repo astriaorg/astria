@@ -23,13 +23,14 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 async-trait = { workspace = true }
 axum = { workspace = true }
 futures = { workspace = true }
+humantime = { workspace = true }
 itertools = { workspace = true }
-once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = [
   "macros",
   "rt-multi-thread",
