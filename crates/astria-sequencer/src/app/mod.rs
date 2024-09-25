@@ -68,7 +68,6 @@ use tendermint::{
     AppHash,
     Hash,
 };
-use tokio::sync::watch;
 use tracing::{
     debug,
     info,
@@ -184,24 +183,13 @@ pub(crate) struct App {
     #[allow(clippy::struct_field_names)]
     app_hash: AppHash,
 
-    latest_proposed_block: Option<watch::Sender<SequencerBlock>>,
-    latest_committed_block: Option<watch::Sender<SequencerBlockCommit>>,
-
     metrics: &'static Metrics,
-}
-
-// TODO: replace w proto/core type
-pub(crate) struct SequencerBlockCommit {
-    block_hash: Hash,
-    height: u64,
 }
 
 impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
-        latest_proposed_block: Option<watch::Sender<SequencerBlock>>,
-        latest_committed_block: Option<watch::Sender<SequencerBlockCommit>>,
         metrics: &'static Metrics,
     ) -> Result<Self> {
         debug!("initializing App instance");
@@ -230,8 +218,6 @@ impl App {
             recost_mempool: false,
             write_batch: None,
             app_hash,
-            latest_proposed_block,
-            latest_committed_block,
             metrics,
         })
     }
@@ -399,7 +385,6 @@ impl App {
                 };
 
                 self.post_execute_transactions(
-                    storage,
                     process_proposal.hash,
                     process_proposal.height,
                     process_proposal.time,
@@ -504,7 +489,6 @@ impl App {
 
         self.executed_proposal_hash = process_proposal.hash;
         self.post_execute_transactions(
-            storage,
             process_proposal.hash,
             process_proposal.height,
             process_proposal.time,
@@ -694,7 +678,7 @@ impl App {
         txs: Vec<SignedTransaction>,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> Result<Vec<ExecTxResult>> {
-        let mut excluded_tx_count = 0;
+        let mut excluded_tx_count = 0u32;
         let mut execution_results = Vec::new();
 
         for tx in txs {
@@ -717,7 +701,7 @@ impl App {
                     tx_data_bytes = tx_sequence_data_bytes,
                     "excluding transaction: max block sequenced data limit reached"
                 );
-                excluded_tx_count += 1;
+                excluded_tx_count = excluded_tx_count.saturating_add(1);
                 continue;
             }
 
@@ -741,7 +725,7 @@ impl App {
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
-                    excluded_tx_count += 1;
+                    excluded_tx_count = excluded_tx_count.saturating_add(1);
                 }
             }
         }
@@ -816,7 +800,6 @@ impl App {
     #[instrument(name = "App::post_execute_transactions", skip_all)]
     async fn post_execute_transactions(
         &mut self,
-        storage: Storage,
         block_hash: Hash,
         height: tendermint::block::Height,
         time: tendermint::Time,
@@ -880,27 +863,18 @@ impl App {
             .put_sequencer_block(sequencer_block)
             .wrap_err("failed to write sequencer block to state")?;
 
-        // update the priority of any txs in the mempool based on the updated app state
-        if self.recost_mempool {
-            self.metrics.increment_mempool_recosted();
-        }
-        update_mempool_after_finalization(&mut self.mempool, &state_tx, self.recost_mempool).await;
-
         // events that occur after end_block are ignored here;
         // there should be none anyways.
         let _ = self.apply(state_tx);
 
-        // prepare the `StagedWriteBatch` for a later commit.
-        let app_hash = self
-            .prepare_commit(storage.clone())
-            .await
-            .wrap_err("failed to prepare commit")?;
+        // use a dummy app hash here - the actual app hash will be filled out in finalize_block.
+        let dummy_app_hash = AppHash::default();
 
         let finalize_block = abci::response::FinalizeBlock {
             events: end_block.events,
             validator_updates: end_block.validator_updates,
             consensus_param_updates: end_block.consensus_param_updates,
-            app_hash,
+            app_hash: dummy_app_hash,
             tx_results: finalize_block_tx_results,
         };
         self.finalize_block = Some(finalize_block);
@@ -919,13 +893,6 @@ impl App {
         finalize_block: abci::request::FinalizeBlock,
         storage: Storage,
     ) -> Result<abci::response::FinalizeBlock> {
-        // convert tendermint id to astria address; this assumes they are
-        // the same address, as they are both ed25519 keys
-        let proposer_address = finalize_block.proposer_address;
-
-        let height = finalize_block.height;
-        let time = finalize_block.time;
-
         // If we previously executed txs in a different proposal than is being processed,
         // reset cached state changes.
         if self.executed_proposal_hash != finalize_block.hash {
@@ -940,6 +907,12 @@ impl App {
 
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
+            // convert tendermint id to astria address; this assumes they are
+            // the same address, as they are both ed25519 keys
+            let proposer_address = finalize_block.proposer_address;
+            let height = finalize_block.height;
+            let time = finalize_block.time;
+
             // we haven't executed anything yet, so set up the state for execution.
             let block_data = BlockData {
                 misbehavior: finalize_block.misbehavior,
@@ -986,7 +959,6 @@ impl App {
             }
 
             self.post_execute_transactions(
-                storage,
                 finalize_block.hash,
                 height,
                 time,
@@ -998,10 +970,24 @@ impl App {
             .wrap_err("failed to run post execute transactions handler")?;
         }
 
-        let finalize_block = self.finalize_block.take().expect(
+        let mut finalize_block = self.finalize_block.take().expect(
             "finalize_block result must be present, as txs were already executed just now or \
              during the proposal phase",
         );
+
+        // update the priority of any txs in the mempool based on the updated app state
+        if self.recost_mempool {
+            self.metrics.increment_mempool_recosted();
+        }
+        update_mempool_after_finalization(&mut self.mempool, &self.state, self.recost_mempool)
+            .await;
+
+        // prepare the `StagedWriteBatch` for a later commit.
+        let app_hash = self
+            .prepare_commit(storage)
+            .await
+            .wrap_err("failed to prepare commit")?;
+        finalize_block.app_hash = app_hash;
 
         Ok(finalize_block)
     }
