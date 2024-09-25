@@ -13,6 +13,7 @@ use astria_core::{
                 BridgeLockAction,
                 BridgeUnlockAction,
                 IbcRelayerChangeAction,
+                IbcSudoChangeAction,
                 SequenceAction,
                 SudoAddressChangeAction,
                 TransferAction,
@@ -154,7 +155,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_account_balance(alice_address, &test_asset(), value)
+        .put_account_balance(alice_address, test_asset(), value)
         .unwrap();
     app.apply(state_tx);
 
@@ -519,7 +520,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
-    assert!(app.state.is_allowed_fee_asset(&test_asset()).await.unwrap());
+    assert!(app.state.is_allowed_fee_asset(test_asset()).await.unwrap());
 }
 
 #[tokio::test]
@@ -638,7 +639,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     );
     assert_eq!(
         app.state
-            .get_account_balance(alice_address, &nria())
+            .get_account_balance(alice_address, nria())
             .await
             .unwrap(),
         before_balance - fee,
@@ -1176,4 +1177,69 @@ async fn transaction_execution_records_deposit_event() {
         .find(|event| event.kind == "tx.deposit")
         .expect("should have deposit event");
     assert_eq!(*event, expected_deposit_event);
+}
+
+#[tokio::test]
+async fn app_execute_transaction_ibc_sudo_change() {
+    let alice = get_alice_signing_key();
+
+    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+
+    let new_address = astria_address_from_hex_string(BOB_ADDRESS);
+
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions: vec![Action::IbcSudoChange(IbcSudoChangeAction {
+            new_address,
+        })],
+    };
+
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let ibc_sudo_address = app.state.get_ibc_sudo_address().await.unwrap();
+    assert_eq!(ibc_sudo_address, new_address.bytes());
+}
+
+#[tokio::test]
+async fn app_execute_transaction_ibc_sudo_change_error() {
+    let alice = get_alice_signing_key();
+    let alice_address = astria_address(&alice.address_bytes());
+    let authority_sudo_address = astria_address_from_hex_string(CAROL_ADDRESS);
+
+    let genesis_state = {
+        let mut state = proto_genesis_state();
+        state
+            .authority_sudo_address
+            .replace(authority_sudo_address.to_raw());
+        state
+            .ibc_sudo_address
+            .replace(astria_address(&[0u8; 20]).to_raw());
+        state
+    }
+    .try_into()
+    .unwrap();
+    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions: vec![Action::IbcSudoChange(IbcSudoChangeAction {
+            new_address: alice_address,
+        })],
+    };
+
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let res = app
+        .execute_transaction(signed_tx)
+        .await
+        .unwrap_err()
+        .root_cause()
+        .to_string();
+    assert!(res.contains("signer is not the sudo key"));
 }

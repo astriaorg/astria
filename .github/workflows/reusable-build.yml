@@ -13,6 +13,8 @@ on:
 env:
   REGISTRY: ghcr.io
   FULL_REF: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+  # This must match the entry in rust-toolchain.toml at the repository root
+  RUSTUP_TOOLCHAIN: "1.81.0"
 
 jobs:
   upload-binaries:
@@ -34,7 +36,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
-      - uses: dtolnay/rust-toolchain@1.76.0
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
       - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"

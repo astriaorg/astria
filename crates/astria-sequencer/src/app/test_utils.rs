@@ -241,7 +241,6 @@ pub(crate) fn mock_tx(
     Arc::new(tx.into_signed(signer))
 }
 
-#[cfg_attr(feature = "test", allow(dead_code))]
 pub(crate) const MOCK_SEQUENCE_FEE: u128 = 10;
 pub(crate) fn denom_0() -> Denom {
     "denom_0".parse().unwrap()
@@ -271,8 +270,6 @@ fn denom_6() -> Denom {
     "denom_6".parse().unwrap()
 }
 
-#[cfg_attr(feature = "test", allow(dead_code))]
-
 pub(crate) fn mock_balances(
     denom_0_balance: u128,
     denom_1_balance: u128,
@@ -292,7 +289,6 @@ pub(crate) fn mock_balances(
     balances
 }
 
-#[cfg_attr(feature = "test", allow(dead_code))]
 pub(crate) fn mock_tx_cost(
     denom_0_cost: u128,
     denom_1_cost: u128,

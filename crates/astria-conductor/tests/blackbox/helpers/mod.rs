@@ -19,6 +19,11 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
+use astria_grpc_mock::{
+    response::ResponseResult,
+    AnyMessage,
+    Respond,
+};
 use bytes::Bytes;
 use celestia_types::{
     nmt::Namespace,
@@ -127,7 +132,7 @@ impl Drop for TestConductor {
             let err_msg =
                 match tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown()).await
                 {
-                    Ok(Ok(())) => None,
+                    Ok(Ok(_)) => None,
                     Ok(Err(conductor_err)) => Some(format!(
                         "conductor shut down with an error:\n{conductor_err:?}"
                     )),
@@ -223,7 +228,7 @@ impl TestConductor {
                 "result": blobs,
             }))
         })
-        .expect(1)
+        .expect(1..)
         .mount(&self.mock_http)
         .await;
     }
@@ -472,6 +477,24 @@ impl TestConductor {
         .mount(&self.mock_http)
         .await;
     }
+
+    pub async fn mount_tonic_status_code<S: serde::Serialize>(
+        &self,
+        expected_pbjson: S,
+        code: tonic::Code,
+    ) -> astria_grpc_mock::MockGuard {
+        use astria_grpc_mock::{
+            matcher::message_partial_pbjson,
+            Mock,
+        };
+
+        let mock = Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
+            .respond_with(error_response(code))
+            .up_to_n_times(1);
+        mock.expect(1)
+            .mount_as_scoped(&self.mock_grpc.mock_server)
+            .await
+    }
 }
 
 fn make_config() -> Config {
@@ -673,4 +696,21 @@ pub fn rollup_namespace() -> Namespace {
 #[must_use]
 pub fn sequencer_namespace() -> Namespace {
     astria_core::celestia::namespace_v0_from_sha256_of_bytes(SEQUENCER_CHAIN_ID.as_bytes())
+}
+
+pub struct ErrorResponse {
+    status: tonic::Status,
+}
+
+impl Respond for ErrorResponse {
+    fn respond(&self, _req: &tonic::Request<AnyMessage>) -> ResponseResult {
+        Err(self.status.clone())
+    }
+}
+
+#[must_use]
+pub fn error_response(code: tonic::Code) -> ErrorResponse {
+    ErrorResponse {
+        status: tonic::Status::new(code, "error"),
+    }
 }
