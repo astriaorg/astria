@@ -293,6 +293,7 @@ impl App {
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
         // clear the cache of transaction execution results
+        self.execution_results = None;
         self.finalize_block = None;
         self.executed_proposal_hash = Hash::default();
     }
@@ -377,9 +378,10 @@ impl App {
                 self.executed_proposal_hash = process_proposal.hash;
 
                 // if we're the proposer, we should have the execution results from
-                // `prepare_proposal`. run the post-tx-execution hook to set
-                // `self.finalize_block`. we can't run this in `prepare_proposal` as
-                // we don't know the block hash there.
+                // `prepare_proposal`. run the post-tx-execution hook to generate the
+                // `SequencerBlock` and to set `self.finalize_block`.
+                //
+                // we can't run this in `prepare_proposal` as we don't know the block hash there.
                 let Some(tx_results) = self.execution_results.take() else {
                     bail!("execution results must be present after executing transactions")
                 };
@@ -797,6 +799,10 @@ impl App {
         Ok(())
     }
 
+    /// updates the app state after transaction execution, and generates the resulting
+    /// `SequencerBlock`.
+    ///
+    /// this must be called after a block's transactions are executed.
     #[instrument(name = "App::post_execute_transactions", skip_all)]
     async fn post_execute_transactions(
         &mut self,
