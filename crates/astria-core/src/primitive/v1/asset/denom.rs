@@ -272,8 +272,8 @@ impl TracePrefixed {
     #[must_use]
     #[expect(
         clippy::arithmetic_side_effects,
-        reason = "string derived length should never overflow usize::MAX because on 64 bit \
-                  machines because of memory constraints"
+        reason = "string derived length should never overflow usize::MAX on 64 bit machines \
+                  because of memory constraints"
     )]
     fn display_len(&self) -> usize {
         let mut len: usize = 0;
