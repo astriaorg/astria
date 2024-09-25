@@ -36,8 +36,8 @@ pub(super) struct Auctioneer {
 
 impl Auctioneer {
     const AUCTION_DRIVER: &'static str = "auction_driver";
+    const OPTIMISTIC_EXECUTOR: &'static str = "optimistic_executor";
     const _BUNDLE_COLLECTOR: &'static str = "bundle_collector";
-    const _OPTIMISTIC_EXECUTOR: &'static str = "optimistic_executor";
 
     /// Creates an [`Auctioneer`] service from a [`Config`] and [`Metrics`].
     pub(super) fn new(
@@ -46,6 +46,7 @@ impl Auctioneer {
         shutdown_token: CancellationToken,
     ) -> eyre::Result<Self> {
         let Config {
+            sequencer_grpc_endpoint,
             ..
         } = cfg;
 
@@ -63,6 +64,14 @@ impl Auctioneer {
         .build()
         .wrap_err("failed to initialize the auction driver")?;
         tasks.spawn(Self::AUCTION_DRIVER, auction_driver.run());
+
+        let optimistic_executor = crate::optimistic_executor::Builder {
+            metrics,
+            sequencer_grpc_endpoint,
+        }
+        .build()
+        .wrap_err("failed to initialize the optimistic executor")?;
+        tasks.spawn(Self::OPTIMISTIC_EXECUTOR, optimistic_executor.run());
 
         Ok(Self {
             shutdown_token,
