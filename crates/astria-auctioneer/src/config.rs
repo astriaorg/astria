@@ -21,6 +21,10 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
+    /// The endpoint for the sequencer gRPC service used for the optimistic block stream
+    pub sequencer_grpc_endpoint: String,
+    /// The rollup ID used to filter the optimistic blocks stream
+    pub rollup_id: String,
 }
 
 impl config::Config for Config {
