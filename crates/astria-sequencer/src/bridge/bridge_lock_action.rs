@@ -158,7 +158,11 @@ pub(crate) fn calculate_base_deposit_fee(deposit: &Deposit) -> Option<u128> {
         .asset
         .display_len()
         .checked_add(deposit.destination_chain_address.len())
-        .and_then(|var_len| DEPOSIT_BASE_FEE.checked_add(var_len as u128))
+        .and_then(|var_len| {
+            DEPOSIT_BASE_FEE.checked_add(u128::try_from(var_len).expect(
+                "converting a usize to a u128 should work on any currently existing machine",
+            ))
+        })
 }
 
 #[cfg(test)]
@@ -263,15 +267,15 @@ mod tests {
         assert_correct_base_deposit_fee(&Deposit {
             amount: u128::MAX,
             source_action_index: u64::MAX,
-            ..default_deposit()
+            ..reference_deposit()
         });
         assert_correct_base_deposit_fee(&Deposit {
             asset: "test_asset".parse().unwrap(),
-            ..default_deposit()
+            ..reference_deposit()
         });
         assert_correct_base_deposit_fee(&Deposit {
             destination_chain_address: "someaddresslonger".to_string(),
-            ..default_deposit()
+            ..reference_deposit()
         });
 
         // Ensure calculated length is as expected with absurd string
@@ -279,11 +283,11 @@ mod tests {
         let absurd_string: String = ['a'; u16::MAX as usize].iter().collect();
         assert_correct_base_deposit_fee(&Deposit {
             asset: absurd_string.parse().unwrap(),
-            ..default_deposit()
+            ..reference_deposit()
         });
         assert_correct_base_deposit_fee(&Deposit {
             destination_chain_address: absurd_string,
-            ..default_deposit()
+            ..reference_deposit()
         });
     }
 
@@ -326,7 +330,7 @@ mod tests {
         assert_eq!(DEPOSIT_BASE_FEE, raw_deposit.encoded_len() as u128 / 10);
     }
 
-    fn default_deposit() -> Deposit {
+    fn reference_deposit() -> Deposit {
         Deposit {
             bridge_address: astria_address(&[1; 20]),
             rollup_id: RollupId::from_unhashed_bytes(b"test_rollup_id"),

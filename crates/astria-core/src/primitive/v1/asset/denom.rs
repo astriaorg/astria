@@ -81,7 +81,7 @@ impl Denom {
     pub fn display_len(&self) -> usize {
         match self {
             Denom::TracePrefixed(trace) => trace.display_len(),
-            Denom::IbcPrefixed(_) => 68, // "ibc/" + 64 hex characters
+            Denom::IbcPrefixed(ibc) => ibc.display_len(),
         }
     }
 }
@@ -270,7 +270,11 @@ impl TracePrefixed {
     /// Calculates the length of the display formatted [`TracePrefixed`] without allocating a
     /// String.
     #[must_use]
-    #[allow(clippy::arithmetic_side_effects)] // allow: length should never overflow usize::MAX
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "string derived length should never overflow usize::MAX because on 64 bit \
+                  machines because of memory constraints"
+    )]
     fn display_len(&self) -> usize {
         let mut len: usize = 0;
         for segment in &self.trace.inner {
@@ -505,6 +509,11 @@ impl IbcPrefixed {
     #[must_use]
     pub fn get(&self) -> [u8; 32] {
         self.id
+    }
+
+    #[must_use]
+    pub fn display_len(&self) -> usize {
+        68 // "ibc/" + 64 hex characters
     }
 }
 
