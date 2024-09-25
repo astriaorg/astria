@@ -133,7 +133,7 @@ impl ConductorInner {
                 sequencer_grpc_client,
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
-                expected_sequencer_chain_id: cfg.expected_sequencer_chain_id,
+                expected_sequencer_chain_id: cfg.expected_sequencer_chain_id.clone(),
                 shutdown: shutdown_token.clone(),
                 executor: executor_handle.clone(),
             }
@@ -156,6 +156,7 @@ impl ConductorInner {
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_requests_per_second: cfg.sequencer_requests_per_second,
                 expected_celestia_chain_id: cfg.expected_celestia_chain_id,
+                expected_sequencer_chain_id: cfg.expected_sequencer_chain_id,
                 shutdown: shutdown_token.clone(),
                 metrics,
             }
