@@ -16,7 +16,7 @@ images:
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
-    tag: "0.20.1"
+    tag: "0.21.0"
     devTag: latest
 
 
