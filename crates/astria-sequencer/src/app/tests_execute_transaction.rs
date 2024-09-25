@@ -154,7 +154,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_account_balance(alice_address, &test_asset(), value)
+        .put_account_balance(alice_address, test_asset(), value)
         .unwrap();
     app.apply(state_tx);
 
@@ -519,7 +519,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
-    assert!(app.state.is_allowed_fee_asset(&test_asset()).await.unwrap());
+    assert!(app.state.is_allowed_fee_asset(test_asset()).await.unwrap());
 }
 
 #[tokio::test]
@@ -638,7 +638,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     );
     assert_eq!(
         app.state
-            .get_account_balance(alice_address, &nria())
+            .get_account_balance(alice_address, nria())
             .await
             .unwrap(),
         before_balance - fee,
