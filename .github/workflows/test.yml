@@ -260,12 +260,13 @@ jobs:
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      # - name: run clippy against custom lints
-      #   run: |
-      #     : # list all lint packages here to have clippy explicitly test them
-      #     cargo clippy --all-targets --all-features \
-      #     -p tracing_debug_field \
-      #     -- --warn clippy::pedantic --deny warnings
+      - name: run clippy against custom lints
+        run: |
+          : # list all lint packages here to have clippy explicitly test them
+          : # uses the same nightly installed above to work around the entry in rust-toolchain.toml 
+          cargo clippy +nightly-2024-09-05 --all-targets --all-features \
+          -p tracing_debug_field \
+          -- --warn clippy::pedantic --deny warnings
       - name: run dylint clippy on workspace crates
         env:
           # set the dylint driver path to the target/ directory so that it's hopefully cached by rust-cache
