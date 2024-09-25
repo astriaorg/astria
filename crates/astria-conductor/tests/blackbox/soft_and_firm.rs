@@ -163,7 +163,10 @@ async fn executes_soft_first_then_updates_firm() {
 ///    before the conductor receives the next block.
 /// 5. 2000ms is allotted for the conductor to execute the next block and update the soft commitment
 ///    state at the next height.
-#[allow(clippy::too_many_lines)] // allow: all mounts and test logic are necessary.
+#[expect(
+    clippy::too_many_lines,
+    reason = "all mounts and test logic are necessary"
+)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn executes_firm_then_soft_at_next_height() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
