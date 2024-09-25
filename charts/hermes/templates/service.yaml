@@ -16,7 +16,7 @@ spec:
       targetPort: rest
     {{- end }}
     {{- if .Values.telemetry.enabled }}
-    - name: telemetry-svc
+    - name: telemetry
       port: {{ .Values.ports.telemetry }}
       targetPort: telemetry
     {{- end }}
