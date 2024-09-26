@@ -20,7 +20,7 @@ const DEFAULT_SEQUENCER_CHAIN_ID: &str = "astria-dusk-10";
 
 /// Run commands against the Astria network.
 #[derive(Debug, Parser)]
-#[command(name = "astria-cli", version, about, propagate_version = true)]
+#[command(name = "astria-cli", version, about)]
 pub struct Cli {
     #[command(subcommand)]
     command: Command,
