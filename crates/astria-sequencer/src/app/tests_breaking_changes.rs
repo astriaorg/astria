@@ -27,6 +27,7 @@ use astria_core::{
                 FeeChangeAction,
                 IbcRelayerChangeAction,
                 Ics20Withdrawal,
+                IbcSudoChangeAction,
                 SequenceAction,
                 TransferAction,
                 ValidatorUpdate,
@@ -240,6 +241,10 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let tx_sudo = UnsignedTransaction::builder()
         .actions(vec![
+            IbcSudoChangeAction {
+                new_address: bob_address,
+            }
+            .into(),
             SudoAddressChangeAction {
                 new_address: bob_address,
             }

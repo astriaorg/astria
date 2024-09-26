@@ -34,6 +34,10 @@ use crate::{
     utils::create_deposit_event,
 };
 
+/// The base byte length of a deposit, as determined by
+/// [`tests::get_base_deposit_fee()`].
+const DEPOSIT_BASE_FEE: u128 = 16;
+
 #[async_trait::async_trait]
 impl ActionHandler for BridgeLockAction {
     async fn check_stateless(&self) -> Result<()> {
@@ -99,7 +103,7 @@ impl ActionHandler for BridgeLockAction {
             .await
             .wrap_err("failed to get byte cost multiplier")?;
         let fee = byte_cost_multiplier
-            .saturating_mul(get_deposit_byte_len(&deposit))
+            .saturating_mul(calculate_base_deposit_fee(&deposit).unwrap_or(u128::MAX))
             .saturating_add(transfer_fee);
         ensure!(from_balance >= fee, "insufficient funds for fee payment");
 
@@ -126,7 +130,8 @@ impl ActionHandler for BridgeLockAction {
             .get_bridge_lock_byte_cost_multiplier()
             .await
             .wrap_err("failed to get byte cost multiplier")?;
-        let fee = byte_cost_multiplier.saturating_mul(get_deposit_byte_len(&deposit));
+        let fee = byte_cost_multiplier
+            .saturating_mul(calculate_base_deposit_fee(&deposit).unwrap_or(u128::MAX));
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await
@@ -145,19 +150,33 @@ impl ActionHandler for BridgeLockAction {
     }
 }
 
-/// returns the length of a serialized `Deposit` message.
-pub(crate) fn get_deposit_byte_len(deposit: &Deposit) -> u128 {
-    use prost::Message as _;
-    let raw = deposit.clone().into_raw();
-    raw.encoded_len() as u128
+/// Returns a modified byte length of the deposit event. Length is calculated with reasonable values
+/// for all fields except `asset` and `destination_chain_address`, ergo it may not be representative
+/// of on-wire length.
+pub(crate) fn calculate_base_deposit_fee(deposit: &Deposit) -> Option<u128> {
+    deposit
+        .asset
+        .display_len()
+        .checked_add(deposit.destination_chain_address.len())
+        .and_then(|var_len| {
+            DEPOSIT_BASE_FEE.checked_add(u128::try_from(var_len).expect(
+                "converting a usize to a u128 should work on any currently existing machine",
+            ))
+        })
 }
 
 #[cfg(test)]
 mod tests {
     use astria_core::primitive::v1::{
-        asset,
+        asset::{
+            self,
+        },
+        Address,
         RollupId,
         TransactionId,
+        ADDRESS_LEN,
+        ROLLUP_ID_LEN,
+        TRANSACTION_ID_LEN,
     };
     use cnidarium::StateDelta;
 
@@ -217,7 +236,7 @@ mod tests {
 
         // not enough balance; should fail
         state
-            .put_account_balance(from_address, &asset, 100 + transfer_fee)
+            .put_account_balance(from_address, &asset, transfer_fee)
             .unwrap();
         assert_eyre_error(
             &bridge_lock.check_and_execute(&mut state).await.unwrap_err(),
@@ -226,7 +245,7 @@ mod tests {
 
         // enough balance; should pass
         let expected_deposit_fee = transfer_fee
-            + get_deposit_byte_len(&Deposit {
+            + calculate_base_deposit_fee(&Deposit {
                 bridge_address,
                 rollup_id,
                 amount: 100,
@@ -234,10 +253,92 @@ mod tests {
                 destination_chain_address: "someaddress".to_string(),
                 source_transaction_id: transaction_id,
                 source_action_index: 0,
-            }) * 2;
+            })
+            .unwrap()
+                * 2;
         state
             .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
         bridge_lock.check_and_execute(&mut state).await.unwrap();
+    }
+
+    #[test]
+    fn calculated_base_deposit_fee_matches_expected_value() {
+        assert_correct_base_deposit_fee(&Deposit {
+            amount: u128::MAX,
+            source_action_index: u64::MAX,
+            ..reference_deposit()
+        });
+        assert_correct_base_deposit_fee(&Deposit {
+            asset: "test_asset".parse().unwrap(),
+            ..reference_deposit()
+        });
+        assert_correct_base_deposit_fee(&Deposit {
+            destination_chain_address: "someaddresslonger".to_string(),
+            ..reference_deposit()
+        });
+
+        // Ensure calculated length is as expected with absurd string
+        // lengths (have tested up to 99999999, but this makes testing very slow)
+        let absurd_string: String = ['a'; u16::MAX as usize].iter().collect();
+        assert_correct_base_deposit_fee(&Deposit {
+            asset: absurd_string.parse().unwrap(),
+            ..reference_deposit()
+        });
+        assert_correct_base_deposit_fee(&Deposit {
+            destination_chain_address: absurd_string,
+            ..reference_deposit()
+        });
+    }
+
+    #[track_caller]
+    #[allow(clippy::arithmetic_side_effects)] // allow: test will never overflow u128
+    fn assert_correct_base_deposit_fee(deposit: &Deposit) {
+        let calculated_len = calculate_base_deposit_fee(deposit).unwrap();
+        let expected_len = DEPOSIT_BASE_FEE
+            + deposit.asset.to_string().len() as u128
+            + deposit.destination_chain_address.len() as u128;
+        assert_eq!(calculated_len, expected_len);
+    }
+
+    /// Used to determine the base deposit byte length for `get_deposit_byte_len()`. This is based
+    /// on "reasonable" values for all fields except `asset` and `destination_chain_address`. These
+    /// are empty strings, whose length will be added to the base cost at the time of
+    /// calculation.
+    ///
+    /// This test determines 165 bytes for an average deposit with empty `asset` and
+    /// `destination_chain_address`, which is divided by 10 to get our base byte length of 16. This
+    /// is to allow for more flexibility in overall fees (we have more flexibility multiplying by a
+    /// lower number, and if we want fees to be higher we can just raise the multiplier).
+    #[test]
+    fn get_base_deposit_fee() {
+        use prost::Message as _;
+        let bridge_address = Address::builder()
+            .prefix("astria-bridge")
+            .slice(&[0u8; ADDRESS_LEN][..])
+            .try_build()
+            .unwrap();
+        let raw_deposit = astria_core::generated::sequencerblock::v1alpha1::Deposit {
+            bridge_address: Some(bridge_address.to_raw()),
+            rollup_id: Some(RollupId::from_unhashed_bytes([0; ROLLUP_ID_LEN]).to_raw()),
+            amount: Some(1000.into()),
+            asset: String::new(),
+            destination_chain_address: String::new(),
+            source_transaction_id: Some(TransactionId::new([0; TRANSACTION_ID_LEN]).to_raw()),
+            source_action_index: 0,
+        };
+        assert_eq!(DEPOSIT_BASE_FEE, raw_deposit.encoded_len() as u128 / 10);
+    }
+
+    fn reference_deposit() -> Deposit {
+        Deposit {
+            bridge_address: astria_address(&[1; 20]),
+            rollup_id: RollupId::from_unhashed_bytes(b"test_rollup_id"),
+            amount: 0,
+            asset: "test".parse().unwrap(),
+            destination_chain_address: "someaddress".to_string(),
+            source_transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        }
     }
 }
