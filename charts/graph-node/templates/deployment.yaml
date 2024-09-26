@@ -1,4 +1,3 @@
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,6 +15,9 @@ spec:
     spec:
       containers:
         - name: graph-node
+          envFrom:
+            - configMapRef:
+                name: graph-node-config
           image: {{ .Values.graphNode.image }}:{{ .Values.graphNode.tag }}
           ports:
             - containerPort: {{ .Values.graphNode.ports.http }}
@@ -23,18 +25,4 @@ spec:
             - containerPort: {{ .Values.graphNode.ports.indexNode }}
             - containerPort: {{ .Values.graphNode.ports.metrics }}
             - containerPort: {{ .Values.graphNode.ports.subgraphMetrics }}
-          env:
-            - name: postgres_host
-              value: postgres
-            - name: postgres_user
-              value: {{ .Values.postgres.user }}
-            - name: postgres_pass
-              value: {{ .Values.postgres.password }}
-            - name: postgres_db
-              value: {{ .Values.postgres.database }}
-            - name: ipfs
-              value: ipfs:{{ .Values.ipfs.ports.api }}
-            - name: ethereum
-              value: {{ .Values.environment.ethereumNetwork }}:{{ .Values.environment.ethereumRPC }}
-            - name: GRAPH_LOG
-              value: info
+  
