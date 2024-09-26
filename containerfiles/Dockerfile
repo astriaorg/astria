@@ -82,5 +82,8 @@ RUN \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*;
 COPY --from=builder /build/release/$TARGETBINARY /usr/local/bin/$TARGETBINARY
-RUN ln -s /usr/local/bin/$TARGETBINARY /usr/local/bin/entrypoint
-ENTRYPOINT ["/usr/local/bin/entrypoint"]
+ENV TARGETBINARY=$TARGETBINARY
+RUN \
+  printf '#!/bin/sh\nexec /usr/local/bin/$TARGETBINARY $@\n' > /usr/local/bin/entrypoint.sh; \
+  chmod +x /usr/local/bin/entrypoint.sh;
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
