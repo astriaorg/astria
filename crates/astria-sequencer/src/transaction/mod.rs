@@ -106,6 +106,10 @@ impl ActionHandler for SignedTransaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for SudoAddressChangeAction")?,
+                Action::IbcSudoChange(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for IbcSudoChangeAction")?,
                 Action::FeeChange(act) => act
                     .check_stateless()
                     .await
@@ -228,6 +232,10 @@ impl ActionHandler for SignedTransaction {
                     .check_execute_and_pay_fees(&mut state)
                     .await
                     .wrap_err("executing sudo address change failed")?,
+                Action::IbcSudoChange(act) => act
+                    .check_and_execute(&mut state)
+                    .await
+                    .wrap_err("executing ibc sudo change failed")?,
                 Action::FeeChange(act) => act
                     .check_execute_and_pay_fees(&mut state)
                     .await

@@ -24,6 +24,7 @@ use astria_core::{
                 BridgeSudoChangeAction,
                 BridgeUnlockAction,
                 IbcRelayerChangeAction,
+                IbcSudoChangeAction,
                 SequenceAction,
                 TransferAction,
                 ValidatorUpdate,
@@ -121,15 +122,15 @@ async fn app_finalize_block_snapshot() {
 
     let signed_tx = tx.into_signed(&alice);
 
-    let expected_deposit = Deposit::new(
+    let expected_deposit = Deposit {
         bridge_address,
         rollup_id,
         amount,
-        nria().into(),
-        "nootwashere".to_string(),
-        signed_tx.id(),
-        starting_index_of_action,
-    );
+        asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+        source_transaction_id: signed_tx.id(),
+        source_action_index: starting_index_of_action,
+    };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
@@ -228,6 +229,10 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             FeeAssetChangeAction::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChangeAction::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChangeAction::Removal("test-0".parse().unwrap()).into(),
+            IbcSudoChangeAction {
+                new_address: bob_address,
+            }
+            .into(),
             SudoAddressChangeAction {
                 new_address: bob_address,
             }

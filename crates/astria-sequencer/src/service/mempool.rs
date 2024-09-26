@@ -147,7 +147,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         Err(e) => {
             return response::CheckTx {
                 code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
-                log: e.to_string(),
+                log: format!("{e:#}"),
                 info: "failed decoding bytes as a protobuf SignedTransaction".into(),
                 ..response::CheckTx::default()
             };
@@ -161,7 +161,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
                        the signature was invalid"
                     .into(),
-                log: e.to_string(),
+                log: format!("{e:#}"),
                 ..response::CheckTx::default()
             };
         }
@@ -177,7 +177,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         return response::CheckTx {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
             info: "transaction failed stateless check".into(),
-            log: e.to_string(),
+            log: format!("{e:#}"),
             ..response::CheckTx::default()
         };
     };
@@ -192,7 +192,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         return response::CheckTx {
             code: Code::Err(AbciErrorCode::INVALID_NONCE.value()),
             info: "failed verifying transaction nonce".into(),
-            log: e.to_string(),
+            log: format!("{e:#}"),
             ..response::CheckTx::default()
         };
     };
@@ -206,7 +206,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         return response::CheckTx {
             code: Code::Err(AbciErrorCode::INVALID_CHAIN_ID.value()),
             info: "failed verifying chain id".into(),
-            log: e.to_string(),
+            log: format!("{e:#}"),
             ..response::CheckTx::default()
         };
     }
