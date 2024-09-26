@@ -1,0 +1,109 @@
+{{/* We need to manually create a PersistentVolume when local. */}}
+{{/* In prod, a PV will be created by the StorageClass' provisioner using dynamic provisioning feature.  */}}
+{{- if and .Values.ipfs.storage.enabled }}
+  {{- range $key, $value := .Values.storage.entities }}
+    {{- if $.Values.storage.local }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ipfs-pvc
+spec:
+  capacity:
+    storage: {{ $value.size }}
+  volumeMode: Filesystem
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Values.persistence.storageClass }}
+  accessModes:
+    - ReadWriteOnce
+  local:
+    path: {{ $value.path }}
+  resources:
+    requests:
+      storage: {{ .Values.ipfs.storage.size }}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - astria-dev-cluster-control-plane
+                - astria-dev-cluster-worker
+---
+    {{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ipfs-pvc
+  namespace: {{ include "graphnode.namespace" $ }}
+  labels:
+    "app.kubernetes.io/name": "ipfs-pvc-{{ $.Chart.Name }}"
+    "app.kubernetes.io/managed-by": {{ $.Release.Service | quote }}
+    "helm.sh/chart": {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
+spec:
+  {{- if $.Values.storage.local }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- end }}
+  {{- if $value.storageClassName }}
+  storageClassName: {{ $value.storageClassName }}
+  {{- end }}
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $value.size }}
+---
+  {{- end }}
+{{- end }}
+{{- if and .Values.postgres.storage.enabled }}
+  {{- range $key, $value := .Values.storage.entities }}
+    {{- if $.Values.storage.local }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-pvc
+spec:
+  capacity:
+    storage: {{ $value.size }}
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Values.persistence.storageClass }}
+  local:
+    path: {{ $value.path }}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - astria-dev-cluster-control-plane
+                - astria-dev-cluster-worker
+---
+    {{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: {{ include "graphnode.namespace" $ }}
+  labels:
+    "app.kubernetes.io/name": "postgres-pvc-{{ $.Chart.Name }}"
+    "app.kubernetes.io/managed-by": {{ $.Release.Service | quote }}
+    "helm.sh/chart": {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
+spec:
+  {{- if $.Values.storage.local }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- end }}
+  {{- if $value.storageClassName }}
+  storageClassName: {{ $value.storageClassName }}
+  {{- end }}
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $value.size }}
+---
+  {{- end }}
+{{- end }}

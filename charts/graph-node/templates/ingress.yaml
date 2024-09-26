@@ -21,7 +21,7 @@ spec:
               service:
                 name: graph-node
                 port: 
-                  number: {{ .Values.graphNode.ports.http | default 8000 }}
+                  number: {{ .Values.graphNode.ports.http }}
   {{- if .Values.ingress.tls }}
   tls:
     {{- range .Values.ingress.tls }}
