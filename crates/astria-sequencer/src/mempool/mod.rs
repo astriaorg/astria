@@ -167,7 +167,7 @@ impl Mempool {
         transaction_cost: HashMap<IbcPrefixed, u128>,
     ) -> Result<(), InsertionError> {
         let timemarked_tx = TimemarkedTransaction::new(tx, transaction_cost);
-
+        let id = timemarked_tx.id();
         let (mut pending, mut parked) = self.acquire_both_locks().await;
 
         // try insert into pending
@@ -181,13 +181,13 @@ impl Mempool {
                 drop(pending);
                 // try to add to parked queue
                 match parked.add(
-                    timemarked_tx.clone(),
+                    timemarked_tx,
                     current_account_nonce,
                     &current_account_balances,
                 ) {
                     Ok(()) => {
                         // track in contained txs
-                        self.contained_txs.write().await.insert(timemarked_tx.id());
+                        self.contained_txs.write().await.insert(id);
                         Ok(())
                     }
                     Err(err) => Err(err),
