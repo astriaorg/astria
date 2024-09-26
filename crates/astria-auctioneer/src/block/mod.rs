@@ -1,9 +1,6 @@
 use tokio::{
     select,
-    sync::{
-        broadcast,
-        mpsc,
-    },
+    sync::watch,
 };
 
 #[derive(Debug, Clone)]
@@ -26,6 +23,8 @@ pub(crate) enum State {
     OptimisticBlock(OptimisticBlock),
     ExecutedBlock(ExecutedBlock),
     BlockCommitment(BlockCommitment),
+    // TODO: get rid of this, it should just be in the executor. the auction driver will recognize
+    // the reorg by subscribing to state changes
     Reorg {
         old_block: ReorgedBlock,
         new_block: OptimisticBlock,
@@ -34,20 +33,42 @@ pub(crate) enum State {
 
 pub(crate) struct Block {
     state: State,
-    opt_rx: broadcast::Receiver<OptimisticBlock>,
-    exec_rx: mpsc::Receiver<ExecutedBlock>,
-    commit_rx: mpsc::Receiver<BlockCommitment>,
 }
 
-// TODO: this should be a future that is run by the auction driver with handles to channels pushed
-// to by the optimistic executor
 impl Block {
+    pub(crate) fn handle_opt(self, opt: OptimisticBlock) -> Self {
+        let Self {
+            state, ..
+        } = self;
+
+        let next_state = match state {
+            State::OptimisticBlock(optimistic_block) => State::Reorg {
+                old_block: ReorgedBlock::OptimisticBlock(optimistic_block),
+                new_block: opt,
+            },
+            State::ExecutedBlock(executed_block) => State::Reorg {
+                old_block: ReorgedBlock::ExecutedBlock(executed_block),
+                new_block: opt,
+            },
+            State::BlockCommitment(_block_commitment) => State::OptimisticBlock(opt),
+            State::Reorg {
+                old_block: _old_block,
+                new_block,
+            } => State::OptimisticBlock(new_block),
+        };
+
+        Self {
+            state: next_state,
+        }
+    }
+
+    pub(crate) fn handle_commit(self, commit: BlockCommitment) -> Self {}
+
     pub(crate) async fn next_state(mut self) -> Block {
+        // this should only do the state transitions and not the async stuff
+        // channels should be driven from executor
         let Self {
             state,
-            mut opt_rx,
-            mut exec_rx,
-            mut commit_rx,
         } = self;
 
         let next = match state {
@@ -98,7 +119,36 @@ impl Block {
         }
     }
 
-    pub(crate) fn state(&self) -> &State {
-        &self.state
+    pub(crate) fn is_optimistic(&self) -> bool {
+        match self.state {
+            State::OptimisticBlock(_) => true,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn is_executed(&self) -> bool {
+        match self.state {
+            State::ExecutedBlock(_) => true,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn is_committed(&self) -> bool {
+        match self.state {
+            State::BlockCommitment(_) => true,
+            _ => false,
+        }
+    }
+}
+
+pub(crate) struct Handle {
+    rx: watch::Receiver<Block>,
+}
+
+impl Handle {
+    // TODO: this will be called by the auction driver
+    pub(crate) async fn next_state(&mut self) -> Block {
+        self.rx.changed().await;
+        todo!("return the new state after it is changed");
     }
 }

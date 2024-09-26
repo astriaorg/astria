@@ -1,4 +1,5 @@
 struct Client {}
+mod builder;
 
 struct CommittedBlockStream {
     client: Client,
