@@ -1,18 +1,18 @@
-{{- if .Values.ingress.enabled -}}
+{{- if .Values.ingress.http.enabled -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: graph-node
+  name: graph-node-ingress
   annotations:
-    {{- with .Values.ingress.annotations }}
+    {{- with .Values.ingress.http.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  {{- if .Values.ingress.className }}
-  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.http.className }}
+  ingressClassName: {{ .Values.ingress.http.className }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.host | quote }}
+    - host: {{ .Values.ingress.http.host | quote }}
       http:
         paths:
           - path: /
@@ -22,9 +22,45 @@ spec:
                 name: graph-node
                 port: 
                   number: 8000
-  {{- if .Values.ingress.tls }}
+  {{- if .Values.ingress.http.tls }}
   tls:
-    {{- range .Values.ingress.tls }}
+    {{- range .Values.ingress.http.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+---
+{{- if .Values.ingress.rpc.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: graph-node-rpc-ingress
+  annotations:
+    {{- with .Values.ingress.rpc.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.rpc.className }}
+  ingressClassName: {{ .Values.ingress.rpc.className }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.rpc.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: graph-node
+                port: 
+                  number: 8020
+  {{- if .Values.ingress.rpc.tls }}
+  tls:
+    {{- range .Values.ingress.rpc.tls }}
     - hosts:
         {{- range .hosts }}
         - {{ . | quote }}

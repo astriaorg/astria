@@ -22,16 +22,28 @@ graphNode:
     subgraphMetrics: 8040
 
 ingress:
-  enabled: true
-  className: "nginx"
-  annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
-  host: graph-node.localdev.me
-  tls: []
-  #  - secretName: graph-node-tls
-  #    hosts:
-  #      - graph-node.example.com
+  http:
+    enabled: true
+    className: "nginx"
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    host: graph-node.localdev.me
+    tls: []
+    #  - secretName: graph-node-tls
+    #    hosts:
+    #      - graph-node.example.com
+  rpc:
+    enabled: false
+    className: "nginx"
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    host: graph-node-rpc.localdev.me
+    tls: []
+    #  - secretName: graph-node-tls
+    #    hosts:
+    #      - graph-node.example.com
 
 ipfs:
   image: ipfs/kubo
