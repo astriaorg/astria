@@ -83,7 +83,6 @@ config = { package = "astria-config", path = "../astria-config", features = [
 
 celestia-tendermint = { workspace = true }
 insta = { workspace = true, features = ["json"] }
-once_cell = { workspace = true }
 wiremock = { workspace = true }
 
 chrono = "0.4.35"
