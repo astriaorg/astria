@@ -24,10 +24,10 @@ pub struct Metrics {
     check_tx_removed_expired: Counter,
     check_tx_removed_failed_execution: Counter,
     check_tx_removed_failed_stateless: Counter,
-    check_tx_removed_stale_nonce: Counter,
     check_tx_duration_seconds_parse_tx: Histogram,
     check_tx_duration_seconds_check_stateless: Histogram,
-    check_tx_duration_seconds_check_nonce: Histogram,
+    check_tx_duration_seconds_fetch_nonce: Histogram,
+    check_tx_duration_seconds_check_tracked: Histogram,
     check_tx_duration_seconds_check_chain_id: Histogram,
     check_tx_duration_seconds_check_removed: Histogram,
     check_tx_duration_seconds_convert_address: Histogram,
@@ -88,10 +88,6 @@ impl Metrics {
         self.check_tx_removed_failed_stateless.increment(1);
     }
 
-    pub(crate) fn increment_check_tx_removed_stale_nonce(&self) {
-        self.check_tx_removed_stale_nonce.increment(1);
-    }
-
     pub(crate) fn record_check_tx_duration_seconds_parse_tx(&self, duration: Duration) {
         self.check_tx_duration_seconds_parse_tx.record(duration);
     }
@@ -101,8 +97,13 @@ impl Metrics {
             .record(duration);
     }
 
-    pub(crate) fn record_check_tx_duration_seconds_check_nonce(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_nonce.record(duration);
+    pub(crate) fn record_check_tx_duration_seconds_fetch_nonce(&self, duration: Duration) {
+        self.check_tx_duration_seconds_fetch_nonce.record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_check_tracked(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_tracked
+            .record(duration);
     }
 
     pub(crate) fn record_check_tx_duration_seconds_check_chain_id(&self, duration: Duration) {
@@ -260,6 +261,21 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let check_tx_duration_seconds_fetch_nonce = builder
+            .new_histogram_factory(
+                CHECK_TX_DURATION_SECONDS_FETCH_NONCE,
+                "The amount of time taken in seconds to fetch an account's nonce",
+            )?
+            .register()?;
+
+        let check_tx_duration_seconds_check_tracked = builder
+            .new_histogram_factory(
+                CHECK_TX_DURATION_SECONDS_CHECK_TRACKED,
+                "The amount of time taken in seconds to check if the transaction is already in \
+                 the mempool",
+            )?
+            .register()?;
+
         let check_tx_removed_failed_stateless = builder
             .new_counter_factory(
                 CHECK_TX_REMOVED_FAILED_STATELESS,
@@ -267,15 +283,6 @@ impl telemetry::Metrics for Metrics {
                  failing the stateless check",
             )?
             .register()?;
-
-        let check_tx_removed_stale_nonce = builder
-            .new_counter_factory(
-                CHECK_TX_REMOVED_STALE_NONCE,
-                "The number of transactions that have been removed from the mempool due to having \
-                 a stale nonce",
-            )?
-            .register()?;
-
         let mut check_tx_duration_factory = builder.new_histogram_factory(
             CHECK_TX_DURATION_SECONDS,
             "The amount of time taken in seconds to successfully complete the various stages of \
@@ -286,8 +293,6 @@ impl telemetry::Metrics for Metrics {
         )?;
         let check_tx_duration_seconds_check_stateless = check_tx_duration_factory
             .register_with_labels(&[(CHECK_TX_STAGE, "stateless check".to_string())])?;
-        let check_tx_duration_seconds_check_nonce = check_tx_duration_factory
-            .register_with_labels(&[(CHECK_TX_STAGE, "nonce check".to_string())])?;
         let check_tx_duration_seconds_check_chain_id = check_tx_duration_factory
             .register_with_labels(&[(CHECK_TX_STAGE, "chain id check".to_string())])?;
         let check_tx_duration_seconds_check_removed = check_tx_duration_factory
@@ -335,10 +340,10 @@ impl telemetry::Metrics for Metrics {
             check_tx_removed_expired,
             check_tx_removed_failed_execution,
             check_tx_removed_failed_stateless,
-            check_tx_removed_stale_nonce,
             check_tx_duration_seconds_parse_tx,
             check_tx_duration_seconds_check_stateless,
-            check_tx_duration_seconds_check_nonce,
+            check_tx_duration_seconds_fetch_nonce,
+            check_tx_duration_seconds_check_tracked,
             check_tx_duration_seconds_check_chain_id,
             check_tx_duration_seconds_check_removed,
             check_tx_duration_seconds_convert_address,
@@ -365,12 +370,13 @@ metric_names!(const METRICS_NAMES:
     CHECK_TX_REMOVED_EXPIRED,
     CHECK_TX_REMOVED_FAILED_EXECUTION,
     CHECK_TX_REMOVED_FAILED_STATELESS,
-    CHECK_TX_REMOVED_STALE_NONCE,
     CHECK_TX_REMOVED_ACCOUNT_BALANCE,
     CHECK_TX_DURATION_SECONDS,
     CHECK_TX_DURATION_SECONDS_CONVERT_ADDRESS,
     CHECK_TX_DURATION_SECONDS_FETCH_BALANCES,
+    CHECK_TX_DURATION_SECONDS_FETCH_NONCE,
     CHECK_TX_DURATION_SECONDS_FETCH_TX_COST,
+    CHECK_TX_DURATION_SECONDS_CHECK_TRACKED,
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
     TRANSACTIONS_IN_MEMPOOL_TOTAL,
@@ -386,7 +392,6 @@ mod tests {
         CHECK_TX_REMOVED_EXPIRED,
         CHECK_TX_REMOVED_FAILED_EXECUTION,
         CHECK_TX_REMOVED_FAILED_STATELESS,
-        CHECK_TX_REMOVED_STALE_NONCE,
         CHECK_TX_REMOVED_TOO_LARGE,
         MEMPOOL_RECOSTED,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
@@ -442,7 +447,6 @@ mod tests {
             CHECK_TX_REMOVED_FAILED_STATELESS,
             "check_tx_removed_failed_stateless",
         );
-        assert_const(CHECK_TX_REMOVED_STALE_NONCE, "check_tx_removed_stale_nonce");
         assert_const(
             CHECK_TX_REMOVED_ACCOUNT_BALANCE,
             "check_tx_removed_account_balance",

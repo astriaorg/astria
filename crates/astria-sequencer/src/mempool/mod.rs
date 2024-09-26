@@ -20,7 +20,6 @@ use astria_core::{
 use astria_eyre::eyre::Result;
 pub(crate) use mempool_state::get_account_balances;
 use tokio::{
-    join,
     sync::{
         RwLock,
         RwLockWriteGuard,
@@ -133,6 +132,7 @@ pub(crate) struct Mempool {
     pending: Arc<RwLock<PendingTransactions>>,
     parked: Arc<RwLock<ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>>>,
     comet_bft_removal_cache: Arc<RwLock<RemovalCache>>,
+    contained_txs: Arc<RwLock<HashSet<[u8; 32]>>>,
 }
 
 impl Mempool {
@@ -145,6 +145,7 @@ impl Mempool {
                 NonZeroUsize::try_from(REMOVAL_CACHE_SIZE)
                     .expect("Removal cache cannot be zero sized"),
             ))),
+            contained_txs: Arc::new(RwLock::new(HashSet::new())),
         }
     }
 
@@ -152,12 +153,7 @@ impl Mempool {
     #[must_use]
     #[instrument(skip_all)]
     pub(crate) async fn len(&self) -> usize {
-        #[rustfmt::skip]
-        let (pending_len, parked_len) = join!(
-            async { self.pending.read().await.len() },
-            async { self.parked.read().await.len() }
-        );
-        pending_len.saturating_add(parked_len)
+        self.contained_txs.read().await.len()
     }
 
     /// Inserts a transaction into the mempool and does not allow for transaction replacement.
@@ -184,11 +180,18 @@ impl Mempool {
                 // Release the lock asap.
                 drop(pending);
                 // try to add to parked queue
-                parked.add(
-                    timemarked_tx,
+                match parked.add(
+                    timemarked_tx.clone(),
                     current_account_nonce,
                     &current_account_balances,
-                )
+                ) {
+                    Ok(()) => {
+                        // track in contained txs
+                        self.contained_txs.write().await.insert(timemarked_tx.id());
+                        Ok(())
+                    }
+                    Err(err) => Err(err),
+                }
             }
             error @ Err(
                 InsertionError::AlreadyPresent
@@ -220,6 +223,10 @@ impl Mempool {
                         );
                     }
                 }
+
+                // track in contained txs
+                self.contained_txs.write().await.insert(timemarked_tx.id());
+
                 Ok(())
             }
         }
@@ -266,10 +273,12 @@ impl Mempool {
 
         // Add all removed to removal cache for cometbft.
         let mut removal_cache = self.comet_bft_removal_cache.write().await;
-        // Add the original tx first, since it will also be listed in `removed_txs`.  The second
+
+        // Add the original tx first to preserve its reason for removal. The second
         // attempt to add it inside the loop below will be a no-op.
         removal_cache.add(tx_hash, reason);
         for removed_tx in removed_txs {
+            self.contained_txs.write().await.remove(&removed_tx);
             removal_cache.add(removed_tx, RemovalReason::LowerNonceInvalidated);
         }
     }
@@ -279,6 +288,12 @@ impl Mempool {
     #[instrument(skip_all)]
     pub(crate) async fn check_removed_comet_bft(&self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
         self.comet_bft_removal_cache.write().await.remove(tx_hash)
+    }
+
+    /// Returns true if the transaction is tracked as inserted.
+    #[instrument(skip_all)]
+    pub(crate) async fn tracked(&self, tx_hash: [u8; 32]) -> bool {
+        self.contained_txs.read().await.contains(&tx_hash)
     }
 
     /// Updates stored transactions to reflect current blockchain state. Will remove transactions
@@ -380,10 +395,12 @@ impl Mempool {
         drop(parked);
         drop(pending);
 
-        // add to removal cache for cometbft
+        // add to removal cache for cometbft and remove from the tracked set
         let mut removal_cache = self.comet_bft_removal_cache.write().await;
+        let mut tracked_txs = self.contained_txs.write().await;
         for (tx_hash, reason) in removed_txs {
             removal_cache.add(tx_hash, reason);
+            tracked_txs.remove(&tx_hash);
         }
     }
 
@@ -946,5 +963,63 @@ mod tests {
             matches!(tx_cache.remove(tx_0), Some(RemovalReason::Expired)),
             "first removal reason should be presenved"
         );
+    }
+
+    #[tokio::test]
+    async fn tx_tracked_set() {
+        let mempool = Mempool::new();
+        let signing_key = SigningKey::from([1; 32]);
+        let signing_address = signing_key.verification_key().address_bytes();
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+
+        let tx0 = mock_tx(0, &signing_key, "test");
+        let tx1 = mock_tx(1, &signing_key, "test");
+
+        // check that the parked transaction is in the tracked set
+        mempool
+            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        assert!(mempool.tracked(tx1.id().get()).await);
+
+        // check that the pending transaction is in the tracked set
+        mempool
+            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        assert!(mempool.tracked(tx0.id().get()).await);
+
+        // remove the transactions from the mempool
+        mempool
+            .remove_tx_invalid(tx0.clone(), RemovalReason::Expired)
+            .await;
+
+        // check that the transactions are not in the tracked set
+        assert!(!mempool.tracked(tx0.id().get()).await);
+        assert!(!mempool.tracked(tx1.id().get()).await);
+
+        // re-insert the transactions into the mempool
+        mempool
+            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // check that the transactions are in the tracked set
+        assert!(mempool.tracked(tx0.id().get()).await);
+        assert!(mempool.tracked(tx1.id().get()).await);
+
+        // remove the transacitons from the mempool via maintenance
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(&mut mock_state, signing_address, 2);
+        mempool.run_maintenance(&mock_state, false).await;
+
+        // check that the transactions are not in the tracked set
+        assert!(!mempool.tracked(tx0.id().get()).await);
+        assert!(!mempool.tracked(tx1.id().get()).await);
     }
 }
