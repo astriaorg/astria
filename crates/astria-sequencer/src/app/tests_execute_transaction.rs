@@ -1127,15 +1127,13 @@ async fn app_execute_transaction_ibc_sudo_change() {
 
     let new_address = astria_address_from_hex_string(BOB_ADDRESS);
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![Action::IbcSudoChange(IbcSudoChangeAction {
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![Action::IbcSudoChange(IbcSudoChangeAction {
             new_address,
-        })],
-    };
+        })])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
@@ -1164,15 +1162,13 @@ async fn app_execute_transaction_ibc_sudo_change_error() {
     .unwrap();
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![Action::IbcSudoChange(IbcSudoChangeAction {
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![Action::IbcSudoChange(IbcSudoChangeAction {
             new_address: alice_address,
-        })],
-    };
+        })])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
     let res = app

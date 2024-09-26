@@ -283,6 +283,7 @@ impl ActionName for Action {
             Action::ValidatorUpdate(_) => "ValidatorUpdate",
             Action::SudoAddressChange(_) => "SudoAddressChange",
             Action::Ibc(_) => "Ibc",
+            Action::IbcSudoChange(_) => "IbcSudoChange",
             Action::Ics20Withdrawal(_) => "Ics20Withdrawal",
             Action::IbcRelayerChange(_) => "IbcRelayerChange",
             Action::FeeAssetChange(_) => "FeeAssetChange",

@@ -26,8 +26,8 @@ use astria_core::{
                 FeeChange,
                 FeeChangeAction,
                 IbcRelayerChangeAction,
-                Ics20Withdrawal,
                 IbcSudoChangeAction,
+                Ics20Withdrawal,
                 SequenceAction,
                 TransferAction,
                 ValidatorUpdate,
@@ -239,18 +239,26 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let tx_sudo = UnsignedTransaction::builder()
+    let tx_sudo_ibc = UnsignedTransaction::builder()
         .actions(vec![
             IbcSudoChangeAction {
                 new_address: bob_address,
             }
             .into(),
+        ])
+        .nonce(2)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let tx_sudo = UnsignedTransaction::builder()
+        .actions(vec![
             SudoAddressChangeAction {
                 new_address: bob_address,
             }
             .into(),
         ])
-        .nonce(2)
+        .nonce(3)
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -264,6 +272,9 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.execute_transaction(signed_tx_sudo_bundleable)
         .await
         .unwrap();
+
+    let signed_tx_sudo_ibc = Arc::new(tx_sudo_ibc.into_signed(&alice));
+    app.execute_transaction(signed_tx_sudo_ibc).await.unwrap();
 
     let signed_tx_sudo = Arc::new(tx_sudo.into_signed(&alice));
     app.execute_transaction(signed_tx_sudo).await.unwrap();

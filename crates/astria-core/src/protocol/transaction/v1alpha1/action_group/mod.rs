@@ -17,6 +17,7 @@ use super::{
         FeeAssetChangeAction,
         FeeChangeAction,
         IbcRelayerChangeAction,
+        IbcSudoChangeAction,
         Ics20Withdrawal,
         InitBridgeAccountAction,
         SequenceAction,
@@ -55,6 +56,7 @@ impl_belong_to_group!(
     (FeeChangeAction, ActionGroup::Sudo),
     (FeeAssetChangeAction, ActionGroup::Sudo),
     (IbcRelay, ActionGroup::General),
+    (IbcSudoChangeAction, ActionGroup::Sudo),
 );
 
 trait Group {
@@ -77,6 +79,7 @@ impl Group for Action {
             Action::FeeChange(_) => FeeChangeAction::GROUP,
             Action::FeeAssetChange(_) => FeeAssetChangeAction::GROUP,
             Action::Ibc(_) => IbcRelay::GROUP,
+            Action::IbcSudoChange(_) => IbcSudoChangeAction::GROUP,
         }
     }
 }
