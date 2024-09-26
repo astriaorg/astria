@@ -69,3 +69,39 @@ spec:
     {{- end }}
   {{- end }}
 {{- end }}
+---
+{{- if .Values.ingress.ipfs.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: graph-node-ipfs-ingress
+  annotations:
+    {{- with .Values.ingress.ipfs.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.ipfs.className }}
+  ingressClassName: {{ .Values.ingress.ipfs.className }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.ipfs.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ipfs
+                port: 
+                  number: 5001
+  {{- if .Values.ingress.ipfs.tls }}
+  tls:
+    {{- range .Values.ingress.ipfs.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+{{- end }}
