@@ -27,7 +27,7 @@ use crate::storage::{
 
 const BLOCK_FEES_PREFIX: &str = "block_fees/";
 const FEE_ASSET_PREFIX: &str = "fee_asset/";
-const NATIVE_ASSET_KEY: &[u8] = b"nativeasset";
+const NATIVE_ASSET_KEY: &str = "nativeasset";
 
 fn asset_storage_key<'a, TAsset>(asset: &'a TAsset) -> String
 where
@@ -77,7 +77,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_native_asset(&self) -> Result<asset::TracePrefixed> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(NATIVE_ASSET_KEY)
+            .get_raw(NATIVE_ASSET_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw native asset from state")?
@@ -202,7 +202,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::TracePrefixedDenom((&asset).into())
             .serialize()
             .context("failed to serialize native asset")?;
-        self.nonverifiable_put_raw(NATIVE_ASSET_KEY.to_vec(), bytes);
+        self.put_raw(NATIVE_ASSET_KEY.to_string(), bytes);
         Ok(())
     }
 

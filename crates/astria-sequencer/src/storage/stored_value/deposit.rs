@@ -95,13 +95,28 @@ impl<'a> From<Deposit<'a>> for DomainDeposit {
     }
 }
 
-impl<'a> TryFrom<StoredValue<'a>> for Deposit<'a> {
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub(crate) struct Deposits<'a>(Vec<Deposit<'a>>);
+
+impl<'a, T: Iterator<Item = &'a DomainDeposit>> From<T> for Deposits<'a> {
+    fn from(deposit_iter: T) -> Self {
+        Deposits(deposit_iter.map(Deposit::from).collect())
+    }
+}
+
+impl<'a> From<Deposits<'a>> for Vec<DomainDeposit> {
+    fn from(deposits: Deposits<'a>) -> Self {
+        deposits.0.into_iter().map(DomainDeposit::from).collect()
+    }
+}
+
+impl<'a> TryFrom<StoredValue<'a>> for Deposits<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: StoredValue<'a>) -> Result<Self, Self::Error> {
-        let StoredValue::Deposit(deposit) = value else {
-            return Err(super::type_mismatch("deposit", &value));
+        let StoredValue::Deposits(deposits) = value else {
+            return Err(super::type_mismatch("deposits", &value));
         };
-        Ok(deposit)
+        Ok(deposits)
     }
 }

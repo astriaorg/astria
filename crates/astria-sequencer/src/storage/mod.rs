@@ -8,7 +8,7 @@ pub(crate) use stored_value::{
     BlockHeight,
     BlockTimestamp,
     ChainId,
-    Deposit,
+    Deposits,
     Fee,
     IbcPrefixedDenom,
     Nonce,

@@ -35,6 +35,7 @@ pub enum Action {
     ValidatorUpdate(ValidatorUpdate),
     SudoAddressChange(SudoAddressChangeAction),
     Ibc(IbcRelay),
+    IbcSudoChange(IbcSudoChangeAction),
     Ics20Withdrawal(Ics20Withdrawal),
     IbcRelayerChange(IbcRelayerChangeAction),
     FeeAssetChange(FeeAssetChangeAction),
@@ -60,6 +61,7 @@ impl Protobuf for Action {
                 Value::SudoAddressChangeAction(act.clone().into_raw())
             }
             Action::Ibc(act) => Value::IbcAction(act.clone().into()),
+            Action::IbcSudoChange(act) => Value::IbcSudoChangeAction(act.clone().into_raw()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.to_raw()),
             Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.to_raw()),
             Action::FeeAssetChange(act) => Value::FeeAssetChangeAction(act.to_raw()),
@@ -111,6 +113,9 @@ impl Protobuf for Action {
             Value::SudoAddressChangeAction(act) => Self::SudoAddressChange(
                 SudoAddressChangeAction::try_from_raw(act)
                     .map_err(ActionError::sudo_address_change)?,
+            ),
+            Value::IbcSudoChangeAction(act) => Self::IbcSudoChange(
+                IbcSudoChangeAction::try_from_raw(act).map_err(ActionError::ibc_sudo_change)?,
             ),
             Value::IbcAction(act) => {
                 Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
@@ -181,6 +186,12 @@ impl From<TransferAction> for Action {
 impl From<SudoAddressChangeAction> for Action {
     fn from(value: SudoAddressChangeAction) -> Self {
         Self::SudoAddressChange(value)
+    }
+}
+
+impl From<IbcSudoChangeAction> for Action {
+    fn from(value: IbcSudoChangeAction) -> Self {
+        Self::IbcSudoChange(value)
     }
 }
 
@@ -278,6 +289,10 @@ impl ActionError {
         Self(ActionErrorKind::SudoAddressChange(inner))
     }
 
+    fn ibc_sudo_change(inner: IbcSudoChangeActionError) -> Self {
+        Self(ActionErrorKind::IbcSudoChange(inner))
+    }
+
     fn ibc(inner: Box<dyn std::error::Error + Send + Sync>) -> Self {
         Self(ActionErrorKind::Ibc(inner))
     }
@@ -327,6 +342,8 @@ enum ActionErrorKind {
     ValidatorUpdate(#[source] ValidatorUpdateError),
     #[error("sudo address change action was not valid")]
     SudoAddressChange(#[source] SudoAddressChangeActionError),
+    #[error("ibc sudo address change action was not valid")]
+    IbcSudoChange(#[source] IbcSudoChangeActionError),
     #[error("ibc action was not valid")]
     Ibc(#[source] Box<dyn std::error::Error + Send + Sync>),
     #[error("ics20 withdrawal action was not valid")]
@@ -744,6 +761,74 @@ enum SudoAddressChangeActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`new_address` field did not contain a valid address")]
+    Address { source: AddressError },
+}
+
+#[derive(Debug, Clone)]
+#[allow(clippy::module_name_repetitions)]
+pub struct IbcSudoChangeAction {
+    pub new_address: Address,
+}
+
+impl Protobuf for IbcSudoChangeAction {
+    type Error = IbcSudoChangeActionError;
+    type Raw = raw::IbcSudoChangeAction;
+
+    fn into_raw(self) -> raw::IbcSudoChangeAction {
+        raw::IbcSudoChangeAction {
+            new_address: Some(self.new_address.into_raw()),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::IbcSudoChangeAction {
+        raw::IbcSudoChangeAction {
+            new_address: Some(self.new_address.to_raw()),
+        }
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::IbcSudoChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the raw action's `new_address` did not have the expected
+    /// length or if the field was not set.
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, IbcSudoChangeActionError> {
+        let raw::IbcSudoChangeAction {
+            new_address,
+        } = proto;
+        let Some(new_address) = new_address else {
+            return Err(IbcSudoChangeActionError::field_not_set("new_address"));
+        };
+        let new_address =
+            Address::try_from_raw(new_address).map_err(IbcSudoChangeActionError::address)?;
+        Ok(Self {
+            new_address,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct IbcSudoChangeActionError(IbcSudoChangeActionErrorKind);
+
+impl IbcSudoChangeActionError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(IbcSudoChangeActionErrorKind::FieldNotSet(field))
+    }
+
+    fn address(source: AddressError) -> Self {
+        Self(IbcSudoChangeActionErrorKind::Address {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum IbcSudoChangeActionErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("`new_sudo` field did not contain a valid address")]
     Address { source: AddressError },
 }
 
