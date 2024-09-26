@@ -88,7 +88,7 @@ pub(crate) async fn balance_request(
         Err(err_rsp) => return err_rsp,
     };
 
-    let balances = match get_trace_prefixed_account_balances(&snapshot, address).await {
+    let mut balances = match get_trace_prefixed_account_balances(&snapshot, address).await {
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
@@ -100,6 +100,11 @@ pub(crate) async fn balance_request(
             };
         }
     };
+
+    // Unstable sort does not allocate auxillary memory and is typically faster. Custom sorting
+    // function is deterministic and only allocates in the case that two values are equal.
+    balances.sort_unstable_by(compare_asset_balances);
+
     let payload = BalanceResponse {
         height: height.value(),
         balances,
@@ -214,4 +219,85 @@ async fn preprocess_request(
         }
     };
     Ok((address, snapshot, height))
+}
+
+/// Custom deterministic sorting function for `AssetBalance` that sorts by balance in descending
+/// order and then by denom in ascending order. This function should never return `Ordering::Equal`,
+/// as calling `sort_unstable_by` on equal values has a non-deterministic result.
+fn compare_asset_balances(lhs: &AssetBalance, rhs: &AssetBalance) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+
+    match lhs.balance.cmp(&rhs.balance) {
+        // Denoms should never have the same display name
+        Ordering::Equal => lhs.denom.to_string().cmp(&rhs.denom.to_string()),
+        Ordering::Less => Ordering::Greater,
+        Ordering::Greater => Ordering::Less,
+    }
+}
+
+mod test {
+    #[test]
+    fn compare_asset_balances_sorts_asset_balances_as_expected() {
+        use astria_core::{
+            primitive::v1::asset::Denom,
+            protocol::account::v1alpha1::AssetBalance,
+        };
+
+        let trace_denom_1 = "first/new/asset".parse::<Denom>().unwrap();
+        let trace_denom_2 = "second/new/asset".parse::<Denom>().unwrap();
+        let ibc_denom_1 = format!("ibc/{}", hex::encode([0u8; 32]))
+            .parse::<Denom>()
+            .unwrap();
+        let ibc_denom_2 = format!("ibc/{}", hex::encode([1u8; 32]))
+            .parse::<Denom>()
+            .unwrap();
+
+        let mut balances = vec![
+            AssetBalance {
+                denom: trace_denom_1.clone(),
+                balance: 1,
+            },
+            AssetBalance {
+                denom: trace_denom_1.clone(),
+                balance: 2,
+            },
+            AssetBalance {
+                denom: trace_denom_2.clone(),
+                balance: 2,
+            },
+            AssetBalance {
+                denom: trace_denom_2.clone(),
+                balance: 3,
+            },
+            AssetBalance {
+                denom: ibc_denom_1.clone(),
+                balance: 3,
+            },
+            AssetBalance {
+                denom: ibc_denom_1.clone(),
+                balance: 4,
+            },
+            AssetBalance {
+                denom: ibc_denom_2.clone(),
+                balance: 4,
+            },
+            AssetBalance {
+                denom: ibc_denom_2.clone(),
+                balance: 5,
+            },
+        ];
+
+        let original_balances = balances.clone();
+
+        balances.sort_unstable_by(super::compare_asset_balances);
+
+        assert_eq!(balances[0], original_balances[7]);
+        assert_eq!(balances[1], original_balances[5]);
+        assert_eq!(balances[2], original_balances[6]);
+        assert_eq!(balances[3], original_balances[4]);
+        assert_eq!(balances[4], original_balances[3]);
+        assert_eq!(balances[5], original_balances[1]);
+        assert_eq!(balances[6], original_balances[2]);
+        assert_eq!(balances[7], original_balances[0]);
+    }
 }
