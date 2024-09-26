@@ -228,7 +228,10 @@ impl TestEthereumConfig {
     }
 }
 
-#[expect(clippy::struct_field_names)]
+#[expect(
+    clippy::struct_field_names,
+    reason = "we want struct field names to be specific"
+)]
 pub struct AstriaWithdrawerDeployerConfig {
     pub base_chain_asset_precision: u32,
     pub base_chain_bridge_address: astria_core::primitive::v1::Address,

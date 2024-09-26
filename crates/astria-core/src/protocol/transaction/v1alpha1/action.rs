@@ -263,7 +263,10 @@ impl TryFrom<raw::Action> for Action {
     }
 }
 
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct ActionError(ActionErrorKind);
@@ -393,7 +396,10 @@ enum SequenceActionErrorKind {
 }
 
 #[derive(Clone, Debug)]
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct SequenceAction {
     pub rollup_id: RollupId,
     pub data: Bytes,
@@ -445,7 +451,10 @@ impl Protobuf for SequenceAction {
 }
 
 #[derive(Clone, Debug)]
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
@@ -691,7 +700,10 @@ impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdat
 }
 
 #[derive(Clone, Debug)]
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct SudoAddressChangeAction {
     pub new_address: Address,
 }
@@ -765,7 +777,10 @@ enum SudoAddressChangeActionErrorKind {
 }
 
 #[derive(Debug, Clone)]
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct IbcSudoChangeAction {
     pub new_address: Address,
 }
@@ -1166,7 +1181,10 @@ enum Ics20WithdrawalErrorKind {
     InvalidDenom { source: asset::ParseDenomError },
 }
 
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 #[derive(Debug, Clone)]
 pub enum IbcRelayerChangeAction {
     Addition(Address),
@@ -1247,7 +1265,10 @@ enum IbcRelayerChangeActionErrorKind {
     MissingAddress,
 }
 
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 #[derive(Debug, Clone)]
 pub enum FeeAssetChangeAction {
     Addition(asset::Denom),
@@ -1328,7 +1349,10 @@ enum FeeAssetChangeActionErrorKind {
     MissingAsset,
 }
 
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 #[derive(Debug, Clone)]
 pub struct InitBridgeAccountAction {
     // the rollup ID to register for the sender of this action
@@ -1485,7 +1509,10 @@ enum InitBridgeAccountActionErrorKind {
     InvalidWithdrawerAddress(#[source] AddressError),
 }
 
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 #[derive(Debug, Clone)]
 pub struct BridgeLockAction {
     pub to: Address,
@@ -1617,7 +1644,10 @@ enum BridgeLockActionErrorKind {
     InvalidFeeAsset(#[source] asset::ParseDenomError),
 }
 
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeUnlockAction {
     pub to: Address,
@@ -1765,7 +1795,10 @@ enum BridgeUnlockActionErrorKind {
     BridgeAddress { source: AddressError },
 }
 
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 #[derive(Debug, Clone)]
 pub struct BridgeSudoChangeAction {
     pub bridge_address: Address,
@@ -1912,7 +1945,10 @@ pub enum FeeChange {
     Ics20WithdrawalBaseFee,
 }
 
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistend and specific naming"
+)]
 #[derive(Debug, Clone)]
 pub struct FeeChangeAction {
     pub fee_change: FeeChange,

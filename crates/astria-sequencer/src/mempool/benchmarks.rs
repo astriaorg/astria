@@ -2,7 +2,7 @@
 //! ```sh
 //! cargo bench --features=benchmark -qp astria-sequencer mempool
 //! ```
-#![allow(non_camel_case_types)]
+#![expect(non_camel_case_types, reason = "for benchmark")]
 
 use std::{
     sync::Arc,

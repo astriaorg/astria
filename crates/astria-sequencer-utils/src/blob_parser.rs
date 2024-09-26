@@ -104,13 +104,17 @@ pub fn run(
     Ok(())
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "sizes mainly used for compression ratio"
+)]
 fn parse(input: &str, verbose: bool) -> Result<ParsedBlob> {
     let raw = get_decoded_blob_data(input)?;
-    #[expect(clippy::cast_precision_loss)]
+
     let compressed_size = raw.len() as f32;
     let decompressed =
         Bytes::from(decompress_bytes(&raw).wrap_err("failed to decompress decoded bytes")?);
-    #[expect(clippy::cast_precision_loss)]
+
     let decompressed_size = decompressed.len() as f32;
     let compression_ratio = decompressed_size / compressed_size;
 

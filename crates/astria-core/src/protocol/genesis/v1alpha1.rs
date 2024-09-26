@@ -131,6 +131,11 @@ impl Protobuf for GenesisAppState {
     type Error = GenesisAppStateError;
     type Raw = raw::GenesisAppState;
 
+    #[expect(
+        clippy::allow_attributes,
+        clippy::allow_attributes_without_reason,
+        reason = "false positive"
+    )]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
             address_prefixes,

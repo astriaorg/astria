@@ -1,5 +1,7 @@
-// These are tests; failing with panics is ok.
-#![allow(clippy::missing_panics_doc)]
+#![expect(
+    clippy::missing_panics_doc,
+    reason = "These are tests; failing with panics is ok."
+)]
 
 mod ethereum;
 mod mock_cometbft;

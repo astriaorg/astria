@@ -546,7 +546,10 @@ pub struct SequencerBlockParts {
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
 /// converting its opaque `data` bytes into sequencer specific types.
 #[derive(Clone, Debug, PartialEq)]
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct SequencerBlock {
     /// The result of hashing the cometbft header. Guaranteed to not be `None` as compared to
     /// the cometbft/tendermint-rs return type.
@@ -965,7 +968,10 @@ pub struct FilteredSequencerBlockParts {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[expect(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct FilteredSequencerBlock {
     block_hash: [u8; 32],
     header: SequencerBlockHeader,

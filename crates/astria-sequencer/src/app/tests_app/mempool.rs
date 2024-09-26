@@ -194,7 +194,7 @@ async fn do_not_trigger_cleaning() {
     assert!(!app.recost_mempool, "flag should not have been set");
 }
 
-#[expect(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn maintenance_recosting_promotes() {
     // check that transaction promotion from recosting works
@@ -373,7 +373,7 @@ async fn maintenance_recosting_promotes() {
     );
 }
 
-#[expect(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn maintenance_funds_added_promotes() {
     // check that transaction promotion from new funds works
