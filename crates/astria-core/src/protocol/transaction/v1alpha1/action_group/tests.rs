@@ -17,6 +17,7 @@ use crate::{
             FeeChange,
             FeeChangeAction,
             IbcRelayerChangeAction,
+            IbcSudoChangeAction,
             Ics20Withdrawal,
             InitBridgeAccountAction,
             SequenceAction,
@@ -33,7 +34,7 @@ use crate::{
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
 #[test]
-fn try_from_list_of_actions_bundleable_general() {
+fn try_from_list_of_actions_general() {
     let address: Address<_> = Address::builder()
         .array([0; 20])
         .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -95,7 +96,7 @@ fn try_from_list_of_actions_bundleable_general() {
 }
 
 #[test]
-fn from_list_of_actions_bundleable_sudo() {
+fn from_list_of_actions_sudo() {
     let address: Address<_> = Address::builder()
         .array([0; 20])
         .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -119,7 +120,7 @@ fn from_list_of_actions_bundleable_sudo() {
 }
 
 #[test]
-fn from_list_of_actions_sudo() {
+fn from_list_of_actions_unbundelable_sudo() {
     let address: Address<_> = Address::builder()
         .array([0; 20])
         .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -127,6 +128,15 @@ fn from_list_of_actions_sudo() {
         .unwrap();
 
     let actions = vec![Action::SudoAddressChange(SudoAddressChangeAction {
+        new_address: address,
+    })];
+
+    assert!(matches!(
+        Actions::try_from_list_of_actions(actions).unwrap().group(),
+        Some(ActionGroup::UnbundleableSudo)
+    ));
+
+    let actions = vec![Action::IbcSudoChange(IbcSudoChangeAction {
         new_address: address,
     })];
 
@@ -153,7 +163,7 @@ fn from_list_of_actions_sudo() {
 }
 
 #[test]
-fn from_list_of_actions_general() {
+fn from_list_of_actions_unbundleable_general() {
     let address: Address<_> = Address::builder()
         .array([0; 20])
         .prefix(ASTRIA_ADDRESS_PREFIX)

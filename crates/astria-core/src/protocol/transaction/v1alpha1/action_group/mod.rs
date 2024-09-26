@@ -56,7 +56,7 @@ impl_belong_to_group!(
     (FeeChangeAction, ActionGroup::Sudo),
     (FeeAssetChangeAction, ActionGroup::Sudo),
     (IbcRelay, ActionGroup::General),
-    (IbcSudoChangeAction, ActionGroup::Sudo),
+    (IbcSudoChangeAction, ActionGroup::UnbundleableSudo),
 );
 
 trait Group {
@@ -148,7 +148,6 @@ enum ErrorKind {
     NotBundleable { group: ActionGroup },
 }
 
-/// Invariants: `group` is set if `inner` is not empty.
 #[derive(Clone, Debug)]
 pub(super) struct Actions {
     inner: Vec<Action>,
@@ -179,7 +178,7 @@ impl Actions {
         let group = match actions_iter.next() {
             Some(action) => action.group(),
             None => {
-                // empty `actions`, so invariants met
+                // empty `actions`
                 return Ok(Self::default());
             }
         };

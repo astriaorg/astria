@@ -83,7 +83,6 @@ mod sized_bundle {
 
 #[cfg(test)]
 mod bundle_factory {
-
     use super::*;
     use crate::{
         executor::bundle_factory::{

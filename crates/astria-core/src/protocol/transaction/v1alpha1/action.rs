@@ -271,6 +271,8 @@ impl TryFrom<raw::Action> for Action {
     }
 }
 
+// TODO: replace this trait with a Protobuf:FullName implementation.
+// Issue tracked in #1567
 pub(super) trait ActionName {
     fn name(&self) -> &'static str;
 }
