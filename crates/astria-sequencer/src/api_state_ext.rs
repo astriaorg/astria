@@ -34,28 +34,28 @@ use cnidarium::{
 use prost::Message;
 use tracing::instrument;
 
-fn block_hash_by_height_key(height: u64) -> String {
-    format!("blockhash/{height}")
+fn block_hash_by_height_key(height: u64) -> Vec<u8> {
+    [b"blockhash/".as_slice(), &height.to_le_bytes()].concat()
 }
 
-fn sequencer_block_header_by_hash_key(hash: &[u8]) -> String {
-    format!("blockheader/{}", crate::utils::Hex(hash))
+fn sequencer_block_header_by_hash_key(hash: &[u8]) -> Vec<u8> {
+    [b"blockheader/", hash].concat()
 }
 
-fn rollup_data_by_hash_and_rollup_id_key(hash: &[u8], rollup_id: &RollupId) -> String {
-    format!("rollupdata/{}/{}", crate::utils::Hex(hash), rollup_id)
+fn rollup_data_by_hash_and_rollup_id_key(hash: &[u8], rollup_id: &RollupId) -> Vec<u8> {
+    [b"rollupdata/", hash, rollup_id.as_ref()].concat()
 }
 
-fn rollup_ids_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupids/{}", crate::utils::Hex(hash))
+fn rollup_ids_by_hash_key(hash: &[u8]) -> Vec<u8> {
+    [b"rollupids/", hash].concat()
 }
 
-fn rollup_transactions_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rolluptxsproof/{}", crate::utils::Hex(hash))
+fn rollup_transactions_proof_by_hash_key(hash: &[u8]) -> Vec<u8> {
+    [b"rolluptxsproof/", hash].concat()
 }
 
-fn rollup_ids_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupidsproof/{}", crate::utils::Hex(hash))
+fn rollup_ids_proof_by_hash_key(hash: &[u8]) -> Vec<u8> {
+    [b"rollupidsproof/", hash].concat()
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -139,7 +139,7 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_block_hash_by_height(&self, height: u64) -> Result<[u8; 32]> {
         let key = block_hash_by_height_key(height);
         let Some(hash) = self
-            .get_raw(&key)
+            .nonverifiable_get_raw(&key)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read block hash by height from state")?
@@ -160,7 +160,7 @@ pub(crate) trait StateReadExt: StateRead {
     ) -> Result<SequencerBlockHeader> {
         let key = sequencer_block_header_by_hash_key(hash);
         let Some(header_bytes) = self
-            .get_raw(&key)
+            .nonverifiable_get_raw(&key)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw sequencer block from state")?
@@ -179,7 +179,7 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_rollup_ids_by_block_hash(&self, hash: &[u8]) -> Result<Vec<RollupId>> {
         let key = rollup_ids_by_hash_key(hash);
         let Some(rollup_ids_bytes) = self
-            .get_raw(&key)
+            .nonverifiable_get_raw(&key)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read rollup IDs by block hash from state")?
@@ -195,7 +195,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_sequencer_block_by_hash(&self, hash: &[u8]) -> Result<SequencerBlock> {
         let Some(header_bytes) = self
-            .get_raw(&sequencer_block_header_by_hash_key(hash))
+            .nonverifiable_get_raw(&sequencer_block_header_by_hash_key(hash))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw sequencer block from state")?
@@ -214,10 +214,11 @@ pub(crate) trait StateReadExt: StateRead {
         let mut rollup_transactions = Vec::with_capacity(rollup_ids.len());
         for id in &rollup_ids {
             let key = rollup_data_by_hash_and_rollup_id_key(hash, id);
-            let raw =
-                self.get_raw(&key).await.map_err(anyhow_to_eyre).wrap_err(
-                    "failed to read rollup data by block hash and rollup ID from state",
-                )?;
+            let raw = self
+                .nonverifiable_get_raw(&key)
+                .await
+                .map_err(anyhow_to_eyre)
+                .context("failed to read rollup data by block hash and rollup ID from state")?;
             if let Some(raw) = raw {
                 let raw = raw.as_slice();
                 let rollup_data = raw::RollupTransactions::decode(raw)
@@ -227,7 +228,7 @@ pub(crate) trait StateReadExt: StateRead {
         }
 
         let Some(rollup_transactions_proof) = self
-            .get_raw(&rollup_transactions_proof_by_hash_key(hash))
+            .nonverifiable_get_raw(&rollup_transactions_proof_by_hash_key(hash))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read rollup transactions proof by block hash from state")?
@@ -240,7 +241,7 @@ pub(crate) trait StateReadExt: StateRead {
                 .wrap_err("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
-            .get_raw(&rollup_ids_proof_by_hash_key(hash))
+            .nonverifiable_get_raw(&rollup_ids_proof_by_hash_key(hash))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read rollup IDs proof by block hash from state")?
@@ -284,7 +285,7 @@ pub(crate) trait StateReadExt: StateRead {
     ) -> Result<RollupTransactions> {
         let key = rollup_data_by_hash_and_rollup_id_key(hash, rollup_id);
         let Some(bytes) = self
-            .get_raw(&key)
+            .nonverifiable_get_raw(&key)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read rollup data by block hash and rollup ID from state")?
@@ -306,7 +307,7 @@ pub(crate) trait StateReadExt: StateRead {
         hash: &[u8],
     ) -> Result<(primitiveRaw::Proof, primitiveRaw::Proof)> {
         let Some(rollup_transactions_proof) = self
-            .get_raw(&rollup_transactions_proof_by_hash_key(hash))
+            .nonverifiable_get_raw(&rollup_transactions_proof_by_hash_key(hash))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read rollup transactions proof by block hash from state")?
@@ -319,7 +320,7 @@ pub(crate) trait StateReadExt: StateRead {
                 .wrap_err("failed to decode rollup transactions proof from raw bytes")?;
 
         let Some(rollup_ids_proof) = self
-            .get_raw(&rollup_ids_proof_by_hash_key(hash))
+            .nonverifiable_get_raw(&rollup_ids_proof_by_hash_key(hash))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read rollup IDs proof by block hash from state")?
@@ -348,7 +349,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         // 6. block hash to rollup IDs proof
 
         let key = block_hash_by_height_key(block.height().into());
-        self.put_raw(key, block.block_hash().to_vec());
+        self.nonverifiable_put_raw(key, block.block_hash().to_vec());
 
         let rollup_ids = block
             .rollup_transactions()
@@ -359,7 +360,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
         let key = rollup_ids_by_hash_key(&block.block_hash());
 
-        self.put_raw(
+        self.nonverifiable_put_raw(
             key,
             borsh::to_vec(&RollupIdSeq(rollup_ids))
                 .wrap_err("failed to serialize rollup IDs list")?,
@@ -374,18 +375,18 @@ pub(crate) trait StateWriteExt: StateWrite {
             rollup_ids_proof,
         } = block.into_parts();
         let header = header.into_raw();
-        self.put_raw(key, header.encode_to_vec());
+        self.nonverifiable_put_raw(key, header.encode_to_vec());
 
         for (id, rollup_data) in rollup_transactions {
             let key = rollup_data_by_hash_and_rollup_id_key(&block_hash, &id);
-            self.put_raw(key, rollup_data.into_raw().encode_to_vec());
+            self.nonverifiable_put_raw(key, rollup_data.into_raw().encode_to_vec());
         }
 
         let key = rollup_transactions_proof_by_hash_key(&block_hash);
-        self.put_raw(key, rollup_transactions_proof.into_raw().encode_to_vec());
+        self.nonverifiable_put_raw(key, rollup_transactions_proof.into_raw().encode_to_vec());
 
         let key = rollup_ids_proof_by_hash_key(&block_hash);
-        self.put_raw(key, rollup_ids_proof.into_raw().encode_to_vec());
+        self.nonverifiable_put_raw(key, rollup_ids_proof.into_raw().encode_to_vec());
 
         Ok(())
     }

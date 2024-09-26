@@ -142,10 +142,7 @@ impl ActionHandler for BridgeLockAction {
             .wrap_err("failed to deduct fee from account balance")?;
 
         state.record(deposit_abci_event);
-        state
-            .put_deposit_event(deposit)
-            .await
-            .wrap_err("failed to put deposit event into state")?;
+        state.cache_deposit_event(deposit);
         Ok(())
     }
 }

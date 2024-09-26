@@ -30,7 +30,7 @@ struct DenominationTrace(String);
 
 const BLOCK_FEES_PREFIX: &str = "block_fees/";
 const FEE_ASSET_PREFIX: &str = "fee_asset/";
-const NATIVE_ASSET_KEY: &[u8] = b"nativeasset";
+const NATIVE_ASSET_KEY: &str = "nativeasset";
 
 fn asset_storage_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
     format!("asset/{}", crate::storage_keys::hunks::Asset::from(asset))
@@ -71,7 +71,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_native_asset(&self) -> Result<asset::TracePrefixed> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(NATIVE_ASSET_KEY)
+            .get_raw(NATIVE_ASSET_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw native asset from state")?
@@ -193,7 +193,7 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn put_native_asset(&mut self, asset: &asset::TracePrefixed) {
-        self.nonverifiable_put_raw(NATIVE_ASSET_KEY.to_vec(), asset.to_string().into_bytes());
+        self.put_raw(NATIVE_ASSET_KEY.to_string(), asset.to_string().into_bytes());
     }
 
     #[instrument(skip_all)]

@@ -341,11 +341,7 @@ impl App {
         self.metrics
             .record_proposal_transactions(signed_txs_included.len());
 
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .wrap_err("failed to get block deposits in prepare_proposal")?;
+        let deposits = self.state.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
@@ -468,11 +464,7 @@ impl App {
         );
         self.metrics.record_proposal_transactions(signed_txs.len());
 
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .wrap_err("failed to get block deposits in process_proposal")?;
+        let deposits = self.state.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         let GeneratedCommitments {
@@ -813,6 +805,10 @@ impl App {
         txs: Vec<bytes::Bytes>,
         tx_results: Vec<ExecTxResult>,
     ) -> Result<()> {
+        let Hash::Sha256(block_hash) = block_hash else {
+            bail!("block hash is empty; this should not occur")
+        };
+
         let chain_id = self
             .state
             .get_chain_id()
@@ -826,25 +822,17 @@ impl App {
 
         let end_block = self.end_block(height.value(), sudo_address).await?;
 
-        // get and clear block deposits from state
+        // get deposits for this block from state's ephemeral cache and put them to storage.
         let mut state_tx = StateDelta::new(self.state.clone());
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .wrap_err("failed to get block deposits in end_block")?;
-        state_tx
-            .clear_block_deposits()
-            .await
-            .wrap_err("failed to clear block deposits")?;
+        let deposits_in_this_block = self.state.get_cached_block_deposits();
         debug!(
-            deposits = %telemetry::display::json(&deposits),
+            deposits = %telemetry::display::json(&deposits_in_this_block),
             "got block deposits from state"
         );
 
-        let Hash::Sha256(block_hash) = block_hash else {
-            bail!("block hash is empty; this should not occur")
-        };
+        state_tx
+            .put_deposits(&block_hash, deposits_in_this_block.clone())
+            .wrap_err("failed to put deposits to state")?;
 
         // cometbft expects a result for every tx in the block, so we need to return a
         // tx result for the commitments, even though they're not actually user txs.
@@ -862,7 +850,7 @@ impl App {
             time,
             proposer_address,
             txs,
-            deposits,
+            deposits_in_this_block,
         )
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
