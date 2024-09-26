@@ -30,7 +30,7 @@ use tracing::{
 };
 
 #[derive(Args, Debug)]
-pub(crate) struct WithdrawalEvents {
+pub(crate) struct WithdrawalEventsArgs {
     #[arg(long, short)]
     input: PathBuf,
     #[arg(long)]
@@ -43,7 +43,7 @@ pub(crate) struct WithdrawalEvents {
     sequencer_url: String,
 }
 
-impl WithdrawalEvents {
+impl WithdrawalEventsArgs {
     pub(crate) async fn run(self) -> eyre::Result<()> {
         let signing_key = read_signing_key(&self.signing_key).wrap_err_with(|| {
             format!(

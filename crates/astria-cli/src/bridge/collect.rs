@@ -50,7 +50,7 @@ use tracing::{
 };
 
 #[derive(Args, Debug)]
-pub(crate) struct WithdrawalEvents {
+pub(crate) struct WithdrawalEventsArgs {
     /// The websocket endpoint of a geth compatible rollup.
     #[arg(long)]
     rollup_endpoint: String,
@@ -88,7 +88,7 @@ pub(crate) struct WithdrawalEvents {
     force: bool,
 }
 
-impl WithdrawalEvents {
+impl WithdrawalEventsArgs {
     pub(crate) async fn run(self) -> eyre::Result<()> {
         let Self {
             rollup_endpoint,
