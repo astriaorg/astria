@@ -1,4 +1,7 @@
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    time::Duration,
+};
 
 use super::{
     clone_response,
@@ -10,14 +13,17 @@ pub fn constant_response<
     T: erased_serde::Serialize + prost::Name + Clone + Default + Send + Sync + 'static,
 >(
     value: T,
-) -> ConstantResponse {
-    ConstantResponse {
-        type_name: std::any::type_name::<T>(),
-        response: erase_response(tonic::Response::new(value)),
+) -> ResponseTemplate {
+    ResponseTemplate {
+        response: Box::new(ConstantResponse {
+            type_name: std::any::type_name::<T>(),
+            response: erase_response(tonic::Response::new(value)),
+        }),
+        delay: None,
     }
 }
 
-pub struct ConstantResponse {
+struct ConstantResponse {
     type_name: &'static str,
     response: tonic::Response<AnyMessage>,
 }
@@ -34,37 +40,30 @@ impl Respond for ConstantResponse {
 #[must_use]
 pub fn default_response<
     T: erased_serde::Serialize + prost::Name + Clone + Default + Send + Sync + 'static,
->() -> DefaultResponse {
+>() -> ResponseTemplate {
     let response = T::default();
-    DefaultResponse {
-        type_name: std::any::type_name::<T>(),
-        response: erase_response(tonic::Response::new(response)),
+    ResponseTemplate {
+        response: Box::new(ConstantResponse {
+            type_name: std::any::type_name::<T>(),
+            response: erase_response(tonic::Response::new(response)),
+        }),
+        delay: None,
     }
 }
 
-pub struct DefaultResponse {
-    type_name: &'static str,
-    response: tonic::Response<AnyMessage>,
-}
-
-impl Respond for DefaultResponse {
-    fn respond(&self, _req: &tonic::Request<AnyMessage>) -> ResponseResult {
-        Ok(MockResponse {
-            type_name: self.type_name,
-            inner: clone_response(&self.response),
-        })
-    }
-}
-
-pub fn dynamic_response<I, O, F>(responder: F) -> DynamicResponse<I, O, F>
+pub fn dynamic_response<I, O, F>(responder: F) -> ResponseTemplate
 where
     O: erased_serde::Serialize + prost::Name + Clone + 'static,
-    F: Fn(&I) -> O,
+    F: Send + Sync + 'static + Fn(&I) -> O,
+    I: Send + Sync + 'static,
 {
-    DynamicResponse {
-        type_name: std::any::type_name::<O>(),
-        responder: Box::new(responder),
-        _phantom_data: PhantomData,
+    ResponseTemplate {
+        response: Box::new(DynamicResponse {
+            type_name: std::any::type_name::<O>(),
+            responder: Box::new(responder),
+            _phantom_data: PhantomData,
+        }),
+        delay: None,
     }
 }
 
@@ -72,6 +71,26 @@ pub struct DynamicResponse<I, O, F> {
     type_name: &'static str,
     responder: Box<F>,
     _phantom_data: PhantomData<(I, O)>,
+}
+
+struct ErrorResponse {
+    status: tonic::Status,
+}
+
+impl Respond for ErrorResponse {
+    fn respond(&self, _req: &tonic::Request<AnyMessage>) -> ResponseResult {
+        Err(self.status.clone())
+    }
+}
+
+#[must_use]
+pub fn error_response(code: tonic::Code) -> ResponseTemplate {
+    ResponseTemplate {
+        response: Box::new(ErrorResponse {
+            status: tonic::Status::new(code, "error"),
+        }),
+        delay: None,
+    }
 }
 
 impl<I, O, F> Respond for DynamicResponse<I, O, F>
@@ -116,6 +135,26 @@ impl Clone for MockResponse {
             type_name: self.type_name,
             inner,
         }
+    }
+}
+
+pub struct ResponseTemplate {
+    response: Box<dyn Respond>,
+    delay: Option<Duration>,
+}
+
+impl ResponseTemplate {
+    pub(crate) fn respond(
+        &self,
+        req: &tonic::Request<AnyMessage>,
+    ) -> (ResponseResult, Option<Duration>) {
+        (self.response.respond(req), self.delay)
+    }
+
+    #[must_use]
+    pub fn set_delay(mut self, delay: Duration) -> Self {
+        self.delay = Some(delay);
+        self
     }
 }
 
