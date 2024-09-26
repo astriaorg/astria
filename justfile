@@ -10,10 +10,15 @@ default:
   @just --list
 
 default_docker_tag := 'local'
+default_repo_name := 'ghcr.io/astriaorg'
 
 # Builds docker image for the crate. Defaults to 'local' tag.
-docker-build crate tag=default_docker_tag:
-  docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{crate}}:{{tag}} .
+docker-build crate tag=default_docker_tag repo_name=default_repo_name:
+  docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{repo_name}}/{{crate}}:{{tag}} .
+
+docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name:
+  @just docker-build {{crate}} {{tag}} {{repo_name}}
+  @just load-image {{crate}} {{tag}} {{repo_name}}
 
 # Installs the astria rust cli from local codebase
 install-cli:
