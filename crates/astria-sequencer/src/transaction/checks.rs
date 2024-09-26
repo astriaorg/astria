@@ -313,12 +313,9 @@ mod tests {
             RollupId,
             ADDRESS_LEN,
         },
-        protocol::transaction::v1alpha1::{
-            action::{
-                SequenceAction,
-                TransferAction,
-            },
-            TransactionParams,
+        protocol::transaction::v1alpha1::action::{
+            SequenceAction,
+            TransferAction,
         },
     };
     use bytes::Bytes;
@@ -401,11 +398,11 @@ mod tests {
             }),
         ];
 
-        let params = TransactionParams::builder()
-            .nonce(0)
+        let tx = UnsignedTransaction::builder()
+            .actions(actions)
             .chain_id("test-chain-id")
-            .build();
-        let tx = UnsignedTransaction::new(actions, params).unwrap();
+            .try_build()
+            .unwrap();
 
         let signed_tx = tx.into_signed(&alice);
         check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
@@ -464,11 +461,11 @@ mod tests {
             }),
         ];
 
-        let params = TransactionParams::builder()
-            .nonce(0)
+        let tx = UnsignedTransaction::builder()
+            .actions(actions)
             .chain_id("test-chain-id")
-            .build();
-        let tx = UnsignedTransaction::new(actions, params).unwrap();
+            .try_build()
+            .unwrap();
 
         let signed_tx = tx.into_signed(&alice);
         let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)

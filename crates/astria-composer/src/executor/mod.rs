@@ -17,7 +17,6 @@ use astria_core::{
         transaction::v1alpha1::{
             action::SequenceAction,
             SignedTransaction,
-            TransactionParams,
         },
     },
 };
@@ -676,13 +675,9 @@ impl Future for SubmitFut {
 
             let new_state = match this.state.project() {
                 SubmitStateProj::NotStarted => {
-                    let params = TransactionParams::builder()
-                        .nonce(*this.nonce)
-                        .chain_id(&*this.chain_id)
-                        .build();
                     let tx = this
                         .bundle
-                        .to_unsigned_transaction(params)
+                        .to_unsigned_transaction(*this.nonce, &*this.chain_id)
                         .into_signed(this.signing_key);
                     info!(
                         nonce.actual = *this.nonce,
@@ -753,13 +748,9 @@ impl Future for SubmitFut {
                 } => match ready!(fut.poll(cx)) {
                     Ok(nonce) => {
                         *this.nonce = nonce;
-                        let params = TransactionParams::builder()
-                            .nonce(*this.nonce)
-                            .chain_id(&*this.chain_id)
-                            .build();
                         let tx = this
                             .bundle
-                            .to_unsigned_transaction(params)
+                            .to_unsigned_transaction(*this.nonce, &*this.chain_id)
                             .into_signed(this.signing_key);
                         info!(
                             nonce.resubmission = *this.nonce,

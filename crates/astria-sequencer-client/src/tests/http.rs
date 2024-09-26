@@ -7,7 +7,6 @@ use astria_core::{
     protocol::transaction::v1alpha1::{
         action::TransferAction,
         SignedTransaction,
-        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -157,15 +156,13 @@ fn create_signed_transaction() -> SignedTransaction {
         }
         .into(),
     ];
-    UnsignedTransaction::new(
-        actions,
-        TransactionParams::builder()
-            .chain_id("test")
-            .nonce(1)
-            .build(),
-    )
-    .unwrap()
-    .into_signed(&alice_key)
+    UnsignedTransaction::builder()
+        .actions(actions)
+        .chain_id("test")
+        .nonce(1)
+        .try_build()
+        .unwrap()
+        .into_signed(&alice_key)
 }
 
 #[tokio::test]

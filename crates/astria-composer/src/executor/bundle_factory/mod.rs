@@ -13,7 +13,6 @@ use astria_core::{
     protocol::transaction::v1alpha1::{
         action::SequenceAction,
         Action,
-        TransactionParams,
         UnsignedTransaction,
     },
     Protobuf as _,
@@ -77,10 +76,19 @@ impl SizedBundle {
     }
 
     #[allow(clippy::panic)] // method is expected to never panic because only `SequenceActions` are
-    /// added to the bundle, which should produce a valid variant of the `ActionGroup` type
+    /// added to the bundle, which should produce a valid variant of the `ActionGroup` type.
     /// Constructs an [`UnsignedTransaction`] from the actions contained in the bundle and `params`.
-    pub(super) fn to_unsigned_transaction(&self, params: TransactionParams) -> UnsignedTransaction {
-        UnsignedTransaction::new(self.buffer.clone(), params).unwrap()
+    pub(super) fn to_unsigned_transaction(
+        &self,
+        nonce: u32,
+        chain_id: &str,
+    ) -> UnsignedTransaction {
+        UnsignedTransaction::builder()
+            .actions(self.buffer.clone())
+            .chain_id(chain_id)
+            .nonce(nonce)
+            .try_build()
+            .unwrap()
     }
 
     /// Buffer `seq_action` into the bundle.

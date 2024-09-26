@@ -245,20 +245,9 @@ pub struct UnsignedTransaction {
 }
 
 impl UnsignedTransaction {
-    /// Creates the `UnsignedTransaction` from the actions and params.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if the actions list contains actions
-    /// of different `ActionGroup` types or violated an `ActionGroup`'s bundling constraints.
-    pub fn new(
-        actions: Vec<Action>,
-        params: TransactionParams,
-    ) -> Result<Self, action_group::Error> {
-        Ok(Self {
-            actions: Actions::try_from_list_of_actions(actions)?,
-            params,
-        })
+    #[must_use]
+    pub fn builder() -> UnsignedTransactionBuilder {
+        UnsignedTransactionBuilder::new()
     }
 
     #[must_use]
@@ -358,7 +347,12 @@ impl UnsignedTransaction {
             .collect::<Result<_, _>>()
             .map_err(UnsignedTransactionError::action)?;
 
-        UnsignedTransaction::new(actions, params).map_err(UnsignedTransactionError::action_group)
+        UnsignedTransaction::builder()
+            .actions(actions)
+            .chain_id(params.chain_id)
+            .nonce(params.nonce)
+            .try_build()
+            .map_err(UnsignedTransactionError::action_group)
     }
 
     /// Attempt to convert from a protobuf [`pbjson_types::Any`].
@@ -427,33 +421,46 @@ enum UnsignedTransactionErrorKind {
     ActionGroup(#[source] action_group::Error),
 }
 
-pub struct TransactionParamsBuilder<TChainId = std::borrow::Cow<'static, str>> {
+pub struct UnsignedTransactionBuilder<TChainId = std::borrow::Cow<'static, str>> {
     nonce: u32,
     chain_id: TChainId,
+    actions: Vec<Action>,
 }
 
-impl TransactionParamsBuilder {
-    fn new() -> Self {
+impl UnsignedTransactionBuilder {
+    #[must_use]
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
         Self {
             nonce: 0,
             chain_id: "".into(),
+            actions: vec![],
         }
     }
 }
 
-impl<TChainId> TransactionParamsBuilder<TChainId> {
-    #[must_use = "the transaction params builder must be built to be useful"]
-    pub fn chain_id<'a, T: Into<std::borrow::Cow<'a, str>>>(
-        self,
-        chain_id: T,
-    ) -> TransactionParamsBuilder<std::borrow::Cow<'a, str>> {
-        TransactionParamsBuilder {
-            chain_id: chain_id.into(),
-            nonce: self.nonce,
+impl<TChainId> UnsignedTransactionBuilder<TChainId> {
+    #[must_use]
+    pub fn actions(self, actions: Vec<Action>) -> Self {
+        Self {
+            actions,
+            ..self
         }
     }
 
-    #[must_use = "the transaction params builder must be built to be useful"]
+    #[must_use]
+    pub fn chain_id<'a, T: Into<std::borrow::Cow<'a, str>>>(
+        self,
+        chain_id: T,
+    ) -> UnsignedTransactionBuilder<std::borrow::Cow<'a, str>> {
+        UnsignedTransactionBuilder {
+            chain_id: chain_id.into(),
+            nonce: self.nonce,
+            actions: self.actions,
+        }
+    }
+
+    #[must_use]
     pub fn nonce(self, nonce: u32) -> Self {
         Self {
             nonce,
@@ -462,22 +469,28 @@ impl<TChainId> TransactionParamsBuilder<TChainId> {
     }
 }
 
-impl<'a> TransactionParamsBuilder<std::borrow::Cow<'a, str>> {
-    /// Constructs a [`TransactionParams`] from the configured builder.
+impl<'a> UnsignedTransactionBuilder<std::borrow::Cow<'a, str>> {
+    /// Constructs a [`UnsignedTransaction`] from the configured builder.
     ///
     /// # Errors
+    /// Returns an error if the actions do not make a valid `ActionGroup`.
+    ///
     /// Returns an error if the set chain ID does not contain a chain name that can be turned into
     /// a bech32 human readable prefix (everything before the first dash i.e. `<name>-<rest>`).
-    #[must_use]
-    pub fn build(self) -> TransactionParams {
+    pub fn try_build(self) -> Result<UnsignedTransaction, action_group::Error> {
         let Self {
             nonce,
             chain_id,
+            actions,
         } = self;
-        TransactionParams {
-            nonce,
-            chain_id: chain_id.into(),
-        }
+        let actions = Actions::try_from_list_of_actions(actions)?;
+        Ok(UnsignedTransaction {
+            actions,
+            params: TransactionParams {
+                nonce,
+                chain_id: chain_id.into(),
+            },
+        })
     }
 }
 
@@ -488,11 +501,6 @@ pub struct TransactionParams {
 }
 
 impl TransactionParams {
-    #[must_use = "the transaction params builder must be built to be useful"]
-    pub fn builder() -> TransactionParamsBuilder {
-        TransactionParamsBuilder::new()
-    }
-
     #[must_use]
     pub fn into_raw(self) -> raw::TransactionParams {
         let Self {
@@ -507,16 +515,17 @@ impl TransactionParams {
     }
 
     /// Convert from a raw protobuf [`raw::UnsignedTransaction`].
-    ///
-    /// # Errors
-    /// See [`TransactionParamsBuilder::try_build`] for errors returned by this method.
     #[must_use]
     pub fn from_raw(proto: raw::TransactionParams) -> Self {
         let raw::TransactionParams {
             nonce,
             chain_id,
         } = proto;
-        Self::builder().nonce(nonce).chain_id(chain_id).build()
+
+        Self {
+            nonce,
+            chain_id,
+        }
     }
 }
 
@@ -635,12 +644,12 @@ mod test {
             fee_asset: asset(),
         };
 
-        let params = TransactionParams::from_raw(raw::TransactionParams {
-            nonce: 1,
-            chain_id: "test-1".to_string(),
-        });
-
-        let unsigned = UnsignedTransaction::new(vec![transfer.into()], params).unwrap();
+        let unsigned = UnsignedTransaction::builder()
+            .actions(vec![transfer.into()])
+            .chain_id("test-1".to_string())
+            .nonce(1)
+            .try_build()
+            .unwrap();
 
         let tx = SignedTransaction {
             signature,
@@ -670,12 +679,12 @@ mod test {
             fee_asset: asset(),
         };
 
-        let params = TransactionParams::from_raw(raw::TransactionParams {
-            nonce: 1,
-            chain_id: "test-1".to_string(),
-        });
-
-        let unsigned_tx = UnsignedTransaction::new(vec![transfer.into()], params).unwrap();
+        let unsigned_tx = UnsignedTransaction::builder()
+            .actions(vec![transfer.into()])
+            .chain_id("test-1".to_string())
+            .nonce(1)
+            .try_build()
+            .unwrap();
 
         let signed_tx = unsigned_tx.into_signed(&signing_key);
         let raw = signed_tx.to_raw();

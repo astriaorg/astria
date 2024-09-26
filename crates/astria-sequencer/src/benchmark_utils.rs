@@ -22,7 +22,6 @@ use astria_core::{
             TransferAction,
         },
         SignedTransaction,
-        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -84,17 +83,16 @@ fn sequence_actions() -> Vec<Arc<SignedTransaction>> {
             let (nonce, chain_id) = nonces_and_chain_ids
                 .entry(verification_key)
                 .or_insert_with(|| (0_u32, format!("chain-{}", signing_key.verification_key())));
-            let params = TransactionParams::builder()
-                .nonce(*nonce)
-                .chain_id(chain_id.as_str())
-                .build();
-            *nonce = (*nonce).wrapping_add(1);
             let sequence_action = SequenceAction {
                 rollup_id: RollupId::new([1; 32]),
                 data: vec![2; 1000].into(),
                 fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
             };
-            let tx = UnsignedTransaction::new(vec![Action::Sequence(sequence_action)], params)
+            let tx = UnsignedTransaction::builder()
+                .actions(vec![Action::Sequence(sequence_action)])
+                .nonce(*nonce)
+                .chain_id(chain_id.as_str())
+                .try_build()
                 .expect("failed to build transaction from actions")
                 .into_signed(signing_key);
             Arc::new(tx)
@@ -115,18 +113,17 @@ fn transfers() -> Vec<Arc<SignedTransaction>> {
     });
     (0..TRANSFERS_TX_COUNT)
         .map(|nonce| {
-            let params = TransactionParams::builder()
+            let tx = UnsignedTransaction::builder()
+                .actions(
+                    std::iter::repeat(action.clone())
+                        .take(TRANSFERS_PER_TX)
+                        .collect(),
+                )
                 .nonce(u32::try_from(nonce).unwrap())
                 .chain_id("test")
-                .build();
-            let tx = UnsignedTransaction::new(
-                std::iter::repeat(action.clone())
-                    .take(TRANSFERS_PER_TX)
-                    .collect(),
-                params,
-            )
-            .unwrap()
-            .into_signed(sender);
+                .try_build()
+                .expect("failed to build transaction from actions")
+                .into_signed(sender);
             Arc::new(tx)
         })
         .collect()

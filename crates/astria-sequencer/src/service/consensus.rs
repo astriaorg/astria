@@ -211,7 +211,6 @@ mod test {
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
             action::SequenceAction,
-            TransactionParams,
             UnsignedTransaction,
         },
     };
@@ -237,21 +236,18 @@ mod test {
     };
 
     fn make_unsigned_tx() -> UnsignedTransaction {
-        UnsignedTransaction::new(
-            vec![
+        UnsignedTransaction::builder()
+            .actions(vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: Bytes::from_static(b"hello world"),
                     fee_asset: crate::test_utils::nria().into(),
                 }
                 .into(),
-            ],
-            TransactionParams::builder()
-                .chain_id("test")
-                .nonce(0)
-                .build(),
-        )
-        .unwrap()
+            ])
+            .chain_id("test")
+            .try_build()
+            .unwrap()
     }
 
     fn new_prepare_proposal_request() -> request::PrepareProposal {

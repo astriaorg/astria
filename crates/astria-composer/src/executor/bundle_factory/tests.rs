@@ -83,7 +83,6 @@ mod sized_bundle {
 
 #[cfg(test)]
 mod bundle_factory {
-    use astria_core::protocol::transaction::v1alpha1::TransactionParams;
 
     use super::*;
     use crate::{
@@ -349,12 +348,8 @@ mod bundle_factory {
 
         let bundle = bundle_factory.pop_now();
 
-        let transaction_params = TransactionParams::builder()
-            .chain_id("astria-testnet-1".to_string())
-            .build();
-
         // construction of multiple sequence actions should not panic
-        let unsigned_tx = bundle.to_unsigned_transaction(transaction_params);
+        let unsigned_tx = bundle.to_unsigned_transaction(0, "astria-testnet-1");
 
         assert_eq!(unsigned_tx.actions().len(), 2);
     }
