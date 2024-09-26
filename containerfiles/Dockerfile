@@ -82,6 +82,8 @@ RUN \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*;
 COPY --from=builder /build/release/$TARGETBINARY /usr/local/bin/$TARGETBINARY
+
+# HACK: Ensure that $TARGETBINARY is the binary name.
 ENV TARGETBINARY=$TARGETBINARY
 RUN \
   printf '#!/bin/sh\nexec /usr/local/bin/$TARGETBINARY $@\n' > /usr/local/bin/entrypoint.sh; \
