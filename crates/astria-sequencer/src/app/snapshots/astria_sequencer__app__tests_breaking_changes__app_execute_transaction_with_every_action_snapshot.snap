@@ -3,7 +3,7 @@ source: crates/astria-sequencer/src/app/tests_breaking_changes.rs
 expression: app.app_hash.as_bytes()
 ---
 [
-   96,
+  96,
   126,
   64,
   175,
