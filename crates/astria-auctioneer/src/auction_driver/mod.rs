@@ -5,7 +5,7 @@ use crate::{
     auction,
     block::{
         self,
-        Block,
+        CurrentBlock,
     },
     optimistic_executor::{
         self,
@@ -20,7 +20,7 @@ pub(crate) struct AuctionDriver {
     #[allow(dead_code)]
     metrics: &'static Metrics,
     /// The current block being used to drive the [`Auction`]
-    curr_block: Block,
+    curr_block: CurrentBlock,
     /// The current [`Auction`] being driven
     auction: auction::FirstPriceAuction,
     // TODO: submitter
@@ -40,7 +40,7 @@ impl AuctionDriver {
 
                 // TODO: should this be conditioned on the block state not being committed? or the auction state not be "closing"?
                 // instead of advancing the block state here i should have a handle that reads current state from an arc?
-                curr_block = curr_block.next_state(), if auction.committed() => {
+                curr_block = curr_block.apply_state(), if auction.committed() => {
                     match curr_block.state() {
                         block::State::OptimisticBlock(optimistic_block) => {
                             todo!("drop old auction");

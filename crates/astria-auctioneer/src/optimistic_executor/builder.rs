@@ -1,5 +1,8 @@
 use astria_eyre::eyre;
-use tokio::sync::mpsc;
+use tokio::sync::{
+    mpsc,
+    watch,
+};
 
 use super::{
     Handle,
@@ -14,7 +17,7 @@ pub(crate) struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn build(self) -> eyre::Result<(OptimisticExecutor, Handle)> {
+    pub(crate) fn build(self) -> eyre::Result<OptimisticExecutor> {
         let Self {
             metrics,
             sequencer_grpc_endpoint,
@@ -23,17 +26,13 @@ impl Builder {
         let (executed_blocks_tx, executed_blocks_rx) = mpsc::channel(16);
         let (committed_blocks_tx, committed_blocks_rx) = mpsc::channel(16);
 
-        Ok((
-            OptimisticExecutor {
-                metrics,
-                sequencer_grpc_endpoint,
-                executed_blocks_tx,
-                committed_blocks_tx,
-            },
-            Handle {
-                executed_blocks_rx,
-                committed_blocks_rx,
-            },
-        ))
+        let (block_rx, block_tx) = watch::channel(None);
+
+        Ok(OptimisticExecutor {
+            optimistic_blocks_rx: todo!(),
+            executed_blocks_rx: todo!(),
+            block_commitments_rx: todo!(),
+            block: todo!("replace with block_tx or somethingg?"),
+        })
     }
 }
