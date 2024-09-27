@@ -1,5 +1,11 @@
+#[allow(clippy::all)]
 use tracing::info;
 
+#[expect(
+    dead_code,
+    reason = "the type and its inner value are used by dylint to test generated code and have no \
+              further meaning beyond that"
+)]
 #[derive(Clone, Copy, Debug)]
 struct Wrapped(&'static str);
 

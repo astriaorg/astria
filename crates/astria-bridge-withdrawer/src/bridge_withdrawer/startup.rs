@@ -447,7 +447,7 @@ async fn wait_for_empty_mempool(
 /// 1. The last transaction by the bridge account did not contain a withdrawal action.
 /// 2. The memo of the last transaction by the bridge account could not be parsed.
 /// 3. The block number in the memo of the last transaction by the bridge account could not be
-///   converted to a u64.
+///    converted to a u64.
 fn rollup_height_from_signed_transaction(
     signed_transaction: &SignedTransaction,
 ) -> eyre::Result<u64> {

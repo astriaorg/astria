@@ -54,7 +54,11 @@ impl MockServer {
         rpc: &'static str,
         req: tonic::Request<T>,
     ) -> tonic::Result<tonic::Response<U>> {
-        self.state.write().await.handle_request(rpc, req)
+        let (response, delay) = self.state.write().await.handle_request(rpc, req);
+        if let Some(delay) = delay {
+            tokio::time::sleep(delay).await;
+        }
+        response
     }
 
     pub async fn register(&self, mock: Mock) {
@@ -176,7 +180,10 @@ impl MockServerState {
         &mut self,
         rpc: &'static str,
         req: tonic::Request<T>,
-    ) -> tonic::Result<tonic::Response<U>> {
+    ) -> (
+        tonic::Result<tonic::Response<U>>,
+        Option<std::time::Duration>,
+    ) {
         if let Some(received_requests) = &mut self.received_requests {
             received_requests.push((rpc, erase_request(clone_request(&req)).into()));
         }
