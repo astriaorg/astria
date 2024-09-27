@@ -30,7 +30,7 @@ jobs:
                    "Freeze can be overriden by adding the 'override-freeze' label to the PR."
                    )
           echo "::error title=$TITLE::${MESSAGE[*]}"
-          IFS="," read -ra FILE_LIST <<< "${{ steps.filters.outputs.changes }}"
+          IFS="," read -ra FILE_LIST <<< "${{ steps.filters.outputs.changed_files }}"
           FILE_MESSAGE="This file is under code freeze."
           for FILE in "${FILE_LIST[@]}"; do
             echo "::error file=$FILE,title=$TITLE::$FILE_MESSAGE"
