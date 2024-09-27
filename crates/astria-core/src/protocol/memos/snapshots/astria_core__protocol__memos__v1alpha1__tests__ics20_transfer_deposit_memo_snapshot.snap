@@ -1,5 +1,6 @@
 ---
 source: crates/astria-core/src/protocol/memos/v1alpha1.rs
+assertion_line: 28
 expression: memo
 ---
 {
