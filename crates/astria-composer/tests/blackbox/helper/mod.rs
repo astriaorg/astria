@@ -5,6 +5,7 @@ use std::{
         IpAddr,
         SocketAddr,
     },
+    sync::LazyLock,
     time::Duration,
 };
 
@@ -28,7 +29,6 @@ use astria_core::{
 };
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
-use once_cell::sync::Lazy;
 use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tendermint_rpc::{
@@ -50,7 +50,7 @@ use wiremock::{
 
 pub mod mock_sequencer;
 
-static TELEMETRY: Lazy<()> = Lazy::new(|| {
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
     // haven't configured telemetry to provide metrics here.
     let config = Config {
@@ -107,7 +107,7 @@ pub struct TestComposer {
 /// There is no explicit error handling in favour of panicking loudly
 /// and early.
 pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
-    Lazy::force(&TELEMETRY);
+    LazyLock::force(&TELEMETRY);
 
     let mut rollup_nodes = HashMap::new();
     let mut rollups = String::new();

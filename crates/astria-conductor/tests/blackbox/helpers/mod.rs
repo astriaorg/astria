@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    sync::LazyLock,
+    time::Duration,
+};
 
 use astria_conductor::{
     conductor,
@@ -25,7 +28,6 @@ use celestia_types::{
     nmt::Namespace,
     Blob,
 };
-use once_cell::sync::Lazy;
 use prost::Message;
 use sequencer_client::{
     tendermint,
@@ -52,7 +54,7 @@ pub const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 pub const INITIAL_SOFT_HASH: [u8; 64] = [1; 64];
 pub const INITIAL_FIRM_HASH: [u8; 64] = [1; 64];
 
-static TELEMETRY: Lazy<()> = Lazy::new(|| {
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     astria_eyre::install().unwrap();
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
@@ -82,7 +84,7 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
          environment does not stall the runtime: the test could be configured using \
          `#[tokio::test(flavor = \"multi_thread\", worker_threads = 1)]`"
     );
-    Lazy::force(&TELEMETRY);
+    LazyLock::force(&TELEMETRY);
 
     let mock_grpc = MockGrpc::spawn().await;
     let mock_http = wiremock::MockServer::start().await;

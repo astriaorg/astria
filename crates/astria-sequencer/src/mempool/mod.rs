@@ -409,7 +409,7 @@ impl Mempool {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::crypto::SigningKey;
 
     use super::*;

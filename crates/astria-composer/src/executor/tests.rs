@@ -4,6 +4,7 @@ use std::{
         IpAddr,
         SocketAddr,
     },
+    sync::LazyLock,
     time::Duration,
 };
 
@@ -20,7 +21,6 @@ use astria_core::{
     protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::eyre;
-use once_cell::sync::Lazy;
 use prost::{
     bytes::Bytes,
     Message as _,
@@ -72,7 +72,7 @@ use crate::{
     Config,
 };
 
-static TELEMETRY: Lazy<()> = Lazy::new(|| {
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
     // haven't configured telemetry to provide metrics here.
     let config = Config {
@@ -121,7 +121,7 @@ fn sequence_action() -> SequenceAction {
 
 /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
 async fn setup() -> (MockServer, Config, NamedTempFile) {
-    Lazy::force(&TELEMETRY);
+    LazyLock::force(&TELEMETRY);
     let server = MockServer::start().await;
 
     let keyfile = NamedTempFile::new().unwrap();
