@@ -488,6 +488,7 @@ async fn conductor_restarts_on_permission_denied() {
         test_conductor,
         celestia_height: 1,
         sequencer_heights: [3],
+        delay: Some(Duration::from_millis(250))
     );
 
     mount_sequencer_commit!(

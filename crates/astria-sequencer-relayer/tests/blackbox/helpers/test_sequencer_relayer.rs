@@ -10,6 +10,7 @@ use std::{
     io::Write,
     mem,
     net::SocketAddr,
+    sync::LazyLock,
     time::Duration,
 };
 
@@ -28,7 +29,6 @@ use astria_sequencer_relayer::{
 use http::StatusCode;
 use isahc::AsyncReadResponseExt;
 use itertools::Itertools;
-use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde_json::json;
 use telemetry::metrics;
@@ -123,7 +123,7 @@ const STATUS_RESPONSE: &str = r#"
   }
 }"#;
 
-static TELEMETRY: Lazy<()> = Lazy::new(|| {
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     astria_eyre::install().unwrap();
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG")
@@ -675,7 +675,7 @@ impl TestSequencerRelayerConfig {
             "the sequencer relayer must be run on a multi-threaded runtime, e.g. the test could \
              be configured using `#[tokio::test(flavor = \"multi_thread\", worker_threads = 1)]`"
         );
-        Lazy::force(&TELEMETRY);
+        LazyLock::force(&TELEMETRY);
 
         let celestia_app = MockCelestiaAppServer::spawn(self.celestia_chain_id.clone()).await;
         let celestia_app_grpc_endpoint = format!("http://{}", celestia_app.local_addr);

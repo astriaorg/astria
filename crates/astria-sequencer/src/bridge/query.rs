@@ -291,7 +291,7 @@ fn preprocess_request(params: &[(String, String)]) -> Result<Address, response::
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         generated::protocol::bridge::v1alpha1::BridgeAccountInfoResponse as RawBridgeAccountInfoResponse,
         primitive::v1::RollupId,
