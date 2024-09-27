@@ -29,17 +29,17 @@ jobs:
                    "$LEGIBLE_CHANGES"
                    "Freeze can be overriden by adding the 'override-freeze' label to the PR."
                    )
-          echo "### ${TITLE}" >> $GITHUB_ENV
+          echo "### ${TITLE}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_ENV
-          echo "This PR updates the following components which are code frozen: ${LEGIBLE_CHANGES}" >> $GITHUB_ENV
-          echo "" >> $GITHUB_ENV
-          echo "The following files are modified and frozen:" >> $GITHUB_ENV
+          echo "This PR updates the following components which are code frozen: ${LEGIBLE_CHANGES}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The following files are modified and frozen:" >> $GITHUB_STEP_SUMMARY
           IFS="," read -ra FILE_LIST <<< "${{ steps.filters.outputs.changed_files }}"
           FILE_MESSAGE="This file is under code freeze."
           for FILE in "${FILE_LIST[@]}"; do
-            echo " - ${FILE}" >> $GITHUB_ENV
+            echo " - ${FILE}" >> $GITHUB_STEP_SUMMARY
             echo "::error file=$FILE,title=$TITLE::$FILE_MESSAGE"
           done
-          echo "" >> $GITHUB_ENV
-          echo "Freeze can be overriden by adding the 'override-freeze' label to the PR." >> $GITHUB_ENV
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Freeze can be overriden by adding the 'override-freeze' label to the PR." >> $GITHUB_STEP_SUMMARY
           exit 1
