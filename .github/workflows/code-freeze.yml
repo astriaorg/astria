@@ -1,3 +1,4 @@
+name: Code Freeze
 on:
   pull_request:
     types:
@@ -11,6 +12,7 @@ on:
 
 jobs:
   code_freeze:
+    name: Code Freeze
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,24 +22,22 @@ jobs:
         with:
           list-files: shell
           filters: .github/code-freeze-filter.yaml
-      - name: Code Freeze
+      - name: Output
         if: steps.filters.outputs.changes != '' && !contains(github.event.pull_request.labels.*.name, 'override-freeze')
         run: |
           TITLE="Code Freeze in Effect"
           SUMMARY_MESSAGE_BODY=""
           LEGIBLE_CHANGES=$(echo "${{ steps.filters.outputs.changes }}" | sed 's/,changed//g' | sed 's/,/, /g' | sed 's/[][]//g')
-          echo "### ${TITLE}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_ENV
-          echo "This PR updates the following components which are code frozen: ${LEGIBLE_CHANGES}" >> $SUMMARY_MESSAGE_BODY
-          echo "" >> $SUMMARY_MESSAGE_BODY
-          echo "The following files are modified and frozen:" >> $SUMMARY_MESSAGE_BODY
+          echo "This PR updates the following components which are code frozen: ${LEGIBLE_CHANGES}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The following files are modified and frozen:" >> $GITHUB_STEP_SUMMARY
           IFS="," read -ra FILE_LIST <<< "${{ steps.filters.outputs.changed_files }}"
           FILE_MESSAGE="This file is under code freeze."
           for FILE in "${FILE_LIST[@]}"; do
-            echo " - ${FILE}" >> $SUMMARY_MESSAGE_BODY
+            echo " - ${FILE}" >> $GITHUB_STEP_SUMMARY
             echo "::error file=$FILE,title=$TITLE::$FILE_MESSAGE"
           done
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Freeze can be overriden by adding the 'override-freeze' label to the PR." >> $SUMMARY_MESSAGE_BODY
-          echo "::error title=$TITLE::$SUMMARY_MESSAGE_BODY"
+          echo "Freeze can be overriden by adding the 'override-freeze' label to the PR." >> $GITHUB_STEP_SUMMARY
+          echo "::error title=$TITLE::$GITHUB_STEP_SUMMARY"
           exit 1
