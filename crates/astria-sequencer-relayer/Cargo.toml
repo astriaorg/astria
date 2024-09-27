@@ -77,7 +77,6 @@ celestia-tendermint = { workspace = true }
 celestia-types = { workspace = true }
 hyper = { workspace = true }
 itertools = { workspace = true }
-once_cell = { workspace = true }
 rand_core = { version = "0.6", features = ["getrandom"] }
 tempfile = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["http-client"] }
