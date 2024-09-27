@@ -15,6 +15,7 @@ tokio = { workspace = true, features = [
   "time",
 ] }
 tonic.workspace = true
+futures = { workspace = true }
 
 [dev-dependencies]
 astria-grpc-mock = { path = "../astria-grpc-mock" }
