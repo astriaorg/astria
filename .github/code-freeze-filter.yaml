@@ -4,11 +4,15 @@
 
 # Please provide a reasoning for each component that is frozen.
 
-# Conductor is frozen for zellic audit.
+# Frozen for audit.
 conductor: &conductor
   - crates/astria-conductor/src/**
+# Frozen for audit.
 sequencer-relayer: &sequencer-relayer
   - crates/astria-sequencer-relayer/src/**
+
+# if new components are added above update the list below to get better
+# gh pr level visibility into which files are frozen.
 changed:
   - *conductor
   - *sequencer-relayer
