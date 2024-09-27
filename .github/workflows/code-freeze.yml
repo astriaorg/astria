@@ -24,7 +24,7 @@ jobs:
         if: steps.filters.outputs.changes != '' && !contains(github.event.pull_request.labels.*.name, 'override-freeze')
         run: |
           TITLE="Code Freeze in Effect"
-          LEGIBLE_CHANGES=$(echo "${{ steps.filters.outputs.changes }}" | sed 's/[][]//g' | sed 's/,/, /g' | grep -v 'changed')
+          LEGIBLE_CHANGES=$(echo "${{ steps.filters.outputs.changes }}" sed 's/,/, /g')
           MESSAGE=("This PR updates the following components which are code frozen:"
                    "$LEGIBLE_CHANGES"
                    "Freeze can be overriden by adding the 'override-freeze' label to the PR."
