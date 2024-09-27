@@ -48,6 +48,7 @@ use cnidarium::{
     StagedWriteBatch,
     StateDelta,
     StateRead,
+    StateWrite,
     Storage,
 };
 use prost::Message as _;
@@ -120,6 +121,14 @@ use crate::{
     transaction::InvalidNonce,
 };
 
+// ephemeral store key for the cache of results of executing of transactions in `prepare_proposal`.
+// cleared in `process_proposal` if we're the proposer.
+const EXECUTION_RESULTS_KEY: &str = "execution_results";
+
+// ephemeral store key for the cache of results of executing of transactions in `process_proposal`.
+// cleared at the end of the block.
+const POST_TRANSACTION_EXECUTION_RESULT_KEY: &str = "post_transaction_execution_result";
+
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
@@ -161,14 +170,6 @@ pub(crate) struct App {
     // This is set when a `FeeChange` or `FeeAssetChange` action is seen in a block to flag
     // to the mempool to recost all transactions.
     recost_mempool: bool,
-
-    // cache of results of executing of transactions in `prepare_proposal`.
-    // cleared in `process_proposal` if we're the proposer.
-    execution_results: Option<Vec<ExecTxResult>>,
-
-    // cache of results of executing of transactions in `process_proposal`.
-    // cleared at the end of the block.
-    finalize_block: Option<abci::response::FinalizeBlock>,
 
     // the current `StagedWriteBatch` which contains the rocksdb write batch
     // of the current block being executed, created from the state delta,
@@ -213,8 +214,6 @@ impl App {
             mempool,
             validator_address: None,
             executed_proposal_hash: Hash::default(),
-            execution_results: None,
-            finalize_block: None,
             recost_mempool: false,
             write_batch: None,
             app_hash,
@@ -290,11 +289,11 @@ impl App {
         // but `self.state` was changed due to executing the previous round's data.
         //
         // if the previous round was committed, then the state stays the same.
+        //
+        // this also clears the ephemeral storage.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
-        // clear the cache of transaction execution results
-        self.execution_results = None;
-        self.finalize_block = None;
+        // clear the cached executed proposal hash
         self.executed_proposal_hash = Hash::default();
     }
 
@@ -378,7 +377,7 @@ impl App {
                 // `SequencerBlock` and to set `self.finalize_block`.
                 //
                 // we can't run this in `prepare_proposal` as we don't know the block hash there.
-                let Some(tx_results) = self.execution_results.take() else {
+                let Some(tx_results) = self.state.object_get(EXECUTION_RESULTS_KEY) else {
                     bail!("execution results must be present after executing transactions")
                 };
 
@@ -647,7 +646,11 @@ impl App {
         self.metrics
             .set_transactions_in_mempool_total(self.mempool.len().await);
 
-        self.execution_results = Some(execution_results);
+        let mut state_tx = Arc::try_begin_transaction(&mut self.state)
+            .expect("state Arc should not be referenced elsewhere");
+        state_tx.object_put(EXECUTION_RESULTS_KEY, execution_results);
+        let _ = state_tx.apply();
+
         Ok((validated_txs, included_signed_txs))
     }
 
@@ -857,21 +860,19 @@ impl App {
             .put_sequencer_block(sequencer_block)
             .wrap_err("failed to write sequencer block to state")?;
 
+        let result = PostTransactionExecutionResult {
+            events: end_block.events,
+            validator_updates: end_block.validator_updates,
+            consensus_param_updates: end_block.consensus_param_updates,
+            tx_results: finalize_block_tx_results,
+        };
+
+        state_tx.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
+
         // events that occur after end_block are ignored here;
         // there should be none anyways.
         let _ = self.apply(state_tx);
 
-        // use a dummy app hash here - the actual app hash will be filled out in finalize_block.
-        let dummy_app_hash = AppHash::default();
-
-        let finalize_block = abci::response::FinalizeBlock {
-            events: end_block.events,
-            validator_updates: end_block.validator_updates,
-            consensus_param_updates: end_block.consensus_param_updates,
-            app_hash: dummy_app_hash,
-            tx_results: finalize_block_tx_results,
-        };
-        self.finalize_block = Some(finalize_block);
         Ok(())
     }
 
@@ -964,11 +965,6 @@ impl App {
             .wrap_err("failed to run post execute transactions handler")?;
         }
 
-        let mut finalize_block = self.finalize_block.take().expect(
-            "finalize_block result must be present, as txs were already executed just now or \
-             during the proposal phase",
-        );
-
         // update the priority of any txs in the mempool based on the updated app state
         if self.recost_mempool {
             self.metrics.increment_mempool_recosted();
@@ -976,12 +972,26 @@ impl App {
         update_mempool_after_finalization(&mut self.mempool, &self.state, self.recost_mempool)
             .await;
 
+        let post_transaction_execution_result: PostTransactionExecutionResult = self
+            .state
+            .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
+            .expect(
+                "post_transaction_execution_result must be present, as txs were already executed \
+                 just now or during the proposal phase",
+            );
+
         // prepare the `StagedWriteBatch` for a later commit.
         let app_hash = self
             .prepare_commit(storage)
             .await
             .wrap_err("failed to prepare commit")?;
-        finalize_block.app_hash = app_hash;
+        let finalize_block = abci::response::FinalizeBlock {
+            events: post_transaction_execution_result.events,
+            validator_updates: post_transaction_execution_result.validator_updates,
+            consensus_param_updates: post_transaction_execution_result.consensus_param_updates,
+            app_hash,
+            tx_results: post_transaction_execution_result.tx_results,
+        };
 
         Ok(finalize_block)
     }
@@ -1236,4 +1246,12 @@ fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<SignedTransaction> {
         .wrap_err("failed to transform raw signed transaction to verified type")?;
 
     Ok(tx)
+}
+
+#[derive(Clone, Debug)]
+struct PostTransactionExecutionResult {
+    events: Vec<Event>,
+    tx_results: Vec<ExecTxResult>,
+    validator_updates: Vec<tendermint::validator::Update>,
+    consensus_param_updates: Option<tendermint::consensus::Params>,
 }
