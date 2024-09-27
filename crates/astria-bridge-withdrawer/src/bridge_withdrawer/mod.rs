@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -14,6 +15,7 @@ use axum::{
     Server,
 };
 use ethereum::watcher::Watcher;
+use http::Uri;
 use hyper::server::conn::AddrIncoming;
 use startup::Startup;
 use tokio::{
@@ -92,19 +94,26 @@ impl BridgeWithdrawer {
             .parse()
             .wrap_err("failed to parse sequencer bridge address")?;
 
+        let sequencer_grpc_client = connect_sequencer_grpc(&sequencer_grpc_endpoint)
+            .wrap_err_with(|| {
+                format!("failed to connect to Sequencer over gRPC at `{sequencer_grpc_endpoint}`")
+            })?;
+        let sequencer_cometbft_client =
+            sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
+                .wrap_err("failed constructing cometbft http client")?;
+
         // make startup object
         let startup = startup::Builder {
             shutdown_token: shutdown_handle.token(),
             state: state.clone(),
             sequencer_chain_id,
-            sequencer_cometbft_endpoint: sequencer_cometbft_endpoint.clone(),
+            sequencer_cometbft_client: sequencer_cometbft_client.clone(),
             sequencer_bridge_address,
-            sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
+            sequencer_grpc_client: sequencer_grpc_client.clone(),
             expected_fee_asset: fee_asset_denomination,
             metrics,
         }
-        .build()
-        .wrap_err("failed to initialize startup")?;
+        .build();
 
         let startup_handle = startup::InfoHandle::new(state.subscribe());
 
@@ -112,8 +121,8 @@ impl BridgeWithdrawer {
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             startup_handle: startup_handle.clone(),
-            sequencer_cometbft_endpoint,
-            sequencer_grpc_endpoint,
+            sequencer_cometbft_client,
+            sequencer_grpc_client,
             sequencer_key_path,
             sequencer_address_prefix: sequencer_address_prefix.clone(),
             state: state.clone(),
@@ -457,4 +466,15 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
+}
+
+fn connect_sequencer_grpc(
+    sequencer_grpc_endpoint: &str,
+) -> eyre::Result<SequencerServiceClient<tonic::transport::Channel>> {
+    let uri: Uri = sequencer_grpc_endpoint
+        .parse()
+        .wrap_err("failed to parse endpoint as URI")?;
+    Ok(SequencerServiceClient::new(
+        tonic::transport::Endpoint::from(uri).connect_lazy(),
+    ))
 }

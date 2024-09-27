@@ -31,7 +31,7 @@ use crate::{
     },
     assets::StateReadExt as _,
     bridge::{
-        get_deposit_byte_len,
+        calculate_base_deposit_fee,
         StateWriteExt as _,
     },
     sequence::{
@@ -262,15 +262,15 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx.clone()).await.unwrap();
 
-    let test_deposit = Deposit::new(
+    let test_deposit = Deposit {
         bridge_address,
         rollup_id,
-        1,
-        nria().into(),
-        rollup_id.to_string(),
-        signed_tx.id(),
-        starting_index_of_action,
-    );
+        amount: 1,
+        asset: nria().into(),
+        destination_chain_address: rollup_id.to_string(),
+        source_transaction_id: signed_tx.id(),
+        source_action_index: starting_index_of_action,
+    };
 
     let total_block_fees: u128 = app
         .state
@@ -281,7 +281,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .map(|(_, fee)| fee)
         .sum();
     let expected_fees = transfer_base_fee
-        + (get_deposit_byte_len(&test_deposit) * bridge_lock_byte_cost_multiplier);
+        + (calculate_base_deposit_fee(&test_deposit).unwrap() * bridge_lock_byte_cost_multiplier);
     assert_eq!(total_block_fees, expected_fees);
 }
 

@@ -19,6 +19,7 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
+use astria_grpc_mock::response::error_response;
 use bytes::Bytes;
 use celestia_types::{
     nmt::Namespace,
@@ -127,7 +128,7 @@ impl Drop for TestConductor {
             let err_msg =
                 match tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown()).await
                 {
-                    Ok(Ok(())) => None,
+                    Ok(Ok(_)) => None,
                     Ok(Err(conductor_err)) => Some(format!(
                         "conductor shut down with an error:\n{conductor_err:?}"
                     )),
@@ -193,6 +194,7 @@ impl TestConductor {
         celestia_height: u64,
         namespace: Namespace,
         blobs: Vec<Blob>,
+        delay: Option<Duration>,
     ) {
         use base64::prelude::*;
         use wiremock::{
@@ -204,6 +206,7 @@ impl TestConductor {
             Request,
             ResponseTemplate,
         };
+        let delay = delay.unwrap_or(Duration::from_millis(0));
         let namespace_params = BASE64_STANDARD.encode(namespace.as_bytes());
         Mock::given(body_partial_json(json!({
             "jsonrpc": "2.0",
@@ -217,13 +220,15 @@ impl TestConductor {
         .respond_with(move |request: &Request| {
             let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
             let id = body.get("id");
-            ResponseTemplate::new(200).set_body_json(json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": blobs,
-            }))
+            ResponseTemplate::new(200)
+                .set_body_json(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": blobs,
+                }))
+                .set_delay(delay)
         })
-        .expect(1)
+        .expect(1..)
         .mount(&self.mock_http)
         .await;
     }
@@ -402,6 +407,7 @@ impl TestConductor {
         &self,
         expected_pbjson: S,
         response: FilteredSequencerBlock,
+        delay: Duration,
     ) {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
@@ -412,7 +418,7 @@ impl TestConductor {
             "get_filtered_sequencer_block",
             message_partial_pbjson(&expected_pbjson),
         )
-        .respond_with(constant_response(response))
+        .respond_with(constant_response(response).set_delay(delay))
         .expect(1..)
         .mount(&self.mock_grpc.mock_server)
         .await;
@@ -422,6 +428,7 @@ impl TestConductor {
         &self,
         mock_name: Option<&str>,
         commitment_state: CommitmentState,
+        expected_calls: u64,
     ) -> astria_grpc_mock::MockGuard {
         use astria_core::generated::execution::v1alpha2::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
@@ -439,7 +446,7 @@ impl TestConductor {
         if let Some(name) = mock_name {
             mock = mock.with_name(name);
         }
-        mock.expect(1)
+        mock.expect(expected_calls)
             .mount_as_scoped(&self.mock_grpc.mock_server)
             .await
     }
@@ -471,6 +478,24 @@ impl TestConductor {
         ))
         .mount(&self.mock_http)
         .await;
+    }
+
+    pub async fn mount_tonic_status_code<S: serde::Serialize>(
+        &self,
+        expected_pbjson: S,
+        code: tonic::Code,
+    ) -> astria_grpc_mock::MockGuard {
+        use astria_grpc_mock::{
+            matcher::message_partial_pbjson,
+            Mock,
+        };
+
+        let mock = Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
+            .respond_with(error_response(code))
+            .up_to_n_times(1);
+        mock.expect(1)
+            .mount_as_scoped(&self.mock_grpc.mock_server)
+            .await
     }
 }
 

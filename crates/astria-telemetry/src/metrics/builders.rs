@@ -16,7 +16,7 @@ use metrics_exporter_prometheus::{
     PrometheusRecorder,
 };
 
-#[cfg(docs)]
+#[cfg(doc)]
 use super::{
     Counter,
     Gauge,
