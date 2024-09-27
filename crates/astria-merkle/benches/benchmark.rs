@@ -7,15 +7,8 @@ use divan::{
 };
 use sha2::Sha256;
 
-#[expect(
-    clippy::allow_attributes,
-    reason = "this allow is conditional and hence necessary"
-)]
-#[allow(
-    dead_code,
-    reason = "unused warning if `bench_include_allocs` feature is not enabled"
-)]
 #[cfg_attr(feature = "bench_include_allocs", global_allocator)]
+#[cfg(feature = "bench_include_allocs")]
 static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 /// Used to specify the size of data for leaves.
