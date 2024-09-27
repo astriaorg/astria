@@ -154,7 +154,7 @@ impl ActionHandler for SignedTransaction {
         Ok(())
     }
 
-    // FIXME: because most lines come from delegating (and error wrapping) to the
+    // FIXME (https://github.com/astriaorg/astria/issues/1584): because most lines come from delegating (and error wrapping) to the
     // individual actions. This could be tidied up by implementing `ActionHandler for Action`
     // and letting it delegate.
     #[expect(clippy::too_many_lines, reason = "should be refactored")]

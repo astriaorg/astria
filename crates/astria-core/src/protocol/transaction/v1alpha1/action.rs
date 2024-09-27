@@ -265,7 +265,7 @@ impl TryFrom<raw::Action> for Action {
 
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -398,7 +398,7 @@ enum SequenceActionErrorKind {
 #[derive(Clone, Debug)]
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 pub struct SequenceAction {
     pub rollup_id: RollupId,
@@ -453,7 +453,7 @@ impl Protobuf for SequenceAction {
 #[derive(Clone, Debug)]
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 pub struct TransferAction {
     pub to: Address,
@@ -702,7 +702,7 @@ impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdat
 #[derive(Clone, Debug)]
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 pub struct SudoAddressChangeAction {
     pub new_address: Address,
@@ -779,7 +779,7 @@ enum SudoAddressChangeActionErrorKind {
 #[derive(Debug, Clone)]
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 pub struct IbcSudoChangeAction {
     pub new_address: Address,
@@ -1183,7 +1183,7 @@ enum Ics20WithdrawalErrorKind {
 
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 #[derive(Debug, Clone)]
 pub enum IbcRelayerChangeAction {
@@ -1267,7 +1267,7 @@ enum IbcRelayerChangeActionErrorKind {
 
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 #[derive(Debug, Clone)]
 pub enum FeeAssetChangeAction {
@@ -1351,7 +1351,7 @@ enum FeeAssetChangeActionErrorKind {
 
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 #[derive(Debug, Clone)]
 pub struct InitBridgeAccountAction {
@@ -1511,7 +1511,7 @@ enum InitBridgeAccountActionErrorKind {
 
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 #[derive(Debug, Clone)]
 pub struct BridgeLockAction {
@@ -1646,7 +1646,7 @@ enum BridgeLockActionErrorKind {
 
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeUnlockAction {
@@ -1797,7 +1797,7 @@ enum BridgeUnlockActionErrorKind {
 
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 #[derive(Debug, Clone)]
 pub struct BridgeSudoChangeAction {
@@ -1947,7 +1947,7 @@ pub enum FeeChange {
 
 #[expect(
     clippy::module_name_repetitions,
-    reason = "we want consistend and specific naming"
+    reason = "for parity with the Protobuf spec"
 )]
 #[derive(Debug, Clone)]
 pub struct FeeChangeAction {

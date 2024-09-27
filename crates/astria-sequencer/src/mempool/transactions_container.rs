@@ -827,6 +827,7 @@ mod test {
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
     #[test]
+    // TODO (https://github.com/astriaorg/astria/issues/1583): rework assertions and remove attribute
     #[expect(
         clippy::nonminimal_bool,
         reason = "we want explicit assertions here to match the documented expected behavior"

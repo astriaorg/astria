@@ -124,6 +124,7 @@ mod tests {
     #[test]
     fn should_fail_to_construct_from_missing_file() {
         let error = CelestiaKeys::from_path("missing").unwrap_err();
+        // TODO (https://github.com/astriaorg/astria/issues/1581): create function for handling this and remove #[expect] (here and below)
         #[expect(
             clippy::manual_assert,
             reason = "`assert!(matches!(..))` provides poor feedback on failure"

@@ -1,8 +1,3 @@
-#![expect(
-    clippy::missing_panics_doc,
-    reason = "These are tests; failing with panics is ok."
-)]
-
 mod ethereum;
 mod mock_cometbft;
 mod mock_sequencer;

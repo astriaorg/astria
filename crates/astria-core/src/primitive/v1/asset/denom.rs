@@ -634,7 +634,10 @@ mod tests {
             TooManySegments,
         };
         #[track_caller]
-        #[expect(clippy::needless_pass_by_value, reason = "silly lint")]
+        #[expect(
+            clippy::needless_pass_by_value,
+            reason = "asserting on owned variants is less noisy then passing them by reference"
+        )]
         fn assert_error(input: &str, kind: ParseIbcPrefixedErrorKind) {
             let error = input
                 .parse::<IbcPrefixed>()
@@ -672,7 +675,10 @@ mod tests {
             Whitespace,
         };
         #[track_caller]
-        #[expect(clippy::needless_pass_by_value, reason = "silly lint")]
+        #[expect(
+            clippy::needless_pass_by_value,
+            reason = "asserting on owned variants is less noisy then passing them by reference"
+        )]
         fn assert_error(input: &str, kind: ParseTracePrefixedErrorKind) {
             let error = input
                 .parse::<TracePrefixed>()

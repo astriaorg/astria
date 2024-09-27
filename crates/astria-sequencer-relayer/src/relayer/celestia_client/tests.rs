@@ -57,6 +57,8 @@ fn new_msg_pay_for_blobs_should_fail_for_large_blob() {
         commitment: Commitment([0; 32]),
     };
     let error = new_msg_pay_for_blobs(&[blob], Bech32Address("a".to_string())).unwrap_err();
+
+    // TODO (https://github.com/astriaorg/astria/issues/1581): create function for handling this and remove #[expect] (here and below)
     #[expect(
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
