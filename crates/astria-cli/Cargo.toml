@@ -13,11 +13,13 @@ name = "astria-cli"
 
 [dependencies]
 color-eyre = "0.6"
+home = "0.5"
+toml = "0.7"
 
 astria-bridge-contracts = { path = "../astria-bridge-contracts" }
 astria-core = { path = "../astria-core", features = ["serde"] }
 
-clap = { workspace = true, features = ["derive", "env"] }
+clap = { workspace = true, features = ["derive", "env", "string"] }
 ethers = { workspace = true, features = ["ws"] }
 hex = { workspace = true }
 ibc-types = { workspace = true }
