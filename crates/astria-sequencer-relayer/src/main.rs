@@ -16,7 +16,6 @@ use tracing::{
     warn,
 };
 
-// Testing
 #[tokio::main]
 async fn main() -> ExitCode {
     astria_eyre::install().expect("astria eyre hook must be the first hook installed");
