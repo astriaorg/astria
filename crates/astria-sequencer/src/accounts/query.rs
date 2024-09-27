@@ -77,6 +77,9 @@ async fn get_trace_prefixed_account_balances<S: StateRead>(
     stream.try_collect::<Vec<_>>().await
 }
 
+/// Returns a list of `AssetBalance`s for the provided address. `AssetBalance`s are sorted first in
+/// descending order by balance, then in ascending order by denom. IBC prefixed denoms are treated
+/// as less than trace prefixed denoms.
 pub(crate) async fn balance_request(
     storage: Storage,
     request: request::Query,
@@ -228,13 +231,13 @@ fn compare_asset_balances(lhs: &AssetBalance, rhs: &AssetBalance) -> std::cmp::O
     use std::cmp::Ordering;
 
     match lhs.balance.cmp(&rhs.balance) {
-        // Denoms should never have the same display name
-        Ordering::Equal => lhs.denom.to_string().cmp(&rhs.denom.to_string()),
+        Ordering::Equal => lhs.denom.cmp(&rhs.denom),
         Ordering::Less => Ordering::Greater,
         Ordering::Greater => Ordering::Less,
     }
 }
 
+#[cfg(test)]
 mod test {
     #[test]
     fn compare_asset_balances_sorts_asset_balances_as_expected() {

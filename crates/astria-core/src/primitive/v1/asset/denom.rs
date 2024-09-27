@@ -147,6 +147,29 @@ impl FromStr for Denom {
     }
 }
 
+impl PartialOrd for Denom {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Denom {
+    /// If the denoms are the same type, returns their comparison. Otherwise, returns IBC prefixed
+    /// denoms as less than trace prefixed denoms.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self {
+            Self::TracePrefixed(lhs) => match other {
+                Self::TracePrefixed(rhs) => lhs.cmp(rhs),
+                Self::IbcPrefixed(_) => std::cmp::Ordering::Greater,
+            },
+            Self::IbcPrefixed(lhs) => match other {
+                Self::IbcPrefixed(rhs) => lhs.cmp(rhs),
+                Self::TracePrefixed(_) => std::cmp::Ordering::Less,
+            },
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct ParseDenomError(ParseDenomErrorKind);
@@ -284,6 +307,21 @@ impl TracePrefixed {
     }
 }
 
+impl PartialOrd for TracePrefixed {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for TracePrefixed {
+    /// Returns trace comparison if not equal, otherwise returns base denom comparison.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.trace
+            .cmp(&other.trace)
+            .then_with(|| self.base_denom.cmp(&other.base_denom))
+    }
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct TraceSegments {
     inner: VecDeque<PortAndChannel>,
@@ -354,6 +392,28 @@ impl FromStr for TraceSegments {
         Ok(parsed_segments)
     }
 }
+
+impl PartialOrd for TraceSegments {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for TraceSegments {
+    /// Returns the first non-equal comparison between the two trace segments. If one doesn't exist,
+    /// returns the shortest, and if they are equal, returns equal.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner
+            .iter()
+            .zip(other.inner.iter())
+            .find_map(|(self_segment, other_segment)| {
+                Some(self_segment.cmp(other_segment))
+                    .filter(|&cmp| cmp != std::cmp::Ordering::Equal)
+            })
+            .unwrap_or(self.inner.len().cmp(&other.inner.len()))
+    }
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct PortAndChannel {
     port: String,
@@ -369,6 +429,21 @@ impl PortAndChannel {
     #[must_use]
     pub fn port(&self) -> &str {
         &self.port
+    }
+}
+
+impl PartialOrd for PortAndChannel {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for PortAndChannel {
+    /// Returns port comparison if not equal, otherwise returns channel comparison.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.port
+            .cmp(&other.port)
+            .then_with(|| self.channel.cmp(&other.channel))
     }
 }
 
@@ -546,6 +621,18 @@ impl FromStr for IbcPrefixed {
         Ok(Self {
             id,
         })
+    }
+}
+
+impl PartialOrd for IbcPrefixed {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for IbcPrefixed {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
     }
 }
 
