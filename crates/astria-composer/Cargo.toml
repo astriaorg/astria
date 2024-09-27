@@ -2,7 +2,7 @@
 name = "astria-composer"
 version = "0.8.3"
 edition = "2021"
-rust-version = "1.76"
+rust-version = "1.81.0"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
@@ -30,7 +30,6 @@ humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
 itertools = { workspace = true }
-once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
