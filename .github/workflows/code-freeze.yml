@@ -26,8 +26,8 @@ jobs:
         if: steps.filters.outputs.changes != '' && !contains(github.event.pull_request.labels.*.name, 'override-freeze')
         run: |
           TITLE="Code Freeze in Effect"
-          SUMMARY_MESSAGE_BODY=""
           LEGIBLE_CHANGES=$(echo "${{ steps.filters.outputs.changes }}" | sed 's/,changed//g' | sed 's/,/, /g' | sed 's/[][]//g')
+          echo "### ${TITLE}" >> $GITHUB_STEP_SUMMARY
           echo "This PR updates the following components which are code frozen: ${LEGIBLE_CHANGES}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "The following files are modified and frozen:" >> $GITHUB_STEP_SUMMARY
@@ -39,5 +39,4 @@ jobs:
           done
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Freeze can be overriden by adding the 'override-freeze' label to the PR." >> $GITHUB_STEP_SUMMARY
-          echo "::error title=$TITLE::$GITHUB_STEP_SUMMARY"
           exit 1
