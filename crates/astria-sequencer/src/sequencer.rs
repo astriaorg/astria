@@ -84,7 +84,7 @@ impl Sequencer {
         .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
 
-        let mempool = Mempool::new();
+        let mempool = Mempool::new(metrics);
         let app = App::new(snapshot, mempool.clone(), metrics)
             .await
             .wrap_err("failed to initialize app")?;

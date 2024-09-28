@@ -221,6 +221,7 @@ mod tests {
         sequencerblock::v1alpha1::SequencerBlock,
     };
     use cnidarium::StateDelta;
+    use telemetry::Metrics;
 
     use super::*;
     use crate::{
@@ -246,7 +247,8 @@ mod tests {
     async fn test_get_sequencer_block() {
         let block = make_test_sequencer_block(1);
         let storage = cnidarium::TempStorage::new().await.unwrap();
-        let mempool = Mempool::new();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics);
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
         state_tx.put_block_height(1);
         state_tx.put_sequencer_block(block.clone()).unwrap();
@@ -264,7 +266,8 @@ mod tests {
     #[tokio::test]
     async fn get_pending_nonce_in_mempool() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
-        let mempool = Mempool::new();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics);
 
         let alice = get_alice_signing_key();
         let alice_address = astria_address(&alice.address_bytes());
@@ -307,7 +310,8 @@ mod tests {
         use crate::accounts::StateWriteExt as _;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
-        let mempool = Mempool::new();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics);
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
         let alice = get_alice_signing_key();
         let alice_address = astria_address(&alice.address_bytes());

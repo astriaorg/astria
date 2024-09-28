@@ -164,19 +164,16 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 async fn is_tracked(tx_hash: [u8; 32], mempool: &AppMempool, metrics: &Metrics) -> bool {
     let start_tracked_check = Instant::now();
 
-    let result = mempool.tracked(tx_hash).await;
+    let result = mempool.is_tracked(tx_hash).await;
 
-    let finished_check_tracked = Instant::now();
-    metrics.record_check_tx_duration_seconds_check_tracked(
-        finished_check_tracked.saturating_duration_since(start_tracked_check),
-    );
+    metrics.record_check_tx_duration_seconds_check_tracked(start_tracked_check.elapsed());
 
     result
 }
 
 /// Checks if the transaction has been removed from the appside mempool.
 ///
-/// Returns an Err([`response::CheckTx`]) with an error code and message if the transaction has been
+/// Returns an `Err(response::CheckTx)` with an error code and message if the transaction has been
 /// removed from the appside mempool.
 async fn check_removed_comet_bft(
     tx_hash: [u8; 32],
@@ -230,17 +227,14 @@ async fn check_removed_comet_bft(
         }
     };
 
-    let finished_removal_check = Instant::now();
-    metrics.record_check_tx_duration_seconds_check_removed(
-        finished_removal_check.saturating_duration_since(start_removal_check),
-    );
+    metrics.record_check_tx_duration_seconds_check_removed(start_removal_check.elapsed());
 
     Ok(())
 }
 
 /// Performs stateless checks on the transaction.
 ///
-/// Returns an Err([`response::CheckTx`]) if the transaction fails any of the checks.
+/// Returns an `Err(response::CheckTx)` if the transaction fails any of the checks.
 /// Otherwise, it returns the [`SignedTransaction`] to be inserted into the mempool.
 async fn stateless_checks<S: accounts::StateReadExt + address::StateReadExt + 'static>(
     tx: Bytes,
@@ -318,10 +312,7 @@ async fn stateless_checks<S: accounts::StateReadExt + address::StateReadExt + 's
         });
     }
 
-    let finished_check_chain_id = Instant::now();
-    metrics.record_check_tx_duration_seconds_check_chain_id(
-        finished_check_chain_id.saturating_duration_since(finished_check_stateless),
-    );
+    metrics.record_check_tx_duration_seconds_check_chain_id(finished_check_stateless.elapsed());
 
     // note: decide if worth moving to post-insertion, would have to recalculate cost
     metrics.record_transaction_in_mempool_size_bytes(tx_len);
@@ -331,7 +322,7 @@ async fn stateless_checks<S: accounts::StateReadExt + address::StateReadExt + 's
 
 /// Attempts to insert the transaction into the mempool.
 ///
-/// Returns a Err([`response::CheckTx`]) with an error code and message if the transaction fails
+/// Returns a `Err(response::CheckTx)` with an error code and message if the transaction fails
 /// insertion into the mempool.
 async fn insert_into_mempool<S: accounts::StateReadExt + address::StateReadExt + 'static>(
     mempool: &AppMempool,

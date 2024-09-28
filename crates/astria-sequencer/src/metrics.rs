@@ -38,6 +38,7 @@ pub struct Metrics {
     transaction_in_mempool_size_bytes: Histogram,
     transactions_in_mempool_total: Gauge,
     mempool_recosted: Counter,
+    mempool_tx_logic_error: Counter,
 }
 
 impl Metrics {
@@ -153,6 +154,10 @@ impl Metrics {
 
     pub(crate) fn increment_mempool_recosted(&self) {
         self.mempool_recosted.increment(1);
+    }
+
+    pub(crate) fn increment_mempool_tx_logic_error(&self) {
+        self.mempool_tx_logic_error.increment(1);
     }
 }
 
@@ -328,6 +333,14 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let mempool_tx_logic_error = builder
+            .new_counter_factory(
+                MEMPOOL_TX_LOGIC_ERROR,
+                "The number of times a transaction has been rejected due to logic errors in the \
+                 mempool",
+            )?
+            .register()?;
+
         Ok(Self {
             prepare_proposal_excluded_transactions_cometbft_space,
             prepare_proposal_excluded_transactions_sequencer_space,
@@ -354,6 +367,7 @@ impl telemetry::Metrics for Metrics {
             transaction_in_mempool_size_bytes,
             transactions_in_mempool_total,
             mempool_recosted,
+            mempool_tx_logic_error,
         })
     }
 }
@@ -380,7 +394,8 @@ metric_names!(const METRICS_NAMES:
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
     TRANSACTIONS_IN_MEMPOOL_TOTAL,
-    MEMPOOL_RECOSTED
+    MEMPOOL_RECOSTED,
+    MEMPOOL_TX_LOGIC_ERROR
 );
 
 #[cfg(test)]
@@ -394,6 +409,7 @@ mod tests {
         CHECK_TX_REMOVED_FAILED_STATELESS,
         CHECK_TX_REMOVED_TOO_LARGE,
         MEMPOOL_RECOSTED,
+        MEMPOOL_TX_LOGIC_ERROR,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
@@ -465,5 +481,6 @@ mod tests {
             "transactions_in_mempool_total",
         );
         assert_const(MEMPOOL_RECOSTED, "mempool_recosted");
+        assert_const(MEMPOOL_TX_LOGIC_ERROR, "mempool_tx_logic_error");
     }
 }

@@ -17,6 +17,7 @@ use sha2::{
     Digest as _,
     Sha256,
 };
+use telemetry::Metrics;
 
 use crate::{
     app::test_utils::{
@@ -103,7 +104,8 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         .enable_all()
         .build()
         .unwrap();
-    let mempool = Mempool::new();
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mempool = Mempool::new(metrics);
     let account_mock_balance = mock_balances(0, 0);
     let tx_mock_cost = mock_tx_cost(0, 0, 0);
     runtime.block_on(async {

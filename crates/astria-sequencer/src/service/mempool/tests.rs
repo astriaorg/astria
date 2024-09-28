@@ -30,8 +30,8 @@ async fn future_nonce_ok() {
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
 
-    let mut mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mut mempool = Mempool::new(metrics);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
@@ -64,8 +64,8 @@ async fn rechecks_pass() {
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
 
-    let mut mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mut mempool = Mempool::new(metrics);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
@@ -103,8 +103,8 @@ async fn can_reinsert_after_recheck_fail() {
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
 
-    let mut mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mut mempool = Mempool::new(metrics);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
@@ -152,8 +152,8 @@ async fn receck_adds_non_tracked_tx() {
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
 
-    let mut mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mut mempool = Mempool::new(metrics);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
