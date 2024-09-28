@@ -75,9 +75,10 @@ impl SizedBundle {
         }
     }
 
-    #[allow(clippy::panic)] // method is expected to never panic because only `SequenceActions` are
-    /// added to the bundle, which should produce a valid variant of the `ActionGroup` type.
     /// Constructs an [`UnsignedTransaction`] from the actions contained in the bundle and `params`.
+    // Method is expected to never panic because only `SequenceActions` are added to the bundle,
+    // which should produce a valid variant of the `ActionGroup` type.
+    #[allow(clippy::panic)]
     pub(super) fn to_unsigned_transaction(
         &self,
         nonce: u32,

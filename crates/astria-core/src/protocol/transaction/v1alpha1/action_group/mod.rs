@@ -59,12 +59,8 @@ impl_belong_to_group!(
     (IbcSudoChangeAction, ActionGroup::UnbundleableSudo),
 );
 
-trait Group {
-    fn group(&self) -> ActionGroup;
-}
-
-impl Group for Action {
-    fn group(&self) -> ActionGroup {
+impl Action {
+    const fn group(&self) -> ActionGroup {
         match self {
             Action::Sequence(_) => SequenceAction::GROUP,
             Action::Transfer(_) => TransferAction::GROUP,
@@ -85,7 +81,7 @@ impl Group for Action {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(super) enum ActionGroup {
+pub enum ActionGroup {
     General,
     UnbundleableGeneral,
     Sudo,
@@ -118,7 +114,16 @@ impl fmt::Display for ActionGroup {
 pub struct Error(ErrorKind);
 
 impl Error {
-    fn mixed(original_group: ActionGroup, additional_group: ActionGroup, action: String) -> Self {
+    #[must_use]
+    pub fn kind(&self) -> &ErrorKind {
+        &self.0
+    }
+
+    fn mixed(
+        original_group: ActionGroup,
+        additional_group: ActionGroup,
+        action: &'static str,
+    ) -> Self {
         Self(ErrorKind::Mixed {
             original_group,
             additional_group,
@@ -134,7 +139,7 @@ impl Error {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum ErrorKind {
+pub enum ErrorKind {
     #[error(
         "input contains mixed `ActionGroup` types. original group: {original_group}, additional \
          group: {additional_group}, triggering action: {action}"
@@ -142,13 +147,13 @@ enum ErrorKind {
     Mixed {
         original_group: ActionGroup,
         additional_group: ActionGroup,
-        action: String,
+        action: &'static str,
     },
     #[error("attempted to create bundle with non bundleable `ActionGroup` type: {group}")]
     NotBundleable { group: ActionGroup },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub(super) struct Actions {
     inner: Vec<Action>,
 }
@@ -164,13 +169,7 @@ impl Actions {
     }
 
     pub(super) fn group(&self) -> Option<ActionGroup> {
-        self.inner.first().map(Group::group)
-    }
-
-    fn default() -> Self {
-        Self {
-            inner: vec![],
-        }
+        self.inner.first().map(super::action::Action::group)
     }
 
     pub(super) fn try_from_list_of_actions(actions: Vec<Action>) -> Result<Self, Error> {
@@ -191,11 +190,7 @@ impl Actions {
         // assert the rest of the actions have the same group as the first
         for action in actions_iter {
             if action.group() != group {
-                return Err(Error::mixed(
-                    group,
-                    action.group(),
-                    action.name().to_string(),
-                ));
+                return Err(Error::mixed(group, action.group(), action.name()));
             }
         }
 

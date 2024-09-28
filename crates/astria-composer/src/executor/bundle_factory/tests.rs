@@ -344,12 +344,15 @@ mod bundle_factory {
         bundle_factory
             .try_push(sequence_action_with_n_bytes(50))
             .unwrap();
+        bundle_factory
+            .try_push(sequence_action_with_n_bytes(50))
+            .unwrap();
 
         let bundle = bundle_factory.pop_now();
 
         // construction of multiple sequence actions should not panic
         let unsigned_tx = bundle.to_unsigned_transaction(0, "astria-testnet-1");
 
-        assert_eq!(unsigned_tx.actions().len(), 2);
+        assert_eq!(unsigned_tx.actions().len(), 3);
     }
 }

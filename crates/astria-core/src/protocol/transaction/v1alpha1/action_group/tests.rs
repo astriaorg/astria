@@ -28,6 +28,7 @@ use crate::{
         action_group::{
             ActionGroup,
             Actions,
+            ErrorKind,
         },
     },
 };
@@ -120,7 +121,7 @@ fn from_list_of_actions_sudo() {
 }
 
 #[test]
-fn from_list_of_actions_unbundelable_sudo() {
+fn from_list_of_actions_unbundleable_sudo() {
     let address: Address<_> = Address::builder()
         .array([0; 20])
         .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -154,11 +155,10 @@ fn from_list_of_actions_unbundelable_sudo() {
         }),
     ];
 
-    assert_eq!(
-        Actions::try_from_list_of_actions(actions)
-            .unwrap_err()
-            .to_string(),
-        "attempted to create bundle with non bundleable `ActionGroup` type: unbundleable sudo"
+    let error_kind = Actions::try_from_list_of_actions(actions).unwrap_err().0;
+    assert!(
+        matches!(error_kind, ErrorKind::NotBundleable { .. }),
+        "expected ErrorKind::NotBundleable, got {error_kind:?}"
     );
 }
 
@@ -206,11 +206,10 @@ fn from_list_of_actions_unbundleable_general() {
         sudo_bridge_address_change_action.into(),
     ];
 
-    assert_eq!(
-        Actions::try_from_list_of_actions(actions)
-            .unwrap_err()
-            .to_string(),
-        "attempted to create bundle with non bundleable `ActionGroup` type: unbundleable general"
+    let error_kind = Actions::try_from_list_of_actions(actions).unwrap_err().0;
+    assert!(
+        matches!(error_kind, ErrorKind::NotBundleable { .. }),
+        "expected ErrorKind::NotBundleable, got {error_kind:?}"
     );
 }
 
@@ -234,11 +233,9 @@ fn from_list_of_actions_mixed() {
         }),
     ];
 
-    assert_eq!(
-        Actions::try_from_list_of_actions(actions)
-            .unwrap_err()
-            .to_string(),
-        "input contains mixed `ActionGroup` types. original group: general, additional group: \
-         unbundleable sudo, triggering action: SudoAddressChange"
+    let error_kind = Actions::try_from_list_of_actions(actions).unwrap_err().0;
+    assert!(
+        matches!(error_kind, ErrorKind::Mixed { .. }),
+        "expected ErrorKind::Mixed, got {error_kind:?}"
     );
 }

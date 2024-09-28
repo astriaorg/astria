@@ -421,25 +421,19 @@ enum UnsignedTransactionErrorKind {
     ActionGroup(#[source] action_group::Error),
 }
 
-pub struct UnsignedTransactionBuilder<TChainId = std::borrow::Cow<'static, str>> {
+#[derive(Default)]
+pub struct UnsignedTransactionBuilder {
     nonce: u32,
-    chain_id: TChainId,
+    chain_id: String,
     actions: Vec<Action>,
 }
 
 impl UnsignedTransactionBuilder {
     #[must_use]
-    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        Self {
-            nonce: 0,
-            chain_id: "".into(),
-            actions: vec![],
-        }
+        Self::default()
     }
-}
 
-impl<TChainId> UnsignedTransactionBuilder<TChainId> {
     #[must_use]
     pub fn actions(self, actions: Vec<Action>) -> Self {
         Self {
@@ -449,10 +443,7 @@ impl<TChainId> UnsignedTransactionBuilder<TChainId> {
     }
 
     #[must_use]
-    pub fn chain_id<'a, T: Into<std::borrow::Cow<'a, str>>>(
-        self,
-        chain_id: T,
-    ) -> UnsignedTransactionBuilder<std::borrow::Cow<'a, str>> {
+    pub fn chain_id<T: Into<String>>(self, chain_id: T) -> UnsignedTransactionBuilder {
         UnsignedTransactionBuilder {
             chain_id: chain_id.into(),
             nonce: self.nonce,
@@ -467,9 +458,7 @@ impl<TChainId> UnsignedTransactionBuilder<TChainId> {
             ..self
         }
     }
-}
 
-impl<'a> UnsignedTransactionBuilder<std::borrow::Cow<'a, str>> {
     /// Constructs a [`UnsignedTransaction`] from the configured builder.
     ///
     /// # Errors
@@ -488,7 +477,7 @@ impl<'a> UnsignedTransactionBuilder<std::borrow::Cow<'a, str>> {
             actions,
             params: TransactionParams {
                 nonce,
-                chain_id: chain_id.into(),
+                chain_id,
             },
         })
     }

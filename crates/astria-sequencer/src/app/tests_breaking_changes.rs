@@ -32,6 +32,7 @@ use astria_core::{
                 TransferAction,
                 ValidatorUpdate,
             },
+            action_group,
             Action,
             UnsignedTransaction,
         },
@@ -449,77 +450,80 @@ async fn app_transaction_bundle_categories() {
         "should be able to construct sudo bundle"
     );
 
-    assert_eq!(
-        UnsignedTransaction::builder()
-            .actions(vec![
-                SudoAddressChangeAction {
-                    new_address: bob_address,
-                }
-                .into(),
-                SudoAddressChangeAction {
-                    new_address: bob_address,
-                }
-                .into(),
-            ])
-            .nonce(2)
-            .chain_id("test")
-            .try_build()
-            .unwrap_err()
-            .to_string(),
-        "attempted to create bundle with non bundleable `ActionGroup` type: unbundleable sudo"
+    let error = UnsignedTransaction::builder()
+        .actions(vec![
+            SudoAddressChangeAction {
+                new_address: bob_address,
+            }
+            .into(),
+            SudoAddressChangeAction {
+                new_address: bob_address,
+            }
+            .into(),
+        ])
+        .nonce(2)
+        .chain_id("test")
+        .try_build()
+        .unwrap_err();
+    assert!(
+        matches!(error.kind(), action_group::ErrorKind::NotBundleable { .. }),
+        "expected ErrorKind::NotBundleable, got {:?}",
+        error.kind()
     );
 
-    assert_eq!(
-        UnsignedTransaction::builder()
-            .actions(vec![
-                InitBridgeAccountAction {
-                    rollup_id,
-                    asset: nria().into(),
-                    fee_asset: nria().into(),
-                    sudo_address: None,
-                    withdrawer_address: None,
-                }
-                .into(),
-                InitBridgeAccountAction {
-                    rollup_id,
-                    asset: nria().into(),
-                    fee_asset: nria().into(),
-                    sudo_address: None,
-                    withdrawer_address: None,
-                }
-                .into(),
-            ])
-            .nonce(2)
-            .chain_id("test")
-            .try_build()
-            .unwrap_err()
-            .to_string(),
-        "attempted to create bundle with non bundleable `ActionGroup` type: unbundleable general"
+    let error = UnsignedTransaction::builder()
+        .actions(vec![
+            InitBridgeAccountAction {
+                rollup_id,
+                asset: nria().into(),
+                fee_asset: nria().into(),
+                sudo_address: None,
+                withdrawer_address: None,
+            }
+            .into(),
+            InitBridgeAccountAction {
+                rollup_id,
+                asset: nria().into(),
+                fee_asset: nria().into(),
+                sudo_address: None,
+                withdrawer_address: None,
+            }
+            .into(),
+        ])
+        .nonce(2)
+        .chain_id("test")
+        .try_build()
+        .unwrap_err();
+    assert!(
+        matches!(error.kind(), action_group::ErrorKind::NotBundleable { .. }),
+        "expected ErrorKind::NotBundleable, got {:?}",
+        error.kind()
     );
 
-    assert_eq!(
-        UnsignedTransaction::builder()
-            .actions(vec![
-                BridgeSudoChangeAction {
-                    bridge_address,
-                    new_sudo_address: Some(bob_address),
-                    new_withdrawer_address: Some(bob_address),
-                    fee_asset: nria().into(),
-                }
-                .into(),
-                BridgeSudoChangeAction {
-                    bridge_address,
-                    new_sudo_address: Some(bob_address),
-                    new_withdrawer_address: Some(bob_address),
-                    fee_asset: nria().into(),
-                }
-                .into(),
-            ])
-            .nonce(2)
-            .chain_id("test")
-            .try_build()
-            .unwrap_err()
-            .to_string(),
-        "attempted to create bundle with non bundleable `ActionGroup` type: unbundleable general"
+    let error = UnsignedTransaction::builder()
+        .actions(vec![
+            BridgeSudoChangeAction {
+                bridge_address,
+                new_sudo_address: Some(bob_address),
+                new_withdrawer_address: Some(bob_address),
+                fee_asset: nria().into(),
+            }
+            .into(),
+            BridgeSudoChangeAction {
+                bridge_address,
+                new_sudo_address: Some(bob_address),
+                new_withdrawer_address: Some(bob_address),
+                fee_asset: nria().into(),
+            }
+            .into(),
+        ])
+        .nonce(2)
+        .chain_id("test")
+        .try_build()
+        .unwrap_err();
+    assert!(
+        matches!(error.kind(), action_group::ErrorKind::NotBundleable { .. }),
+        "expected ErrorKind::NotBundleable, got {:?}",
+        error.kind()
     );
 }
