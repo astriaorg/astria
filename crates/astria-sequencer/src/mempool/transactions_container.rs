@@ -779,7 +779,7 @@ impl<const MAX_TX_COUNT: usize> TransactionsContainer<ParkedTransactionsForAccou
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use astria_core::crypto::SigningKey;
 
     use super::*;
@@ -787,6 +787,7 @@ mod tests {
         denom_0,
         denom_1,
         denom_3,
+        get_alice_signing_key,
         mock_balances,
         mock_state_getter,
         mock_state_put_account_nonce,
@@ -798,17 +799,72 @@ mod tests {
     const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
     const TX_TTL: Duration = Duration::from_secs(2);
 
-    fn mock_ttx(
+    struct MockTTXBuilder {
         nonce: u32,
-        signer: &SigningKey,
+        signer: SigningKey,
         denom_0_cost: u128,
         denom_1_cost: u128,
         denom_2_cost: u128,
-    ) -> TimemarkedTransaction {
-        TimemarkedTransaction::new(
-            mock_tx(nonce, signer, "test"),
-            mock_tx_cost(denom_0_cost, denom_1_cost, denom_2_cost),
-        )
+    }
+
+    impl MockTTXBuilder {
+        fn build(self) -> TimemarkedTransaction {
+            let tx = mock_tx(self.nonce, &self.signer, "test");
+
+            TimemarkedTransaction::new(
+                tx,
+                mock_tx_cost(self.denom_0_cost, self.denom_1_cost, self.denom_2_cost),
+            )
+        }
+
+        fn new() -> Self {
+            Self::default()
+        }
+
+        fn default() -> Self {
+            Self {
+                nonce: 0,
+                signer: get_alice_signing_key(),
+                denom_0_cost: 0,
+                denom_1_cost: 0,
+                denom_2_cost: 0,
+            }
+        }
+
+        fn nonce(self, nonce: u32) -> Self {
+            Self {
+                nonce,
+                ..self
+            }
+        }
+
+        fn signer(self, signer: SigningKey) -> Self {
+            Self {
+                signer,
+                ..self
+            }
+        }
+
+        fn denom_0(self, denom_0_cost: u128) -> Self {
+            Self {
+                denom_0_cost,
+                ..self
+            }
+        }
+
+        fn denom_1(self, denom_1_cost: u128) -> Self {
+            Self {
+                denom_1_cost,
+                ..self
+            }
+        }
+
+        fn denom_2(self, denom_2_cost: u128) -> Self {
+            Self {
+                denom_2_cost,
+                ..self
+            }
+        }
     }
 
     #[test]
@@ -935,9 +991,9 @@ mod tests {
         let mut parked_txs = ParkedTransactionsForAccount::<MAX_PARKED_TXS_PER_ACCOUNT>::new();
 
         // transactions to add
-        let ttx_1 = mock_ttx(1, &[1; 32].into(), 10, 0, 0);
-        let ttx_3 = mock_ttx(3, &[1; 32].into(), 0, 10, 0);
-        let ttx_5 = mock_ttx(5, &[1; 32].into(), 0, 0, 100);
+        let ttx_1 = MockTTXBuilder::new().nonce(1).denom_0(10).build();
+        let ttx_3 = MockTTXBuilder::new().nonce(3).denom_1(10).build();
+        let ttx_5 = MockTTXBuilder::new().nonce(5).denom_2(100).build();
 
         // note account doesn't have balance to cover any of them
         let account_balances = mock_balances(1, 1);
@@ -973,9 +1029,9 @@ mod tests {
         let mut parked_txs = ParkedTransactionsForAccount::<2>::new();
 
         // transactions to add
-        let ttx_1 = mock_ttx(1, &[1; 32].into(), 0, 0, 0);
-        let ttx_3 = mock_ttx(3, &[1; 32].into(), 0, 0, 0);
-        let ttx_5 = mock_ttx(5, &[1; 32].into(), 0, 0, 0);
+        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
+        let ttx_3 = MockTTXBuilder::new().nonce(3).build();
+        let ttx_5 = MockTTXBuilder::new().nonce(5).build();
         let account_balances = mock_balances(1, 1);
 
         let current_account_nonce = 0;
@@ -1000,10 +1056,10 @@ mod tests {
         let mut pending_txs = PendingTransactionsForAccount::new();
 
         // transactions to add, not testing balances in this unit test
-        let ttx_0 = mock_ttx(0, &[1; 32].into(), 0, 0, 0);
-        let ttx_1 = mock_ttx(1, &[1; 32].into(), 0, 0, 0);
-        let ttx_2 = mock_ttx(2, &[1; 32].into(), 0, 0, 0);
-        let ttx_3 = mock_ttx(3, &[1; 32].into(), 0, 0, 0);
+        let ttx_0 = MockTTXBuilder::new().nonce(0).build();
+        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
+        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
+        let ttx_3 = MockTTXBuilder::new().nonce(3).build();
 
         let account_balances = mock_balances(1, 1);
 
@@ -1057,13 +1113,13 @@ mod tests {
         let mut pending_txs = PendingTransactionsForAccount::new();
 
         // transactions to add, testing balances
-        let ttx_0_too_expensive_0 = mock_ttx(0, &[1; 32].into(), 11, 0, 0);
-        let ttx_0_too_expensive_1 = mock_ttx(0, &[1; 32].into(), 0, 0, 1);
-        let ttx_0 = mock_ttx(0, &[1; 32].into(), 10, 0, 0);
-        let ttx_1 = mock_ttx(1, &[1; 32].into(), 0, 10, 0);
-        let ttx_2 = mock_ttx(2, &[1; 32].into(), 0, 8, 0);
-        let ttx_3 = mock_ttx(3, &[1; 32].into(), 0, 2, 0);
-        let ttx_4 = mock_ttx(4, &[1; 32].into(), 1, 0, 0);
+        let ttx_0_too_expensive_0 = MockTTXBuilder::new().nonce(0).denom_0(11).build();
+        let ttx_0_too_expensive_1 = MockTTXBuilder::new().nonce(0).denom_2(1).build();
+        let ttx_0 = MockTTXBuilder::new().nonce(0).denom_0(10).build();
+        let ttx_1 = MockTTXBuilder::new().nonce(1).denom_1(10).build();
+        let ttx_2 = MockTTXBuilder::new().nonce(2).denom_1(8).build();
+        let ttx_3 = MockTTXBuilder::new().nonce(3).denom_1(2).build();
+        let ttx_4 = MockTTXBuilder::new().nonce(4).denom_0(1).build();
 
         let account_balances = mock_balances(10, 20);
         let current_account_nonce = 0;
@@ -1134,10 +1190,10 @@ mod tests {
         let mut account_txs = PendingTransactionsForAccount::new();
 
         // transactions to add
-        let ttx_0 = mock_ttx(0, &[1; 32].into(), 0, 0, 0);
-        let ttx_1 = mock_ttx(1, &[1; 32].into(), 0, 0, 0);
-        let ttx_2 = mock_ttx(2, &[1; 32].into(), 0, 0, 0);
-        let ttx_3 = mock_ttx(3, &[1; 32].into(), 0, 0, 0);
+        let ttx_0 = MockTTXBuilder::new().nonce(0).build();
+        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
+        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
+        let ttx_3 = MockTTXBuilder::new().nonce(3).build();
         let account_balances = mock_balances(1, 1);
 
         account_txs
@@ -1189,9 +1245,9 @@ mod tests {
         );
 
         // transactions to add
-        let ttx_0 = mock_ttx(0, &[1; 32].into(), 0, 0, 0);
-        let ttx_1 = mock_ttx(1, &[1; 32].into(), 0, 0, 0);
-        let ttx_2 = mock_ttx(2, &[1; 32].into(), 0, 0, 0);
+        let ttx_0 = MockTTXBuilder::new().nonce(0).build();
+        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
+        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
         let account_balances = mock_balances(1, 1);
 
         pending_txs.add(ttx_0, 0, &account_balances).unwrap();
@@ -1217,12 +1273,17 @@ mod tests {
         let signing_address_1 = signing_key_1.address_bytes();
 
         // transactions to add to accounts
-        let ttx_s0_0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
-        // Same nonce and signer as `ttx_s0_0_0`, but different rollup name, hence different tx.
-        let ttx_s0_0_1 =
-            TimemarkedTransaction::new(mock_tx(0, &signing_key_0, "other"), mock_tx_cost(0, 0, 0));
-        let ttx_s0_2_0 = mock_ttx(2, &signing_key_0, 0, 0, 0);
-        let ttx_s1_0_0 = mock_ttx(0, &signing_key_1, 0, 0, 0);
+        let ttx_s0_0_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key_0.clone())
+            .build();
+        // Same nonce and signer as `ttx_s0_0_0`, but different chain id.
+        let ttx_s0_0_1 = TimemarkedTransaction::new(
+            mock_tx(0, &signing_key_0, "different-chain-id"),
+            mock_tx_cost(0, 0, 0),
+        );
+        let ttx_s0_2_0 = MockTTXBuilder::new().nonce(2).signer(signing_key_0).build();
+        let ttx_s1_0_0 = MockTTXBuilder::new().nonce(0).signer(signing_key_1).build();
         let account_balances = mock_balances(1, 1);
 
         // transactions to add for account 1
@@ -1308,10 +1369,16 @@ mod tests {
         let signing_key_1 = SigningKey::from([2; 32]);
 
         // transactions to add to accounts
-        let ttx_s0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
-        let ttx_s1_0 = mock_ttx(0, &signing_key_1, 0, 0, 0);
-        let ttx_s1_1 = mock_ttx(1, &signing_key_1, 0, 0, 0);
+        let ttx_s0_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key_0.clone())
+            .build();
+        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).signer(signing_key_0).build();
+        let ttx_s1_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key_1.clone())
+            .build();
+        let ttx_s1_1 = MockTTXBuilder::new().nonce(1).signer(signing_key_1).build();
         let account_balances = mock_balances(1, 1);
 
         // remove on empty returns the tx in Err variant.
@@ -1365,9 +1432,12 @@ mod tests {
         let signing_key_1 = SigningKey::from([2; 32]);
 
         // transactions to add to accounts
-        let ttx_s0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
-        let ttx_s1_0 = mock_ttx(0, &signing_key_1, 0, 0, 0);
+        let ttx_s0_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key_0.clone())
+            .build();
+        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).signer(signing_key_0).build();
+        let ttx_s1_0 = MockTTXBuilder::new().nonce(0).signer(signing_key_1).build();
         let account_balances = mock_balances(1, 1);
 
         // clear all on empty returns zero
@@ -1414,7 +1484,10 @@ mod tests {
         let account_balances = mock_balances(1, 1);
 
         // transaction to add to account
-        let ttx = mock_ttx(0, &signing_key, 0, 0, 0);
+        let ttx = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key.clone())
+            .build();
         pending_txs.add(ttx.clone(), 0, &account_balances).unwrap();
         assert_eq!(
             pending_txs
@@ -1465,15 +1538,42 @@ mod tests {
         let signing_address_2 = signing_key_2.address_bytes();
 
         // transactions to add to accounts
-        let ttx_s0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
-        let ttx_s0_2 = mock_ttx(2, &signing_key_0, 0, 0, 0);
-        let ttx_s1_0 = mock_ttx(0, &signing_key_1, 0, 0, 0);
-        let ttx_s1_1 = mock_ttx(1, &signing_key_1, 0, 0, 0);
-        let ttx_s1_2 = mock_ttx(2, &signing_key_1, 0, 0, 0);
-        let ttx_s2_0 = mock_ttx(0, &signing_key_2, 0, 0, 0);
-        let ttx_s2_1 = mock_ttx(1, &signing_key_2, 0, 0, 0);
-        let ttx_s2_2 = mock_ttx(2, &signing_key_2, 0, 0, 0);
+        let ttx_s0_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key_0.clone())
+            .build();
+        let ttx_s0_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(signing_key_0.clone())
+            .build();
+        let ttx_s0_2 = MockTTXBuilder::new()
+            .nonce(2)
+            .signer(signing_key_0.clone())
+            .build();
+        let ttx_s1_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key_1.clone())
+            .build();
+        let ttx_s1_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(signing_key_1.clone())
+            .build();
+        let ttx_s1_2 = MockTTXBuilder::new()
+            .nonce(2)
+            .signer(signing_key_1.clone())
+            .build();
+        let ttx_s2_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key_2.clone())
+            .build();
+        let ttx_s2_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(signing_key_2.clone())
+            .build();
+        let ttx_s2_2 = MockTTXBuilder::new()
+            .nonce(2)
+            .signer(signing_key_2.clone())
+            .build();
         let account_balances = mock_balances(1, 1);
 
         // add transactions
@@ -1555,13 +1655,22 @@ mod tests {
         let account_balances = mock_balances(1, 1);
 
         // transactions to add to accounts
-        let ttx_s0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
+        let ttx_s0_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key_0.clone())
+            .build();
 
         // pass time to make first transaction stale
         tokio::time::advance(TX_TTL.saturating_add(Duration::from_nanos(1))).await;
 
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
-        let ttx_s1_0 = mock_ttx(0, &signing_key_1, 0, 0, 0);
+        let ttx_s0_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(signing_key_0.clone())
+            .build();
+        let ttx_s1_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key_1.clone())
+            .build();
 
         // add transactions
         pending_txs
@@ -1618,8 +1727,14 @@ mod tests {
         let account_balances = mock_balances(1, 1);
 
         // transactions to add for account 0
-        let ttx_s0_0 = mock_ttx(0, &signing_key_0, 0, 0, 0);
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
+        let ttx_s0_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(signing_key_0.clone())
+            .build();
+        let ttx_s0_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(signing_key_0.clone())
+            .build();
 
         pending_txs.add(ttx_s0_0, 0, &account_balances).unwrap();
         pending_txs.add(ttx_s0_1, 0, &account_balances).unwrap();
@@ -1647,10 +1762,22 @@ mod tests {
         let signing_address_1 = signing_key_1.address_bytes();
 
         // transactions to add to accounts
-        let ttx_s0_1 = mock_ttx(1, &signing_key_0, 0, 0, 0);
-        let ttx_s1_1 = mock_ttx(1, &signing_key_1, 0, 0, 0);
-        let ttx_s1_2 = mock_ttx(2, &signing_key_1, 0, 0, 0);
-        let ttx_s1_3 = mock_ttx(3, &signing_key_1, 0, 0, 0);
+        let ttx_s0_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(signing_key_0.clone())
+            .build();
+        let ttx_s1_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(signing_key_1.clone())
+            .build();
+        let ttx_s1_2 = MockTTXBuilder::new()
+            .nonce(2)
+            .signer(signing_key_1.clone())
+            .build();
+        let ttx_s1_3 = MockTTXBuilder::new()
+            .nonce(3)
+            .signer(signing_key_1.clone())
+            .build();
         let account_balances = mock_balances(1, 1);
 
         // add transactions
@@ -1715,9 +1842,22 @@ mod tests {
         let signing_address = signing_key.address_bytes();
 
         // transactions to add to accounts
-        let ttx_1 = mock_ttx(1, &signing_key, 10, 0, 0);
-        let ttx_2 = mock_ttx(2, &signing_key, 5, 2, 0);
-        let ttx_3 = mock_ttx(3, &signing_key, 1, 0, 0);
+        let ttx_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(signing_key.clone())
+            .denom_0(10)
+            .build();
+        let ttx_2 = MockTTXBuilder::new()
+            .nonce(2)
+            .signer(signing_key.clone())
+            .denom_0(5)
+            .denom_1(2)
+            .build();
+        let ttx_3 = MockTTXBuilder::new()
+            .nonce(3)
+            .signer(signing_key.clone())
+            .denom_0(1)
+            .build();
         let remaining_balances = mock_balances(15, 2);
 
         // add transactions
@@ -1763,10 +1903,26 @@ mod tests {
         let signing_address = signing_key.address_bytes();
 
         // transactions to add to account
-        let ttx_1 = mock_ttx(1, &signing_key, 5, 0, 0);
-        let ttx_2 = mock_ttx(2, &signing_key, 0, 5, 0);
-        let ttx_3 = mock_ttx(3, &signing_key, 5, 0, 0);
-        let ttx_4 = mock_ttx(4, &signing_key, 0, 5, 0);
+        let ttx_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(signing_key.clone())
+            .denom_0(5)
+            .build();
+        let ttx_2 = MockTTXBuilder::new()
+            .nonce(2)
+            .signer(signing_key.clone())
+            .denom_1(5)
+            .build();
+        let ttx_3 = MockTTXBuilder::new()
+            .nonce(3)
+            .signer(signing_key.clone())
+            .denom_0(5)
+            .build();
+        let ttx_4 = MockTTXBuilder::new()
+            .nonce(4)
+            .signer(signing_key.clone())
+            .denom_1(5)
+            .build();
         let account_balances_full = mock_balances(100, 100);
 
         // add transactions
@@ -1821,10 +1977,26 @@ mod tests {
         let signing_address = signing_key.address_bytes();
 
         // transactions to add to account
-        let ttx_1 = mock_ttx(1, &signing_key, 6, 0, 0);
-        let ttx_2 = mock_ttx(2, &signing_key, 0, 5, 0);
-        let ttx_3 = mock_ttx(3, &signing_key, 6, 0, 0);
-        let ttx_4 = mock_ttx(4, &signing_key, 0, 5, 0);
+        let ttx_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(signing_key.clone())
+            .denom_0(6)
+            .build();
+        let ttx_2 = MockTTXBuilder::new()
+            .nonce(2)
+            .signer(signing_key.clone())
+            .denom_1(5)
+            .build();
+        let ttx_3 = MockTTXBuilder::new()
+            .nonce(3)
+            .signer(signing_key.clone())
+            .denom_0(6)
+            .build();
+        let ttx_4 = MockTTXBuilder::new()
+            .nonce(4)
+            .signer(signing_key.clone())
+            .denom_1(5)
+            .build();
         let account_balances_full = mock_balances(100, 100);
 
         // add transactions
