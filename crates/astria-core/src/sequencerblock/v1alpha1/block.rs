@@ -1,9 +1,5 @@
 use std::{
     collections::HashMap,
-    fmt::{
-        Display,
-        Formatter,
-    },
     vec::IntoIter,
 };
 
@@ -1362,6 +1358,11 @@ impl FilteredSequencerBlockError {
 /// A [`Deposit`] is constructed whenever a [`BridgeLockAction`] is executed
 /// and stored as part of the block's events.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(into = "crate::generated::sequencerblock::v1alpha1::Deposit")
+)]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.
     pub bridge_address: Address,
@@ -1447,21 +1448,6 @@ impl Deposit {
             source_transaction_id,
             source_action_index,
         })
-    }
-}
-
-impl Display for Deposit {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "Deposit[bridge address: {}, rollup id: {}, amount: {}, asset: {}, destination chain \
-             address: {}]",
-            self.bridge_address,
-            self.rollup_id,
-            self.amount,
-            self.asset,
-            self.destination_chain_address,
-        )
     }
 }
 

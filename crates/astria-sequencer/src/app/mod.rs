@@ -51,7 +51,6 @@ use cnidarium::{
     StateRead,
     Storage,
 };
-use itertools::Itertools as _;
 use prost::Message as _;
 use sha2::{
     Digest as _,
@@ -883,12 +882,7 @@ impl App {
         let mut state_tx = StateDelta::new(self.state.clone());
         let deposits_in_this_block = self.state.get_cached_block_deposits();
         debug!(
-            deposits = %deposits_in_this_block
-                .iter()
-                .map(|(rollup_id, deposits)| {
-                    format!("[rollup {}: {}]", rollup_id, deposits.iter().join(", "))
-                })
-                .join(", "),
+            deposits = %telemetry::display::json(&deposits_in_this_block),
             "got block deposits from state"
         );
         state_tx

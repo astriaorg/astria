@@ -407,6 +407,7 @@ impl UncheckedProof {
 /// The proof is the concatenation of all sibling hashes required to reconstruct
 /// the Merkle tree from a leaf. This is also called the audit path.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Proof {
     pub(super) audit_path: Vec<u8>,
     pub(super) leaf_index: usize,

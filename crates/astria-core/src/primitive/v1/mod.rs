@@ -474,6 +474,31 @@ pub struct Address<T = Bech32m> {
     format: PhantomData<T>,
 }
 
+// The serde impls need to be manually implemented for Address because they
+// only work for Address<Bech32m> which cannot be expressed using serde
+// attributes.
+#[cfg(feature = "serde")]
+mod _serde_impls {
+    use serde::de::Error as _;
+    impl serde::Serialize for super::Address<super::Bech32m> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            self.to_raw().serialize(serializer)
+        }
+    }
+    impl<'de> serde::Deserialize<'de> for super::Address<super::Bech32m> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            super::raw::Address::deserialize(deserializer)
+                .and_then(|raw| raw.try_into().map_err(D::Error::custom))
+        }
+    }
+}
+
 impl<TFormat> Clone for Address<TFormat> {
     fn clone(&self) -> Self {
         *self
@@ -657,6 +682,11 @@ where
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(try_from = "raw::TransactionId", into = "raw::TransactionId")
+)]
 pub struct TransactionId {
     inner: [u8; TRANSACTION_ID_LEN],
 }
