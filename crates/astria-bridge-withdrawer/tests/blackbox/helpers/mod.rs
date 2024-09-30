@@ -1,6 +1,3 @@
-// These are tests; failing with panics is ok.
-#![allow(clippy::missing_panics_doc)]
-
 mod ethereum;
 mod mock_cometbft;
 mod mock_sequencer;

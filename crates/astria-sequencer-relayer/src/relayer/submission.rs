@@ -470,8 +470,10 @@ mod as_number {
 
     use super::SequencerHeight;
 
-    // Allow: the function signature is dictated by the serde(with) attribute.
-    #[allow(clippy::trivially_copy_pass_by_ref)]
+    #[expect(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "the function signature is dictated by the serde(with) attribute"
+    )]
     pub(super) fn serialize<S>(height: &SequencerHeight, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
