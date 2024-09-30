@@ -35,20 +35,20 @@ impl Args {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Commands for interacting with Sequencer accounts
-    Account(account::Args),
+    Account(account::Command),
     /// Utilities for constructing and inspecting sequencer addresses
-    Address(address::Args),
+    Address(address::Command),
     /// Commands for interacting with Sequencer balances
-    Balance(balance::Args),
+    Balance(balance::Command),
     /// Commands for interacting with Sequencer block heights
     #[command(name = "blockheight")]
-    BlockHeight(block_height::Args),
+    BlockHeight(block_height::Command),
     /// Command for transferring to a bridge account
-    BridgeLock(bridge_lock::Args),
+    BridgeLock(bridge_lock::Command),
     /// Command for initializing a bridge account
-    InitBridgeAccount(init_bridge_account::Args),
+    InitBridgeAccount(init_bridge_account::Command),
     /// Commands requiring authority for Sequencer
-    Sudo(sudo::Args),
+    Sudo(sudo::Command),
     /// Command for sending balance between accounts
-    Transfer(transfer::Args),
+    Transfer(transfer::Command),
 }

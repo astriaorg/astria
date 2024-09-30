@@ -9,26 +9,26 @@ use color_eyre::eyre::{
 };
 
 #[derive(Debug, clap::Args)]
-pub(super) struct Args {
+pub(super) struct Command {
     #[command(subcommand)]
-    command: Command,
+    command: SubCommand,
 }
 
-impl Args {
+impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
-        let Command::Get(get) = self.command;
+        let SubCommand::Get(get) = self.command;
         get.run().await
     }
 }
 
 #[derive(Debug, Subcommand)]
-enum Command {
+enum SubCommand {
     /// Get the current block height of the Sequencer node
-    Get(GetArgs),
+    Get(Get),
 }
 
 #[derive(clap::Args, Debug)]
-struct GetArgs {
+struct Get {
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -45,7 +45,7 @@ struct GetArgs {
     sequencer_chain_id: String,
 }
 
-impl GetArgs {
+impl Get {
     async fn run(self) -> eyre::Result<()> {
         let sequencer_client = HttpClient::new(self.sequencer_url.as_str())
             .wrap_err("failed constructing http sequencer client")?;

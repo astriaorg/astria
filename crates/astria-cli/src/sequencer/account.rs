@@ -14,35 +14,35 @@ use color_eyre::eyre::{
 use rand::rngs::OsRng;
 
 #[derive(Debug, clap::Args)]
-pub(super) struct Args {
+pub(super) struct Command {
     #[command(subcommand)]
-    command: Command,
+    command: SubCommand,
 }
 
-impl Args {
+impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         match self.command {
-            Command::Create(create) => create.run(),
-            Command::Balance(balance) => balance.run().await,
-            Command::Nonce(nonce) => nonce.run().await,
+            SubCommand::Create(create) => create.run(),
+            SubCommand::Balance(balance) => balance.run().await,
+            SubCommand::Nonce(nonce) => nonce.run().await,
         }
     }
 }
 
 #[derive(Debug, Subcommand)]
-enum Command {
+enum SubCommand {
     /// Generates a new ED25519 keypair.
-    Create(CreateArgs),
+    Create(Create),
     /// Queries the Sequencer for the balances of an account.
-    Balance(BalanceArgs),
+    Balance(Balance),
     /// Queries the Sequencer for the current nonce of an account.
-    Nonce(NonceArgs),
+    Nonce(Nonce),
 }
 
 #[derive(Debug, clap::Args)]
-struct CreateArgs;
+struct Create;
 
-impl CreateArgs {
+impl Create {
     #[expect(
         clippy::unused_self,
         clippy::unnecessary_wraps,
@@ -65,12 +65,12 @@ impl CreateArgs {
 }
 
 #[derive(Debug, clap::Args)]
-struct BalanceArgs {
+struct Balance {
     #[command(flatten)]
     inner: ArgsInner,
 }
 
-impl BalanceArgs {
+impl Balance {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
         let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
@@ -91,12 +91,12 @@ impl BalanceArgs {
 }
 
 #[derive(Debug, clap::Args)]
-struct NonceArgs {
+struct Nonce {
     #[command(flatten)]
     inner: ArgsInner,
 }
 
-impl NonceArgs {
+impl Nonce {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
         let sequencer_client = HttpClient::new(args.sequencer_url.as_str())

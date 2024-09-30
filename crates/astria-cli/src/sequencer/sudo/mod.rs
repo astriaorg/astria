@@ -6,26 +6,26 @@ mod sudo_address_change;
 mod validator_update;
 
 #[derive(Debug, clap::Args)]
-pub(super) struct Args {
+pub(super) struct Command {
     #[command(subcommand)]
-    command: Command,
+    command: SubCommand,
 }
 
-impl Args {
+impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         match self.command {
-            Command::IbcRelayer(ibc_relayer) => ibc_relayer.run().await,
-            Command::FeeAsset(fee_asset) => fee_asset.run().await,
-            Command::SudoAddressChange(sudo_address_change) => sudo_address_change.run().await,
-            Command::ValidatorUpdate(validator_update) => validator_update.run().await,
+            SubCommand::IbcRelayer(ibc_relayer) => ibc_relayer.run().await,
+            SubCommand::FeeAsset(fee_asset) => fee_asset.run().await,
+            SubCommand::SudoAddressChange(sudo_address_change) => sudo_address_change.run().await,
+            SubCommand::ValidatorUpdate(validator_update) => validator_update.run().await,
         }
     }
 }
 
 #[derive(Debug, clap::Subcommand)]
-enum Command {
-    IbcRelayer(ibc_relayer::Args),
-    FeeAsset(fee_asset::Args),
-    SudoAddressChange(sudo_address_change::Args),
-    ValidatorUpdate(validator_update::Args),
+enum SubCommand {
+    IbcRelayer(ibc_relayer::Command),
+    FeeAsset(fee_asset::Command),
+    SudoAddressChange(sudo_address_change::Command),
+    ValidatorUpdate(validator_update::Command),
 }

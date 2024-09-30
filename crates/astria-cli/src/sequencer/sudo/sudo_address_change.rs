@@ -13,7 +13,7 @@ use color_eyre::eyre::{
 use crate::utils::submit_transaction;
 
 #[derive(Debug, clap::Args)]
-pub(super) struct Args {
+pub(super) struct Command {
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
     prefix: String,
@@ -42,7 +42,7 @@ pub(super) struct Args {
     address: Address,
 }
 
-impl Args {
+impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         let res = submit_transaction(
             self.sequencer_url.as_str(),

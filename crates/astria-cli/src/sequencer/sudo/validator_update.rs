@@ -10,7 +10,7 @@ use color_eyre::eyre::{
 use crate::utils::submit_transaction;
 
 #[derive(clap::Args, Debug)]
-pub(super) struct Args {
+pub(super) struct Command {
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -43,7 +43,7 @@ pub(super) struct Args {
     power: u32,
 }
 
-impl Args {
+impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         let verification_key = astria_core::crypto::VerificationKey::try_from(
             &*hex::decode(&self.validator_public_key)

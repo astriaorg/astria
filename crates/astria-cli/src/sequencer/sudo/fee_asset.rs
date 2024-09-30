@@ -14,35 +14,35 @@ use color_eyre::eyre::{
 use crate::utils::submit_transaction;
 
 #[derive(Debug, clap::Args)]
-pub(super) struct Args {
+pub(super) struct Command {
     #[command(subcommand)]
-    command: Command,
+    command: SubCommand,
 }
 
-impl Args {
+impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         match self.command {
-            Command::Add(add) => add.run().await,
-            Command::Remove(remove) => remove.run().await,
+            SubCommand::Add(add) => add.run().await,
+            SubCommand::Remove(remove) => remove.run().await,
         }
     }
 }
 
 #[derive(Debug, Subcommand)]
-enum Command {
+enum SubCommand {
     /// Add Fee Asset
-    Add(AddArgs),
+    Add(Add),
     /// Remove Fee Asset
-    Remove(RemoveArgs),
+    Remove(Remove),
 }
 
 #[derive(Clone, Debug, clap::Args)]
-struct AddArgs {
+struct Add {
     #[command(flatten)]
     inner: ArgsInner,
 }
 
-impl AddArgs {
+impl Add {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
         let res = submit_transaction(
@@ -62,12 +62,12 @@ impl AddArgs {
 }
 
 #[derive(Clone, Debug, clap::Args)]
-struct RemoveArgs {
+struct Remove {
     #[command(flatten)]
     inner: ArgsInner,
 }
 
-impl RemoveArgs {
+impl Remove {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
         let res = submit_transaction(

@@ -16,7 +16,7 @@ use color_eyre::eyre::{
 use crate::utils::submit_transaction;
 
 #[derive(clap::Args, Debug)]
-pub(super) struct Args {
+pub(super) struct Command {
     // The address of the Sequencer account to send amount to
     to_address: Address,
     // The amount being sent
@@ -54,7 +54,7 @@ pub(super) struct Args {
     fee_asset: asset::Denom,
 }
 
-impl Args {
+impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         let res = submit_transaction(
             self.sequencer_url.as_str(),

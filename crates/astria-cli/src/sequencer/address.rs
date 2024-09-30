@@ -1,6 +1,5 @@
 use astria_core::primitive::v1::{
     Address,
-    Bech32m,
     ADDRESS_LEN,
 };
 use color_eyre::eyre::{
@@ -9,26 +8,26 @@ use color_eyre::eyre::{
 };
 
 #[derive(Debug, clap::Args)]
-pub(super) struct Args {
+pub(super) struct Command {
     #[command(subcommand)]
-    command: Command,
+    command: SubCommand,
 }
 
-impl Args {
+impl Command {
     pub(super) fn run(self) -> eyre::Result<()> {
-        let Command::Bech32m(bech32m) = self.command;
+        let SubCommand::Bech32m(bech32m) = self.command;
         bech32m.run()
     }
 }
 
 #[derive(Debug, clap::Subcommand)]
-enum Command {
+enum SubCommand {
     /// Returns a bech32m sequencer address given a prefix and hex-encoded byte slice
-    Bech32m(Bech32mArgs),
+    Bech32m(Bech32m),
 }
 
 #[derive(Debug, clap::Args)]
-struct Bech32mArgs {
+struct Bech32m {
     /// The hex formatted byte part of the bech32m address
     #[arg(long)]
     bytes: String,
@@ -37,12 +36,12 @@ struct Bech32mArgs {
     prefix: String,
 }
 
-impl Bech32mArgs {
+impl Bech32m {
     fn run(self) -> eyre::Result<()> {
         use hex::FromHex as _;
         let bytes = <[u8; ADDRESS_LEN]>::from_hex(&self.bytes)
             .wrap_err("failed decoding provided hex bytes")?;
-        let address = Address::<Bech32m>::builder()
+        let address = Address::<astria_core::primitive::v1::Bech32m>::builder()
             .array(bytes)
             .prefix(&self.prefix)
             .try_build()
