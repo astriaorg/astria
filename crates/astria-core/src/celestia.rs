@@ -5,7 +5,6 @@ pub use celestia_types::nmt::Namespace;
 /// Panics if `bytes` contains less then 10 bytes.
 #[must_use = "a celestia namespace must be used in order to be useful"]
 pub const fn namespace_v0_from_first_10_bytes(bytes: &[u8]) -> Namespace {
-    #[allow(clippy::assertions_on_constants)]
     const _: () = assert!(
         10 == celestia_types::nmt::NS_ID_V0_SIZE,
         "verify that the celestia v0 namespace was changed from 10 bytes"

@@ -24,6 +24,7 @@ use astria_core::{
                 BridgeSudoChangeAction,
                 BridgeUnlockAction,
                 IbcRelayerChangeAction,
+                IbcSudoChangeAction,
                 SequenceAction,
                 TransferAction,
                 ValidatorUpdate,
@@ -160,7 +161,7 @@ async fn app_finalize_block_snapshot() {
 //
 // If new actions are added to the app, they must be added to this test,
 // and the respective PR must be marked as breaking.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
     use astria_core::protocol::transaction::v1alpha1::action::{
@@ -228,6 +229,10 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             FeeAssetChangeAction::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChangeAction::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChangeAction::Removal("test-0".parse().unwrap()).into(),
+            IbcSudoChangeAction {
+                new_address: bob_address,
+            }
+            .into(),
             SudoAddressChangeAction {
                 new_address: bob_address,
             }

@@ -6,6 +6,11 @@ compile_error!(
 );
 
 #[rustfmt::skip]
+#[allow(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "cannot prevent allow attributes in generated files"
+)]
 pub mod generated;
 
 pub mod crypto;

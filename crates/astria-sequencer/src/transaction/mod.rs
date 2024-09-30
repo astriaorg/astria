@@ -108,6 +108,10 @@ impl ActionHandler for SignedTransaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for SudoAddressChangeAction")?,
+                Action::IbcSudoChange(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for IbcSudoChangeAction")?,
                 Action::FeeChange(act) => act
                     .check_stateless()
                     .await
@@ -155,10 +159,10 @@ impl ActionHandler for SignedTransaction {
         Ok(())
     }
 
-    // allowed / FIXME: because most lines come from delegating (and error wrapping) to the
+    // FIXME (https://github.com/astriaorg/astria/issues/1584): because most lines come from delegating (and error wrapping) to the
     // individual actions. This could be tidied up by implementing `ActionHandler for Action`
     // and letting it delegate.
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::too_many_lines, reason = "should be refactored")]
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         // Add the current signed transaction into the ephemeral state in case
@@ -231,6 +235,10 @@ impl ActionHandler for SignedTransaction {
                     .check_and_execute(&mut state)
                     .await
                     .wrap_err("executing sudo address change failed")?,
+                Action::IbcSudoChange(act) => act
+                    .check_and_execute(&mut state)
+                    .await
+                    .wrap_err("executing ibc sudo change failed")?,
                 Action::FeeChange(act) => act
                     .check_and_execute(&mut state)
                     .await

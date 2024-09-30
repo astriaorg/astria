@@ -178,7 +178,6 @@ impl VerificationKey {
             }
             /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
             /// that would violate this assumption.
-            #[allow(clippy::assertions_on_constants)]
             const _: () = assert!(ADDRESS_LEN <= 32);
             let bytes: [u8; 32] = Sha256::digest(self).into();
             first_20(bytes)
@@ -311,8 +310,10 @@ mod tests {
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
     #[test]
-    // allow: we want explicit assertions here to match the documented expected behavior.
-    #[allow(clippy::nonminimal_bool)]
+    #[expect(
+        clippy::nonminimal_bool,
+        reason = "we want explicit assertions here to match the documented expected behavior"
+    )]
     fn verification_key_comparisons_should_be_consistent() {
         // A key which compares greater than "low" ones below, and with its address uninitialized.
         let high_uninit = VerificationKey {

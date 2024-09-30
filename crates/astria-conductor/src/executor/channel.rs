@@ -58,8 +58,6 @@ impl<T> From<TokioSendError<T>> for SendError {
     }
 }
 
-// allow: this is mimicking tokio's `SendError` that returns the stack-allocated object.
-#[allow(clippy::result_large_err)]
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub(crate) enum TrySendError<T> {
     #[error("the channel is closed")]
@@ -105,8 +103,6 @@ impl<T> Sender<T> {
     /// Attempts to send a block without blocking.
     ///
     /// Returns an error if the channel is out of permits or if it has been closed.
-    // allow: this is mimicking tokio's `TrySendError` that returns the stack-allocated object.
-    #[allow(clippy::result_large_err)]
     pub(super) fn try_send(&self, block: T) -> Result<(), TrySendError<T>> {
         let sem = match self.sem.upgrade() {
             None => return Err(TrySendError::Closed(block)),

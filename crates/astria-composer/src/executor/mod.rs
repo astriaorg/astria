@@ -669,7 +669,8 @@ pin_project! {
 impl Future for SubmitFut {
     type Output = eyre::Result<u32>;
 
-    #[allow(clippy::too_many_lines)]
+    // FIXME (https://github.com/astriaorg/astria/issues/1572): This function is too long and should be refactored.
+    #[expect(clippy::too_many_lines, reason = "this may warrant a refactor")]
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         const INVALID_NONCE: Code = Code::Err(AbciErrorCode::INVALID_NONCE.value());
         loop {

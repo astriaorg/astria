@@ -186,8 +186,6 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         }
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, fields(address = %address.display_address(), %asset), err)]
     async fn get_account_balance<'a, TAddress, TAsset>(
         &self,
@@ -269,8 +267,6 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount), err)]
     async fn increase_balance<TAddress, TAsset>(
         &mut self,

@@ -42,9 +42,9 @@ fn error_query_response(
     }
 }
 
-// allow / FIXME: there is a lot of code duplication due to `error_query_response`.
+// FIXME (https://github.com/astriaorg/astria/issues/1582): there is a lot of code duplication due to `error_query_response`.
 // this could be significantly shortened.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines, reason = "should be refactored")]
 #[instrument(skip_all, fields(%address))]
 async fn get_bridge_account_info(
     snapshot: cnidarium::Snapshot,
@@ -295,7 +295,7 @@ fn preprocess_request(params: &[(String, String)]) -> Result<Address, response::
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         generated::protocol::bridge::v1alpha1::BridgeAccountInfoResponse as RawBridgeAccountInfoResponse,
         primitive::v1::RollupId,

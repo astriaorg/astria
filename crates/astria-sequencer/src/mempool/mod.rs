@@ -410,7 +410,7 @@ impl Mempool {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::crypto::SigningKey;
 
     use super::*;
@@ -641,7 +641,6 @@ mod test {
         );
     }
 
-    #[allow(clippy::too_many_lines)]
     #[tokio::test]
     async fn run_maintenance_demotion() {
         let mempool = Mempool::new();

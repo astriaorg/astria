@@ -131,6 +131,12 @@ impl Protobuf for GenesisAppState {
     type Error = GenesisAppStateError;
     type Raw = raw::GenesisAppState;
 
+    // TODO (https://github.com/astriaorg/astria/issues/1580): remove this once Rust is upgraded to/past 1.83
+    #[expect(
+        clippy::allow_attributes,
+        clippy::allow_attributes_without_reason,
+        reason = "false positive on `allowed_fee_assets` due to \"allow\" in the name"
+    )]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
             address_prefixes,

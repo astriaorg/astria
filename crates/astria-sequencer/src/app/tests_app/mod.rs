@@ -6,6 +6,7 @@ use astria_core::{
     primitive::v1::{
         asset::TracePrefixed,
         RollupId,
+        TransactionId,
     },
     protocol::{
         genesis::v1alpha1::Account,
@@ -54,10 +55,7 @@ use crate::{
         StateWriteExt as _,
         ValidatorSet,
     },
-    bridge::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     state_ext::StateReadExt as _,
     test_utils::{
@@ -304,6 +302,23 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     state_tx
         .put_bridge_account_ibc_asset(bridge_address, nria())
         .unwrap();
+    // Put a deposit from a previous block to ensure it is not mixed in with deposits for this
+    // block (it has a different amount and tx ID to the later deposit).
+    let old_deposit = Deposit {
+        bridge_address,
+        rollup_id,
+        amount: 99,
+        asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+        source_transaction_id: TransactionId::new([99; 32]),
+        source_action_index: starting_index_of_action,
+    };
+    state_tx
+        .put_deposits(
+            &[32u8; 32],
+            HashMap::from_iter([(rollup_id, vec![old_deposit])]),
+        )
+        .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
@@ -361,10 +376,6 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         .unwrap();
     app.commit(storage).await;
 
-    // ensure deposits are cleared at the end of the block
-    let deposit_events = app.state.get_deposit_events(&rollup_id).await.unwrap();
-    assert_eq!(deposit_events.len(), 0);
-
     let block = app.state.get_sequencer_block_by_height(1).await.unwrap();
     let mut deposits = vec![];
     for (_, rollup_data) in block.rollup_transactions() {
@@ -380,9 +391,11 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     assert_eq!(*deposits[0], expected_deposit);
 }
 
-// it's a test, so allow a lot of lines
 #[tokio::test]
-#[allow(clippy::too_many_lines)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "it's a test, so allow a lot of lines"
+)]
 async fn app_execution_results_match_proposal_vs_after_proposal() {
     let alice = get_alice_signing_key();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;

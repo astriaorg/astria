@@ -13,17 +13,6 @@ use tendermint::abci::{
     EventAttributeIndexExt as _,
 };
 
-pub(crate) struct Hex<'a>(pub(crate) &'a [u8]);
-
-impl<'a> std::fmt::Display for Hex<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.0 {
-            f.write_fmt(format_args!("{byte:02x}"))?;
-        }
-        Ok(())
-    }
-}
-
 pub(crate) fn cometbft_to_sequencer_validator(
     value: tendermint::validator::Update,
 ) -> Result<ValidatorUpdate> {

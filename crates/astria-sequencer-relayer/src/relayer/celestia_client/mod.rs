@@ -624,14 +624,13 @@ fn calculate_fee(
 
     // Calculate the fee from the provided values.
     // From https://github.com/celestiaorg/celestia-node/blob/v0.12.4/state/core_access.go#L225
-    //
-    // allow: the gas limit should never be negative, and truncation/precision is not a problem
-    // as this is a best-effort calculation.  If the result is incorrect, the retry will use
-    // the fee provided in the failure response.
-    #[allow(
+    #[expect(
         clippy::cast_sign_loss,
         clippy::cast_possible_truncation,
-        clippy::cast_precision_loss
+        clippy::cast_precision_loss,
+        reason = "the gas limit should never be negative, and truncation/precision is not a \
+                  problem as this is a best-effort calculation.  If the result is incorrect, the \
+                  retry will use the fee provided in the failure response"
     )]
     let calculated_fee = (cost_params.min_gas_price() * gas_limit.0 as f64).ceil() as u64;
 

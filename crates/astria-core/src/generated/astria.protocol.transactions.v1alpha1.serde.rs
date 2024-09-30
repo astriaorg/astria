@@ -51,6 +51,9 @@ impl serde::Serialize for Action {
                 action::Value::FeeChangeAction(v) => {
                     struct_ser.serialize_field("feeChangeAction", v)?;
                 }
+                action::Value::IbcSudoChangeAction(v) => {
+                    struct_ser.serialize_field("ibcSudoChangeAction", v)?;
+                }
             }
         }
         struct_ser.end()
@@ -89,6 +92,8 @@ impl<'de> serde::Deserialize<'de> for Action {
             "feeAssetChangeAction",
             "fee_change_action",
             "feeChangeAction",
+            "ibc_sudo_change_action",
+            "ibcSudoChangeAction",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -106,6 +111,7 @@ impl<'de> serde::Deserialize<'de> for Action {
             IbcRelayerChangeAction,
             FeeAssetChangeAction,
             FeeChangeAction,
+            IbcSudoChangeAction,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -140,6 +146,7 @@ impl<'de> serde::Deserialize<'de> for Action {
                             "ibcRelayerChangeAction" | "ibc_relayer_change_action" => Ok(GeneratedField::IbcRelayerChangeAction),
                             "feeAssetChangeAction" | "fee_asset_change_action" => Ok(GeneratedField::FeeAssetChangeAction),
                             "feeChangeAction" | "fee_change_action" => Ok(GeneratedField::FeeChangeAction),
+                            "ibcSudoChangeAction" | "ibc_sudo_change_action" => Ok(GeneratedField::IbcSudoChangeAction),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -251,6 +258,13 @@ impl<'de> serde::Deserialize<'de> for Action {
                                 return Err(serde::de::Error::duplicate_field("feeChangeAction"));
                             }
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::FeeChangeAction)
+;
+                        }
+                        GeneratedField::IbcSudoChangeAction => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ibcSudoChangeAction"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcSudoChangeAction)
 ;
                         }
                     }
@@ -1281,6 +1295,98 @@ impl<'de> serde::Deserialize<'de> for IbcRelayerChangeAction {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.IbcRelayerChangeAction", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for IbcSudoChangeAction {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.new_address.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.IbcSudoChangeAction", len)?;
+        if let Some(v) = self.new_address.as_ref() {
+            struct_ser.serialize_field("newAddress", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for IbcSudoChangeAction {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "new_address",
+            "newAddress",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            NewAddress,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "newAddress" | "new_address" => Ok(GeneratedField::NewAddress),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = IbcSudoChangeAction;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.IbcSudoChangeAction")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<IbcSudoChangeAction, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut new_address__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::NewAddress => {
+                            if new_address__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("newAddress"));
+                            }
+                            new_address__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(IbcSudoChangeAction {
+                    new_address: new_address__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.IbcSudoChangeAction", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for Ics20Withdrawal {

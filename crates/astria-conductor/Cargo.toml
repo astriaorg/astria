@@ -2,7 +2,7 @@
 name = "astria-conductor"
 version = "0.20.1"
 edition = "2021"
-rust-version = "1.76"
+rust-version = "1.81.0"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
@@ -83,7 +83,6 @@ config = { package = "astria-config", path = "../astria-config", features = [
 
 celestia-tendermint = { workspace = true }
 insta = { workspace = true, features = ["json"] }
-once_cell = { workspace = true }
 wiremock = { workspace = true }
 
 chrono = "0.4.35"

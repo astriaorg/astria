@@ -1,3 +1,8 @@
+#![expect(
+    clippy::missing_panics_doc,
+    reason = "These are tests; failing with panics is ok."
+)]
+
 use astria_core::protocol::transaction::v1alpha1::Action;
 use helpers::{
     assert_actions_eq,

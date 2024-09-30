@@ -55,29 +55,34 @@ impl MockSet {
         &mut self,
         rpc: &'static str,
         req: tonic::Request<T>,
-    ) -> tonic::Result<tonic::Response<U>> {
+    ) -> (
+        tonic::Result<tonic::Response<U>>,
+        Option<std::time::Duration>,
+    ) {
         debug!(rpc, "handling request.");
         // perform erasure here so that it's not done in every single `Mock::matches` call.
         let erased = erase_request(req);
         let mut mock_response: Option<tonic::Result<tonic::Response<U>>> = None;
+        let mut delay = None;
         for (mock, mock_state) in &mut self.mocks {
             if let MountedMockState::OutOfScope = mock_state {
                 continue;
             }
             match mock.match_and_respond::<U>(rpc, &erased) {
-                MockResult::NoMatch => continue,
-                MockResult::BadResponse(status) => {
+                (MockResult::NoMatch, _) => continue,
+                (MockResult::BadResponse(status), _) => {
                     mock_response.replace(Err(status));
                     break;
                 }
-                MockResult::Success(response) => {
+                (MockResult::Success(response), response_delay) => {
                     mock_response.replace(response);
+                    delay = response_delay;
                     break;
                 }
             }
         }
 
-        mock_response
+        let result = mock_response
             .ok_or_else(|| {
                 let mut msg = "got unexpected request: ".to_string();
                 msg.push_str(
@@ -86,7 +91,8 @@ impl MockSet {
                 );
                 tonic::Status::not_found(msg)
             })
-            .and_then(std::convert::identity)
+            .and_then(std::convert::identity);
+        (result, delay)
     }
 
     pub(crate) fn register(&mut self, mock: Mock) -> (Arc<(Notify, AtomicBool)>, MockId) {
