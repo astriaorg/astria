@@ -184,7 +184,7 @@ impl Reader {
                 .wrap_err("failed to fetch Celestia chain ID")?;
             let expected_celestia_chain_id = &self.expected_celestia_chain_id;
             ensure!(
-                self.expected_celestia_chain_id == actual_celestia_chain_id.to_string(),
+                self.expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
                 "expected Celestia chain id `{expected_celestia_chain_id}` does not match actual: \
                  `{actual_celestia_chain_id}`"
             );

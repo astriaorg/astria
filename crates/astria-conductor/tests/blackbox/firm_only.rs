@@ -508,7 +508,7 @@ async fn exits_on_celestia_chain_id_mismatch() {
                 }
                 source = err.source();
             }
-            panic!("conductor exited with incorrect error: {e}")
+            panic!("conductor exited with incorrect error: {e:?}")
         }
         Err(e) => panic!("conductor handle resulted in an error: {e}"),
     }

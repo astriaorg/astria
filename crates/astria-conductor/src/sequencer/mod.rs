@@ -106,11 +106,10 @@ impl Reader {
         let actual_sequencer_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
                 .await
-                .wrap_err("failed to get chain ID from Sequencer")?
-                .to_string();
+                .wrap_err("failed to get chain ID from Sequencer")?;
         let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
         ensure!(
-            self.expected_sequencer_chain_id == actual_sequencer_chain_id,
+            self.expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
             "expected chain id `{expected_sequencer_chain_id}` does not match actual: \
              `{actual_sequencer_chain_id}`"
         );

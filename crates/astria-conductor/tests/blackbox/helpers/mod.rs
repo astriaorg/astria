@@ -136,7 +136,7 @@ impl Drop for TestConductor {
                 {
                     Ok(Ok(_)) => None,
                     Ok(Err(conductor_err)) => Some(format!(
-                        "conductor failed during shutdown:\n{conductor_err:?}"
+                        "conductor shut down with an error:\n{conductor_err:?}"
                     )),
                     Err(_timeout) => Some("timed out waiting for conductor to shut down".into()),
                 };
