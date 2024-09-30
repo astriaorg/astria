@@ -54,7 +54,7 @@ impl Handle {
 }
 
 impl Future for Handle {
-    type Output = Result<eyre::Result<()>, tokio::task::JoinError>;
+    type Output = eyre::Result<()>;
 
     fn poll(
         self: std::pin::Pin<&mut Self>,
@@ -66,7 +66,7 @@ impl Future for Handle {
             .task
             .as_mut()
             .expect("the Conductor handle must not be polled after shutdown");
-        task.poll_unpin(cx)
+        task.poll_unpin(cx)?
     }
 }
 
@@ -141,8 +141,8 @@ impl Conductor {
                 }
                 RestartOrShutdown::Shutdown => Ok("conductor exiting"),
             },
-            Ok(Err(err)) => Err(err.wrap_err("conductor failed failed")),
-            Err(err) => Err(eyre::ErrReport::from(err).wrap_err("conductor failed")),
+            Ok(Err(err)) => Err(err.wrap_err("conductor exited with an error")),
+            Err(err) => Err(eyre::ErrReport::from(err).wrap_err("conductor panicked")),
         }
     }
 

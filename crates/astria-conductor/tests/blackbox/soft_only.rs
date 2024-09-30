@@ -368,6 +368,7 @@ async fn exits_on_sequencer_chain_id_mismatch() {
         Mock as GrpcMock,
     };
 
+    // FIXME (https://github.com/astriaorg/astria/issues/1602)
     // We have to create our own test conductor and perform mounts manually because `TestConductor`
     // implements the `Drop` trait, which disallows us from taking ownership of its tasks and
     // awaiting their completion.
@@ -431,8 +432,8 @@ async fn exits_on_sequencer_chain_id_mismatch() {
 
     let res = conductor.await;
     match res {
-        Ok(Ok(())) => panic!("conductor should have exited with an error, no error received"),
-        Ok(Err(e)) => {
+        Ok(()) => panic!("conductor should have exited with an error, no error received"),
+        Err(e) => {
             let mut source = e.source();
             while source.is_some() {
                 let err = source.unwrap();
@@ -447,8 +448,7 @@ async fn exits_on_sequencer_chain_id_mismatch() {
                 }
                 source = err.source();
             }
-            panic!("conductor did not exit with incorrect error: {e}")
+            panic!("expected exit due to chain ID mismatch, but got a different error: {e:?}")
         }
-        Err(e) => panic!("conductor handle resulted in an error: {e}"),
     }
 }
