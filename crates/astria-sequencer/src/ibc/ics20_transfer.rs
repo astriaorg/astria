@@ -345,8 +345,6 @@ impl AppHandlerExecute for Ics20Transfer {
 
     async fn chan_close_init_execute<S: StateWrite>(_: S, _: &MsgChannelCloseInit) {}
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, err)]
     async fn recv_packet_execute<S: StateWrite>(
         mut state: S,
@@ -373,8 +371,6 @@ impl AppHandlerExecute for Ics20Transfer {
             .context("failed to write acknowledgement")
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, err)]
     async fn timeout_packet_execute<S: StateWrite>(
         mut state: S,
@@ -385,8 +381,6 @@ impl AppHandlerExecute for Ics20Transfer {
         })
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, err)]
     async fn acknowledge_packet_execute<S: StateWrite>(
         mut state: S,
@@ -739,10 +733,7 @@ async fn emit_deposit<S: StateWrite>(
     };
     let deposit_abci_event = create_deposit_event(&deposit);
     state.record(deposit_abci_event);
-    state
-        .put_deposit_event(deposit)
-        .await
-        .wrap_err("failed to put deposit event into state")?;
+    state.cache_deposit_event(deposit);
     Ok(())
 }
 
@@ -968,10 +959,7 @@ mod tests {
             );
         assert_eq!(balance, 100);
 
-        let deposits = state_tx
-            .get_block_deposits()
-            .await
-            .expect("a deposit should exist as a result of the transfer to a bridge account");
+        let deposits = state_tx.get_cached_block_deposits();
         assert_eq!(deposits.len(), 1);
 
         let expected_deposit = Deposit {
@@ -1049,10 +1037,7 @@ mod tests {
             .expect("receipt of funds to a rollup should have updated funds in the bridge account");
         assert_eq!(balance, amount);
 
-        let deposits = state_tx
-            .get_block_deposits()
-            .await
-            .expect("a deposit should exist as a result of the transfer to a bridge account");
+        let deposits = state_tx.get_cached_block_deposits();
         assert_eq!(deposits.len(), 1);
 
         let expected_deposit = Deposit {
@@ -1290,10 +1275,7 @@ mod tests {
             .expect("rollup withdrawal refund should have updated funds in the bridge address");
         assert_eq!(balance, amount);
 
-        let deposit = state_tx
-            .get_block_deposits()
-            .await
-            .expect("a deposit should exist as a result of the rollup withdrawal refund");
+        let deposit = state_tx.get_cached_block_deposits();
 
         let expected_deposit = Deposit {
             bridge_address,
@@ -1366,10 +1348,7 @@ mod tests {
             .expect("refunds of rollup withdrawals should be credited to the bridge account");
         assert_eq!(balance, amount);
 
-        let deposits = state_tx
-            .get_block_deposits()
-            .await
-            .expect("a deposit should exist as a result of the rollup withdrawal refund");
+        let deposits = state_tx.get_cached_block_deposits();
 
         let deposit = deposits
             .get(&rollup_id)
@@ -1450,10 +1429,7 @@ mod tests {
             .expect("refunding a rollup should add the tokens to its bridge address");
         assert_eq!(balance, amount);
 
-        let deposits = state_tx
-            .get_block_deposits()
-            .await
-            .expect("a deposit should exist as a result of the rollup withdrawal refund");
+        let deposits = state_tx.get_cached_block_deposits();
         assert_eq!(deposits.len(), 1);
 
         let deposit = deposits.get(&rollup_id).unwrap().first().unwrap();

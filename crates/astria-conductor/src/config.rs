@@ -33,9 +33,11 @@ impl std::fmt::Display for CommitLevel {
     }
 }
 
-// Allowed `struct_excessive_bools` because this is used as a container
-// for deserialization. Making this a builder-pattern is not actionable.
-#[allow(clippy::struct_excessive_bools)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "This is used as a container for deserialization. Making this a builder-pattern is \
+              not actionable"
+)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     /// The block time of Celestia network in milliseconds.

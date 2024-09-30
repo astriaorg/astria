@@ -158,9 +158,11 @@ impl Metrics {
 impl telemetry::Metrics for Metrics {
     type Config = ();
 
-    // allow: this is reasonable as we have a lot of metrics to register; the function is not
-    // complex, just long.
-    #[allow(clippy::too_many_lines)]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "this is reasonable as we have a lot of metrics to register; the function is not \
+                  complex, just long"
+    )]
     fn register(
         builder: &mut RegisteringBuilder,
         _config: &Self::Config,

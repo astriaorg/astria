@@ -174,9 +174,10 @@ pub(crate) struct App {
 
     // the currently committed `AppHash` of the application state.
     // set whenever `commit` is called.
-    //
-    // allow clippy because we need be specific as to what hash this is.
-    #[allow(clippy::struct_field_names)]
+    #[expect(
+        clippy::struct_field_names,
+        reason = "we need to be specific as to what hash this is"
+    )]
     app_hash: AppHash,
 
     metrics: &'static Metrics,
@@ -335,11 +336,7 @@ impl App {
         self.metrics
             .record_proposal_transactions(signed_txs_included.len());
 
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .wrap_err("failed to get block deposits in prepare_proposal")?;
+        let deposits = self.state.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
@@ -444,11 +441,7 @@ impl App {
         );
         self.metrics.record_proposal_transactions(signed_txs.len());
 
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .wrap_err("failed to get block deposits in process_proposal")?;
+        let deposits = self.state.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         let GeneratedCommitments {
@@ -871,21 +864,16 @@ impl App {
 
         let end_block = self.end_block(height.value(), sudo_address).await?;
 
-        // get and clear block deposits from state
+        // get deposits for this block from state's ephemeral cache and put them to storage.
         let mut state_tx = StateDelta::new(self.state.clone());
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .wrap_err("failed to get block deposits in end_block")?;
-        state_tx
-            .clear_block_deposits()
-            .await
-            .wrap_err("failed to clear block deposits")?;
+        let deposits_in_this_block = self.state.get_cached_block_deposits();
         debug!(
-            deposits = %telemetry::display::json(&deposits),
+            deposits = %telemetry::display::json(&deposits_in_this_block),
             "got block deposits from state"
         );
+        state_tx
+            .put_deposits(&block_hash, deposits_in_this_block.clone())
+            .wrap_err("failed to put deposits to state")?;
 
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
             block_hash,
@@ -898,7 +886,7 @@ impl App {
                 .into_iter()
                 .map(std::convert::Into::into)
                 .collect(),
-            deposits,
+            deposits_in_this_block,
         )
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx

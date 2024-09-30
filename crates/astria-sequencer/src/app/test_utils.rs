@@ -56,6 +56,11 @@ pub(crate) const CAROL_ADDRESS: &str = "4e8846b82a8f31fd59265a9005959c4a030fc44c
 pub(crate) const JUDY_ADDRESS: &str = "989a77160cb0e96e2d168083ab72ffe89b41c199";
 pub(crate) const TED_ADDRESS: &str = "4c4f91d8a918357ab5f6f19c1e179968fc39bb44";
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn get_alice_signing_key() -> SigningKey {
     // this secret key corresponds to ALICE_ADDRESS
@@ -67,6 +72,11 @@ pub(crate) fn get_alice_signing_key() -> SigningKey {
     SigningKey::from(alice_secret_bytes)
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn get_bob_signing_key() -> SigningKey {
     // this secret key corresponds to ALICE_ADDRESS
@@ -78,6 +88,11 @@ pub(crate) fn get_bob_signing_key() -> SigningKey {
     SigningKey::from(bob_secret_bytes)
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn get_carol_signing_key() -> SigningKey {
     // this secret key corresponds to ALICE_ADDRESS
@@ -89,6 +104,11 @@ pub(crate) fn get_carol_signing_key() -> SigningKey {
     SigningKey::from(carol_secret_bytes)
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn get_judy_signing_key() -> SigningKey {
     // this secret key corresponds to ALICE_ADDRESS
@@ -100,6 +120,11 @@ pub(crate) fn get_judy_signing_key() -> SigningKey {
     SigningKey::from(judy_secret_bytes)
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn get_bridge_signing_key() -> SigningKey {
     let bridge_secret_bytes: [u8; 32] =
@@ -127,6 +152,11 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     ]
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::Fees {
     astria_core::protocol::genesis::v1alpha1::Fees {
@@ -208,6 +238,11 @@ pub(crate) async fn initialize_app_with_storage(
     (app, storage.clone())
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) async fn initialize_app(
     genesis_state: Option<GenesisAppState>,
@@ -217,6 +252,11 @@ pub(crate) async fn initialize_app(
     app
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn mock_tx(
     nonce: u32,
@@ -306,6 +346,11 @@ pub(crate) fn mock_tx_cost(
     costs
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn mock_state_put_account_balances(
     state: &mut StateDelta<Snapshot>,
@@ -317,6 +362,11 @@ pub(crate) fn mock_state_put_account_balances(
     }
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn mock_state_put_account_nonce(
     state: &mut StateDelta<Snapshot>,
@@ -326,6 +376,11 @@ pub(crate) fn mock_state_put_account_nonce(
     state.put_account_nonce(address, nonce).unwrap();
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     let storage = cnidarium::TempStorage::new().await.unwrap();

@@ -100,7 +100,7 @@ fn calculate_fee(data: &[u8], fee_per_byte: u128, base_fee: u128) -> Option<u128
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

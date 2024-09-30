@@ -356,7 +356,7 @@ impl<TFormat, TBytes, TPrefix> AddressBuilder<TFormat, TBytes, TPrefix> {
     ///
     /// The verification key is hashed with SHA256 and the first 20 bytes are used as the address
     /// bytes.
-    #[allow(clippy::missing_panics_doc)] // allow clippy, as the conversion is infallible
+    #[expect(clippy::missing_panics_doc, reason = "the conversion is infallible")]
     #[must_use = "the builder must be built to construct an address to be useful"]
     pub fn verification_key(
         self,
@@ -558,8 +558,10 @@ impl<TFormat> Address<TFormat> {
 
 impl Address<Bech32m> {
     /// Convert [`Address`] to a [`raw::Address`].
-    // allow: panics are checked to not happen
-    #[allow(clippy::missing_panics_doc)]
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "panics are checked to not happen"
+    )]
     #[must_use]
     pub fn to_raw(&self) -> raw::Address {
         let bech32m =
@@ -567,8 +569,6 @@ impl Address<Bech32m> {
                 .expect(
                     "should not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH",
                 );
-        // allow: the field is deprecated, but we must still fill it in
-        #[allow(deprecated)]
         raw::Address {
             bech32m,
         }

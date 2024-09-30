@@ -72,9 +72,11 @@ impl Submission {
     }
 
     /// The ratio of uncompressed blob size to compressed size.
-    // allow: used for metric gauges, which require f64. Precision loss is ok and of no
-    // significance.
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "used for metric gauges, which require f64. Precision loss is ok and of no \
+                  significance"
+    )]
     pub(super) fn compression_ratio(&self) -> f64 {
         self.uncompressed_size() as f64 / self.compressed_size() as f64
     }

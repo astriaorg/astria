@@ -318,7 +318,7 @@ fn check_for_restart(name: &str, err: &eyre::ErrReport) -> bool {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_eyre::eyre::WrapErr as _;
 
     #[test]

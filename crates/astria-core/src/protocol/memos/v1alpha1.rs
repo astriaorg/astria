@@ -4,7 +4,7 @@ pub use crate::generated::protocol::memos::v1alpha1::{
 };
 
 #[cfg(all(feature = "serde", test))]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
