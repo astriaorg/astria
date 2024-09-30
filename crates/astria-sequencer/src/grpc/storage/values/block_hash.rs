@@ -14,10 +14,13 @@ use borsh::{
 };
 use telemetry::display::base64;
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct BlockHash<'a>(Cow<'a, [u8; 32]>);
+pub(in crate::grpc) struct BlockHash<'a>(Cow<'a, [u8; 32]>);
 
 impl<'a> Display for BlockHash<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -39,7 +42,7 @@ impl<'a> From<BlockHash<'a>> for [u8; 32] {
 
 impl<'a> From<BlockHash<'a>> for crate::storage::StoredValue<'a> {
     fn from(block_hash: BlockHash<'a>) -> Self {
-        crate::storage::StoredValue::Grpc(Value::BlockHash(block_hash))
+        crate::storage::StoredValue::Grpc(Value(ValueImpl::BlockHash(block_hash)))
     }
 }
 
@@ -47,7 +50,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for BlockHash<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Grpc(Value::BlockHash(block_hash)) = value else {
+        let crate::storage::StoredValue::Grpc(Value(ValueImpl::BlockHash(block_hash))) = value
+        else {
             bail!("grpc stored value type mismatch: expected block hash, found {value}");
         };
         Ok(block_hash)

@@ -10,10 +10,13 @@ use borsh::{
     BorshSerialize,
 };
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct Fee(u128);
+pub(in crate::bridge) struct Fee(u128);
 
 impl Display for Fee {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -35,7 +38,7 @@ impl From<Fee> for u128 {
 
 impl<'a> From<Fee> for crate::storage::StoredValue<'a> {
     fn from(fee: Fee) -> Self {
-        crate::storage::StoredValue::Bridge(Value::Fee(fee))
+        crate::storage::StoredValue::Bridge(Value(ValueImpl::Fee(fee)))
     }
 }
 
@@ -43,7 +46,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Fee {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Bridge(Value::Fee(fee)) = value else {
+        let crate::storage::StoredValue::Bridge(Value(ValueImpl::Fee(fee))) = value else {
             bail!("bridge stored value type mismatch: expected fee, found {value}");
         };
         Ok(fee)

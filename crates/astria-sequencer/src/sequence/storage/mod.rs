@@ -1,6 +1,4 @@
 mod values;
 
-pub(crate) use values::{
-    Fee,
-    Value,
-};
+pub(super) use values::Fee;
+pub(crate) use values::Value;

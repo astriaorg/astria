@@ -14,20 +14,23 @@ use borsh::{
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) enum Value<'a> {
+pub(crate) struct Value<'a>(ValueImpl<'a>);
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+enum ValueImpl<'a> {
     AddressPrefix(AddressPrefix<'a>),
 }
 
 impl<'a> Display for Value<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::AddressPrefix(prefix) => write!(f, "address prefix {}", prefix.0),
+        match &self.0 {
+            ValueImpl::AddressPrefix(prefix) => write!(f, "address prefix {}", prefix.0),
         }
     }
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct AddressPrefix<'a>(Cow<'a, str>);
+pub(in crate::address) struct AddressPrefix<'a>(Cow<'a, str>);
 
 impl<'a> From<&'a str> for AddressPrefix<'a> {
     fn from(prefix: &'a str) -> Self {
@@ -43,7 +46,7 @@ impl<'a> From<AddressPrefix<'a>> for String {
 
 impl<'a> From<AddressPrefix<'a>> for crate::storage::StoredValue<'a> {
     fn from(prefix: AddressPrefix<'a>) -> Self {
-        crate::storage::StoredValue::Address(Value::AddressPrefix(prefix))
+        crate::storage::StoredValue::Address(Value(ValueImpl::AddressPrefix(prefix)))
     }
 }
 
@@ -51,7 +54,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressPrefix<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Address(Value::AddressPrefix(prefix)) = value else {
+        let crate::storage::StoredValue::Address(Value(ValueImpl::AddressPrefix(prefix))) = value
+        else {
             bail!("address stored value type mismatch: expected address prefix, found {value}");
         };
         Ok(prefix)

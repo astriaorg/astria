@@ -11,20 +11,23 @@ use borsh::{
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) enum Value {
+pub(crate) struct Value(ValueImpl);
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+enum ValueImpl {
     Fee(Fee),
 }
 
 impl Display for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::Fee(fee) => write!(f, "fee {}", fee.0),
+        match &self.0 {
+            ValueImpl::Fee(fee) => write!(f, "fee {}", fee.0),
         }
     }
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct Fee(u128);
+pub(in crate::sequence) struct Fee(u128);
 
 impl From<u128> for Fee {
     fn from(fee: u128) -> Self {
@@ -40,7 +43,7 @@ impl From<Fee> for u128 {
 
 impl<'a> From<Fee> for crate::storage::StoredValue<'a> {
     fn from(fee: Fee) -> Self {
-        crate::storage::StoredValue::Sequence(Value::Fee(fee))
+        crate::storage::StoredValue::Sequence(Value(ValueImpl::Fee(fee)))
     }
 }
 
@@ -48,7 +51,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Fee {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Sequence(Value::Fee(fee)) = value else {
+        let crate::storage::StoredValue::Sequence(Value(ValueImpl::Fee(fee))) = value else {
             bail!("sequence stored value type mismatch: expected fee, found {value}");
         };
         Ok(fee)

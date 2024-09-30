@@ -10,10 +10,13 @@ use borsh::{
     BorshSerialize,
 };
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct RevisionNumber(u64);
+pub(in crate::app) struct RevisionNumber(u64);
 
 impl Display for RevisionNumber {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -35,7 +38,7 @@ impl From<RevisionNumber> for u64 {
 
 impl<'a> From<RevisionNumber> for crate::storage::StoredValue<'a> {
     fn from(revision_number: RevisionNumber) -> Self {
-        crate::storage::StoredValue::App(Value::RevisionNumber(revision_number))
+        crate::storage::StoredValue::App(Value(ValueImpl::RevisionNumber(revision_number)))
     }
 }
 
@@ -43,7 +46,9 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for RevisionNumber {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::App(Value::RevisionNumber(revision_number)) = value else {
+        let crate::storage::StoredValue::App(Value(ValueImpl::RevisionNumber(revision_number))) =
+            value
+        else {
             bail!("app stored value type mismatch: expected revision number, found {value}");
         };
         Ok(revision_number)

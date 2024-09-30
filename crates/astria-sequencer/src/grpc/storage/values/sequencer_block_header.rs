@@ -17,7 +17,10 @@ use borsh::{
     BorshSerialize,
 };
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug)]
 struct ChainId<'a>(Cow<'a, tendermint::chain::Id>);
@@ -86,7 +89,7 @@ impl BorshDeserialize for BlockTimestamp {
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct SequencerBlockHeader<'a> {
+pub(in crate::grpc) struct SequencerBlockHeader<'a> {
     chain_id: ChainId<'a>,
     height: u64,
     time: BlockTimestamp,
@@ -136,7 +139,7 @@ impl<'a> From<SequencerBlockHeader<'a>> for DomainSequencerBlockHeader {
 
 impl<'a> From<SequencerBlockHeader<'a>> for crate::storage::StoredValue<'a> {
     fn from(block_header: SequencerBlockHeader<'a>) -> Self {
-        crate::storage::StoredValue::Grpc(Value::SequencerBlockHeader(block_header))
+        crate::storage::StoredValue::Grpc(Value(ValueImpl::SequencerBlockHeader(block_header)))
     }
 }
 
@@ -144,7 +147,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for SequencerBlockHeader<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Grpc(Value::SequencerBlockHeader(block_header)) = value
+        let crate::storage::StoredValue::Grpc(Value(ValueImpl::SequencerBlockHeader(block_header))) =
+            value
         else {
             bail!(
                 "grpc stored value type mismatch: expected sequencer block header, found {value}"

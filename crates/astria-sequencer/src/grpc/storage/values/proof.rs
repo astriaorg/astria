@@ -13,10 +13,13 @@ use merkle::{
     Proof as DomainProof,
 };
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct Proof<'a> {
+pub(in crate::grpc) struct Proof<'a> {
     audit_path: Cow<'a, [u8]>,
     leaf_index: usize,
     tree_size: NonZeroUsize,
@@ -44,7 +47,7 @@ impl<'a> From<Proof<'a>> for DomainProof {
 
 impl<'a> From<Proof<'a>> for crate::storage::StoredValue<'a> {
     fn from(proof: Proof<'a>) -> Self {
-        crate::storage::StoredValue::Grpc(Value::Proof(proof))
+        crate::storage::StoredValue::Grpc(Value(ValueImpl::Proof(proof)))
     }
 }
 
@@ -52,7 +55,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Proof<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Grpc(Value::Proof(proof)) = value else {
+        let crate::storage::StoredValue::Grpc(Value(ValueImpl::Proof(proof))) = value else {
             bail!("grpc stored value type mismatch: expected proof, found {value}");
         };
         Ok(proof)

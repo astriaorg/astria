@@ -16,7 +16,10 @@ use borsh::{
 use itertools::Itertools as _;
 use telemetry::display::base64;
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(super) struct RollupId<'a>(Cow<'a, [u8; 32]>);
@@ -40,7 +43,7 @@ impl<'a> From<RollupId<'a>> for DomainRollupId {
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct RollupIds<'a>(Vec<RollupId<'a>>);
+pub(in crate::grpc) struct RollupIds<'a>(Vec<RollupId<'a>>);
 
 impl<'a> Display for RollupIds<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -62,7 +65,7 @@ impl<'a> From<RollupIds<'a>> for Vec<DomainRollupId> {
 
 impl<'a> From<RollupIds<'a>> for crate::storage::StoredValue<'a> {
     fn from(rollup_ids: RollupIds<'a>) -> Self {
-        crate::storage::StoredValue::Grpc(Value::RollupIds(rollup_ids))
+        crate::storage::StoredValue::Grpc(Value(ValueImpl::RollupIds(rollup_ids)))
     }
 }
 
@@ -70,7 +73,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for RollupIds<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Grpc(Value::RollupIds(rollup_ids)) = value else {
+        let crate::storage::StoredValue::Grpc(Value(ValueImpl::RollupIds(rollup_ids))) = value
+        else {
             bail!("grpc stored value type mismatch: expected rollup ids, found {value}");
         };
         Ok(rollup_ids)

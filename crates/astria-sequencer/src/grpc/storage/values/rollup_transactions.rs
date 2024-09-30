@@ -15,10 +15,11 @@ use super::{
     proof::Proof,
     rollup_ids::RollupId,
     Value,
+    ValueImpl,
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct RollupTransactions<'a> {
+pub(in crate::grpc) struct RollupTransactions<'a> {
     rollup_id: RollupId<'a>,
     transactions: Cow<'a, [Bytes]>,
     proof: Proof<'a>,
@@ -52,7 +53,7 @@ impl<'a> From<RollupTransactions<'a>> for DomainRollupTransactions {
 
 impl<'a> From<RollupTransactions<'a>> for crate::storage::StoredValue<'a> {
     fn from(rollup_txs: RollupTransactions<'a>) -> Self {
-        crate::storage::StoredValue::Grpc(Value::RollupTransactions(rollup_txs))
+        crate::storage::StoredValue::Grpc(Value(ValueImpl::RollupTransactions(rollup_txs)))
     }
 }
 
@@ -60,7 +61,9 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for RollupTransactions<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Grpc(Value::RollupTransactions(rollup_txs)) = value else {
+        let crate::storage::StoredValue::Grpc(Value(ValueImpl::RollupTransactions(rollup_txs))) =
+            value
+        else {
             bail!("grpc stored value type mismatch: expected rollup transactions, found {value}");
         };
         Ok(rollup_txs)

@@ -25,24 +25,27 @@ use crate::{
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) enum Value<'a> {
+pub(crate) struct Value<'a>(ValueImpl<'a>);
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+enum ValueImpl<'a> {
     AddressBytes(AddressBytes<'a>),
     ValidatorSet(ValidatorSet<'a>),
 }
 
 impl<'a> Display for Value<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::AddressBytes(address) => {
+        match &self.0 {
+            ValueImpl::AddressBytes(address) => {
                 write!(f, "address {}", base64(address.0.as_ref()))
             }
-            Value::ValidatorSet(_validator_set) => write!(f, "validator set"),
+            ValueImpl::ValidatorSet(_validator_set) => write!(f, "validator set {{...}}"),
         }
     }
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
+pub(in crate::authority) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
 
 impl<'a, T: DomainAddressBytes> From<&'a T> for AddressBytes<'a> {
     fn from(value: &'a T) -> Self {
@@ -58,7 +61,7 @@ impl<'a> From<AddressBytes<'a>> for [u8; ADDRESS_LEN] {
 
 impl<'a> From<AddressBytes<'a>> for crate::storage::StoredValue<'a> {
     fn from(address: AddressBytes<'a>) -> Self {
-        crate::storage::StoredValue::Authority(Value::AddressBytes(address))
+        crate::storage::StoredValue::Authority(Value(ValueImpl::AddressBytes(address)))
     }
 }
 
@@ -66,7 +69,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressBytes<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Authority(Value::AddressBytes(address)) = value else {
+        let crate::storage::StoredValue::Authority(Value(ValueImpl::AddressBytes(address))) = value
+        else {
             bail!("authority stored value type mismatch: expected address bytes, found {value}");
         };
         Ok(address)
@@ -91,7 +95,7 @@ struct ValidatorUpdate<'a> {
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct ValidatorSet<'a>(Vec<ValidatorUpdate<'a>>);
+pub(in crate::authority) struct ValidatorSet<'a>(Vec<ValidatorUpdate<'a>>);
 
 impl<'a> From<&'a DomainValidatorSet> for ValidatorSet<'a> {
     fn from(value: &'a DomainValidatorSet) -> Self {
@@ -132,7 +136,7 @@ impl<'a> From<ValidatorSet<'a>> for DomainValidatorSet {
 
 impl<'a> From<ValidatorSet<'a>> for crate::storage::StoredValue<'a> {
     fn from(validator_set: ValidatorSet<'a>) -> Self {
-        crate::storage::StoredValue::Authority(Value::ValidatorSet(validator_set))
+        crate::storage::StoredValue::Authority(Value(ValueImpl::ValidatorSet(validator_set)))
     }
 }
 
@@ -140,7 +144,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for ValidatorSet<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Authority(Value::ValidatorSet(validator_set)) = value
+        let crate::storage::StoredValue::Authority(Value(ValueImpl::ValidatorSet(validator_set))) =
+            value
         else {
             bail!("authority stored value type mismatch: expected validator set, found {value}");
         };

@@ -15,10 +15,13 @@ use borsh::{
 };
 use telemetry::display::base64;
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct RollupId<'a>(Cow<'a, [u8; 32]>);
+pub(in crate::bridge) struct RollupId<'a>(Cow<'a, [u8; 32]>);
 
 impl<'a> Display for RollupId<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -40,7 +43,7 @@ impl<'a> From<RollupId<'a>> for DomainRollupId {
 
 impl<'a> From<RollupId<'a>> for crate::storage::StoredValue<'a> {
     fn from(rollup_id: RollupId<'a>) -> Self {
-        crate::storage::StoredValue::Bridge(Value::RollupId(rollup_id))
+        crate::storage::StoredValue::Bridge(Value(ValueImpl::RollupId(rollup_id)))
     }
 }
 
@@ -48,7 +51,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for RollupId<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Bridge(Value::RollupId(rollup_id)) = value else {
+        let crate::storage::StoredValue::Bridge(Value(ValueImpl::RollupId(rollup_id))) = value
+        else {
             bail!("bridge stored value type mismatch: expected rollup id, found {value}");
         };
         Ok(rollup_id)

@@ -1,6 +1,4 @@
 mod values;
 
-pub(crate) use values::{
-    AddressPrefix,
-    Value,
-};
+pub(super) use values::AddressPrefix;
+pub(crate) use values::Value;

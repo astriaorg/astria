@@ -15,11 +15,14 @@ use borsh::{
 };
 use telemetry::display::base64;
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 use crate::accounts::AddressBytes as DomainAddressBytes;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
+pub(in crate::bridge) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
 
 impl<'a> Display for AddressBytes<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -41,7 +44,7 @@ impl<'a> From<AddressBytes<'a>> for [u8; ADDRESS_LEN] {
 
 impl<'a> From<AddressBytes<'a>> for crate::storage::StoredValue<'a> {
     fn from(address: AddressBytes<'a>) -> Self {
-        crate::storage::StoredValue::Bridge(Value::AddressBytes(address))
+        crate::storage::StoredValue::Bridge(Value(ValueImpl::AddressBytes(address)))
     }
 }
 
@@ -49,7 +52,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressBytes<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Bridge(Value::AddressBytes(address)) = value else {
+        let crate::storage::StoredValue::Bridge(Value(ValueImpl::AddressBytes(address))) = value
+        else {
             bail!("bridge stored value type mismatch: expected address bytes, found {value}");
         };
         Ok(address)

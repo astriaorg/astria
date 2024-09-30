@@ -15,22 +15,25 @@ use borsh::{
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) enum Value<'a> {
+pub(crate) struct Value<'a>(ValueImpl<'a>);
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+enum ValueImpl<'a> {
     TracePrefixedDenom(TracePrefixedDenom<'a>),
     Fee(Fee),
 }
 
 impl<'a> Display for Value<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::TracePrefixedDenom(denom) => write!(f, "trace-prefixed denom {denom}"),
-            Value::Fee(fee) => write!(f, "fee {}", fee.0),
+        match &self.0 {
+            ValueImpl::TracePrefixedDenom(denom) => write!(f, "trace-prefixed denom {denom}"),
+            ValueImpl::Fee(fee) => write!(f, "fee {}", fee.0),
         }
     }
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct TracePrefixedDenom<'a> {
+pub(in crate::assets) struct TracePrefixedDenom<'a> {
     trace: Vec<(Cow<'a, str>, Cow<'a, str>)>,
     base_denom: Cow<'a, str>,
 }
@@ -70,7 +73,7 @@ impl<'a> From<TracePrefixedDenom<'a>> for DomainTracePrefixed {
 
 impl<'a> From<TracePrefixedDenom<'a>> for crate::storage::StoredValue<'a> {
     fn from(denom: TracePrefixedDenom<'a>) -> Self {
-        crate::storage::StoredValue::Assets(Value::TracePrefixedDenom(denom))
+        crate::storage::StoredValue::Assets(Value(ValueImpl::TracePrefixedDenom(denom)))
     }
 }
 
@@ -78,7 +81,9 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for TracePrefixedDenom<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Assets(Value::TracePrefixedDenom(denom)) = value else {
+        let crate::storage::StoredValue::Assets(Value(ValueImpl::TracePrefixedDenom(denom))) =
+            value
+        else {
             bail!(
                 "assets stored value type mismatch: expected trace-prefixed denom, found {value}"
             );
@@ -88,7 +93,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for TracePrefixedDenom<'a> {
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct Fee(u128);
+pub(in crate::assets) struct Fee(u128);
 
 impl From<u128> for Fee {
     fn from(fee: u128) -> Self {
@@ -104,7 +109,7 @@ impl From<Fee> for u128 {
 
 impl<'a> From<Fee> for crate::storage::StoredValue<'a> {
     fn from(fee: Fee) -> Self {
-        crate::storage::StoredValue::Assets(Value::Fee(fee))
+        crate::storage::StoredValue::Assets(Value(ValueImpl::Fee(fee)))
     }
 }
 
@@ -112,7 +117,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Fee {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Assets(Value::Fee(fee)) = value else {
+        let crate::storage::StoredValue::Assets(Value(ValueImpl::Fee(fee))) = value else {
             bail!("assets stored value type mismatch: expected fee, found {value}");
         };
         Ok(fee)

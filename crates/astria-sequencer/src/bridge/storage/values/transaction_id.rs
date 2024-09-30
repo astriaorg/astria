@@ -18,10 +18,13 @@ use borsh::{
 };
 use telemetry::display::hex;
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct TransactionId<'a>(Cow<'a, [u8; TRANSACTION_ID_LEN]>);
+pub(in crate::bridge) struct TransactionId<'a>(Cow<'a, [u8; TRANSACTION_ID_LEN]>);
 
 impl<'a> Display for TransactionId<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -43,7 +46,7 @@ impl<'a> From<TransactionId<'a>> for DomainTransactionId {
 
 impl<'a> From<TransactionId<'a>> for crate::storage::StoredValue<'a> {
     fn from(tx_id: TransactionId<'a>) -> Self {
-        crate::storage::StoredValue::Bridge(Value::TransactionId(tx_id))
+        crate::storage::StoredValue::Bridge(Value(ValueImpl::TransactionId(tx_id)))
     }
 }
 
@@ -51,7 +54,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for TransactionId<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Bridge(Value::TransactionId(tx_id)) = value else {
+        let crate::storage::StoredValue::Bridge(Value(ValueImpl::TransactionId(tx_id))) = value
+        else {
             bail!("bridge stored value type mismatch: expected transaction id, found {value}");
         };
         Ok(tx_id)

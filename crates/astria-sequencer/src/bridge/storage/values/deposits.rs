@@ -22,6 +22,7 @@ use super::{
     RollupId,
     TransactionId,
     Value,
+    ValueImpl,
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -122,7 +123,7 @@ impl<'a> From<Deposit<'a>> for DomainDeposit {
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct Deposits<'a>(Vec<Deposit<'a>>);
+pub(in crate::bridge) struct Deposits<'a>(Vec<Deposit<'a>>);
 
 impl<'a, T: Iterator<Item = &'a DomainDeposit>> From<T> for Deposits<'a> {
     fn from(deposit_iter: T) -> Self {
@@ -138,7 +139,7 @@ impl<'a> From<Deposits<'a>> for Vec<DomainDeposit> {
 
 impl<'a> From<Deposits<'a>> for crate::storage::StoredValue<'a> {
     fn from(deposits: Deposits<'a>) -> Self {
-        crate::storage::StoredValue::Bridge(Value::Deposits(deposits))
+        crate::storage::StoredValue::Bridge(Value(ValueImpl::Deposits(deposits)))
     }
 }
 
@@ -146,7 +147,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Deposits<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Bridge(Value::Deposits(deposits)) = value else {
+        let crate::storage::StoredValue::Bridge(Value(ValueImpl::Deposits(deposits))) = value
+        else {
             bail!("bridge stored value type mismatch: expected deposits, found {value}");
         };
         Ok(deposits)

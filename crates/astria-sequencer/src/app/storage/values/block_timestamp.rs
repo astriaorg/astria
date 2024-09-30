@@ -14,10 +14,13 @@ use borsh::{
     BorshSerialize,
 };
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug)]
-pub(crate) struct BlockTimestamp(tendermint::time::Time);
+pub(in crate::app) struct BlockTimestamp(tendermint::time::Time);
 
 impl Display for BlockTimestamp {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -60,7 +63,7 @@ impl BorshDeserialize for BlockTimestamp {
 
 impl<'a> From<BlockTimestamp> for crate::storage::StoredValue<'a> {
     fn from(block_timestamp: BlockTimestamp) -> Self {
-        crate::storage::StoredValue::App(Value::BlockTimestamp(block_timestamp))
+        crate::storage::StoredValue::App(Value(ValueImpl::BlockTimestamp(block_timestamp)))
     }
 }
 
@@ -68,7 +71,9 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for BlockTimestamp {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::App(Value::BlockTimestamp(block_timestamp)) = value else {
+        let crate::storage::StoredValue::App(Value(ValueImpl::BlockTimestamp(block_timestamp))) =
+            value
+        else {
             bail!("app stored value type mismatch: expected block timestamp, found {value}");
         };
         Ok(block_timestamp)

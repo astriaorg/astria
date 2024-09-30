@@ -17,10 +17,13 @@ use borsh::{
     BorshSerialize,
 };
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug)]
-pub(crate) struct ChainId<'a>(Cow<'a, tendermint::chain::Id>);
+pub(in crate::app) struct ChainId<'a>(Cow<'a, tendermint::chain::Id>);
 
 impl<'a> Display for ChainId<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -57,7 +60,7 @@ impl<'a> BorshDeserialize for ChainId<'a> {
 
 impl<'a> From<ChainId<'a>> for crate::storage::StoredValue<'a> {
     fn from(chain_id: ChainId<'a>) -> Self {
-        crate::storage::StoredValue::App(Value::ChainId(chain_id))
+        crate::storage::StoredValue::App(Value(ValueImpl::ChainId(chain_id)))
     }
 }
 
@@ -65,7 +68,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for ChainId<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::App(Value::ChainId(chain_id)) = value else {
+        let crate::storage::StoredValue::App(Value(ValueImpl::ChainId(chain_id))) = value else {
             bail!("app stored value type mismatch: expected chain id, found {value}");
         };
         Ok(chain_id)

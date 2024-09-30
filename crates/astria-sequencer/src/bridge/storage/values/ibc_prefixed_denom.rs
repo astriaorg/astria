@@ -15,10 +15,13 @@ use borsh::{
 };
 use telemetry::display::base64;
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct IbcPrefixedDenom<'a>(Cow<'a, [u8; 32]>);
+pub(in crate::bridge) struct IbcPrefixedDenom<'a>(Cow<'a, [u8; 32]>);
 
 impl<'a> Display for IbcPrefixedDenom<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -40,7 +43,7 @@ impl<'a> From<IbcPrefixedDenom<'a>> for DomainIbcPrefixed {
 
 impl<'a> From<IbcPrefixedDenom<'a>> for crate::storage::StoredValue<'a> {
     fn from(denom: IbcPrefixedDenom<'a>) -> Self {
-        crate::storage::StoredValue::Bridge(Value::IbcPrefixedDenom(denom))
+        crate::storage::StoredValue::Bridge(Value(ValueImpl::IbcPrefixedDenom(denom)))
     }
 }
 
@@ -48,7 +51,8 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for IbcPrefixedDenom<'a> {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Bridge(Value::IbcPrefixedDenom(denom)) = value else {
+        let crate::storage::StoredValue::Bridge(Value(ValueImpl::IbcPrefixedDenom(denom))) = value
+        else {
             bail!("bridge stored value type mismatch: expected ibc-prefixed denom, found {value}");
         };
         Ok(denom)

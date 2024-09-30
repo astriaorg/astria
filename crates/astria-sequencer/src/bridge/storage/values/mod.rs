@@ -17,7 +17,7 @@ use borsh::{
     BorshSerialize,
 };
 
-pub(crate) use self::{
+pub(in crate::bridge) use self::{
     address_bytes::AddressBytes,
     block_height::BlockHeight,
     deposits::Deposits,
@@ -28,7 +28,10 @@ pub(crate) use self::{
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) enum Value<'a> {
+pub(crate) struct Value<'a>(ValueImpl<'a>);
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+enum ValueImpl<'a> {
     RollupId(RollupId<'a>),
     IbcPrefixedDenom(IbcPrefixedDenom<'a>),
     AddressBytes(AddressBytes<'a>),
@@ -40,14 +43,14 @@ pub(crate) enum Value<'a> {
 
 impl<'a> Display for Value<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::RollupId(rollup_id) => write!(f, "rollup id {rollup_id}"),
-            Value::IbcPrefixedDenom(denom) => write!(f, "denom {denom}"),
-            Value::AddressBytes(address_bytes) => write!(f, "address bytes {address_bytes}"),
-            Value::BlockHeight(block_height) => write!(f, "block height {block_height}"),
-            Value::Deposits(_deposits) => write!(f, "deposits"),
-            Value::Fee(fee) => write!(f, "fee {fee}"),
-            Value::TransactionId(tx_id) => write!(f, "transaction id {tx_id}"),
+        match &self.0 {
+            ValueImpl::RollupId(rollup_id) => write!(f, "rollup id {rollup_id}"),
+            ValueImpl::IbcPrefixedDenom(denom) => write!(f, "denom {denom}"),
+            ValueImpl::AddressBytes(address_bytes) => write!(f, "address bytes {address_bytes}"),
+            ValueImpl::BlockHeight(block_height) => write!(f, "block height {block_height}"),
+            ValueImpl::Deposits(_deposits) => write!(f, "deposits"),
+            ValueImpl::Fee(fee) => write!(f, "fee {fee}"),
+            ValueImpl::TransactionId(tx_id) => write!(f, "transaction id {tx_id}"),
         }
     }
 }

@@ -10,10 +10,13 @@ use borsh::{
     BorshSerialize,
 };
 
-use super::Value;
+use super::{
+    Value,
+    ValueImpl,
+};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(crate) struct BlockHeight(u64);
+pub(in crate::bridge) struct BlockHeight(u64);
 
 impl Display for BlockHeight {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -35,7 +38,7 @@ impl From<BlockHeight> for u64 {
 
 impl<'a> From<BlockHeight> for crate::storage::StoredValue<'a> {
     fn from(block_height: BlockHeight) -> Self {
-        crate::storage::StoredValue::Bridge(Value::BlockHeight(block_height))
+        crate::storage::StoredValue::Bridge(Value(ValueImpl::BlockHeight(block_height)))
     }
 }
 
@@ -43,7 +46,9 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for BlockHeight {
     type Error = astria_eyre::eyre::Error;
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
-        let crate::storage::StoredValue::Bridge(Value::BlockHeight(block_height)) = value else {
+        let crate::storage::StoredValue::Bridge(Value(ValueImpl::BlockHeight(block_height))) =
+            value
+        else {
             bail!("bridge stored value type mismatch: expected block height, found {value}");
         };
         Ok(block_height)
