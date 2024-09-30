@@ -501,7 +501,7 @@ async fn submit_transaction(
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

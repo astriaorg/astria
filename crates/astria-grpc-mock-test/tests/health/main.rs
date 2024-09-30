@@ -1,5 +1,7 @@
-// allow just make the tests work for now
-#![allow(clippy::should_panic_without_expect)]
+#![expect(
+    clippy::should_panic_without_expect,
+    reason = "just make the tests work for now"
+)]
 
 use std::{
     net::SocketAddr,

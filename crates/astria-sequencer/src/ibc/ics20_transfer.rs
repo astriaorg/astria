@@ -345,8 +345,6 @@ impl AppHandlerExecute for Ics20Transfer {
 
     async fn chan_close_init_execute<S: StateWrite>(_: S, _: &MsgChannelCloseInit) {}
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, err)]
     async fn recv_packet_execute<S: StateWrite>(
         mut state: S,
@@ -373,8 +371,6 @@ impl AppHandlerExecute for Ics20Transfer {
             .context("failed to write acknowledgement")
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, err)]
     async fn timeout_packet_execute<S: StateWrite>(
         mut state: S,
@@ -385,8 +381,6 @@ impl AppHandlerExecute for Ics20Transfer {
         })
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, err)]
     async fn acknowledge_packet_execute<S: StateWrite>(
         mut state: S,

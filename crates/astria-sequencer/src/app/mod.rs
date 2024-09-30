@@ -184,9 +184,10 @@ pub(crate) struct App {
 
     // the currently committed `AppHash` of the application state.
     // set whenever `commit` is called.
-    //
-    // allow clippy because we need be specific as to what hash this is.
-    #[allow(clippy::struct_field_names)]
+    #[expect(
+        clippy::struct_field_names,
+        reason = "we need to be specific as to what hash this is"
+    )]
     app_hash: AppHash,
 
     // used to create and verify vote extensions, if this is a validator node.

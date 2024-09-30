@@ -86,8 +86,6 @@ impl BlobSubmitterHandle {
     /// Send a block to the blob submitter immediately.
     ///
     /// This is a thin wrapper around [`mpsc::Sender::try_send`].
-    // allow: just forwarding the error type
-    #[allow(clippy::result_large_err)]
     pub(super) fn try_send(
         &self,
         block: SequencerBlock,
@@ -98,8 +96,6 @@ impl BlobSubmitterHandle {
     /// Sends a block to the blob submitter.
     ///
     /// This is a thin wrapper around [`mpsc::Sender::send`].
-    // allow: just forwarding the error type
-    #[allow(clippy::result_large_err)]
     pub(super) async fn send(
         &self,
         block: SequencerBlock,

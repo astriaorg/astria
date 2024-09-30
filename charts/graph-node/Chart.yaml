@@ -1,0 +1,13 @@
+apiVersion: v2
+name: graph-node
+description: A Helm chart for Graph Node deployment
+version: 0.1.0
+appVersion: "0.0.1"
+
+maintainers:
+  - name: wafflesvonmaple
+    url: astria.org
+  - name: quasystaty1
+    url: astria.org
+  - name: joroshiba
+    url: astria.org
