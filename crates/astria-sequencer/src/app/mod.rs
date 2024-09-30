@@ -349,7 +349,7 @@ impl App {
         {
             Ok(info) => info,
             Err(e) => {
-                debug!(
+                warn!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed to generate extended commit info"
                 );
@@ -360,23 +360,23 @@ impl App {
             }
         };
 
-        let mut extended_commit_info_bytes =
+        let mut encoded_extended_commit_info =
             ExtendedCommitInfo::from(extended_commit_info).encode_to_vec();
         let max_tx_bytes = usize::try_from(prepare_proposal.max_tx_bytes)
             .wrap_err("failed to convert max_tx_bytes to usize")?;
 
         // adjust max block size to account for extended commit info
         let adjusted_max_tx_bytes = max_tx_bytes
-            .checked_sub(extended_commit_info_bytes.len())
+            .checked_sub(encoded_extended_commit_info.len())
             .unwrap_or_else(|| {
                 // zero the commit info if it's too large to fit in the block
                 // for liveness.
                 warn!(
-                    extended_commit_info_bytes_len = extended_commit_info_bytes.len(),
+                    encoded_extended_commit_info_len = encoded_extended_commit_info.len(),
                     max_tx_bytes,
                     "extended commit info is too large to fit in block; not including in block"
                 );
-                extended_commit_info_bytes.clear();
+                encoded_extended_commit_info.clear();
                 max_tx_bytes
             });
         let mut block_size_constraints = BlockSizeConstraints::new(adjusted_max_tx_bytes)
@@ -410,8 +410,8 @@ impl App {
         let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
 
         // inject the extended commit info into the start of the block's txs
-        let txs = std::iter::once(extended_commit_info_bytes.into())
-            .chain(res.into_transactions(included_tx_bytes))
+        let txs = std::iter::once(encoded_extended_commit_info.into())
+            .chain(res.into_iter().chain(included_tx_bytes))
             .collect();
         Ok(abci::response::PrepareProposal {
             txs,
@@ -915,12 +915,11 @@ impl App {
              transactions commitment and rollup IDs commitment"
         );
 
-        let extended_commit_info_bytes = &finalize_block.txs[0];
+        let extended_commit_info_bytes = finalize_block.txs.get(0).expect("asserted length above");
         let extended_commit_info = ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
-            .wrap_err("failed to decode extended commit info")?;
-        let extended_commit_info = extended_commit_info
+            .wrap_err("failed to decode extended commit info")?
             .try_into()
-            .wrap_err("failed to convert extended commit info from proto to native")?;
+            .context("failed to validate decoded extended commit info")?;
         let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
             StateDelta::new(self.state.clone());
         crate::app::vote_extension::apply_prices_from_vote_extensions(

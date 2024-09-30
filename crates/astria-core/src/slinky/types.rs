@@ -258,8 +258,14 @@ pub mod v1 {
         type Err = CurrencyPairParseError;
 
         fn from_str(s: &str) -> Result<Self, Self::Err> {
-            let re = regex::Regex::new(r"^([a-zA-Z]+)/([a-zA-Z]+)$").expect("valid regex");
-            let caps = re
+            static REGEX: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+            fn get_regex() -> &'static regex::Regex {
+                REGEX.get_or_init(|| {
+                    regex::Regex::new(r"^([a-zA-Z]+)/([a-zA-Z]+)$").expect("valid regex")
+                })
+            }
+
+            let caps = get_regex()
                 .captures(s)
                 .ok_or_else(|| CurrencyPairParseError::invalid_currency_pair_string(s))?;
             let base = caps
@@ -359,7 +365,7 @@ mod test {
     }
 
     #[test]
-    fn test_currency_pair_parse_invalid() {
+    fn invalid_curreny_pair_is_rejected() {
         let currency_pair = "ETHUSD".parse::<CurrencyPair>();
         assert!(currency_pair.is_err());
     }

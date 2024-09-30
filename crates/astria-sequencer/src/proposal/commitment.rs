@@ -33,6 +33,15 @@ impl GeneratedCommitments {
         txs.append(&mut tx_data);
         txs
     }
+
+    #[must_use]
+    pub(crate) fn into_iter(self) -> impl Iterator<Item = Bytes> {
+        [
+            self.rollup_datas_root.to_vec().into(),
+            self.rollup_ids_root.to_vec().into(),
+        ]
+        .into_iter()
+    }
 }
 
 /// Called when we receive a `PrepareProposal` or `ProcessProposal` consensus message.

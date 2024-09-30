@@ -834,7 +834,10 @@ enum FeesErrorKind {
 
 #[cfg(test)]
 mod tests {
-    use indexmap::IndexMap;
+    use indexmap::{
+        indexmap,
+        IndexMap,
+    };
 
     use super::*;
     use crate::{
@@ -882,7 +885,60 @@ mod tests {
             .unwrap()
     }
 
+    fn genesis_state_markets() -> MarketMap {
+        use crate::slinky::{
+            market_map::v1::{
+                Market,
+                MarketMap,
+                ProviderConfig,
+                Ticker,
+            },
+            types::v1::CurrencyPair,
+        };
+
+        let markets = indexmap! {
+            "ETH/USD".to_string() =>  Market {
+                ticker: Ticker {
+                    currency_pair: CurrencyPair::from_parts(
+                        "ETH".parse().unwrap(),
+                        "USD".parse().unwrap(),
+                    ),
+                    decimals: 8,
+                    min_provider_count: 3,
+                    enabled: true,
+                    metadata_json: String::new(),
+                },
+                provider_configs: vec![ProviderConfig {
+                    name: "coingecko_api".to_string(),
+                    off_chain_ticker: "ethereum/usd".to_string(),
+                    normalize_by_pair: CurrencyPair::from_parts(
+                        "USDT".parse().unwrap(),
+                        "USD".parse().unwrap(),
+                    ),
+                    invert: false,
+                    metadata_json: String::new(),
+                }],
+            },
+        };
+
+        MarketMap {
+            markets,
+        }
+    }
+
     fn proto_genesis_state() -> raw::GenesisAppState {
+        use crate::slinky::{
+            oracle::v1::{
+                CurrencyPairGenesis,
+                QuotePrice,
+            },
+            types::v1::{
+                CurrencyPair,
+                CurrencyPairNonce,
+                Price,
+            },
+        };
+
         raw::GenesisAppState {
             accounts: vec![
                 raw::Account {
@@ -925,18 +981,31 @@ mod tests {
             slinky: Some(
                 SlinkyGenesis {
                     market_map: market_map::v1::GenesisState {
-                        market_map: MarketMap {
-                            markets: IndexMap::new(),
-                        },
+                        market_map: genesis_state_markets(),
                         last_updated: 0,
                         params: Params {
-                            market_authorities: vec![],
+                            market_authorities: vec![alice(), bob()],
                             admin: alice(),
                         },
                     },
                     oracle: oracle::v1::GenesisState {
-                        currency_pair_genesis: vec![],
-                        next_id: CurrencyPairId::new(0),
+                        currency_pair_genesis: vec![CurrencyPairGenesis {
+                            id: CurrencyPairId::new(1),
+                            nonce: CurrencyPairNonce::new(0),
+                            currency_pair_price: QuotePrice {
+                                price: Price::new(3_138_872_234_u128),
+                                block_height: 0,
+                                block_timestamp: pbjson_types::Timestamp {
+                                    seconds: 1_720_122_395,
+                                    nanos: 0,
+                                },
+                            },
+                            currency_pair: CurrencyPair::from_parts(
+                                "ETH".parse().unwrap(),
+                                "USD".parse().unwrap(),
+                            ),
+                        }],
+                        next_id: CurrencyPairId::new(1),
                     },
                 }
                 .into_raw(),
@@ -996,6 +1065,26 @@ mod tests {
                 ..proto_genesis_state()
             },
             ".ibc_relayer_addresses[1]",
+        );
+        assert_bad_prefix(
+            raw::GenesisAppState {
+                slinky: {
+                    let mut slinky = proto_genesis_state().slinky;
+                    slinky
+                        .as_mut()
+                        .unwrap()
+                        .market_map
+                        .as_mut()
+                        .unwrap()
+                        .params
+                        .as_mut()
+                        .unwrap()
+                        .market_authorities[0] = mallory().to_string();
+                    slinky
+                },
+                ..proto_genesis_state()
+            },
+            ".market_map.params.market_authorities[0]",
         );
         assert_bad_prefix(
             raw::GenesisAppState {

@@ -121,7 +121,7 @@ impl Sequencer {
             None
         } else {
             let uri: Uri = config
-                .oracle_grpc_addr
+                .slinky_grpc_addr
                 .parse()
                 .context("failed parsing oracle grpc address as Uri")?;
             let endpoint = Endpoint::from(uri.clone()).timeout(std::time::Duration::from_millis(

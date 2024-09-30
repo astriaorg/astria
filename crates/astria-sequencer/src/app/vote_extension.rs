@@ -40,7 +40,6 @@ use tendermint_proto::google::protobuf::Timestamp;
 use tonic::transport::Channel;
 use tracing::{
     debug,
-    info,
     instrument,
     warn,
 };
@@ -115,7 +114,7 @@ impl Handler {
         match verify_vote_extension(state, vote.vote_extension, false).await {
             Ok(()) => abci::response::VerifyVoteExtension::Accept,
             Err(e) => {
-                tracing::error!(error = %e, "failed to verify vote extension");
+                tracing::warn!(error = %e, "failed to verify vote extension");
                 abci::response::VerifyVoteExtension::Reject
             }
         }
@@ -136,7 +135,7 @@ async fn verify_vote_extension<S: StateReadExt>(
             .wrap_err("failed to get max number of currency pairs")?;
 
     ensure!(
-        oracle_vote_extension.prices.len() as u64 <= max_num_currency_pairs,
+        u64::try_from(oracle_vote_extension.prices.len()).ok() <= Some(max_num_currency_pairs),
         "number of oracle vote extension prices exceeds max expected number of currency pairs"
     );
 
@@ -156,23 +155,38 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
     state: &S,
     rsp: QueryPricesResponse,
 ) -> Result<OracleVoteExtension> {
-    let mut strategy_prices = IndexMap::new();
+    use astria_core::slinky::types::v1::CurrencyPairId;
+    use futures::StreamExt as _;
+
+    let futures = futures::stream::FuturesUnordered::new();
     for (currency_pair, price) in rsp.prices {
-        let id = match DefaultCurrencyPairStrategy::id(state, &currency_pair).await {
+        futures.push(async move {
+            (
+                DefaultCurrencyPairStrategy::id(state, &currency_pair).await,
+                currency_pair,
+                price,
+            )
+        });
+    }
+
+    let result: Vec<(Result<Option<CurrencyPairId>>, CurrencyPair, Price)> =
+        futures.collect().await;
+    let strategy_prices = result.into_iter().filter_map(|(get_id_result, currency_pair, price)| {
+        let id = match get_id_result {
             Ok(Some(id)) => id,
             Ok(None) => {
-                info!(%currency_pair, "currency pair ID not found in state; skipping");
-                continue;
+                debug!(%currency_pair, "currency pair ID not found in state; skipping");
+                return None;
             }
             Err(err) => {
-                // FIXME: this event can be removed once all instrumented functions
+                                // FIXME: this event can be removed once all instrumented functions
                 //        can generate an error event.
-                warn!(%currency_pair, "failed to fetch ID for currency pair; cancelling transformation");
-                return Err(err).wrap_err("failed to fetch currency pair ID");
+                warn!(error = %err, %currency_pair, "failed to fetch ID for currency pair; cancelling transformation");
+                return Some(Err(err).wrap_err("failed to fetch currency pair ID"));
             }
         };
-        strategy_prices.insert(id, price);
-    }
+        Some(Ok((id, price)))
+    }).collect::<Result<IndexMap<CurrencyPairId, Price>>>()?;
 
     Ok(OracleVoteExtension {
         prices: strategy_prices,
