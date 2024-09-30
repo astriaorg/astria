@@ -74,7 +74,6 @@ impl PreparedBlock {
 
 #[derive(Debug, thiserror::Error)]
 #[error("failed constructing a celestia rollup blob")]
-#[allow(clippy::module_name_repetitions)]
 pub struct SubmittedRollupDataError {
     #[source]
     kind: SubmittedRollupDataErrorKind,
@@ -153,7 +152,6 @@ impl UncheckedSubmittedRollupData {
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
 pub struct SubmittedRollupData {
     /// The hash of the sequencer block. Must be 32 bytes.
     sequencer_block_hash: [u8; 32],
@@ -280,7 +278,6 @@ impl SubmittedRollupData {
 
 #[derive(Debug, thiserror::Error)]
 #[error("failed constructing a celestia sequencer blob")]
-#[allow(clippy::module_name_repetitions)]
 pub struct SubmittedMetadataError {
     #[source]
     kind: SubmittedMetadataErrorKind,
@@ -475,7 +472,6 @@ impl UncheckedSubmittedMetadata {
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
 pub struct SubmittedMetadata {
     /// The block hash obtained from hashing `.header`.
     block_hash: [u8; 32],

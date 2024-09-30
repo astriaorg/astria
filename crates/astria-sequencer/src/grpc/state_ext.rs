@@ -221,8 +221,10 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
         .await
         .wrap_err("failed to get rollup ids proof by block hash")?;
 
-    // allow: want to avoid explicitly importing `index_map` crate to sequencer crate.
-    #[allow(clippy::default_trait_access)]
+    #[expect(
+        clippy::default_trait_access,
+        reason = "want to avoid explicitly importing `index_map` crate to sequencer crate"
+    )]
     let mut parts = SequencerBlockParts {
         block_hash: *hash,
         header,
@@ -264,8 +266,10 @@ fn put_rollup_ids<S: StateWrite + ?Sized, I: Iterator<Item = RollupId>>(
     Ok(())
 }
 
-// allow: `block_header` will be consumed in upcoming PR.
-#[allow(clippy::needless_pass_by_value)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "`block_header` will be consumed in upcoming PR"
+)]
 fn put_block_header<S: StateWrite + ?Sized>(
     state: &mut S,
     block_hash: &[u8; 32],
@@ -297,8 +301,10 @@ where
     })
 }
 
-// allow: `proof` will be consumed in upcoming PR.
-#[allow(clippy::needless_pass_by_value)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "`proof` will be consumed in upcoming PR"
+)]
 fn put_rollups_transactions_proof<S: StateWrite + ?Sized>(
     state: &mut S,
     block_hash: &[u8; 32],
@@ -311,8 +317,10 @@ fn put_rollups_transactions_proof<S: StateWrite + ?Sized>(
     Ok(())
 }
 
-// allow: `proof` will be consumed in upcoming PR.
-#[allow(clippy::needless_pass_by_value)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "`proof` will be consumed in upcoming PR"
+)]
 fn put_rollup_ids_proof<S: StateWrite + ?Sized>(
     state: &mut S,
     block_hash: &[u8; 32],

@@ -640,7 +640,6 @@ mod tests {
         );
     }
 
-    #[allow(clippy::too_many_lines)]
     #[tokio::test]
     async fn run_maintenance_demotion() {
         let mempool = Mempool::new();

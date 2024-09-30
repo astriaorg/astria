@@ -62,8 +62,6 @@ fn ibc_relayer_key<T: AddressBytes>(address: &T) -> String {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, fields(%channel, %asset), err)]
     async fn get_ibc_channel_balance<'a, TAsset>(
         &self,
@@ -152,8 +150,6 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, fields(%channel, %asset, amount), err)]
     async fn decrease_ibc_channel_balance<'a, TAsset>(
         &mut self,

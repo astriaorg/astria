@@ -217,9 +217,11 @@ impl Composer {
     ///
     /// # Panics
     /// It panics if the Composer cannot set the SIGTERM listener.
-    // allow: it seems splitting this into smaller functions makes the code less readable due to
-    //        the high number of params needed for these functions.
-    #[allow(clippy::too_many_lines)]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "it seems splitting this into smaller functions makes the code less readable due \
+                  to the high number of params needed for these functions"
+    )]
     pub async fn run_until_stopped(self) -> eyre::Result<()> {
         let Self {
             api_server,

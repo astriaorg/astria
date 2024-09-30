@@ -153,8 +153,6 @@ impl Handle<StateIsInit> {
         Ok(())
     }
 
-    // allow: return value of tokio's mpsc send try_send method
-    #[allow(clippy::result_large_err)]
     pub(crate) fn try_send_firm_block(
         &self,
         block: ReconstructedBlock,
@@ -178,8 +176,6 @@ impl Handle<StateIsInit> {
         Ok(())
     }
 
-    // allow: this is mimicking tokio's `SendError` that returns the stack-allocated object.
-    #[allow(clippy::result_large_err)]
     pub(crate) fn try_send_soft_block(
         &self,
         block: FilteredSequencerBlock,

@@ -652,8 +652,10 @@ impl TestSequencerRelayer {
     }
 }
 
-// allow: want the name to reflect this is a test config.
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "want the name to reflect this is a test config"
+)]
 pub struct TestSequencerRelayerConfig {
     /// Sets the start height of relayer and configures the on-disk submission-state file to
     /// look accordingly.

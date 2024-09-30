@@ -178,9 +178,10 @@ pub(crate) struct App {
 
     // the currently committed `AppHash` of the application state.
     // set whenever `commit` is called.
-    //
-    // allow clippy because we need be specific as to what hash this is.
-    #[allow(clippy::struct_field_names)]
+    #[expect(
+        clippy::struct_field_names,
+        reason = "we need to be specific as to what hash this is"
+    )]
     app_hash: AppHash,
 
     metrics: &'static Metrics,
@@ -544,7 +545,7 @@ impl App {
             // check if tx's sequence data will fit into sequence block
             let tx_sequence_data_bytes = tx
                 .unsigned_transaction()
-                .actions
+                .actions()
                 .iter()
                 .filter_map(Action::as_sequence)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
@@ -664,7 +665,7 @@ impl App {
             // check if tx's sequence data will fit into sequence block
             let tx_sequence_data_bytes = tx
                 .unsigned_transaction()
-                .actions
+                .actions()
                 .iter()
                 .filter_map(Action::as_sequence)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
@@ -1030,10 +1031,11 @@ impl App {
 
         // flag mempool for cleaning if we ran a fee change action
         self.recost_mempool = self.recost_mempool
-            || signed_tx
-                .actions()
-                .iter()
-                .any(|action| matches!(action, Action::FeeAssetChange(_) | Action::FeeChange(_)));
+            || signed_tx.is_bundleable_sudo_action_group()
+                && signed_tx
+                    .actions()
+                    .iter()
+                    .any(|act| act.is_fee_asset_change() || act.is_fee_change());
 
         Ok(state_tx.apply().1)
     }

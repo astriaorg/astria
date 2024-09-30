@@ -106,7 +106,6 @@ impl<'a> SequencerBlockHeader<'a> {
 
 impl<'a> From<&'a DomainSequencerBlockHeader> for SequencerBlockHeader<'a> {
     fn from(header: &'a DomainSequencerBlockHeader) -> Self {
-        #[allow(clippy::assertions_on_constants)]
         const _: () = assert!(ADDRESS_LEN == tendermint::account::LENGTH);
         let mut proposer_address = [0; ADDRESS_LEN];
         proposer_address.copy_from_slice(header.proposer_address().as_bytes());

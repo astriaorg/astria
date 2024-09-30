@@ -1,4 +1,4 @@
-#[allow(clippy::all)]
+#[expect(clippy::all)]
 use tracing::info;
 
 #[expect(

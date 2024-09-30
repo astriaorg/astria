@@ -17,8 +17,6 @@ use astria_core::{
         transaction::v1alpha1::{
             action::SequenceAction,
             SignedTransaction,
-            TransactionParams,
-            UnsignedTransaction,
         },
     },
 };
@@ -669,7 +667,7 @@ pin_project! {
 impl Future for SubmitFut {
     type Output = eyre::Result<u32>;
 
-    #[allow(clippy::too_many_lines)]
+    // FIXME (https://github.com/astriaorg/astria/issues/1572): This function is too long and should be refactored.
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         const INVALID_NONCE: Code = Code::Err(AbciErrorCode::INVALID_NONCE.value());
         loop {
@@ -677,15 +675,10 @@ impl Future for SubmitFut {
 
             let new_state = match this.state.project() {
                 SubmitStateProj::NotStarted => {
-                    let params = TransactionParams::builder()
-                        .nonce(*this.nonce)
-                        .chain_id(&*this.chain_id)
-                        .build();
-                    let tx = UnsignedTransaction {
-                        actions: this.bundle.clone().into_actions(),
-                        params,
-                    }
-                    .into_signed(this.signing_key);
+                    let tx = this
+                        .bundle
+                        .to_unsigned_transaction(*this.nonce, &*this.chain_id)
+                        .into_signed(this.signing_key);
                     info!(
                         nonce.actual = *this.nonce,
                         bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
@@ -755,15 +748,10 @@ impl Future for SubmitFut {
                 } => match ready!(fut.poll(cx)) {
                     Ok(nonce) => {
                         *this.nonce = nonce;
-                        let params = TransactionParams::builder()
-                            .nonce(*this.nonce)
-                            .chain_id(&*this.chain_id)
-                            .build();
-                        let tx = UnsignedTransaction {
-                            actions: this.bundle.clone().into_actions(),
-                            params,
-                        }
-                        .into_signed(this.signing_key);
+                        let tx = this
+                            .bundle
+                            .to_unsigned_transaction(*this.nonce, &*this.chain_id)
+                            .into_signed(this.signing_key);
                         info!(
                             nonce.resubmission = *this.nonce,
                             bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),

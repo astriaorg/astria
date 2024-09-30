@@ -456,9 +456,11 @@ impl RateLimitedVerificationClient {
         mut self,
         height: SequencerHeight,
     ) -> Result<Box<tendermint_rpc::endpoint::commit::Response>, BoxError> {
-        // allow: it is desired that the wildcard matches all future added variants because
-        // this call must only return a single specific variant, panicking otherwise.
-        #[allow(clippy::match_wildcard_for_single_variants)]
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "it is desired that the wildcard matches all future added variants because \
+                      this call must only return a single specific variant, panicking otherwise"
+        )]
         match self
             .inner
             .ready()
@@ -479,9 +481,11 @@ impl RateLimitedVerificationClient {
         prev_height: SequencerHeight,
         height: SequencerHeight,
     ) -> Result<Box<tendermint_rpc::endpoint::validators::Response>, BoxError> {
-        // allow: it is desired that the wildcard matches all future added variants because
-        // this call must only return a single specific variant, panicking otherwise.
-        #[allow(clippy::match_wildcard_for_single_variants)]
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "it is desired that the wildcard matches all future added variants because \
+                      this call must only return a single specific variant, panicking otherwise"
+        )]
         match self
             .inner
             .ready()

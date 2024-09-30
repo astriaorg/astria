@@ -2,7 +2,7 @@
 //! ```sh
 //! cargo bench --features=benchmark -qp astria-sequencer mempool
 //! ```
-#![allow(non_camel_case_types)]
+#![expect(non_camel_case_types, reason = "for benchmark")]
 
 use std::{
     sync::Arc,
@@ -285,9 +285,11 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
         .unwrap();
     // Set the new nonce so that the entire `REMOVAL_CACHE_SIZE` entries in the
     // `comet_bft_removal_cache` are filled (assuming this test case has enough txs).
-    // allow: this is test-only code, using small values, and where the result is not critical.
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_possible_truncation)]
-    let new_nonce = (super::REMOVAL_CACHE_SIZE as u32 / u32::from(SIGNER_COUNT)) + 1;
+    let new_nonce = u32::try_from(super::REMOVAL_CACHE_SIZE)
+        .unwrap()
+        .checked_div(u32::from(SIGNER_COUNT))
+        .and_then(|res| res.checked_add(1))
+        .unwrap();
     let mock_balances = mock_balances(0, 0);
     let mut mock_state = runtime.block_on(mock_state_getter());
 
@@ -325,9 +327,11 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
         .unwrap();
     // Set the new nonce so that the entire `REMOVAL_CACHE_SIZE` entries in the
     // `comet_bft_removal_cache` are filled (assuming this test case has enough txs).
-    // allow: this is test-only code, using small values, and where the result is not critical.
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_possible_truncation)]
-    let new_nonce = (super::REMOVAL_CACHE_SIZE as u32 / u32::from(SIGNER_COUNT)) + 1;
+    let new_nonce = u32::try_from(super::REMOVAL_CACHE_SIZE)
+        .unwrap()
+        .checked_div(u32::from(SIGNER_COUNT))
+        .and_then(|res| res.checked_add(1))
+        .unwrap();
     let mock_balances = mock_balances(0, 0);
     let mut mock_state = runtime.block_on(mock_state_getter());
 
