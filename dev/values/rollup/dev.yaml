@@ -35,14 +35,12 @@ evm-rollup:
     ## These values are used to configure astria native bridging
     ## Many of the fields have commented out example fields
 
-    # When using an erc20 canonical bridge, the address from which tokens will
-    # be sent via the bridge contract
-    bridgeSenderAddress: "0x0000000000000000000000000000000000000000"
     # Configure the sequencer bridge addresses and allowed assets if using
     # the astria canonical bridge. Recommend removing alloc values if so.
     bridgeAddresses:
       - bridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
         startHeight: 1
+        senderAddress: "0x0000000000000000000000000000000000000000"
         assetDenom: "nria"
         assetPrecision: 9
 
