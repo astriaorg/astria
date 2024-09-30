@@ -89,7 +89,11 @@ impl SizedBundle {
             .chain_id(chain_id)
             .nonce(nonce)
             .try_build()
-            .unwrap()
+            .expect(
+                "method is expected to never panic because only `SequenceActions` are added to \
+                 the bundle, which should produce a valid variant of the `ActionGroup` type; this \
+                 is checked by `tests::transaction_construction_should_not_panic",
+            )
     }
 
     /// Buffer `seq_action` into the bundle.
