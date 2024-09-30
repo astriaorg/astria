@@ -288,7 +288,10 @@ mod tests {
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
-            path: format!("asset/denom/{}", hex::encode(denom.to_ibc_prefixed().get())),
+            path: format!(
+                "asset/denom/{}",
+                hex::encode(denom.to_ibc_prefixed().as_bytes())
+            ),
             data: vec![].into(),
             height: u32::try_from(height).unwrap().into(),
             prove: false,

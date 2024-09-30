@@ -547,7 +547,7 @@ impl IbcPrefixed {
     }
 
     #[must_use]
-    pub fn get(&self) -> &[u8; 32] {
+    pub fn as_bytes(&self) -> &[u8; 32] {
         &self.id
     }
 

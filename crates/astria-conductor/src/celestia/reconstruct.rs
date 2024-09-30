@@ -120,7 +120,7 @@ fn verify_rollup_blob_against_sequencer_blob(
         .audit()
         .with_root(*sequencer_blob.rollup_transactions_root())
         .with_leaf_builder()
-        .write(rollup_blob.rollup_id().get())
+        .write(rollup_blob.rollup_id().as_bytes())
         .write(&merkle::Tree::from_leaves(rollup_blob.transactions()).root())
         .finish_leaf()
         .perform()

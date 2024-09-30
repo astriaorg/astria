@@ -28,7 +28,7 @@ impl<'a> Display for IbcPrefixedDenom<'a> {
 
 impl<'a> From<&'a DomainIbcPrefixed> for IbcPrefixedDenom<'a> {
     fn from(ibc_prefixed: &'a DomainIbcPrefixed) -> Self {
-        IbcPrefixedDenom(Cow::Borrowed(ibc_prefixed.get()))
+        IbcPrefixedDenom(Cow::Borrowed(ibc_prefixed.as_bytes()))
     }
 }
 

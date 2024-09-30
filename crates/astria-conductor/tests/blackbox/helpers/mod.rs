@@ -47,7 +47,7 @@ use tracing::debug;
 pub const CELESTIA_BEARER_TOKEN: &str = "ABCDEFGH";
 
 pub const ROLLUP_ID: RollupId = RollupId::new([42; 32]);
-pub static ROLLUP_ID_BYTES: Bytes = Bytes::from_static(ROLLUP_ID.get());
+pub static ROLLUP_ID_BYTES: Bytes = Bytes::from_static(ROLLUP_ID.as_bytes());
 
 pub const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 

@@ -107,7 +107,7 @@ impl RollupId {
     /// use astria_core::primitive::v1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
-    /// assert_eq!(bytes, *rollup_id.get());
+    /// assert_eq!(bytes, *rollup_id.as_bytes());
     /// ```
     #[must_use]
     pub const fn new(inner: [u8; ROLLUP_ID_LEN]) -> Self {
@@ -123,10 +123,10 @@ impl RollupId {
     /// use astria_core::primitive::v1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
-    /// assert_eq!(bytes, *rollup_id.get());
+    /// assert_eq!(bytes, *rollup_id.as_bytes());
     /// ```
     #[must_use]
-    pub const fn get(&self) -> &[u8; 32] {
+    pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.inner
     }
 
@@ -664,9 +664,15 @@ impl TransactionId {
         }
     }
 
-    /// Returns the 32-byte transaction hash.
+    /// Consumes `self` and returns the 32-byte transaction hash.
     #[must_use]
-    pub fn get(&self) -> &[u8; TRANSACTION_ID_LEN] {
+    pub fn get(self) -> [u8; TRANSACTION_ID_LEN] {
+        self.inner
+    }
+
+    /// Returns a reference to the 32-byte transaction hash.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8; TRANSACTION_ID_LEN] {
         &self.inner
     }
 

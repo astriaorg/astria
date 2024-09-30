@@ -31,7 +31,7 @@ impl<'a> Display for TransactionId<'a> {
 
 impl<'a> From<&'a DomainTransactionId> for TransactionId<'a> {
     fn from(tx_id: &'a DomainTransactionId) -> Self {
-        TransactionId(Cow::Borrowed(tx_id.get()))
+        TransactionId(Cow::Borrowed(tx_id.as_bytes()))
     }
 }
 

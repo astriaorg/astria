@@ -28,7 +28,7 @@ impl<'a> Display for RollupId<'a> {
 
 impl<'a> From<&'a DomainRollupId> for RollupId<'a> {
     fn from(rollup_id: &'a DomainRollupId) -> Self {
-        RollupId(Cow::Borrowed(rollup_id.get()))
+        RollupId(Cow::Borrowed(rollup_id.as_bytes()))
     }
 }
 
