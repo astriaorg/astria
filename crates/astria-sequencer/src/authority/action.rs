@@ -126,26 +126,28 @@ impl ActionHandler for FeeChangeAction {
             .wrap_err("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
 
-        // No need to add context to any of these `put` calls, as they already report sufficient
-        // context on error.
         match self.fee_change {
-            FeeChange::TransferBaseFee => state.put_transfer_base_fee(self.new_value),
-            FeeChange::SequenceBaseFee => state.put_sequence_action_base_fee(self.new_value),
-            FeeChange::SequenceByteCostMultiplier => {
-                state.put_sequence_action_byte_cost_multiplier(self.new_value)
-            }
-            FeeChange::InitBridgeAccountBaseFee => {
-                state.put_init_bridge_account_base_fee(self.new_value)
-            }
-            FeeChange::BridgeLockByteCostMultiplier => {
-                state.put_bridge_lock_byte_cost_multiplier(self.new_value)
-            }
-            FeeChange::BridgeSudoChangeBaseFee => {
-                state.put_bridge_sudo_change_base_fee(self.new_value)
-            }
-            FeeChange::Ics20WithdrawalBaseFee => {
-                state.put_ics20_withdrawal_base_fee(self.new_value)
-            }
+            FeeChange::TransferBaseFee => state
+                .put_transfer_base_fee(self.new_value)
+                .wrap_err("failed to put transfer base fee"),
+            FeeChange::SequenceBaseFee => state
+                .put_sequence_action_base_fee(self.new_value)
+                .wrap_err("failed to put sequence action base fee"),
+            FeeChange::SequenceByteCostMultiplier => state
+                .put_sequence_action_byte_cost_multiplier(self.new_value)
+                .wrap_err("failed to put sequence action byte cost multiplier"),
+            FeeChange::InitBridgeAccountBaseFee => state
+                .put_init_bridge_account_base_fee(self.new_value)
+                .wrap_err("failed to put init bridge account base fee"),
+            FeeChange::BridgeLockByteCostMultiplier => state
+                .put_bridge_lock_byte_cost_multiplier(self.new_value)
+                .wrap_err("failed to put bridge lock byte cost multiplier"),
+            FeeChange::BridgeSudoChangeBaseFee => state
+                .put_bridge_sudo_change_base_fee(self.new_value)
+                .wrap_err("failed to put bridge sudo change base fee"),
+            FeeChange::Ics20WithdrawalBaseFee => state
+                .put_ics20_withdrawal_base_fee(self.new_value)
+                .wrap_err("failed to put ics20 withdrawal base fee"),
         }
     }
 }

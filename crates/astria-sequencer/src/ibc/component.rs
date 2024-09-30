@@ -45,8 +45,9 @@ impl Component for IbcComponent {
             .wrap_err("failed to set IBC sudo key")?;
 
         for address in app_state.ibc_relayer_addresses() {
-            // No need to add context as this method already reports sufficient context on error.
-            state.put_ibc_relayer_address(address)?;
+            state
+                .put_ibc_relayer_address(address)
+                .wrap_err("failed to put IBC relayer address")?;
         }
 
         state

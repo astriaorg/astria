@@ -204,13 +204,22 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
     state: &S,
     hash: &[u8; 32],
 ) -> Result<SequencerBlock> {
-    // No need to add context as these `get` methods already report sufficient context on error.
-    let header = state.get_sequencer_block_header_by_hash(hash).await?;
-    let rollup_ids = state.get_rollup_ids_by_block_hash(hash).await?;
+    let header = state
+        .get_sequencer_block_header_by_hash(hash)
+        .await
+        .wrap_err("failed to get sequencer block header by hash")?;
+    let rollup_ids = state
+        .get_rollup_ids_by_block_hash(hash)
+        .await
+        .wrap_err("failed to get rollup ids by block hash")?;
     let rollup_transactions_proof = state
         .get_rollup_transactions_proof_by_block_hash(hash)
-        .await?;
-    let rollup_ids_proof = state.get_rollup_ids_proof_by_block_hash(hash).await?;
+        .await
+        .wrap_err("failed to get rollup transactions proof by block hash")?;
+    let rollup_ids_proof = state
+        .get_rollup_ids_proof_by_block_hash(hash)
+        .await
+        .wrap_err("failed to get rollup ids proof by block hash")?;
 
     // allow: want to avoid explicitly importing `index_map` crate to sequencer crate.
     #[allow(clippy::default_trait_access)]

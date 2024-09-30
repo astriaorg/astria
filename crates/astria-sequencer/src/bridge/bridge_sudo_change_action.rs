@@ -90,14 +90,15 @@ impl ActionHandler for BridgeSudoChangeAction {
             .wrap_err("failed to decrease balance for bridge sudo change fee")?;
 
         if let Some(sudo_address) = self.new_sudo_address {
-            // No need to add context as this method already reports sufficient context on error.
-            state.put_bridge_account_sudo_address(&self.bridge_address, sudo_address)?;
+            state
+                .put_bridge_account_sudo_address(&self.bridge_address, sudo_address)
+                .wrap_err("failed to put bridge account sudo address")?;
         }
 
         if let Some(withdrawer_address) = self.new_withdrawer_address {
-            // No need to add context as this method already reports sufficient context on error.
             state
-                .put_bridge_account_withdrawer_address(&self.bridge_address, withdrawer_address)?;
+                .put_bridge_account_withdrawer_address(&self.bridge_address, withdrawer_address)
+                .wrap_err("failed to put bridge account withdrawer address")?;
         }
 
         Ok(())

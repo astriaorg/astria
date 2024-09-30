@@ -192,11 +192,12 @@ impl ActionHandler for SignedTransaction {
             .wrap_err("failed to check account rollup id")?
             .is_some()
         {
-            // No need to add context as this method already reports sufficient context on error.
-            state.put_last_transaction_id_for_bridge_account(
-                &self,
-                transaction_context.transaction_id,
-            )?;
+            state
+                .put_last_transaction_id_for_bridge_account(
+                    &self,
+                    transaction_context.transaction_id,
+                )
+                .wrap_err("failed to put last transaction id for bridge account")?;
         }
 
         let from_nonce = state

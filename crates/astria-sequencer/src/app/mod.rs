@@ -945,8 +945,9 @@ impl App {
             .get_block_height()
             .await
             .expect("block height must be set, as `put_block_height` was already called");
-        // No need to add context as this method already reports sufficient context on error.
-        state.put_storage_version_by_height(height, new_version)?;
+        state
+            .put_storage_version_by_height(height, new_version)
+            .wrap_err("failed to put storage version by height")?;
         debug!(
             height,
             version = new_version,
@@ -975,10 +976,12 @@ impl App {
     ) -> Result<Vec<abci::Event>> {
         let mut state_tx = StateDelta::new(self.state.clone());
 
-        // No need to add context as this method already reports sufficient context on error.
-        state_tx.put_block_height(begin_block.header.height.into())?;
-        // No need to add context as this method already reports sufficient context on error.
-        state_tx.put_block_timestamp(begin_block.header.time)?;
+        state_tx
+            .put_block_height(begin_block.header.height.into())
+            .wrap_err("failed to put block height")?;
+        state_tx
+            .put_block_timestamp(begin_block.header.time)
+            .wrap_err("failed to put block timestamp")?;
 
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);
