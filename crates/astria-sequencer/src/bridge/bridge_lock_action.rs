@@ -289,7 +289,10 @@ mod tests {
     }
 
     #[track_caller]
-    #[allow(clippy::arithmetic_side_effects)] // allow: test will never overflow u128
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "adding length of strings will never overflow u128 on currently existing machines"
+    )]
     fn assert_correct_base_deposit_fee(deposit: &Deposit) {
         let calculated_len = calculate_base_deposit_fee(deposit).unwrap();
         let expected_len = DEPOSIT_BASE_FEE

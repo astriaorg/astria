@@ -174,8 +174,6 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(maybe_id.is_some())
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn get_bridge_account_rollup_id<T: AddressBytes>(
         &self,
@@ -196,8 +194,6 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(Some(rollup_id))
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn get_bridge_account_ibc_asset<T: AddressBytes>(
         &self,
@@ -713,7 +709,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)] // allow: it's a test
     async fn get_deposits() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();

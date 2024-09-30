@@ -1,4 +1,7 @@
-#![allow(clippy::missing_panics_doc)]
+#![expect(
+    clippy::missing_panics_doc,
+    reason = "these are tests, ok to not have panic docs"
+)]
 
 pub mod helpers;
 

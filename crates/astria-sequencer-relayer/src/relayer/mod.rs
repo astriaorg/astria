@@ -85,8 +85,11 @@ use crate::{
 
 pub(crate) struct Relayer {
     /// A token to notify relayer that it should shut down.
-    // allow: want the prefix to disambiguate between this token and `submitter_shutdown_token`.
-    #[allow(clippy::struct_field_names)]
+    #[expect(
+        clippy::struct_field_names,
+        reason = "want the prefix to disambiguate between this token and \
+                  `submitter_shutdown_token`"
+    )]
     relayer_shutdown_token: CancellationToken,
 
     /// A child token of `relayer_shutdown_token` to notify the submitter task to shut down.

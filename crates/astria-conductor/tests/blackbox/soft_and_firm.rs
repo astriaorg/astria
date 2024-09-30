@@ -325,7 +325,7 @@ async fn executes_firm_then_soft_at_next_height() {
     );
 }
 
-#[allow(clippy::too_many_lines)] // it's a test, it's fine
+#[expect(clippy::too_many_lines, reason = "it's a test, it's fine")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn missing_block_is_fetched_for_updating_firm_commitment() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
@@ -451,7 +451,10 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
 /// Astria Geth will return a `PermissionDenied` error if the `execute_block` RPC is called
 /// before `get_genesis_info` and `get_commitment_state` are called, which would happen in the
 /// case of a restart. This response is mounted to cause the conductor to restart.
-#[allow(clippy::too_many_lines)] // allow: all lines fairly necessary, and I don't think a test warrants a refactor
+#[expect(
+    clippy::too_many_lines,
+    reason = "all lines fairly necessary, and I don't think a test warrants a refactor"
+)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn conductor_restarts_on_permission_denied() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;

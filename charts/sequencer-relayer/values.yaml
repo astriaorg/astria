@@ -55,6 +55,30 @@ serviceMonitor:
   additionalLabels:
     release: kube-prometheus-stack
 
+# Alerting Configuration
+alerting:
+  enabled: false
+  interval: ""
+  additionalLabels:
+    release: kube-prometheus-stack
+  annotations: {}
+  # scrapeTimeout: 10s
+  # path: /metrics
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: kube-prometheus-stack
+    namespace: monitoring
+    rules:
+    - alert: Sequencer_Relayer_Down
+      expr: up{container="sequencer-relayer"} == 0  # Insert your query Expression
+      for: 1m  # Rough number but should be enough to init warn
+      labels:
+        severity: warning
+      annotations:
+        summary: Sequencer Relayer is Down (instance {{ $labels.instance }})
+        description: "Sequencer relayer '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
 storage:
   enabled: false
   local: true
