@@ -8,12 +8,10 @@ use std::ops::{
     RangeToInclusive,
 };
 
-use super::{
-    response::Respond,
-    AnyMessage,
-};
+use super::AnyMessage;
 use crate::{
     mock_server::MockGuard,
+    response::ResponseTemplate,
     MockServer,
 };
 
@@ -32,7 +30,7 @@ impl Match for Matcher {
 pub struct Mock {
     pub(crate) rpc: &'static str,
     pub(crate) matchers: Vec<Matcher>,
-    pub(crate) response: Box<dyn Respond>,
+    pub(crate) response: ResponseTemplate,
     pub(crate) max_n_matches: Option<u64>,
     pub(crate) expectation_range: Times,
     pub(crate) name: Option<String>,
@@ -86,7 +84,7 @@ impl MockBuilder {
         self
     }
 
-    pub fn respond_with(self, rsp: impl Respond + 'static) -> Mock {
+    pub fn respond_with(self, rsp: ResponseTemplate) -> Mock {
         let Self {
             rpc,
             matchers,
@@ -94,7 +92,7 @@ impl MockBuilder {
         Mock {
             rpc,
             matchers,
-            response: Box::new(rsp),
+            response: rsp,
             max_n_matches: None,
             name: None,
             expectation_range: Times(TimesEnum::Unbounded(RangeFull)),

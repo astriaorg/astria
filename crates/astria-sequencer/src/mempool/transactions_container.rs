@@ -779,7 +779,7 @@ impl<const MAX_TX_COUNT: usize> TransactionsContainer<ParkedTransactionsForAccou
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::crypto::SigningKey;
 
     use super::*;

@@ -90,7 +90,7 @@ pub(crate) fn generate_rollup_datas_commitment(
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         crypto::SigningKey,
         protocol::transaction::v1alpha1::{
