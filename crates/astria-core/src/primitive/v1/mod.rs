@@ -573,6 +573,7 @@ impl Address<Bech32m> {
 
     /// This should only be used where the inputs have been provided by a trusted entity, e.g. read
     /// from our own state store.
+    #[cfg(feature = "unchecked-constructors")]
     #[doc(hidden)]
     #[must_use]
     pub fn unchecked_from_parts(bytes: [u8; ADDRESS_LEN], prefix: &str) -> Self {
@@ -889,6 +890,7 @@ mod tests {
         let _ = address.into_raw();
     }
 
+    #[cfg(feature = "unchecked-constructors")]
     #[test]
     fn address_to_unchecked_roundtrip() {
         let bytes = [42u8; ADDRESS_LEN];

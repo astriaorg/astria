@@ -303,6 +303,7 @@ impl TracePrefixed {
 
     /// This should only be used where the inputs have been provided by a trusted entity, e.g. read
     /// from our own state store.
+    #[cfg(feature = "unchecked-constructors")]
     #[doc(hidden)]
     #[must_use]
     pub fn unchecked_from_parts<I: IntoIterator<Item = (String, String)>>(

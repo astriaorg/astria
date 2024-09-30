@@ -176,6 +176,7 @@ impl RollupTransactions {
 
     /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
     /// our own state store.
+    #[cfg(feature = "unchecked-constructors")]
     #[doc(hidden)]
     #[must_use]
     pub fn unchecked_from_parts(parts: RollupTransactionsParts) -> Self {
@@ -502,6 +503,7 @@ impl SequencerBlockHeader {
 
     /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
     /// our own state store.
+    #[cfg(feature = "unchecked-constructors")]
     #[doc(hidden)]
     #[must_use]
     pub fn unchecked_from_parts(parts: SequencerBlockHeaderParts) -> Self {
@@ -969,6 +971,7 @@ impl SequencerBlock {
 
     /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
     /// our own state store.
+    #[cfg(feature = "unchecked-constructors")]
     #[doc(hidden)]
     #[must_use]
     pub fn unchecked_from_parts(parts: SequencerBlockParts) -> Self {

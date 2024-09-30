@@ -15,7 +15,11 @@ name = "astria-sequencer"
 benchmark = ["divan"]
 
 [dependencies]
-astria-core = { path = "../astria-core", features = ["server", "serde"] }
+astria-core = { path = "../astria-core", features = [
+  "server",
+  "serde",
+  "unchecked-constructors",
+] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 
 # The "anyhow" feature is only included because it is necessary for the implementation of
