@@ -78,6 +78,7 @@ impl SizedBundle {
     /// Constructs an [`UnsignedTransaction`] from the actions contained in the bundle and `params`.
     // Method is expected to never panic because only `SequenceActions` are added to the bundle,
     // which should produce a valid variant of the `ActionGroup` type.
+    #[allow(unfulfilled_lint_expectations)]
     #[expect(
         clippy::panic,
         reason = "method is expected to never panic because only `SequenceActions` are added to \
