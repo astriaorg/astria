@@ -153,6 +153,7 @@ impl Protobuf for Action {
     }
 }
 
+// TODO: add unit tests for these methods (https://github.com/astriaorg/astria/issues/1593)
 impl Action {
     #[must_use]
     pub fn as_sequence(&self) -> Option<&SequenceAction> {
@@ -168,6 +169,14 @@ impl Action {
             return None;
         };
         Some(transfer_action)
+    }
+
+    pub fn is_fee_asset_change(&self) -> bool {
+        matches!(self, Self::FeeAssetChange(_))
+    }
+
+    pub fn is_fee_change(&self) -> bool {
+        matches!(self, Self::FeeChange(_))
     }
 }
 
@@ -260,6 +269,33 @@ impl TryFrom<raw::Action> for Action {
 
     fn try_from(value: raw::Action) -> Result<Self, Self::Error> {
         Self::try_from_raw(value)
+    }
+}
+
+// TODO: replace this trait with a Protobuf:FullName implementation.
+// Issue tracked in #1567
+pub(super) trait ActionName {
+    fn name(&self) -> &'static str;
+}
+
+impl ActionName for Action {
+    fn name(&self) -> &'static str {
+        match self {
+            Action::Sequence(_) => "Sequence",
+            Action::Transfer(_) => "Transfer",
+            Action::ValidatorUpdate(_) => "ValidatorUpdate",
+            Action::SudoAddressChange(_) => "SudoAddressChange",
+            Action::Ibc(_) => "Ibc",
+            Action::IbcSudoChange(_) => "IbcSudoChange",
+            Action::Ics20Withdrawal(_) => "Ics20Withdrawal",
+            Action::IbcRelayerChange(_) => "IbcRelayerChange",
+            Action::FeeAssetChange(_) => "FeeAssetChange",
+            Action::InitBridgeAccount(_) => "InitBridgeAccount",
+            Action::BridgeLock(_) => "BridgeLock",
+            Action::BridgeUnlock(_) => "BridgeUnlock",
+            Action::BridgeSudoChange(_) => "BridgeSudoChange",
+            Action::FeeChange(_) => "FeeChange",
+        }
     }
 }
 

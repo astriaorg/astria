@@ -13,6 +13,7 @@ use astria_core::{
     protocol::transaction::v1alpha1::{
         action::SequenceAction,
         Action,
+        UnsignedTransaction,
     },
     Protobuf as _,
 };
@@ -74,6 +75,27 @@ impl SizedBundle {
         }
     }
 
+    /// Constructs an [`UnsignedTransaction`] from the actions contained in the bundle and `params`.
+    /// # Panics
+    /// Method is expected to never panic because only `SequenceActions` are added to the bundle,
+    /// which should produce a valid variant of the `ActionGroup` type.
+    pub(super) fn to_unsigned_transaction(
+        &self,
+        nonce: u32,
+        chain_id: &str,
+    ) -> UnsignedTransaction {
+        UnsignedTransaction::builder()
+            .actions(self.buffer.clone())
+            .chain_id(chain_id)
+            .nonce(nonce)
+            .try_build()
+            .expect(
+                "method is expected to never panic because only `SequenceActions` are added to \
+                 the bundle, which should produce a valid variant of the `ActionGroup` type; this \
+                 is checked by `tests::transaction_construction_should_not_panic",
+            )
+    }
+
     /// Buffer `seq_action` into the bundle.
     /// # Errors
     /// - `seq_action` is beyond the max size allowed for the entire bundle
@@ -109,11 +131,6 @@ impl SizedBundle {
     /// Returns the current size of the bundle.
     pub(super) fn get_size(&self) -> usize {
         self.curr_size
-    }
-
-    /// Consume self and return the underlying buffer of actions.
-    pub(super) fn into_actions(self) -> Vec<Action> {
-        self.buffer
     }
 
     /// Returns the number of sequence actions in the bundle.

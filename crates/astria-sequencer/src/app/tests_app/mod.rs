@@ -16,7 +16,6 @@ use astria_core::{
                 SequenceAction,
                 TransferAction,
             },
-            TransactionParams,
             UnsignedTransaction,
         },
     },
@@ -229,12 +228,8 @@ async fn app_transfer_block_fees_to_sudo() {
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let amount = 333_333;
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![
             TransferAction {
                 to: bob_address,
                 amount,
@@ -242,8 +237,10 @@ async fn app_transfer_block_fees_to_sudo() {
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    };
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -336,13 +333,12 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![lock_action.into(), sequence_action.into()],
-    };
+
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![lock_action.into(), sequence_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -427,13 +423,12 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![lock_action.into(), sequence_action.into()],
-    };
+
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![lock_action.into(), sequence_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -564,36 +559,34 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     // create txs which will cause cometBFT overflow
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx_pass = UnsignedTransaction::builder()
+        .actions(vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
-    let tx_overflow = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(1)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+
+    let tx_overflow = UnsignedTransaction::builder()
+        .actions(vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
+        ])
+        .chain_id("test")
+        .nonce(1)
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
 
     app.mempool
         .insert(
@@ -656,36 +649,33 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx_pass = UnsignedTransaction::builder()
+        .actions(vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 200_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
-    let tx_overflow = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(1)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+    let tx_overflow = UnsignedTransaction::builder()
+        .actions(vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
+        ])
+        .nonce(1)
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
 
     app.mempool
         .insert(

@@ -9,7 +9,6 @@ use astria_core::{
                 FeeChangeAction,
                 TransferAction,
             },
-            TransactionParams,
             UnsignedTransaction,
         },
     },
@@ -47,23 +46,20 @@ async fn trigger_cleaning() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
-    let sudo = get_judy_signing_key();
 
     // create tx which will cause mempool cleaning flag to be set
-    let tx_trigger = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx_trigger = UnsignedTransaction::builder()
+        .actions(vec![
             FeeChangeAction {
                 fee_change: FeeChange::TransferBaseFee,
                 new_value: 10,
             }
             .into(),
-        ],
-    }
-    .into_signed(&sudo);
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_judy_signing_key());
 
     app.mempool
         .insert(
@@ -146,24 +142,20 @@ async fn do_not_trigger_cleaning() {
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
-    let alice = get_alice_signing_key();
-
     // create tx which will fail execution and not trigger flag
     // (wrong sudo signer)
-    let tx_fail = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx_fail = UnsignedTransaction::builder()
+        .actions(vec![
             FeeChangeAction {
                 fee_change: FeeChange::TransferBaseFee,
                 new_value: 10,
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_alice_signing_key());
 
     app.mempool
         .insert(
@@ -223,12 +215,8 @@ async fn maintenance_recosting_promotes() {
 
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
-    let tx_fail_recost_funds = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx_fail_recost_funds = UnsignedTransaction::builder()
+        .actions(vec![
             TransferAction {
                 to: astria_address_from_hex_string(CAROL_ADDRESS),
                 amount: 1u128,
@@ -236,9 +224,11 @@ async fn maintenance_recosting_promotes() {
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&get_bob_signing_key());
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_bob_signing_key());
 
     let mut bob_funds = HashMap::new();
     bob_funds.insert(nria().into(), 11);
@@ -255,20 +245,18 @@ async fn maintenance_recosting_promotes() {
         .unwrap();
 
     // create tx which will enable recost tx to pass
-    let tx_recost = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx_recost = UnsignedTransaction::builder()
+        .actions(vec![
             FeeChangeAction {
                 fee_change: FeeChange::TransferBaseFee,
                 new_value: 10, // originally 12
             }
             .into(),
-        ],
-    }
-    .into_signed(&get_judy_signing_key());
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_judy_signing_key());
 
     let mut judy_funds = HashMap::new();
     judy_funds.insert(nria().into(), 0);
@@ -396,12 +384,8 @@ async fn maintenance_funds_added_promotes() {
 
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
-    let tx_fail_transfer_funds = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx_fail_transfer_funds = UnsignedTransaction::builder()
+        .actions(vec![
             TransferAction {
                 to: astria_address_from_hex_string(BOB_ADDRESS),
                 amount: 10u128,
@@ -409,9 +393,11 @@ async fn maintenance_funds_added_promotes() {
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&get_carol_signing_key());
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_carol_signing_key());
 
     let mut carol_funds = HashMap::new();
     carol_funds.insert(nria().into(), 0);
@@ -428,12 +414,8 @@ async fn maintenance_funds_added_promotes() {
         .unwrap();
 
     // create tx which will enable no funds to pass
-    let tx_fund = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx_fund = UnsignedTransaction::builder()
+        .actions(vec![
             TransferAction {
                 to: astria_address_from_hex_string(CAROL_ADDRESS),
                 amount: 22u128,
@@ -441,9 +423,11 @@ async fn maintenance_funds_added_promotes() {
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&get_alice_signing_key());
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_alice_signing_key());
 
     let mut alice_funds = HashMap::new();
     alice_funds.insert(nria().into(), 100);

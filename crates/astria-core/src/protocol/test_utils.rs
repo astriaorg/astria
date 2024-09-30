@@ -7,11 +7,7 @@ use prost::Message as _;
 
 use super::{
     group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-    transaction::v1alpha1::{
-        action::SequenceAction,
-        TransactionParams,
-        UnsignedTransaction,
-    },
+    transaction::v1alpha1::action::SequenceAction,
 };
 use crate::{
     crypto::SigningKey,
@@ -19,6 +15,7 @@ use crate::{
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
+    protocol::transaction::v1alpha1::UnsignedTransaction,
     sequencerblock::v1alpha1::{
         block::Deposit,
         SequencerBlock,
@@ -107,16 +104,17 @@ impl ConfigureSequencerBlock {
         let txs = if actions.is_empty() {
             vec![]
         } else {
-            let unsigned_transaction = UnsignedTransaction {
-                actions,
-                params: TransactionParams::builder()
-                    .nonce(1)
-                    .chain_id(chain_id.clone())
-                    .build(),
-            };
+            let unsigned_transaction = UnsignedTransaction::builder()
+                .actions(actions)
+                .chain_id(chain_id.clone())
+                .nonce(1)
+                .try_build()
+                .expect(
+                    "should be able to build unsigned transaction since only sequence actions are \
+                     contained",
+                );
             vec![unsigned_transaction.into_signed(&signing_key)]
         };
-
         let mut deposits_map: HashMap<RollupId, Vec<Deposit>> = HashMap::new();
         for deposit in deposits {
             if let Some(entry) = deposits_map.get_mut(&deposit.rollup_id) {

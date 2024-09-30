@@ -91,7 +91,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .wrap_err("failed to get bridge sudo change fee")?;
 
     let mut fees_by_asset = HashMap::new();
-    for (i, action) in tx.actions.iter().enumerate() {
+    for (i, action) in tx.actions().iter().enumerate() {
         match action {
             Action::Transfer(act) => {
                 transfer_update_fees(&act.fee_asset, &mut fees_by_asset, transfer_fee);
@@ -316,12 +316,9 @@ mod tests {
             RollupId,
             ADDRESS_LEN,
         },
-        protocol::transaction::v1alpha1::{
-            action::{
-                SequenceAction,
-                TransferAction,
-            },
-            TransactionParams,
+        protocol::transaction::v1alpha1::action::{
+            SequenceAction,
+            TransferAction,
         },
     };
     use bytes::Bytes;
@@ -404,14 +401,11 @@ mod tests {
             }),
         ];
 
-        let params = TransactionParams::builder()
-            .nonce(0)
+        let tx = UnsignedTransaction::builder()
+            .actions(actions)
             .chain_id("test-chain-id")
-            .build();
-        let tx = UnsignedTransaction {
-            actions,
-            params,
-        };
+            .try_build()
+            .unwrap();
 
         let signed_tx = tx.into_signed(&alice);
         check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
@@ -470,14 +464,11 @@ mod tests {
             }),
         ];
 
-        let params = TransactionParams::builder()
-            .nonce(0)
+        let tx = UnsignedTransaction::builder()
+            .actions(actions)
             .chain_id("test-chain-id")
-            .build();
-        let tx = UnsignedTransaction {
-            actions,
-            params,
-        };
+            .try_build()
+            .unwrap();
 
         let signed_tx = tx.into_signed(&alice);
         let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
