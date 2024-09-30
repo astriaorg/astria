@@ -2,9 +2,11 @@ use clap::Subcommand;
 use color_eyre::eyre;
 
 /// Interact with a Sequencer node
-// allow: these are one-shot variants. the size doesn't matter as they are
-// passed around only once.
-#[allow(clippy::large_enum_variant)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "these are one-shot variants. the size doesn't matter as they are passed around only \
+              once"
+)]
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
     /// Commands for interacting with Sequencer accounts

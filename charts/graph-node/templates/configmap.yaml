@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: graph-node-config
+  namespace: {{ .Values.global.namespaceOverride | default .Release.Namespace }}
+data:
+  postgres_host: postgres
+  postgres_user: {{ .Values.postgres.user }}
+  postgres_pass: {{ .Values.postgres.password }}
+  postgres_db: {{ .Values.postgres.database }}
+  ipfs: ipfs:{{ .Values.ipfs.ports.api }}
+  ethereum: {{ .Values.environment.ethereumNetwork }}:{{ .Values.environment.ethereumRPC }}
+  GRAPH_LOG: info

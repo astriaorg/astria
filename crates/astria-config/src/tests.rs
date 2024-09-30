@@ -29,8 +29,9 @@
 //! }
 //! ```
 
+use std::sync::LazyLock;
+
 use figment::Jail;
-use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::{
@@ -38,7 +39,7 @@ use crate::{
     _internal,
 };
 
-static TEST_PREFIX: Lazy<String> = Lazy::new(|| {
+static TEST_PREFIX: LazyLock<String> = LazyLock::new(|| {
     use names::{
         Generator,
         Name,
@@ -47,8 +48,8 @@ static TEST_PREFIX: Lazy<String> = Lazy::new(|| {
 });
 
 fn populate_environment_from_example(jail: &mut Jail, unique_test_prefix: &str, example_env: &str) {
-    static RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
-    static RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
+    static RE_START: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[[:space:]]+").unwrap());
+    static RE_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[[:space:]]+$").unwrap());
 
     for line in example_env.lines() {
         if let Some((key, val)) = line.trim().split_once('=') {
@@ -71,7 +72,7 @@ fn populate_environment_from_example(jail: &mut Jail, unique_test_prefix: &str, 
 /// Panics if a config `C` could not be created from `example_env`.
 #[track_caller]
 pub fn example_env_config_is_up_to_date<C: Config>(example_env: &str) {
-    let unique_test_prefix = Lazy::force(&TEST_PREFIX);
+    let unique_test_prefix = LazyLock::force(&TEST_PREFIX);
     let full_test_prefix = format!("{unique_test_prefix}_{}", C::PREFIX);
 
     Jail::expect_with(|jail| {

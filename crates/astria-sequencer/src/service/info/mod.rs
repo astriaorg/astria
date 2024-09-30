@@ -177,7 +177,7 @@ impl Service<InfoRequest> for Info {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         primitive::v1::asset,
         protocol::{

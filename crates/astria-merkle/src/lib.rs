@@ -218,7 +218,10 @@ impl<'a> LeafBuilder<'a> {
     /// Writes `bytes` into the builder, appending to the leaf.
     ///
     /// See [`Tree::build_leaf`] for example usage.
-    #[allow(clippy::missing_panics_doc)] // invariant of the system
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "invariant of the system: the hasher must be set"
+    )]
     pub fn write(&mut self, bytes: &[u8]) -> &mut Self {
         let hasher = self
             .hasher

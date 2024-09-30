@@ -1,5 +1,6 @@
 ---
 source: crates/astria-core/src/protocol/transaction/v1alpha1/mod.rs
+assertion_line: 613
 expression: tx.id()
 ---
 {

@@ -634,8 +634,10 @@ mod tests {
             TooManySegments,
         };
         #[track_caller]
-        // allow: silly lint
-        #[allow(clippy::needless_pass_by_value)]
+        #[expect(
+            clippy::needless_pass_by_value,
+            reason = "asserting on owned variants is less noisy then passing them by reference"
+        )]
         fn assert_error(input: &str, kind: ParseIbcPrefixedErrorKind) {
             let error = input
                 .parse::<IbcPrefixed>()
@@ -643,8 +645,6 @@ mod tests {
             assert_eq!(kind, error.0);
         }
         #[track_caller]
-        // allow: silly lint
-        #[allow(clippy::needless_pass_by_value)]
         fn assert_hex_error(input: &str) {
             let error = input
                 .parse::<IbcPrefixed>()
@@ -675,8 +675,10 @@ mod tests {
             Whitespace,
         };
         #[track_caller]
-        // allow: silly lint
-        #[allow(clippy::needless_pass_by_value)]
+        #[expect(
+            clippy::needless_pass_by_value,
+            reason = "asserting on owned variants is less noisy then passing them by reference"
+        )]
         fn assert_error(input: &str, kind: ParseTracePrefixedErrorKind) {
             let error = input
                 .parse::<TracePrefixed>()
