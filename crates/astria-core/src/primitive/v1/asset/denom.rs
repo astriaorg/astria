@@ -154,18 +154,18 @@ impl PartialOrd for Denom {
 }
 
 impl Ord for Denom {
-    /// If the denoms are the same type, returns their comparison. Otherwise, returns IBC prefixed
-    /// denoms as less than trace prefixed denoms.
+    /// Comparison meant to mirror the lexical ordering based on a [`Denom`]'s display-formatted
+    /// string, but without allocation. If both denoms have the same prefix, the prefix
+    /// comparison function is called. Otherwise, the [`TracePrefixed`] denom is compared with the
+    /// IBC prefix `ibc/`.
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match self {
-            Self::TracePrefixed(lhs) => match other {
-                Self::TracePrefixed(rhs) => lhs.cmp(rhs),
-                Self::IbcPrefixed(_) => std::cmp::Ordering::Greater,
-            },
-            Self::IbcPrefixed(lhs) => match other {
-                Self::IbcPrefixed(rhs) => lhs.cmp(rhs),
-                Self::TracePrefixed(_) => std::cmp::Ordering::Less,
-            },
+        match (self, other) {
+            (Self::TracePrefixed(lhs), Self::TracePrefixed(rhs)) => lhs.cmp(rhs),
+            (Self::TracePrefixed(trace), Self::IbcPrefixed(_)) => compare_trace_to_ibc(trace),
+            (Self::IbcPrefixed(lhs), Self::IbcPrefixed(rhs)) => lhs.cmp(rhs),
+            (Self::IbcPrefixed(_), Self::TracePrefixed(trace)) => {
+                compare_trace_to_ibc(trace).reverse()
+            }
         }
     }
 }
@@ -314,11 +314,30 @@ impl PartialOrd for TracePrefixed {
 }
 
 impl Ord for TracePrefixed {
-    /// Returns trace comparison if not equal, otherwise returns base denom comparison.
+    /// This comparison is meant to mirror the lexical ordering of a [`TracePrefixed`]'s
+    /// display-formatted string without allocation. It returns the collowing comparisons:
+    /// - If both traces are empty, compares the base denoms.
+    /// - If one trace is empty, compares the base denom to the leading port of the other trace.
+    /// - If both traces are non-empty, compares the traces, then compares the base denoms.
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.trace
-            .cmp(&other.trace)
-            .then_with(|| self.base_denom.cmp(&other.base_denom))
+        match (self.trace.is_empty(), other.trace.is_empty()) {
+            (true, true) => self.base_denom.cmp(&other.base_denom),
+            (true, false) => self.base_denom.as_str().cmp(
+                other
+                    .trace
+                    .leading_port()
+                    .expect("leading port should be `Some` after checking for its existence"),
+            ),
+            (false, true) => self
+                .trace
+                .leading_port()
+                .expect("leading port should be `Some` after checking for its existence")
+                .cmp(other.base_denom.as_str()),
+            (false, false) => self
+                .trace
+                .cmp(&other.trace)
+                .then_with(|| self.base_denom.cmp(&other.base_denom)),
+        }
     }
 }
 
@@ -400,8 +419,9 @@ impl PartialOrd for TraceSegments {
 }
 
 impl Ord for TraceSegments {
-    /// Returns the first non-equal comparison between the two trace segments. If one doesn't exist,
-    /// returns the shortest, and if they are equal, returns equal.
+    /// Returns the first non-equal comparison between two trace segments. If one doesn't exist,
+    /// returns the shortest segment, and if they are entirely equal, returns
+    /// [`std::cmp::Ordering::Equal`].
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.inner
             .iter()
@@ -702,6 +722,19 @@ mod serde_impl {
     }
 }
 
+/// Compares a trace prefixed denom to an IBC prefixed denom. This is meant to mirror the lexical
+/// ordering of [`TracePrefixed`] and [`IbcPrefixed`] display-formatted strings without allocation.
+/// If the trace prefixed denom has a leading port, it is compared to the IBC prefix `ibc/`.
+/// Otherwise, the trace's base denom is compared to the IBC prefix.
+fn compare_trace_to_ibc(trace: &TracePrefixed) -> std::cmp::Ordering {
+    // A trace prefixed denom should never begin with "ibc/", so we can compare direclty to the ibc
+    // prefix as opposed to the entire ibc-prefixed denomination.
+    match trace.trace.leading_port() {
+        Some(port) => port.cmp("ibc/"),
+        None => trace.base_denom.as_str().cmp("ibc/"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -828,5 +861,77 @@ mod tests {
     fn assert_correct_display_len(denom_str: &str) {
         let denom = denom_str.parse::<Denom>().unwrap();
         assert_eq!(denom_str.len(), denom.display_len());
+    }
+
+    #[test]
+    fn ibc_prefixed_ord_matches_lexical_sort() {
+        let mut ibc_prefixed = vec![
+            format!("ibc/{}", hex::encode([135u8; 32]))
+                .parse::<IbcPrefixed>()
+                .unwrap(),
+            format!("ibc/{}", hex::encode([4u8; 32]))
+                .parse::<IbcPrefixed>()
+                .unwrap(),
+            format!("ibc/{}", hex::encode([0u8; 32]))
+                .parse::<IbcPrefixed>()
+                .unwrap(),
+            format!("ibc/{}", hex::encode([240u8; 32]))
+                .parse::<IbcPrefixed>()
+                .unwrap(),
+            format!("ibc/{}", hex::encode([60u8; 32]))
+                .parse::<IbcPrefixed>()
+                .unwrap(),
+        ];
+        let mut ibc_prefixed_lexical = ibc_prefixed.clone();
+        ibc_prefixed.sort_unstable();
+        ibc_prefixed_lexical.sort_unstable_by_key(ToString::to_string);
+        assert_eq!(ibc_prefixed, ibc_prefixed_lexical);
+    }
+
+    #[test]
+    fn trace_prefixed_ord_matches_lexical_sort() {
+        let mut trace_prefixed = vec![
+            "ethan/was/here".parse::<TracePrefixed>().unwrap(),
+            "nria".parse::<TracePrefixed>().unwrap(),
+            "pretty/long/trace/prefixed/denom"
+                .parse::<TracePrefixed>()
+                .unwrap(),
+            "_using/underscore/here".parse::<TracePrefixed>().unwrap(),
+            "astria/test/asset".parse::<TracePrefixed>().unwrap(),
+        ];
+        let mut trace_prefixed_lexical = trace_prefixed.clone();
+        trace_prefixed.sort_unstable();
+        trace_prefixed_lexical.sort_unstable_by_key(ToString::to_string);
+        assert_eq!(trace_prefixed, trace_prefixed_lexical);
+    }
+
+    #[test]
+    fn trace_and_ibc_prefixed_ord_matches_lexical_sort() {
+        let mut denoms = vec![
+            format!("ibc/{}", hex::encode([135u8; 32]))
+                .parse::<Denom>()
+                .unwrap(),
+            format!("ibc/{}", hex::encode([4u8; 32]))
+                .parse::<Denom>()
+                .unwrap(),
+            format!("ibc/{}", hex::encode([0u8; 32]))
+                .parse::<Denom>()
+                .unwrap(),
+            format!("ibc/{}", hex::encode([240u8; 32]))
+                .parse::<Denom>()
+                .unwrap(),
+            format!("ibc/{}", hex::encode([60u8; 32]))
+                .parse::<Denom>()
+                .unwrap(),
+            "ethan/was/here".parse::<Denom>().unwrap(),
+            "nria".parse::<Denom>().unwrap(),
+            "pretty/long/trace/prefixed/denom".parse::<Denom>().unwrap(),
+            "_using/underscore/here".parse::<Denom>().unwrap(),
+            "astria/test/asset".parse::<Denom>().unwrap(),
+        ];
+        let mut denoms_lexical = denoms.clone();
+        denoms.sort_unstable();
+        denoms_lexical.sort_unstable_by_key(ToString::to_string);
+        assert_eq!(denoms, denoms_lexical);
     }
 }
