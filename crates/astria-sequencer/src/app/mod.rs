@@ -1012,7 +1012,7 @@ impl App {
 
         // flag mempool for cleaning if we ran a fee change action
         self.recost_mempool = self.recost_mempool
-            || signed_tx.is_sudo_action_group()
+            || signed_tx.is_bundleable_sudo_action_group()
                 && signed_tx
                     .actions()
                     .iter()

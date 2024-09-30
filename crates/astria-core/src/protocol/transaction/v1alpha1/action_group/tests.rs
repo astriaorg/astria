@@ -35,7 +35,7 @@ use crate::{
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
 #[test]
-fn try_from_list_of_actions_general() {
+fn try_from_list_of_actions_bundleable_general() {
     let address: Address<_> = Address::builder()
         .array([0; 20])
         .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -92,12 +92,12 @@ fn try_from_list_of_actions_general() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::General)
+        Some(ActionGroup::BundleableGeneral)
     ));
 }
 
 #[test]
-fn from_list_of_actions_sudo() {
+fn from_list_of_actions_bundleable_sudo() {
     let address: Address<_> = Address::builder()
         .array([0; 20])
         .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -116,7 +116,7 @@ fn from_list_of_actions_sudo() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::Sudo)
+        Some(ActionGroup::BundleableSudo)
     ));
 }
 

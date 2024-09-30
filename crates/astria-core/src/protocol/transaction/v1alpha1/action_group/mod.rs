@@ -43,19 +43,19 @@ macro_rules! impl_belong_to_group {
 }
 
 impl_belong_to_group!(
-    (SequenceAction, ActionGroup::General),
-    (TransferAction, ActionGroup::General),
-    (ValidatorUpdate, ActionGroup::General),
+    (SequenceAction, ActionGroup::BundleableGeneral),
+    (TransferAction, ActionGroup::BundleableGeneral),
+    (ValidatorUpdate, ActionGroup::BundleableGeneral),
     (SudoAddressChangeAction, ActionGroup::UnbundleableSudo),
-    (IbcRelayerChangeAction, ActionGroup::Sudo),
-    (Ics20Withdrawal, ActionGroup::General),
+    (IbcRelayerChangeAction, ActionGroup::BundleableSudo),
+    (Ics20Withdrawal, ActionGroup::BundleableGeneral),
     (InitBridgeAccountAction, ActionGroup::UnbundleableGeneral),
-    (BridgeLockAction, ActionGroup::General),
-    (BridgeUnlockAction, ActionGroup::General),
+    (BridgeLockAction, ActionGroup::BundleableGeneral),
+    (BridgeUnlockAction, ActionGroup::BundleableGeneral),
     (BridgeSudoChangeAction, ActionGroup::UnbundleableGeneral),
-    (FeeChangeAction, ActionGroup::Sudo),
-    (FeeAssetChangeAction, ActionGroup::Sudo),
-    (IbcRelay, ActionGroup::General),
+    (FeeChangeAction, ActionGroup::BundleableSudo),
+    (FeeAssetChangeAction, ActionGroup::BundleableSudo),
+    (IbcRelay, ActionGroup::BundleableGeneral),
     (IbcSudoChangeAction, ActionGroup::UnbundleableSudo),
 );
 
@@ -82,28 +82,31 @@ impl Action {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(super) enum ActionGroup {
-    General,
+    BundleableGeneral,
     UnbundleableGeneral,
-    Sudo,
+    BundleableSudo,
     UnbundleableSudo,
 }
 
 impl ActionGroup {
     pub(super) fn is_bundleable(self) -> bool {
-        matches!(self, ActionGroup::General | ActionGroup::Sudo)
+        matches!(
+            self,
+            ActionGroup::BundleableGeneral | ActionGroup::BundleableSudo
+        )
     }
 
-    pub(super) fn is_sudo(self) -> bool {
-        matches!(self, ActionGroup::Sudo)
+    pub(super) fn is_bundleable_sudo(self) -> bool {
+        matches!(self, ActionGroup::BundleableSudo)
     }
 }
 
 impl fmt::Display for ActionGroup {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ActionGroup::General => write!(f, "general"),
+            ActionGroup::BundleableGeneral => write!(f, "bundleable general"),
             ActionGroup::UnbundleableGeneral => write!(f, "unbundleable general"),
-            ActionGroup::Sudo => write!(f, "sudo"),
+            ActionGroup::BundleableSudo => write!(f, "bundleable sudo"),
             ActionGroup::UnbundleableSudo => write!(f, "unbundleable sudo"),
         }
     }
