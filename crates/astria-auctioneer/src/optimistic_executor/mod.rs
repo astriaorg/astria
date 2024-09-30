@@ -16,10 +16,10 @@ use tracing::info;
 
 use crate::block::{
     self,
-    BlockCommitment,
+    Committed,
     CurrentBlock,
-    ExecutedBlock,
-    OptimisticBlock,
+    Executed,
+    Optimistic,
 };
 
 pub(crate) struct Handle {
@@ -27,39 +27,40 @@ pub(crate) struct Handle {
 }
 
 pub(crate) struct OptimisticExecutor {
-    optimistic_blocks_rx: mpsc::Receiver<OptimisticBlock>,
-    executed_blocks_rx: mpsc::Receiver<ExecutedBlock>,
-    block_commitments_rx: mpsc::Receiver<BlockCommitment>,
+    optimistic_blocks_rx: mpsc::Receiver<Optimistic>,
+    executed_blocks_rx: mpsc::Receiver<Executed>,
+    block_commitments_rx: mpsc::Receiver<Committed>,
     block: CurrentBlock,
 }
 
 impl OptimisticExecutor {
-    pub(crate) async fn run(self) -> eyre::Result<()> {
+    pub(crate) async fn run(mut self) -> eyre::Result<()> {
         let Self {
             optimistic_blocks_rx: mut opt_rx,
             executed_blocks_rx: mut exec_rx,
             block_commitments_rx: mut commit_rx,
-            block,
+            mut block,
         } = self;
 
+        // TODO: use grpc streams instead of channels
+
         // TODO: probably want to interact with the block state machine via the handle
-        let mut curr_block = block.clone();
         loop {
-            let old_block = curr_block.clone();
+            let old_block = block.clone();
             let new_block = select! {
                 opt = opt_rx.recv() => {
-                    curr_block.apply_state(block::State::OptimisticBlock(opt.unwrap()))
+                    block.apply_optimistic_block(opt.unwrap())
                 },
                 exec = exec_rx.recv() => {
-                    curr_block.apply_state(block::State::ExecutedBlock(exec.unwrap()))
+                    block.apply_executed_block(exec.unwrap())
                 },
                 commit = commit_rx.recv() => {
-                    curr_block.apply_state(block::State::BlockCommitment(commit.unwrap()))
+                    block.apply_block_commitment(commit.unwrap())
                 },
             };
 
             info!(parent = ?old_block, block = ?new_block, "block state updated");
-            curr_block = new_block;
+            block = new_block;
             // block_tx.send_modify(curr_state)
         }
     }

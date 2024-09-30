@@ -1,17 +1,6 @@
 use astria_eyre::eyre;
-use tokio::select;
 
-use crate::{
-    auction,
-    block::{
-        self,
-        CurrentBlock,
-    },
-    optimistic_executor::{
-        self,
-    },
-    Metrics,
-};
+use crate::Metrics;
 
 mod builder;
 pub(crate) use builder::Builder;
@@ -19,42 +8,43 @@ pub(crate) use builder::Builder;
 pub(crate) struct AuctionDriver {
     #[allow(dead_code)]
     metrics: &'static Metrics,
-    /// The current block being used to drive the [`Auction`]
-    curr_block: CurrentBlock,
-    /// The current [`Auction`] being driven
-    auction: auction::FirstPriceAuction,
-    // TODO: submitter
+    // TODO:
+    // - The current block being used to drive the [`Auction`]
+    // - The current [`Auction`] being driven
+    // - Submitter
 }
 
 impl AuctionDriver {
     pub(crate) async fn run(self) -> eyre::Result<()> {
         let Self {
-            metrics,
-            curr_block,
-            auction,
+            ..
         } = self;
 
         loop {
-            select! {
-                biased;
+            // select! {
+            //     biased;
 
-                // TODO: should this be conditioned on the block state not being committed? or the auction state not be "closing"?
-                // instead of advancing the block state here i should have a handle that reads current state from an arc?
-                curr_block = curr_block.apply_state(), if auction.committed() => {
-                    match curr_block.state() {
-                        block::State::OptimisticBlock(optimistic_block) => {
-                            todo!("drop old auction");
-                            todo!("make new auction");
-                        },
-                        block::State::ExecutedBlock(executed_block) => todo!(),
-                        block::State::BlockCommitment(block_commitment) => todo!(),
-                        block::State::Reorg(reorg_block) => todo!(),
-                    }
-                },
+            // TODO: should this be conditioned on the block state not being committed? or the
+            // auction state not be "closing"? instead of advancing the block state here
+            // i should have a handle that reads current state from an arc? curr_block =
+            // curr_block.apply_state(), if auction.committed() => { match curr_block.
+            // state() { optimistic
+            // drop old auction if it exists
+            // make new auction
+            // executed -> open the auction for bids
+            // committed -> start the timer for closing
+            // committed and executed -> ?
+            // },
+            // }
+            // },
 
-                // TODO: submit when auction is ready for submission
-                //
-            }
+            // new bundle from the bundle stream -> if auction is open, add the bid to the auction.
+            // otherwise log and drop
+
+            // TODO: submit when auction is ready for submission
+            //
+            // }
+            break;
         }
 
         Ok(())

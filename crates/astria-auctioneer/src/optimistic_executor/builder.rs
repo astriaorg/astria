@@ -23,15 +23,16 @@ impl Builder {
             sequencer_grpc_endpoint,
         } = self;
 
-        let (executed_blocks_tx, executed_blocks_rx) = mpsc::channel(16);
-        let (committed_blocks_tx, committed_blocks_rx) = mpsc::channel(16);
+        let (_executed_blocks_tx, executed_blocks_rx) = mpsc::channel(16);
+        let (_optimistic_blocks_tx, optimistic_blocks_rx) = mpsc::channel(16);
+        let (_block_commitments_tx, block_commitments_rx) = mpsc::channel(17);
 
-        let (block_rx, block_tx) = watch::channel(None);
+        // TODO: replace with grpc streams
 
         Ok(OptimisticExecutor {
-            optimistic_blocks_rx: todo!(),
-            executed_blocks_rx: todo!(),
-            block_commitments_rx: todo!(),
+            optimistic_blocks_rx,
+            executed_blocks_rx,
+            block_commitments_rx,
             block: todo!("replace with block_tx or somethingg?"),
         })
     }
