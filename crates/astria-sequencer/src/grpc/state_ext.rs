@@ -319,7 +319,7 @@ fn put_rollup_ids_proof<S: StateWrite + ?Sized>(
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         primitive::v1::TransactionId,
         protocol::test_utils::ConfigureSequencerBlock,

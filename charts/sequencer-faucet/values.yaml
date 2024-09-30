@@ -19,12 +19,13 @@ config:
       key: token
   # The amount of token to give per request
   amount: 1800
+  faucetPrecision: 9
   minutesBetweenRequests: 1440
   addressPrefix: "astria"
   sequencerNativeDenom: "nria"
 
 images:
-  sequencerFaucet: "ghcr.io/astriaorg/seq-faucet:0.8.0"
+  sequencerFaucet: "ghcr.io/astriaorg/seq-faucet:0.8.1"
   pullPolicy: IfNotPresent
 
 # When deploying in a production environment should use a secret provider

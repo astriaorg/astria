@@ -77,7 +77,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
+mod tests {
     use cnidarium::StateDelta;
 
     use super::{

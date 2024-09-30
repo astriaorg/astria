@@ -223,7 +223,7 @@ impl SequencerService for SequencerServer {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         protocol::test_utils::ConfigureSequencerBlock,
         sequencerblock::v1alpha1::SequencerBlock,

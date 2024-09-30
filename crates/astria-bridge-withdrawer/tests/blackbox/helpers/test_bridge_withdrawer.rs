@@ -2,6 +2,7 @@ use std::{
     io::Write as _,
     mem,
     net::SocketAddr,
+    sync::LazyLock,
     time::Duration,
 };
 
@@ -37,7 +38,6 @@ use ibc_types::core::{
     channel::ChannelId,
     client::Height as IbcHeight,
 };
-use once_cell::sync::Lazy;
 use sequencer_client::{
     Address,
     NonceResponse,
@@ -74,7 +74,7 @@ pub(crate) const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 pub(crate) const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
-static TELEMETRY: Lazy<()> = Lazy::new(|| {
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         telemetry::configure()
@@ -251,7 +251,7 @@ impl TestBridgeWithdrawerConfig {
             ethereum_config,
             asset_denom,
         } = self;
-        Lazy::force(&TELEMETRY);
+        LazyLock::force(&TELEMETRY);
 
         // sequencer signer key
         let keyfile = NamedTempFile::new().unwrap();
