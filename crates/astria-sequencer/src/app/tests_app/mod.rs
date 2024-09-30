@@ -391,9 +391,11 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     assert_eq!(*deposits[0], expected_deposit);
 }
 
-// it's a test, so allow a lot of lines
 #[tokio::test]
-#[allow(clippy::too_many_lines)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "it's a test, so allow a lot of lines"
+)]
 async fn app_execution_results_match_proposal_vs_after_proposal() {
     let alice = get_alice_signing_key();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;

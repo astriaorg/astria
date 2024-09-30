@@ -13,8 +13,10 @@ use crate::rollup::{
     Rollup,
 };
 
-// this is a config, may have many boolean values
-#[allow(clippy::struct_excessive_bools)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "this is a config, may have many boolean values"
+)]
 #[derive(Debug, Deserialize, Serialize)]
 /// The high-level config for creating an astria-composer service.
 pub struct Config {

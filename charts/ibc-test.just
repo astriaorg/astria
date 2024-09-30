@@ -32,7 +32,7 @@ delete:
   just wait-for-rollup > /dev/null
   echo "Deploying Hermes"
   just deploy hermes-local > /dev/null
-  kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=300s
+  kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=480s
 
 [no-cd]
 run tag=defaultTag:

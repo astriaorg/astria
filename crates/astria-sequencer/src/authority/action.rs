@@ -216,7 +216,7 @@ impl FeeHandler for IbcSudoChangeAction {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::primitive::v1::TransactionId;
     use cnidarium::StateDelta;
 

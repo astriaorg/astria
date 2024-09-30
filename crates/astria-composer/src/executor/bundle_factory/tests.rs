@@ -164,8 +164,10 @@ mod bundle_factory {
 
         // assert that the bundle factory has one bundle in the finished queue, that the factory is
         // full and that err was returned
-        // allow: this is intended to match all possible variants
-        #[allow(clippy::match_wildcard_for_single_variants)]
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "this is intended to match all possible variants"
+        )]
         match err {
             BundleFactoryError::FinishedQueueFull(_) => {}
             other => panic!("expected a FinishedQueueFull variant, but got {other:?}"),
@@ -211,8 +213,10 @@ mod bundle_factory {
 
         // assert that the bundle factory has one bundle in the finished queue, that the factory is
         // full and that err was returned
-        // allow: this is intended to match all possible variants
-        #[allow(clippy::match_wildcard_for_single_variants)]
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "this is intended to match all possible variants"
+        )]
         match err {
             BundleFactoryError::FinishedQueueFull(_) => {}
             other => panic!("expected a FinishedQueueFull variant, but got {other:?}"),

@@ -395,7 +395,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         primitive::v1::TransactionId,
         protocol::test_utils::ConfigureSequencerBlock,
