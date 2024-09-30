@@ -497,7 +497,12 @@ impl<TFormat> Address<TFormat> {
     }
 
     #[must_use]
-    pub fn bytes(&self) -> &[u8; ADDRESS_LEN] {
+    pub fn bytes(self) -> [u8; ADDRESS_LEN] {
+        self.bytes
+    }
+
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8; ADDRESS_LEN] {
         &self.bytes
     }
 
@@ -513,7 +518,7 @@ impl<TFormat> Address<TFormat> {
     /// The error conditions for this are the same as for [`AddressBuilder::try_build`].
     pub fn to_prefix(&self, prefix: &str) -> Result<Self, AddressError> {
         Self::builder()
-            .array(*self.bytes())
+            .array(*self.as_bytes())
             .prefix(prefix)
             .try_build()
     }
@@ -538,7 +543,7 @@ impl Address<Bech32m> {
     #[must_use]
     pub fn to_raw(&self) -> raw::Address {
         let bech32m =
-            bech32::encode_lower::<<Bech32m as Format>::Checksum>(self.prefix, self.bytes())
+            bech32::encode_lower::<<Bech32m as Format>::Checksum>(self.prefix, self.as_bytes())
                 .expect(
                     "should not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH",
                 );
@@ -610,7 +615,7 @@ impl TryFrom<raw::Address> for Address<Bech32m> {
 impl<T: Format> std::fmt::Display for Address<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use bech32::EncodeError;
-        match bech32::encode_lower_to_fmt::<T::Checksum, _>(f, self.prefix, self.bytes()) {
+        match bech32::encode_lower_to_fmt::<T::Checksum, _>(f, self.prefix, self.as_bytes()) {
             Ok(()) => Ok(()),
             Err(EncodeError::Fmt(err)) => Err(err),
             Err(err) => panic!(
@@ -895,7 +900,7 @@ mod tests {
         let unchecked = input.into_raw();
         let roundtripped = Address::try_from_raw(&unchecked).unwrap();
         assert_eq!(input, roundtripped);
-        assert_eq!(input.bytes(), roundtripped.bytes());
+        assert_eq!(input.as_bytes(), roundtripped.as_bytes());
         assert_eq!("astria", input.prefix());
     }
 }

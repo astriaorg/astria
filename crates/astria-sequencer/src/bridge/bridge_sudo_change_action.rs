@@ -176,7 +176,7 @@ mod tests {
 
         let sudo_address = astria_address(&[98; 20]);
         state.put_transaction_context(TransactionContext {
-            address_bytes: *sudo_address.bytes(),
+            address_bytes: sudo_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });
@@ -212,14 +212,14 @@ mod tests {
                 .get_bridge_account_sudo_address(&bridge_address)
                 .await
                 .unwrap(),
-            Some(*new_sudo_address.bytes()),
+            Some(new_sudo_address.bytes()),
         );
         assert_eq!(
             state
                 .get_bridge_account_withdrawer_address(&bridge_address)
                 .await
                 .unwrap(),
-            Some(*new_withdrawer_address.bytes()),
+            Some(new_withdrawer_address.bytes()),
         );
     }
 }

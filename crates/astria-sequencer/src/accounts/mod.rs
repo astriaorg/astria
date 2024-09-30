@@ -28,7 +28,7 @@ pub(crate) trait AddressBytes: Send + Sync {
 
 impl AddressBytes for Address {
     fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
-        self.bytes()
+        self.as_bytes()
     }
 
     fn display_address(&self) -> impl std::fmt::Display {

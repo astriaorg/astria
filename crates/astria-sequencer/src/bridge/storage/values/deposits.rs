@@ -80,7 +80,7 @@ struct Deposit<'a> {
 impl<'a> From<&'a DomainDeposit> for Deposit<'a> {
     fn from(deposit: &'a DomainDeposit) -> Self {
         let bridge_address = Address {
-            bytes: deposit.bridge_address.bytes().into(),
+            bytes: deposit.bridge_address.as_bytes().into(),
             prefix: Cow::Borrowed(deposit.bridge_address.prefix()),
         };
         let asset = match &deposit.asset {

@@ -223,7 +223,7 @@ mod tests {
 
         let bridge_address = astria_address(&[1; 20]);
         state.put_transaction_context(TransactionContext {
-            address_bytes: *bridge_address.bytes(),
+            address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });

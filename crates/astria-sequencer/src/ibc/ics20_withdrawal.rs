@@ -38,7 +38,7 @@ use penumbra_proto::core::component::ibc::v1::FungibleTokenPacketData;
 
 use crate::{
     accounts::{
-        AddressBytes,
+        AddressBytes as _,
         StateWriteExt as _,
     },
     address::StateReadExt as _,
@@ -124,11 +124,11 @@ async fn establish_withdrawal_target<'a, S: StateRead>(
         };
 
         ensure!(
-            withdrawer == *from.address_bytes(),
+            &withdrawer == from.address_bytes(),
             "sender does not match bridge withdrawer address; unauthorized"
         );
 
-        return Ok(bridge_address.address_bytes());
+        return Ok(bridge_address.as_bytes());
     }
 
     // If the bridge address is not set, the sender must not be a bridge account.
@@ -201,7 +201,9 @@ impl ActionHandler for action::Ics20Withdrawal {
 
             state
                 .check_and_set_withdrawal_event_block_for_bridge_account(
-                    self.bridge_address.as_ref().map_or(&from, Address::bytes),
+                    self.bridge_address
+                        .as_ref()
+                        .map_or(&from, Address::as_bytes),
                     &parsed_bridge_memo.rollup_withdrawal_event_id,
                     parsed_bridge_memo.rollup_block_number,
                 )

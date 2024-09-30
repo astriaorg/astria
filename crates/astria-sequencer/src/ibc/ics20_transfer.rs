@@ -920,7 +920,7 @@ mod tests {
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
         state_tx.put_transaction_context(TransactionContext {
-            address_bytes: *bridge_address.bytes(),
+            address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });
@@ -998,7 +998,7 @@ mod tests {
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
         state_tx.put_transaction_context(TransactionContext {
-            address_bytes: *bridge_address.bytes(),
+            address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });
@@ -1248,7 +1248,7 @@ mod tests {
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
         state_tx.put_transaction_context(TransactionContext {
-            address_bytes: *bridge_address.bytes(),
+            address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });
@@ -1332,7 +1332,7 @@ mod tests {
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
         state_tx.put_transaction_context(TransactionContext {
-            address_bytes: *bridge_address.bytes(),
+            address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });
@@ -1437,7 +1437,7 @@ mod tests {
         };
 
         let transaction_context = TransactionContext {
-            address_bytes: *bridge_address.bytes(),
+            address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         };

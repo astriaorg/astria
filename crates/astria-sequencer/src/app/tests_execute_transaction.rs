@@ -477,7 +477,7 @@ async fn app_execute_transaction_sudo_address_change() {
     );
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();
-    assert_eq!(sudo_address, *new_address.bytes());
+    assert_eq!(sudo_address, new_address.bytes());
 }
 
 #[tokio::test]
@@ -1260,7 +1260,7 @@ async fn app_execute_transaction_ibc_sudo_change() {
     app.execute_transaction(signed_tx).await.unwrap();
 
     let ibc_sudo_address = app.state.get_ibc_sudo_address().await.unwrap();
-    assert_eq!(ibc_sudo_address, *new_address.bytes());
+    assert_eq!(ibc_sudo_address, new_address.bytes());
 }
 
 #[tokio::test]

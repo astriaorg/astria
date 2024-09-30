@@ -198,7 +198,7 @@ impl SequencerService for SequencerServer {
             );
             Status::invalid_argument(format!("invalid address: {e}"))
         })?;
-        let nonce = self.mempool.pending_nonce(address.bytes()).await;
+        let nonce = self.mempool.pending_nonce(address.as_bytes()).await;
 
         if let Some(nonce) = nonce {
             return Ok(Response::new(GetPendingNonceResponse {

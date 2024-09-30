@@ -204,7 +204,7 @@ mod tests {
         let from_address = astria_address(&[2; 20]);
         let transaction_id = TransactionId::new([0; 32]);
         state.put_transaction_context(TransactionContext {
-            address_bytes: *from_address.bytes(),
+            address_bytes: from_address.bytes(),
             transaction_id,
             source_action_index: 0,
         });
