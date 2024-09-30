@@ -117,8 +117,6 @@ impl ActionHandler for BridgeUnlockAction {
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeUnlockAction {
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn calculate_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let tx_context = state
