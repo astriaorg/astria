@@ -417,7 +417,7 @@ enum UnsignedTransactionErrorKind {
         raw::UnsignedTransaction::type_url()
     )]
     DecodeAny(#[source] prost::DecodeError),
-    #[error("`actions` field does not make a valid `ActionGroup`")]
+    #[error("`actions` field does not form a valid group of actions")]
     ActionGroup(#[source] action_group::Error),
 }
 

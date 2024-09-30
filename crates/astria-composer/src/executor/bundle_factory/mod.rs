@@ -129,12 +129,6 @@ impl SizedBundle {
         self.curr_size
     }
 
-    /// Consume self and return the underlying buffer of actions.
-    #[cfg(test)]
-    pub(super) fn into_actions(self) -> Vec<Action> {
-        self.buffer
-    }
-
     /// Returns the number of sequence actions in the bundle.
     pub(super) fn actions_count(&self) -> usize {
         self.buffer.len()

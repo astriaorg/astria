@@ -81,7 +81,7 @@ impl Action {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ActionGroup {
+pub(super) enum ActionGroup {
     General,
     UnbundleableGeneral,
     Sudo,
@@ -114,11 +114,6 @@ impl fmt::Display for ActionGroup {
 pub struct Error(ErrorKind);
 
 impl Error {
-    #[must_use]
-    pub fn kind(&self) -> &ErrorKind {
-        &self.0
-    }
-
     fn mixed(
         original_group: ActionGroup,
         additional_group: ActionGroup,
@@ -139,7 +134,7 @@ impl Error {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ErrorKind {
+enum ErrorKind {
     #[error(
         "input contains mixed `ActionGroup` types. original group: {original_group}, additional \
          group: {additional_group}, triggering action: {action}"

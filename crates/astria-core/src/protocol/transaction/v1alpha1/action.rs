@@ -153,6 +153,7 @@ impl Protobuf for Action {
     }
 }
 
+// TODO: add unit tests for these methods (https://github.com/astriaorg/astria/issues/1593)
 impl Action {
     #[must_use]
     pub fn as_sequence(&self) -> Option<&SequenceAction> {
