@@ -20,25 +20,25 @@ use tracing::instrument;
 
 /// Interact with a Sequencer node
 #[derive(Debug, clap::Args)]
-pub(super) struct Args {
+pub(super) struct Command {
     #[command(subcommand)]
-    command: Command,
+    command: SubCommand,
 }
 
-impl Args {
+impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         match self.command {
-            Command::CollectWithdrawals(args) => args.run().await,
-            Command::SubmitWithdrawals(args) => args.run().await,
+            SubCommand::CollectWithdrawals(args) => args.run().await,
+            SubCommand::SubmitWithdrawals(args) => args.run().await,
         }
     }
 }
 
 #[derive(Debug, Subcommand)]
-enum Command {
+enum SubCommand {
     /// Commands for interacting with Sequencer accounts
-    CollectWithdrawals(collect::Args),
-    SubmitWithdrawals(submit::Args),
+    CollectWithdrawals(collect::Command),
+    SubmitWithdrawals(submit::Command),
 }
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]

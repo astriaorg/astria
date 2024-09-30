@@ -29,7 +29,7 @@ use tracing::{
 };
 
 #[derive(clap::Args, Debug)]
-pub(crate) struct Args {
+pub(crate) struct Command {
     #[arg(long, short)]
     input: PathBuf,
     #[arg(long)]
@@ -42,7 +42,7 @@ pub(crate) struct Args {
     sequencer_url: String,
 }
 
-impl Args {
+impl Command {
     pub(crate) async fn run(self) -> eyre::Result<()> {
         let signing_key = read_signing_key(&self.signing_key).wrap_err_with(|| {
             format!(

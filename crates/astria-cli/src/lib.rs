@@ -47,7 +47,7 @@ impl Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Collect events from a rollup and submit to Sequencer.
-    Bridge(bridge::Args),
+    Bridge(bridge::Command),
     /// Interact with Sequencer.
-    Sequencer(sequencer::Args),
+    Sequencer(sequencer::Command),
 }

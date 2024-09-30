@@ -43,7 +43,7 @@ use tracing::{
 use super::ActionsByRollupHeight;
 
 #[derive(clap::Args, Debug)]
-pub(super) struct Args {
+pub(super) struct Command {
     /// The websocket endpoint of a geth compatible rollup.
     #[arg(long)]
     rollup_endpoint: String,
@@ -81,7 +81,7 @@ pub(super) struct Args {
     force: bool,
 }
 
-impl Args {
+impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         let Self {
             rollup_endpoint,

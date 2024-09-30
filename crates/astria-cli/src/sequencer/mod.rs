@@ -11,29 +11,29 @@ mod sudo;
 mod transfer;
 
 #[derive(Debug, clap::Args)]
-pub(super) struct Args {
+pub(super) struct Command {
     #[command(subcommand)]
-    command: Command,
+    command: SubCommand,
 }
 
-impl Args {
+impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         match self.command {
-            Command::Account(account) => account.run().await,
-            Command::Address(address) => address.run(),
-            Command::Balance(balance) => balance.run().await,
-            Command::BlockHeight(block_height) => block_height.run().await,
-            Command::BridgeLock(bridge_lock) => bridge_lock.run().await,
-            Command::InitBridgeAccount(init_bridge_account) => init_bridge_account.run().await,
-            Command::Sudo(sudo) => sudo.run().await,
-            Command::Transfer(transfer) => transfer.run().await,
+            SubCommand::Account(account) => account.run().await,
+            SubCommand::Address(address) => address.run(),
+            SubCommand::Balance(balance) => balance.run().await,
+            SubCommand::BlockHeight(block_height) => block_height.run().await,
+            SubCommand::BridgeLock(bridge_lock) => bridge_lock.run().await,
+            SubCommand::InitBridgeAccount(init_bridge_account) => init_bridge_account.run().await,
+            SubCommand::Sudo(sudo) => sudo.run().await,
+            SubCommand::Transfer(transfer) => transfer.run().await,
         }
     }
 }
 
 /// Interact with a Sequencer node
 #[derive(Debug, Subcommand)]
-enum Command {
+enum SubCommand {
     /// Commands for interacting with Sequencer accounts
     Account(account::Command),
     /// Utilities for constructing and inspecting sequencer addresses
