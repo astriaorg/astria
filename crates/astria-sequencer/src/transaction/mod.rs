@@ -159,10 +159,6 @@ impl ActionHandler for SignedTransaction {
         Ok(())
     }
 
-    // FIXME (https://github.com/astriaorg/astria/issues/1584): because most lines come from delegating (and error wrapping) to the
-    // individual actions. This could be tidied up by implementing `ActionHandler for Action`
-    // and letting it delegate.
-    #[expect(clippy::too_many_lines, reason = "should be refactored")]
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         // Add the current signed transaction into the ephemeral state in case

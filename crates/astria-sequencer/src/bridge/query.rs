@@ -42,9 +42,6 @@ fn error_query_response(
     }
 }
 
-// FIXME (https://github.com/astriaorg/astria/issues/1582): there is a lot of code duplication due to `error_query_response`.
-// this could be significantly shortened.
-#[expect(clippy::too_many_lines, reason = "should be refactored")]
 #[instrument(skip_all, fields(%address))]
 async fn get_bridge_account_info(
     snapshot: cnidarium::Snapshot,
