@@ -180,11 +180,7 @@ impl SignedTransaction {
 
     #[must_use]
     pub fn is_bundleable_sudo_action_group(&self) -> bool {
-        if let Some(group) = self.transaction.actions.group() {
-            group.is_bundleable_sudo()
-        } else {
-            false
-        }
+        self.transaction.actions.group().is_bundleable_sudo()
     }
 
     #[must_use]
