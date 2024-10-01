@@ -12,10 +12,7 @@ use tendermint::{
 
 use crate::{
     app::{
-        test_utils::{
-            get_alice_signing_key,
-            mock_tx,
-        },
+        test_utils::get_alice_signing_key,
         App,
     },
     mempool::{
