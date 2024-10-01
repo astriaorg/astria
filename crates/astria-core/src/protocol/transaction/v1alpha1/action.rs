@@ -33,6 +33,7 @@ pub enum Action {
     Sequence(SequenceAction),
     Transfer(TransferAction),
     ValidatorUpdate(ValidatorUpdate),
+    ValidatorUpdateWithName(ValidatorUpdateWithName),
     SudoAddressChange(SudoAddressChangeAction),
     Ibc(IbcRelay),
     IbcSudoChange(IbcSudoChangeAction),
@@ -57,6 +58,9 @@ impl Protobuf for Action {
             Action::Sequence(act) => Value::SequenceAction(act.to_raw()),
             Action::Transfer(act) => Value::TransferAction(act.to_raw()),
             Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.to_raw()),
+            Action::ValidatorUpdateWithName(act) => {
+                Value::ValidatorUpdateWithNameAction(act.to_raw())
+            }
             Action::SudoAddressChange(act) => {
                 Value::SudoAddressChangeAction(act.clone().into_raw())
             }
@@ -109,6 +113,10 @@ impl Protobuf for Action {
             }
             Value::ValidatorUpdateAction(act) => Self::ValidatorUpdate(
                 ValidatorUpdate::try_from_raw(act).map_err(ActionError::validator_update)?,
+            ),
+            Value::ValidatorUpdateWithNameAction(act) => Self::ValidatorUpdateWithName(
+                ValidatorUpdateWithName::try_from_raw(act)
+                    .map_err(ActionError::validator_update_with_name)?,
             ),
             Value::SudoAddressChangeAction(act) => Self::SudoAddressChange(
                 SudoAddressChangeAction::try_from_raw(act)
@@ -288,6 +296,10 @@ impl ActionError {
         Self(ActionErrorKind::ValidatorUpdate(inner))
     }
 
+    fn validator_update_with_name(inner: ValidatorUpdateWithNameError) -> Self {
+        Self(ActionErrorKind::ValidatorUpdateWithName(inner))
+    }
+
     fn sudo_address_change(inner: SudoAddressChangeActionError) -> Self {
         Self(ActionErrorKind::SudoAddressChange(inner))
     }
@@ -343,6 +355,8 @@ enum ActionErrorKind {
     Transfer(#[source] TransferActionError),
     #[error("validator update action was not valid")]
     ValidatorUpdate(#[source] ValidatorUpdateError),
+    #[error("validator update with name action was not valid")]
+    ValidatorUpdateWithName(#[source] ValidatorUpdateWithNameError),
     #[error("sudo address change action was not valid")]
     SudoAddressChange(#[source] SudoAddressChangeActionError),
     #[error("ibc sudo address change action was not valid")]
@@ -696,6 +710,83 @@ impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdat
         value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
     ) -> Result<Self, Self::Error> {
         Self::try_from_raw(value)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct ValidatorUpdateWithNameError(ValidatorUpdateWithNameErrorKind);
+
+impl ValidatorUpdateWithNameError {
+    fn invalid_inner_validator_update(e: ValidatorUpdateError) -> Self {
+        Self(ValidatorUpdateWithNameErrorKind::InvalidInnerValidatorUpdate(e))
+    }
+
+    fn missing_inner_validator_update() -> Self {
+        Self(ValidatorUpdateWithNameErrorKind::MissingInnerValidatorUpdate)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ValidatorUpdateWithNameErrorKind {
+    #[error("the inner validator update was invalid from the action")]
+    InvalidInnerValidatorUpdate(#[source] ValidatorUpdateError),
+    #[error("the inner validator update was missing from the action")]
+    MissingInnerValidatorUpdate,
+}
+
+#[derive(Clone, Debug)]
+pub struct ValidatorUpdateWithName {
+    pub validator_update: ValidatorUpdate,
+    pub name: String,
+}
+
+impl Protobuf for ValidatorUpdateWithName {
+    type Error = ValidatorUpdateWithNameError;
+    type Raw = crate::generated::protocol::transactions::v1alpha1::ValidatorUpdateWithName;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let crate::generated::protocol::transactions::v1alpha1::ValidatorUpdateWithName {
+            validator_update,
+            name,
+        } = raw;
+        let validator_update = validator_update
+            .clone()
+            .ok_or(ValidatorUpdateWithNameError::missing_inner_validator_update())?;
+        let validator_update = ValidatorUpdate::try_from_raw(validator_update)
+            .map_err(ValidatorUpdateWithNameError::invalid_inner_validator_update)?;
+        let name = name.clone();
+        Ok(Self {
+            validator_update,
+            name,
+        })
+    }
+
+    fn try_from_raw(raw: Self::Raw) -> Result<Self, Self::Error> {
+        let crate::generated::protocol::transactions::v1alpha1::ValidatorUpdateWithName {
+            validator_update,
+            name,
+        } = raw;
+        let validator_update = validator_update
+            .ok_or(ValidatorUpdateWithNameError::missing_inner_validator_update())?;
+        let validator_update = ValidatorUpdate::try_from_raw(validator_update)
+            .map_err(ValidatorUpdateWithNameError::invalid_inner_validator_update)?;
+        let name = name.clone();
+        Ok(Self {
+            validator_update,
+            name,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            validator_update,
+            name,
+        } = self;
+        crate::generated::protocol::transactions::v1alpha1::ValidatorUpdateWithName {
+            validator_update: Some(validator_update.to_raw()),
+            name: name.clone(),
+        }
     }
 }
 

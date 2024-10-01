@@ -30,6 +30,7 @@ struct SudoAddress([u8; ADDRESS_LEN]);
 const SUDO_STORAGE_KEY: &str = "sudo";
 const VALIDATOR_SET_STORAGE_KEY: &str = "valset";
 const VALIDATOR_UPDATES_KEY: &[u8] = b"valupdates";
+const VALIDATOR_NAMES_KEY: &str = "valnames";
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -82,6 +83,22 @@ pub(crate) trait StateReadExt: StateRead {
             serde_json::from_slice(&bytes).wrap_err("invalid validator updates bytes")?;
         Ok(validator_updates)
     }
+
+    #[instrument(skip_all)]
+    async fn get_validator_names(&self) -> Result<BTreeMap<String, String>> {
+        let Some(bytes) = self
+            .get_raw(VALIDATOR_NAMES_KEY)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator names from state")?
+        else {
+            return Ok(BTreeMap::new());
+        };
+
+        let validator_names: BTreeMap<String, String> =
+            serde_json::from_slice(&bytes).wrap_err("invalid validator names bytes")?;
+        Ok(validator_names)
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -120,6 +137,20 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn clear_validator_updates(&mut self) {
         self.nonverifiable_delete(VALIDATOR_UPDATES_KEY.to_vec());
+    }
+
+    #[instrument(skip_all)]
+    fn put_validator_names(&mut self, validator_names: BTreeMap<String, String>) -> Result<()> {
+        self.put_raw(
+            VALIDATOR_NAMES_KEY.to_string(),
+            serde_json::to_vec(&validator_names).wrap_err("failed to serialize validator names")?,
+        );
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn clear_validator_names(&mut self) {
+        self.delete(VALIDATOR_NAMES_KEY.to_string());
     }
 }
 

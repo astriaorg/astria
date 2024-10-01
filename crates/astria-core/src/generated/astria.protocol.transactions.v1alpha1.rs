@@ -59,7 +59,7 @@ impl ::prost::Name for TransactionParams {
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 57"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -102,6 +102,8 @@ pub mod action {
         FeeChangeAction(super::FeeChangeAction),
         #[prost(message, tag = "56")]
         IbcSudoChangeAction(super::IbcSudoChangeAction),
+        #[prost(message, tag = "57")]
+        ValidatorUpdateWithNameAction(super::ValidatorUpdateWithName),
     }
 }
 impl ::prost::Name for Action {
@@ -501,6 +503,23 @@ pub struct IbcSudoChangeAction {
 }
 impl ::prost::Name for IbcSudoChangeAction {
     const NAME: &'static str = "IbcSudoChangeAction";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ValidatorUpdateWithName {
+    #[prost(message, optional, tag = "1")]
+    pub validator_update: ::core::option::Option<
+        crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+    >,
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+}
+impl ::prost::Name for ValidatorUpdateWithName {
+    const NAME: &'static str = "ValidatorUpdateWithName";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)

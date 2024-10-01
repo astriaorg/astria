@@ -18,6 +18,7 @@ use astria_core::{
                 SudoAddressChangeAction,
                 TransferAction,
                 ValidatorUpdate,
+                ValidatorUpdateWithName,
             },
             Action,
             TransactionParams,
@@ -495,6 +496,50 @@ async fn app_execute_transaction_sudo_address_change_error() {
         .root_cause()
         .to_string();
     assert!(res.contains("signer is not the sudo key"));
+}
+
+#[tokio::test]
+async fn app_execute_transaction_validator_update_with_name() {
+    let alice = get_alice_signing_key();
+    let alice_address = astria_address(&alice.address_bytes());
+
+    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+
+    let inner_update = ValidatorUpdate {
+        power: 100,
+        verification_key: crate::test_utils::verification_key(1),
+    };
+    let update_with_name = ValidatorUpdateWithName {
+        validator_update: inner_update.clone(),
+        name: "test".to_string(),
+    };
+
+    let tx = UnsignedTransaction {
+        params: TransactionParams::builder()
+            .nonce(0)
+            .chain_id("test")
+            .build(),
+        actions: vec![Action::ValidatorUpdateWithName(update_with_name.clone())],
+    };
+
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+    assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+    let validator_updates = app.state.get_validator_updates().await.unwrap();
+    assert_eq!(validator_updates.len(), 1);
+    assert_eq!(
+        validator_updates.get(crate::test_utils::verification_key(1).address_bytes()),
+        Some(&inner_update)
+    );
+    let validator_names = app.state.get_validator_names().await.unwrap();
+    assert_eq!(validator_names.len(), 1);
+    assert_eq!(
+        validator_names.get(&hex::encode(
+            crate::test_utils::verification_key(1).address_bytes()
+        )),
+        Some(&update_with_name.name)
+    );
 }
 
 #[tokio::test]

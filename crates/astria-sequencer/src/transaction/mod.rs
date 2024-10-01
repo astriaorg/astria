@@ -99,6 +99,10 @@ impl ActionHandler for SignedTransaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for ValidatorUpdateAction")?,
+                Action::ValidatorUpdateWithName(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for ValidatorUpdateWithNameAction")?,
                 Action::SudoAddressChange(act) => act
                     .check_stateless()
                     .await
@@ -225,6 +229,10 @@ impl ActionHandler for SignedTransaction {
                     .check_and_execute(&mut state)
                     .await
                     .wrap_err("executing validor update")?,
+                Action::ValidatorUpdateWithName(act) => act
+                    .check_and_execute(&mut state)
+                    .await
+                    .wrap_err("executing validor update with name")?,
                 Action::SudoAddressChange(act) => act
                     .check_and_execute(&mut state)
                     .await

@@ -129,6 +129,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     .or_insert(bridge_sudo_change_fee);
             }
             Action::ValidatorUpdate(_)
+            | Action::ValidatorUpdateWithName(_)
             | Action::SudoAddressChange(_)
             | Action::IbcSudoChange(_)
             | Action::Ibc(_)
@@ -212,6 +213,7 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
                     .or_insert(act.amount);
             }
             Action::ValidatorUpdate(_)
+            | Action::ValidatorUpdateWithName(_)
             | Action::SudoAddressChange(_)
             | Action::IbcSudoChange(_)
             | Action::Sequence(_)
