@@ -48,7 +48,7 @@ enum ExitReason {
     ShutdownSignal,
     TaskFailed {
         name: &'static str,
-        error: eyre::ErrReport,
+        error: eyre::Report,
     },
 }
 
@@ -301,7 +301,7 @@ fn report_exit(exit_reason: &ExitReason, message: &str) {
 }
 
 #[instrument(skip_all)]
-fn check_for_restart(name: &str, err: &eyre::ErrReport) -> bool {
+fn check_for_restart(name: &str, err: &eyre::Report) -> bool {
     if name != ConductorInner::EXECUTOR {
         return false;
     }
