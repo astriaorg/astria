@@ -13,7 +13,6 @@ use astria_core::{
     },
     protocol::transaction::v1alpha1::{
         Action,
-        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -154,13 +153,12 @@ impl Submitter {
         .wrap_err("failed to get nonce from sequencer")?;
         debug!(nonce, "fetched latest nonce");
 
-        let unsigned = UnsignedTransaction {
-            actions,
-            params: TransactionParams::builder()
-                .nonce(nonce)
-                .chain_id(sequencer_chain_id)
-                .build(),
-        };
+        let unsigned = UnsignedTransaction::builder()
+            .actions(actions)
+            .nonce(nonce)
+            .chain_id(sequencer_chain_id)
+            .try_build()
+            .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
         let signed = unsigned.into_signed(signer.signing_key());

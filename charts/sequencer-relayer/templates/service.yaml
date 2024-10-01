@@ -4,6 +4,8 @@ apiVersion: v1
 metadata:
   name: sequencer-relayer-metrics
   namespace: {{ include "sequencer-relayer.namespace" . }}
+  labels:
+    {{- include "sequencer-relayer.labels" . | nindent 4 }}
 spec:
   selector:
     app: sequencer-relayer

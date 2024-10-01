@@ -1,0 +1,60 @@
+name: Code Freeze
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+      - unlabeled
+    branches:
+      - main
+
+jobs:
+  code_freeze:
+    name: Code Freeze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Filter Check
+        id: filters
+        uses: dorny/paths-filter@v3
+        with:
+          list-files: shell
+          filters: .github/code-freeze-filter.yaml
+      - name: Output Failure
+        if: steps.filters.outputs.changes != '' && !contains(github.event.pull_request.labels.*.name, 'override-freeze')
+        run: |
+          TITLE="Code Freeze in Effect"
+          LEGIBLE_CHANGES=$(echo "${{ steps.filters.outputs.changes }}" | sed 's/,changed//g' | sed 's/,/, /g' | sed 's/[][]//g')
+          echo "### ${TITLE}" >> $GITHUB_STEP_SUMMARY
+          echo "This PR updates the following components which are code frozen: ${LEGIBLE_CHANGES}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The following files are modified and frozen:" >> $GITHUB_STEP_SUMMARY
+          IFS="," read -ra FILE_LIST <<< "${{ steps.filters.outputs.changed_files }}"
+          FILE_MESSAGE="This file is under code freeze."
+          for FILE in "${FILE_LIST[@]}"; do
+            echo " - ${FILE}" >> $GITHUB_STEP_SUMMARY
+            echo "::error file=$FILE,title=$TITLE::$FILE_MESSAGE"
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Freeze can be overriden by adding the 'override-freeze' label to the PR." >> $GITHUB_STEP_SUMMARY
+          exit 1
+      - name: Output Bypass
+        if: steps.filters.outputs.changes != '' && !contains(github.event.pull_request.labels.*.name, 'override-freeze')
+        run: |
+          TITLE="Code Freeze in Effect - Bypassed"
+          LEGIBLE_CHANGES=$(echo "${{ steps.filters.outputs.changes }}" | sed 's/,changed//g' | sed 's/,/, /g' | sed 's/[][]//g')
+          echo "### ${TITLE}" >> $GITHUB_STEP_SUMMARY
+          echo "This PR updates the following components which are code frozen: ${LEGIBLE_CHANGES}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The following files are modified and frozen:" >> $GITHUB_STEP_SUMMARY
+          IFS="," read -ra FILE_LIST <<< "${{ steps.filters.outputs.changed_files }}"
+          FILE_MESSAGE="This file is under code freeze."
+          for FILE in "${FILE_LIST[@]}"; do
+            echo " - ${FILE}" >> $GITHUB_STEP_SUMMARY
+            echo "::warning file=$FILE,title=$TITLE::$FILE_MESSAGE"
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Freeze has been overriden by adding the 'override-freeze' label to the PR." >> $GITHUB_STEP_SUMMARY
+          exit 0

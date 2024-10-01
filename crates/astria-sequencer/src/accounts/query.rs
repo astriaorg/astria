@@ -32,13 +32,13 @@ use tracing::instrument;
 
 use crate::{
     accounts::StateReadExt as _,
+    app::StateReadExt as _,
     assets::StateReadExt as _,
-    state_ext::StateReadExt as _,
 };
 
 async fn ibc_to_trace<S: StateRead>(
     state: S,
-    asset: asset::IbcPrefixed,
+    asset: &asset::IbcPrefixed,
 ) -> Result<asset::TracePrefixed> {
     state
         .map_ibc_to_trace_prefixed_asset(asset)
@@ -50,7 +50,7 @@ async fn ibc_to_trace<S: StateRead>(
 #[instrument(skip_all, fields(%address))]
 async fn get_trace_prefixed_account_balances<S: StateRead>(
     state: &S,
-    address: Address,
+    address: &Address,
 ) -> Result<Vec<AssetBalance>> {
     let stream = state
         .account_asset_balances(address)
@@ -63,7 +63,7 @@ async fn get_trace_prefixed_account_balances<S: StateRead>(
             let result_denom = if asset_balance.asset == native_asset.to_ibc_prefixed() {
                 native_asset.into()
             } else {
-                ibc_to_trace(state, asset_balance.asset)
+                ibc_to_trace(state, &asset_balance.asset)
                     .await
                     .context("failed to map ibc prefixed asset to trace prefixed")?
                     .into()
@@ -88,7 +88,7 @@ pub(crate) async fn balance_request(
         Err(err_rsp) => return err_rsp,
     };
 
-    let balances = match get_trace_prefixed_account_balances(&snapshot, address).await {
+    let balances = match get_trace_prefixed_account_balances(&snapshot, &address).await {
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
@@ -126,7 +126,7 @@ pub(crate) async fn nonce_request(
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,
     };
-    let nonce = match snapshot.get_account_nonce(address).await {
+    let nonce = match snapshot.get_account_nonce(&address).await {
         Ok(nonce) => nonce,
         Err(err) => {
             return response::Query {

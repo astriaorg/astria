@@ -55,13 +55,13 @@ impl ActionHandler for BridgeLockAction {
             .wrap_err("failed check for base prefix of destination address")?;
         // ensure the recipient is a bridge account.
         let rollup_id = state
-            .get_bridge_account_rollup_id(self.to)
+            .get_bridge_account_rollup_id(&self.to)
             .await
             .wrap_err("failed to get bridge account rollup id")?
             .ok_or_eyre("bridge lock must be sent to a bridge account")?;
 
         let allowed_asset = state
-            .get_bridge_account_ibc_asset(self.to)
+            .get_bridge_account_ibc_asset(&self.to)
             .await
             .wrap_err("failed to get bridge account asset ID")?;
         ensure!(
@@ -70,7 +70,7 @@ impl ActionHandler for BridgeLockAction {
         );
 
         let from_balance = state
-            .get_account_balance(from, &self.fee_asset)
+            .get_account_balance(&from, &self.fee_asset)
             .await
             .wrap_err("failed to get sender account balance")?;
         let transfer_fee = state
@@ -114,17 +114,16 @@ impl ActionHandler for BridgeLockAction {
             fee_asset: self.fee_asset.clone(),
         };
 
-        check_transfer(&transfer_action, from, &state).await?;
+        check_transfer(&transfer_action, &from, &state).await?;
         // Executes the transfer and deducts transfer feeds.
         // FIXME: This is a very roundabout way of paying for fees. IMO it would be
         // better to just duplicate this entire logic here so that we don't call out
         // to the transfer-action logic.
-        execute_transfer(&transfer_action, from, &mut state).await?;
+        execute_transfer(&transfer_action, &from, &mut state).await?;
 
-        // the transfer fee is already deducted in `execute_transfer() above,
         // so we just deduct the bridge lock byte multiplier fee.
         // FIXME: similar to what is mentioned there: this should be reworked so that
-        // the fee deducation logic for these actions are defined fully independently
+        // the fee deduction logic for these actions are defined fully independently
         // (even at the cost of duplicating code).
         let byte_cost_multiplier = state
             .get_bridge_lock_byte_cost_multiplier()
@@ -137,7 +136,7 @@ impl ActionHandler for BridgeLockAction {
             .await
             .wrap_err("failed to add to block fees")?;
         state
-            .decrease_balance(from, &self.fee_asset, fee)
+            .decrease_balance(&from, &self.fee_asset, fee)
             .await
             .wrap_err("failed to deduct fee from account balance")?;
 
@@ -209,10 +208,10 @@ mod tests {
             transaction_id,
             source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         state.put_transfer_base_fee(transfer_fee).unwrap();
-        state.put_bridge_lock_byte_cost_multiplier(2);
+        state.put_bridge_lock_byte_cost_multiplier(2).unwrap();
 
         let bridge_address = astria_address(&[1; 20]);
         let asset = test_asset();
@@ -225,15 +224,17 @@ mod tests {
         };
 
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
-        state.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state.put_allowed_fee_asset(&asset);
+        state
+            .put_bridge_account_ibc_asset(&bridge_address, asset.clone())
+            .unwrap();
+        state.put_allowed_fee_asset(&asset).unwrap();
 
         // not enough balance; should fail
         state
-            .put_account_balance(from_address, &asset, transfer_fee)
+            .put_account_balance(&from_address, &asset, transfer_fee)
             .unwrap();
         assert_eyre_error(
             &bridge_lock.check_and_execute(&mut state).await.unwrap_err(),
@@ -254,7 +255,7 @@ mod tests {
             .unwrap()
                 * 2;
         state
-            .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
+            .put_account_balance(&from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
         bridge_lock.check_and_execute(&mut state).await.unwrap();
     }

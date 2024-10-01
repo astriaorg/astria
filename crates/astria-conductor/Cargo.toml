@@ -68,6 +68,7 @@ tower = { version = "0.4.13", features = ["limit"] }
 # when updating.
 celestia-rpc = "0.1.1"
 celestia-types = { workspace = true }
+celestia-tendermint = { workspace = true }
 jsonrpsee = { version = "0.20", features = ["client-core", "macros"] }
 
 [dev-dependencies]
