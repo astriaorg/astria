@@ -118,7 +118,7 @@ async fn submit_transaction(
     actions: Vec<Action>,
 ) -> eyre::Result<Response> {
     let from_address = Address::builder()
-        .array(signing_key.verification_key().address_bytes())
+        .array(*signing_key.verification_key().address_bytes())
         .prefix(prefix)
         .try_build()
         .wrap_err("failed constructing a valid from address from the provided prefix")?;

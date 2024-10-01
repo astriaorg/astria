@@ -107,7 +107,7 @@ impl RollupId {
     /// use astria_core::primitive::v1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
-    /// assert_eq!(bytes, rollup_id.get());
+    /// assert_eq!(bytes, *rollup_id.as_bytes());
     /// ```
     #[must_use]
     pub const fn new(inner: [u8; ROLLUP_ID_LEN]) -> Self {
@@ -116,18 +116,18 @@ impl RollupId {
         }
     }
 
-    /// Returns the 32 bytes array representing the rollup ID.
+    /// Returns a ref to the 32 bytes array representing the rollup ID.
     ///
     /// # Examples
     /// ```
     /// use astria_core::primitive::v1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
-    /// assert_eq!(bytes, rollup_id.get());
+    /// assert_eq!(bytes, *rollup_id.as_bytes());
     /// ```
     #[must_use]
-    pub const fn get(self) -> [u8; 32] {
-        self.inner
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.inner
     }
 
     /// Creates a new rollup ID by applying Sha256 to `bytes`.
@@ -527,6 +527,11 @@ impl<TFormat> Address<TFormat> {
     }
 
     #[must_use]
+    pub fn as_bytes(&self) -> &[u8; ADDRESS_LEN] {
+        &self.bytes
+    }
+
+    #[must_use]
     pub fn prefix(&self) -> &str {
         self.prefix.as_str()
     }
@@ -538,7 +543,7 @@ impl<TFormat> Address<TFormat> {
     /// The error conditions for this are the same as for [`AddressBuilder::try_build`].
     pub fn to_prefix(&self, prefix: &str) -> Result<Self, AddressError> {
         Self::builder()
-            .array(self.bytes())
+            .array(*self.as_bytes())
             .prefix(prefix)
             .try_build()
     }
@@ -565,7 +570,7 @@ impl Address<Bech32m> {
     #[must_use]
     pub fn to_raw(&self) -> raw::Address {
         let bech32m =
-            bech32::encode_lower::<<Bech32m as Format>::Checksum>(self.prefix, &self.bytes())
+            bech32::encode_lower::<<Bech32m as Format>::Checksum>(self.prefix, self.as_bytes())
                 .expect(
                     "should not fail because len(prefix) + len(bytes) <= 63 < BECH32M::CODELENGTH",
                 );
@@ -589,6 +594,22 @@ impl Address<Bech32m> {
             bech32m,
         } = raw;
         bech32m.parse()
+    }
+
+    /// This should only be used where the inputs have been provided by a trusted entity, e.g. read
+    /// from our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
+    #[cfg(feature = "unchecked-constructors")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(bytes: [u8; ADDRESS_LEN], prefix: &str) -> Self {
+        Self {
+            bytes,
+            prefix: bech32::Hrp::parse_unchecked(prefix),
+            format: PhantomData,
+        }
     }
 }
 
@@ -623,7 +644,7 @@ impl TryFrom<raw::Address> for Address<Bech32m> {
 impl<T: Format> std::fmt::Display for Address<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use bech32::EncodeError;
-        match bech32::encode_lower_to_fmt::<T::Checksum, _>(f, self.prefix, &self.bytes()) {
+        match bech32::encode_lower_to_fmt::<T::Checksum, _>(f, self.prefix, self.as_bytes()) {
             Ok(()) => Ok(()),
             Err(EncodeError::Fmt(err)) => Err(err),
             Err(err) => panic!(
@@ -682,10 +703,16 @@ impl TransactionId {
         }
     }
 
-    /// Returns the 32-byte transaction hash.
+    /// Consumes `self` and returns the 32-byte transaction hash.
     #[must_use]
     pub fn get(self) -> [u8; TRANSACTION_ID_LEN] {
         self.inner
+    }
+
+    /// Returns a reference to the 32-byte transaction hash.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8; TRANSACTION_ID_LEN] {
+        &self.inner
     }
 
     #[must_use]
@@ -805,7 +832,7 @@ mod tests {
             .prefix(ASTRIA_ADDRESS_PREFIX)
             .try_build()
             .unwrap();
-        insta::assert_json_snapshot!(&main_address);
+        insta::assert_json_snapshot!(&main_address.to_raw());
 
         let compat_address = main_address
             .to_prefix(ASTRIA_COMPAT_ADDRESS_PREFIX)
@@ -896,6 +923,7 @@ mod tests {
         let _ = address.into_raw();
     }
 
+    #[cfg(feature = "unchecked-constructors")]
     #[test]
     fn address_to_unchecked_roundtrip() {
         let bytes = [42u8; ADDRESS_LEN];
@@ -907,7 +935,7 @@ mod tests {
         let unchecked = input.into_raw();
         let roundtripped = Address::try_from_raw(&unchecked).unwrap();
         assert_eq!(input, roundtripped);
-        assert_eq!(input.bytes(), roundtripped.bytes());
+        assert_eq!(input.as_bytes(), roundtripped.as_bytes());
         assert_eq!("astria", input.prefix());
     }
 }

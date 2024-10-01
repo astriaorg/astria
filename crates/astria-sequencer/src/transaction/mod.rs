@@ -38,7 +38,10 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    app::ActionHandler,
+    app::{
+        ActionHandler,
+        StateReadExt as _,
+    },
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -47,7 +50,6 @@ use crate::{
         host_interface::AstriaHost,
         StateReadExt as _,
     },
-    state_ext::StateReadExt as _,
 };
 
 #[derive(Debug)]
@@ -185,26 +187,28 @@ impl ActionHandler for SignedTransaction {
             .wrap_err("failed to check balance for total fees and transfers")?;
 
         if state
-            .get_bridge_account_rollup_id(self)
+            .get_bridge_account_rollup_id(&self)
             .await
             .wrap_err("failed to check account rollup id")?
             .is_some()
         {
-            state.put_last_transaction_id_for_bridge_account(
-                self,
-                &transaction_context.transaction_id,
-            );
+            state
+                .put_last_transaction_id_for_bridge_account(
+                    &self,
+                    transaction_context.transaction_id,
+                )
+                .wrap_err("failed to put last transaction id for bridge account")?;
         }
 
         let from_nonce = state
-            .get_account_nonce(self)
+            .get_account_nonce(&self)
             .await
             .wrap_err("failed getting nonce of transaction signer")?;
         let next_nonce = from_nonce
             .checked_add(1)
             .ok_or_eyre("overflow occurred incrementing stored nonce")?;
         state
-            .put_account_nonce(self, next_nonce)
+            .put_account_nonce(&self, next_nonce)
             .wrap_err("failed updating `from` nonce")?;
 
         // FIXME: this should create one span per `check_and_execute`

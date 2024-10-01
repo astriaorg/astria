@@ -205,7 +205,7 @@ impl Mempool {
                         .checked_add(1)
                         .expect("failed to increment nonce in promotion"),
                     &pending.subtract_contained_costs(
-                        *timemarked_tx.address(),
+                        timemarked_tx.address(),
                         current_account_balances.clone(),
                     ),
                 );
@@ -246,7 +246,7 @@ impl Mempool {
         reason: RemovalReason,
     ) {
         let tx_hash = signed_tx.id().get();
-        let address = signed_tx.verification_key().address_bytes();
+        let address = *signed_tx.verification_key().address_bytes();
 
         // Try to remove from pending.
         let removed_txs = match self.pending.write().await.remove(signed_tx) {
@@ -302,12 +302,12 @@ impl Mempool {
 
         let addresses: HashSet<[u8; 20]> = pending
             .addresses()
-            .into_iter()
             .chain(parked.addresses())
+            .copied()
             .collect();
 
         // TODO: Make this concurrent, all account state is separate with IO bound disk reads.
-        for address in addresses {
+        for address in &addresses {
             // get current account state
             let current_nonce = match state.get_account_nonce(address).await {
                 Ok(res) => res,
@@ -323,7 +323,7 @@ impl Mempool {
                 Ok(res) => res,
                 Err(error) => {
                     error!(
-                        address = %telemetry::display::base64(&address),
+                        address = %telemetry::display::base64(address),
                         "failed to fetch account balances when cleaning accounts: {error:#}"
                     );
                     continue;
@@ -353,7 +353,7 @@ impl Mempool {
                 let remaining_balances =
                     pending.subtract_contained_costs(address, current_balances.clone());
                 let promtion_txs =
-                    parked.find_promotables(&address, highest_pending_nonce, &remaining_balances);
+                    parked.find_promotables(address, highest_pending_nonce, &remaining_balances);
 
                 for tx in promtion_txs {
                     if let Err(error) = pending.add(tx, current_nonce, &current_balances) {
@@ -392,7 +392,7 @@ impl Mempool {
     /// pending queue for an account has nonces [0,1] and the parked queue has [3], [1] will be
     /// returned.
     #[instrument(skip_all)]
-    pub(crate) async fn pending_nonce(&self, address: [u8; 20]) -> Option<u32> {
+    pub(crate) async fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
         self.pending.read().await.pending_nonce(address)
     }
 
@@ -544,7 +544,7 @@ mod tests {
         let mut mock_state = mock_state_getter().await;
         mock_state_put_account_nonce(
             &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             1,
         );
 
@@ -568,12 +568,12 @@ mod tests {
         // setup state
         mock_state_put_account_nonce(
             &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             4,
         );
         mock_state_put_account_balances(
             &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             mock_balances(100, 100),
         );
 
@@ -626,7 +626,7 @@ mod tests {
         let mut mock_state = mock_state_getter().await;
         mock_state_put_account_nonce(
             &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             1,
         );
 
@@ -645,7 +645,7 @@ mod tests {
         // setup state
         mock_state_put_account_balances(
             &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             mock_balances(3, 0),
         );
 
@@ -699,7 +699,7 @@ mod tests {
         let mut mock_state = mock_state_getter().await;
         mock_state_put_account_nonce(
             &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             1,
         );
 
@@ -716,7 +716,7 @@ mod tests {
         // setup state
         mock_state_put_account_balances(
             &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             mock_balances(1, 0),
         );
 
@@ -735,12 +735,12 @@ mod tests {
 
         mock_state_put_account_nonce(
             &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             1,
         );
         mock_state_put_account_balances(
             &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             mock_balances(3, 0),
         );
 
@@ -923,14 +923,14 @@ mod tests {
         // Check the pending nonces
         assert_eq!(
             mempool
-                .pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).bytes())
+                .pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes())
                 .await
                 .unwrap(),
             1
         );
         assert_eq!(
             mempool
-                .pending_nonce(astria_address_from_hex_string(BOB_ADDRESS).bytes())
+                .pending_nonce(astria_address_from_hex_string(BOB_ADDRESS).as_bytes())
                 .await
                 .unwrap(),
             101
@@ -939,7 +939,7 @@ mod tests {
         // Check the pending nonce for an address with no txs is `None`.
         assert!(
             mempool
-                .pending_nonce(astria_address_from_hex_string(CAROL_ADDRESS).bytes())
+                .pending_nonce(astria_address_from_hex_string(CAROL_ADDRESS).as_bytes())
                 .await
                 .is_none()
         );

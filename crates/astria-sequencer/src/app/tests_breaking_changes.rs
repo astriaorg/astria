@@ -87,9 +87,11 @@ async fn app_finalize_block_snapshot() {
     let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(bridge_address, nria())
+        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+        .unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
     app.apply(state_tx);
 
@@ -340,7 +342,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();
-    app.end_block(1, sudo_address).await.unwrap();
+    app.end_block(1, &sudo_address).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;

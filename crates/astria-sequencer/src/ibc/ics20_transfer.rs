@@ -314,7 +314,7 @@ async fn refund_tokens_check<S: StateRead>(
     if is_refund_source_zone(&asset, source_port, source_channel) {
         // check if escrow account has enough balance to refund user
         let balance = state
-            .get_ibc_channel_balance(source_channel, asset)
+            .get_ibc_channel_balance(source_channel, &asset)
             .await
             .wrap_err("failed to get channel balance in refund_tokens_check")?;
 
@@ -423,7 +423,7 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
         .parse()
         .wrap_err("failed to parse packet data amount to u128")?;
 
-    let recipient = packet_data
+    let recipient: Address = packet_data
         .receiver
         .parse()
         .wrap_err("invalid recipient address")?;
@@ -460,7 +460,7 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
     //
     // `recipient` is a bridge account if it has an associated rollup identified by its ID.
     if state
-        .get_bridge_account_rollup_id(recipient)
+        .get_bridge_account_rollup_id(&recipient)
         .await
         .context("failed to get bridge account rollup ID from state")?
         .is_some()
@@ -485,13 +485,13 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
             .wrap_err("failed to check if IBC asset exists in state")?
         {
             state
-                .put_ibc_asset(&asset)
+                .put_ibc_asset(asset.clone())
                 .wrap_err("failed to write IBC asset to state")?;
         }
     }
 
     state
-        .increase_balance(recipient, &asset, amount)
+        .increase_balance(&recipient, &asset, amount)
         .await
         .context("failed to update user account balance")?;
 
@@ -539,7 +539,7 @@ async fn refund_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<(
     if let Some(memo) = does_failed_transfer_come_from_rollup(&packet_data) {
         emit_deposit(
             &mut state,
-            receiver,
+            &receiver,
             memo.rollup_return_address,
             &asset,
             amount,
@@ -549,8 +549,8 @@ async fn refund_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<(
     }
     refund_tokens_to_sequencer_address(
         &mut state,
-        receiver,
-        asset,
+        &receiver,
+        &asset,
         amount,
         &packet.port_on_a,
         &packet.chan_on_a,
@@ -572,15 +572,15 @@ fn does_failed_transfer_come_from_rollup(
 #[instrument(skip_all, fields(%recipient, %asset, amount), err)]
 async fn refund_tokens_to_sequencer_address<S: StateWrite>(
     mut state: S,
-    recipient: Address,
-    asset: denom::TracePrefixed,
+    recipient: &Address,
+    asset: &denom::TracePrefixed,
     amount: u128,
     source_port: &PortId,
     source_channel: &ChannelId,
 ) -> Result<()> {
-    if is_refund_source_zone(&asset, source_port, source_channel) {
+    if is_refund_source_zone(asset, source_port, source_channel) {
         state
-            .decrease_ibc_channel_balance(source_channel, &asset, amount)
+            .decrease_ibc_channel_balance(source_channel, asset, amount)
             .await
             .context("failed to withdraw refund amount from escrow account")?;
     }
@@ -600,7 +600,7 @@ async fn parse_asset<S: StateRead>(state: S, input: &str) -> Result<denom::Trace
     {
         Denom::TracePrefixed(trace_prefixed) => trace_prefixed,
         Denom::IbcPrefixed(ibc_prefixed) => state
-            .map_ibc_to_trace_prefixed_asset(ibc_prefixed)
+            .map_ibc_to_trace_prefixed_asset(&ibc_prefixed)
             .await
             .wrap_err("failed reading state to map ibc prefixed asset to trace prefixed asset")?
             .ok_or_eyre(
@@ -679,7 +679,7 @@ async fn emit_bridge_lock_deposit<S: StateWrite>(
 
     emit_deposit(
         &mut state,
-        bridge_address,
+        &bridge_address,
         deposit_memo.rollup_deposit_address,
         asset,
         amount,
@@ -690,7 +690,7 @@ async fn emit_bridge_lock_deposit<S: StateWrite>(
 #[instrument(skip_all, fields(%bridge_address, destination_chain_address, %asset, amount), err)]
 async fn emit_deposit<S: StateWrite>(
     mut state: S,
-    bridge_address: Address,
+    bridge_address: &Address,
     destination_chain_address: String,
     asset: &denom::TracePrefixed,
     amount: u128,
@@ -723,7 +723,7 @@ async fn emit_deposit<S: StateWrite>(
     let source_action_index = transaction_context.source_action_index;
 
     let deposit = Deposit {
-        bridge_address,
+        bridge_address: *bridge_address,
         rollup_id,
         amount,
         asset: asset.into(),
@@ -829,7 +829,7 @@ mod tests {
         let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
         state_tx
-            .put_ibc_channel_balance(&packet().chan_on_b, nria(), amount)
+            .put_ibc_channel_balance(&packet().chan_on_b, &nria(), amount)
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -851,12 +851,12 @@ mod tests {
         .unwrap();
 
         let user_balance = state_tx
-            .get_account_balance(recipient_address, nria())
+            .get_account_balance(&recipient_address, &nria())
             .await
             .expect("ics20 transfer to user account should succeed");
         assert_eq!(user_balance, amount);
         let escrow_balance = state_tx
-            .get_ibc_channel_balance(&packet().chan_on_b, nria())
+            .get_ibc_channel_balance(&packet().chan_on_b, &nria())
             .await
             .expect("ics20 transfer to user account from escrow account should succeed");
         assert_eq!(escrow_balance, 0);
@@ -891,12 +891,12 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(state_tx.has_ibc_asset(sink_asset()).await.expect(
+        assert!(state_tx.has_ibc_asset(&sink_asset()).await.expect(
             "a new asset with <sequencer_port>/<sequencer_channel>/<asset> should be registered \
              in the state"
         ));
         let user_balance = state_tx
-            .get_account_balance(recipient_address, sink_asset())
+            .get_account_balance(&recipient_address, &sink_asset())
             .await
             .expect(
                 "a successful transfer should be reflected in the account balance of the new asset",
@@ -922,12 +922,14 @@ mod tests {
         let rollup_deposit_address = "rollupaddress";
         let amount = 100;
 
-        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, nria())
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
         state_tx
-            .put_ibc_channel_balance(&packet().chan_on_b, nria(), amount)
+            .put_bridge_account_ibc_asset(&bridge_address, nria())
+            .unwrap();
+        state_tx
+            .put_ibc_channel_balance(&packet().chan_on_b, &nria(), amount)
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -951,7 +953,7 @@ mod tests {
         .unwrap();
 
         let balance = state_tx
-            .get_account_balance(bridge_address, nria())
+            .get_account_balance(&bridge_address, &nria())
             .await
             .expect(
                 "ics20 transfer from sender to bridge account should have updated funds in the \
@@ -1006,9 +1008,11 @@ mod tests {
         )
         .parse::<Denom>()
         .unwrap();
-        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, &remote_asset_on_sequencer)
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+            .unwrap();
+        state_tx
+            .put_bridge_account_ibc_asset(&bridge_address, &remote_asset_on_sequencer)
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -1032,7 +1036,7 @@ mod tests {
         .unwrap();
 
         let balance = state_tx
-            .get_account_balance(bridge_address, &remote_asset_on_sequencer)
+            .get_account_balance(&bridge_address, &remote_asset_on_sequencer)
             .await
             .expect("receipt of funds to a rollup should have updated funds in the bridge account");
         assert_eq!(balance, amount);
@@ -1062,9 +1066,11 @@ mod tests {
         let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, sink_asset())
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+            .unwrap();
+        state_tx
+            .put_bridge_account_ibc_asset(&bridge_address, sink_asset())
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -1096,9 +1102,11 @@ mod tests {
         let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, sink_asset())
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+            .unwrap();
+        state_tx
+            .put_bridge_account_ibc_asset(&bridge_address, sink_asset())
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -1130,13 +1138,15 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX);
-        state_tx.put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX);
+        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_tx
+            .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
+            .unwrap();
 
         let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
         state_tx
-            .put_ibc_channel_balance(&packet().chan_on_a, nria(), amount)
+            .put_ibc_channel_balance(&packet().chan_on_a, &nria(), amount)
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -1158,12 +1168,12 @@ mod tests {
         .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
 
         let balance = state_tx
-            .get_account_balance(recipient_address, nria())
+            .get_account_balance(&recipient_address, &nria())
             .await
             .expect("ics20 refund to user account should succeed");
         assert_eq!(balance, amount);
         let balance = state_tx
-            .get_ibc_channel_balance(&packet().chan_on_a, nria())
+            .get_ibc_channel_balance(&packet().chan_on_a, &nria())
             .await
             .expect("ics20 refund to user account from escrow account should succeed");
         assert_eq!(balance, 0);
@@ -1175,13 +1185,15 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX);
-        state_tx.put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX);
+        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_tx
+            .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
+            .unwrap();
 
         let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
         state_tx
-            .put_ibc_channel_balance(&packet().chan_on_a, sink_asset(), amount)
+            .put_ibc_channel_balance(&packet().chan_on_a, &sink_asset(), amount)
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -1203,12 +1215,12 @@ mod tests {
         .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
 
         let balance = state_tx
-            .get_account_balance(recipient_address, sink_asset())
+            .get_account_balance(&recipient_address, &sink_asset())
             .await
             .expect("ics20 refund to user account should succeed");
         assert_eq!(balance, amount);
         let balance = state_tx
-            .get_ibc_channel_balance(&packet().chan_on_a, sink_asset())
+            .get_ibc_channel_balance(&packet().chan_on_a, &sink_asset())
             .await
             .expect("ics20 refund to user account from escrow account should succeed");
         assert_eq!(balance, 0);
@@ -1220,8 +1232,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX);
-        state_tx.put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX);
+        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_tx
+            .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
+            .unwrap();
 
         let bridge_address = astria_address(&[99u8; 20]);
 
@@ -1233,14 +1247,16 @@ mod tests {
             source_action_index: 0,
         });
 
-        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, sink_asset())
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+            .unwrap();
+        state_tx
+            .put_bridge_account_ibc_asset(&bridge_address, sink_asset())
             .unwrap();
 
         let amount = 100;
         state_tx
-            .put_ibc_channel_balance(&packet().chan_on_a, sink_asset(), amount)
+            .put_ibc_channel_balance(&packet().chan_on_a, &sink_asset(), amount)
             .unwrap();
 
         let address_on_rollup = "address_on_rollup".to_string();
@@ -1270,7 +1286,7 @@ mod tests {
         .expect("valid rollup withdrawal refund");
 
         let balance = state_tx
-            .get_account_balance(bridge_address, sink_asset())
+            .get_account_balance(&bridge_address, &sink_asset())
             .await
             .expect("rollup withdrawal refund should have updated funds in the bridge address");
         assert_eq!(balance, amount);
@@ -1295,12 +1311,14 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX);
-        state_tx.put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX);
+        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_tx
+            .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
+            .unwrap();
 
         let amount = 100;
         state_tx
-            .put_ibc_channel_balance(&packet().chan_on_a, nria(), amount)
+            .put_ibc_channel_balance(&packet().chan_on_a, &nria(), amount)
             .unwrap();
 
         let bridge_address = astria_address(&[99u8; 20]);
@@ -1313,9 +1331,11 @@ mod tests {
             source_action_index: 0,
         });
 
-        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, nria())
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+            .unwrap();
+        state_tx
+            .put_bridge_account_ibc_asset(&bridge_address, nria())
             .unwrap();
 
         let packet_denom = FungibleTokenPacketData {
@@ -1343,7 +1363,7 @@ mod tests {
         .unwrap();
 
         let balance = state_tx
-            .get_account_balance(bridge_address, nria())
+            .get_account_balance(&bridge_address, &nria())
             .await
             .expect("refunds of rollup withdrawals should be credited to the bridge account");
         assert_eq!(balance, amount);
@@ -1373,8 +1393,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX);
-        state_tx.put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX);
+        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_tx
+            .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
+            .unwrap();
 
         let bridge_address = astria_address(&[99u8; 20]);
         let bridge_address_compat = astria_compat_address(&[99u8; 20]);
@@ -1382,14 +1404,16 @@ mod tests {
 
         let amount = 100;
         state_tx
-            .put_ibc_channel_balance(&packet().chan_on_a, nria(), amount)
+            .put_ibc_channel_balance(&packet().chan_on_a, &nria(), amount)
             .unwrap();
 
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_ibc_asset(bridge_address, nria())
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+            .unwrap();
+        state_tx
+            .put_bridge_account_ibc_asset(&bridge_address, nria())
             .unwrap();
 
         let packet_data = FungibleTokenPacketData {
@@ -1424,7 +1448,7 @@ mod tests {
         .unwrap();
 
         let balance = state_tx
-            .get_account_balance(bridge_address, nria())
+            .get_account_balance(&bridge_address, &nria())
             .await
             .expect("refunding a rollup should add the tokens to its bridge address");
         assert_eq!(balance, amount);

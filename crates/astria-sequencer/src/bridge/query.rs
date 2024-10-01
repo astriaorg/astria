@@ -19,9 +19,9 @@ use tendermint::abci::{
 
 use crate::{
     address::StateReadExt,
+    app::StateReadExt as _,
     assets::StateReadExt as _,
     bridge::StateReadExt as _,
-    state_ext::StateReadExt as _,
 };
 
 fn error_query_response(
@@ -46,7 +46,7 @@ fn error_query_response(
 #[expect(clippy::too_many_lines, reason = "should be refactored")]
 async fn get_bridge_account_info(
     snapshot: cnidarium::Snapshot,
-    address: Address,
+    address: &Address,
 ) -> Result<Option<BridgeAccountInfo>, response::Query> {
     let rollup_id = match snapshot.get_bridge_account_rollup_id(address).await {
         Ok(Some(rollup_id)) => rollup_id,
@@ -73,7 +73,7 @@ async fn get_bridge_account_info(
         }
     };
 
-    let trace_asset = match snapshot.map_ibc_to_trace_prefixed_asset(ibc_asset).await {
+    let trace_asset = match snapshot.map_ibc_to_trace_prefixed_asset(&ibc_asset).await {
         Ok(Some(trace_asset)) => trace_asset,
         Ok(None) => {
             return Err(error_query_response(
@@ -186,7 +186,7 @@ pub(crate) async fn bridge_account_info_request(
         }
     };
 
-    let info = match get_bridge_account_info(snapshot, address).await {
+    let info = match get_bridge_account_info(snapshot, &address).await {
         Ok(info) => info,
         Err(err) => {
             return err;
@@ -302,9 +302,9 @@ mod tests {
     use super::*;
     use crate::{
         address::StateWriteExt as _,
+        app::StateWriteExt as _,
         assets::StateWriteExt as _,
         bridge::StateWriteExt as _,
-        state_ext::StateWriteExt as _,
         test_utils::{
             astria_address,
             ASTRIA_PREFIX,
@@ -317,23 +317,29 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset: astria_core::primitive::v1::asset::Denom = "test".parse().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes("test");
         let bridge_address = astria_address(&[0u8; 20]);
         let sudo_address = astria_address(&[1u8; 20]);
         let withdrawer_address = astria_address(&[2u8; 20]);
-        state.put_block_height(1);
-        state.put_bridge_account_rollup_id(bridge_address, &rollup_id);
+        state.put_block_height(1).unwrap();
         state
-            .put_ibc_asset(asset.as_trace_prefixed().unwrap())
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
         state
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .put_ibc_asset(asset.as_trace_prefixed().unwrap().clone())
             .unwrap();
-        state.put_bridge_account_sudo_address(bridge_address, sudo_address);
-        state.put_bridge_account_withdrawer_address(bridge_address, withdrawer_address);
+        state
+            .put_bridge_account_ibc_asset(&bridge_address, &asset)
+            .unwrap();
+        state
+            .put_bridge_account_sudo_address(&bridge_address, sudo_address)
+            .unwrap();
+        state
+            .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
+            .unwrap();
         storage.commit(state).await.unwrap();
 
         let query = request::Query {

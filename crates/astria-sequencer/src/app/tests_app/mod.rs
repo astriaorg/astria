@@ -56,7 +56,6 @@ use crate::{
     },
     bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
-    state_ext::StateReadExt as _,
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -100,7 +99,7 @@ async fn app_genesis_and_init_chain() {
         assert_eq!(
             balance,
             app.state
-                .get_account_balance(address, nria())
+                .get_account_balance(&address, &nria())
                 .await
                 .unwrap(),
         );
@@ -154,7 +153,7 @@ async fn app_begin_block_remove_byzantine_validators() {
     let misbehavior = types::Misbehavior {
         kind: types::MisbehaviorKind::Unknown,
         validator: types::Validator {
-            address: crate::test_utils::verification_key(1).address_bytes(),
+            address: *crate::test_utils::verification_key(1).address_bytes(),
             power: 0u32.into(),
         },
         height: Height::default(),
@@ -194,7 +193,7 @@ async fn app_commit() {
         assert_eq!(
             balance,
             app.state
-                .get_account_balance(address, nria())
+                .get_account_balance(&address, &nria())
                 .await
                 .unwrap()
         );
@@ -213,7 +212,10 @@ async fn app_commit() {
     } in default_genesis_accounts()
     {
         assert_eq!(
-            snapshot.get_account_balance(address, nria()).await.unwrap(),
+            snapshot
+                .get_account_balance(&address, &nria())
+                .await
+                .unwrap(),
             balance
         );
     }
@@ -270,7 +272,7 @@ async fn app_transfer_block_fees_to_sudo() {
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
     assert_eq!(
         app.state
-            .get_account_balance(astria_address_from_hex_string(JUDY_ADDRESS), nria())
+            .get_account_balance(&astria_address_from_hex_string(JUDY_ADDRESS), &nria())
             .await
             .unwrap(),
         transfer_fee,
@@ -285,7 +287,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         sequencerblock::v1alpha1::block::RollupData,
     };
 
-    use crate::api_state_ext::StateReadExt as _;
+    use crate::grpc::StateReadExt as _;
 
     let alice = get_alice_signing_key();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
@@ -295,9 +297,11 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(bridge_address, nria())
+        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+        .unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
     // Put a deposit from a previous block to ensure it is not mixed in with deposits for this
     // block (it has a different amount and tx ID to the later deposit).
@@ -402,9 +406,11 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(bridge_address, &asset)
+        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+        .unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
@@ -767,7 +773,7 @@ async fn app_end_block_validator_updates() {
         .unwrap();
     app.apply(state_tx);
 
-    let resp = app.end_block(1, proposer_address).await.unwrap();
+    let resp = app.end_block(1, &proposer_address).await.unwrap();
     // we only assert length here as the ordering of the updates is not guaranteed
     // and validator::Update does not implement Ord
     assert_eq!(resp.validator_updates.len(), validator_updates.len());
