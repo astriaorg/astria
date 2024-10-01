@@ -11,6 +11,7 @@ use astria_core::sequencerblock::v1alpha1::{
 use pin_project_lite::pin_project;
 use sequencer_client::tendermint::block::Height;
 
+// Test
 pub(crate) trait GetSequencerHeight {
     fn get_height(&self) -> Height;
 }
