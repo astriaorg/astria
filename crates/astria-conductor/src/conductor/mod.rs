@@ -1,6 +1,9 @@
 mod inner;
 
-use std::future::Future;
+use std::{
+    future::Future,
+    task::ready,
+};
 
 use astria_eyre::eyre::{
     self,
@@ -66,7 +69,9 @@ impl Future for Handle {
             .task
             .as_mut()
             .expect("the Conductor handle must not be polled after shutdown");
-        task.poll_unpin(cx)?
+
+        let res = ready!(task.poll_unpin(cx));
+        std::task::Poll::Ready(crate::utils::flatten(res))
     }
 }
 
@@ -139,10 +144,10 @@ impl Conductor {
                     self.restart();
                     return Ok("restarting");
                 }
-                RestartOrShutdown::Shutdown => Ok("conductor exiting"),
+                RestartOrShutdown::Shutdown => Ok("shutting down"),
             },
             Ok(Err(err)) => Err(err.wrap_err("conductor exited with an error")),
-            Err(err) => Err(eyre::ErrReport::from(err).wrap_err("conductor panicked")),
+            Err(err) => Err(eyre::Report::new(err).wrap_err("conductor panicked")),
         }
     }
 
