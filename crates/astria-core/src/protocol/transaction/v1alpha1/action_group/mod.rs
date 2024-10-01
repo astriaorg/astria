@@ -24,6 +24,7 @@ use super::{
         SudoAddressChangeAction,
         TransferAction,
         ValidatorUpdate,
+        ValidatorUpdateWithName,
     },
     Action,
 };
@@ -46,6 +47,7 @@ impl_belong_to_group!(
     (SequenceAction, ActionGroup::BundleableGeneral),
     (TransferAction, ActionGroup::BundleableGeneral),
     (ValidatorUpdate, ActionGroup::BundleableGeneral),
+    (ValidatorUpdateWithName, ActionGroup::BundleableGeneral),
     (SudoAddressChangeAction, ActionGroup::UnbundleableSudo),
     (IbcRelayerChangeAction, ActionGroup::BundleableSudo),
     (Ics20Withdrawal, ActionGroup::BundleableGeneral),
@@ -65,6 +67,7 @@ impl Action {
             Action::Sequence(_) => SequenceAction::GROUP,
             Action::Transfer(_) => TransferAction::GROUP,
             Action::ValidatorUpdate(_) => ValidatorUpdate::GROUP,
+            Action::ValidatorUpdateWithName(_) => ValidatorUpdateWithName::GROUP,
             Action::SudoAddressChange(_) => SudoAddressChangeAction::GROUP,
             Action::IbcRelayerChange(_) => IbcRelayerChangeAction::GROUP,
             Action::Ics20Withdrawal(_) => Ics20Withdrawal::GROUP,

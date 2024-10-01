@@ -292,6 +292,7 @@ impl ActionName for Action {
             Action::Sequence(_) => "Sequence",
             Action::Transfer(_) => "Transfer",
             Action::ValidatorUpdate(_) => "ValidatorUpdate",
+            Action::ValidatorUpdateWithName(_) => "ValidatorUpdateWithName",
             Action::SudoAddressChange(_) => "SudoAddressChange",
             Action::Ibc(_) => "Ibc",
             Action::IbcSudoChange(_) => "IbcSudoChange",

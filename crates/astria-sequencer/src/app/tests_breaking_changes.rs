@@ -227,6 +227,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
+            Action::ValidatorUpdateWithName(update_with_name.clone()),
         ])
         .chain_id("test")
         .try_build()
@@ -234,7 +235,6 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let tx_bundleable_sudo = UnsignedTransaction::builder()
         .actions(vec![
-            Action::ValidatorUpdateWithName(update_with_name.clone()).into(),
             IbcRelayerChangeAction::Addition(bob_address).into(),
             IbcRelayerChangeAction::Addition(carol_address).into(),
             IbcRelayerChangeAction::Removal(bob_address).into(),

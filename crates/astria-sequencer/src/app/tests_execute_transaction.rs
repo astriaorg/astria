@@ -513,17 +513,20 @@ async fn app_execute_transaction_validator_update_with_name() {
         name: "test".to_string(),
     };
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![Action::ValidatorUpdateWithName(update_with_name.clone())],
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![Action::ValidatorUpdateWithName(
+            update_with_name.clone(),
+        )])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
-    assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+    assert_eq!(
+        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        1
+    );
 
     let validator_updates = app.state.get_validator_updates().await.unwrap();
     assert_eq!(validator_updates.len(), 1);
