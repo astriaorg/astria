@@ -11,7 +11,8 @@ use tendermint::abci::request::{
 };
 use tracing::instrument;
 
-use super::state_ext::StateWriteExt;
+use cnidarium::StateWrite;
+use super::state_ext::StateWriteExt as _;
 use crate::component::Component;
 
 #[derive(Default)]
@@ -22,7 +23,7 @@ impl Component for MarketMapComponent {
     type AppState = GenesisAppState;
 
     #[instrument(name = "MarketMapComponent::init_chain", skip(state))]
-    async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
+    async fn init_chain<S: StateWrite>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         // TODO: put market map authorites and admin in state;
         // only required for related actions however
 
@@ -36,7 +37,7 @@ impl Component for MarketMapComponent {
     }
 
     #[instrument(name = "MarketMapComponent::begin_block", skip(_state))]
-    async fn begin_block<S: StateWriteExt + 'static>(
+    async fn begin_block<S: StateWrite + 'static>(
         _state: &mut Arc<S>,
         _begin_block: &BeginBlock,
     ) -> Result<()> {
@@ -44,7 +45,7 @@ impl Component for MarketMapComponent {
     }
 
     #[instrument(name = "MarketMapComponent::end_block", skip(_state))]
-    async fn end_block<S: StateWriteExt + 'static>(
+    async fn end_block<S: StateWrite + 'static>(
         _state: &mut Arc<S>,
         _end_block: &EndBlock,
     ) -> Result<()> {

@@ -26,6 +26,7 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use futures::StreamExt;
 use indexmap::IndexMap;
 use prost::Message as _;
 use tendermint::{
@@ -40,6 +41,7 @@ use tendermint_proto::google::protobuf::Timestamp;
 use tonic::transport::Channel;
 use tracing::{
     debug,
+    info,
     instrument,
     warn,
 };
@@ -179,9 +181,9 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
                 return None;
             }
             Err(err) => {
-                                // FIXME: this event can be removed once all instrumented functions
-                //        can generate an error event.
-                warn!(error = %err, %currency_pair, "failed to fetch ID for currency pair; cancelling transformation");
+                // FIXME: this event can be removed once all instrumented functions
+                // can generate an error event.
+                warn!(%currency_pair, "failed to fetch ID for currency pair; cancelling transformation");
                 return Some(Err(err).wrap_err("failed to fetch currency pair ID"));
             }
         };
@@ -193,45 +195,72 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
     })
 }
 
+pub(crate) struct ValidatedExtendedCommitInfo(ExtendedCommitInfo);
+
+impl ValidatedExtendedCommitInfo {
+    pub(crate) fn into_inner(self) -> ExtendedCommitInfo {
+        self.0
+    }
+}
+
 pub(crate) struct ProposalHandler;
 
 impl ProposalHandler {
-    // called during prepare_proposal
-    pub(crate) async fn prune_and_validate_extended_commit_info<S: StateReadExt>(
+    // called during prepare_proposal; prunes and validates the local extended commit info
+    // received during the previous block's voting period.
+    //
+    // the returned extended commit info will be proposed this block.
+    pub(crate) async fn prepare_proposal<S: StateReadExt>(
         state: &S,
         height: u64,
         mut extended_commit_info: ExtendedCommitInfo,
-    ) -> Result<ExtendedCommitInfo> {
+    ) -> Result<ValidatedExtendedCommitInfo> {
         if height == 1 {
             // we're proposing block 1, so nothing to validate
-            return Ok(extended_commit_info);
+            info!(
+                "skipping vote extension proposal for block 1, as there were no previous vote \
+                 extensions"
+            );
+            return Ok(ValidatedExtendedCommitInfo(extended_commit_info));
         }
 
+        let mut futures = futures::stream::FuturesUnordered::new();
         for vote in &mut extended_commit_info.votes {
-            if let Err(e) = verify_vote_extension(state, vote.vote_extension.clone(), true).await {
-                let address = state
-                    .try_base_prefixed(vote.validator.address.as_slice())
-                    .await
-                    .wrap_err("failed to construct validator address with base prefix")?;
-                debug!(
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                    validator = address.to_string(),
-                    "failed to verify vote extension; pruning from proposal"
-                );
-                vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
-                vote.extension_signature = None;
-                vote.vote_extension.clear();
-            }
+            futures.push(async move {
+                if let Err(e) =
+                    verify_vote_extension(state, vote.vote_extension.clone(), true).await
+                {
+                    let address = state
+                        .try_base_prefixed(vote.validator.address.as_slice())
+                        .await
+                        .wrap_err("failed to construct validator address with base prefix")?;
+                    debug!(
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                        validator = address.to_string(),
+                        "failed to verify vote extension; pruning from proposal"
+                    );
+                    vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
+                    vote.extension_signature = None;
+                    vote.vote_extension.clear();
+                }
+                Ok::<(), astria_eyre::eyre::Report>(())
+            });
         }
+
+        while let Some(result) = futures.next().await {
+            result?;
+        }
+        drop(futures);
+
         validate_vote_extensions(state, height, &extended_commit_info)
             .await
             .wrap_err("failed to validate vote extensions in prepare_proposal")?;
 
-        Ok(extended_commit_info)
+        Ok(ValidatedExtendedCommitInfo(extended_commit_info))
     }
 
-    // called during process_proposal
-    pub(crate) async fn validate_extended_commit_info<S: StateReadExt>(
+    // called during process_proposal; validates the proposed extended commit info.
+    pub(crate) async fn validate_proposal<S: StateReadExt>(
         state: &S,
         height: u64,
         last_commit: &CommitInfo,
@@ -239,6 +268,10 @@ impl ProposalHandler {
     ) -> Result<()> {
         if height == 1 {
             // we're processing block 1, so nothing to validate (no last commit yet)
+            info!(
+                "skipping vote extension validation for block 1, as there were no previous vote \
+                 extensions"
+            );
             return Ok(());
         }
 
@@ -284,22 +317,22 @@ async fn validate_vote_extensions<S: StateReadExt>(
 
         total_voting_power = total_voting_power.saturating_add(vote.validator.power.value());
 
-        if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Commit)
-            && vote.extension_signature.is_none()
-        {
-            bail!("vote extension signature is missing for validator {address}",);
+        if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Commit) {
+            ensure!(
+                !vote.extension_signature.is_none(),
+                "vote extension signature is missing for validator {address}",
+            );
         }
 
-        if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit)
-            && !vote.vote_extension.is_empty()
-        {
-            bail!("non-commit vote extension present for validator {address}",);
-        }
-
-        if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit)
-            && vote.extension_signature.is_some()
-        {
-            bail!("non-commit extension signature present for validator {address}",);
+        if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit) {
+            ensure!(
+                vote.vote_extension.is_empty(),
+                "non-commit vote extension present for validator {address}"
+            );
+            ensure!(
+                vote.extension_signature.is_none(),
+                "non-commit extension signature present for validator {address}",
+            )
         }
 
         if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit) {

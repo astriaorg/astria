@@ -135,10 +135,6 @@ impl Consensus {
             bail!("database already initialized");
         }
 
-        println!(
-            "{}",
-            String::from_utf8(init_chain.app_state_bytes.to_vec()).unwrap()
-        );
         let genesis_state: GenesisAppState = serde_json::from_slice(&init_chain.app_state_bytes)
             .wrap_err("failed to parse app_state in genesis file")?;
         let app_hash = self

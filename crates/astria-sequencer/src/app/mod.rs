@@ -340,14 +340,14 @@ impl App {
         // the vote extensions empty in this block for liveness.
         // it's not a critical error if the oracle values are not updated for a block.
         let round = last_commit.round;
-        let extended_commit_info = match ProposalHandler::prune_and_validate_extended_commit_info(
+        let extended_commit_info = match ProposalHandler::prepare_proposal(
             &self.state,
             prepare_proposal.height.into(),
             last_commit,
         )
         .await
         {
-            Ok(info) => info,
+            Ok(info) => info.into_inner(),
             Err(e) => {
                 warn!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
@@ -465,7 +465,7 @@ impl App {
         let Some(last_commit) = process_proposal.proposed_last_commit else {
             bail!("proposed last commit is empty; this should not occur")
         };
-        ProposalHandler::validate_extended_commit_info(
+        ProposalHandler::validate_proposal(
             &self.state,
             process_proposal.height.value(),
             &last_commit,
