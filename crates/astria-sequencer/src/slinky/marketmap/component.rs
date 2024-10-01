@@ -5,13 +5,13 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use cnidarium::StateWrite;
 use tendermint::abci::request::{
     BeginBlock,
     EndBlock,
 };
 use tracing::instrument;
 
-use cnidarium::StateWrite;
 use super::state_ext::StateWriteExt as _;
 use crate::component::Component;
 

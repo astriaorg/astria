@@ -134,6 +134,12 @@ impl<'a> From<&'a Denom> for IbcPrefixed {
     }
 }
 
+impl<'a> From<&'a IbcPrefixed> for IbcPrefixed {
+    fn from(value: &IbcPrefixed) -> Self {
+        *value
+    }
+}
+
 impl FromStr for Denom {
     type Err = ParseDenomError;
 
@@ -281,6 +287,44 @@ impl TracePrefixed {
             len += segment.port.len() + segment.channel.len() + 2; // 2 additional "/" characters
         }
         len + self.base_denom.len()
+    }
+
+    pub fn trace(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.trace
+            .inner
+            .iter()
+            .map(|segment| (segment.port.as_str(), segment.channel.as_str()))
+    }
+
+    #[must_use]
+    pub fn base_denom(&self) -> &str {
+        &self.base_denom
+    }
+
+    /// This should only be used where the inputs have been provided by a trusted entity, e.g. read
+    /// from our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
+    #[cfg(feature = "unchecked-constructors")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts<I: IntoIterator<Item = (String, String)>>(
+        trace: I,
+        base_denom: String,
+    ) -> Self {
+        Self {
+            trace: TraceSegments {
+                inner: trace
+                    .into_iter()
+                    .map(|(port, channel)| PortAndChannel {
+                        port,
+                        channel,
+                    })
+                    .collect(),
+            },
+            base_denom,
+        }
     }
 }
 
@@ -507,8 +551,8 @@ impl IbcPrefixed {
     }
 
     #[must_use]
-    pub fn get(&self) -> [u8; 32] {
-        self.id
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.id
     }
 
     #[must_use]

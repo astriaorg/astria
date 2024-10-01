@@ -11,9 +11,11 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     bail,
+    ensure,
     WrapErr as _,
 };
 use bytes::Bytes;
+use celestia_rpc::HeaderClient as _;
 use celestia_types::nmt::Namespace;
 use futures::{
     future::{
@@ -139,6 +141,12 @@ pub(crate) struct Reader {
     /// (usually to verify block data retrieved from Celestia blobs).
     sequencer_requests_per_second: u32,
 
+    /// The chain ID of the Celestia network the reader should be communicating with.
+    expected_celestia_chain_id: String,
+
+    /// The chain ID of the Sequencer the reader should be communicating with.
+    expected_sequencer_chain_id: String,
+
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 
@@ -147,7 +155,7 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let (executor, sequencer_chain_id) = select!(
+        let ((), executor, sequencer_chain_id) = select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 info_span!("conductor::celestia::Reader::run_until_stopped").in_scope(||
                     info!("received shutdown signal while waiting for Celestia reader task to initialize")
@@ -169,7 +177,20 @@ impl Reader {
     #[instrument(skip_all, err)]
     async fn initialize(
         &mut self,
-    ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
+    ) -> eyre::Result<((), executor::Handle<StateIsInit>, tendermint::chain::Id)> {
+        let validate_celestia_chain_id = async {
+            let actual_celestia_chain_id = get_celestia_chain_id(&self.celestia_client)
+                .await
+                .wrap_err("failed to fetch Celestia chain ID")?;
+            let expected_celestia_chain_id = &self.expected_celestia_chain_id;
+            ensure!(
+                self.expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
+                "expected Celestia chain id `{expected_celestia_chain_id}` does not match actual: \
+                 `{actual_celestia_chain_id}`"
+            );
+            Ok(())
+        };
+
         let wait_for_init_executor = async {
             self.executor
                 .wait_for_init()
@@ -177,14 +198,53 @@ impl Reader {
                 .wrap_err("handle to executor failed while waiting for it being initialized")
         };
 
-        let get_sequencer_chain_id = async {
-            get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
-                .await
-                .wrap_err("failed to get sequencer chain ID")
+        let get_and_validate_sequencer_chain_id = async {
+            let actual_sequencer_chain_id =
+                get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
+                    .await
+                    .wrap_err("failed to get sequencer chain ID")?;
+            let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
+            ensure!(
+                self.expected_sequencer_chain_id == actual_sequencer_chain_id.to_string(),
+                "expected Celestia chain id `{expected_sequencer_chain_id}` does not match \
+                 actual: `{actual_sequencer_chain_id}`"
+            );
+            Ok(actual_sequencer_chain_id)
         };
 
-        try_join!(wait_for_init_executor, get_sequencer_chain_id)
+        try_join!(
+            validate_celestia_chain_id,
+            wait_for_init_executor,
+            get_and_validate_sequencer_chain_id
+        )
     }
+}
+
+#[instrument(skip_all, err)]
+async fn get_celestia_chain_id(
+    celestia_client: &CelestiaClient,
+) -> eyre::Result<celestia_tendermint::chain::Id> {
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to fetch celestia network header info; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+    let network_head = tryhard::retry_fn(|| celestia_client.header_network_head())
+        .with_config(retry_config)
+        .await?;
+    Ok(network_head.chain_id().clone())
 }
 
 struct RunningReader {

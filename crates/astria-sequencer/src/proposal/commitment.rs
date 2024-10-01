@@ -23,18 +23,6 @@ impl GeneratedCommitments {
     /// The total size of the commitments in bytes.
     pub(crate) const TOTAL_SIZE: usize = 64;
 
-    /// Converts the commitments plus external transaction data into a vector of bytes
-    /// which can be used as the block's transactions.
-    #[must_use]
-    pub(crate) fn into_transactions(self, mut tx_data: Vec<Bytes>) -> Vec<Bytes> {
-        let mut txs = Vec::with_capacity(tx_data.len().saturating_add(2));
-        txs.push(self.rollup_datas_root.to_vec().into());
-        txs.push(self.rollup_ids_root.to_vec().into());
-        txs.append(&mut tx_data);
-        txs
-    }
-
-    #[must_use]
     pub(crate) fn into_iter(self) -> impl Iterator<Item = Bytes> {
         [
             self.rollup_datas_root.to_vec().into(),
@@ -107,7 +95,6 @@ mod tests {
                 SequenceAction,
                 TransferAction,
             },
-            TransactionParams,
             UnsignedTransaction,
         },
     };
@@ -130,13 +117,12 @@ mod tests {
         };
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = UnsignedTransaction {
-            params: TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test-chain-1")
-                .build(),
-            actions: vec![sequence_action.clone().into(), transfer_action.into()],
-        };
+
+        let tx = UnsignedTransaction::builder()
+            .actions(vec![sequence_action.clone().into(), transfer_action.into()])
+            .chain_id("test-chain-1")
+            .try_build()
+            .unwrap();
 
         let signed_tx = tx.into_signed(&signing_key);
         let txs = vec![signed_tx];
@@ -146,13 +132,11 @@ mod tests {
         } = generate_rollup_datas_commitment(&txs, HashMap::new());
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = UnsignedTransaction {
-            params: TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test-chain-1")
-                .build(),
-            actions: vec![sequence_action.into()],
-        };
+        let tx = UnsignedTransaction::builder()
+            .actions(vec![sequence_action.into()])
+            .chain_id("test-chain-1")
+            .try_build()
+            .unwrap();
 
         let signed_tx = tx.into_signed(&signing_key);
         let txs = vec![signed_tx];
@@ -184,13 +168,11 @@ mod tests {
         };
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = UnsignedTransaction {
-            params: TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test-chain-1")
-                .build(),
-            actions: vec![sequence_action.into(), transfer_action.into()],
-        };
+        let tx = UnsignedTransaction::builder()
+            .actions(vec![sequence_action.clone().into(), transfer_action.into()])
+            .chain_id("test-chain-1")
+            .try_build()
+            .unwrap();
 
         let signed_tx = tx.into_signed(&signing_key);
         let txs = vec![signed_tx];

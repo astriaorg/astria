@@ -16,7 +16,6 @@ use astria_core::{
                 SequenceAction,
                 TransferAction,
             },
-            TransactionParams,
             UnsignedTransaction,
         },
     },
@@ -60,7 +59,6 @@ use crate::{
     },
     bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
-    state_ext::StateReadExt as _,
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -104,7 +102,7 @@ async fn app_genesis_and_init_chain() {
         assert_eq!(
             balance,
             app.state
-                .get_account_balance(address, nria())
+                .get_account_balance(&address, &nria())
                 .await
                 .unwrap(),
         );
@@ -158,7 +156,7 @@ async fn app_begin_block_remove_byzantine_validators() {
     let misbehavior = types::Misbehavior {
         kind: types::MisbehaviorKind::Unknown,
         validator: types::Validator {
-            address: crate::test_utils::verification_key(1).address_bytes(),
+            address: *crate::test_utils::verification_key(1).address_bytes(),
             power: 0u32.into(),
         },
         height: Height::default(),
@@ -198,7 +196,7 @@ async fn app_commit() {
         assert_eq!(
             balance,
             app.state
-                .get_account_balance(address, nria())
+                .get_account_balance(&address, &nria())
                 .await
                 .unwrap()
         );
@@ -217,7 +215,10 @@ async fn app_commit() {
     } in default_genesis_accounts()
     {
         assert_eq!(
-            snapshot.get_account_balance(address, nria()).await.unwrap(),
+            snapshot
+                .get_account_balance(&address, &nria())
+                .await
+                .unwrap(),
             balance
         );
     }
@@ -232,12 +233,8 @@ async fn app_transfer_block_fees_to_sudo() {
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let amount = 333_333;
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![
             TransferAction {
                 to: bob_address,
                 amount,
@@ -245,8 +242,10 @@ async fn app_transfer_block_fees_to_sudo() {
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    };
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -258,10 +257,15 @@ async fn app_transfer_block_fees_to_sudo() {
         votes: vec![],
     }
     .into();
-    let bytes = extended_commit_info.encode_to_vec();
-    let mut txs_with_commit_info = vec![bytes.into()];
-    txs_with_commit_info
-        .extend(commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]));
+
+    let txs_with_commit_info: Vec<Bytes> =
+        std::iter::once(extended_commit_info.encode_to_vec().into())
+            .chain(
+                commitments
+                    .into_iter()
+                    .chain(vec![signed_tx.to_raw().encode_to_vec().into()]),
+            )
+            .collect();
 
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
@@ -285,7 +289,7 @@ async fn app_transfer_block_fees_to_sudo() {
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
     assert_eq!(
         app.state
-            .get_account_balance(astria_address_from_hex_string(JUDY_ADDRESS), nria())
+            .get_account_balance(&astria_address_from_hex_string(JUDY_ADDRESS), &nria())
             .await
             .unwrap(),
         transfer_fee,
@@ -301,7 +305,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         sequencerblock::v1alpha1::block::RollupData,
     };
 
-    use crate::api_state_ext::StateReadExt as _;
+    use crate::grpc::StateReadExt as _;
 
     let alice = get_alice_signing_key();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
@@ -311,9 +315,11 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(bridge_address, nria())
+        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+        .unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
     // Put a deposit from a previous block to ensure it is not mixed in with deposits for this
     // block (it has a different amount and tx ID to the later deposit).
@@ -349,13 +355,12 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![lock_action.into(), sequence_action.into()],
-    };
+
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![lock_action.into(), sequence_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -375,10 +380,14 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         votes: vec![],
     }
     .into();
-    let bytes = extended_commit_info.encode_to_vec();
-    let mut txs_with_commit_info = vec![bytes.into()];
-    txs_with_commit_info
-        .extend(commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]));
+    let txs_with_commit_info: Vec<Bytes> =
+        std::iter::once(extended_commit_info.encode_to_vec().into())
+            .chain(
+                commitments
+                    .into_iter()
+                    .chain(vec![signed_tx.to_raw().encode_to_vec().into()]),
+            )
+            .collect();
 
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
@@ -428,9 +437,11 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(bridge_address, &asset)
+        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+        .unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
@@ -449,13 +460,12 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![lock_action.into(), sequence_action.into()],
-    };
+
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![lock_action.into(), sequence_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -475,10 +485,14 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         votes: vec![],
     }
     .into();
-    let bytes = extended_commit_info.encode_to_vec();
-    let mut txs_with_commit_info = vec![bytes.into()];
-    txs_with_commit_info
-        .extend(commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]));
+    let txs_with_commit_info: Vec<Bytes> =
+        std::iter::once(extended_commit_info.encode_to_vec().into())
+            .chain(
+                commitments
+                    .into_iter()
+                    .chain(vec![signed_tx.to_raw().encode_to_vec().into()]),
+            )
+            .collect();
 
     let timestamp = Time::now();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
@@ -601,36 +615,34 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     // create txs which will cause cometBFT overflow
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx_pass = UnsignedTransaction::builder()
+        .actions(vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
-    let tx_overflow = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(1)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+
+    let tx_overflow = UnsignedTransaction::builder()
+        .actions(vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
+        ])
+        .chain_id("test")
+        .nonce(1)
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
 
     app.mempool
         .insert(
@@ -696,36 +708,33 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx_pass = UnsignedTransaction::builder()
+        .actions(vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 200_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
-    let tx_overflow = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(1)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+    let tx_overflow = UnsignedTransaction::builder()
+        .actions(vec![
             SequenceAction {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
+        ])
+        .nonce(1)
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
 
     app.mempool
         .insert(
@@ -820,7 +829,7 @@ async fn app_end_block_validator_updates() {
         .unwrap();
     app.apply(state_tx);
 
-    let resp = app.end_block(1, proposer_address).await.unwrap();
+    let resp = app.end_block(1, &proposer_address).await.unwrap();
     // we only assert length here as the ordering of the updates is not guaranteed
     // and validator::Update does not implement Ord
     assert_eq!(resp.validator_updates.len(), validator_updates.len());

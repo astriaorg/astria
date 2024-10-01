@@ -58,7 +58,7 @@ impl Builder {
 
         let sequencer_address = Address::builder()
             .prefix(sequencer_address_prefix)
-            .array(sequencer_key.verification_key().address_bytes())
+            .array(*sequencer_key.verification_key().address_bytes())
             .try_build()
             .wrap_err("failed constructing a sequencer address from private key")?;
 

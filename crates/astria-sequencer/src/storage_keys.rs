@@ -14,7 +14,7 @@ pub(crate) mod hunks {
 
     impl std::fmt::Display for Asset {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            for byte in self.get().get() {
+            for byte in self.get().as_bytes() {
                 f.write_fmt(format_args!("{byte:02x}"))?;
             }
             Ok(())

@@ -22,6 +22,7 @@ use crate::{
     mount_sequencer_genesis,
     mount_sequencer_validator_set,
     mount_update_commitment_state,
+    SEQUENCER_CHAIN_ID,
 };
 
 /// Tests if a single block is executed and the rollup's state updated (first soft, then firm).

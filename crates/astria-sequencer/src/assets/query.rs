@@ -16,8 +16,8 @@ use tendermint::abci::{
 };
 
 use crate::{
+    app::StateReadExt as _,
     assets::StateReadExt as _,
-    state_ext::StateReadExt as _,
 };
 
 // Retrieve the full asset denomination given the asset ID.
@@ -50,7 +50,7 @@ pub(crate) async fn denom_request(
         }
     };
 
-    let maybe_denom = match snapshot.map_ibc_to_trace_prefixed_asset(asset).await {
+    let maybe_denom = match snapshot.map_ibc_to_trace_prefixed_asset(&asset).await {
         Ok(maybe_denom) => maybe_denom,
         Err(err) => {
             return response::Query {

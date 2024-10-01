@@ -197,7 +197,7 @@ fn builder_queue<T: MempoolSize>(bencher: divan::Bencher) {
     for i in 0..SIGNER_COUNT {
         let signing_key = SigningKey::from([i; 32]);
         let signing_address = signing_key.address_bytes();
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 0);
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, 0);
     }
 
     bencher
@@ -297,8 +297,8 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
     for i in 0..SIGNER_COUNT {
         let signing_key = SigningKey::from([i; 32]);
         let signing_address = signing_key.address_bytes();
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances.clone());
-        mock_state_put_account_nonce(&mut mock_state, signing_address, new_nonce);
+        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances.clone());
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, new_nonce);
     }
 
     bencher
@@ -339,8 +339,8 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
     for i in 0..SIGNER_COUNT {
         let signing_key = SigningKey::from([i; 32]);
         let signing_address = signing_key.address_bytes();
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances.clone());
-        mock_state_put_account_nonce(&mut mock_state, signing_address, new_nonce);
+        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances.clone());
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, new_nonce);
     }
 
     bencher

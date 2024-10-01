@@ -244,7 +244,6 @@ mod tests {
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
             action::SequenceAction,
-            TransactionParams,
             UnsignedTransaction,
         },
     };
@@ -274,20 +273,18 @@ mod tests {
     };
 
     fn make_unsigned_tx() -> UnsignedTransaction {
-        UnsignedTransaction {
-            params: TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test")
-                .build(),
-            actions: vec![
+        UnsignedTransaction::builder()
+            .actions(vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: Bytes::from_static(b"hello world"),
                     fee_asset: crate::test_utils::nria().into(),
                 }
                 .into(),
-            ],
-        }
+            ])
+            .chain_id("test")
+            .try_build()
+            .unwrap()
     }
 
     fn new_prepare_proposal_request() -> request::PrepareProposal {
@@ -350,16 +347,22 @@ mod tests {
             .await
             .unwrap();
 
-        let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
+        let commitments =
+            generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
         let prepare_proposal = new_prepare_proposal_request();
         let prepare_proposal_response = consensus_service
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
-        let mut expected_txs = vec![b"".to_vec().into()];
-        let commitments_and_txs = res.into_transactions(txs);
-        expected_txs.extend(commitments_and_txs.clone());
+        // let mut expected_txs = vec![b"".to_vec().into()];
+        let commitments_and_txs: Vec<Bytes> = commitments.into_iter().chain(txs).collect();
+        // expected_txs.extend(commitments_and_txs.clone());
+
+        let expected_txs: Vec<Bytes> = std::iter::once(b"".to_vec().into())
+            .chain(commitments_and_txs.clone())
+            .collect();
+
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
@@ -385,8 +388,10 @@ mod tests {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
-        let process_proposal = new_process_proposal_request(res.into_transactions(txs));
+        let commitments = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
+        let tx_data = commitments.into_iter().chain(txs.clone()).collect();
+        let process_proposal = new_process_proposal_request(tx_data);
+
         consensus_service
             .handle_process_proposal(process_proposal)
             .await
@@ -443,15 +448,16 @@ mod tests {
     async fn prepare_proposal_empty_block() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let txs = vec![];
-        let res = generate_rollup_datas_commitment(&txs.clone(), HashMap::new());
+        let commitments = generate_rollup_datas_commitment(&txs, HashMap::new());
         let prepare_proposal = new_prepare_proposal_request();
 
         let prepare_proposal_response = consensus_service
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
-        let mut expected_txs = vec![b"".to_vec().into()];
-        expected_txs.extend(res.into_transactions(vec![]));
+        let expected_txs = std::iter::once(b"".to_vec().into())
+            .chain(commitments.into_iter())
+            .collect();
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
@@ -464,8 +470,8 @@ mod tests {
     async fn process_proposal_ok_empty_block() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let txs = vec![];
-        let res = generate_rollup_datas_commitment(&txs, HashMap::new());
-        let process_proposal = new_process_proposal_request(res.into_transactions(vec![]));
+        let commitments = generate_rollup_datas_commitment(&txs, HashMap::new());
+        let process_proposal = new_process_proposal_request(commitments.into_iter().collect());
         consensus_service
             .handle_process_proposal(process_proposal)
             .await
@@ -510,7 +516,7 @@ mod tests {
             vec![
                 astria_core::generated::protocol::genesis::v1alpha1::Account {
                     address: Some(
-                        crate::test_utils::astria_address(&funded_key.address_bytes()).to_raw(),
+                        crate::test_utils::astria_address(funded_key.address_bytes()).to_raw(),
                     ),
                     balance: Some(10u128.pow(19).into()),
                 },
@@ -559,9 +565,10 @@ mod tests {
         let signed_tx = Arc::new(tx.into_signed(&signing_key));
         let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
+        let commitments =
+            generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
-        let block_data = res.into_transactions(txs.clone());
+        let block_data: Vec<Bytes> = commitments.into_iter().chain(txs.clone()).collect();
         let data_hash =
             merkle::Tree::from_leaves(block_data.iter().map(sha2::Sha256::digest)).root();
         let mut header = default_header();

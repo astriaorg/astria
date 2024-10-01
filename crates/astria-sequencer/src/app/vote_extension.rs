@@ -48,12 +48,12 @@ use tracing::{
 
 use crate::{
     address::StateReadExt as _,
+    app::state_ext::StateReadExt,
     authority::StateReadExt as _,
     slinky::oracle::{
         currency_pair_strategy::DefaultCurrencyPairStrategy,
         state_ext::StateWriteExt,
     },
-    state_ext::StateReadExt,
 };
 
 // https://github.com/skip-mev/slinky/blob/793b2e874d6e720bd288e82e782502e41cf06f8c/abci/types/constants.go#L6
@@ -319,7 +319,7 @@ async fn validate_vote_extensions<S: StateReadExt>(
 
         if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Commit) {
             ensure!(
-                !vote.extension_signature.is_none(),
+                vote.extension_signature.is_some(),
                 "vote extension signature is missing for validator {address}",
             );
         }
@@ -332,7 +332,7 @@ async fn validate_vote_extensions<S: StateReadExt>(
             ensure!(
                 vote.extension_signature.is_none(),
                 "non-commit extension signature present for validator {address}",
-            )
+            );
         }
 
         if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit) {
@@ -343,7 +343,7 @@ async fn validate_vote_extensions<S: StateReadExt>(
             submitted_voting_power.saturating_add(vote.validator.power.value());
 
         let verification_key = &validator_set
-            .get(vote.validator.address)
+            .get(&vote.validator.address)
             .wrap_err("validator not found")?
             .verification_key;
 
@@ -567,11 +567,11 @@ mod test {
     use super::*;
     use crate::{
         address::StateWriteExt as _,
+        app::StateWriteExt as _,
         authority::{
             StateWriteExt as _,
             ValidatorSet,
         },
-        state_ext::StateWriteExt as _,
     };
 
     #[tokio::test]
@@ -597,7 +597,9 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(&snapshot);
-        state.put_chain_id_and_revision_number("test-0".try_into().unwrap());
+        state
+            .put_chain_id_and_revision_number("test-0".try_into().unwrap())
+            .unwrap();
         let validator_set = ValidatorSet::new_from_updates(vec![
             ValidatorUpdate {
                 power: 1u16.into(),
@@ -609,13 +611,13 @@ mod test {
             },
         ]);
         state.put_validator_set(validator_set).unwrap();
-        state.put_base_prefix("astria");
+        state.put_base_prefix("astria".to_string()).unwrap();
 
         let extended_commit_info = ExtendedCommitInfo {
             round: 1u16.into(),
             votes: vec![ExtendedVoteInfo {
                 validator: Validator {
-                    address: SigningKey::from([0; 32]).verification_key().address_bytes(),
+                    address: *SigningKey::from([0; 32]).verification_key().address_bytes(),
                     power: 1u16.into(),
                 },
                 sig_info: Flag(tendermint::block::BlockIdFlag::Nil),
@@ -639,7 +641,9 @@ mod test {
         let mut state = StateDelta::new(&snapshot);
 
         let chain_id: tendermint::chain::Id = "test-0".try_into().unwrap();
-        state.put_chain_id_and_revision_number(chain_id.clone());
+        state
+            .put_chain_id_and_revision_number(chain_id.clone())
+            .unwrap();
         let validator_set = ValidatorSet::new_from_updates(vec![
             ValidatorUpdate {
                 power: 5u16.into(),
@@ -651,7 +655,7 @@ mod test {
             },
         ]);
         state.put_validator_set(validator_set).unwrap();
-        state.put_base_prefix("astria");
+        state.put_base_prefix("astria".to_string()).unwrap();
 
         let round = 1u16;
         let vote_extension_height = 1u64;
@@ -670,7 +674,7 @@ mod test {
             round: round.into(),
             votes: vec![ExtendedVoteInfo {
                 validator: Validator {
-                    address: SigningKey::from([0; 32]).verification_key().address_bytes(),
+                    address: *SigningKey::from([0; 32]).verification_key().address_bytes(),
                     power: 1u16.into(),
                 },
                 sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
