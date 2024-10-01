@@ -31,9 +31,9 @@ jobs:
           echo "This PR updates the following components which are code frozen: ${LEGIBLE_CHANGES}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "The following files are modified and frozen:" >> $GITHUB_STEP_SUMMARY
-          IFS="," read -ra FILE_LIST <<< "${{ steps.filters.outputs.changed_files }}"
+          FILES="${{ steps.filters.outputs.changed_files }}"
           FILE_MESSAGE="This file is under code freeze."
-          for FILE in "${FILE_LIST[@]}"; do
+          for FILE in $FILES; do
             echo " - ${FILE}" >> $GITHUB_STEP_SUMMARY
             echo "::error file=$FILE,title=$TITLE::$FILE_MESSAGE"
           done
@@ -49,9 +49,9 @@ jobs:
           echo "This PR updates the following components which are code frozen: ${LEGIBLE_CHANGES}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "The following files are modified and frozen:" >> $GITHUB_STEP_SUMMARY
-          IFS=" " read -ra FILE_LIST <<< "${{ steps.filters.outputs.changed_files }}"
+          FILES="${{ steps.filters.outputs.changed_files }}"
           FILE_MESSAGE="This file is under code freeze."
-          for FILE in "${FILE_LIST[@]}"; do
+          for FILE in $FILES; do
             echo " - ${FILE}" >> $GITHUB_STEP_SUMMARY
             echo "::warning file=$FILE,title=$TITLE::$FILE_MESSAGE"
           done
