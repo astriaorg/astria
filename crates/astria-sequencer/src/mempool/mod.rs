@@ -483,29 +483,34 @@ impl Mempool {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::crypto::SigningKey;
     use telemetry::Metrics;
 
     use super::*;
-    use crate::app::test_utils::{
-        mock_balances,
-        mock_state_getter,
-        mock_state_put_account_balances,
-        mock_state_put_account_nonce,
-        mock_tx,
-        mock_tx_cost,
+    use crate::{
+        app::test_utils::{
+            get_bob_signing_key,
+            mock_balances,
+            mock_state_getter,
+            mock_state_put_account_balances,
+            mock_state_put_account_nonce,
+            mock_tx_cost,
+            MockTxBuilder,
+            ALICE_ADDRESS,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+        },
+        test_utils::astria_address_from_hex_string,
     };
 
     #[tokio::test]
     async fn insert() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics);
-        let signing_key = SigningKey::from([1; 32]);
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
         // sign and insert nonce 1
-        let tx1 = mock_tx(1, &signing_key, "test");
+        let tx1 = MockTxBuilder::new().nonce(1).build();
         assert!(
             mempool
                 .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -525,7 +530,10 @@ mod tests {
         );
 
         // try to replace nonce
-        let tx1_replacement = mock_tx(1, &signing_key, "test_0");
+        let tx1_replacement = MockTxBuilder::new()
+            .nonce(1)
+            .chain_id("test-chain-id")
+            .build();
         assert_eq!(
             mempool
                 .insert(
@@ -541,7 +549,7 @@ mod tests {
         );
 
         // add too low nonce
-        let tx0 = mock_tx(0, &signing_key, "test");
+        let tx0 = MockTxBuilder::new().nonce(0).build();
         assert_eq!(
             mempool
                 .insert(tx0.clone(), 1, account_balances, tx_cost)
@@ -559,17 +567,14 @@ mod tests {
         // nonce at 1, and then cleans the pool to nonce 4. This tests some of the
         // odder edge cases that can be hit if a node goes offline or fails to see
         // some transactions that other nodes include into their proposed blocks.
-
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics);
-        let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.verification_key().address_bytes();
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
         // add nonces in odd order to trigger insertion promotion logic
         // sign and insert nonce 1
-        let tx1 = mock_tx(1, &signing_key, "test");
+        let tx1 = MockTxBuilder::new().nonce(1).build();
         assert!(
             mempool
                 .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -579,7 +584,7 @@ mod tests {
         );
 
         // sign and insert nonce 2
-        let tx2 = mock_tx(2, &signing_key, "test");
+        let tx2 = MockTxBuilder::new().nonce(2).build();
         assert!(
             mempool
                 .insert(tx2.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -589,7 +594,7 @@ mod tests {
         );
 
         // sign and insert nonce 0
-        let tx0 = mock_tx(0, &signing_key, "test");
+        let tx0 = MockTxBuilder::new().nonce(0).build();
         assert!(
             mempool
                 .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -599,7 +604,7 @@ mod tests {
         );
 
         // sign and insert nonce 4
-        let tx4 = mock_tx(4, &signing_key, "test");
+        let tx4 = MockTxBuilder::new().nonce(4).build();
         assert!(
             mempool
                 .insert(tx4.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -613,7 +618,11 @@ mod tests {
 
         // mock state with nonce at 1
         let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
+        mock_state_put_account_nonce(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            1,
+        );
 
         // grab building queue, should return transactions [1,2] since [0] was below and [4] is
         // gapped
@@ -633,8 +642,16 @@ mod tests {
         // to pending
 
         // setup state
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 4);
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(100, 100));
+        mock_state_put_account_nonce(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            4,
+        );
+        mock_state_put_account_balances(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            mock_balances(100, 100),
+        );
 
         mempool.run_maintenance(&mock_state, false).await;
 
@@ -652,20 +669,18 @@ mod tests {
 
     #[tokio::test]
     async fn run_maintenance_promotion() {
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap())); 
         let mempool = Mempool::new(metrics);
-        let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.verification_key().address_bytes();
 
         // create transaction setup to trigger promotions
         //
         // initially pending has single transaction
         let initial_balances = mock_balances(1, 0);
         let tx_cost = mock_tx_cost(1, 0, 0);
-        let tx1 = mock_tx(1, &signing_key, "test");
-        let tx2 = mock_tx(2, &signing_key, "test");
-        let tx3 = mock_tx(3, &signing_key, "test");
-        let tx4 = mock_tx(4, &signing_key, "test");
+        let tx1 = MockTxBuilder::new().nonce(1).build();
+        let tx2 = MockTxBuilder::new().nonce(2).build();
+        let tx3 = MockTxBuilder::new().nonce(3).build();
+        let tx4 = MockTxBuilder::new().nonce(4).build();
 
         mempool
             .insert(tx1.clone(), 1, initial_balances.clone(), tx_cost.clone())
@@ -686,7 +701,11 @@ mod tests {
 
         // see pending only has one transaction
         let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
+        mock_state_put_account_nonce(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            1,
+        );
 
         let builder_queue = mempool
             .builder_queue(&mock_state)
@@ -701,7 +720,11 @@ mod tests {
         // run maintenance with account containing balance for two more transactions
 
         // setup state
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(3, 0));
+        mock_state_put_account_balances(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            mock_balances(3, 0),
+        );
 
         mempool.run_maintenance(&mock_state, false).await;
 
@@ -717,23 +740,20 @@ mod tests {
         );
     }
 
-    #[allow(clippy::too_many_lines)]
     #[tokio::test]
     async fn run_maintenance_demotion() {
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap())); 
         let mempool = Mempool::new(metrics);
-        let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.verification_key().address_bytes();
 
         // create transaction setup to trigger demotions
         //
         // initially pending has four transactions
         let initial_balances = mock_balances(4, 0);
         let tx_cost = mock_tx_cost(1, 0, 0);
-        let tx1 = mock_tx(1, &signing_key, "test");
-        let tx2 = mock_tx(2, &signing_key, "test");
-        let tx3 = mock_tx(3, &signing_key, "test");
-        let tx4 = mock_tx(4, &signing_key, "test");
+        let tx1 = MockTxBuilder::new().nonce(1).build();
+        let tx2 = MockTxBuilder::new().nonce(2).build();
+        let tx3 = MockTxBuilder::new().nonce(3).build();
+        let tx4 = MockTxBuilder::new().nonce(4).build();
 
         mempool
             .insert(tx1.clone(), 1, initial_balances.clone(), tx_cost.clone())
@@ -755,7 +775,11 @@ mod tests {
         // see pending only has all transactions
 
         let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
+        mock_state_put_account_nonce(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            1,
+        );
 
         let builder_queue = mempool
             .builder_queue(&mock_state)
@@ -768,7 +792,11 @@ mod tests {
         );
 
         // setup state
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(1, 0));
+        mock_state_put_account_balances(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            mock_balances(1, 0),
+        );
 
         mempool.run_maintenance(&mock_state, false).await;
 
@@ -783,8 +811,16 @@ mod tests {
             "builder queue should contain single transaction"
         );
 
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 1);
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances(3, 0));
+        mock_state_put_account_nonce(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            1,
+        );
+        mock_state_put_account_balances(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            mock_balances(3, 0),
+        );
 
         mempool.run_maintenance(&mock_state, false).await;
 
@@ -801,14 +837,13 @@ mod tests {
 
     #[tokio::test]
     async fn remove_invalid() {
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap())); 
         let mempool = Mempool::new(metrics);
-        let signing_key = SigningKey::from([1; 32]);
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 10);
 
         // sign and insert nonces 0,1 and 3,4,5
-        let tx0 = mock_tx(0, &signing_key, "test");
+        let tx0 = MockTxBuilder::new().nonce(0).build();
         assert!(
             mempool
                 .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -816,7 +851,7 @@ mod tests {
                 .is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
         );
-        let tx1 = mock_tx(1, &signing_key, "test");
+        let tx1 = MockTxBuilder::new().nonce(1).build();
         assert!(
             mempool
                 .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -824,7 +859,7 @@ mod tests {
                 .is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
-        let tx3 = mock_tx(3, &signing_key, "test");
+        let tx3 = MockTxBuilder::new().nonce(3).build();
         assert!(
             mempool
                 .insert(tx3.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -832,7 +867,7 @@ mod tests {
                 .is_ok(),
             "should be able to insert nonce 3 transaction into mempool"
         );
-        let tx4 = mock_tx(4, &signing_key, "test");
+        let tx4 = MockTxBuilder::new().nonce(4).build();
         assert!(
             mempool
                 .insert(tx4.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -840,7 +875,7 @@ mod tests {
                 .is_ok(),
             "should be able to insert nonce 4 transaction into mempool"
         );
-        let tx5 = mock_tx(5, &signing_key, "test");
+        let tx5 = MockTxBuilder::new().nonce(5).build();
         assert!(
             mempool
                 .insert(tx5.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -907,17 +942,12 @@ mod tests {
     async fn should_get_pending_nonce() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics);
-        let signing_key_0 = SigningKey::from([1; 32]);
-        let signing_key_1 = SigningKey::from([2; 32]);
-        let signing_key_2 = SigningKey::from([3; 32]);
-        let signing_address_0 = signing_key_0.verification_key().address_bytes();
-        let signing_address_1 = signing_key_1.verification_key().address_bytes();
-        let signing_address_2 = signing_key_2.verification_key().address_bytes();
+
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
         // sign and insert nonces 0,1
-        let tx0 = mock_tx(0, &signing_key_0, "test");
+        let tx0 = MockTxBuilder::new().nonce(0).build();
         assert!(
             mempool
                 .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -925,7 +955,7 @@ mod tests {
                 .is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
         );
-        let tx1 = mock_tx(1, &signing_key_0, "test");
+        let tx1 = MockTxBuilder::new().nonce(1).build();
         assert!(
             mempool
                 .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
@@ -935,7 +965,10 @@ mod tests {
         );
 
         // sign and insert nonces 100, 101
-        let tx100 = mock_tx(100, &signing_key_1, "test");
+        let tx100 = MockTxBuilder::new()
+            .nonce(100)
+            .signer(get_bob_signing_key())
+            .build();
         assert!(
             mempool
                 .insert(
@@ -948,7 +981,10 @@ mod tests {
                 .is_ok(),
             "should be able to insert nonce 100 transaction into mempool"
         );
-        let tx101 = mock_tx(101, &signing_key_1, "test");
+        let tx101 = MockTxBuilder::new()
+            .nonce(101)
+            .signer(get_bob_signing_key())
+            .build();
         assert!(
             mempool
                 .insert(
@@ -965,11 +1001,28 @@ mod tests {
         assert_eq!(mempool.len().await, 4);
 
         // Check the pending nonces
-        assert_eq!(mempool.pending_nonce(signing_address_0).await.unwrap(), 1);
-        assert_eq!(mempool.pending_nonce(signing_address_1).await.unwrap(), 101);
+        assert_eq!(
+            mempool
+                .pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).bytes())
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            mempool
+                .pending_nonce(astria_address_from_hex_string(BOB_ADDRESS).bytes())
+                .await
+                .unwrap(),
+            101
+        );
 
         // Check the pending nonce for an address with no txs is `None`.
-        assert!(mempool.pending_nonce(signing_address_2).await.is_none());
+        assert!(
+            mempool
+                .pending_nonce(astria_address_from_hex_string(CAROL_ADDRESS).bytes())
+                .await
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -1032,13 +1085,11 @@ mod tests {
     async fn tx_tracked_set() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics);
-        let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.verification_key().address_bytes();
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
-        let tx0 = mock_tx(0, &signing_key, "test");
-        let tx1 = mock_tx(1, &signing_key, "test");
+        let tx0 = MockTxBuilder::new().nonce(0).build();
+        let tx1 = MockTxBuilder::new().nonce(1).build();
 
         // check that the parked transaction is in the tracked set
         mempool
@@ -1079,7 +1130,7 @@ mod tests {
 
         // remove the transacitons from the mempool via maintenance
         let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 2);
+        mock_state_put_account_nonce(&mut mock_state, astria_address_from_hex_string(ALICE_ADDRESS).bytes(), 2);
         mempool.run_maintenance(&mock_state, false).await;
 
         // check that the transactions are not in the tracked set

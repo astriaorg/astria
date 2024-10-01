@@ -535,7 +535,6 @@ enum SequencerBlockHeaderErrorKind {
 ///
 /// Exists to provide convenient access to fields of a [`SequencerBlock`].
 #[derive(Clone, Debug, PartialEq)]
-#[allow(clippy::module_name_repetitions)]
 pub struct SequencerBlockParts {
     pub block_hash: [u8; 32],
     pub header: SequencerBlockHeader,
@@ -547,7 +546,10 @@ pub struct SequencerBlockParts {
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
 /// converting its opaque `data` bytes into sequencer specific types.
 #[derive(Clone, Debug, PartialEq)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct SequencerBlock {
     /// The result of hashing the cometbft header. Guaranteed to not be `None` as compared to
     /// the cometbft/tendermint-rs return type.
@@ -735,7 +737,7 @@ impl SequencerBlock {
                 .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
-            for action in signed_tx.into_unsigned().actions {
+            for action in signed_tx.into_unsigned().into_actions() {
                 // XXX: The fee asset is dropped. We shjould explain why that's ok.
                 if let action::Action::Sequence(action::SequenceAction {
                     rollup_id,
@@ -952,7 +954,6 @@ where
 ///
 /// Exists to provide convenient access to fields of a [`FilteredSequencerBlock`].
 #[derive(Debug, Clone, PartialEq)]
-#[allow(clippy::module_name_repetitions)]
 pub struct FilteredSequencerBlockParts {
     pub block_hash: [u8; 32],
     pub header: SequencerBlockHeader,
@@ -967,7 +968,10 @@ pub struct FilteredSequencerBlockParts {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct FilteredSequencerBlock {
     block_hash: [u8; 32],
     header: SequencerBlockHeader,
