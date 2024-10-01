@@ -180,13 +180,11 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for SequencerBlockHeader<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
 
     #[test]
     fn chain_id_serialization_round_trip() {
-        let id = tendermint::chain::Id::from_str("a").unwrap();
+        let id: tendermint::chain::Id = "a".parse().unwrap();
         let chain_id = ChainId::from(&id);
         let serialized = borsh::to_vec(&chain_id).unwrap();
         let deserialized: ChainId = borsh::from_slice(&serialized).unwrap();

@@ -47,12 +47,12 @@ impl Component for IbcComponent {
         for address in app_state.ibc_relayer_addresses() {
             state
                 .put_ibc_relayer_address(address)
-                .wrap_err("failed to put IBC relayer address")?;
+                .wrap_err("failed to write IBC relayer address")?;
         }
 
         state
             .put_ics20_withdrawal_base_fee(app_state.fees().ics20_withdrawal_base_fee)
-            .wrap_err("failed to put ics20 withdrawal base fee")?;
+            .wrap_err("failed to write ics20 withdrawal base fee")?;
         Ok(())
     }
 

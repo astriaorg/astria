@@ -3,7 +3,7 @@ use std::sync::Arc;
 use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
 use astria_eyre::eyre::{
     Result,
-    WrapErr,
+    WrapErr as _,
 };
 use tendermint::abci::request::{
     BeginBlock,

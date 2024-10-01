@@ -234,7 +234,10 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
     };
 
     for rollup_id in rollup_ids {
-        let rollup_txs = state.get_rollup_data(hash, &rollup_id).await?;
+        let rollup_txs = state
+            .get_rollup_data(hash, &rollup_id)
+            .await
+            .wrap_err("failed to get rollup data")?;
         let _ = parts.rollup_transactions.insert(rollup_id, rollup_txs);
     }
 
