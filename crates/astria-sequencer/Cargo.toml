@@ -28,7 +28,9 @@ astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-eyre = { path = "../astria-eyre", features = ["anyhow"] }
 
 config = { package = "astria-config", path = "../astria-config" }
-merkle = { package = "astria-merkle", path = "../astria-merkle" }
+merkle = { package = "astria-merkle", path = "../astria-merkle", features = [
+  "unchecked-constructors",
+] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }

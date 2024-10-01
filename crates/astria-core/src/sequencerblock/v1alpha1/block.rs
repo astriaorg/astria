@@ -172,6 +172,9 @@ impl RollupTransactions {
 
     /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
     /// our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
     #[cfg(feature = "unchecked-constructors")]
     #[doc(hidden)]
     #[must_use]
@@ -499,6 +502,9 @@ impl SequencerBlockHeader {
 
     /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
     /// our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
     #[cfg(feature = "unchecked-constructors")]
     #[doc(hidden)]
     #[must_use]
@@ -969,6 +975,9 @@ impl SequencerBlock {
 
     /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
     /// our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
     #[cfg(feature = "unchecked-constructors")]
     #[doc(hidden)]
     #[must_use]
