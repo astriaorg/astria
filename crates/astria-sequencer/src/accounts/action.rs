@@ -12,6 +12,10 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::AddressBytes;
 use crate::{
@@ -31,10 +35,12 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for TransferAction {
+    #[instrument(skip_all)]
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, state: S) -> Result<()> {
         let from = state
             .get_transaction_context()
@@ -57,6 +63,11 @@ impl ActionHandler for TransferAction {
     }
 }
 
+#[instrument(skip_all,
+    fields(from = %from.display_address(),
+        to = %action.to.display_address(),
+        amount = %action.amount),
+    err(level = Level::WARN))]
 pub(crate) async fn execute_transfer<S, TAddress>(
     action: &TransferAction,
     from: TAddress,
@@ -115,6 +126,11 @@ where
     Ok(())
 }
 
+#[instrument(skip_all,
+    fields(from = %from.display_address(),
+        to = %action.to.display_address(),
+        amount = %action.amount),
+    err(level = Level::WARN))]
 pub(crate) async fn check_transfer<S, TAddress>(
     action: &TransferAction,
     from: TAddress,

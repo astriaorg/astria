@@ -68,7 +68,7 @@ fn construct_tx_fee_event<T: std::fmt::Display>(
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_native_asset(&self) -> Result<asset::TracePrefixed> {
         let Some(bytes) = self
             .get_raw(NATIVE_ASSET_KEY)
@@ -86,7 +86,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(asset)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%asset), err)]
     async fn has_ibc_asset<TAsset>(&self, asset: TAsset) -> Result<bool>
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
@@ -121,7 +121,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(Some(denom))
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_block_fees(&self) -> Result<Vec<(asset::IbcPrefixed, u128)>> {
         let mut fees = Vec::new();
 
@@ -149,7 +149,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(fees)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%asset), err)]
     async fn is_allowed_fee_asset<TAsset>(&self, asset: TAsset) -> Result<bool>
     where
         TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
@@ -162,7 +162,7 @@ pub(crate) trait StateReadExt: StateRead {
             .is_some())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_allowed_fee_assets(&self) -> Result<Vec<asset::IbcPrefixed>> {
         let mut assets = Vec::new();
 
@@ -194,7 +194,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(NATIVE_ASSET_KEY.to_string(), asset.to_string().into_bytes());
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     fn put_ibc_asset(&mut self, asset: &asset::TracePrefixed) -> Result<()> {
         let bytes = borsh::to_vec(&DenominationTrace(asset.to_string()))
             .wrap_err("failed to serialize asset")?;
@@ -203,7 +203,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     /// Adds `amount` to the block fees for `asset`.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%asset, %amount), err)]
     async fn get_and_increase_block_fees<TAsset>(
         &mut self,
         asset: TAsset,

@@ -18,6 +18,7 @@ use tracing::{
     instrument,
     warn,
     Instrument,
+    Level,
 };
 
 use crate::app::App;
@@ -66,7 +67,7 @@ impl Consensus {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn handle_request(
         &mut self,
         req: ConsensusRequest,
@@ -153,7 +154,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
@@ -163,7 +164,7 @@ impl Consensus {
             .await
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
@@ -175,7 +176,7 @@ impl Consensus {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn finalize_block(
         &mut self,
         finalize_block: request::FinalizeBlock,

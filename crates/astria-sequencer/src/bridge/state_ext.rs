@@ -210,7 +210,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(asset::IbcPrefixed::new(id.0))
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(bridge_address = %bridge_address.display_address()), err)]
     async fn get_bridge_account_sudo_address<T: AddressBytes>(
         &self,
         bridge_address: T,
@@ -233,7 +233,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(Some(sudo_address))
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(bridge_address = %bridge_address.display_address()), err)]
     async fn get_bridge_account_withdrawer_address<T: AddressBytes>(
         &self,
         bridge_address: T,
@@ -265,7 +265,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         self.object_get(DEPOSITS_EPHEMERAL_KEY).unwrap_or_default()
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(block_hash = %hex::encode(block_hash), %rollup_id), err)]
     async fn get_deposits(
         &self,
         block_hash: &[u8; 32],
@@ -292,7 +292,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(deposits)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_init_bridge_account_base_fee(&self) -> Result<u128> {
         let bytes = self
             .get_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY)
@@ -304,7 +304,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(fee)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_bridge_lock_byte_cost_multiplier(&self) -> Result<u128> {
         let bytes = self
             .get_raw(BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY)
@@ -316,7 +316,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(fee)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_bridge_sudo_change_base_fee(&self) -> Result<u128> {
         let bytes = self
             .get_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY)
@@ -328,7 +328,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(fee)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%address), err)]
     async fn get_last_transaction_id_for_bridge_account(
         &self,
         address: &Address,
@@ -407,7 +407,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %withdrawal_event_id), err)]
     async fn check_and_set_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
         &mut self,
         address: T,
@@ -451,7 +451,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.object_put(DEPOSITS_EPHEMERAL_KEY, cached_deposits);
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     fn put_deposits(
         &mut self,
         block_hash: &[u8; 32],

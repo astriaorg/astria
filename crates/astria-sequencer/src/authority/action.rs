@@ -12,6 +12,10 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::StateWriteExt as _,
@@ -29,10 +33,12 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for ValidatorUpdate {
+    #[instrument(skip_all)]
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()
@@ -78,12 +84,14 @@ impl ActionHandler for ValidatorUpdate {
 
 #[async_trait::async_trait]
 impl ActionHandler for SudoAddressChangeAction {
+    #[instrument(skip_all)]
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the sudo address
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()
@@ -108,12 +116,14 @@ impl ActionHandler for SudoAddressChangeAction {
 
 #[async_trait::async_trait]
 impl ActionHandler for FeeChangeAction {
+    #[instrument(skip_all)]
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the fee
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

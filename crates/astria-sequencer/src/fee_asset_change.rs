@@ -7,6 +7,10 @@ use astria_eyre::eyre::{
 };
 use async_trait::async_trait;
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     app::ActionHandler,
@@ -20,10 +24,12 @@ use crate::{
 
 #[async_trait]
 impl ActionHandler for FeeAssetChangeAction {
+    #[instrument(skip_all)]
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

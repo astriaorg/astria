@@ -9,6 +9,10 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::{
@@ -26,6 +30,7 @@ use crate::{
 
 #[async_trait::async_trait]
 impl ActionHandler for SequenceAction {
+    #[instrument(skip_all, err)]
     async fn check_stateless(&self) -> Result<()> {
         // TODO: do we want to place a maximum on the size of the data?
         // https://github.com/astriaorg/astria/issues/222
@@ -36,6 +41,7 @@ impl ActionHandler for SequenceAction {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()
@@ -72,6 +78,7 @@ impl ActionHandler for SequenceAction {
 }
 
 /// Calculates the fee for a sequence `Action` based on the length of the `data`.
+#[instrument(skip_all, err)]
 pub(crate) async fn calculate_fee_from_state<S: sequence::StateReadExt>(
     data: &[u8],
     state: &S,

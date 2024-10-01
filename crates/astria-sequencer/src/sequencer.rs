@@ -29,7 +29,9 @@ use tokio::{
 use tower_abci::v038::Server;
 use tracing::{
     error,
+    error_span,
     info,
+    info_span,
     instrument,
 };
 
@@ -46,27 +48,22 @@ use crate::{
 pub struct Sequencer;
 
 impl Sequencer {
-    #[instrument(skip_all)]
+    /// Run the sequencer until a stop signal is received.
+    ///
+    /// # Errors
+    ///
+    /// - If database or storage fail to load.
+    /// - If the app or info service fail to initialize.
+    /// - If server builder does not return a server.
+    /// - If parcing of the configured gRPC address fails.
+    /// - If sequencer fails to send shutdown signal to gRPC server.
+    /// - If server task or gRPC server fail.
     pub async fn run_until_stopped(config: Config, metrics: &'static Metrics) -> Result<()> {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
         register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
 
-        if config
-            .db_filepath
-            .try_exists()
-            .context("failed checking for existence of db storage file")?
-        {
-            info!(
-                path = %config.db_filepath.display(),
-                "opening storage db"
-            );
-        } else {
-            info!(
-                path = %config.db_filepath.display(),
-                "creating storage db"
-            );
-        }
+        db_open_or_create_from_config(&config)?;
 
         let mut signals = spawn_signal_handler();
 
@@ -124,10 +121,11 @@ impl Sequencer {
             match server.listen_tcp(&config.listen_addr).await {
                 Ok(()) => {
                     // this shouldn't happen, as there isn't a way for the ABCI server to exit
-                    info!("ABCI server exited successfully");
+                    report_exit(Ok("ABCI server exited successfully"));
                 }
                 Err(e) => {
-                    error!(err = e.as_ref(), "ABCI server exited with error");
+                    error_span!("report_exit")
+                        .in_scope(|| error!(err = e.as_ref(), "ABCI server exited with error"));
                 }
             }
             let _ = server_exit_tx.send(());
@@ -135,11 +133,11 @@ impl Sequencer {
 
         select! {
             _ = signals.stop_rx.changed() => {
-                info!("shutting down sequencer");
+                report_exit(Ok("shutting down sequencer"));
             }
 
             _ = server_exit_rx => {
-                error!("ABCI server task exited, this shouldn't happen");
+                report_exit(Err(eyre!("ABCI server task exited, this shouldn't happen")));
             }
         }
 
@@ -179,9 +177,9 @@ fn start_grpc_server(
         .trace_fn(|req| {
             if let Some(remote_addr) = remote_addr(req) {
                 let addr = remote_addr.to_string();
-                tracing::error_span!("grpc", addr)
+                error_span!("grpc", addr)
             } else {
-                tracing::error_span!("grpc")
+                error_span!("grpc")
             }
         })
         // (from Penumbra) Allow HTTP/1, which will be used by grpc-web connections.
@@ -197,7 +195,7 @@ fn start_grpc_server(
         .add_service(ConnectionQueryServer::new(ibc.clone()))
         .add_service(SequencerServiceServer::new(sequencer_api));
 
-    info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
+    info_span!("grpc").in_scope(|| info!(addr = grpc_addr.to_string(), "starting grpc server"));
     tokio::task::spawn(
         grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
     )
@@ -219,11 +217,11 @@ fn spawn_signal_handler() -> SignalReceiver {
         loop {
             select! {
                 _ = sigint.recv() => {
-                    info!("received SIGINT");
+                    report_exit(Ok("received SIGINT"));
                     let _ = stop_tx.send(());
                 }
                 _ = sigterm.recv() => {
-                    info!("received SIGTERM");
+                    report_exit(Ok("received SIGTERM"));
                     let _ = stop_tx.send(());
                 }
             }
@@ -232,5 +230,34 @@ fn spawn_signal_handler() -> SignalReceiver {
 
     SignalReceiver {
         stop_rx,
+    }
+}
+
+#[instrument(skip_all, err)]
+fn db_open_or_create_from_config(config: &Config) -> Result<()> {
+    if config
+        .db_filepath
+        .try_exists()
+        .context("failed checking for existence of db storage file")?
+    {
+        info!(
+            path = %config.db_filepath.display(),
+            "opening storage db"
+        );
+        Ok(())
+    } else {
+        info!(
+            path = %config.db_filepath.display(),
+            "creating storage db"
+        );
+        Ok(())
+    }
+}
+
+#[instrument(skip_all)]
+fn report_exit(result: Result<&str>) {
+    match result {
+        Ok(info) => info!(info),
+        Err(err) => error!("{}", err),
     }
 }

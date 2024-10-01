@@ -36,6 +36,7 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
+#[instrument(skip_all, fields(%asset), err)]
 async fn ibc_to_trace<S: StateRead>(
     state: S,
     asset: asset::IbcPrefixed,
@@ -77,6 +78,7 @@ async fn get_trace_prefixed_account_balances<S: StateRead>(
     stream.try_collect::<Vec<_>>().await
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn balance_request(
     storage: Storage,
     request: request::Query,
@@ -116,6 +118,7 @@ pub(crate) async fn balance_request(
     }
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn nonce_request(
     storage: Storage,
     request: request::Query,
@@ -154,6 +157,7 @@ pub(crate) async fn nonce_request(
     }
 }
 
+#[instrument(skip_all, fields(%height),  err)]
 async fn get_snapshot_and_height(storage: &Storage, height: Height) -> Result<(Snapshot, Height)> {
     let snapshot = match height.value() {
         0 => storage.latest_snapshot(),
@@ -177,6 +181,7 @@ async fn get_snapshot_and_height(storage: &Storage, height: Height) -> Result<(S
     Ok((snapshot, height))
 }
 
+#[instrument(skip_all)]
 async fn preprocess_request(
     storage: &Storage,
     request: &request::Query,

@@ -162,7 +162,7 @@ impl Mempool {
 
     /// Inserts a transaction into the mempool and does not allow for transaction replacement.
     /// Will return the reason for insertion failure if failure occurs.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%current_account_nonce), err)]
     pub(crate) async fn insert(
         &self,
         tx: Arc<SignedTransaction>,
@@ -240,6 +240,7 @@ impl Mempool {
     ///
     /// This function should only be used to remove invalid/failing transactions and not executed
     /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
+    #[instrument(skip_all)]
     pub(crate) async fn remove_tx_invalid(
         &self,
         signed_tx: Arc<SignedTransaction>,

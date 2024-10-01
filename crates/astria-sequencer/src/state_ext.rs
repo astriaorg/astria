@@ -23,7 +23,7 @@ fn storage_version_by_height_key(height: u64) -> Vec<u8> {
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_chain_id(&self) -> Result<tendermint::chain::Id> {
         let Some(bytes) = self
             .get_raw("chain_id")
@@ -40,7 +40,7 @@ pub(crate) trait StateReadExt: StateRead {
             .expect("only valid chain ids should be stored in the state"))
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_revision_number(&self) -> Result<u64> {
         let Some(bytes) = self
             .get_raw(REVISION_NUMBER_KEY)
@@ -61,7 +61,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(u64::from_be_bytes(bytes))
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_block_height(&self) -> Result<u64> {
         let Some(bytes) = self
             .get_raw("block_height")
@@ -77,7 +77,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(u64::from_be_bytes(bytes))
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_block_timestamp(&self) -> Result<Time> {
         let Some(bytes) = self
             .get_raw("block_timestamp")
@@ -92,7 +92,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("failed to parse timestamp from raw timestamp bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%height), err)]
     async fn get_storage_version_by_height(&self, height: u64) -> Result<u64> {
         use astria_eyre::eyre::WrapErr as _;
 

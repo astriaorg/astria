@@ -16,6 +16,7 @@ use tendermint::abci::{
     response,
     Code,
 };
+use tracing::instrument;
 
 use crate::{
     address::StateReadExt,
@@ -41,9 +42,7 @@ fn error_query_response(
     }
 }
 
-// FIXME (https://github.com/astriaorg/astria/issues/1582): there is a lot of code duplication due to `error_query_response`.
-// this could be significantly shortened.
-#[expect(clippy::too_many_lines, reason = "should be refactored")]
+#[instrument(skip_all, fields(%address))]
 async fn get_bridge_account_info(
     snapshot: cnidarium::Snapshot,
     address: Address,
@@ -162,6 +161,7 @@ async fn get_bridge_account_info(
     }))
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn bridge_account_info_request(
     storage: Storage,
     request: request::Query,
@@ -210,6 +210,7 @@ pub(crate) async fn bridge_account_info_request(
     }
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn bridge_account_last_tx_hash_request(
     storage: Storage,
     request: request::Query,

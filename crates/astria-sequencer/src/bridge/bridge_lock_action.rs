@@ -13,6 +13,10 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::{
@@ -40,10 +44,12 @@ const DEPOSIT_BASE_FEE: u128 = 16;
 
 #[async_trait::async_trait]
 impl ActionHandler for BridgeLockAction {
+    #[instrument(skip_all)]
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()
