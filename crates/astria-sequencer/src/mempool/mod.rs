@@ -165,7 +165,7 @@ impl Mempool {
     /// Will increment logic error metrics and log error if transaction is already present.
     fn add_to_contained_txs(&self, tx_hash: [u8; 32], contained_txs: &mut HashSet<[u8; 32]>) {
         if !contained_txs.insert(tx_hash) {
-            self.metrics.increment_mempool_logic_error();
+            self.metrics.increment_internal_logic_error();
             error!(
                 tx_hash = %telemetry::display::hex(&tx_hash),
                 "attempted to add transaction already tracked in mempool's tracked container, is logic \
@@ -178,7 +178,7 @@ impl Mempool {
     /// Will increment logic error metrics and log error if transaction is not present.
     fn remove_from_contained_txs(&self, tx_hash: [u8; 32], contained_txs: &mut HashSet<[u8; 32]>) {
         if !contained_txs.remove(&tx_hash) {
-            self.metrics.increment_mempool_logic_error();
+            self.metrics.increment_internal_logic_error();
             error!(
                 tx_hash = %telemetry::display::hex(&tx_hash),
                 "attempted to remove transaction absent from mempool's tracked container, is logic \
@@ -416,7 +416,7 @@ impl Mempool {
                         let mut contained_txs = self.contained_txs.write().await;
                         self.remove_from_contained_txs(tx_id, &mut contained_txs);
                         // this shouldn't happen
-                        self.metrics.increment_mempool_logic_error();
+                        self.metrics.increment_internal_logic_error();
                         error!(
                             address = %telemetry::display::base64(&address),
                             current_nonce,
@@ -435,7 +435,7 @@ impl Mempool {
                         let mut contained_txs = self.contained_txs.write().await;
                         self.remove_from_contained_txs(tx_id, &mut contained_txs);
                         // this shouldn't happen
-                        self.metrics.increment_mempool_logic_error();
+                        self.metrics.increment_internal_logic_error();
                         error!(
                             address = %telemetry::display::base64(&address),
                             current_nonce,

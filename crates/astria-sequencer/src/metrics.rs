@@ -38,7 +38,7 @@ pub struct Metrics {
     transaction_in_mempool_size_bytes: Histogram,
     transactions_in_mempool_total: Gauge,
     mempool_recosted: Counter,
-    mempool_logic_error: Counter,
+    internal_logic_error: Counter,
 }
 
 impl Metrics {
@@ -156,8 +156,8 @@ impl Metrics {
         self.mempool_recosted.increment(1);
     }
 
-    pub(crate) fn increment_mempool_logic_error(&self) {
-        self.mempool_logic_error.increment(1);
+    pub(crate) fn increment_internal_logic_error(&self) {
+        self.internal_logic_error.increment(1);
     }
 }
 
@@ -335,9 +335,9 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
-        let mempool_logic_error = builder
+        let internal_logic_error = builder
             .new_counter_factory(
-                MEMPOOL_LOGIC_ERROR,
+                INTERNAL_LOGIC_ERROR,
                 "The number of times a transaction has been rejected due to logic errors in the \
                  mempool",
             )?
@@ -369,7 +369,7 @@ impl telemetry::Metrics for Metrics {
             transaction_in_mempool_size_bytes,
             transactions_in_mempool_total,
             mempool_recosted,
-            mempool_logic_error,
+            internal_logic_error,
         })
     }
 }
@@ -397,7 +397,7 @@ metric_names!(const METRICS_NAMES:
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
     TRANSACTIONS_IN_MEMPOOL_TOTAL,
     MEMPOOL_RECOSTED,
-    MEMPOOL_LOGIC_ERROR
+    INTERNAL_LOGIC_ERROR
 );
 
 #[cfg(test)]
@@ -410,7 +410,7 @@ mod tests {
         CHECK_TX_REMOVED_FAILED_EXECUTION,
         CHECK_TX_REMOVED_FAILED_STATELESS,
         CHECK_TX_REMOVED_TOO_LARGE,
-        MEMPOOL_LOGIC_ERROR,
+        INTERNAL_LOGIC_ERROR,
         MEMPOOL_RECOSTED,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
@@ -483,6 +483,6 @@ mod tests {
             "transactions_in_mempool_total",
         );
         assert_const(MEMPOOL_RECOSTED, "mempool_recosted");
-        assert_const(MEMPOOL_LOGIC_ERROR, "mempool_logic_error");
+        assert_const(INTERNAL_LOGIC_ERROR, "internal_logic_error");
     }
 }
