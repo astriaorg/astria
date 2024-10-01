@@ -165,10 +165,11 @@ impl Mempool {
     /// Will increment logic error metrics and log error if transaction is already present.
     fn add_to_contained_txs(&self, tx_hash: [u8; 32], contained_txs: &mut HashSet<[u8; 32]>) {
         if !contained_txs.insert(tx_hash) {
-            self.metrics.increment_mempool_tx_logic_error();
+            self.metrics.increment_mempool_logic_error();
             error!(
-                "attempted to re-add transaction {tx_hash:?} to mempool's tracked container, is \
-                 logic error"
+                tx_hash = %telemetry::display::hex(&tx_hash),
+                "attempted to add transaction already tracked in mempool's tracked container, is logic \
+                error"
             );
         }
     }
@@ -177,10 +178,11 @@ impl Mempool {
     /// Will increment logic error metrics and log error if transaction is not present.
     fn remove_from_contained_txs(&self, tx_hash: [u8; 32], contained_txs: &mut HashSet<[u8; 32]>) {
         if !contained_txs.remove(&tx_hash) {
-            self.metrics.increment_mempool_tx_logic_error();
+            self.metrics.increment_mempool_logic_error();
             error!(
-                "attempted to remove transaction non present {tx_hash:?} from mempool's tracked \
-                 container, is logic error"
+                tx_hash = %telemetry::display::hex(&tx_hash),
+                "attempted to remove transaction absent from mempool's tracked container, is logic \
+                error"
             );
         }
     }
@@ -252,7 +254,9 @@ impl Mempool {
                         self.remove_from_contained_txs(timemarked_tx.id(), &mut contained_txs);
                         error!(
                             current_account_nonce,
-                            "failed to promote transaction {tx_id:?} during insertion: {error:#}"
+                            tx_hash = %telemetry::display::hex(&tx_id),
+                            %error,
+                            "failed to promote transaction during insertion"
                         );
                     }
                 }
@@ -412,10 +416,13 @@ impl Mempool {
                         let mut contained_txs = self.contained_txs.write().await;
                         self.remove_from_contained_txs(tx_id, &mut contained_txs);
                         // this shouldn't happen
-                        self.metrics.increment_mempool_tx_logic_error();
+                        self.metrics.increment_mempool_logic_error();
                         error!(
+                            address = %telemetry::display::base64(&address),
                             current_nonce,
-                            "failed to promote transaction {tx_id:?} during maintenance: {error:#}"
+                            tx_hash = %telemetry::display::hex(&tx_id),
+                            %error,
+                            "failed to promote transaction during maintenance"
                         );
                     }
                 }
@@ -423,15 +430,18 @@ impl Mempool {
                 // add demoted transactions to parked
                 for tx in demotion_txs {
                     let tx_id = tx.id();
-                    if let Err(err) = parked.add(tx, current_nonce, &current_balances) {
+                    if let Err(error) = parked.add(tx, current_nonce, &current_balances) {
                         // remove from tracked
                         let mut contained_txs = self.contained_txs.write().await;
                         self.remove_from_contained_txs(tx_id, &mut contained_txs);
                         // this shouldn't happen
-                        self.metrics.increment_mempool_tx_logic_error();
+                        self.metrics.increment_mempool_logic_error();
                         error!(
-                               address = %telemetry::display::base64(&address),
-                               "failed to demote transaction during maintenance: {err:#}"
+                            address = %telemetry::display::base64(&address),
+                            current_nonce,
+                            tx_hash = %telemetry::display::hex(&tx_id),
+                            %error,
+                            "failed to demote transaction during maintenance"
                         );
                     }
                 }
