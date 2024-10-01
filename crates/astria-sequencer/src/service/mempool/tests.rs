@@ -12,7 +12,7 @@ use tendermint::{
 
 use crate::{
     app::{
-        test_utils::get_alice_signing_key,
+        test_utils::MockTxBuilder,
         App,
     },
     mempool::{
@@ -38,11 +38,7 @@ async fn future_nonce_ok() {
     app.commit(storage.clone()).await;
 
     let the_future_nonce = 10;
-    let tx = mock_tx(
-        the_future_nonce,
-        &get_alice_signing_key(),
-        "target_rollup_id",
-    );
+    let tx = MockTxBuilder::new().nonce(the_future_nonce).build();
     let req = CheckTx {
         tx: tx.to_raw().encode_to_vec().into(),
         kind: CheckTxKind::New,
@@ -71,8 +67,7 @@ async fn rechecks_pass() {
         .unwrap();
     app.commit(storage.clone()).await;
 
-    let nonce = 0;
-    let tx = mock_tx(nonce, &get_alice_signing_key(), "target_rollup_id");
+    let tx = MockTxBuilder::new().nonce(0).build();
     let req = CheckTx {
         tx: tx.to_raw().encode_to_vec().into(),
         kind: CheckTxKind::New,
@@ -110,8 +105,7 @@ async fn can_reinsert_after_recheck_fail() {
         .unwrap();
     app.commit(storage.clone()).await;
 
-    let nonce = 0;
-    let tx = mock_tx(nonce, &get_alice_signing_key(), "target_rollup_id");
+    let tx = MockTxBuilder::new().nonce(0).build();
     let req = CheckTx {
         tx: tx.to_raw().encode_to_vec().into(),
         kind: CheckTxKind::New,
@@ -159,8 +153,7 @@ async fn receck_adds_non_tracked_tx() {
         .unwrap();
     app.commit(storage.clone()).await;
 
-    let nonce = 0;
-    let tx = mock_tx(nonce, &get_alice_signing_key(), "target_rollup_id");
+    let tx = MockTxBuilder::new().nonce(0).build();
     let req = CheckTx {
         tx: tx.to_raw().encode_to_vec().into(),
         kind: CheckTxKind::Recheck,

@@ -669,7 +669,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_maintenance_promotion() {
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap())); 
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics);
 
         // create transaction setup to trigger promotions
@@ -742,7 +742,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_maintenance_demotion() {
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap())); 
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics);
 
         // create transaction setup to trigger demotions
@@ -837,7 +837,7 @@ mod tests {
 
     #[tokio::test]
     async fn remove_invalid() {
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap())); 
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics);
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 10);
@@ -1130,7 +1130,11 @@ mod tests {
 
         // remove the transacitons from the mempool via maintenance
         let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(&mut mock_state, astria_address_from_hex_string(ALICE_ADDRESS).bytes(), 2);
+        mock_state_put_account_nonce(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            2,
+        );
         mempool.run_maintenance(&mock_state, false).await;
 
         // check that the transactions are not in the tracked set
