@@ -1,9 +1,3 @@
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-};
-
 use astria_eyre::eyre::bail;
 use borsh::{
     BorshDeserialize,
@@ -18,16 +12,6 @@ enum ValueImpl {
     Balance(Balance),
     Nonce(Nonce),
     Fee(Fee),
-}
-
-impl Display for Value {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            ValueImpl::Balance(balance) => write!(f, "balance {}", balance.0),
-            ValueImpl::Nonce(nonce) => write!(f, "nonce {}", nonce.0),
-            ValueImpl::Fee(fee) => write!(f, "fee {}", fee.0),
-        }
-    }
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -57,7 +41,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Balance {
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Accounts(Value(ValueImpl::Balance(balance))) = value
         else {
-            bail!("accounts stored value type mismatch: expected balance, found {value}");
+            bail!("accounts stored value type mismatch: expected balance, found {value:?}");
         };
         Ok(balance)
     }
@@ -89,7 +73,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Nonce {
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Accounts(Value(ValueImpl::Nonce(nonce))) = value else {
-            bail!("accounts stored value type mismatch: expected nonce, found {value}");
+            bail!("accounts stored value type mismatch: expected nonce, found {value:?}");
         };
         Ok(nonce)
     }
@@ -121,7 +105,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Fee {
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Accounts(Value(ValueImpl::Fee(fee))) = value else {
-            bail!("accounts stored value type mismatch: expected fee, found {value}");
+            bail!("accounts stored value type mismatch: expected fee, found {value:?}");
         };
         Ok(fee)
     }

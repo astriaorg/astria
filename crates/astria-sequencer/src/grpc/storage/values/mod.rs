@@ -4,12 +4,6 @@ mod rollup_ids;
 mod rollup_transactions;
 mod sequencer_block_header;
 
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-};
-
 use borsh::{
     BorshDeserialize,
     BorshSerialize,
@@ -33,20 +27,4 @@ enum ValueImpl<'a> {
     SequencerBlockHeader(SequencerBlockHeader<'a>),
     RollupTransactions(RollupTransactions<'a>),
     Proof(Proof<'a>),
-}
-
-impl<'a> Display for Value<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            ValueImpl::RollupIds(rollup_ids) => write!(f, "rollup_ids {rollup_ids}"),
-            ValueImpl::BlockHash(block_hash) => write!(f, "block hash {block_hash}"),
-            ValueImpl::SequencerBlockHeader(header) => {
-                write!(f, "sequencer block header at height {}", header.height())
-            }
-            ValueImpl::RollupTransactions(txs) => {
-                write!(f, "rollup transactions for rollup {}", txs.rollup_id())
-            }
-            ValueImpl::Proof(_proof) => write!(f, "proof"),
-        }
-    }
 }

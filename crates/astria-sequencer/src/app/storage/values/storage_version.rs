@@ -1,9 +1,3 @@
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-};
-
 use astria_eyre::eyre::bail;
 use borsh::{
     BorshDeserialize,
@@ -17,12 +11,6 @@ use super::{
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::app) struct StorageVersion(u64);
-
-impl Display for StorageVersion {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
 
 impl From<u64> for StorageVersion {
     fn from(storage_version: u64) -> Self {
@@ -49,7 +37,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for StorageVersion {
         let crate::storage::StoredValue::App(Value(ValueImpl::StorageVersion(storage_version))) =
             value
         else {
-            bail!("app stored value type mismatch: expected storage version, found {value}");
+            bail!("app stored value type mismatch: expected storage version, found {value:?}");
         };
         Ok(storage_version)
     }

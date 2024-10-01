@@ -1,4 +1,11 @@
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    fmt::{
+        self,
+        Debug,
+        Formatter,
+    },
+};
 
 use astria_core::{
     primitive::v1::ADDRESS_LEN,
@@ -16,6 +23,7 @@ use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
+use telemetry::display::base64;
 
 use super::{
     Value,
@@ -88,7 +96,7 @@ impl BorshDeserialize for BlockTimestamp {
     }
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::grpc) struct SequencerBlockHeader<'a> {
     chain_id: ChainId<'a>,
     height: u64,
@@ -98,9 +106,22 @@ pub(in crate::grpc) struct SequencerBlockHeader<'a> {
     proposer_address: [u8; ADDRESS_LEN],
 }
 
-impl<'a> SequencerBlockHeader<'a> {
-    pub(super) fn height(&self) -> u64 {
-        self.height
+impl<'a> Debug for SequencerBlockHeader<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SequencerBlockHeader")
+            .field("chain_id", &self.chain_id)
+            .field("height", &self.height)
+            .field("time", &self.time)
+            .field(
+                "rollup_transactions_root",
+                &base64(self.rollup_transactions_root.as_slice()).to_string(),
+            )
+            .field("data_hash", &base64(self.data_hash.as_slice()).to_string())
+            .field(
+                "proposer_address",
+                &base64(self.proposer_address.as_slice()).to_string(),
+            )
+            .finish()
     }
 }
 
@@ -150,7 +171,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for SequencerBlockHeader<'a> {
             value
         else {
             bail!(
-                "grpc stored value type mismatch: expected sequencer block header, found {value}"
+                "grpc stored value type mismatch: expected sequencer block header, found {value:?}"
             );
         };
         Ok(block_header)

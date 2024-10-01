@@ -1,11 +1,4 @@
-use std::{
-    borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
-};
+use std::borrow::Cow;
 
 use astria_eyre::eyre::bail;
 use borsh::{
@@ -19,14 +12,6 @@ pub(crate) struct Value<'a>(ValueImpl<'a>);
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 enum ValueImpl<'a> {
     AddressPrefix(AddressPrefix<'a>),
-}
-
-impl<'a> Display for Value<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            ValueImpl::AddressPrefix(prefix) => write!(f, "address prefix {}", prefix.0),
-        }
-    }
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -56,7 +41,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressPrefix<'a> {
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Address(Value(ValueImpl::AddressPrefix(prefix))) = value
         else {
-            bail!("address stored value type mismatch: expected address prefix, found {value}");
+            bail!("address stored value type mismatch: expected address prefix, found {value:?}");
         };
         Ok(prefix)
     }

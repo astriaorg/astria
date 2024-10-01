@@ -1,9 +1,3 @@
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-};
-
 use astria_eyre::eyre::bail;
 use borsh::{
     BorshDeserialize,
@@ -17,12 +11,6 @@ use super::{
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::app) struct BlockHeight(u64);
-
-impl Display for BlockHeight {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
 
 impl From<u64> for BlockHeight {
     fn from(block_height: u64) -> Self {
@@ -48,7 +36,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for BlockHeight {
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::App(Value(ValueImpl::BlockHeight(block_height))) = value
         else {
-            bail!("app stored value type mismatch: expected block height, found {value}");
+            bail!("app stored value type mismatch: expected block height, found {value:?}");
         };
         Ok(block_height)
     }

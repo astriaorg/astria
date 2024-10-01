@@ -56,7 +56,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Proof<'a> {
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Grpc(Value(ValueImpl::Proof(proof))) = value else {
-            bail!("grpc stored value type mismatch: expected proof, found {value}");
+            bail!("grpc stored value type mismatch: expected proof, found {value:?}");
         };
         Ok(proof)
     }

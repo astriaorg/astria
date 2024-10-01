@@ -804,7 +804,6 @@ dependencies = [
  "ibc-proto",
  "ibc-types",
  "insta",
- "itertools 0.12.1",
  "matchit",
  "penumbra-ibc",
  "penumbra-proto",

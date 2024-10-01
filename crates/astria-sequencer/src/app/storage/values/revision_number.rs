@@ -1,9 +1,3 @@
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-};
-
 use astria_eyre::eyre::bail;
 use borsh::{
     BorshDeserialize,
@@ -17,12 +11,6 @@ use super::{
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::app) struct RevisionNumber(u64);
-
-impl Display for RevisionNumber {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
 
 impl From<u64> for RevisionNumber {
     fn from(revision_number: u64) -> Self {
@@ -49,7 +37,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for RevisionNumber {
         let crate::storage::StoredValue::App(Value(ValueImpl::RevisionNumber(revision_number))) =
             value
         else {
-            bail!("app stored value type mismatch: expected revision number, found {value}");
+            bail!("app stored value type mismatch: expected revision number, found {value:?}");
         };
         Ok(revision_number)
     }

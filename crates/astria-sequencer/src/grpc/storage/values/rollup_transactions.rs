@@ -1,4 +1,11 @@
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    fmt::{
+        self,
+        Debug,
+        Formatter,
+    },
+};
 
 use astria_core::sequencerblock::v1alpha1::{
     block::RollupTransactionsParts,
@@ -18,16 +25,27 @@ use super::{
     ValueImpl,
 };
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::grpc) struct RollupTransactions<'a> {
     rollup_id: RollupId<'a>,
     transactions: Cow<'a, [Bytes]>,
     proof: Proof<'a>,
 }
 
-impl<'a> RollupTransactions<'a> {
-    pub(super) fn rollup_id(&self) -> &RollupId {
-        &self.rollup_id
+impl<'a> Debug for RollupTransactions<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RollupTransactions")
+            .field("rollup_id", &self.rollup_id)
+            .field(
+                "transactions",
+                &format!(
+                    "{} txs totalling {} bytes",
+                    self.transactions.len(),
+                    self.transactions.iter().map(Bytes::len).sum::<usize>()
+                ),
+            )
+            .field("proof", &self.proof)
+            .finish()
     }
 }
 
@@ -64,7 +82,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for RollupTransactions<'a> {
         let crate::storage::StoredValue::Grpc(Value(ValueImpl::RollupTransactions(rollup_txs))) =
             value
         else {
-            bail!("grpc stored value type mismatch: expected rollup transactions, found {value}");
+            bail!("grpc stored value type mismatch: expected rollup transactions, found {value:?}");
         };
         Ok(rollup_txs)
     }

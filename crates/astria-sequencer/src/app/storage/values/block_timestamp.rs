@@ -1,9 +1,3 @@
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-};
-
 use astria_eyre::eyre::bail;
 use borsh::{
     io::{
@@ -21,12 +15,6 @@ use super::{
 
 #[derive(Debug)]
 pub(in crate::app) struct BlockTimestamp(tendermint::time::Time);
-
-impl Display for BlockTimestamp {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
 
 impl From<tendermint::time::Time> for BlockTimestamp {
     fn from(block_timestamp: tendermint::time::Time) -> Self {
@@ -74,7 +62,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for BlockTimestamp {
         let crate::storage::StoredValue::App(Value(ValueImpl::BlockTimestamp(block_timestamp))) =
             value
         else {
-            bail!("app stored value type mismatch: expected block timestamp, found {value}");
+            bail!("app stored value type mismatch: expected block timestamp, found {value:?}");
         };
         Ok(block_timestamp)
     }

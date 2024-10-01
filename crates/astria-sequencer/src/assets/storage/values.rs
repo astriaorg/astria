@@ -1,11 +1,4 @@
-use std::{
-    borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
-};
+use std::borrow::Cow;
 
 use astria_core::primitive::v1::asset::TracePrefixed as DomainTracePrefixed;
 use astria_eyre::eyre::bail;
@@ -23,28 +16,10 @@ enum ValueImpl<'a> {
     Fee(Fee),
 }
 
-impl<'a> Display for Value<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            ValueImpl::TracePrefixedDenom(denom) => write!(f, "trace-prefixed denom {denom}"),
-            ValueImpl::Fee(fee) => write!(f, "fee {}", fee.0),
-        }
-    }
-}
-
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::assets) struct TracePrefixedDenom<'a> {
     trace: Vec<(Cow<'a, str>, Cow<'a, str>)>,
     base_denom: Cow<'a, str>,
-}
-
-impl<'a> Display for TracePrefixedDenom<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        for (port, channel) in &self.trace {
-            write!(f, "{port}/{channel}/")?;
-        }
-        f.write_str(&self.base_denom)
-    }
 }
 
 impl<'a> From<&'a DomainTracePrefixed> for TracePrefixedDenom<'a> {
@@ -85,7 +60,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for TracePrefixedDenom<'a> {
             value
         else {
             bail!(
-                "assets stored value type mismatch: expected trace-prefixed denom, found {value}"
+                "assets stored value type mismatch: expected trace-prefixed denom, found {value:?}"
             );
         };
         Ok(denom)
@@ -118,7 +93,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Fee {
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Assets(Value(ValueImpl::Fee(fee))) = value else {
-            bail!("assets stored value type mismatch: expected fee, found {value}");
+            bail!("assets stored value type mismatch: expected fee, found {value:?}");
         };
         Ok(fee)
     }

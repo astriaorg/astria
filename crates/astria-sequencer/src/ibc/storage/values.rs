@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     fmt::{
         self,
-        Display,
+        Debug,
         Formatter,
     },
 };
@@ -25,18 +25,6 @@ enum ValueImpl<'a> {
     Balance(Balance),
     AddressBytes(AddressBytes<'a>),
     Fee(Fee),
-}
-
-impl<'a> Display for Value<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            ValueImpl::Balance(balance) => write!(f, "balance {}", balance.0),
-            ValueImpl::AddressBytes(address_bytes) => {
-                write!(f, "address bytes {}", base64(address_bytes.0.as_slice()))
-            }
-            ValueImpl::Fee(fee) => write!(f, "fee {}", fee.0),
-        }
-    }
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -65,14 +53,20 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Balance {
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Ibc(Value(ValueImpl::Balance(balance))) = value else {
-            bail!("ibc stored value type mismatch: expected balance, found {value}");
+            bail!("ibc stored value type mismatch: expected balance, found {value:?}");
         };
         Ok(balance)
     }
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::ibc) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
+
+impl<'a> Debug for AddressBytes<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", base64(self.0.as_slice()))
+    }
+}
 
 impl<'a, T: DomainAddressBytes> From<&'a T> for AddressBytes<'a> {
     fn from(value: &'a T) -> Self {
@@ -98,7 +92,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressBytes<'a> {
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Ibc(Value(ValueImpl::AddressBytes(address))) = value
         else {
-            bail!("ibc stored value type mismatch: expected address bytes, found {value}");
+            bail!("ibc stored value type mismatch: expected address bytes, found {value:?}");
         };
         Ok(address)
     }
@@ -106,12 +100,6 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressBytes<'a> {
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::ibc) struct Fee(u128);
-
-impl Display for Fee {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
 
 impl From<u128> for Fee {
     fn from(fee: u128) -> Self {
@@ -136,7 +124,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Fee {
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Ibc(Value(ValueImpl::Fee(fee))) = value else {
-            bail!("ibc stored value type mismatch: expected fee, found {value}");
+            bail!("ibc stored value type mismatch: expected fee, found {value:?}");
         };
         Ok(fee)
     }

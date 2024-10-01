@@ -49,7 +49,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for BlockHeight {
         let crate::storage::StoredValue::Bridge(Value(ValueImpl::BlockHeight(block_height))) =
             value
         else {
-            bail!("bridge stored value type mismatch: expected block height, found {value}");
+            bail!("bridge stored value type mismatch: expected block height, found {value:?}");
         };
         Ok(block_height)
     }

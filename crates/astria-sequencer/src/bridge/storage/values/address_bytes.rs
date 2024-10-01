@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     fmt::{
         self,
-        Display,
+        Debug,
         Formatter,
     },
 };
@@ -21,12 +21,12 @@ use super::{
 };
 use crate::accounts::AddressBytes as DomainAddressBytes;
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::bridge) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
 
-impl<'a> Display for AddressBytes<'a> {
+impl<'a> Debug for AddressBytes<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        base64(self.0.as_slice()).fmt(f)
+        write!(f, "{}", base64(self.0.as_slice()))
     }
 }
 
@@ -54,7 +54,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressBytes<'a> {
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Bridge(Value(ValueImpl::AddressBytes(address))) = value
         else {
-            bail!("bridge stored value type mismatch: expected address bytes, found {value}");
+            bail!("bridge stored value type mismatch: expected address bytes, found {value:?}");
         };
         Ok(address)
     }

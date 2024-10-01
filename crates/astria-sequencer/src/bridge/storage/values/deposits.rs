@@ -149,7 +149,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Deposits<'a> {
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Bridge(Value(ValueImpl::Deposits(deposits))) = value
         else {
-            bail!("bridge stored value type mismatch: expected deposits, found {value}");
+            bail!("bridge stored value type mismatch: expected deposits, found {value:?}");
         };
         Ok(deposits)
     }

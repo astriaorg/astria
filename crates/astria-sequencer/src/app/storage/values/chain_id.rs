@@ -1,11 +1,4 @@
-use std::{
-    borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
-};
+use std::borrow::Cow;
 
 use astria_eyre::eyre::bail;
 use borsh::{
@@ -24,12 +17,6 @@ use super::{
 
 #[derive(Debug)]
 pub(in crate::app) struct ChainId<'a>(Cow<'a, tendermint::chain::Id>);
-
-impl<'a> Display for ChainId<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
 
 impl<'a> From<&'a tendermint::chain::Id> for ChainId<'a> {
     fn from(chain_id: &'a tendermint::chain::Id) -> Self {
@@ -69,7 +56,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for ChainId<'a> {
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::App(Value(ValueImpl::ChainId(chain_id))) = value else {
-            bail!("app stored value type mismatch: expected chain id, found {value}");
+            bail!("app stored value type mismatch: expected chain id, found {value:?}");
         };
         Ok(chain_id)
     }

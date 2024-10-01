@@ -1,9 +1,3 @@
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-};
-
 use astria_eyre::eyre::bail;
 use borsh::{
     BorshDeserialize,
@@ -16,14 +10,6 @@ pub(crate) struct Value(ValueImpl);
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 enum ValueImpl {
     Fee(Fee),
-}
-
-impl Display for Value {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            ValueImpl::Fee(fee) => write!(f, "fee {}", fee.0),
-        }
-    }
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -52,7 +38,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Fee {
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Sequence(Value(ValueImpl::Fee(fee))) = value else {
-            bail!("sequence stored value type mismatch: expected fee, found {value}");
+            bail!("sequence stored value type mismatch: expected fee, found {value:?}");
         };
         Ok(fee)
     }

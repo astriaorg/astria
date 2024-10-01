@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     fmt::{
         self,
-        Display,
+        Debug,
         Formatter,
     },
 };
@@ -20,12 +20,12 @@ use super::{
     ValueImpl,
 };
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::bridge) struct RollupId<'a>(Cow<'a, [u8; 32]>);
 
-impl<'a> Display for RollupId<'a> {
+impl<'a> Debug for RollupId<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        base64(self.0.as_slice()).fmt(f)
+        write!(f, "{}", base64(self.0.as_slice()))
     }
 }
 
@@ -53,7 +53,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for RollupId<'a> {
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Bridge(Value(ValueImpl::RollupId(rollup_id))) = value
         else {
-            bail!("bridge stored value type mismatch: expected rollup id, found {value}");
+            bail!("bridge stored value type mismatch: expected rollup id, found {value:?}");
         };
         Ok(rollup_id)
     }

@@ -1,9 +1,3 @@
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-};
-
 use astria_eyre::eyre::bail;
 use borsh::{
     BorshDeserialize,
@@ -17,12 +11,6 @@ use super::{
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::bridge) struct Fee(u128);
-
-impl Display for Fee {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
 
 impl From<u128> for Fee {
     fn from(fee: u128) -> Self {
@@ -47,7 +35,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Fee {
 
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Bridge(Value(ValueImpl::Fee(fee))) = value else {
-            bail!("bridge stored value type mismatch: expected fee, found {value}");
+            bail!("bridge stored value type mismatch: expected fee, found {value:?}");
         };
         Ok(fee)
     }

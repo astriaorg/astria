@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     fmt::{
         self,
-        Display,
+        Debug,
         Formatter,
     },
 };
@@ -33,19 +33,14 @@ enum ValueImpl<'a> {
     ValidatorSet(ValidatorSet<'a>),
 }
 
-impl<'a> Display for Value<'a> {
+#[derive(BorshSerialize, BorshDeserialize)]
+pub(in crate::authority) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
+
+impl<'a> Debug for AddressBytes<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            ValueImpl::AddressBytes(address) => {
-                write!(f, "address {}", base64(address.0.as_ref()))
-            }
-            ValueImpl::ValidatorSet(_validator_set) => write!(f, "validator set {{...}}"),
-        }
+        write!(f, "{}", base64(self.0.as_slice()))
     }
 }
-
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::authority) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
 
 impl<'a, T: DomainAddressBytes> From<&'a T> for AddressBytes<'a> {
     fn from(value: &'a T) -> Self {
@@ -71,14 +66,20 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressBytes<'a> {
     fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
         let crate::storage::StoredValue::Authority(Value(ValueImpl::AddressBytes(address))) = value
         else {
-            bail!("authority stored value type mismatch: expected address bytes, found {value}");
+            bail!("authority stored value type mismatch: expected address bytes, found {value:?}");
         };
         Ok(address)
     }
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 struct VerificationKey<'a>(Cow<'a, [u8; 32]>);
+
+impl<'a> Debug for VerificationKey<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", base64(self.0.as_slice()))
+    }
+}
 
 impl<'a> From<VerificationKey<'a>> for DomainVerificationKey {
     fn from(value: VerificationKey<'a>) -> Self {
@@ -147,7 +148,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for ValidatorSet<'a> {
         let crate::storage::StoredValue::Authority(Value(ValueImpl::ValidatorSet(validator_set))) =
             value
         else {
-            bail!("authority stored value type mismatch: expected validator set, found {value}");
+            bail!("authority stored value type mismatch: expected validator set, found {value:?}");
         };
         Ok(validator_set)
     }
