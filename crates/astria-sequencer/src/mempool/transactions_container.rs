@@ -1528,7 +1528,7 @@ mod test {
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::too_many_lines, reason = "it's a test")]
     async fn transactions_container_clean_account_stale_expired() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
         let signing_key_0 = SigningKey::from([1; 32]);
