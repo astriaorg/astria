@@ -270,7 +270,9 @@ mod tests {
         let alice_address = astria_address(&alice.address_bytes());
         // insert a transaction with a nonce gap
         let gapped_nonce = 99;
-        let tx = crate::app::test_utils::mock_tx(gapped_nonce, &get_alice_signing_key(), "test");
+        let tx = crate::app::test_utils::MockTxBuilder::new()
+            .nonce(gapped_nonce)
+            .build();
         mempool
             .insert(tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
             .await
@@ -278,7 +280,10 @@ mod tests {
 
         // insert a transaction at the current nonce
         let account_nonce = 0;
-        let tx = crate::app::test_utils::mock_tx(account_nonce, &get_alice_signing_key(), "test");
+        let tx = crate::app::test_utils::MockTxBuilder::new()
+            .nonce(account_nonce)
+            .build();
+
         mempool
             .insert(tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
             .await
@@ -287,7 +292,9 @@ mod tests {
         // insert a transactions one above account nonce (not gapped)
         let sequential_nonce = 1;
         let tx: Arc<astria_core::protocol::transaction::v1alpha1::SignedTransaction> =
-            crate::app::test_utils::mock_tx(sequential_nonce, &get_alice_signing_key(), "test");
+            crate::app::test_utils::MockTxBuilder::new()
+                .nonce(sequential_nonce)
+                .build();
         mempool
             .insert(tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
             .await

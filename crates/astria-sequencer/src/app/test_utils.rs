@@ -257,26 +257,65 @@ pub(crate) async fn initialize_app(
     reason = "allow is only necessary when benchmark isn't enabled"
 )]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
-pub(crate) fn mock_tx(
+pub(crate) struct MockTxBuilder {
     nonce: u32,
-    signer: &SigningKey,
-    rollup_name: &str,
-) -> Arc<SignedTransaction> {
-    let tx = UnsignedTransaction::builder()
-        .actions(vec![
-            SequenceAction {
-                rollup_id: RollupId::from_unhashed_bytes(rollup_name.as_bytes()),
-                data: Bytes::from_static(&[0x99]),
-                fee_asset: denom_0(),
-            }
-            .into(),
-        ])
-        .chain_id("test")
-        .nonce(nonce)
-        .try_build()
-        .unwrap();
+    signer: SigningKey,
+    chain_id: String,
+}
 
-    Arc::new(tx.into_signed(signer))
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+impl MockTxBuilder {
+    pub(crate) fn new() -> Self {
+        Self {
+            chain_id: "test".to_string(),
+            nonce: 0,
+            signer: get_alice_signing_key(),
+        }
+    }
+
+    pub(crate) fn nonce(self, nonce: u32) -> Self {
+        Self {
+            nonce,
+            ..self
+        }
+    }
+
+    pub(crate) fn signer(self, signer: SigningKey) -> Self {
+        Self {
+            signer,
+            ..self
+        }
+    }
+
+    pub(crate) fn chain_id(self, chain_id: &str) -> Self {
+        Self {
+            chain_id: chain_id.to_string(),
+            ..self
+        }
+    }
+
+    pub(crate) fn build(self) -> Arc<SignedTransaction> {
+        let tx = UnsignedTransaction::builder()
+            .actions(vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
+                    data: Bytes::from_static(&[0x99]),
+                    fee_asset: denom_0(),
+                }
+                .into(),
+            ])
+            .chain_id(self.chain_id)
+            .nonce(self.nonce)
+            .try_build()
+            .unwrap();
+
+        Arc::new(tx.into_signed(&self.signer))
+    }
 }
 
 pub(crate) const MOCK_SEQUENCE_FEE: u128 = 10;
