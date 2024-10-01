@@ -353,7 +353,7 @@ async fn maintenance_recosting_promotes() {
     // see transfer went through
     assert_eq!(
         app.state
-            .get_account_balance(astria_address_from_hex_string(CAROL_ADDRESS), nria())
+            .get_account_balance(&astria_address_from_hex_string(CAROL_ADDRESS), &nria())
             .await
             .unwrap(),
         1,
@@ -524,7 +524,7 @@ async fn maintenance_funds_added_promotes() {
     // see transfer went through
     assert_eq!(
         app.state
-            .get_account_balance(astria_address_from_hex_string(BOB_ADDRESS), nria())
+            .get_account_balance(&astria_address_from_hex_string(BOB_ADDRESS), &nria())
             .await
             .unwrap(),
         10,

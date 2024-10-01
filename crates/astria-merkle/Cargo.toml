@@ -19,6 +19,10 @@ hex-literal = { workspace = true }
 [features]
 # Used to enable allocation data in benchmarks.
 bench_include_allocs = []
+# When enabled, this adds constructors for some types that skip the normal constructor validity
+# checks. It supports the case where the inputs are already deemed valid, e.g. having read them from
+# local storage.
+unchecked-constructors = []
 
 [[bench]]
 name = "benchmark"

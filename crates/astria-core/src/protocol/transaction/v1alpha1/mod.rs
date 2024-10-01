@@ -65,14 +65,6 @@ enum SignedTransactionErrorKind {
     Verification(crypto::Error),
 }
 
-/// The individual parts of a [`SignedTransaction`].
-#[derive(Debug)]
-pub struct SignedTransactionParts {
-    pub signature: Signature,
-    pub verification_key: VerificationKey,
-    pub transaction: UnsignedTransaction,
-}
-
 /// A signed transaction.
 ///
 /// [`SignedTransaction`] contains an [`UnsignedTransaction`] together
@@ -86,7 +78,7 @@ pub struct SignedTransaction {
 }
 
 impl SignedTransaction {
-    pub fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
+    pub fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
         self.verification_key.address_bytes()
     }
 
@@ -174,22 +166,6 @@ impl SignedTransaction {
             transaction,
             transaction_bytes: bytes,
         })
-    }
-
-    /// Converts a [`SignedTransaction`] into its [`SignedTransactionParts`].
-    #[must_use]
-    pub fn into_parts(self) -> SignedTransactionParts {
-        let Self {
-            signature,
-            verification_key,
-            transaction,
-            ..
-        } = self;
-        SignedTransactionParts {
-            signature,
-            verification_key,
-            transaction,
-        }
     }
 
     #[must_use]
@@ -645,7 +621,7 @@ mod tests {
             transaction_bytes: unsigned.to_raw().encode_to_vec().into(),
         };
 
-        insta::assert_json_snapshot!(tx.id());
+        insta::assert_json_snapshot!(tx.id().to_raw());
     }
 
     #[test]

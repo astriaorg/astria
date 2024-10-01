@@ -48,7 +48,7 @@ use wiremock::MockServer;
 pub const CELESTIA_BEARER_TOKEN: &str = "ABCDEFGH";
 
 pub const ROLLUP_ID: RollupId = RollupId::new([42; 32]);
-pub static ROLLUP_ID_BYTES: Bytes = Bytes::from_static(&RollupId::get(ROLLUP_ID));
+pub static ROLLUP_ID_BYTES: Bytes = Bytes::from_static(ROLLUP_ID.as_bytes());
 
 pub const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 pub const CELESTIA_CHAIN_ID: &str = "test_celestia-1000";
@@ -634,7 +634,7 @@ pub fn make_commit(height: u32) -> tendermint::block::Commit {
     let signing_key = signing_key();
     let validator = validator();
 
-    let block_hash = make_sequencer_block(height).block_hash();
+    let block_hash = *make_sequencer_block(height).block_hash();
 
     let timestamp = tendermint::Time::from_unix_timestamp(1, 1).unwrap();
     let canonical_vote = tendermint::vote::CanonicalVote {

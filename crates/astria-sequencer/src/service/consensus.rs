@@ -452,7 +452,7 @@ mod tests {
             vec![
                 astria_core::generated::protocol::genesis::v1alpha1::Account {
                     address: Some(
-                        crate::test_utils::astria_address(&funded_key.address_bytes()).to_raw(),
+                        crate::test_utils::astria_address(funded_key.address_bytes()).to_raw(),
                     ),
                     balance: Some(10u128.pow(19).into()),
                 },

@@ -127,32 +127,28 @@ impl ActionHandler for FeeChangeAction {
         ensure!(sudo_address == from, "signer is not the sudo key");
 
         match self.fee_change {
-            FeeChange::TransferBaseFee => {
-                state
-                    .put_transfer_base_fee(self.new_value)
-                    .wrap_err("failed to put transfer base fee in state")?;
-            }
-            FeeChange::SequenceBaseFee => state.put_sequence_action_base_fee(self.new_value),
-            FeeChange::SequenceByteCostMultiplier => {
-                state.put_sequence_action_byte_cost_multiplier(self.new_value);
-            }
-            FeeChange::InitBridgeAccountBaseFee => {
-                state.put_init_bridge_account_base_fee(self.new_value);
-            }
-            FeeChange::BridgeLockByteCostMultiplier => {
-                state.put_bridge_lock_byte_cost_multiplier(self.new_value);
-            }
-            FeeChange::BridgeSudoChangeBaseFee => {
-                state.put_bridge_sudo_change_base_fee(self.new_value);
-            }
-            FeeChange::Ics20WithdrawalBaseFee => {
-                state
-                    .put_ics20_withdrawal_base_fee(self.new_value)
-                    .wrap_err("failed to put ics20 withdrawal base fee in state")?;
-            }
+            FeeChange::TransferBaseFee => state
+                .put_transfer_base_fee(self.new_value)
+                .wrap_err("failed to put transfer base fee"),
+            FeeChange::SequenceBaseFee => state
+                .put_sequence_action_base_fee(self.new_value)
+                .wrap_err("failed to put sequence action base fee"),
+            FeeChange::SequenceByteCostMultiplier => state
+                .put_sequence_action_byte_cost_multiplier(self.new_value)
+                .wrap_err("failed to put sequence action byte cost multiplier"),
+            FeeChange::InitBridgeAccountBaseFee => state
+                .put_init_bridge_account_base_fee(self.new_value)
+                .wrap_err("failed to put init bridge account base fee"),
+            FeeChange::BridgeLockByteCostMultiplier => state
+                .put_bridge_lock_byte_cost_multiplier(self.new_value)
+                .wrap_err("failed to put bridge lock byte cost multiplier"),
+            FeeChange::BridgeSudoChangeBaseFee => state
+                .put_bridge_sudo_change_base_fee(self.new_value)
+                .wrap_err("failed to put bridge sudo change base fee"),
+            FeeChange::Ics20WithdrawalBaseFee => state
+                .put_ics20_withdrawal_base_fee(self.new_value)
+                .wrap_err("failed to put ics20 withdrawal base fee"),
         }
-
-        Ok(())
     }
 }
 
@@ -226,7 +222,9 @@ mod tests {
         assert_eq!(state.get_transfer_base_fee().await.unwrap(), 10);
 
         let sequence_base_fee = 5;
-        state.put_sequence_action_base_fee(sequence_base_fee);
+        state
+            .put_sequence_action_base_fee(sequence_base_fee)
+            .unwrap();
 
         let fee_change = FeeChangeAction {
             fee_change: FeeChange::SequenceBaseFee,
@@ -237,7 +235,9 @@ mod tests {
         assert_eq!(state.get_sequence_action_base_fee().await.unwrap(), 3);
 
         let sequence_byte_cost_multiplier = 2;
-        state.put_sequence_action_byte_cost_multiplier(sequence_byte_cost_multiplier);
+        state
+            .put_sequence_action_byte_cost_multiplier(sequence_byte_cost_multiplier)
+            .unwrap();
 
         let fee_change = FeeChangeAction {
             fee_change: FeeChange::SequenceByteCostMultiplier,
@@ -254,7 +254,9 @@ mod tests {
         );
 
         let init_bridge_account_base_fee = 1;
-        state.put_init_bridge_account_base_fee(init_bridge_account_base_fee);
+        state
+            .put_init_bridge_account_base_fee(init_bridge_account_base_fee)
+            .unwrap();
 
         let fee_change = FeeChangeAction {
             fee_change: FeeChange::InitBridgeAccountBaseFee,
@@ -265,7 +267,9 @@ mod tests {
         assert_eq!(state.get_init_bridge_account_base_fee().await.unwrap(), 2);
 
         let bridge_lock_byte_cost_multiplier = 1;
-        state.put_bridge_lock_byte_cost_multiplier(bridge_lock_byte_cost_multiplier);
+        state
+            .put_bridge_lock_byte_cost_multiplier(bridge_lock_byte_cost_multiplier)
+            .unwrap();
 
         let fee_change = FeeChangeAction {
             fee_change: FeeChange::BridgeLockByteCostMultiplier,

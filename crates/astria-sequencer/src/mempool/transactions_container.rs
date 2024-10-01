@@ -4,7 +4,6 @@ use std::{
         hash_map,
         BTreeMap,
         HashMap,
-        HashSet,
     },
     fmt,
     mem,
@@ -51,7 +50,7 @@ impl TimemarkedTransaction {
     pub(super) fn new(signed_tx: Arc<SignedTransaction>, cost: HashMap<IbcPrefixed, u128>) -> Self {
         Self {
             tx_hash: signed_tx.id().get(),
-            address: signed_tx.verification_key().address_bytes(),
+            address: *signed_tx.verification_key().address_bytes(),
             signed_tx,
             time_first_seen: Instant::now(),
             cost,
@@ -505,8 +504,8 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
     }
 
     /// Returns all of the currently tracked addresses.
-    pub(super) fn addresses(&self) -> HashSet<[u8; 20]> {
-        self.txs.keys().copied().collect()
+    pub(super) fn addresses(&self) -> impl Iterator<Item = &[u8; 20]> {
+        self.txs.keys()
     }
 
     /// Recosts transactions for an account.
@@ -514,10 +513,10 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
     /// Logs an error if fails to recost a transaction.
     pub(super) async fn recost_transactions<S: accounts::StateReadExt>(
         &mut self,
-        address: [u8; 20],
+        address: &[u8; 20],
         state: &S,
     ) {
-        let Some(account) = self.txs.get_mut(&address) else {
+        let Some(account) = self.txs.get_mut(address) else {
             return;
         };
 
@@ -528,7 +527,7 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
                 Ok(res) => res,
                 Err(error) => {
                     error!(
-                        address = %telemetry::display::base64(&address),
+                        address = %telemetry::display::base64(address),
                         "failed to calculate new transaction cost when cleaning accounts: {error:#}"
                     );
                     continue;
@@ -577,7 +576,7 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
         let address = signed_tx.verification_key().address_bytes();
 
         // Take the collection for this account out of `self` temporarily.
-        let Some(mut account_txs) = self.txs.remove(&address) else {
+        let Some(mut account_txs) = self.txs.remove(address) else {
             return Err(signed_tx);
         };
 
@@ -585,7 +584,7 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
 
         // Re-add the collection to `self` if it's not empty.
         if !account_txs.txs().is_empty() {
-            let _ = self.txs.insert(address, account_txs);
+            let _ = self.txs.insert(*address, account_txs);
         }
 
         if removed.is_empty() {
@@ -607,11 +606,11 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
     /// Cleans the specified account of stale and expired transactions.
     pub(super) fn clean_account_stale_expired(
         &mut self,
-        address: [u8; 20],
+        address: &[u8; 20],
         current_account_nonce: u32,
     ) -> Vec<([u8; 32], RemovalReason)> {
         // Take the collection for this account out of `self` temporarily if it exists.
-        let Some(mut account_txs) = self.txs.remove(&address) else {
+        let Some(mut account_txs) = self.txs.remove(address) else {
             return Vec::new();
         };
 
@@ -640,7 +639,7 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
 
         // Re-add the collection to `self` if it's not empty.
         if !account_txs.txs().is_empty() {
-            let _ = self.txs.insert(address, account_txs);
+            let _ = self.txs.insert(*address, account_txs);
         }
 
         removed_txs
@@ -667,11 +666,11 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
     /// based on the specified account's current balances.
     pub(super) fn find_demotables(
         &mut self,
-        address: [u8; 20],
+        address: &[u8; 20],
         current_balances: &HashMap<IbcPrefixed, u128>,
     ) -> Vec<TimemarkedTransaction> {
         // Take the collection for this account out of `self` temporarily if it exists.
-        let Some(mut account) = self.txs.remove(&address) else {
+        let Some(mut account) = self.txs.remove(address) else {
             return Vec::new();
         };
 
@@ -679,7 +678,7 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
 
         // Re-add the collection to `self` if it's not empty.
         if !account.txs().is_empty() {
-            let _ = self.txs.insert(address, account);
+            let _ = self.txs.insert(*address, account);
         }
 
         demoted
@@ -689,19 +688,19 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
     /// transactions' costs.
     pub(super) fn subtract_contained_costs(
         &self,
-        address: [u8; 20],
+        address: &[u8; 20],
         mut current_balances: HashMap<IbcPrefixed, u128>,
     ) -> HashMap<IbcPrefixed, u128> {
-        if let Some(account) = self.txs.get(&address) {
+        if let Some(account) = self.txs.get(address) {
             account.subtract_contained_costs(&mut current_balances);
         };
         current_balances
     }
 
     /// Returns the highest nonce for an account.
-    pub(super) fn pending_nonce(&self, address: [u8; 20]) -> Option<u32> {
+    pub(super) fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
         self.txs
-            .get(&address)
+            .get(address)
             .and_then(PendingTransactionsForAccount::highest_nonce)
     }
 
@@ -722,7 +721,7 @@ impl TransactionsContainer<PendingTransactionsForAccount> {
         // Add all transactions to the queue.
         for (address, account_txs) in &self.txs {
             let current_account_nonce = state
-                .get_account_nonce(*address)
+                .get_account_nonce(address)
                 .await
                 .wrap_err("failed to fetch account nonce for builder queue")?;
             for ttx in account_txs.txs.values() {
@@ -1531,7 +1530,7 @@ mod tests {
         let state = mock_state_getter().await;
         pending_txs
             .recost_transactions(
-                astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+                astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
                 &state,
             )
             .await;
@@ -1620,20 +1619,18 @@ mod tests {
         // clean accounts
         // should pop none from signing_address_0, one from signing_address_1, and all from
         // signing_address_2
-        let mut removed_txs = pending_txs
-            .clean_account_stale_expired(astria_address_from_hex_string(ALICE_ADDRESS).bytes(), 0);
-        removed_txs.extend(
-            pending_txs.clean_account_stale_expired(
-                astria_address_from_hex_string(BOB_ADDRESS).bytes(),
-                1,
-            ),
+        let mut removed_txs = pending_txs.clean_account_stale_expired(
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
+            0,
         );
-        removed_txs.extend(
-            pending_txs.clean_account_stale_expired(
-                astria_address_from_hex_string(CAROL_ADDRESS).bytes(),
-                4,
-            ),
-        );
+        removed_txs.extend(pending_txs.clean_account_stale_expired(
+            astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
+            1,
+        ));
+        removed_txs.extend(pending_txs.clean_account_stale_expired(
+            astria_address_from_hex_string(CAROL_ADDRESS).as_bytes(),
+            4,
+        ));
 
         assert_eq!(
             removed_txs.len(),
@@ -1707,14 +1704,14 @@ mod tests {
             .unwrap();
 
         // clean accounts, all nonces should be valid
-        let mut removed_txs = pending_txs
-            .clean_account_stale_expired(astria_address_from_hex_string(ALICE_ADDRESS).bytes(), 0);
-        removed_txs.extend(
-            pending_txs.clean_account_stale_expired(
-                astria_address_from_hex_string(BOB_ADDRESS).bytes(),
-                0,
-            ),
+        let mut removed_txs = pending_txs.clean_account_stale_expired(
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
+            0,
         );
+        removed_txs.extend(pending_txs.clean_account_stale_expired(
+            astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
+            0,
+        ));
 
         assert_eq!(
             removed_txs.len(),
@@ -1760,14 +1757,14 @@ mod tests {
         // empty account returns zero
         assert!(
             pending_txs
-                .pending_nonce(astria_address_from_hex_string(BOB_ADDRESS).bytes())
+                .pending_nonce(astria_address_from_hex_string(BOB_ADDRESS).as_bytes())
                 .is_none(),
             "empty account should return None"
         );
 
         // non empty account returns highest nonce
         assert_eq!(
-            pending_txs.pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).bytes()),
+            pending_txs.pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes()),
             Some(1),
             "should return highest nonce"
         );
@@ -1811,12 +1808,12 @@ mod tests {
         let mut mock_state = mock_state_getter().await;
         mock_state_put_account_nonce(
             &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             1,
         );
         mock_state_put_account_nonce(
             &mut mock_state,
-            astria_address_from_hex_string(BOB_ADDRESS).bytes(),
+            astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
             2,
         );
 
@@ -1917,7 +1914,7 @@ mod tests {
             &remaining_balances,
         );
         assert_eq!(
-            parked_txs.addresses().len(),
+            parked_txs.addresses().count(),
             0,
             "empty account should've been removed from container"
         );
@@ -1962,7 +1959,7 @@ mod tests {
 
         // demote none
         let demotables: Vec<TimemarkedTransaction> = pending_txs.find_demotables(
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             &account_balances_full,
         );
         assert_eq!(demotables.len(), 0);
@@ -1970,7 +1967,7 @@ mod tests {
         // demote last
         let account_balances_demotion = mock_balances(100, 9);
         let demotables = pending_txs.find_demotables(
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             &account_balances_demotion,
         );
         assert_eq!(demotables.len(), 1);
@@ -1979,7 +1976,7 @@ mod tests {
         // demote multiple
         let account_balances_demotion = mock_balances(100, 4);
         let demotables = pending_txs.find_demotables(
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             &account_balances_demotion,
         );
         assert_eq!(demotables.len(), 2);
@@ -1988,7 +1985,7 @@ mod tests {
         // demote rest
         let account_balances_demotion = mock_balances(0, 5);
         let demotables = pending_txs.find_demotables(
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             &account_balances_demotion,
         );
         assert_eq!(demotables.len(), 1);
@@ -1996,7 +1993,7 @@ mod tests {
 
         // empty account removed
         assert_eq!(
-            pending_txs.addresses().len(),
+            pending_txs.addresses().count(),
             0,
             "empty account should've been removed from container"
         );
@@ -2041,7 +2038,7 @@ mod tests {
 
         // get balances
         let remaining_balances = pending_txs.subtract_contained_costs(
-            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             account_balances_full,
         );
         assert_eq!(
