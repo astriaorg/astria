@@ -11,10 +11,6 @@ use astria_eyre::{
     },
 };
 use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
 use cnidarium::{
     StateRead,
     StateWrite,
@@ -22,21 +18,27 @@ use cnidarium::{
 use futures::StreamExt as _;
 use tracing::instrument;
 
-use crate::app::Fee;
-
-/// Newtype wrapper to read and write a denomination trace from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct DenominationTrace(String);
+use super::storage;
+use crate::{
+    app::Fee,
+    storage::StoredValue,
+};
 
 const BLOCK_FEES_PREFIX: &str = "block_fees";
 const FEE_ASSET_PREFIX: &str = "fee_asset/";
 const NATIVE_ASSET_KEY: &str = "nativeasset";
 
-fn asset_storage_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
+fn asset_storage_key<'a, TAsset>(asset: &'a TAsset) -> String
+where
+    asset::IbcPrefixed: From<&'a TAsset>,
+{
     format!("asset/{}", crate::storage_keys::hunks::Asset::from(asset))
 }
 
-fn fee_asset_key<TAsset: Into<asset::IbcPrefixed>>(asset: TAsset) -> String {
+fn fee_asset_key<'a, TAsset>(asset: &'a TAsset) -> String
+where
+    asset::IbcPrefixed: From<&'a TAsset>,
+{
     format!(
         "{FEE_ASSET_PREFIX}{}",
         crate::storage_keys::hunks::Asset::from(asset)
@@ -55,18 +57,18 @@ pub(crate) trait StateReadExt: StateRead {
         else {
             bail!("native asset denom not found in state");
         };
-
-        let asset = std::str::from_utf8(&bytes)
-            .wrap_err("bytes stored in state not utf8 encoded")?
-            .parse::<asset::TracePrefixed>()
-            .wrap_err("failed to parse bytes retrieved from state as trace prefixed IBC asset")?;
-        Ok(asset)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::TracePrefixedDenom::try_from(value).map(asset::TracePrefixed::from)
+            })
+            .wrap_err("invalid native asset bytes")
     }
 
     #[instrument(skip_all)]
-    async fn has_ibc_asset<TAsset>(&self, asset: TAsset) -> Result<bool>
+    async fn has_ibc_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
-        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+        TAsset: Sync,
+        asset::IbcPrefixed: From<&'a TAsset>,
     {
         Ok(self
             .get_raw(&asset_storage_key(asset))
@@ -79,7 +81,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all, fields(%asset), err)]
     async fn map_ibc_to_trace_prefixed_asset(
         &self,
-        asset: asset::IbcPrefixed,
+        asset: &asset::IbcPrefixed,
     ) -> Result<Option<asset::TracePrefixed>> {
         let Some(bytes) = self
             .get_raw(&asset_storage_key(asset))
@@ -89,13 +91,12 @@ pub(crate) trait StateReadExt: StateRead {
         else {
             return Ok(None);
         };
-
-        let DenominationTrace(denom_str) =
-            DenominationTrace::try_from_slice(&bytes).wrap_err("invalid asset bytes")?;
-        let denom = denom_str
-            .parse()
-            .wrap_err("failed to parse retrieved denom string as a Denom")?;
-        Ok(Some(denom))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::TracePrefixedDenom::try_from(value)
+                    .map(|stored_denom| Some(asset::TracePrefixed::from(stored_denom)))
+            })
+            .wrap_err("invalid ibc asset bytes")
     }
 
     #[instrument(skip_all)]
@@ -111,9 +112,10 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn is_allowed_fee_asset<TAsset>(&self, asset: TAsset) -> Result<bool>
+    async fn is_allowed_fee_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
-        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+        TAsset: Sync,
+        asset::IbcPrefixed: From<&'a TAsset>,
     {
         Ok(self
             .nonverifiable_get_raw(fee_asset_key(asset).as_bytes())
@@ -151,29 +153,36 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_native_asset(&mut self, asset: &asset::TracePrefixed) {
-        self.put_raw(NATIVE_ASSET_KEY.to_string(), asset.to_string().into_bytes());
+    fn put_native_asset(&mut self, asset: asset::TracePrefixed) -> Result<()> {
+        let bytes = StoredValue::from(storage::TracePrefixedDenom::from(&asset))
+            .serialize()
+            .context("failed to serialize native asset")?;
+        self.put_raw(NATIVE_ASSET_KEY.to_string(), bytes);
+        Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_ibc_asset(&mut self, asset: &asset::TracePrefixed) -> Result<()> {
-        let bytes = borsh::to_vec(&DenominationTrace(asset.to_string()))
-            .wrap_err("failed to serialize asset")?;
-        self.put_raw(asset_storage_key(asset), bytes);
+    fn put_ibc_asset(&mut self, asset: asset::TracePrefixed) -> Result<()> {
+        let key = asset_storage_key(&asset);
+        let bytes = StoredValue::from(storage::TracePrefixedDenom::from(&asset))
+            .serialize()
+            .wrap_err("failed to serialize ibc asset")?;
+        self.put_raw(key, bytes);
         Ok(())
     }
 
     /// Constructs and adds `Fee` object to the block fees vec.
     #[instrument(skip_all)]
-    fn add_fee_to_block_fees<TAsset>(
+    fn add_fee_to_block_fees<'a, TAsset>(
         &mut self,
-        asset: TAsset,
+        asset: &'a TAsset,
         amount: u128,
         source_transaction_id: TransactionId,
         source_action_index: u64,
     ) -> Result<()>
     where
-        TAsset: Into<asset::Denom> + std::fmt::Display + Send,
+        TAsset: Sync + std::fmt::Display,
+        asset::IbcPrefixed: From<&'a TAsset>,
     {
         let mut current_fees: Option<Vec<Fee>> = self.object_get(BLOCK_FEES_PREFIX);
 
@@ -187,7 +196,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let mut current_fees =
             current_fees.expect("block fees should not be `None` after populating");
         current_fees.push(Fee {
-            asset: asset.into(),
+            asset: asset::IbcPrefixed::from(asset).into(),
             amount,
             source_transaction_id,
             source_action_index,
@@ -203,19 +212,23 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn delete_allowed_fee_asset<TAsset>(&mut self, asset: TAsset)
+    fn delete_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset)
     where
-        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display,
+        asset::IbcPrefixed: From<&'a TAsset>,
     {
         self.nonverifiable_delete(fee_asset_key(asset).into());
     }
 
     #[instrument(skip_all)]
-    fn put_allowed_fee_asset<TAsset>(&mut self, asset: TAsset)
+    fn put_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset) -> Result<()>
     where
-        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display + Send,
+        asset::IbcPrefixed: From<&'a TAsset>,
     {
-        self.nonverifiable_put_raw(fee_asset_key(asset).into(), vec![]);
+        let bytes = StoredValue::Unit
+            .serialize()
+            .context("failed to serialize unit for allowed fee asset")?;
+        self.nonverifiable_put_raw(fee_asset_key(asset).into(), bytes);
+        Ok(())
     }
 }
 
@@ -266,8 +279,8 @@ mod tests {
             .expect_err("no native asset denom should exist at first");
 
         // can write
-        let denom_orig = "denom_orig".parse().unwrap();
-        state.put_native_asset(&denom_orig);
+        let denom_orig: asset::TracePrefixed = "denom_orig".parse().unwrap();
+        state.put_native_asset(denom_orig.clone()).unwrap();
         assert_eq!(
             state.get_native_asset().await.expect(
                 "a native asset denomination was written and must exist inside the database"
@@ -277,8 +290,8 @@ mod tests {
         );
 
         // can write new value
-        let denom_update = "denom_update".parse().unwrap();
-        state.put_native_asset(&denom_update);
+        let denom_update: asset::TracePrefixed = "denom_update".parse().unwrap();
+        state.put_native_asset(denom_update.clone()).unwrap();
         assert_eq!(
             state.get_native_asset().await.expect(
                 "a native asset denomination update was written and must exist inside the database"
@@ -302,7 +315,7 @@ mod tests {
         let asset = asset_0();
         let amount = 100u128;
         state
-            .add_fee_to_block_fees(asset.clone(), amount, TransactionId::new([0; 32]), 0)
+            .add_fee_to_block_fees(&asset, amount, TransactionId::new([0; 32]), 0)
             .unwrap();
 
         // holds expected
@@ -310,7 +323,7 @@ mod tests {
         assert_eq!(
             fee_balances_updated[0],
             Fee {
-                asset,
+                asset: asset.to_ibc_prefixed().into(),
                 amount,
                 source_transaction_id: TransactionId::new([0; 32]),
                 source_action_index: 0
@@ -332,20 +345,10 @@ mod tests {
         let amount_second = 200u128;
 
         state
-            .add_fee_to_block_fees(
-                asset_first.clone(),
-                amount_first,
-                TransactionId::new([0; 32]),
-                0,
-            )
+            .add_fee_to_block_fees(&asset_first, amount_first, TransactionId::new([0; 32]), 0)
             .unwrap();
         state
-            .add_fee_to_block_fees(
-                asset_second.clone(),
-                amount_second,
-                TransactionId::new([0; 32]),
-                1,
-            )
+            .add_fee_to_block_fees(&asset_second, amount_second, TransactionId::new([0; 32]), 1)
             .unwrap();
         // holds expected
         let fee_balances = HashSet::<_>::from_iter(state.get_block_fees().unwrap());
@@ -353,13 +356,13 @@ mod tests {
             fee_balances,
             HashSet::from_iter(vec![
                 Fee {
-                    asset: asset_first,
+                    asset: asset_first.to_ibc_prefixed().into(),
                     amount: amount_first,
                     source_transaction_id: TransactionId::new([0; 32]),
                     source_action_index: 0
                 },
                 Fee {
-                    asset: asset_second,
+                    asset: asset_second.to_ibc_prefixed().into(),
                     amount: amount_second,
                     source_transaction_id: TransactionId::new([0; 32]),
                     source_action_index: 1
@@ -389,7 +392,7 @@ mod tests {
         // gets for non existing assets should return none
         assert_eq!(
             state
-                .map_ibc_to_trace_prefixed_asset(asset.to_ibc_prefixed())
+                .map_ibc_to_trace_prefixed_asset(&asset.to_ibc_prefixed())
                 .await
                 .expect("getting non existing asset should not fail"),
             None
@@ -414,7 +417,7 @@ mod tests {
         );
 
         state
-            .put_ibc_asset(&denom.clone().unwrap_trace_prefixed())
+            .put_ibc_asset(denom.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
 
         // existing calls are ok for 'has'
@@ -436,11 +439,11 @@ mod tests {
         // can write new
         let denom = asset();
         state
-            .put_ibc_asset(&denom.clone().unwrap_trace_prefixed())
+            .put_ibc_asset(denom.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
         assert_eq!(
             state
-                .map_ibc_to_trace_prefixed_asset(denom.to_ibc_prefixed())
+                .map_ibc_to_trace_prefixed_asset(&denom.to_ibc_prefixed())
                 .await
                 .unwrap()
                 .expect("an ibc asset was written and must exist inside the database"),
@@ -458,11 +461,11 @@ mod tests {
         // can write new
         let denom = asset_0();
         state
-            .put_ibc_asset(&denom.clone().unwrap_trace_prefixed())
+            .put_ibc_asset(denom.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
         assert_eq!(
             state
-                .map_ibc_to_trace_prefixed_asset(denom.to_ibc_prefixed())
+                .map_ibc_to_trace_prefixed_asset(&denom.to_ibc_prefixed())
                 .await
                 .unwrap()
                 .expect("an ibc asset was written and must exist inside the database"),
@@ -473,11 +476,11 @@ mod tests {
         // can write another without affecting original
         let denom_1 = asset_1();
         state
-            .put_ibc_asset(&denom_1.clone().unwrap_trace_prefixed())
+            .put_ibc_asset(denom_1.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
         assert_eq!(
             state
-                .map_ibc_to_trace_prefixed_asset(denom_1.to_ibc_prefixed())
+                .map_ibc_to_trace_prefixed_asset(&denom_1.to_ibc_prefixed())
                 .await
                 .unwrap()
                 .expect("an additional ibc asset was written and must exist inside the database"),
@@ -486,7 +489,7 @@ mod tests {
         );
         assert_eq!(
             state
-                .map_ibc_to_trace_prefixed_asset(denom.to_ibc_prefixed())
+                .map_ibc_to_trace_prefixed_asset(&denom.to_ibc_prefixed())
                 .await
                 .unwrap()
                 .expect("an ibc asset was written and must exist inside the database"),
@@ -512,7 +515,7 @@ mod tests {
         );
 
         // existent fee assets return true
-        state.put_allowed_fee_asset(&asset);
+        state.put_allowed_fee_asset(&asset).unwrap();
         assert!(
             state
                 .is_allowed_fee_asset(&asset)
@@ -530,7 +533,7 @@ mod tests {
 
         // setup fee asset
         let asset = asset_0();
-        state.put_allowed_fee_asset(&asset);
+        state.put_allowed_fee_asset(&asset).unwrap();
         assert!(
             state
                 .is_allowed_fee_asset(&asset)
@@ -563,7 +566,7 @@ mod tests {
 
         // setup fee assets
         let asset_first = asset_0();
-        state.put_allowed_fee_asset(&asset_first);
+        state.put_allowed_fee_asset(&asset_first).unwrap();
         assert!(
             state
                 .is_allowed_fee_asset(&asset_first)
@@ -572,7 +575,7 @@ mod tests {
             "fee asset was expected to be allowed"
         );
         let asset_second = asset_1();
-        state.put_allowed_fee_asset(&asset_second);
+        state.put_allowed_fee_asset(&asset_second).unwrap();
         assert!(
             state
                 .is_allowed_fee_asset(&asset_second)
@@ -581,7 +584,7 @@ mod tests {
             "fee asset was expected to be allowed"
         );
         let asset_third = asset_2();
-        state.put_allowed_fee_asset(&asset_third);
+        state.put_allowed_fee_asset(&asset_third).unwrap();
         assert!(
             state
                 .is_allowed_fee_asset(&asset_third)
@@ -612,9 +615,9 @@ mod tests {
             .unwrap();
         assert_eq!(
             asset_storage_key(&asset),
-            asset_storage_key(asset.to_ibc_prefixed()),
+            asset_storage_key(&asset.to_ibc_prefixed()),
         );
-        insta::assert_snapshot!(asset_storage_key(asset));
+        insta::assert_snapshot!(asset_storage_key(&asset));
 
         let trace_prefixed = "a/denom/with/a/prefix"
             .parse::<astria_core::primitive::v1::asset::Denom>()
@@ -622,8 +625,8 @@ mod tests {
 
         assert_eq!(
             fee_asset_key(&trace_prefixed),
-            fee_asset_key(trace_prefixed.to_ibc_prefixed()),
+            fee_asset_key(&trace_prefixed.to_ibc_prefixed()),
         );
-        insta::assert_snapshot!(fee_asset_key(trace_prefixed));
+        insta::assert_snapshot!(fee_asset_key(&trace_prefixed));
     }
 }

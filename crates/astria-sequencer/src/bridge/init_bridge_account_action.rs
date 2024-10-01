@@ -68,7 +68,7 @@ impl ActionHandler for InitBridgeAccountAction {
         // after the account becomes a bridge account, it can no longer receive funds
         // via `TransferAction`, only via `BridgeLockAction`.
         if state
-            .get_bridge_account_rollup_id(from)
+            .get_bridge_account_rollup_id(&from)
             .await
             .wrap_err("failed getting rollup ID of bridge account")?
             .is_some()
@@ -76,15 +76,20 @@ impl ActionHandler for InitBridgeAccountAction {
             bail!("bridge account already exists");
         }
 
-        state.put_bridge_account_rollup_id(from, &self.rollup_id);
         state
-            .put_bridge_account_ibc_asset(from, &self.asset)
+            .put_bridge_account_rollup_id(&from, self.rollup_id)
+            .wrap_err("failed to put bridge account rollup id")?;
+        state
+            .put_bridge_account_ibc_asset(&from, &self.asset)
             .wrap_err("failed to put asset ID")?;
-        state.put_bridge_account_sudo_address(from, self.sudo_address.map_or(from, Address::bytes));
+        state.put_bridge_account_sudo_address(
+            &from,
+            self.sudo_address.map_or(from, Address::bytes),
+        )?;
         state.put_bridge_account_withdrawer_address(
-            from,
+            &from,
             self.withdrawer_address.map_or(from, Address::bytes),
-        );
+        )?;
 
         Ok(())
     }
@@ -112,11 +117,11 @@ impl FeeHandler for InitBridgeAccountAction {
         );
 
         state
-            .decrease_balance(from, &self.fee_asset, fee)
+            .decrease_balance(&from, &self.fee_asset, fee)
             .await
             .wrap_err("failed to decrease balance for fee payment")?;
         state.add_fee_to_block_fees(
-            self.fee_asset.clone(),
+            &self.fee_asset,
             fee,
             tx_context.transaction_id,
             tx_context.source_action_index,

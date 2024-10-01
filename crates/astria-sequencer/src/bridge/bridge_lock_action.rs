@@ -64,13 +64,13 @@ impl ActionHandler for BridgeLockAction {
             .wrap_err("failed check for base prefix of destination address")?;
         // ensure the recipient is a bridge account.
         let rollup_id = state
-            .get_bridge_account_rollup_id(self.to)
+            .get_bridge_account_rollup_id(&self.to)
             .await
             .wrap_err("failed to get bridge account rollup id")?
             .ok_or_eyre("bridge lock must be sent to a bridge account")?;
 
         let allowed_asset = state
-            .get_bridge_account_ibc_asset(self.to)
+            .get_bridge_account_ibc_asset(&self.to)
             .await
             .wrap_err("failed to get bridge account asset ID")?;
         ensure!(
@@ -104,8 +104,8 @@ impl ActionHandler for BridgeLockAction {
             fee_asset: self.fee_asset.clone(),
         };
 
-        check_transfer(&transfer_action, from, &state).await?;
-        execute_transfer(&transfer_action, from, &mut state).await?;
+        check_transfer(&transfer_action, &from, &state).await?;
+        execute_transfer(&transfer_action, &from, &mut state).await?;
 
         state.cache_deposit_event(deposit);
         Ok(())
@@ -120,7 +120,7 @@ impl FeeHandler for BridgeLockAction {
             .get_transaction_context()
             .expect("transaction source must be present in state when executing an action");
         let rollup_id = state
-            .get_bridge_account_rollup_id(self.to)
+            .get_bridge_account_rollup_id(&self.to)
             .await
             .wrap_err("failed to get bridge account rollup id")?
             .ok_or_eyre("bridge lock must be sent to a bridge account")?;
@@ -162,14 +162,14 @@ impl FeeHandler for BridgeLockAction {
 
         state
             .add_fee_to_block_fees(
-                self.fee_asset.clone(),
+                &self.fee_asset,
                 fee,
                 tx_context.transaction_id,
                 source_action_index,
             )
             .wrap_err("failed to add to block fees")?;
         state
-            .decrease_balance(from, &self.fee_asset, fee)
+            .decrease_balance(&from, &self.fee_asset, fee)
             .await
             .wrap_err("failed to deduct fee from account balance")?;
 
@@ -240,10 +240,10 @@ mod tests {
             transaction_id,
             source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         state.put_transfer_base_fee(transfer_fee).unwrap();
-        state.put_bridge_lock_byte_cost_multiplier(2);
+        state.put_bridge_lock_byte_cost_multiplier(2).unwrap();
 
         let bridge_address = astria_address(&[1; 20]);
         let asset = test_asset();
@@ -256,15 +256,17 @@ mod tests {
         };
 
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
-        state.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state.put_allowed_fee_asset(&asset);
+        state
+            .put_bridge_account_ibc_asset(&bridge_address, asset.clone())
+            .unwrap();
+        state.put_allowed_fee_asset(&asset).unwrap();
 
         // not enough balance; should fail
         state
-            .put_account_balance(from_address, &asset, transfer_fee)
+            .put_account_balance(&from_address, &asset, transfer_fee)
             .unwrap();
         assert_eyre_error(
             &bridge_lock
@@ -288,7 +290,7 @@ mod tests {
             .unwrap()
                 * 2;
         state
-            .put_account_balance(from_address, &asset, 100 + expected_deposit_fee)
+            .put_account_balance(&from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
         bridge_lock.check_and_execute(&mut state).await.unwrap();
     }

@@ -265,7 +265,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     // tx is valid, push to mempool with current state
     let address = match state
-        .try_base_prefixed(&signed_tx.verification_key().address_bytes())
+        .try_base_prefixed(signed_tx.verification_key().address_bytes())
         .await
         .context("failed to generate address for signed transaction")
     {
@@ -282,7 +282,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     // fetch current account
     let current_account_nonce = match state
-        .get_account_nonce(address)
+        .get_account_nonce(&address)
         .await
         .wrap_err("failed fetching nonce for account")
     {
@@ -325,7 +325,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     // grab current account's balances
     let current_account_balance: HashMap<IbcPrefixed, u128> =
-        match get_account_balances(&state, address)
+        match get_account_balances(&state, &address)
             .await
             .with_context(|| "failed fetching balances for account `{address}`")
         {

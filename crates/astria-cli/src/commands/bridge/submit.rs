@@ -7,7 +7,6 @@ use astria_core::{
     crypto::SigningKey,
     protocol::transaction::v1alpha1::{
         Action,
-        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -119,7 +118,7 @@ async fn submit_transaction(
     actions: Vec<Action>,
 ) -> eyre::Result<Response> {
     let from_address = Address::builder()
-        .array(signing_key.verification_key().address_bytes())
+        .array(*signing_key.verification_key().address_bytes())
         .prefix(prefix)
         .try_build()
         .wrap_err("failed constructing a valid from address from the provided prefix")?;
@@ -129,14 +128,13 @@ async fn submit_transaction(
         .await
         .wrap_err("failed to get nonce")?;
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(nonce_res.nonce)
-            .chain_id(chain_id)
-            .build(),
-        actions,
-    }
-    .into_signed(signing_key);
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .nonce(nonce_res.nonce)
+        .chain_id(chain_id)
+        .try_build()
+        .wrap_err("failed to build transaction from actions")?
+        .into_signed(signing_key);
     let res = client
         .submit_transaction_sync(tx)
         .await

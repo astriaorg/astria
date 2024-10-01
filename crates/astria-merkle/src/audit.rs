@@ -621,4 +621,25 @@ impl Proof {
     pub fn verify(&self, leaf: &[u8], root_hash: [u8; 32]) -> bool {
         self.audit().with_leaf(leaf).with_root(root_hash).perform()
     }
+
+    /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
+    /// our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
+    #[cfg(feature = "unchecked-constructors")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(parts: UncheckedProof) -> Self {
+        let UncheckedProof {
+            audit_path,
+            leaf_index,
+            tree_size,
+        } = parts;
+        Proof {
+            audit_path,
+            leaf_index,
+            tree_size: NonZeroUsize::try_from(tree_size).expect("must be non-zero"),
+        }
+    }
 }

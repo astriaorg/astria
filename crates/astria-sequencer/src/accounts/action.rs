@@ -47,15 +47,15 @@ impl ActionHandler for TransferAction {
 
         ensure!(
             state
-                .get_bridge_account_rollup_id(from)
+                .get_bridge_account_rollup_id(&from)
                 .await
                 .wrap_err("failed to get bridge account rollup id")?
                 .is_none(),
             "cannot transfer out of bridge account; BridgeUnlock must be used",
         );
 
-        check_transfer(self, from, &state).await?;
-        execute_transfer(self, from, state).await?;
+        check_transfer(self, &from, &state).await?;
+        execute_transfer(self, &from, state).await?;
 
         Ok(())
     }
@@ -83,11 +83,11 @@ impl FeeHandler for TransferAction {
         );
 
         state
-            .decrease_balance(from, &self.fee_asset, fee)
+            .decrease_balance(&from, &self.fee_asset, fee)
             .await
             .wrap_err("failed to decrease balance for fee payment")?;
         state.add_fee_to_block_fees(
-            self.fee_asset.clone(),
+            &self.fee_asset,
             fee,
             tx_context.transaction_id,
             tx_context.source_action_index,
@@ -99,7 +99,7 @@ impl FeeHandler for TransferAction {
 
 pub(crate) async fn execute_transfer<S, TAddress>(
     action: &TransferAction,
-    from: TAddress,
+    from: &TAddress,
     mut state: S,
 ) -> Result<()>
 where
@@ -112,7 +112,7 @@ where
         .await
         .wrap_err("failed decreasing `from` account balance")?;
     state
-        .increase_balance(action.to, &action.asset, action.amount)
+        .increase_balance(&action.to, &action.asset, action.amount)
         .await
         .wrap_err("failed increasing `to` account balance")?;
 
@@ -121,7 +121,7 @@ where
 
 pub(crate) async fn check_transfer<S, TAddress>(
     action: &TransferAction,
-    from: TAddress,
+    from: &TAddress,
     state: &S,
 ) -> Result<()>
 where
@@ -143,10 +143,10 @@ where
         .get_transfer_base_fee()
         .await
         .wrap_err("failed to get transfer base fee")?;
-    let transfer_asset = action.asset.clone();
+    let transfer_asset = &action.asset;
 
     let from_fee_balance = state
-        .get_account_balance(&from, &action.fee_asset)
+        .get_account_balance(from, &action.fee_asset)
         .await
         .wrap_err("failed getting `from` account balance for fee payment")?;
 

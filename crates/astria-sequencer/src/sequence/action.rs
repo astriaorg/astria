@@ -65,14 +65,14 @@ impl FeeHandler for SequenceAction {
 
         state
             .add_fee_to_block_fees(
-                self.fee_asset.clone(),
+                &self.fee_asset,
                 fee,
                 tx_context.transaction_id,
                 tx_context.source_action_index,
             )
             .wrap_err("failed to add to block fees")?;
         state
-            .decrease_balance(from, &self.fee_asset, fee)
+            .decrease_balance(&from, &self.fee_asset, fee)
             .await
             .wrap_err("failed updating `from` account balance")?;
         Ok(())

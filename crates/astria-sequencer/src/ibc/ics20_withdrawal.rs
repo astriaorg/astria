@@ -41,13 +41,14 @@ use tracing::{
 
 use crate::{
     accounts::{
-        AddressBytes,
+        AddressBytes as _,
         StateWriteExt as _,
     },
     address::StateReadExt as _,
     app::{
         ActionHandler,
         FeeHandler,
+        StateReadExt as _,
     },
     assets::{
         StateReadExt as _,
@@ -61,7 +62,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    state_ext::StateReadExt as _,
     transaction::StateReadExt as _,
 };
 
@@ -114,14 +114,14 @@ async fn create_ibc_packet_from_withdrawal<S: StateRead>(
 /// 1. Errors reading from DB
 /// 2. `action.bridge_address` is set, but `from` is not the withdrawer address.
 /// 3. `action.bridge_address` is unset, but `from` is a bridge account.
-async fn establish_withdrawal_target<S: StateRead>(
-    action: &action::Ics20Withdrawal,
+async fn establish_withdrawal_target<'a, S: StateRead>(
+    action: &'a action::Ics20Withdrawal,
     state: &S,
-    from: [u8; 20],
-) -> Result<[u8; 20]> {
+    from: &'a [u8; 20],
+) -> Result<&'a [u8; 20]> {
     // If the bridge address is set, the withdrawer on that address must match
     // the from address.
-    if let Some(bridge_address) = action.bridge_address {
+    if let Some(bridge_address) = &action.bridge_address {
         let Some(withdrawer) = state
             .get_bridge_account_withdrawer_address(bridge_address)
             .await
@@ -131,11 +131,11 @@ async fn establish_withdrawal_target<S: StateRead>(
         };
 
         ensure!(
-            withdrawer == from.address_bytes(),
+            &withdrawer == from.address_bytes(),
             "sender does not match bridge withdrawer address; unauthorized"
         );
 
-        return Ok(bridge_address.address_bytes());
+        return Ok(bridge_address.as_bytes());
     }
 
     // If the bridge address is not set, the sender must not be a bridge account.
@@ -208,7 +208,9 @@ impl ActionHandler for action::Ics20Withdrawal {
 
             state
                 .check_and_set_withdrawal_event_block_for_bridge_account(
-                    self.bridge_address.map_or(from, Address::bytes),
+                    self.bridge_address
+                        .as_ref()
+                        .map_or(&from, Address::as_bytes),
                     &parsed_bridge_memo.rollup_withdrawal_event_id,
                     parsed_bridge_memo.rollup_block_number,
                 )
@@ -216,7 +218,7 @@ impl ActionHandler for action::Ics20Withdrawal {
                 .context("withdrawal event already processed")?;
         }
 
-        let withdrawal_target = establish_withdrawal_target(self, &state, from)
+        let withdrawal_target = establish_withdrawal_target(self, &state, &from)
             .await
             .wrap_err("failed establishing which account to withdraw funds from")?;
 
@@ -286,11 +288,11 @@ impl FeeHandler for action::Ics20Withdrawal {
         );
 
         state
-            .decrease_balance(from, &self.fee_asset, fee)
+            .decrease_balance(&from, &self.fee_asset, fee)
             .await
             .wrap_err("failed to decrease balance for fee payment")?;
         state.add_fee_to_block_fees(
-            self.fee_asset.clone(),
+            &self.fee_asset,
             fee,
             tx_context.transaction_id,
             tx_context.source_action_index,
@@ -347,7 +349,7 @@ mod tests {
         };
 
         assert_eq!(
-            establish_withdrawal_target(&action, &state, from)
+            *establish_withdrawal_target(&action, &state, &from)
                 .await
                 .unwrap(),
             from
@@ -360,15 +362,19 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         // sender is a bridge address, which is also the withdrawer, so it's ok
         let bridge_address = [1u8; 20];
-        state.put_bridge_account_rollup_id(
-            bridge_address,
-            &RollupId::from_unhashed_bytes("testrollupid"),
-        );
-        state.put_bridge_account_withdrawer_address(bridge_address, bridge_address);
+        state
+            .put_bridge_account_rollup_id(
+                &bridge_address,
+                RollupId::from_unhashed_bytes("testrollupid"),
+            )
+            .unwrap();
+        state
+            .put_bridge_account_withdrawer_address(&bridge_address, bridge_address)
+            .unwrap();
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
@@ -386,7 +392,7 @@ mod tests {
         };
 
         assert_eyre_error(
-            &establish_withdrawal_target(&action, &state, bridge_address)
+            &establish_withdrawal_target(&action, &state, &bridge_address)
                 .await
                 .unwrap_err(),
             "sender cannot be a bridge address if bridge address is not set",
@@ -425,20 +431,24 @@ mod tests {
             let snapshot = storage.latest_snapshot();
             let mut state = StateDelta::new(snapshot);
 
-            state.put_base_prefix(ASTRIA_PREFIX);
+            state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
             // withdraw is *not* the bridge address, Ics20Withdrawal must be sent by the withdrawer
-            state.put_bridge_account_rollup_id(
-                bridge_address(),
-                &RollupId::from_unhashed_bytes("testrollupid"),
-            );
-            state.put_bridge_account_withdrawer_address(
-                bridge_address(),
-                astria_address(&[2u8; 20]),
-            );
+            state
+                .put_bridge_account_rollup_id(
+                    &bridge_address(),
+                    RollupId::from_unhashed_bytes("testrollupid"),
+                )
+                .unwrap();
+            state
+                .put_bridge_account_withdrawer_address(
+                    &bridge_address(),
+                    astria_address(&[2u8; 20]),
+                )
+                .unwrap();
 
             assert_eyre_error(
-                &establish_withdrawal_target(&action, &state, bridge_address())
+                &establish_withdrawal_target(&action, &state, &bridge_address())
                     .await
                     .unwrap_err(),
                 "sender does not match bridge withdrawer address; unauthorized",
@@ -459,16 +469,20 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         // sender the withdrawer address, so it's ok
         let bridge_address = [1u8; 20];
         let withdrawer_address = [2u8; 20];
-        state.put_bridge_account_rollup_id(
-            bridge_address,
-            &RollupId::from_unhashed_bytes("testrollupid"),
-        );
-        state.put_bridge_account_withdrawer_address(bridge_address, withdrawer_address);
+        state
+            .put_bridge_account_rollup_id(
+                &bridge_address,
+                RollupId::from_unhashed_bytes("testrollupid"),
+            )
+            .unwrap();
+        state
+            .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
+            .unwrap();
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
@@ -486,7 +500,7 @@ mod tests {
         };
 
         assert_eq!(
-            establish_withdrawal_target(&action, &state, withdrawer_address)
+            *establish_withdrawal_target(&action, &state, &withdrawer_address)
                 .await
                 .unwrap(),
             bridge_address,
@@ -518,7 +532,7 @@ mod tests {
         };
 
         assert_eyre_error(
-            &establish_withdrawal_target(&action, &state, not_bridge_address)
+            &establish_withdrawal_target(&action, &state, &not_bridge_address)
                 .await
                 .unwrap_err(),
             "bridge address must have a withdrawer address set",

@@ -10,7 +10,6 @@ use astria_core::{
             SequenceAction,
             TransferAction,
         },
-        TransactionParams,
         UnsignedTransaction,
     },
     sequencerblock::v1alpha1::block::Deposit,
@@ -54,12 +53,8 @@ async fn transaction_execution_records_fee_event() {
     let alice = get_alice_signing_key();
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![
             TransferAction {
                 to: bob_address,
                 amount: value,
@@ -67,15 +62,16 @@ async fn transaction_execution_records_fee_event() {
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    };
-
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     let tx_id = signed_tx.id();
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();
-    let end_block = app.end_block(1, sudo_address).await.unwrap();
+    let end_block = app.end_block(1, &sudo_address).await.unwrap();
 
     let events = end_block.events;
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
@@ -83,7 +79,7 @@ async fn transaction_execution_records_fee_event() {
     assert_eq!(event.kind, "tx.fees");
     assert_eq!(
         event.attributes[0],
-        ("asset", nria().to_string()).index().into()
+        ("asset", nria().to_ibc_prefixed().to_string()).index().into()
     );
     assert_eq!(
         event.attributes[1],
@@ -119,13 +115,11 @@ async fn ensure_correct_block_fees_transfer() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions,
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
@@ -143,8 +137,10 @@ async fn ensure_correct_block_fees_transfer() {
 async fn ensure_correct_block_fees_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_sequence_action_base_fee(1);
-    state_tx.put_sequence_action_byte_cost_multiplier(1);
+    state_tx.put_sequence_action_base_fee(1).unwrap();
+    state_tx
+        .put_sequence_action_byte_cost_multiplier(1)
+        .unwrap();
     app.apply(state_tx);
 
     let alice = get_alice_signing_key();
@@ -159,13 +155,11 @@ async fn ensure_correct_block_fees_sequence() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions,
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
@@ -185,7 +179,9 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     let init_bridge_account_base_fee = 1;
-    state_tx.put_init_bridge_account_base_fee(init_bridge_account_base_fee);
+    state_tx
+        .put_init_bridge_account_base_fee(init_bridge_account_base_fee)
+        .unwrap();
     app.apply(state_tx);
 
     let alice = get_alice_signing_key();
@@ -201,13 +197,11 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions,
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
@@ -236,10 +230,14 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let bridge_lock_byte_cost_multiplier = 1;
 
     state_tx.put_transfer_base_fee(transfer_base_fee).unwrap();
-    state_tx.put_bridge_lock_byte_cost_multiplier(bridge_lock_byte_cost_multiplier);
-    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(bridge_address, nria())
+        .put_bridge_lock_byte_cost_multiplier(bridge_lock_byte_cost_multiplier)
+        .unwrap();
+    state_tx
+        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+        .unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
     app.apply(state_tx);
 
@@ -254,13 +252,11 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions,
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx.clone()).await.unwrap();
 
@@ -297,10 +293,14 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
     let mut state_tx = StateDelta::new(app.state.clone());
 
     let sudo_change_base_fee = 1;
-    state_tx.put_bridge_sudo_change_base_fee(sudo_change_base_fee);
-    state_tx.put_bridge_account_sudo_address(bridge_address, alice_address);
     state_tx
-        .increase_balance(bridge_address, nria(), 1)
+        .put_bridge_sudo_change_base_fee(sudo_change_base_fee)
+        .unwrap();
+    state_tx
+        .put_bridge_account_sudo_address(&bridge_address, alice_address)
+        .unwrap();
+    state_tx
+        .increase_balance(&bridge_address, &nria(), 1)
         .await
         .unwrap();
     app.apply(state_tx);
@@ -315,13 +315,11 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions,
-    };
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 

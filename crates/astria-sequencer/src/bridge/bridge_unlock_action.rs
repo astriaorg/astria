@@ -75,13 +75,13 @@ impl ActionHandler for BridgeUnlockAction {
             .wrap_err("failed check for base prefix of bridge address")?;
 
         let asset = state
-            .get_bridge_account_ibc_asset(self.bridge_address)
+            .get_bridge_account_ibc_asset(&self.bridge_address)
             .await
             .wrap_err("failed to get bridge's asset id, must be a bridge account")?;
 
         // check that the sender of this tx is the authorized withdrawer for the bridge account
         let Some(withdrawer_address) = state
-            .get_bridge_account_withdrawer_address(self.bridge_address)
+            .get_bridge_account_withdrawer_address(&self.bridge_address)
             .await
             .wrap_err("failed to get bridge account withdrawer address")?
         else {
@@ -100,16 +100,16 @@ impl ActionHandler for BridgeUnlockAction {
             fee_asset: self.fee_asset.clone(),
         };
 
-        check_transfer(&transfer_action, self.bridge_address, &state).await?;
+        check_transfer(&transfer_action, &self.bridge_address, &state).await?;
         state
             .check_and_set_withdrawal_event_block_for_bridge_account(
-                self.bridge_address,
+                &self.bridge_address,
                 &self.rollup_withdrawal_event_id,
                 self.rollup_block_number,
             )
             .await
             .context("withdrawal event already processed")?;
-        execute_transfer(&transfer_action, self.bridge_address, state).await?;
+        execute_transfer(&transfer_action, &self.bridge_address, state).await?;
 
         Ok(())
     }
@@ -137,11 +137,11 @@ impl FeeHandler for BridgeUnlockAction {
         );
 
         state
-            .decrease_balance(from, &self.fee_asset, transfer_fee)
+            .decrease_balance(&from, &self.fee_asset, transfer_fee)
             .await
             .wrap_err("failed to decrease balance for fee payment")?;
         state.add_fee_to_block_fees(
-            self.fee_asset.clone(),
+            &self.fee_asset,
             transfer_fee,
             tx_context.transaction_id,
             tx_context.source_action_index,
@@ -194,7 +194,7 @@ mod tests {
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
         let transfer_amount = 100;
@@ -202,7 +202,7 @@ mod tests {
         let to_address = astria_address(&[2; 20]);
         let bridge_address = astria_address(&[3; 20]);
         state
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
 
         let bridge_unlock = BridgeUnlockAction {
@@ -233,7 +233,7 @@ mod tests {
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
         let transfer_amount = 100;
@@ -241,9 +241,11 @@ mod tests {
         let to_address = astria_address(&[2; 20]);
         let bridge_address = astria_address(&[3; 20]);
         let withdrawer_address = astria_address(&[4; 20]);
-        state.put_bridge_account_withdrawer_address(bridge_address, withdrawer_address);
         state
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
+            .unwrap();
+        state
+            .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
 
         let bridge_unlock = BridgeUnlockAction {
@@ -275,7 +277,7 @@ mod tests {
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
         let transfer_fee = 10;
@@ -285,15 +287,19 @@ mod tests {
         let to_address = astria_address(&[2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
-        state.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state.put_bridge_account_withdrawer_address(bridge_address, bridge_address);
-        state.put_allowed_fee_asset(&asset);
+        state
+            .put_bridge_account_ibc_asset(&bridge_address, &asset)
+            .unwrap();
+        state
+            .put_bridge_account_withdrawer_address(&bridge_address, bridge_address)
+            .unwrap();
+        state.put_allowed_fee_asset(&asset).unwrap();
         // Put plenty of balance
         state
-            .put_account_balance(bridge_address, &asset, 3 * transfer_amount)
+            .put_account_balance(&bridge_address, &asset, 3 * transfer_amount)
             .unwrap();
 
         let bridge_unlock_first = BridgeUnlockAction {

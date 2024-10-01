@@ -6,6 +6,7 @@ use astria_core::sequencerblock::v1alpha1::block::FilteredSequencerBlock;
 use astria_eyre::eyre::{
     self,
     bail,
+    ensure,
     Report,
     WrapErr as _,
 };
@@ -77,6 +78,9 @@ pub(crate) struct Reader {
     /// height.
     sequencer_block_time: Duration,
 
+    /// The chain ID of the sequencer network the reader should be communicating with.
+    expected_sequencer_chain_id: String,
+
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 }
@@ -99,6 +103,17 @@ impl Reader {
 
     #[instrument(skip_all, err)]
     async fn initialize(&mut self) -> eyre::Result<executor::Handle<StateIsInit>> {
+        let actual_sequencer_chain_id =
+            get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
+                .await
+                .wrap_err("failed to get chain ID from Sequencer")?;
+        let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
+        ensure!(
+            self.expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
+            "expected chain id `{expected_sequencer_chain_id}` does not match actual: \
+             `{actual_sequencer_chain_id}`"
+        );
+
         self.executor
             .wait_for_init()
             .await
@@ -312,4 +327,36 @@ fn report_exit(reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
             Err(reason)
         }
     }
+}
+
+#[instrument(skip_all, err)]
+async fn get_sequencer_chain_id(
+    client: sequencer_client::HttpClient,
+) -> eyre::Result<tendermint::chain::Id> {
+    use sequencer_client::Client as _;
+
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to fetch sequencer genesis info; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let genesis: tendermint::Genesis = tryhard::retry_fn(|| client.genesis())
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed to get genesis info from Sequencer after a lot of attempts")?;
+
+    Ok(genesis.chain_id)
 }

@@ -22,7 +22,7 @@ pub(crate) struct TransactionContext {
 }
 
 impl TransactionContext {
-    pub(crate) fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
+    pub(crate) fn address_bytes(self) -> [u8; ADDRESS_LEN] {
         self.address_bytes
     }
 }
@@ -30,7 +30,7 @@ impl TransactionContext {
 impl From<&SignedTransaction> for TransactionContext {
     fn from(value: &SignedTransaction) -> Self {
         Self {
-            address_bytes: value.address_bytes(),
+            address_bytes: *value.address_bytes(),
             transaction_id: value.id(),
             source_action_index: 0,
         }

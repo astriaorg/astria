@@ -1,5 +1,6 @@
 ---
 source: crates/astria-sequencer/src/accounts/state_ext.rs
-expression: nonce_storage_key(address)
+assertion_line: 855
+expression: nonce_storage_key(&address)
 ---
 accounts/1c0c490f1b5528d8173c5de46d131160e4b2c0c3/nonce

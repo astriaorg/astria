@@ -37,7 +37,7 @@ use astria_eyre::{
     eyre::Result,
 };
 
-use crate::state_ext::StateReadExt;
+use crate::app::StateReadExt as _;
 
 #[derive(Clone)]
 pub(crate) struct Info {
@@ -200,11 +200,11 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
+        app::StateWriteExt as _,
         assets::{
             StateReadExt as _,
             StateWriteExt as _,
         },
-        state_ext::StateWriteExt as _,
     };
 
     #[tokio::test]
@@ -220,10 +220,12 @@ mod tests {
         let height = 99;
         let version = storage.latest_version().wrapping_add(1);
         let mut state = StateDelta::new(storage.latest_snapshot());
-        state.put_storage_version_by_height(height, version);
+        state
+            .put_storage_version_by_height(height, version)
+            .unwrap();
 
-        state.put_base_prefix("astria");
-        state.put_native_asset(&crate::test_utils::nria());
+        state.put_base_prefix("astria".to_string()).unwrap();
+        state.put_native_asset(crate::test_utils::nria()).unwrap();
 
         let address = state
             .try_base_prefixed(&hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap())
@@ -232,9 +234,9 @@ mod tests {
 
         let balance = 1000;
         state
-            .put_account_balance(address, crate::test_utils::nria(), balance)
+            .put_account_balance(&address, &crate::test_utils::nria(), balance)
             .unwrap();
-        state.put_block_height(height);
+        state.put_block_height(height).unwrap();
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
@@ -279,14 +281,17 @@ mod tests {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());
 
-        let denom = "some/ibc/asset".parse().unwrap();
+        let denom: asset::TracePrefixed = "some/ibc/asset".parse().unwrap();
         let height = 99;
-        state.put_block_height(height);
-        state.put_ibc_asset(&denom).unwrap();
+        state.put_block_height(height).unwrap();
+        state.put_ibc_asset(denom.clone()).unwrap();
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
-            path: format!("asset/denom/{}", hex::encode(denom.to_ibc_prefixed().get())),
+            path: format!(
+                "asset/denom/{}",
+                hex::encode(denom.to_ibc_prefixed().as_bytes())
+            ),
             data: vec![].into(),
             height: u32::try_from(height).unwrap().into(),
             prove: false,
@@ -328,7 +333,7 @@ mod tests {
         let height = 99;
 
         for asset in &assets {
-            state.put_allowed_fee_asset(asset);
+            state.put_allowed_fee_asset(asset).unwrap();
             assert!(
                 state
                     .is_allowed_fee_asset(asset)
@@ -337,7 +342,7 @@ mod tests {
                 "fee asset was expected to be allowed"
             );
         }
-        state.put_block_height(height);
+        state.put_block_height(height).unwrap();
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {

@@ -4,7 +4,7 @@ use crate::app::fee_handler::FeeHandler;
 
 #[async_trait::async_trait]
 pub(crate) trait ActionHandler: FeeHandler {
-    // Commenting out for the time being as this is currentl nonot being used. Leaving this in
+    // Commenting out for the time being as this is currently not being used. Leaving this in
     // for reference as this is copied from cnidarium_component.
     // ```
     // type CheckStatelessContext: Clone + Send + Sync + 'static;
