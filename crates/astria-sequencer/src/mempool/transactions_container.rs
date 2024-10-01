@@ -779,21 +779,29 @@ impl<const MAX_TX_COUNT: usize> TransactionsContainer<ParkedTransactionsForAccou
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::crypto::SigningKey;
 
     use super::*;
-    use crate::app::test_utils::{
-        denom_0,
-        denom_1,
-        denom_3,
-        get_alice_signing_key,
-        mock_balances,
-        mock_state_getter,
-        mock_state_put_account_nonce,
-        mock_tx,
-        mock_tx_cost,
-        MOCK_SEQUENCE_FEE,
+    use crate::{
+        app::test_utils::{
+            denom_0,
+            denom_1,
+            denom_3,
+            get_alice_signing_key,
+            get_bob_signing_key,
+            get_carol_signing_key,
+            mock_balances,
+            mock_state_getter,
+            mock_state_put_account_nonce,
+            mock_tx_cost,
+            MockTxBuilder,
+            ALICE_ADDRESS,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+            MOCK_SEQUENCE_FEE,
+        },
+        test_utils::astria_address_from_hex_string,
     };
 
     const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
@@ -802,32 +810,34 @@ mod test {
     struct MockTTXBuilder {
         nonce: u32,
         signer: SigningKey,
-        denom_0_cost: u128,
-        denom_1_cost: u128,
-        denom_2_cost: u128,
+        chain_id: String,
+        cost_map: HashMap<IbcPrefixed, u128>,
     }
 
     impl MockTTXBuilder {
         fn build(self) -> TimemarkedTransaction {
-            let tx = mock_tx(self.nonce, &self.signer, "test");
+            let tx = MockTxBuilder::new()
+                .nonce(self.nonce)
+                .signer(self.signer)
+                .chain_id(&self.chain_id)
+                .build();
 
-            TimemarkedTransaction::new(
-                tx,
-                mock_tx_cost(self.denom_0_cost, self.denom_1_cost, self.denom_2_cost),
-            )
+            TimemarkedTransaction::new(tx, self.cost_map)
+        }
+
+        fn chain_id(self, chain_id: &str) -> Self {
+            Self {
+                chain_id: chain_id.to_string(),
+                ..self
+            }
         }
 
         fn new() -> Self {
-            Self::default()
-        }
-
-        fn default() -> Self {
             Self {
                 nonce: 0,
                 signer: get_alice_signing_key(),
-                denom_0_cost: 0,
-                denom_1_cost: 0,
-                denom_2_cost: 0,
+                chain_id: "test".to_string(),
+                cost_map: mock_tx_cost(0, 0, 0),
             }
         }
 
@@ -845,23 +855,9 @@ mod test {
             }
         }
 
-        fn denom_0(self, denom_0_cost: u128) -> Self {
+        fn cost_map(self, cost: HashMap<IbcPrefixed, u128>) -> Self {
             Self {
-                denom_0_cost,
-                ..self
-            }
-        }
-
-        fn denom_1(self, denom_1_cost: u128) -> Self {
-            Self {
-                denom_1_cost,
-                ..self
-            }
-        }
-
-        fn denom_2(self, denom_2_cost: u128) -> Self {
-            Self {
-                denom_2_cost,
+                cost_map: cost,
                 ..self
             }
         }
@@ -869,8 +865,7 @@ mod test {
 
     #[test]
     fn transaction_priority_should_error_if_invalid() {
-        let ttx =
-            TimemarkedTransaction::new(mock_tx(0, &[1; 32].into(), "test"), mock_tx_cost(0, 0, 0));
+        let ttx = MockTTXBuilder::new().nonce(0).build();
         let priority = ttx.priority(1);
 
         assert!(
@@ -991,9 +986,18 @@ mod test {
         let mut parked_txs = ParkedTransactionsForAccount::<MAX_PARKED_TXS_PER_ACCOUNT>::new();
 
         // transactions to add
-        let ttx_1 = MockTTXBuilder::new().nonce(1).denom_0(10).build();
-        let ttx_3 = MockTTXBuilder::new().nonce(3).denom_1(10).build();
-        let ttx_5 = MockTTXBuilder::new().nonce(5).denom_2(100).build();
+        let ttx_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .cost_map(mock_tx_cost(10, 0, 0))
+            .build();
+        let ttx_3 = MockTTXBuilder::new()
+            .nonce(3)
+            .cost_map(mock_tx_cost(0, 10, 0))
+            .build();
+        let ttx_5 = MockTTXBuilder::new()
+            .nonce(5)
+            .cost_map(mock_tx_cost(0, 0, 100))
+            .build();
 
         // note account doesn't have balance to cover any of them
         let account_balances = mock_balances(1, 1);
@@ -1113,13 +1117,34 @@ mod test {
         let mut pending_txs = PendingTransactionsForAccount::new();
 
         // transactions to add, testing balances
-        let ttx_0_too_expensive_0 = MockTTXBuilder::new().nonce(0).denom_0(11).build();
-        let ttx_0_too_expensive_1 = MockTTXBuilder::new().nonce(0).denom_2(1).build();
-        let ttx_0 = MockTTXBuilder::new().nonce(0).denom_0(10).build();
-        let ttx_1 = MockTTXBuilder::new().nonce(1).denom_1(10).build();
-        let ttx_2 = MockTTXBuilder::new().nonce(2).denom_1(8).build();
-        let ttx_3 = MockTTXBuilder::new().nonce(3).denom_1(2).build();
-        let ttx_4 = MockTTXBuilder::new().nonce(4).denom_0(1).build();
+        let ttx_0_too_expensive_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .cost_map(mock_tx_cost(11, 0, 0))
+            .build();
+        let ttx_0_too_expensive_1 = MockTTXBuilder::new()
+            .nonce(0)
+            .cost_map(mock_tx_cost(0, 0, 1))
+            .build();
+        let ttx_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .cost_map(mock_tx_cost(10, 0, 0))
+            .build();
+        let ttx_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .cost_map(mock_tx_cost(0, 10, 0))
+            .build();
+        let ttx_2 = MockTTXBuilder::new()
+            .nonce(2)
+            .cost_map(mock_tx_cost(0, 8, 0))
+            .build();
+        let ttx_3 = MockTTXBuilder::new()
+            .nonce(3)
+            .cost_map(mock_tx_cost(0, 2, 0))
+            .build();
+        let ttx_4 = MockTTXBuilder::new()
+            .nonce(4)
+            .cost_map(mock_tx_cost(0, 0, 1))
+            .build();
 
         let account_balances = mock_balances(10, 20);
         let current_account_nonce = 0;
@@ -1265,25 +1290,18 @@ mod test {
     #[test]
     fn transactions_container_add() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-
-        let signing_key_0 = SigningKey::from([1; 32]);
-        let signing_address_0 = signing_key_0.address_bytes();
-
-        let signing_key_1 = SigningKey::from([2; 32]);
-        let signing_address_1 = signing_key_1.address_bytes();
-
         // transactions to add to accounts
-        let ttx_s0_0_0 = MockTTXBuilder::new()
-            .nonce(0)
-            .signer(signing_key_0.clone())
-            .build();
+        let ttx_s0_0_0 = MockTTXBuilder::new().nonce(0).build();
         // Same nonce and signer as `ttx_s0_0_0`, but different chain id.
-        let ttx_s0_0_1 = TimemarkedTransaction::new(
-            mock_tx(0, &signing_key_0, "different-chain-id"),
-            mock_tx_cost(0, 0, 0),
-        );
-        let ttx_s0_2_0 = MockTTXBuilder::new().nonce(2).signer(signing_key_0).build();
-        let ttx_s1_0_0 = MockTTXBuilder::new().nonce(0).signer(signing_key_1).build();
+        let ttx_s0_0_1 = MockTTXBuilder::new()
+            .nonce(0)
+            .chain_id("different-chain-id")
+            .build();
+        let ttx_s0_2_0 = MockTTXBuilder::new().nonce(2).build();
+        let ttx_s1_0_0 = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(get_bob_signing_key())
+            .build();
         let account_balances = mock_balances(1, 1);
 
         // transactions to add for account 1
@@ -1346,12 +1364,22 @@ mod test {
         // check internal structures
         assert_eq!(pending_txs.txs.len(), 2, "two accounts should exist");
         assert_eq!(
-            pending_txs.txs.get(&signing_address_0).unwrap().txs().len(),
+            pending_txs
+                .txs
+                .get(&astria_address_from_hex_string(ALICE_ADDRESS).bytes())
+                .unwrap()
+                .txs()
+                .len(),
             1,
             "one transaction should be in the original account"
         );
         assert_eq!(
-            pending_txs.txs.get(&signing_address_1).unwrap().txs().len(),
+            pending_txs
+                .txs
+                .get(&astria_address_from_hex_string(BOB_ADDRESS).bytes())
+                .unwrap()
+                .txs()
+                .len(),
             1,
             "one transaction should be in the second account"
         );
@@ -1365,20 +1393,18 @@ mod test {
     #[test]
     fn transactions_container_remove() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let signing_key_0 = SigningKey::from([1; 32]);
-        let signing_key_1 = SigningKey::from([2; 32]);
 
         // transactions to add to accounts
-        let ttx_s0_0 = MockTTXBuilder::new()
-            .nonce(0)
-            .signer(signing_key_0.clone())
-            .build();
-        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).signer(signing_key_0).build();
+        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
+        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
         let ttx_s1_0 = MockTTXBuilder::new()
             .nonce(0)
-            .signer(signing_key_1.clone())
+            .signer(get_bob_signing_key())
             .build();
-        let ttx_s1_1 = MockTTXBuilder::new().nonce(1).signer(signing_key_1).build();
+        let ttx_s1_1 = MockTTXBuilder::new()
+            .nonce(1)
+            .signer(get_bob_signing_key())
+            .build();
         let account_balances = mock_balances(1, 1);
 
         // remove on empty returns the tx in Err variant.
@@ -1426,23 +1452,21 @@ mod test {
     #[test]
     fn transactions_container_clear_account() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let signing_key_0 = SigningKey::from([1; 32]);
-        let signing_address_0 = signing_key_0.address_bytes();
-
-        let signing_key_1 = SigningKey::from([2; 32]);
 
         // transactions to add to accounts
-        let ttx_s0_0 = MockTTXBuilder::new()
+        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
+        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
+        let ttx_s1_0 = MockTTXBuilder::new()
             .nonce(0)
-            .signer(signing_key_0.clone())
+            .signer(get_bob_signing_key())
             .build();
-        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).signer(signing_key_0).build();
-        let ttx_s1_0 = MockTTXBuilder::new().nonce(0).signer(signing_key_1).build();
         let account_balances = mock_balances(1, 1);
 
         // clear all on empty returns zero
         assert!(
-            pending_txs.clear_account(&signing_address_0).is_empty(),
+            pending_txs
+                .clear_account(&astria_address_from_hex_string(ALICE_ADDRESS).bytes())
+                .is_empty(),
             "zero transactions should be removed from clearing non existing accounts"
         );
 
@@ -1459,7 +1483,7 @@ mod test {
 
         // clear should return all transactions
         assert_eq!(
-            pending_txs.clear_account(&signing_address_0),
+            pending_txs.clear_account(&astria_address_from_hex_string(ALICE_ADDRESS).bytes()),
             vec![ttx_s0_0.tx_hash, ttx_s0_1.tx_hash],
             "all transactions should be returned from clearing account"
         );
@@ -1479,20 +1503,15 @@ mod test {
     #[tokio::test]
     async fn transactions_container_recost_transactions() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.address_bytes();
         let account_balances = mock_balances(1, 1);
 
         // transaction to add to account
-        let ttx = MockTTXBuilder::new()
-            .nonce(0)
-            .signer(signing_key.clone())
-            .build();
+        let ttx = MockTTXBuilder::new().nonce(0).build();
         pending_txs.add(ttx.clone(), 0, &account_balances).unwrap();
         assert_eq!(
             pending_txs
                 .txs
-                .get(&signing_address)
+                .get(&astria_address_from_hex_string(ALICE_ADDRESS).bytes())
                 .unwrap()
                 .txs
                 .get(&0)
@@ -1507,14 +1526,17 @@ mod test {
         // recost transactions with mock state's tx costs
         let state = mock_state_getter().await;
         pending_txs
-            .recost_transactions(signing_address, &state)
+            .recost_transactions(
+                astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+                &state,
+            )
             .await;
 
         // transaction should have been recosted
         assert_eq!(
             pending_txs
                 .txs
-                .get(&signing_address)
+                .get(&astria_address_from_hex_string(ALICE_ADDRESS).bytes())
                 .unwrap()
                 .txs
                 .get(&0)
@@ -1531,49 +1553,34 @@ mod test {
     #[expect(clippy::too_many_lines, reason = "it's a test")]
     async fn transactions_container_clean_account_stale_expired() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let signing_key_0 = SigningKey::from([1; 32]);
-        let signing_address_0 = signing_key_0.address_bytes();
-        let signing_key_1 = SigningKey::from([2; 32]);
-        let signing_address_1 = signing_key_1.address_bytes();
-        let signing_key_2 = SigningKey::from([3; 32]);
-        let signing_address_2 = signing_key_2.address_bytes();
 
         // transactions to add to accounts
-        let ttx_s0_0 = MockTTXBuilder::new()
-            .nonce(0)
-            .signer(signing_key_0.clone())
-            .build();
-        let ttx_s0_1 = MockTTXBuilder::new()
-            .nonce(1)
-            .signer(signing_key_0.clone())
-            .build();
-        let ttx_s0_2 = MockTTXBuilder::new()
-            .nonce(2)
-            .signer(signing_key_0.clone())
-            .build();
+        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
+        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
+        let ttx_s0_2 = MockTTXBuilder::new().nonce(2).build();
         let ttx_s1_0 = MockTTXBuilder::new()
             .nonce(0)
-            .signer(signing_key_1.clone())
+            .signer(get_bob_signing_key())
             .build();
         let ttx_s1_1 = MockTTXBuilder::new()
             .nonce(1)
-            .signer(signing_key_1.clone())
+            .signer(get_bob_signing_key())
             .build();
         let ttx_s1_2 = MockTTXBuilder::new()
             .nonce(2)
-            .signer(signing_key_1.clone())
+            .signer(get_bob_signing_key())
             .build();
         let ttx_s2_0 = MockTTXBuilder::new()
             .nonce(0)
-            .signer(signing_key_2.clone())
+            .signer(get_carol_signing_key())
             .build();
         let ttx_s2_1 = MockTTXBuilder::new()
             .nonce(1)
-            .signer(signing_key_2.clone())
+            .signer(get_carol_signing_key())
             .build();
         let ttx_s2_2 = MockTTXBuilder::new()
             .nonce(2)
-            .signer(signing_key_2.clone())
+            .signer(get_carol_signing_key())
             .build();
         let account_balances = mock_balances(1, 1);
 
@@ -1609,9 +1616,20 @@ mod test {
         // clean accounts
         // should pop none from signing_address_0, one from signing_address_1, and all from
         // signing_address_2
-        let mut removed_txs = pending_txs.clean_account_stale_expired(signing_address_0, 0);
-        removed_txs.extend(pending_txs.clean_account_stale_expired(signing_address_1, 1));
-        removed_txs.extend(pending_txs.clean_account_stale_expired(signing_address_2, 4));
+        let mut removed_txs = pending_txs
+            .clean_account_stale_expired(astria_address_from_hex_string(ALICE_ADDRESS).bytes(), 0);
+        removed_txs.extend(
+            pending_txs.clean_account_stale_expired(
+                astria_address_from_hex_string(BOB_ADDRESS).bytes(),
+                1,
+            ),
+        );
+        removed_txs.extend(
+            pending_txs.clean_account_stale_expired(
+                astria_address_from_hex_string(CAROL_ADDRESS).bytes(),
+                4,
+            ),
+        );
 
         assert_eq!(
             removed_txs.len(),
@@ -1631,11 +1649,21 @@ mod test {
         assert!(pending_txs.contains_tx(&ttx_s1_2.tx_hash));
 
         assert_eq!(
-            pending_txs.txs.get(&signing_address_0).unwrap().txs().len(),
+            pending_txs
+                .txs
+                .get(&astria_address_from_hex_string(ALICE_ADDRESS).bytes())
+                .unwrap()
+                .txs()
+                .len(),
             3
         );
         assert_eq!(
-            pending_txs.txs.get(&signing_address_1).unwrap().txs().len(),
+            pending_txs
+                .txs
+                .get(&astria_address_from_hex_string(BOB_ADDRESS).bytes())
+                .unwrap()
+                .txs()
+                .len(),
             2
         );
         for (_, reason) in removed_txs {
@@ -1649,28 +1677,18 @@ mod test {
     #[tokio::test(start_paused = true)]
     async fn transactions_container_clean_accounts_expired_transactions() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let signing_key_0 = SigningKey::from([1; 32]);
-        let signing_address_0 = signing_key_0.address_bytes();
-        let signing_key_1 = SigningKey::from([2; 32]);
-        let signing_address_1 = signing_key_1.address_bytes();
         let account_balances = mock_balances(1, 1);
 
         // transactions to add to accounts
-        let ttx_s0_0 = MockTTXBuilder::new()
-            .nonce(0)
-            .signer(signing_key_0.clone())
-            .build();
+        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
 
         // pass time to make first transaction stale
         tokio::time::advance(TX_TTL.saturating_add(Duration::from_nanos(1))).await;
 
-        let ttx_s0_1 = MockTTXBuilder::new()
-            .nonce(1)
-            .signer(signing_key_0.clone())
-            .build();
+        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
         let ttx_s1_0 = MockTTXBuilder::new()
             .nonce(0)
-            .signer(signing_key_1.clone())
+            .signer(get_bob_signing_key())
             .build();
 
         // add transactions
@@ -1685,8 +1703,14 @@ mod test {
             .unwrap();
 
         // clean accounts, all nonces should be valid
-        let mut removed_txs = pending_txs.clean_account_stale_expired(signing_address_0, 0);
-        removed_txs.extend(pending_txs.clean_account_stale_expired(signing_address_1, 0));
+        let mut removed_txs = pending_txs
+            .clean_account_stale_expired(astria_address_from_hex_string(ALICE_ADDRESS).bytes(), 0);
+        removed_txs.extend(
+            pending_txs.clean_account_stale_expired(
+                astria_address_from_hex_string(BOB_ADDRESS).bytes(),
+                0,
+            ),
+        );
 
         assert_eq!(
             removed_txs.len(),
@@ -1720,35 +1744,26 @@ mod test {
     #[test]
     fn pending_transactions_pending_nonce() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let signing_key_0 = SigningKey::from([1; 32]);
-        let signing_address_0 = signing_key_0.address_bytes();
-
-        let signing_key_1 = SigningKey::from([2; 32]);
-        let signing_address_1 = signing_key_1.address_bytes();
         let account_balances = mock_balances(1, 1);
 
         // transactions to add for account 0
-        let ttx_s0_0 = MockTTXBuilder::new()
-            .nonce(0)
-            .signer(signing_key_0.clone())
-            .build();
-        let ttx_s0_1 = MockTTXBuilder::new()
-            .nonce(1)
-            .signer(signing_key_0.clone())
-            .build();
+        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
+        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
 
         pending_txs.add(ttx_s0_0, 0, &account_balances).unwrap();
         pending_txs.add(ttx_s0_1, 0, &account_balances).unwrap();
 
         // empty account returns zero
         assert!(
-            pending_txs.pending_nonce(signing_address_1).is_none(),
+            pending_txs
+                .pending_nonce(astria_address_from_hex_string(BOB_ADDRESS).bytes())
+                .is_none(),
             "empty account should return None"
         );
 
         // non empty account returns highest nonce
         assert_eq!(
-            pending_txs.pending_nonce(signing_address_0),
+            pending_txs.pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).bytes()),
             Some(1),
             "should return highest nonce"
         );
@@ -1757,27 +1772,20 @@ mod test {
     #[tokio::test]
     async fn pending_transactions_builder_queue() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let signing_key_0 = SigningKey::from([1; 32]);
-        let signing_address_0 = signing_key_0.address_bytes();
-        let signing_key_1 = SigningKey::from([2; 32]);
-        let signing_address_1 = signing_key_1.address_bytes();
 
         // transactions to add to accounts
-        let ttx_s0_1 = MockTTXBuilder::new()
-            .nonce(1)
-            .signer(signing_key_0.clone())
-            .build();
+        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
         let ttx_s1_1 = MockTTXBuilder::new()
             .nonce(1)
-            .signer(signing_key_1.clone())
+            .signer(get_bob_signing_key())
             .build();
         let ttx_s1_2 = MockTTXBuilder::new()
             .nonce(2)
-            .signer(signing_key_1.clone())
+            .signer(get_bob_signing_key())
             .build();
         let ttx_s1_3 = MockTTXBuilder::new()
             .nonce(3)
-            .signer(signing_key_1.clone())
+            .signer(get_bob_signing_key())
             .build();
         let account_balances = mock_balances(1, 1);
 
@@ -1795,10 +1803,18 @@ mod test {
             .add(ttx_s1_3.clone(), 1, &account_balances)
             .unwrap();
 
-        // should return all transactions from signing_key_0 and last two from signing_key_1
+        // should return all transactions from Alice and last two from Bob
         let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(&mut mock_state, signing_address_0, 1);
-        mock_state_put_account_nonce(&mut mock_state, signing_address_1, 2);
+        mock_state_put_account_nonce(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            1,
+        );
+        mock_state_put_account_nonce(
+            &mut mock_state,
+            astria_address_from_hex_string(BOB_ADDRESS).bytes(),
+            2,
+        );
 
         // get builder queue
         let builder_queue = pending_txs
@@ -1839,25 +1855,19 @@ mod test {
     #[tokio::test]
     async fn parked_transactions_find_promotables() {
         let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL);
-        let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.address_bytes();
 
         // transactions to add to accounts
         let ttx_1 = MockTTXBuilder::new()
             .nonce(1)
-            .signer(signing_key.clone())
-            .denom_0(10)
+            .cost_map(mock_tx_cost(10, 0, 0))
             .build();
         let ttx_2 = MockTTXBuilder::new()
             .nonce(2)
-            .signer(signing_key.clone())
-            .denom_0(5)
-            .denom_1(2)
+            .cost_map(mock_tx_cost(5, 2, 0))
             .build();
         let ttx_3 = MockTTXBuilder::new()
             .nonce(3)
-            .signer(signing_key.clone())
-            .denom_0(1)
+            .cost_map(mock_tx_cost(1, 0, 0))
             .build();
         let remaining_balances = mock_balances(15, 2);
 
@@ -1873,11 +1883,19 @@ mod test {
             .unwrap();
 
         // none should be returned on nonce gap
-        let promotables = parked_txs.find_promotables(&signing_address, 0, &remaining_balances);
+        let promotables = parked_txs.find_promotables(
+            &astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            0,
+            &remaining_balances,
+        );
         assert_eq!(promotables.len(), 0);
 
         // only first two transactions should be returned
-        let promotables = parked_txs.find_promotables(&signing_address, 1, &remaining_balances);
+        let promotables = parked_txs.find_promotables(
+            &astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            1,
+            &remaining_balances,
+        );
         assert_eq!(promotables.len(), 2);
         assert_eq!(promotables[0].nonce(), 1);
         assert_eq!(promotables[1].nonce(), 2);
@@ -1889,7 +1907,11 @@ mod test {
 
         // empty account should be removed
         // remove last
-        parked_txs.find_promotables(&signing_address, 3, &remaining_balances);
+        parked_txs.find_promotables(
+            &astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            3,
+            &remaining_balances,
+        );
         assert_eq!(
             parked_txs.addresses().len(),
             0,
@@ -1900,29 +1922,23 @@ mod test {
     #[tokio::test]
     async fn pending_transactions_find_demotables() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.address_bytes();
 
         // transactions to add to account
         let ttx_1 = MockTTXBuilder::new()
             .nonce(1)
-            .signer(signing_key.clone())
-            .denom_0(5)
+            .cost_map(mock_tx_cost(5, 0, 0))
             .build();
         let ttx_2 = MockTTXBuilder::new()
             .nonce(2)
-            .signer(signing_key.clone())
-            .denom_1(5)
+            .cost_map(mock_tx_cost(0, 5, 0))
             .build();
         let ttx_3 = MockTTXBuilder::new()
             .nonce(3)
-            .signer(signing_key.clone())
-            .denom_0(5)
+            .cost_map(mock_tx_cost(5, 0, 0))
             .build();
         let ttx_4 = MockTTXBuilder::new()
             .nonce(4)
-            .signer(signing_key.clone())
-            .denom_1(5)
+            .cost_map(mock_tx_cost(0, 5, 0))
             .build();
         let account_balances_full = mock_balances(100, 100);
 
@@ -1941,25 +1957,36 @@ mod test {
             .unwrap();
 
         // demote none
-        let demotables: Vec<TimemarkedTransaction> =
-            pending_txs.find_demotables(signing_address, &account_balances_full);
+        let demotables: Vec<TimemarkedTransaction> = pending_txs.find_demotables(
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            &account_balances_full,
+        );
         assert_eq!(demotables.len(), 0);
 
         // demote last
         let account_balances_demotion = mock_balances(100, 9);
-        let demotables = pending_txs.find_demotables(signing_address, &account_balances_demotion);
+        let demotables = pending_txs.find_demotables(
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            &account_balances_demotion,
+        );
         assert_eq!(demotables.len(), 1);
         assert_eq!(demotables[0].nonce(), 4);
 
         // demote multiple
         let account_balances_demotion = mock_balances(100, 4);
-        let demotables = pending_txs.find_demotables(signing_address, &account_balances_demotion);
+        let demotables = pending_txs.find_demotables(
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            &account_balances_demotion,
+        );
         assert_eq!(demotables.len(), 2);
         assert_eq!(demotables[0].nonce(), 2);
 
         // demote rest
         let account_balances_demotion = mock_balances(0, 5);
-        let demotables = pending_txs.find_demotables(signing_address, &account_balances_demotion);
+        let demotables = pending_txs.find_demotables(
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            &account_balances_demotion,
+        );
         assert_eq!(demotables.len(), 1);
         assert_eq!(demotables[0].nonce(), 1);
 
@@ -1974,29 +2001,23 @@ mod test {
     #[tokio::test]
     async fn pending_transactions_remaining_account_balances() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let signing_key = SigningKey::from([1; 32]);
-        let signing_address = signing_key.address_bytes();
 
         // transactions to add to account
         let ttx_1 = MockTTXBuilder::new()
             .nonce(1)
-            .signer(signing_key.clone())
-            .denom_0(6)
+            .cost_map(mock_tx_cost(6, 0, 0))
             .build();
         let ttx_2 = MockTTXBuilder::new()
             .nonce(2)
-            .signer(signing_key.clone())
-            .denom_1(5)
+            .cost_map(mock_tx_cost(0, 5, 0))
             .build();
         let ttx_3 = MockTTXBuilder::new()
             .nonce(3)
-            .signer(signing_key.clone())
-            .denom_0(6)
+            .cost_map(mock_tx_cost(6, 0, 0))
             .build();
         let ttx_4 = MockTTXBuilder::new()
             .nonce(4)
-            .signer(signing_key.clone())
-            .denom_1(5)
+            .cost_map(mock_tx_cost(0, 5, 0))
             .build();
         let account_balances_full = mock_balances(100, 100);
 
@@ -2015,8 +2036,10 @@ mod test {
             .unwrap();
 
         // get balances
-        let remaining_balances =
-            pending_txs.subtract_contained_costs(signing_address, account_balances_full);
+        let remaining_balances = pending_txs.subtract_contained_costs(
+            astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
+            account_balances_full,
+        );
         assert_eq!(
             remaining_balances
                 .get(&denom_0().to_ibc_prefixed())
