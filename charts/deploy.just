@@ -1,4 +1,5 @@
 mod ibc-test
+mod cli-test
 
 ##############################################
 ## Deploying and Running using Helm and K8s ##
