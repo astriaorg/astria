@@ -92,7 +92,7 @@ fn try_from_list_of_actions_bundleable_general() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::BundleableGeneral)
+        ActionGroup::BundleableGeneral
     ));
 }
 
@@ -116,7 +116,7 @@ fn from_list_of_actions_bundleable_sudo() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::BundleableSudo)
+        ActionGroup::BundleableSudo
     ));
 }
 
@@ -134,7 +134,7 @@ fn from_list_of_actions_unbundleable_sudo() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::UnbundleableSudo)
+        ActionGroup::UnbundleableSudo
     ));
 
     let actions = vec![Action::IbcSudoChange(IbcSudoChangeAction {
@@ -143,7 +143,7 @@ fn from_list_of_actions_unbundleable_sudo() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::UnbundleableSudo)
+        ActionGroup::UnbundleableSudo
     ));
 
     let actions = vec![
@@ -191,14 +191,14 @@ fn from_list_of_actions_unbundleable_general() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::UnbundleableGeneral)
+        ActionGroup::UnbundleableGeneral
     ));
 
     let actions = vec![sudo_bridge_address_change_action.clone().into()];
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::UnbundleableGeneral)
+        ActionGroup::UnbundleableGeneral
     ));
 
     let actions = vec![
@@ -237,5 +237,14 @@ fn from_list_of_actions_mixed() {
     assert!(
         matches!(error_kind, ErrorKind::Mixed { .. }),
         "expected ErrorKind::Mixed, got {error_kind:?}"
+    );
+}
+
+#[test]
+fn from_list_of_actions_empty() {
+    let error_kind = Actions::try_from_list_of_actions(vec![]).unwrap_err().0;
+    assert!(
+        matches!(error_kind, ErrorKind::Empty { .. }),
+        "expected ErrorKind::Empty, got {error_kind:?}"
     );
 }
