@@ -330,9 +330,9 @@ impl ::prost::Name for SubmittedMetadata {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct StreamBlockCommitmentsRequest {}
-impl ::prost::Name for StreamBlockCommitmentsRequest {
-    const NAME: &'static str = "StreamBlockCommitmentsRequest";
+pub struct GetBlockCommitmentStreamRequest {}
+impl ::prost::Name for GetBlockCommitmentStreamRequest {
+    const NAME: &'static str = "GetBlockCommitmentStreamRequest";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
@@ -358,13 +358,12 @@ impl ::prost::Name for SequencerBlockCommit {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct StreamOptimisticBlockRequest {
-    /// The rollup id for which the Sequencer block is being streamed.
+pub struct GetBlockCommitmentStreamResponse {
     #[prost(message, optional, tag = "1")]
-    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
+    pub commitment: ::core::option::Option<SequencerBlockCommit>,
 }
-impl ::prost::Name for StreamOptimisticBlockRequest {
-    const NAME: &'static str = "StreamOptimisticBlockRequest";
+impl ::prost::Name for GetBlockCommitmentStreamResponse {
+    const NAME: &'static str = "GetBlockCommitmentStreamResponse";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
@@ -372,13 +371,27 @@ impl ::prost::Name for StreamOptimisticBlockRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct StreamOptimisticBlockResponse {
+pub struct GetOptimisticBlockStreamRequest {
+    /// The rollup id for which the Sequencer block is being streamed.
+    #[prost(message, optional, tag = "1")]
+    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
+}
+impl ::prost::Name for GetOptimisticBlockStreamRequest {
+    const NAME: &'static str = "GetOptimisticBlockStreamRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetOptimisticBlockStreamResponse {
     /// The optimistic Sequencer block that is being streamed, filtered for the provided rollup id.
     #[prost(message, optional, tag = "1")]
     pub block: ::core::option::Option<FilteredSequencerBlock>,
 }
-impl ::prost::Name for StreamOptimisticBlockResponse {
-    const NAME: &'static str = "StreamOptimisticBlockResponse";
+impl ::prost::Name for GetOptimisticBlockStreamResponse {
+    const NAME: &'static str = "GetOptimisticBlockStreamResponse";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
@@ -475,12 +488,12 @@ pub mod optimistic_block_service_client {
         }
         /// The Sequencer will stream the optimistic Sequencer block (filtered for the provided
         /// rollup id) to the Auctioneer.
-        pub async fn stream_optimistic_block(
+        pub async fn get_optimistic_block_stream(
             &mut self,
-            request: impl tonic::IntoRequest<super::StreamOptimisticBlockRequest>,
+            request: impl tonic::IntoRequest<super::GetOptimisticBlockStreamRequest>,
         ) -> std::result::Result<
             tonic::Response<
-                tonic::codec::Streaming<super::StreamOptimisticBlockResponse>,
+                tonic::codec::Streaming<super::GetOptimisticBlockStreamResponse>,
             >,
             tonic::Status,
         > {
@@ -495,24 +508,26 @@ pub mod optimistic_block_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencerblock.v1alpha1.OptimisticBlockService/StreamOptimisticBlock",
+                "/astria.sequencerblock.v1alpha1.OptimisticBlockService/GetOptimisticBlockStream",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.sequencerblock.v1alpha1.OptimisticBlockService",
-                        "StreamOptimisticBlock",
+                        "GetOptimisticBlockStream",
                     ),
                 );
             self.inner.server_streaming(req, path, codec).await
         }
         /// The Sequencer will stream the block commits to the Auctioneer.
-        pub async fn stream_block_commitments(
+        pub async fn get_block_commitment_stream(
             &mut self,
-            request: impl tonic::IntoRequest<super::StreamBlockCommitmentsRequest>,
+            request: impl tonic::IntoRequest<super::GetBlockCommitmentStreamRequest>,
         ) -> std::result::Result<
-            tonic::Response<tonic::codec::Streaming<super::SequencerBlockCommit>>,
+            tonic::Response<
+                tonic::codec::Streaming<super::GetBlockCommitmentStreamResponse>,
+            >,
             tonic::Status,
         > {
             self.inner
@@ -526,14 +541,14 @@ pub mod optimistic_block_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencerblock.v1alpha1.OptimisticBlockService/StreamBlockCommitments",
+                "/astria.sequencerblock.v1alpha1.OptimisticBlockService/GetBlockCommitmentStream",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.sequencerblock.v1alpha1.OptimisticBlockService",
-                        "StreamBlockCommitments",
+                        "GetBlockCommitmentStream",
                     ),
                 );
             self.inner.server_streaming(req, path, codec).await
@@ -548,10 +563,10 @@ pub mod optimistic_block_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with OptimisticBlockServiceServer.
     #[async_trait]
     pub trait OptimisticBlockService: Send + Sync + 'static {
-        /// Server streaming response type for the StreamOptimisticBlock method.
-        type StreamOptimisticBlockStream: tonic::codegen::tokio_stream::Stream<
+        /// Server streaming response type for the GetOptimisticBlockStream method.
+        type GetOptimisticBlockStreamStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<
-                    super::StreamOptimisticBlockResponse,
+                    super::GetOptimisticBlockStreamResponse,
                     tonic::Status,
                 >,
             >
@@ -559,25 +574,28 @@ pub mod optimistic_block_service_server {
             + 'static;
         /// The Sequencer will stream the optimistic Sequencer block (filtered for the provided
         /// rollup id) to the Auctioneer.
-        async fn stream_optimistic_block(
+        async fn get_optimistic_block_stream(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::StreamOptimisticBlockRequest>,
+            request: tonic::Request<super::GetOptimisticBlockStreamRequest>,
         ) -> std::result::Result<
-            tonic::Response<Self::StreamOptimisticBlockStream>,
+            tonic::Response<Self::GetOptimisticBlockStreamStream>,
             tonic::Status,
         >;
-        /// Server streaming response type for the StreamBlockCommitments method.
-        type StreamBlockCommitmentsStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<super::SequencerBlockCommit, tonic::Status>,
+        /// Server streaming response type for the GetBlockCommitmentStream method.
+        type GetBlockCommitmentStreamStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::GetBlockCommitmentStreamResponse,
+                    tonic::Status,
+                >,
             >
             + Send
             + 'static;
         /// The Sequencer will stream the block commits to the Auctioneer.
-        async fn stream_block_commitments(
+        async fn get_block_commitment_stream(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::StreamBlockCommitmentsRequest>,
+            request: tonic::Request<super::GetBlockCommitmentStreamRequest>,
         ) -> std::result::Result<
-            tonic::Response<Self::StreamBlockCommitmentsStream>,
+            tonic::Response<Self::GetBlockCommitmentStreamStream>,
             tonic::Status,
         >;
     }
@@ -662,29 +680,31 @@ pub mod optimistic_block_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.sequencerblock.v1alpha1.OptimisticBlockService/StreamOptimisticBlock" => {
+                "/astria.sequencerblock.v1alpha1.OptimisticBlockService/GetOptimisticBlockStream" => {
                     #[allow(non_camel_case_types)]
-                    struct StreamOptimisticBlockSvc<T: OptimisticBlockService>(
+                    struct GetOptimisticBlockStreamSvc<T: OptimisticBlockService>(
                         pub Arc<T>,
                     );
                     impl<
                         T: OptimisticBlockService,
                     > tonic::server::ServerStreamingService<
-                        super::StreamOptimisticBlockRequest,
-                    > for StreamOptimisticBlockSvc<T> {
-                        type Response = super::StreamOptimisticBlockResponse;
-                        type ResponseStream = T::StreamOptimisticBlockStream;
+                        super::GetOptimisticBlockStreamRequest,
+                    > for GetOptimisticBlockStreamSvc<T> {
+                        type Response = super::GetOptimisticBlockStreamResponse;
+                        type ResponseStream = T::GetOptimisticBlockStreamStream;
                         type Future = BoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::StreamOptimisticBlockRequest>,
+                            request: tonic::Request<
+                                super::GetOptimisticBlockStreamRequest,
+                            >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as OptimisticBlockService>::stream_optimistic_block(
+                                <T as OptimisticBlockService>::get_optimistic_block_stream(
                                         inner,
                                         request,
                                     )
@@ -700,7 +720,7 @@ pub mod optimistic_block_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = StreamOptimisticBlockSvc(inner);
+                        let method = GetOptimisticBlockStreamSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -716,29 +736,31 @@ pub mod optimistic_block_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.sequencerblock.v1alpha1.OptimisticBlockService/StreamBlockCommitments" => {
+                "/astria.sequencerblock.v1alpha1.OptimisticBlockService/GetBlockCommitmentStream" => {
                     #[allow(non_camel_case_types)]
-                    struct StreamBlockCommitmentsSvc<T: OptimisticBlockService>(
+                    struct GetBlockCommitmentStreamSvc<T: OptimisticBlockService>(
                         pub Arc<T>,
                     );
                     impl<
                         T: OptimisticBlockService,
                     > tonic::server::ServerStreamingService<
-                        super::StreamBlockCommitmentsRequest,
-                    > for StreamBlockCommitmentsSvc<T> {
-                        type Response = super::SequencerBlockCommit;
-                        type ResponseStream = T::StreamBlockCommitmentsStream;
+                        super::GetBlockCommitmentStreamRequest,
+                    > for GetBlockCommitmentStreamSvc<T> {
+                        type Response = super::GetBlockCommitmentStreamResponse;
+                        type ResponseStream = T::GetBlockCommitmentStreamStream;
                         type Future = BoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::StreamBlockCommitmentsRequest>,
+                            request: tonic::Request<
+                                super::GetBlockCommitmentStreamRequest,
+                            >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as OptimisticBlockService>::stream_block_commitments(
+                                <T as OptimisticBlockService>::get_block_commitment_stream(
                                         inner,
                                         request,
                                     )
@@ -754,7 +776,7 @@ pub mod optimistic_block_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = StreamBlockCommitmentsSvc(inner);
+                        let method = GetBlockCommitmentStreamSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

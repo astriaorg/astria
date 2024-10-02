@@ -5,7 +5,7 @@ package astria.sequencerblock.v1alpha1;
 import "astria/primitive/v1/types.proto";
 import "astria/sequencerblock/v1alpha1/block.proto";
 
-message StreamBlockCommitmentsRequest {}
+message GetBlockCommitmentStreamRequest {}
 
 // Identifying metadata for blocks that have been successfully committed in the Sequencer.
 message SequencerBlockCommit {
@@ -15,12 +15,16 @@ message SequencerBlockCommit {
   bytes block_hash = 2;
 }
 
-message StreamOptimisticBlockRequest {
+message GetBlockCommitmentStreamResponse {
+  SequencerBlockCommit commitment = 1;
+}
+
+message GetOptimisticBlockStreamRequest {
   // The rollup id for which the Sequencer block is being streamed.
   astria.primitive.v1.RollupId rollup_id = 1;
 }
 
-message StreamOptimisticBlockResponse {
+message GetOptimisticBlockStreamResponse {
   // The optimistic Sequencer block that is being streamed, filtered for the provided rollup id.
   astria.sequencerblock.v1alpha1.FilteredSequencerBlock block = 1;
 }
@@ -29,7 +33,7 @@ message StreamOptimisticBlockResponse {
 service OptimisticBlockService {
   // The Sequencer will stream the optimistic Sequencer block (filtered for the provided
   // rollup id) to the Auctioneer.
-  rpc StreamOptimisticBlock(StreamOptimisticBlockRequest) returns (stream StreamOptimisticBlockResponse);
+  rpc GetOptimisticBlockStream(GetOptimisticBlockStreamRequest) returns (stream GetOptimisticBlockStreamResponse);
   // The Sequencer will stream the block commits to the Auctioneer.
-  rpc StreamBlockCommitments(StreamBlockCommitmentsRequest) returns (stream SequencerBlockCommit);
+  rpc GetBlockCommitmentStream(GetBlockCommitmentStreamRequest) returns (stream GetBlockCommitmentStreamResponse);
 }

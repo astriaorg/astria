@@ -24,12 +24,12 @@ impl ::prost::Name for BaseBlock {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct StreamExecuteOptimisticBlockRequest {
+pub struct ExecuteOptimisticBlockStreamRequest {
     #[prost(message, optional, tag = "1")]
-    pub block: ::core::option::Option<BaseBlock>,
+    pub base_block: ::core::option::Option<BaseBlock>,
 }
-impl ::prost::Name for StreamExecuteOptimisticBlockRequest {
-    const NAME: &'static str = "StreamExecuteOptimisticBlockRequest";
+impl ::prost::Name for ExecuteOptimisticBlockStreamRequest {
+    const NAME: &'static str = "ExecuteOptimisticBlockStreamRequest";
     const PACKAGE: &'static str = "astria.bundle.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
@@ -37,7 +37,7 @@ impl ::prost::Name for StreamExecuteOptimisticBlockRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct StreamExecuteOptimisticBlockResponse {
+pub struct ExecuteOptimisticBlockStreamResponse {
     /// Metadata identifying the block resulting from executing a block. Includes number, hash,
     /// parent hash and timestamp.
     #[prost(message, optional, tag = "1")]
@@ -48,8 +48,8 @@ pub struct StreamExecuteOptimisticBlockResponse {
     #[prost(bytes = "bytes", tag = "2")]
     pub base_sequencer_block_hash: ::prost::bytes::Bytes,
 }
-impl ::prost::Name for StreamExecuteOptimisticBlockResponse {
-    const NAME: &'static str = "StreamExecuteOptimisticBlockResponse";
+impl ::prost::Name for ExecuteOptimisticBlockStreamResponse {
+    const NAME: &'static str = "ExecuteOptimisticBlockStreamResponse";
     const PACKAGE: &'static str = "astria.bundle.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
@@ -57,9 +57,9 @@ impl ::prost::Name for StreamExecuteOptimisticBlockResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct StreamBundlesRequest {}
-impl ::prost::Name for StreamBundlesRequest {
-    const NAME: &'static str = "StreamBundlesRequest";
+pub struct GetBundleStreamRequest {}
+impl ::prost::Name for GetBundleStreamRequest {
+    const NAME: &'static str = "GetBundleStreamRequest";
     const PACKAGE: &'static str = "astria.bundle.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
@@ -92,6 +92,19 @@ pub struct Bundle {
 }
 impl ::prost::Name for Bundle {
     const NAME: &'static str = "Bundle";
+    const PACKAGE: &'static str = "astria.bundle.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetBundleStreamResponse {
+    #[prost(message, optional, tag = "1")]
+    pub bundle: ::core::option::Option<Bundle>,
+}
+impl ::prost::Name for GetBundleStreamResponse {
+    const NAME: &'static str = "GetBundleStreamResponse";
     const PACKAGE: &'static str = "astria.bundle.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
@@ -187,14 +200,14 @@ pub mod optimistic_execution_service_client {
         }
         /// Stream blocks from the Auctioneer to Geth for optimistic execution. Geth will stream back
         /// metadata from the executed blocks.
-        pub async fn stream_execute_optimistic_block(
+        pub async fn execute_optimistic_block_stream(
             &mut self,
             request: impl tonic::IntoStreamingRequest<
-                Message = super::StreamExecuteOptimisticBlockRequest,
+                Message = super::ExecuteOptimisticBlockStreamRequest,
             >,
         ) -> std::result::Result<
             tonic::Response<
-                tonic::codec::Streaming<super::StreamExecuteOptimisticBlockResponse>,
+                tonic::codec::Streaming<super::ExecuteOptimisticBlockStreamResponse>,
             >,
             tonic::Status,
         > {
@@ -209,14 +222,14 @@ pub mod optimistic_execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.bundle.v1alpha1.OptimisticExecutionService/StreamExecuteOptimisticBlock",
+                "/astria.bundle.v1alpha1.OptimisticExecutionService/ExecuteOptimisticBlockStream",
             );
             let mut req = request.into_streaming_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.bundle.v1alpha1.OptimisticExecutionService",
-                        "StreamExecuteOptimisticBlock",
+                        "ExecuteOptimisticBlockStream",
                     ),
                 );
             self.inner.streaming(req, path, codec).await
@@ -312,11 +325,11 @@ pub mod bundle_service_client {
         /// A bundle submitter requests bundles given a new optimistic Sequencer block,
         /// and receives a stream of potential bundles for submission, until either a timeout
         /// or the connection is closed by the client.
-        pub async fn stream_bundles(
+        pub async fn get_bundle_stream(
             &mut self,
-            request: impl tonic::IntoRequest<super::StreamBundlesRequest>,
+            request: impl tonic::IntoRequest<super::GetBundleStreamRequest>,
         ) -> std::result::Result<
-            tonic::Response<tonic::codec::Streaming<super::Bundle>>,
+            tonic::Response<tonic::codec::Streaming<super::GetBundleStreamResponse>>,
             tonic::Status,
         > {
             self.inner
@@ -330,14 +343,14 @@ pub mod bundle_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.bundle.v1alpha1.BundleService/StreamBundles",
+                "/astria.bundle.v1alpha1.BundleService/GetBundleStream",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.bundle.v1alpha1.BundleService",
-                        "StreamBundles",
+                        "GetBundleStream",
                     ),
                 );
             self.inner.server_streaming(req, path, codec).await
@@ -352,10 +365,10 @@ pub mod optimistic_execution_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with OptimisticExecutionServiceServer.
     #[async_trait]
     pub trait OptimisticExecutionService: Send + Sync + 'static {
-        /// Server streaming response type for the StreamExecuteOptimisticBlock method.
-        type StreamExecuteOptimisticBlockStream: tonic::codegen::tokio_stream::Stream<
+        /// Server streaming response type for the ExecuteOptimisticBlockStream method.
+        type ExecuteOptimisticBlockStreamStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<
-                    super::StreamExecuteOptimisticBlockResponse,
+                    super::ExecuteOptimisticBlockStreamResponse,
                     tonic::Status,
                 >,
             >
@@ -363,13 +376,13 @@ pub mod optimistic_execution_service_server {
             + 'static;
         /// Stream blocks from the Auctioneer to Geth for optimistic execution. Geth will stream back
         /// metadata from the executed blocks.
-        async fn stream_execute_optimistic_block(
+        async fn execute_optimistic_block_stream(
             self: std::sync::Arc<Self>,
             request: tonic::Request<
-                tonic::Streaming<super::StreamExecuteOptimisticBlockRequest>,
+                tonic::Streaming<super::ExecuteOptimisticBlockStreamRequest>,
             >,
         ) -> std::result::Result<
-            tonic::Response<Self::StreamExecuteOptimisticBlockStream>,
+            tonic::Response<Self::ExecuteOptimisticBlockStreamStream>,
             tonic::Status,
         >;
     }
@@ -453,9 +466,9 @@ pub mod optimistic_execution_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.bundle.v1alpha1.OptimisticExecutionService/StreamExecuteOptimisticBlock" => {
+                "/astria.bundle.v1alpha1.OptimisticExecutionService/ExecuteOptimisticBlockStream" => {
                     #[allow(non_camel_case_types)]
-                    struct StreamExecuteOptimisticBlockSvc<
+                    struct ExecuteOptimisticBlockStreamSvc<
                         T: OptimisticExecutionService,
                     >(
                         pub Arc<T>,
@@ -463,10 +476,10 @@ pub mod optimistic_execution_service_server {
                     impl<
                         T: OptimisticExecutionService,
                     > tonic::server::StreamingService<
-                        super::StreamExecuteOptimisticBlockRequest,
-                    > for StreamExecuteOptimisticBlockSvc<T> {
-                        type Response = super::StreamExecuteOptimisticBlockResponse;
-                        type ResponseStream = T::StreamExecuteOptimisticBlockStream;
+                        super::ExecuteOptimisticBlockStreamRequest,
+                    > for ExecuteOptimisticBlockStreamSvc<T> {
+                        type Response = super::ExecuteOptimisticBlockStreamResponse;
+                        type ResponseStream = T::ExecuteOptimisticBlockStreamStream;
                         type Future = BoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
@@ -474,12 +487,12 @@ pub mod optimistic_execution_service_server {
                         fn call(
                             &mut self,
                             request: tonic::Request<
-                                tonic::Streaming<super::StreamExecuteOptimisticBlockRequest>,
+                                tonic::Streaming<super::ExecuteOptimisticBlockStreamRequest>,
                             >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as OptimisticExecutionService>::stream_execute_optimistic_block(
+                                <T as OptimisticExecutionService>::execute_optimistic_block_stream(
                                         inner,
                                         request,
                                     )
@@ -495,7 +508,7 @@ pub mod optimistic_execution_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = StreamExecuteOptimisticBlockSvc(inner);
+                        let method = ExecuteOptimisticBlockStreamSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -561,20 +574,20 @@ pub mod bundle_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with BundleServiceServer.
     #[async_trait]
     pub trait BundleService: Send + Sync + 'static {
-        /// Server streaming response type for the StreamBundles method.
-        type StreamBundlesStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<super::Bundle, tonic::Status>,
+        /// Server streaming response type for the GetBundleStream method.
+        type GetBundleStreamStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<super::GetBundleStreamResponse, tonic::Status>,
             >
             + Send
             + 'static;
         /// A bundle submitter requests bundles given a new optimistic Sequencer block,
         /// and receives a stream of potential bundles for submission, until either a timeout
         /// or the connection is closed by the client.
-        async fn stream_bundles(
+        async fn get_bundle_stream(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::StreamBundlesRequest>,
+            request: tonic::Request<super::GetBundleStreamRequest>,
         ) -> std::result::Result<
-            tonic::Response<Self::StreamBundlesStream>,
+            tonic::Response<Self::GetBundleStreamStream>,
             tonic::Status,
         >;
     }
@@ -657,26 +670,28 @@ pub mod bundle_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.bundle.v1alpha1.BundleService/StreamBundles" => {
+                "/astria.bundle.v1alpha1.BundleService/GetBundleStream" => {
                     #[allow(non_camel_case_types)]
-                    struct StreamBundlesSvc<T: BundleService>(pub Arc<T>);
+                    struct GetBundleStreamSvc<T: BundleService>(pub Arc<T>);
                     impl<
                         T: BundleService,
-                    > tonic::server::ServerStreamingService<super::StreamBundlesRequest>
-                    for StreamBundlesSvc<T> {
-                        type Response = super::Bundle;
-                        type ResponseStream = T::StreamBundlesStream;
+                    > tonic::server::ServerStreamingService<
+                        super::GetBundleStreamRequest,
+                    > for GetBundleStreamSvc<T> {
+                        type Response = super::GetBundleStreamResponse;
+                        type ResponseStream = T::GetBundleStreamStream;
                         type Future = BoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::StreamBundlesRequest>,
+                            request: tonic::Request<super::GetBundleStreamRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as BundleService>::stream_bundles(inner, request).await
+                                <T as BundleService>::get_bundle_stream(inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -688,7 +703,7 @@ pub mod bundle_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = StreamBundlesSvc(inner);
+                        let method = GetBundleStreamSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

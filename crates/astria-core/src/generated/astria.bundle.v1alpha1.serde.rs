@@ -283,78 +283,7 @@ impl<'de> serde::Deserialize<'de> for Bundle {
         deserializer.deserialize_struct("astria.bundle.v1alpha1.Bundle", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for StreamBundlesRequest {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let len = 0;
-        let struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.StreamBundlesRequest", len)?;
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for StreamBundlesRequest {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                            Err(serde::de::Error::unknown_field(value, FIELDS))
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = StreamBundlesRequest;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.bundle.v1alpha1.StreamBundlesRequest")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<StreamBundlesRequest, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                while map_.next_key::<GeneratedField>()?.is_some() {
-                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
-                }
-                Ok(StreamBundlesRequest {
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.bundle.v1alpha1.StreamBundlesRequest", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for StreamExecuteOptimisticBlockRequest {
+impl serde::Serialize for ExecuteOptimisticBlockStreamRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -362,29 +291,30 @@ impl serde::Serialize for StreamExecuteOptimisticBlockRequest {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.block.is_some() {
+        if self.base_block.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.StreamExecuteOptimisticBlockRequest", len)?;
-        if let Some(v) = self.block.as_ref() {
-            struct_ser.serialize_field("block", v)?;
+        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamRequest", len)?;
+        if let Some(v) = self.base_block.as_ref() {
+            struct_ser.serialize_field("baseBlock", v)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for StreamExecuteOptimisticBlockRequest {
+impl<'de> serde::Deserialize<'de> for ExecuteOptimisticBlockStreamRequest {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "block",
+            "base_block",
+            "baseBlock",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Block,
+            BaseBlock,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -406,7 +336,7 @@ impl<'de> serde::Deserialize<'de> for StreamExecuteOptimisticBlockRequest {
                         E: serde::de::Error,
                     {
                         match value {
-                            "block" => Ok(GeneratedField::Block),
+                            "baseBlock" | "base_block" => Ok(GeneratedField::BaseBlock),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -416,36 +346,36 @@ impl<'de> serde::Deserialize<'de> for StreamExecuteOptimisticBlockRequest {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = StreamExecuteOptimisticBlockRequest;
+            type Value = ExecuteOptimisticBlockStreamRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.bundle.v1alpha1.StreamExecuteOptimisticBlockRequest")
+                formatter.write_str("struct astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamRequest")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<StreamExecuteOptimisticBlockRequest, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ExecuteOptimisticBlockStreamRequest, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut block__ = None;
+                let mut base_block__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Block => {
-                            if block__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("block"));
+                        GeneratedField::BaseBlock => {
+                            if base_block__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseBlock"));
                             }
-                            block__ = map_.next_value()?;
+                            base_block__ = map_.next_value()?;
                         }
                     }
                 }
-                Ok(StreamExecuteOptimisticBlockRequest {
-                    block: block__,
+                Ok(ExecuteOptimisticBlockStreamRequest {
+                    base_block: base_block__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.bundle.v1alpha1.StreamExecuteOptimisticBlockRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamRequest", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for StreamExecuteOptimisticBlockResponse {
+impl serde::Serialize for ExecuteOptimisticBlockStreamResponse {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -459,7 +389,7 @@ impl serde::Serialize for StreamExecuteOptimisticBlockResponse {
         if !self.base_sequencer_block_hash.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.StreamExecuteOptimisticBlockResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamResponse", len)?;
         if let Some(v) = self.block.as_ref() {
             struct_ser.serialize_field("block", v)?;
         }
@@ -470,7 +400,7 @@ impl serde::Serialize for StreamExecuteOptimisticBlockResponse {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for StreamExecuteOptimisticBlockResponse {
+impl<'de> serde::Deserialize<'de> for ExecuteOptimisticBlockStreamResponse {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -518,13 +448,13 @@ impl<'de> serde::Deserialize<'de> for StreamExecuteOptimisticBlockResponse {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = StreamExecuteOptimisticBlockResponse;
+            type Value = ExecuteOptimisticBlockStreamResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.bundle.v1alpha1.StreamExecuteOptimisticBlockResponse")
+                formatter.write_str("struct astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamResponse")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<StreamExecuteOptimisticBlockResponse, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ExecuteOptimisticBlockStreamResponse, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -548,12 +478,174 @@ impl<'de> serde::Deserialize<'de> for StreamExecuteOptimisticBlockResponse {
                         }
                     }
                 }
-                Ok(StreamExecuteOptimisticBlockResponse {
+                Ok(ExecuteOptimisticBlockStreamResponse {
                     block: block__,
                     base_sequencer_block_hash: base_sequencer_block_hash__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.bundle.v1alpha1.StreamExecuteOptimisticBlockResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamResponse", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for GetBundleStreamRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.GetBundleStreamRequest", len)?;
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for GetBundleStreamRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = GetBundleStreamRequest;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.bundle.v1alpha1.GetBundleStreamRequest")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetBundleStreamRequest, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                }
+                Ok(GetBundleStreamRequest {
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.bundle.v1alpha1.GetBundleStreamRequest", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for GetBundleStreamResponse {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.bundle.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.GetBundleStreamResponse", len)?;
+        if let Some(v) = self.bundle.as_ref() {
+            struct_ser.serialize_field("bundle", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for GetBundleStreamResponse {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "bundle",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Bundle,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "bundle" => Ok(GeneratedField::Bundle),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = GetBundleStreamResponse;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.bundle.v1alpha1.GetBundleStreamResponse")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetBundleStreamResponse, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut bundle__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Bundle => {
+                            if bundle__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bundle"));
+                            }
+                            bundle__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(GetBundleStreamResponse {
+                    bundle: bundle__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.bundle.v1alpha1.GetBundleStreamResponse", FIELDS, GeneratedVisitor)
     }
 }

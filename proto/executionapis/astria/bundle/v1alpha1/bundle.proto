@@ -17,11 +17,11 @@ message BaseBlock {
   google.protobuf.Timestamp timestamp = 3;
 }
 
-message StreamExecuteOptimisticBlockRequest {
-  BaseBlock block = 1;
+message ExecuteOptimisticBlockStreamRequest {
+  BaseBlock base_block = 1;
 }
 
-message StreamExecuteOptimisticBlockResponse {
+message ExecuteOptimisticBlockStreamResponse {
   // Metadata identifying the block resulting from executing a block. Includes number, hash,
   // parent hash and timestamp.
   astria.execution.v1alpha2.Block block = 1;
@@ -31,7 +31,7 @@ message StreamExecuteOptimisticBlockResponse {
   bytes base_sequencer_block_hash = 2;
 }
 
-message StreamBundlesRequest {}
+message GetBundleStreamRequest {}
 
 // Information for the bundle submitter to know how to submit the bundle.
 // The fee and base_sequencer_block_hash are not necessarily strictly necessary
@@ -53,15 +53,19 @@ message Bundle {
   bytes prev_rollup_block_hash = 4;
 }
 
+message GetBundleStreamResponse {
+  Bundle bundle = 1;
+}
+
 service OptimisticExecutionService {
   // Stream blocks from the Auctioneer to Geth for optimistic execution. Geth will stream back
   // metadata from the executed blocks.
-  rpc StreamExecuteOptimisticBlock(stream StreamExecuteOptimisticBlockRequest) returns (stream StreamExecuteOptimisticBlockResponse);
+  rpc ExecuteOptimisticBlockStream(stream ExecuteOptimisticBlockStreamRequest) returns (stream ExecuteOptimisticBlockStreamResponse);
 }
 
 service BundleService {
   // A bundle submitter requests bundles given a new optimistic Sequencer block,
   // and receives a stream of potential bundles for submission, until either a timeout
   // or the connection is closed by the client.
-  rpc StreamBundles(StreamBundlesRequest) returns (stream Bundle);
+  rpc GetBundleStream(GetBundleStreamRequest) returns (stream GetBundleStreamResponse);
 }
