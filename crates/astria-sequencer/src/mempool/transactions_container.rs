@@ -877,11 +877,6 @@ mod tests {
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
     #[test]
-    // TODO (https://github.com/astriaorg/astria/issues/1583): rework assertions and remove attribute
-    #[expect(
-        clippy::nonminimal_bool,
-        reason = "we want explicit assertions here to match the documented expected behavior"
-    )]
     fn transaction_priority_comparisons_should_be_consistent_nonce_diff() {
         let instant = Instant::now();
 
@@ -900,41 +895,37 @@ mod tests {
 
         // 1. a == b if and only if partial_cmp(a, b) == Some(Equal)
         assert!(high == high); // Some(Equal)
-        assert!(!(high == low)); // Some(Greater)
-        assert!(!(low == high)); // Some(Less)
+        assert!(high != low); // Some(Greater)
+        assert!(low != high); // Some(Less)
 
         // 2. a < b if and only if partial_cmp(a, b) == Some(Less)
         assert!(low < high); // Some(Less)
-        assert!(!(high < high)); // Some(Equal)
-        assert!(!(high < low)); // Some(Greater)
+        assert!(high >= high); // Some(Equal)
+        assert!(high >= low); // Some(Greater)
 
         // 3. a > b if and only if partial_cmp(a, b) == Some(Greater)
         assert!(high > low); // Some(Greater)
-        assert!(!(high > high)); // Some(Equal)
-        assert!(!(low > high)); // Some(Less)
+        assert!(high <= high); // Some(Equal)
+        assert!(low <= high); // Some(Less)
 
         // 4. a <= b if and only if a < b || a == b
         assert!(low <= high); // a < b
         assert!(high <= high); // a == b
-        assert!(!(high <= low)); // a > b
+        assert!(high > low); // !(b <= a)
 
         // 5. a >= b if and only if a > b || a == b
         assert!(high >= low); // a > b
         assert!(high >= high); // a == b
-        assert!(!(low >= high)); // a < b
+        assert!(low < high); // !(b >= a)
 
         // 6. a != b if and only if !(a == b)
         assert!(high != low); // asserted !(high == low) above
         assert!(low != high); // asserted !(low == high) above
-        assert!(!(high != high)); // asserted high == high above
+        assert!(high == high); // asserted high == high above
     }
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
     #[test]
-    #[expect(
-        clippy::nonminimal_bool,
-        reason = "we want explicit assertions here to match the documented expected behavior"
-    )]
     fn transaction_priority_comparisons_should_be_consistent_time_gap() {
         let high = TransactionPriority {
             nonce_diff: 0,
@@ -951,33 +942,33 @@ mod tests {
 
         // 1. a == b if and only if partial_cmp(a, b) == Some(Equal)
         assert!(high == high); // Some(Equal)
-        assert!(!(high == low)); // Some(Greater)
-        assert!(!(low == high)); // Some(Less)
+        assert!(high != low); // Some(Greater)
+        assert!(low != high); // Some(Less)
 
         // 2. a < b if and only if partial_cmp(a, b) == Some(Less)
         assert!(low < high); // Some(Less)
-        assert!(!(high < high)); // Some(Equal)
-        assert!(!(high < low)); // Some(Greater)
+        assert!(high >= high); // Some(Equal)
+        assert!(high >= low); // Some(Greater)
 
         // 3. a > b if and only if partial_cmp(a, b) == Some(Greater)
         assert!(high > low); // Some(Greater)
-        assert!(!(high > high)); // Some(Equal)
-        assert!(!(low > high)); // Some(Less)
+        assert!(high <= high); // Some(Equal)
+        assert!(low <= high); // Some(Less)
 
         // 4. a <= b if and only if a < b || a == b
         assert!(low <= high); // a < b
         assert!(high <= high); // a == b
-        assert!(!(high <= low)); // a > b
+        assert!(high > low); // !(b <= a)
 
         // 5. a >= b if and only if a > b || a == b
         assert!(high >= low); // a > b
         assert!(high >= high); // a == b
-        assert!(!(low >= high)); // a < b
+        assert!(low < high); // !(low >= high)
 
         // 6. a != b if and only if !(a == b)
         assert!(high != low); // asserted !(high == low) above
         assert!(low != high); // asserted !(low == high) above
-        assert!(!(high != high)); // asserted high == high above
+        assert!(high == high); // asserted !(high != high) above
     }
 
     #[test]
