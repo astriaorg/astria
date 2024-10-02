@@ -14,17 +14,17 @@ use cnidarium::{
 use tendermint::Time;
 use tracing::instrument;
 
-use super::storage;
+use super::storage::{
+    self,
+    keys::{
+        storage_version_by_height_key,
+        BLOCK_HEIGHT_KEY,
+        BLOCK_TIMESTAMP_KEY,
+        CHAIN_ID_KEY,
+        REVISION_NUMBER_KEY,
+    },
+};
 use crate::storage::StoredValue;
-
-const CHAIN_ID_KEY: &str = "chain_id";
-const REVISION_NUMBER_KEY: &str = "revision_number";
-const BLOCK_HEIGHT_KEY: &str = "block_height";
-const BLOCK_TIMESTAMP_KEY: &str = "block_timestamp";
-
-fn storage_version_by_height_key(height: u64) -> Vec<u8> {
-    format!("storage_version/{height}").into()
-}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -180,13 +180,8 @@ fn revision_number_from_chain_id(chain_id: &str) -> u64 {
 #[cfg(test)]
 mod tests {
     use cnidarium::StateDelta;
-    use tendermint::Time;
 
-    use super::{
-        revision_number_from_chain_id,
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
 
     #[test]
     fn revision_number_from_chain_id_regex() {

@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/authority/storage/keys.rs
+assertion_line: 17
+expression: base64(VALIDATOR_UPDATES_KEY)
+---
+YXV0aG9yaXR5L3ZhbGlkYXRvcl91cGRhdGVz

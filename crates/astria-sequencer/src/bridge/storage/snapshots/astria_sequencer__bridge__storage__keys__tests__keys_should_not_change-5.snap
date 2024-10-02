@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/keys.rs
+assertion_line: 99
+expression: rollup_id_key(&address())
+---
+bridge/account/1c0c490f1b5528d8173c5de46d131160e4b2c0c3/rollup_id

@@ -18,11 +18,14 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-use super::storage;
+use super::storage::{
+    self,
+    keys::{
+        BASE_PREFIX_KEY,
+        IBC_COMPAT_PREFIX_KEY,
+    },
+};
 use crate::storage::StoredValue;
-
-const BASE_PREFIX_KEY: &str = "prefixes/base";
-const IBC_COMPAT_PREFIX_KEY: &str = "prefixes/ibc-compat";
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -111,10 +114,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use cnidarium::StateDelta;
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
 
     #[tokio::test]
     async fn put_and_get_base_prefix() {

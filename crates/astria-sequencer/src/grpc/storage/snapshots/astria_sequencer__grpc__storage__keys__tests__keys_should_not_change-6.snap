@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/keys.rs
+assertion_line: 47
+expression: base64(&rollup_ids_proof_by_hash_key(&hash))
+---
+Z3JwYy9yb2xsdXBfaWRzX3Byb29mLwEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB

@@ -1,3 +1,8 @@
+use std::{
+    borrow::Cow,
+    fmt::Display,
+};
+
 use astria_core::primitive::v1::asset;
 use astria_eyre::{
     anyhow_to_eyre,
@@ -20,46 +25,23 @@ use tendermint::abci::{
 };
 use tracing::instrument;
 
-use super::storage;
+use super::storage::{
+    self,
+    keys::{
+        asset_key,
+        block_fees_key,
+        extract_asset_from_block_fees_key,
+        extract_asset_from_fee_asset_key,
+        fee_asset_key,
+        BLOCK_FEES_PREFIX,
+        FEE_ASSET_PREFIX,
+        NATIVE_ASSET_KEY,
+    },
+};
 use crate::storage::StoredValue;
 
-const BLOCK_FEES_PREFIX: &str = "block_fees/";
-const FEE_ASSET_PREFIX: &str = "fee_asset/";
-const NATIVE_ASSET_KEY: &str = "nativeasset";
-
-fn asset_storage_key<'a, TAsset>(asset: &'a TAsset) -> String
-where
-    asset::IbcPrefixed: From<&'a TAsset>,
-{
-    format!("asset/{}", crate::storage_keys::hunks::Asset::from(asset))
-}
-
-fn block_fees_key<'a, TAsset>(asset: &'a TAsset) -> String
-where
-    asset::IbcPrefixed: From<&'a TAsset>,
-{
-    format!(
-        "{BLOCK_FEES_PREFIX}{}",
-        crate::storage_keys::hunks::Asset::from(asset)
-    )
-}
-
-fn fee_asset_key<'a, TAsset>(asset: &'a TAsset) -> String
-where
-    asset::IbcPrefixed: From<&'a TAsset>,
-{
-    format!(
-        "{FEE_ASSET_PREFIX}{}",
-        crate::storage_keys::hunks::Asset::from(asset)
-    )
-}
-
 /// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
-fn construct_tx_fee_event<T: std::fmt::Display>(
-    asset: &T,
-    fee_amount: u128,
-    action_type: String,
-) -> Event {
+fn construct_tx_fee_event<T: Display>(asset: &T, fee_amount: u128, action_type: String) -> Event {
     Event::new(
         "tx.fees",
         [
@@ -93,10 +75,10 @@ pub(crate) trait StateReadExt: StateRead {
     async fn has_ibc_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
         TAsset: Sync,
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         Ok(self
-            .get_raw(&asset_storage_key(asset))
+            .get_raw(&asset_key(asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw asset from state")?
@@ -109,7 +91,7 @@ pub(crate) trait StateReadExt: StateRead {
         asset: &asset::IbcPrefixed,
     ) -> Result<Option<asset::TracePrefixed>> {
         let Some(bytes) = self
-            .get_raw(&asset_storage_key(asset))
+            .get_raw(&asset_key(asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw asset from state")?
@@ -128,19 +110,10 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_block_fees(&self) -> Result<Vec<(asset::IbcPrefixed, u128)>> {
         let mut fees = Vec::new();
 
-        let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(BLOCK_FEES_PREFIX.as_bytes()));
+        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(BLOCK_FEES_PREFIX));
         while let Some(Ok((key, bytes))) = stream.next().await {
-            // if the key isn't of the form `block_fees/{asset_id}`, then we have a bug
-            // in `put_block_fees`
-            let suffix = key
-                .strip_prefix(BLOCK_FEES_PREFIX.as_bytes())
-                .expect("prefix must always be present");
-            let asset = std::str::from_utf8(suffix)
-                .wrap_err("key suffix was not utf8 encoded; this should not happen")?
-                .parse::<crate::storage_keys::hunks::Asset>()
-                .wrap_err("failed to parse storage key suffix as address hunk")?
-                .get();
+            let asset =
+                extract_asset_from_block_fees_key(&key).wrap_err("failed to extract asset")?;
 
             let fee = StoredValue::deserialize(&bytes)
                 .and_then(|value| storage::Fee::try_from(value).map(u128::from))
@@ -156,10 +129,10 @@ pub(crate) trait StateReadExt: StateRead {
     async fn is_allowed_fee_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
         TAsset: Sync,
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         Ok(self
-            .nonverifiable_get_raw(fee_asset_key(asset).as_bytes())
+            .nonverifiable_get_raw(&fee_asset_key(asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw fee asset from state")?
@@ -170,18 +143,10 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_allowed_fee_assets(&self) -> Result<Vec<asset::IbcPrefixed>> {
         let mut assets = Vec::new();
 
-        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(FEE_ASSET_PREFIX.as_bytes()));
+        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(FEE_ASSET_PREFIX));
         while let Some(Ok((key, _))) = stream.next().await {
-            // if the key isn't of the form `fee_asset/{asset_id}`, then we have a bug
-            // in `put_allowed_fee_asset`
-            let suffix = key
-                .strip_prefix(FEE_ASSET_PREFIX.as_bytes())
-                .expect("prefix must always be present");
-            let asset = std::str::from_utf8(suffix)
-                .wrap_err("key suffix was not utf8 encoded; this should not happen")?
-                .parse::<crate::storage_keys::hunks::Asset>()
-                .wrap_err("failed to parse storage key suffix as address hunk")?
-                .get();
+            let asset =
+                extract_asset_from_fee_asset_key(&key).wrap_err("failed to extract asset")?;
             assets.push(asset);
         }
 
@@ -204,7 +169,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     fn put_ibc_asset(&mut self, asset: asset::TracePrefixed) -> Result<()> {
-        let key = asset_storage_key(&asset);
+        let key = asset_key(&asset);
         let bytes = StoredValue::from(storage::TracePrefixedDenom::from(&asset))
             .serialize()
             .wrap_err("failed to serialize ibc asset")?;
@@ -221,14 +186,14 @@ pub(crate) trait StateWriteExt: StateWrite {
         action_type: String,
     ) -> Result<()>
     where
-        TAsset: Sync + std::fmt::Display,
-        asset::IbcPrefixed: From<&'a TAsset>,
+        TAsset: Sync + Display,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let tx_fee_event = construct_tx_fee_event(asset, amount, action_type);
         let block_fees_key = block_fees_key(asset);
 
         let current_amount = self
-            .nonverifiable_get_raw(block_fees_key.as_bytes())
+            .nonverifiable_get_raw(&block_fees_key)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw block fees from state")?
@@ -246,7 +211,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Fee::from(new_amount))
             .serialize()
             .wrap_err("failed to serialize block fees")?;
-        self.nonverifiable_put_raw(block_fees_key.into(), bytes);
+        self.nonverifiable_put_raw(block_fees_key, bytes);
 
         self.record(tx_fee_event);
 
@@ -255,8 +220,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     async fn clear_block_fees(&mut self) {
-        let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(BLOCK_FEES_PREFIX.as_bytes()));
+        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(BLOCK_FEES_PREFIX));
         while let Some(Ok((key, _))) = stream.next().await {
             self.nonverifiable_delete(key);
         }
@@ -265,20 +229,20 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn delete_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset)
     where
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
-        self.nonverifiable_delete(fee_asset_key(asset).into());
+        self.nonverifiable_delete(fee_asset_key(asset));
     }
 
     #[instrument(skip_all)]
     fn put_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset) -> Result<()>
     where
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let bytes = StoredValue::Unit
             .serialize()
             .context("failed to serialize unit for allowed fee asset")?;
-        self.nonverifiable_put_raw(fee_asset_key(asset).into(), bytes);
+        self.nonverifiable_put_raw(fee_asset_key(asset), bytes);
         Ok(())
     }
 }
@@ -289,16 +253,9 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use std::collections::HashSet;
 
-    use astria_core::primitive::v1::asset;
     use cnidarium::StateDelta;
 
-    use super::{
-        asset_storage_key,
-        block_fees_key,
-        fee_asset_key,
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
 
     fn asset() -> asset::Denom {
         "asset".parse().unwrap()
@@ -642,32 +599,5 @@ mod tests {
             ]),
             "delete for allowed fee asset did not behave as expected"
         );
-    }
-
-    #[test]
-    fn storage_keys_are_unchanged() {
-        let asset = "an/asset/with/a/prefix"
-            .parse::<astria_core::primitive::v1::asset::Denom>()
-            .unwrap();
-        assert_eq!(
-            asset_storage_key(&asset),
-            asset_storage_key(&asset.to_ibc_prefixed()),
-        );
-        insta::assert_snapshot!(asset_storage_key(&asset));
-
-        let trace_prefixed = "a/denom/with/a/prefix"
-            .parse::<astria_core::primitive::v1::asset::Denom>()
-            .unwrap();
-        assert_eq!(
-            block_fees_key(&trace_prefixed),
-            block_fees_key(&trace_prefixed.to_ibc_prefixed()),
-        );
-        insta::assert_snapshot!(block_fees_key(&trace_prefixed));
-
-        assert_eq!(
-            fee_asset_key(&trace_prefixed),
-            fee_asset_key(&trace_prefixed.to_ibc_prefixed()),
-        );
-        insta::assert_snapshot!(fee_asset_key(&trace_prefixed));
     }
 }

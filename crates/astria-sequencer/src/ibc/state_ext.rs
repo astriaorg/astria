@@ -1,4 +1,7 @@
-use std::fmt::Display;
+use std::{
+    borrow::Cow,
+    fmt::Display,
+};
 
 use astria_core::primitive::v1::{
     asset,
@@ -24,41 +27,19 @@ use tracing::{
     instrument,
 };
 
-use super::storage;
+use super::storage::{
+    self,
+    keys::{
+        channel_balance_key,
+        ibc_relayer_key,
+        IBC_SUDO_KEY,
+        ICS20_WITHDRAWAL_BASE_FEE_KEY,
+    },
+};
 use crate::{
     accounts::AddressBytes,
     storage::StoredValue,
 };
-
-const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
-const ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY: &str = "ics20withdrawalfee";
-
-struct IbcRelayerKey<'a, T>(&'a T);
-
-impl<'a, T: AddressBytes> std::fmt::Display for IbcRelayerKey<'a, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("ibc-relayer")?;
-        f.write_str("/")?;
-        for byte in self.0.address_bytes() {
-            f.write_fmt(format_args!("{byte:02x}"))?;
-        }
-        Ok(())
-    }
-}
-
-fn channel_balance_storage_key<'a, TAsset>(channel: &ChannelId, asset: &'a TAsset) -> String
-where
-    asset::IbcPrefixed: From<&'a TAsset>,
-{
-    format!(
-        "ibc-data/{channel}/balance/{}",
-        crate::storage_keys::hunks::Asset::from(asset),
-    )
-}
-
-fn ibc_relayer_key<T: AddressBytes>(address: &T) -> String {
-    IbcRelayerKey(address).to_string()
-}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -70,10 +51,10 @@ pub(crate) trait StateReadExt: StateRead {
     ) -> Result<u128>
     where
         TAsset: Sync + Display,
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let Some(bytes) = self
-            .get_raw(&channel_balance_storage_key(channel, asset))
+            .get_raw(&channel_balance_key(channel, asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading ibc channel balance from state")?
@@ -89,7 +70,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
-            .get_raw(IBC_SUDO_STORAGE_KEY)
+            .get_raw(IBC_SUDO_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw ibc sudo address from state")?
@@ -115,7 +96,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ics20_withdrawal_base_fee(&self) -> Result<u128> {
         let Some(bytes) = self
-            .get_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY)
+            .get_raw(ICS20_WITHDRAWAL_BASE_FEE_KEY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading ics20 withdrawal fee from state")?
@@ -141,12 +122,12 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) -> Result<()>
     where
         TAsset: Display,
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let bytes = StoredValue::from(storage::Balance::from(balance))
             .serialize()
             .wrap_err("failed to serialize ibc channel balance")?;
-        self.put_raw(channel_balance_storage_key(channel, asset), bytes);
+        self.put_raw(channel_balance_key(channel, asset), bytes);
         Ok(())
     }
 
@@ -159,7 +140,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) -> Result<()>
     where
         TAsset: Sync + Display,
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let old_balance = self
             .get_ibc_channel_balance(channel, asset)
@@ -179,7 +160,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::AddressBytes::from(&address))
             .serialize()
             .wrap_err("failed to serialize ibc sudo address")?;
-        self.put_raw(IBC_SUDO_STORAGE_KEY.to_string(), bytes);
+        self.put_raw(IBC_SUDO_KEY.to_string(), bytes);
         Ok(())
     }
 
@@ -202,7 +183,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .wrap_err("failed to serialize ics20 withdrawal base fee")?;
-        self.put_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(), bytes);
+        self.put_raw(ICS20_WITHDRAWAL_BASE_FEE_KEY.to_string(), bytes);
         Ok(())
     }
 }
@@ -211,21 +192,11 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::{
-        asset,
-        Address,
-    };
     use cnidarium::StateDelta;
-    use ibc_types::core::channel::ChannelId;
-    use insta::assert_snapshot;
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
     use crate::{
-        address::StateWriteExt,
-        ibc::state_ext::channel_balance_storage_key,
+        address::StateWriteExt as _,
         test_utils::{
             astria_address,
             ASTRIA_PREFIX,
@@ -235,6 +206,7 @@ mod tests {
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
     }
+
     fn asset_1() -> asset::Denom {
         "asset_1".parse().unwrap()
     }
@@ -516,24 +488,5 @@ mod tests {
         state.put_ics20_withdrawal_base_fee(123).unwrap();
         let retrieved_fee = state.get_ics20_withdrawal_base_fee().await.unwrap();
         assert_eq!(retrieved_fee, 123);
-    }
-
-    #[test]
-    fn storage_keys_have_not_changed() {
-        let channel = ChannelId::new(5);
-        let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
-            .parse()
-            .unwrap();
-
-        assert_snapshot!(super::ibc_relayer_key(&address));
-
-        let asset = "an/asset/with/a/prefix"
-            .parse::<astria_core::primitive::v1::asset::Denom>()
-            .unwrap();
-        assert_eq!(
-            channel_balance_storage_key(&channel, &asset),
-            channel_balance_storage_key(&channel, &asset.to_ibc_prefixed()),
-        );
-        assert_snapshot!(channel_balance_storage_key(&channel, &asset));
     }
 }

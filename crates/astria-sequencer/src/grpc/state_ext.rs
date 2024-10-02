@@ -22,32 +22,18 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-use super::storage;
+use super::storage::{
+    self,
+    keys::{
+        block_hash_by_height_key,
+        rollup_data_by_hash_and_rollup_id_key,
+        rollup_ids_by_hash_key,
+        rollup_ids_proof_by_hash_key,
+        rollup_transactions_proof_by_hash_key,
+        sequencer_block_header_by_hash_key,
+    },
+};
 use crate::storage::StoredValue;
-
-fn block_hash_by_height_key(height: u64) -> Vec<u8> {
-    [b"blockhash/".as_slice(), &height.to_le_bytes()].concat()
-}
-
-fn sequencer_block_header_by_hash_key(hash: &[u8; 32]) -> Vec<u8> {
-    [b"blockheader/", hash.as_slice()].concat()
-}
-
-fn rollup_data_by_hash_and_rollup_id_key(hash: &[u8; 32], rollup_id: &RollupId) -> Vec<u8> {
-    [b"rollupdata/", hash.as_slice(), rollup_id.as_ref()].concat()
-}
-
-fn rollup_ids_by_hash_key(hash: &[u8; 32]) -> Vec<u8> {
-    [b"rollupids/", hash.as_slice()].concat()
-}
-
-fn rollup_transactions_proof_by_hash_key(hash: &[u8; 32]) -> Vec<u8> {
-    [b"rolluptxsproof/", hash.as_slice()].concat()
-}
-
-fn rollup_ids_proof_by_hash_key(hash: &[u8; 32]) -> Vec<u8> {
-    [b"rollupidsproof/", hash.as_slice()].concat()
-}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {

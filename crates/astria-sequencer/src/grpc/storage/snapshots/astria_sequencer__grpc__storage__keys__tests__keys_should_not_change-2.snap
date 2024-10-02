@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/keys.rs
+assertion_line: 40
+expression: base64(&sequencer_block_header_by_hash_key(&hash))
+---
+Z3JwYy9ibG9ja19oZWFkZXIvAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=

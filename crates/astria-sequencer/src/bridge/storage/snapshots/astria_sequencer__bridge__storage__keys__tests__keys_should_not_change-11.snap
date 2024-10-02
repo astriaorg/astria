@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/keys.rs
+assertion_line: 105
+expression: base64(&last_transaction_id_for_bridge_account_key(&address()))
+---
+YnJpZGdlL2FjY291bnQvHAxJDxtVKNgXPF3kbRMRYOSywMMvbGFzdF90eA==
