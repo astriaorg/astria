@@ -9,10 +9,7 @@ use cnidarium::StateWrite;
 
 use crate::{
     address::StateReadExt as _,
-    app::{
-        ActionHandler,
-        FeeHandler,
-    },
+    app::ActionHandler,
     ibc::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -58,13 +55,6 @@ impl ActionHandler for IbcRelayerChangeAction {
                 state.delete_ibc_relayer_address(address);
             }
         }
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl FeeHandler for IbcRelayerChangeAction {
-    async fn calculate_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
         Ok(())
     }
 }

@@ -4,27 +4,14 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     bail,
-    ensure,
     Result,
     WrapErr as _,
 };
 use cnidarium::StateWrite;
-use tracing::{
-    instrument,
-    Level,
-};
 
 use crate::{
-    accounts::StateWriteExt as _,
     address::StateReadExt as _,
-    app::{
-        ActionHandler,
-        FeeHandler,
-    },
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    app::ActionHandler,
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -89,42 +76,6 @@ impl ActionHandler for InitBridgeAccountAction {
         state.put_bridge_account_withdrawer_address(
             &from,
             self.withdrawer_address.map_or(from, Address::bytes),
-        )?;
-
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl FeeHandler for InitBridgeAccountAction {
-    #[instrument(skip_all, err(level = Level::WARN))]
-    async fn calculate_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let tx_context = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action");
-        let from = tx_context.address_bytes();
-        let fee = state
-            .get_init_bridge_account_base_fee()
-            .await
-            .wrap_err("failed to get init bridge account base fee")?;
-
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
-
-        state
-            .decrease_balance(&from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to decrease balance for fee payment")?;
-        state.add_fee_to_block_fees(
-            &self.fee_asset,
-            fee,
-            tx_context.transaction_id,
-            tx_context.source_action_index,
         )?;
 
         Ok(())

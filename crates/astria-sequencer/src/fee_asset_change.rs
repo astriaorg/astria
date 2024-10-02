@@ -9,10 +9,7 @@ use async_trait::async_trait;
 use cnidarium::StateWrite;
 
 use crate::{
-    app::{
-        ActionHandler,
-        FeeHandler,
-    },
+    app::ActionHandler,
     assets::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -59,13 +56,6 @@ impl ActionHandler for FeeAssetChangeAction {
                 }
             }
         }
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl FeeHandler for FeeAssetChangeAction {
-    async fn calculate_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
         Ok(())
     }
 }

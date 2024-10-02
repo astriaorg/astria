@@ -40,13 +40,13 @@ use crate::{
     },
     app::{
         ActionHandler,
-        FeeHandler,
         StateReadExt as _,
     },
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    fees::FeeHandler,
     ibc::{
         host_interface::AstriaHost,
         StateReadExt as _,
@@ -218,28 +218,22 @@ impl ActionHandler for SignedTransaction {
             state.put_transaction_context(transaction_context);
 
             match action {
-                Action::Transfer(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::Transfer(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("executing transfer action failed")?,
-                Action::Sequence(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::Sequence(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("executing sequence action failed")?,
-                Action::ValidatorUpdate(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::ValidatorUpdate(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("executing validor update")?,
-                Action::SudoAddressChange(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::SudoAddressChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("executing sudo address change failed")?,
-                Action::IbcSudoChange(act) => act
-                    .check_and_execute(&mut state)
+                Action::IbcSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("executing ibc sudo change failed")?,
-                Action::FeeChange(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::FeeChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("executing fee change failed")?,
                 Action::Ibc(act) => {
@@ -263,32 +257,25 @@ impl ActionHandler for SignedTransaction {
                         .map_err(anyhow_to_eyre)
                         .wrap_err("failed executing ibc action")?;
                 }
-                Action::Ics20Withdrawal(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::Ics20Withdrawal(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing ics20 withdrawal")?,
-                Action::IbcRelayerChange(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::IbcRelayerChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing ibc relayer change")?,
-                Action::FeeAssetChange(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::FeeAssetChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing fee asseet change")?,
-                Action::InitBridgeAccount(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::InitBridgeAccount(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing init bridge account")?,
-                Action::BridgeLock(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::BridgeLock(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge lock")?,
-                Action::BridgeUnlock(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::BridgeUnlock(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge unlock")?,
-                Action::BridgeSudoChange(act) => act
-                    .check_execute_and_pay_fees(&mut state)
+                Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge sudo change")?,
             }
@@ -300,9 +287,11 @@ impl ActionHandler for SignedTransaction {
     }
 }
 
-#[async_trait::async_trait]
-impl FeeHandler for SignedTransaction {
-    async fn calculate_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
-        Ok(())
-    }
+async fn check_execute_and_pay_fees<T: ActionHandler + FeeHandler, S: StateWrite>(
+    action: &T,
+    mut state: S,
+) -> Result<()> {
+    action.check_and_execute(&mut state).await?;
+    action.check_and_pay_fees(&mut state).await?;
+    Ok(())
 }

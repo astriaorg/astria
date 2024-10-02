@@ -34,10 +34,6 @@ use penumbra_ibc::component::packet::{
     Unchecked,
 };
 use penumbra_proto::core::component::ibc::v1::FungibleTokenPacketData;
-use tracing::{
-    instrument,
-    Level,
-};
 
 use crate::{
     accounts::{
@@ -47,12 +43,7 @@ use crate::{
     address::StateReadExt as _,
     app::{
         ActionHandler,
-        FeeHandler,
         StateReadExt as _,
-    },
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
     },
     bridge::{
         StateReadExt as _,
@@ -262,42 +253,6 @@ impl ActionHandler for action::Ics20Withdrawal {
         }
 
         state.send_packet_execute(packet).await;
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl FeeHandler for action::Ics20Withdrawal {
-    #[instrument(skip_all, err(level = Level::WARN))]
-    async fn calculate_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let tx_context = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action");
-        let from = tx_context.address_bytes();
-        let fee = state
-            .get_ics20_withdrawal_base_fee()
-            .await
-            .wrap_err("failed to get ics20 withdrawal base fee")?;
-
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
-
-        state
-            .decrease_balance(&from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to decrease balance for fee payment")?;
-        state.add_fee_to_block_fees(
-            &self.fee_asset,
-            fee,
-            tx_context.transaction_id,
-            tx_context.source_action_index,
-        )?;
-
         Ok(())
     }
 }

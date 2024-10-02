@@ -53,8 +53,8 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    fees::calculate_sequence_action_fee_from_state,
     ibc::StateReadExt as _,
-    sequence::calculate_fee_from_state,
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -266,7 +266,9 @@ async fn app_execute_transaction_sequence() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_fee_from_state(&data, &app.state).await.unwrap();
+    let fee = calculate_sequence_action_fee_from_state(&data, &app.state)
+        .await
+        .unwrap();
 
     let tx = UnsignedTransaction::builder()
         .actions(vec![
@@ -757,7 +759,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
             .get_bridge_lock_byte_cost_multiplier()
             .await
             .unwrap()
-            * crate::bridge::calculate_base_deposit_fee(&expected_deposit).unwrap();
+            * crate::fees::calculate_base_deposit_fee(&expected_deposit).unwrap();
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -918,7 +920,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // figure out needed fee for a single transfer
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_fee_from_state(&data, &app.state.clone())
+    let fee = calculate_sequence_action_fee_from_state(&data, &app.state.clone())
         .await
         .unwrap();
 

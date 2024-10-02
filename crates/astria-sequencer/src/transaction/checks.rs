@@ -246,7 +246,7 @@ async fn sequence_update_fees<S: StateRead>(
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     data: &[u8],
 ) -> Result<()> {
-    let fee = crate::sequence::calculate_fee_from_state(data, state)
+    let fee = crate::fees::calculate_sequence_action_fee_from_state(data, state)
         .await
         .wrap_err("fee for sequence action overflowed; data too large")?;
     fees_by_asset
@@ -277,7 +277,7 @@ fn bridge_lock_update_fees(
     use astria_core::sequencerblock::v1alpha1::block::Deposit;
 
     let expected_deposit_fee = transfer_fee.saturating_add(
-        crate::bridge::calculate_base_deposit_fee(&Deposit {
+        crate::fees::calculate_base_deposit_fee(&Deposit {
             bridge_address: act.to,
             // rollup ID doesn't matter here, as this is only used as a size-check
             rollup_id: RollupId::from_unhashed_bytes([0; 32]),
@@ -373,7 +373,7 @@ mod tests {
                     .unwrap(),
                 &crate::test_utils::nria(),
                 transfer_fee
-                    + crate::sequence::calculate_fee_from_state(&data, &state_tx)
+                    + crate::fees::calculate_sequence_action_fee_from_state(&data, &state_tx)
                         .await
                         .unwrap(),
             )
@@ -451,7 +451,7 @@ mod tests {
                     .unwrap(),
                 &crate::test_utils::nria(),
                 transfer_fee
-                    + crate::sequence::calculate_fee_from_state(&data, &state_tx)
+                    + crate::fees::calculate_sequence_action_fee_from_state(&data, &state_tx)
                         .await
                         .unwrap(),
             )

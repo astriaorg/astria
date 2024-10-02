@@ -14,7 +14,6 @@ mod tests_breaking_changes;
 #[cfg(test)]
 mod tests_execute_transaction;
 
-mod fee_handler;
 use std::{
     collections::VecDeque,
     sync::Arc,
@@ -53,10 +52,6 @@ use cnidarium::{
     StateWrite,
     Storage,
 };
-pub(crate) use fee_handler::{
-    Fee,
-    FeeHandler,
-};
 use prost::Message as _;
 use sha2::{
     Digest as _,
@@ -69,7 +64,6 @@ use tendermint::{
         types::ExecTxResult,
         Code,
         Event,
-        EventAttributeIndexExt as _,
     },
     account,
     block::Header,
@@ -95,10 +89,7 @@ use crate::{
         StateWriteExt as _,
     },
     address::StateWriteExt as _,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets::StateWriteExt as _,
     authority::{
         component::{
             AuthorityComponent,
@@ -113,6 +104,10 @@ use crate::{
         StateWriteExt as _,
     },
     component::Component as _,
+    fees::{
+        construct_tx_fee_event,
+        StateReadExt as _,
+    },
     grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
     mempool::{
@@ -1100,15 +1095,12 @@ impl App {
 
         for fee in fees {
             state_tx
-                .increase_balance(fee_recipient, &fee.asset, fee.amount)
+                .increase_balance(fee_recipient, fee.asset(), fee.amount())
                 .await
                 .wrap_err("failed to increase fee recipient balance")?;
             let fee_event = construct_tx_fee_event(&fee);
             state_tx.record(fee_event);
         }
-
-        // clear block fees
-        state_tx.clear_block_fees();
 
         let events = self.apply(state_tx);
         Ok(abci::response::EndBlock {
@@ -1196,17 +1188,4 @@ fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<SignedTransaction> {
         .wrap_err("failed to transform raw signed transaction to verified type")?;
 
     Ok(tx)
-}
-
-/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
-fn construct_tx_fee_event(fee: &Fee) -> Event {
-    Event::new(
-        "tx.fees",
-        [
-            ("asset", fee.asset.to_string()).index(),
-            ("feeAmount", fee.amount.to_string()).index(),
-            ("sourceTransactionId", fee.source_transaction_id.to_string()).index(),
-            ("sourceActionIndex", fee.source_action_index.to_string()).index(),
-        ],
-    )
 }

@@ -55,6 +55,7 @@ use crate::{
         ValidatorSet,
     },
     bridge::StateWriteExt as _,
+    fees::StateReadExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
         astria_address,
