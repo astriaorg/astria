@@ -79,7 +79,9 @@ async fn transaction_execution_records_fee_event() {
     assert_eq!(event.kind, "tx.fees");
     assert_eq!(
         event.attributes[0],
-        ("asset", nria().to_ibc_prefixed().to_string()).index().into()
+        ("asset", nria().to_ibc_prefixed().to_string())
+            .index()
+            .into()
     );
     assert_eq!(
         event.attributes[1],
