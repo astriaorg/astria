@@ -511,7 +511,7 @@ mod tests {
     use insta::assert_snapshot;
 
     use super::*;
-    use crate::test_utils::astria_address;
+    use crate::benchmark_and_test_utils::astria_address;
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()

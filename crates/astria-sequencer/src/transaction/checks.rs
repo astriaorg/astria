@@ -333,10 +333,13 @@ mod tests {
         },
         app::test_utils::*,
         assets::StateWriteExt as _,
+        benchmark_and_test_utils::{
+            nria,
+            ASTRIA_PREFIX,
+        },
         bridge::StateWriteExt as _,
         ibc::StateWriteExt as _,
         sequence::StateWriteExt as _,
-        test_utils::ASTRIA_PREFIX,
     };
 
     #[tokio::test]
@@ -346,9 +349,7 @@ mod tests {
         let mut state_tx = StateDelta::new(snapshot);
 
         state_tx.put_base_prefix("astria".to_string()).unwrap();
-        state_tx
-            .put_native_asset(crate::test_utils::nria())
-            .unwrap();
+        state_tx.put_native_asset(nria()).unwrap();
         state_tx.put_transfer_base_fee(12).unwrap();
         state_tx.put_sequence_action_base_fee(0).unwrap();
         state_tx
@@ -371,7 +372,7 @@ mod tests {
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
-                &crate::test_utils::nria(),
+                &nria(),
                 transfer_fee
                     + crate::sequence::calculate_fee_from_state(&data, &state_tx)
                         .await
@@ -395,13 +396,13 @@ mod tests {
             Action::Transfer(TransferAction {
                 asset: other_asset.clone(),
                 amount,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
             Action::Sequence(SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
             }),
         ];
 
@@ -424,9 +425,7 @@ mod tests {
         let mut state_tx = StateDelta::new(snapshot);
 
         state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
-            .put_native_asset(crate::test_utils::nria())
-            .unwrap();
+        state_tx.put_native_asset(nria()).unwrap();
         state_tx.put_transfer_base_fee(12).unwrap();
         state_tx.put_sequence_action_base_fee(0).unwrap();
         state_tx
@@ -449,7 +448,7 @@ mod tests {
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
-                &crate::test_utils::nria(),
+                &nria(),
                 transfer_fee
                     + crate::sequence::calculate_fee_from_state(&data, &state_tx)
                         .await
@@ -462,13 +461,13 @@ mod tests {
             Action::Transfer(TransferAction {
                 asset: other_asset.clone(),
                 amount,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
             Action::Sequence(SequenceAction {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
             }),
         ];
 

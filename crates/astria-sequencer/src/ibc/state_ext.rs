@@ -225,11 +225,11 @@ mod tests {
     };
     use crate::{
         address::StateWriteExt,
-        ibc::state_ext::channel_balance_storage_key,
-        test_utils::{
+        benchmark_and_test_utils::{
             astria_address,
             ASTRIA_PREFIX,
         },
+        ibc::state_ext::channel_balance_storage_key,
     };
 
     fn asset_0() -> asset::Denom {

@@ -772,6 +772,12 @@ mod tests {
         accounts::StateReadExt as _,
         address::StateWriteExt as _,
         assets::StateReadExt as _,
+        benchmark_and_test_utils::{
+            astria_address,
+            nria,
+            ASTRIA_COMPAT_PREFIX,
+            ASTRIA_PREFIX,
+        },
         bridge::{
             StateReadExt as _,
             StateWriteExt as _,
@@ -780,13 +786,7 @@ mod tests {
             StateReadExt as _,
             StateWriteExt,
         },
-        test_utils::{
-            astria_address,
-            astria_compat_address,
-            nria,
-            ASTRIA_COMPAT_PREFIX,
-            ASTRIA_PREFIX,
-        },
+        test_utils::astria_compat_address,
         transaction::{
             StateWriteExt as _,
             TransactionContext,
