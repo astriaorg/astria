@@ -50,6 +50,7 @@ use crate::{
     app::ActionHandler as _,
     mempool::{
         get_account_balances,
+        InsertionError,
         Mempool as AppMempool,
         RemovalReason,
     },
@@ -324,6 +325,7 @@ async fn stateless_checks<S: accounts::StateReadExt + address::StateReadExt + 's
 ///
 /// Returns a `Err(response::CheckTx)` with an error code and message if the transaction fails
 /// insertion into the mempool.
+#[expect(clippy::too_many_lines, reason = "error handling is long")]
 async fn insert_into_mempool<S: accounts::StateReadExt + address::StateReadExt + 'static>(
     mempool: &AppMempool,
     state: &S,
@@ -430,12 +432,24 @@ async fn insert_into_mempool<S: accounts::StateReadExt + address::StateReadExt +
         )
         .await
     {
-        return Err(response::CheckTx {
-            code: Code::Err(AbciErrorCode::TRANSACTION_INSERTION_FAILED.value()),
-            info: "transaction insertion failed".into(),
-            log: format!("transaction insertion failed because: {err:#}"),
-            ..response::CheckTx::default()
-        });
+        match err {
+            InsertionError::NonceTooLow => {
+                return Err(response::CheckTx {
+                    code: Code::Err(AbciErrorCode::INVALID_NONCE.value()),
+                    info: "transaction failed because account nonce is too low".into(),
+                    log: format!("transaction failed because account nonce is too low: {err:#}"),
+                    ..response::CheckTx::default()
+                });
+            }
+            _ => {
+                return Err(response::CheckTx {
+                    code: Code::Err(AbciErrorCode::TRANSACTION_INSERTION_FAILED.value()),
+                    info: "transaction insertion failed".into(),
+                    log: format!("transaction insertion failed because: {err:#}"),
+                    ..response::CheckTx::default()
+                });
+            }
+        }
     }
 
     metrics
