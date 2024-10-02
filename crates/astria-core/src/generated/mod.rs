@@ -38,6 +38,19 @@ pub mod astria_vendored {
 }
 
 #[path = ""]
+pub mod bundle {
+    pub mod v1alpha1 {
+        include!("astria.bundle.v1alpha1.rs");
+
+        #[cfg(feature = "serde")]
+        mod _serde_impl {
+            use super::*;
+            include!("astria.bundle.v1alpha1.serde.rs");
+        }
+    }
+}
+
+#[path = ""]
 pub mod execution {
     #[path = "astria.execution.v1alpha1.rs"]
     pub mod v1alpha1;
