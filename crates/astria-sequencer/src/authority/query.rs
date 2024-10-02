@@ -158,7 +158,6 @@ mod tests {
         let verification_key = verification_key(1);
         let key_address = *verification_key.clone().address_bytes();
         let validator_name = "test".to_string();
-
         let inner_update = ValidatorUpdate {
             power: 100,
             verification_key,
@@ -188,12 +187,86 @@ mod tests {
             height: 0u32.into(),
             prove: false,
         };
-
         let params = vec![("address".to_string(), hex::encode(key_address))];
 
         let rsp = validator_name_request(storage.clone(), query, params).await;
         assert_eq!(rsp.code, 0.into(), "{}", rsp.log);
         assert_eq!(rsp.key, "path".as_bytes());
         assert_eq!(rsp.value, validator_name);
+    }
+
+    #[tokio::test]
+    async fn validator_name_request_fails_if_not_in_validator_set() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let verification_key = verification_key(1);
+
+        let query = request::Query {
+            data: vec![].into(),
+            path: "path".to_string(),
+            height: 0u32.into(),
+            prove: false,
+        };
+
+        // Use a different address than the one submitted to the validator set
+        let params = vec![("address".to_string(), hex::encode([0u8; 20]))];
+
+        let inner_update = ValidatorUpdate {
+            power: 100,
+            verification_key,
+        };
+
+        let rsp = validator_name_request(storage.clone(), query.clone(), params.clone()).await;
+        assert_eq!(rsp.code, 3.into(), "{}", rsp.log); // AbciErrorCode::INTERNAL_ERROR
+        let err_msg = "failed to get validator set: validator set not found";
+        assert_eq!(rsp.log, err_msg);
+
+        let inner_validator_map = BTreeMap::new();
+        let mut validator_set = ValidatorSet::new(inner_validator_map);
+        assert_eq!(validator_set.len(), 0);
+        validator_set.push_update(inner_update);
+        state.put_validator_set(validator_set).unwrap();
+        storage.commit(state).await.unwrap();
+
+        let rsp = validator_name_request(storage.clone(), query, params).await;
+        assert_eq!(rsp.code, 8.into(), "{}", rsp.log); // AbciErrorCode::VALUE_NOT_FOUND
+        let err_msg = "validator address not found in validator set";
+        assert_eq!(rsp.log, err_msg);
+    }
+
+    #[tokio::test]
+    async fn validator_name_request_fails_if_validator_has_no_name() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let verification_key = verification_key(1);
+        let key_address = *verification_key.clone().address_bytes();
+        let inner_update = ValidatorUpdate {
+            power: 100,
+            verification_key,
+        };
+
+        let inner_validator_map = BTreeMap::new();
+        let mut validator_set = ValidatorSet::new(inner_validator_map);
+        assert_eq!(validator_set.len(), 0);
+        validator_set.push_update(inner_update);
+        state.put_validator_set(validator_set).unwrap();
+        storage.commit(state).await.unwrap();
+
+        let query = request::Query {
+            data: vec![].into(),
+            path: "path".to_string(),
+            height: 0u32.into(),
+            prove: false,
+        };
+
+        let params = vec![("address".to_string(), hex::encode(key_address))];
+        let rsp = validator_name_request(storage.clone(), query, params).await;
+        assert_eq!(rsp.code, 8.into(), "{}", rsp.log); // AbciErrorCode::VALUE_NOT_FOUND
+        let err_msg = "validator address exists but does not have a name";
+        assert_eq!(rsp.log, err_msg);
     }
 }
