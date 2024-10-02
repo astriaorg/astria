@@ -766,7 +766,7 @@ impl ValidatorUpdateWithNameError {
 
 #[derive(Debug, thiserror::Error)]
 enum ValidatorUpdateWithNameErrorKind {
-    #[error("the inner validator update was invalid from the action")]
+    #[error("the action's inner validator update was invalid")]
     InvalidInnerValidatorUpdate(#[source] ValidatorUpdateError),
     #[error("the inner validator update was missing from the action")]
     MissingInnerValidatorUpdate,
@@ -787,15 +787,14 @@ impl Protobuf for ValidatorUpdateWithName {
             validator_update,
             name,
         } = raw;
-        let validator_update = validator_update
+        let raw_validator_update = validator_update
             .clone()
             .ok_or(ValidatorUpdateWithNameError::missing_inner_validator_update())?;
-        let validator_update = ValidatorUpdate::try_from_raw(validator_update)
+        let validator_update = ValidatorUpdate::try_from_raw(raw_validator_update)
             .map_err(ValidatorUpdateWithNameError::invalid_inner_validator_update)?;
-        let name = name.clone();
         Ok(Self {
             validator_update,
-            name,
+            name: name.clone(),
         })
     }
 
@@ -804,11 +803,10 @@ impl Protobuf for ValidatorUpdateWithName {
             validator_update,
             name,
         } = raw;
-        let validator_update = validator_update
+        let raw_validator_update = validator_update
             .ok_or(ValidatorUpdateWithNameError::missing_inner_validator_update())?;
-        let validator_update = ValidatorUpdate::try_from_raw(validator_update)
+        let validator_update = ValidatorUpdate::try_from_raw(raw_validator_update)
             .map_err(ValidatorUpdateWithNameError::invalid_inner_validator_update)?;
-        let name = name.clone();
         Ok(Self {
             validator_update,
             name,
