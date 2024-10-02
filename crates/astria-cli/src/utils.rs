@@ -3,7 +3,6 @@ use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::{
         Action,
-        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -36,7 +35,7 @@ pub(crate) async fn submit_transaction(
     let sequencer_key = SigningKey::from(private_key_bytes);
 
     let from_address = Address::builder()
-        .array(sequencer_key.verification_key().address_bytes())
+        .array(*sequencer_key.verification_key().address_bytes())
         .prefix(prefix)
         .try_build()
         .wrap_err("failed constructing a valid from address from the provided prefix")?;
@@ -47,14 +46,13 @@ pub(crate) async fn submit_transaction(
         .await
         .wrap_err("failed to get nonce")?;
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(nonce_res.nonce)
-            .chain_id(chain_id)
-            .build(),
-        actions: vec![action],
-    }
-    .into_signed(&sequencer_key);
+    let tx = UnsignedTransaction::builder()
+        .nonce(nonce_res.nonce)
+        .chain_id(chain_id)
+        .actions(vec![action])
+        .try_build()
+        .wrap_err("failed to construct a transaction")?
+        .into_signed(&sequencer_key);
     let res = sequencer_client
         .submit_transaction_sync(tx)
         .await
