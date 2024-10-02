@@ -19,7 +19,7 @@ run-smoke type *ARGS:
 load-image image_name tag=default_docker_tag repo=default_repo_name:
   kind load docker-image {{repo}}/{{image_name}}:{{tag}} --name astria-dev-cluster
 
-deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer (deploy-chart "sequencer-faucet") deploy-rollup
+deploy-all: deploy-cluster deploy-ingress-controller wait-for-ingress-controller deploy-astria-local wait-for-sequencer deploy-astrotrek (deploy-chart "sequencer-faucet") deploy-rollup
 delete-all: clean clean-persisted-data
 
 deploy-astria-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace) (deploy-sequencer)
@@ -90,6 +90,14 @@ deploy-sequencer name=validatorName:
     -n astria-validator-{{name}} --create-namespace \
     {{name}}-sequencer-chart ./charts/sequencer
 deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy-sequencer "node2")
+
+deploy-astrotrek:
+  helm dependency update charts/astrotrek > /dev/null
+  helm install astrotrek-chart ./charts/astrotrek \
+    -n astria-dev-cluster \
+
+delete-astrotrek:
+  @just delete chart astrotrek 
 
 deploy-hermes-local:
   helm install hermes-local-chart ./charts/hermes \
