@@ -1,0 +1,71 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.config.name }}-api-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    {{- with .Values.ingress.api.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.api.className }}
+  ingressClassName: {{ .Values.ingress.api.className }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.api.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.config.name }}-indexer-api-service
+                port:
+                  name: indexer-api
+  {{- if .Values.ingress.api.tls }}
+  tls:
+    {{- range .Values.ingress.api.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.config.name }}-frontend-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    {{- with .Values.ingress.frontend.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.frontend.className }}
+  ingressClassName: {{ .Values.ingress.frontend.className }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.frontend.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.config.name }}-frontend-service
+                port:
+                  number: {{ .Values.ports.frontend }}
+  {{- if .Values.ingress.frontend.tls }}
+  tls:
+    {{- range .Values.ingress.frontend.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+{{- end }}
