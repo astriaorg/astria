@@ -250,6 +250,8 @@ impl Mempool {
                         pending.add(ttx, current_account_nonce, &current_account_balances)
                     {
                         // remove from tracked
+                        // note: this branch is not expected to be hit so grabbing the lock inside
+                        // of the loop is more performant.
                         let mut contained_txs = self.contained_txs.write().await;
                         self.remove_from_contained_txs(timemarked_tx.id(), &mut contained_txs);
                         error!(
