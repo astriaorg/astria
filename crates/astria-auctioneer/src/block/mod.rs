@@ -10,10 +10,21 @@ use tokio::sync::watch;
 // TODO: these should be created from the protos
 #[derive(Debug, Clone)]
 pub(crate) struct Optimistic {
-    sequencer_block: StreamOptimisticBlockResponse,
+    // TODO: actually convert this instead of just wrapping
+    raw: StreamOptimisticBlockResponse,
 }
 
 impl Optimistic {
+    pub(crate) fn from_raw(raw: StreamOptimisticBlockResponse) -> Self {
+        Self {
+            raw,
+        }
+    }
+
+    pub(crate) fn into_raw(self) -> StreamOptimisticBlockResponse {
+        self.raw
+    }
+
     fn into_executed_block(self, _executed_block: Executed) -> Executed {
         todo!()
     }
@@ -29,11 +40,21 @@ impl Optimistic {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Executed {
-    executed_block: execution::v1alpha2::Block,
+    raw: execution::v1alpha2::Block,
 }
 
 impl Executed {
-    fn into_exec_and_commit(self) -> Committed {
+    pub(crate) fn from_raw(raw: execution::v1alpha2::Block) -> Self {
+        Self {
+            raw,
+        }
+    }
+
+    pub(crate) fn into_raw(self) -> execution::v1alpha2::Block {
+        self.raw
+    }
+
+    fn into_exec_and_commit(self, _commit: Committed) -> ExecutedAndCommitted {
         todo!()
     }
 
@@ -44,10 +65,20 @@ impl Executed {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Committed {
-    commit: SequencerBlockCommit,
+    raw: SequencerBlockCommit,
 }
 
 impl Committed {
+    pub(crate) fn from_raw(raw: SequencerBlockCommit) -> Self {
+        Self {
+            raw,
+        }
+    }
+
+    pub(crate) fn into_raw(self) -> SequencerBlockCommit {
+        self.raw
+    }
+
     fn into_exec_and_commit(self, _executed_block: Executed) -> ExecutedAndCommitted {
         todo!()
     }
@@ -84,6 +115,24 @@ impl State {
         }
     }
 }
+
+// TODO: instead of state, should `CurrentBlock` just be:
+// pub(crate) struct CurrentBlock {
+//     optimistic: Option<Optimistic>,
+//     executed: Option<Executed>,
+//     committed: Option<Committed>,
+// }
+
+// impl CurrentBlock {
+//     pub(crate) fn is_optimistic(self) -> bool {
+//         self.optimistic.is_some()
+//     }
+
+//     pub(crate) fn apply_optimistic(self, new_block: Optimistic) -> Self {
+//         unimplemented!()
+//     }
+//     // etc
+// }
 
 #[derive(Debug, Clone)]
 pub(crate) struct CurrentBlock {

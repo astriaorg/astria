@@ -23,6 +23,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 async-trait = { workspace = true }
 axum = { workspace = true }
 futures = { workspace = true }
+humantime = { workspace = true }
 itertools = { workspace = true }
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }

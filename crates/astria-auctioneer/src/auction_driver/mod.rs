@@ -26,16 +26,18 @@ impl AuctionDriver {
 
             // TODO: should this be conditioned on the block state not being committed? or the
             // auction state not be "closing"? instead of advancing the block state here
-            // i should have a handle that reads current state from an arc? curr_block =
-            // curr_block.apply_state(), if auction.committed() => { match curr_block.
-            // state() { optimistic
-            // drop old auction if it exists
-            // make new auction
-            // executed -> open the auction for bids
-            // committed -> start the timer for closing
-            // committed and executed -> ?
-            // },
-            // }
+            // i should have a handle that reads current state from an arc?
+            // curr_block =
+            //  curr_block.apply_state(), if !auction.committed() => {
+            //      match curr_block.state() {
+            //          optimistic ->
+            //           drop old auction if it exists
+            //           make new auction
+            //          executed -> open the auction for bids
+            //          committed -> start the timer for closing
+            //          committed and executed -> ?
+            //      },
+            //  }
             // },
 
             // new bundle from the bundle stream -> if auction is open, add the bid to the auction.
