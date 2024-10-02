@@ -39,7 +39,7 @@ pub mod astria_vendored {
 
 #[path = ""]
 pub mod bundle {
-    pub mod v1lapha1 {
+    pub mod v1alpha1 {
         include!("astria.bundle.v1alpha1.rs");
 
         #[cfg(feature = "serde")]
