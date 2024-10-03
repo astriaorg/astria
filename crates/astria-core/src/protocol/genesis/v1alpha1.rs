@@ -834,10 +834,7 @@ enum FeesErrorKind {
 
 #[cfg(test)]
 mod tests {
-    use indexmap::{
-        indexmap,
-        IndexMap,
-    };
+    use indexmap::indexmap;
 
     use super::*;
     use crate::{
