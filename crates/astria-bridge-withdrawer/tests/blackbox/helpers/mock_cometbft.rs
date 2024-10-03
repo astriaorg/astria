@@ -331,7 +331,7 @@ fn prepare_broadcast_tx_sync_response(response: tx_sync::Response) -> Mock {
 
 /// Convert a `Request` object to a `SignedTransaction`
 pub fn signed_tx_from_request(request: &wiremock::Request) -> SignedTransaction {
-    use astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction as RawSignedTransaction;
+    use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: tendermint_rpc::request::Wrapper<tx_sync::Request> =

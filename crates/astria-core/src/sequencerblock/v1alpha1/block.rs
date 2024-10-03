@@ -789,7 +789,7 @@ impl SequencerBlock {
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
             let raw_tx =
-                crate::generated::protocol::transactions::v1alpha1::SignedTransaction::decode(
+                crate::generated::protocol::transaction::v1alpha1::SignedTransaction::decode(
                     &*elem,
                 )
                 .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
@@ -797,7 +797,7 @@ impl SequencerBlock {
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in signed_tx.into_unsigned().into_actions() {
                 // XXX: The fee asset is dropped. We shjould explain why that's ok.
-                if let action::Action::Sequence(action::SequenceAction {
+                if let action::Action::Sequence(action::Sequence {
                     rollup_id,
                     data,
                     fee_asset: _,
