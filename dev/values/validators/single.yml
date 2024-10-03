@@ -5,7 +5,7 @@ moniker: node0
 genesis:
   validators:
     - name: core
-      power: '1'
+      power: '100'
       address: 091E47761C58C474534F4D414AF104A6CAF90C22
       pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
 
