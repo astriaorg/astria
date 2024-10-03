@@ -12,7 +12,6 @@ privKey1 := "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
 privKey2 := "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
 ibcAddAddress := "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
 pubKey := "88787e29db8d5247c6adfac9909b56e6b2705c3120b2e3885e8ec8aa416a10f1"
-# transferAddress := "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
 newPower := "100"
 originalPower := "10"
 sequencerRpc := "http://rpc.sequencer.localdev.me"
@@ -110,17 +109,11 @@ run tag=defaultTag:
   echo "Output:"
   validate_output
 
-  # printf "\nRunning the 'sequencer sudo validator-update' command to update power...\n"
-  # output=$(just cli-test command {{ tag }} sequencer sudo validator-update --power {{newPower}} --validator-public-key {{pubKey}} --private-key {{privKey1}} --sequencer-url {{sequencerRpc}} --sequencer.chain-id {{sequencerChainId}})
-  # expected_format="^sending tx from address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm\nValidatorUpdate completed!\nIncluded in block: [0-9]+$"
-  # echo "Output:"
-  # validate_output
-
-  # printf "\nRunning the 'sequencer sudo validator-update' command to revert power...\n"
-  # output=$(just cli-test command {{ tag }} sequencer sudo validator-update --power 0 --validator-public-key {{pubKey}} --private-key {{privKey1}} --sequencer-url {{sequencerRpc}} --sequencer.chain-id {{sequencerChainId}})
-  # expected_format="^sending tx from address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm\nValidatorUpdate completed!\nIncluded in block: [0-9]+$"
-  # echo "Output:"
-  # validate_output
+  printf "\nRunning the 'sequencer sudo validator-update' command...\n"
+  output=$(just cli-test command {{ tag }} sequencer sudo validator-update --power 1 --validator-public-key {{pubKey}} --private-key {{privKey1}} --sequencer-url {{sequencerRpc}} --sequencer.chain-id {{sequencerChainId}})
+  expected_format="^sending tx from address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm\nValidatorUpdate completed!\nIncluded in block: [0-9]+$"
+  echo "Output:"
+  validate_output
 
   printf "\nRunning the 'sequencer transfer' command...\n"
   output=$(just cli-test command {{ tag }} sequencer transfer {{ibcAddAddress}} --amount 100 --private-key {{privKey1}} --sequencer-url {{sequencerRpc}} --sequencer.chain-id {{sequencerChainId}})
