@@ -1,0 +1,97 @@
+# Default values for celestia-local.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+global:
+  namespaceOverride: "astria-dev-cluster"
+  replicaCount: 1
+
+images:
+  indexer:
+    repo: ghcr.io/astriaorg/astria-indexer
+    tag: "0.1.0"
+    devTag: latest
+  api:
+    repo: ghcr.io/astriaorg/astria-indexer-api
+    tag: "0.1.0"
+    devTag: latest
+  frontend:
+    repo: ghcr.io/astriaorg/astrotrek
+    tag: "0.1.0"
+    devTag: latest
+
+serviceMonitor:
+  enabled: false
+  additionalLabels: {}
+  interval: 15s
+  scrapeTimeout: 10s
+
+storage:
+  enabled: false
+  local: true
+  entities:
+    indexerSharedStorage:
+      size: "1Gi"
+      persistentVolumeName: "indexer-shared-storage"
+      path: "/data/indexer-data"
+
+metrics:
+  enabled: false
+
+config:
+  name: astrotrek
+  astriaEnv: development
+  logLevel: debug
+  profilerServer: http://localhost:4040
+  apiPrometheusEnabled: "false"
+  sequencerRpcUrl: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+  sequencerRpcTimeout: "10"
+  sequencerRpcRps: "10"
+  indexer:
+    indexerScriptDir: database
+    indexerThreadsCount: "10"
+    indexerBlockPeriod: "1"
+    indexerViewsDir: database/views
+  api:
+    host: 0.0.0.0
+    rateLimit: 10
+    requestTimeout: 10
+  database:
+    postgresHost: astrotrek-db-service.astria-dev-cluster.svc.cluster.local
+    postgresUser: indexer-user
+    postgresPassword: indexer-user
+    postgresDb: astria
+  frontend:
+    rpcApiUrl: http://api.sequencer.localdev.me/v1
+    wsApiUrl: ws://api.sequencer.localdev.me/v1/ws
+
+ingress:
+  enabled: true
+  api:
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+      nginx.ingress.kubernetes.io/cors-allow-methods: "GET"
+      nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range"
+      nginx.ingress.kubernetes.io/cors-expose-headers: "Content-Length,Content-Range"
+      nginx.ingress.kubernetes.io/cors-max-age: "86400"
+    host: api.sequencer.localdev.me
+    tls: []
+  frontend:
+    className: "nginx"
+    annotations: {}
+    host: astrotrek.sequencer.localdev.me
+    tls: []
+
+ports:
+  api: "9876"
+  db: "5432"
+  frontend: "3000"
+
+resources:
+  requests:
+    cpu: 0.25
+    memory: 100Mi
+  limits:
+    cpu: 1
+    memory: 300Mi

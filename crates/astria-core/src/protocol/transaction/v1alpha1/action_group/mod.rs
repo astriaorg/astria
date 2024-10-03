@@ -153,7 +153,7 @@ enum ErrorKind {
     },
     #[error("attempted to create bundle with non bundleable `ActionGroup` type: {group}")]
     NotBundleable { group: ActionGroup },
-    #[error("attempted to create ActionGroup with empty list of actions")]
+    #[error("actions cannot be empty")]
     Empty,
 }
 

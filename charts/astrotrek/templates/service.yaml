@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Values.config.name }}
+  name: {{ .Values.config.name }}-db-service
+  namespace: {{ .Values.global.namespace }}
+spec:
+  ports:
+    - name: "{{ .Values.ports.db }}"
+      port: {{ .Values.ports.db }}
+      targetPort: {{ .Values.ports.db }}
+  selector:
+    app: {{ .Values.config.name }}-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Values.config.name }}-indexer-api
+  name: {{ .Values.config.name }}-indexer-api-service
+  namespace: {{ .Values.global.namespace }}
+spec:
+  ports:
+    - name: indexer-api
+      port: {{ .Values.ports.api}}
+      targetPort: {{ .Values.ports.api}}
+  selector:
+    app: {{ .Values.config.name }}-indexer-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Values.config.name }}-frontend
+  name: {{ .Values.config.name }}-frontend-service
+  namespace: {{ .Values.global.namespace }}
+spec:
+  ports:
+    - name: "{{ .Values.ports.frontend }}"
+      port: {{ .Values.ports.frontend }}
+      targetPort: {{ .Values.ports.frontend }}
+  selector:
+    app: {{ .Values.config.name }}-frontend

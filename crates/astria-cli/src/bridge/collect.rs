@@ -1,9 +1,5 @@
 use std::{
-    collections::BTreeMap,
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::PathBuf,
     sync::Arc,
     time::Duration,
 };
@@ -12,20 +8,15 @@ use astria_bridge_contracts::{
     GetWithdrawalActions,
     GetWithdrawalActionsBuilder,
 };
-use astria_core::{
-    primitive::v1::{
-        asset::{
-            self,
-        },
-        Address,
+use astria_core::primitive::v1::{
+    asset::{
+        self,
     },
-    protocol::transaction::v1alpha1::Action,
+    Address,
 };
-use clap::Args;
 use color_eyre::eyre::{
     self,
     bail,
-    ensure,
     eyre,
     OptionExt as _,
     WrapErr as _,
@@ -49,8 +40,10 @@ use tracing::{
     warn,
 };
 
-#[derive(Args, Debug)]
-pub(crate) struct WithdrawalEvents {
+use super::ActionsByRollupHeight;
+
+#[derive(clap::Args, Debug)]
+pub(super) struct Command {
     /// The websocket endpoint of a geth compatible rollup.
     #[arg(long)]
     rollup_endpoint: String,
@@ -88,8 +81,8 @@ pub(crate) struct WithdrawalEvents {
     force: bool,
 }
 
-impl WithdrawalEvents {
-    pub(crate) async fn run(self) -> eyre::Result<()> {
+impl Command {
+    pub(super) async fn run(self) -> eyre::Result<()> {
         let Self {
             rollup_endpoint,
             contract_address,
@@ -103,7 +96,8 @@ impl WithdrawalEvents {
             force,
         } = self;
 
-        let output = open_output(&output, force).wrap_err("failed to open output for writing")?;
+        let output =
+            super::open_output(&output, force).wrap_err("failed to open output for writing")?;
 
         let block_provider = connect_to_rollup(&rollup_endpoint)
             .await
@@ -209,36 +203,6 @@ async fn block_to_actions(
     actions_by_rollup_height.insert(rollup_height, actions)
 }
 
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
-#[serde(transparent)]
-pub(crate) struct ActionsByRollupHeight(BTreeMap<u64, Vec<Action>>);
-
-impl ActionsByRollupHeight {
-    fn new() -> Self {
-        Self(BTreeMap::new())
-    }
-
-    pub(crate) fn into_inner(self) -> BTreeMap<u64, Vec<Action>> {
-        self.0
-    }
-
-    #[instrument(skip_all, err)]
-    fn insert(&mut self, rollup_height: u64, actions: Vec<Action>) -> eyre::Result<()> {
-        ensure!(
-            self.0.insert(rollup_height, actions).is_none(),
-            "already collected actions for block at rollup height `{rollup_height}`; no 2 blocks \
-             with the same height should have been seen",
-        );
-        Ok(())
-    }
-
-    #[instrument(skip_all, fields(target = %output.path.display()), err)]
-    fn write_to_output(self, output: Output) -> eyre::Result<()> {
-        let writer = std::io::BufWriter::new(output.handle);
-        serde_json::to_writer(writer, &self.0).wrap_err("failed writing actions to file")
-    }
-}
-
 /// Constructs a block stream from `start` until `maybe_end`, if `Some`.
 /// Constructs an open ended stream from `start` if `None`.
 #[instrument(skip_all, fields(start, end = maybe_end), err)]
@@ -290,31 +254,6 @@ async fn create_stream_of_blocks(
             .boxed()
     };
     Ok(subscription)
-}
-
-#[derive(Debug)]
-struct Output {
-    handle: std::fs::File,
-    path: PathBuf,
-}
-
-#[instrument(skip(target), fields(target = %target.as_ref().display()), err)]
-fn open_output<P: AsRef<Path>>(target: P, overwrite: bool) -> eyre::Result<Output> {
-    let handle = if overwrite {
-        let mut options = std::fs::File::options();
-        options.write(true).create(true).truncate(true);
-        options
-    } else {
-        let mut options = std::fs::File::options();
-        options.write(true).create_new(true);
-        options
-    }
-    .open(&target)
-    .wrap_err("failed to open specified file for writing")?;
-    Ok(Output {
-        handle,
-        path: target.as_ref().to_path_buf(),
-    })
 }
 
 #[instrument(err)]
