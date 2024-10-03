@@ -924,11 +924,32 @@ mod tests {
             time_first_seen: instant,
         };
 
-        // equals
-        // assert!(bundleable_general == bundleable_general);
-        // assert!(unbundleable_general == unbundleable_general);
-        // assert!(bundleable_sudo == bundleable_sudo);
-        // assert!(unbundleable_sudo == unbundleable_sudo);
+        // partial_cmp
+        assert!(bundleable_general.partial_cmp(&bundleable_general) == Some(Ordering::Equal));
+        assert!(bundleable_general.partial_cmp(&unbundleable_general) == Some(Ordering::Greater));
+        assert!(bundleable_general.partial_cmp(&bundleable_sudo) == Some(Ordering::Greater));
+        assert!(bundleable_general.partial_cmp(&unbundleable_sudo) == Some(Ordering::Greater));
+
+        assert!(unbundleable_general.partial_cmp(&bundleable_general) == Some(Ordering::Less));
+        assert!(unbundleable_general.partial_cmp(&unbundleable_general) == Some(Ordering::Equal));
+        assert!(unbundleable_general.partial_cmp(&bundleable_sudo) == Some(Ordering::Greater));
+        assert!(unbundleable_general.partial_cmp(&unbundleable_sudo) == Some(Ordering::Greater));
+
+        assert!(bundleable_sudo.partial_cmp(&bundleable_general) == Some(Ordering::Less));
+        assert!(bundleable_sudo.partial_cmp(&unbundleable_general) == Some(Ordering::Less));
+        assert!(bundleable_sudo.partial_cmp(&bundleable_sudo) == Some(Ordering::Equal));
+        assert!(bundleable_sudo.partial_cmp(&unbundleable_sudo) == Some(Ordering::Greater));
+
+        assert!(unbundleable_sudo.partial_cmp(&bundleable_general) == Some(Ordering::Less));
+        assert!(unbundleable_sudo.partial_cmp(&unbundleable_general) == Some(Ordering::Less));
+        assert!(unbundleable_sudo.partial_cmp(&bundleable_sudo) == Some(Ordering::Less));
+        assert!(unbundleable_sudo.partial_cmp(&unbundleable_sudo) == Some(Ordering::Equal));
+
+        // equal
+        assert!(bundleable_general == bundleable_general);
+        assert!(unbundleable_general == unbundleable_general);
+        assert!(bundleable_sudo == bundleable_sudo);
+        assert!(unbundleable_sudo == unbundleable_sudo);
 
         // greater than
         assert!(bundleable_general > unbundleable_general);
