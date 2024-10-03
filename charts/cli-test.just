@@ -37,7 +37,7 @@ validate-output output expected_format:
   fi
 
 # Test the `create-account` command
-test-create-account tag=defaultTag:
+create-account tag=defaultTag:
   #!/usr/bin/env bash
   set -e 
 
@@ -48,7 +48,7 @@ test-create-account tag=defaultTag:
   just cli-test validate-output "$output" "$expected_format"
 
 # Test the `bech32m` command
-test-bech32m tag=defaultTag:
+bech32m tag=defaultTag:
   #!/usr/bin/env bash
   set -e 
 
@@ -65,7 +65,7 @@ test-bech32m tag=defaultTag:
   astria_address=$(echo "$output")
   just cli-test validate-output "$astria_address" "$expected_format"
 
-test-get-balance tag=defaultTag:
+get-balance tag=defaultTag:
   #!/usr/bin/env bash
   set -e 
 
@@ -81,7 +81,7 @@ test-get-balance tag=defaultTag:
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
 
-test-get-nonce tag=defaultTag:
+get-nonce tag=defaultTag:
   #!/usr/bin/env bash
   set -e 
 
@@ -91,7 +91,7 @@ test-get-nonce tag=defaultTag:
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
 
-test-get-blockheight tag=defaultTag:
+get-blockheight tag=defaultTag:
   #!/usr/bin/env bash
   set -e 
 
@@ -101,7 +101,7 @@ test-get-blockheight tag=defaultTag:
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
 
-test-ibc-relayer tag=defaultTag:
+ibc-relayer tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
@@ -117,7 +117,7 @@ test-ibc-relayer tag=defaultTag:
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
 
-test-fee-asset tag=defaultTag:
+fee-asset tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
@@ -133,7 +133,7 @@ test-fee-asset tag=defaultTag:
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
 
-test-sudo-address-change tag=defaultTag:
+sudo-address-change tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
@@ -149,7 +149,7 @@ test-sudo-address-change tag=defaultTag:
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
 
-test-validator-update tag=defaultTag:
+validator-update tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
@@ -165,7 +165,7 @@ test-validator-update tag=defaultTag:
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
 
-test-transfer tag=defaultTag:
+transfer tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
@@ -181,13 +181,13 @@ run tag=defaultTag:
 
   printf "Testing the CLI with the tag: {{ tag }}\n"
 
-  just cli-test test-create-account
-  just cli-test test-bech32m
-  just cli-test test-get-balance
-  just cli-test test-get-nonce
-  just cli-test test-get-blockheight
-  just cli-test test-ibc-relayer
-  just cli-test test-fee-asset
-  just cli-test test-sudo-address-change
-  just cli-test test-validator-update
-  just cli-test test-transfer
+  just cli-test create-account
+  just cli-test bech32m
+  just cli-test get-balance
+  just cli-test get-nonce
+  just cli-test get-blockheight
+  just cli-test ibc-relayer
+  just cli-test fee-asset
+  just cli-test sudo-address-change
+  just cli-test validator-update
+  just cli-test transfer
