@@ -12,7 +12,10 @@ use std::{
 
 use astria_core::{
     primitive::v1::asset::IbcPrefixed,
-    protocol::transaction::v1alpha1::SignedTransaction,
+    protocol::transaction::v1alpha1::{
+        action_group::ActionGroup,
+        SignedTransaction,
+    },
 };
 use astria_eyre::eyre::{
     eyre,
@@ -68,6 +71,7 @@ impl TimemarkedTransaction {
         Ok(TransactionPriority {
             nonce_diff,
             time_first_seen: self.time_first_seen,
+            group: self.signed_tx.group(),
         })
     }
 
@@ -115,12 +119,13 @@ impl fmt::Display for TimemarkedTransaction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "tx_hash: {}, address: {}, signer: {}, nonce: {}, chain ID: {}",
+            "tx_hash: {}, address: {}, signer: {}, nonce: {}, chain ID: {}, group: {}",
             telemetry::display::base64(&self.tx_hash),
             telemetry::display::base64(&self.address),
             self.signed_tx.verification_key(),
             self.signed_tx.nonce(),
             self.signed_tx.chain_id(),
+            self.signed_tx.group(),
         )
     }
 }
@@ -129,11 +134,14 @@ impl fmt::Display for TimemarkedTransaction {
 struct TransactionPriority {
     nonce_diff: u32,
     time_first_seen: Instant,
+    group: ActionGroup,
 }
 
 impl PartialEq for TransactionPriority {
     fn eq(&self, other: &Self) -> bool {
-        self.nonce_diff == other.nonce_diff && self.time_first_seen == other.time_first_seen
+        self.nonce_diff == other.nonce_diff
+            && self.time_first_seen == other.time_first_seen
+            && self.group == other.group
     }
 }
 
@@ -141,16 +149,20 @@ impl Eq for TransactionPriority {}
 
 impl Ord for TransactionPriority {
     fn cmp(&self, other: &Self) -> Ordering {
-        // we want to first order by nonce difference
-        // lower nonce diff means higher priority
-        let nonce_diff = self.nonce_diff.cmp(&other.nonce_diff).reverse();
-
-        // then by timestamp if equal
-        if nonce_diff == Ordering::Equal {
-            // lower timestamp means higher priority
-            return self.time_first_seen.cmp(&other.time_first_seen).reverse();
+        // first ordered by group
+        let group = self.group.cmp(&other.group);
+        if group != Ordering::Equal {
+            return group;
         }
-        nonce_diff
+
+        // then by nonce difference where lower nonce diff means higher priority
+        let nonce_diff = self.nonce_diff.cmp(&other.nonce_diff).reverse();
+        if nonce_diff != Ordering::Equal {
+            return nonce_diff;
+        }
+
+        // then by timestamp if nonce and group are equal
+        return self.time_first_seen.cmp(&other.time_first_seen).reverse();
     }
 }
 
@@ -790,6 +802,7 @@ mod tests {
             get_alice_signing_key,
             get_bob_signing_key,
             get_carol_signing_key,
+            get_judy_signing_key,
             mock_balances,
             mock_state_getter,
             mock_state_put_account_nonce,
@@ -811,6 +824,7 @@ mod tests {
         signer: SigningKey,
         chain_id: String,
         cost_map: HashMap<IbcPrefixed, u128>,
+        group: ActionGroup,
     }
 
     impl MockTTXBuilder {
@@ -819,6 +833,7 @@ mod tests {
                 .nonce(self.nonce)
                 .signer(self.signer)
                 .chain_id(&self.chain_id)
+                .group(self.group)
                 .build();
 
             TimemarkedTransaction::new(tx, self.cost_map)
@@ -836,6 +851,7 @@ mod tests {
                 nonce: 0,
                 signer: get_alice_signing_key(),
                 chain_id: "test".to_string(),
+                group: ActionGroup::BundleableGeneral,
                 cost_map: mock_tx_cost(0, 0, 0),
             }
         }
@@ -850,6 +866,13 @@ mod tests {
         fn signer(self, signer: SigningKey) -> Self {
             Self {
                 signer,
+                ..self
+            }
+        }
+
+        fn group(self, group: ActionGroup) -> Self {
+            Self {
+                group,
                 ..self
             }
         }
@@ -882,14 +905,110 @@ mod tests {
         clippy::nonminimal_bool,
         reason = "we want explicit assertions here to match the documented expected behavior"
     )]
+    fn transaction_priority_comparisons_should_be_consistent_action_group() {
+        let instant = Instant::now();
+
+        let bundleable_general = TransactionPriority {
+            group: ActionGroup::BundleableGeneral,
+            nonce_diff: 0,
+            time_first_seen: instant,
+        };
+        let unbundleable_general = TransactionPriority {
+            group: ActionGroup::UnbundleableGeneral,
+            nonce_diff: 0,
+            time_first_seen: instant,
+        };
+        let bundleable_sudo = TransactionPriority {
+            group: ActionGroup::BundleableSudo,
+            nonce_diff: 0,
+            time_first_seen: instant,
+        };
+        let unbundleable_sudo = TransactionPriority {
+            group: ActionGroup::UnbundleableSudo,
+            nonce_diff: 0,
+            time_first_seen: instant,
+        };
+
+        // equals
+        assert!(bundleable_general == bundleable_general);
+        assert!(unbundleable_general == unbundleable_general);
+        assert!(bundleable_sudo == bundleable_sudo);
+        assert!(unbundleable_sudo == unbundleable_sudo);
+
+        // greater than
+        assert!(bundleable_general > unbundleable_general);
+        assert!(bundleable_general > bundleable_sudo);
+        assert!(bundleable_general > unbundleable_sudo);
+
+        assert!(unbundleable_general > bundleable_sudo);
+        assert!(unbundleable_general > unbundleable_sudo);
+
+        assert!(bundleable_sudo > unbundleable_sudo);
+
+        // greater than or equal to
+        assert!(bundleable_general >= bundleable_general);
+        assert!(bundleable_general >= unbundleable_general);
+        assert!(bundleable_general >= bundleable_sudo);
+        assert!(bundleable_general >= unbundleable_sudo);
+
+        assert!(unbundleable_general >= unbundleable_general);
+        assert!(unbundleable_general >= bundleable_sudo);
+        assert!(unbundleable_general >= unbundleable_sudo);
+
+        assert!(bundleable_sudo >= bundleable_sudo);
+        assert!(bundleable_sudo >= unbundleable_sudo);
+
+        // less than
+        assert!(unbundleable_sudo < bundleable_sudo);
+        assert!(unbundleable_sudo < unbundleable_general);
+        assert!(unbundleable_sudo < bundleable_general);
+
+        assert!(bundleable_sudo < bundleable_general);
+        assert!(bundleable_sudo < unbundleable_general);
+
+        assert!(unbundleable_general < bundleable_general);
+
+        // less than or equal to
+        assert!(unbundleable_sudo <= unbundleable_sudo);
+        assert!(unbundleable_sudo <= bundleable_sudo);
+        assert!(unbundleable_sudo <= unbundleable_general);
+        assert!(unbundleable_general <= bundleable_general);
+
+        assert!(bundleable_sudo <= bundleable_sudo);
+        assert!(bundleable_sudo <= bundleable_general);
+        assert!(bundleable_sudo <= unbundleable_general);
+
+        assert!(unbundleable_general <= unbundleable_general);
+        assert!(unbundleable_general <= bundleable_general);
+
+        assert!(bundleable_general <= bundleable_general);
+
+        // not equal
+        assert!(bundleable_general != unbundleable_general);
+        assert!(bundleable_general != unbundleable_sudo);
+        assert!(bundleable_general != bundleable_sudo);
+        assert!(unbundleable_general != bundleable_sudo);
+        assert!(unbundleable_general != unbundleable_sudo);
+        assert!(bundleable_sudo != unbundleable_sudo);
+    }
+
+    // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
+    #[test]
+    // TODO (https://github.com/astriaorg/astria/issues/1583): rework assertions and remove attribute
+    #[expect(
+        clippy::nonminimal_bool,
+        reason = "we want explicit assertions here to match the documented expected behavior"
+    )]
     fn transaction_priority_comparisons_should_be_consistent_nonce_diff() {
         let instant = Instant::now();
 
         let high = TransactionPriority {
+            group: ActionGroup::BundleableGeneral,
             nonce_diff: 0,
             time_first_seen: instant,
         };
         let low = TransactionPriority {
+            group: ActionGroup::BundleableGeneral,
             nonce_diff: 1,
             time_first_seen: instant,
         };
@@ -937,10 +1056,12 @@ mod tests {
     )]
     fn transaction_priority_comparisons_should_be_consistent_time_gap() {
         let high = TransactionPriority {
+            group: ActionGroup::BundleableGeneral,
             nonce_diff: 0,
             time_first_seen: Instant::now(),
         };
         let low = TransactionPriority {
+            group: ActionGroup::BundleableGeneral,
             nonce_diff: 0,
             time_first_seen: Instant::now() + Duration::from_micros(10),
         };
@@ -2048,6 +2169,80 @@ mod tests {
                 .get(&denom_1().to_ibc_prefixed())
                 .unwrap(),
             &90
+        );
+    }
+
+    #[tokio::test]
+    async fn builder_queue_should_be_sorted_by_action_group_type() {
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
+        let mock_state = mock_state_getter().await;
+
+        // create transactions in reverse order
+        let ttx_unbundleable_sudo = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(get_judy_signing_key())
+            .group(ActionGroup::UnbundleableSudo)
+            .build();
+        let ttx_bundleable_sudo = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(get_carol_signing_key())
+            .group(ActionGroup::BundleableSudo)
+            .build();
+        let ttx_unbundleable_general = MockTTXBuilder::new()
+            .nonce(0)
+            .signer(get_bob_signing_key())
+            .group(ActionGroup::UnbundleableGeneral)
+            .build();
+        let ttx_bundleable_general = MockTTXBuilder::new()
+            .nonce(0)
+            .group(ActionGroup::BundleableGeneral)
+            .build();
+        let account_balances_full = mock_balances(100, 100);
+
+        // add all transactions to the container
+        pending_txs
+            .add(ttx_bundleable_general.clone(), 0, &account_balances_full)
+            .unwrap();
+        pending_txs
+            .add(ttx_unbundleable_general.clone(), 0, &account_balances_full)
+            .unwrap();
+        pending_txs
+            .add(ttx_bundleable_sudo.clone(), 0, &account_balances_full)
+            .unwrap();
+        pending_txs
+            .add(ttx_unbundleable_sudo.clone(), 0, &account_balances_full)
+            .unwrap();
+
+        // get the builder queue
+        // note: the account nonces are set to zero when not initialized in the mock state
+        let builder_queue = pending_txs
+            .builder_queue(&mock_state)
+            .await
+            .expect("building builders queue should work");
+
+        // check that the transactions are in the expected order
+        let (first_tx_hash, _) = builder_queue[0];
+        assert_eq!(
+            first_tx_hash, ttx_bundleable_general.tx_hash,
+            "expected bundleable general transaction to be first"
+        );
+
+        let (second_tx_hash, _) = builder_queue[1];
+        assert_eq!(
+            second_tx_hash, ttx_unbundleable_general.tx_hash,
+            "expected unbundleable general transaction to be second"
+        );
+
+        let (third_tx_hash, _) = builder_queue[2];
+        assert_eq!(
+            third_tx_hash, ttx_bundleable_sudo.tx_hash,
+            "expected bundleable sudo transaction to be third"
+        );
+
+        let (fourth_tx_hash, _) = builder_queue[3];
+        assert_eq!(
+            fourth_tx_hash, ttx_unbundleable_sudo.tx_hash,
+            "expected unbundleable sudo transaction to be last"
         );
     }
 }

@@ -60,7 +60,7 @@ impl_belong_to_group!(
 );
 
 impl Action {
-    const fn group(&self) -> ActionGroup {
+    pub const fn group(&self) -> ActionGroup {
         match self {
             Action::Sequence(_) => SequenceAction::GROUP,
             Action::Transfer(_) => TransferAction::GROUP,
@@ -80,12 +80,12 @@ impl Action {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(super) enum ActionGroup {
-    BundleableGeneral,
-    UnbundleableGeneral,
-    BundleableSudo,
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ActionGroup {
     UnbundleableSudo,
+    BundleableSudo,
+    UnbundleableGeneral,
+    BundleableGeneral,
 }
 
 impl ActionGroup {

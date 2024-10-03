@@ -1,4 +1,7 @@
-use action_group::Actions;
+use action_group::{
+    ActionGroup,
+    Actions,
+};
 use bytes::Bytes;
 use prost::{
     Message as _,
@@ -176,6 +179,11 @@ impl SignedTransaction {
     #[must_use]
     pub fn actions(&self) -> &[Action] {
         self.transaction.actions.actions()
+    }
+
+    #[must_use]
+    pub fn group(&self) -> ActionGroup {
+        self.transaction.actions.group()
     }
 
     #[must_use]

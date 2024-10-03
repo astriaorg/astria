@@ -20,9 +20,14 @@ use astria_core::{
         },
         transaction::v1alpha1::{
             action::{
+                FeeAssetChangeAction,
+                InitBridgeAccountAction,
                 SequenceAction,
+                SudoAddressChangeAction,
                 ValidatorUpdate,
             },
+            action_group::ActionGroup,
+            Action,
             SignedTransaction,
             UnsignedTransaction,
         },
@@ -46,7 +51,10 @@ use crate::{
     mempool::Mempool,
     metrics::Metrics,
     sequence::StateWriteExt as SequenceStateWriteExt,
-    test_utils::astria_address_from_hex_string,
+    test_utils::{
+        astria_address_from_hex_string,
+        nria,
+    },
 };
 
 pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
@@ -261,6 +269,7 @@ pub(crate) struct MockTxBuilder {
     nonce: u32,
     signer: SigningKey,
     chain_id: String,
+    group: ActionGroup,
 }
 
 #[expect(
@@ -275,6 +284,7 @@ impl MockTxBuilder {
             chain_id: "test".to_string(),
             nonce: 0,
             signer: get_alice_signing_key(),
+            group: ActionGroup::BundleableGeneral,
         }
     }
 
@@ -299,16 +309,45 @@ impl MockTxBuilder {
         }
     }
 
+    pub(crate) fn group(self, group: ActionGroup) -> Self {
+        Self {
+            group,
+            ..self
+        }
+    }
+
     pub(crate) fn build(self) -> Arc<SignedTransaction> {
+        let action: Action = match self.group {
+            ActionGroup::BundleableGeneral => SequenceAction {
+                rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
+                data: Bytes::from_static(&[0x99]),
+                fee_asset: denom_0(),
+            }
+            .into(),
+            ActionGroup::UnbundleableGeneral => InitBridgeAccountAction {
+                rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
+                asset: denom_0(),
+                fee_asset: denom_0(),
+                sudo_address: None,
+                withdrawer_address: None,
+            }
+            .into(),
+            ActionGroup::BundleableSudo => FeeAssetChangeAction::Addition(denom_0()).into(),
+            ActionGroup::UnbundleableSudo => SudoAddressChangeAction {
+                new_address: astria_address_from_hex_string(JUDY_ADDRESS),
+            }
+            .into(),
+        };
+
+        assert!(
+            action.group() == self.group,
+            "action group mismatch: wanted {:?}, got {:?}",
+            self.group,
+            action.group()
+        );
+
         let tx = UnsignedTransaction::builder()
-            .actions(vec![
-                SequenceAction {
-                    rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
-                    data: Bytes::from_static(&[0x99]),
-                    fee_asset: denom_0(),
-                }
-                .into(),
-            ])
+            .actions(vec![action])
             .chain_id(self.chain_id)
             .nonce(self.nonce)
             .try_build()
@@ -320,7 +359,7 @@ impl MockTxBuilder {
 
 pub(crate) const MOCK_SEQUENCE_FEE: u128 = 10;
 pub(crate) fn denom_0() -> Denom {
-    "denom_0".parse().unwrap()
+    nria().into()
 }
 
 pub(crate) fn denom_1() -> Denom {

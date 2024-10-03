@@ -10,6 +10,8 @@ mod tests_app;
 #[cfg(test)]
 mod tests_block_fees;
 #[cfg(test)]
+mod tests_block_ordering;
+#[cfg(test)]
 mod tests_breaking_changes;
 #[cfg(test)]
 mod tests_execute_transaction;
@@ -26,6 +28,7 @@ use astria_core::{
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
             action::ValidatorUpdate,
+            action_group::ActionGroup,
             Action,
             SignedTransaction,
         },
@@ -510,6 +513,7 @@ impl App {
         let mut failed_tx_count: usize = 0;
         let mut execution_results = Vec::new();
         let mut excluded_txs: usize = 0;
+        let mut current_tx_group = ActionGroup::BundleableGeneral;
 
         // get copy of transactions to execute from mempool
         let pending_txs = self
@@ -565,6 +569,20 @@ impl App {
                 continue;
             }
 
+            // ensure transaction's group is less than or equal to current action group
+            let tx_group = tx.group();
+            if tx_group > current_tx_group {
+                debug!(
+                    transaction_hash = %tx_hash_base64,
+                    block_size_constraints = %json(&block_size_constraints),
+                    "excluding transaction: group is higher priority than previously included transactions"
+                );
+                excluded_txs = excluded_txs.saturating_add(1);
+
+                // note: we don't remove the tx from mempool as it may be valid in the future
+                continue;
+            }
+
             // execute tx and store in `execution_results` list on success
             match self.execute_transaction(tx.clone()).await {
                 Ok(events) => {
@@ -595,6 +613,12 @@ impl App {
                         // due to an invalid nonce, as it may be valid in the future.
                         // if it's invalid due to the nonce being too low, it'll be
                         // removed from the mempool in `update_mempool_after_finalization`.
+                        //
+                        // this is important for possible out-of-order transaction
+                        // groups fed into prepare_proposal. a transaction with a higher
+                        // nonce might be in a higher priority group than a transaction
+                        // from the same account wiht a lower nonce. this higher nonce
+                        // could execute in the next block fine.
                     } else {
                         failed_tx_count = failed_tx_count.saturating_add(1);
 
@@ -612,6 +636,9 @@ impl App {
                     }
                 }
             }
+
+            // update current action group to tx's action group
+            current_tx_group = tx_group;
         }
 
         if failed_tx_count > 0 {
@@ -654,8 +681,8 @@ impl App {
         txs: Vec<SignedTransaction>,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> Result<()> {
-        let mut excluded_tx_count = 0_f64;
         let mut execution_results = Vec::new();
+        let mut current_tx_group = ActionGroup::BundleableGeneral;
 
         for tx in txs {
             let bytes = tx.to_raw().encode_to_vec();
@@ -675,10 +702,21 @@ impl App {
                     transaction_hash = %telemetry::display::base64(&tx_hash),
                     block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx_sequence_data_bytes,
-                    "excluding transaction: max block sequenced data limit reached"
+                    "transaction error: max block sequenced data limit passed"
                 );
-                excluded_tx_count += 1.0;
-                continue;
+                return Err(eyre!("max block sequenced data limit passed"));
+            }
+
+            // ensure transaction's group is less than or equal to current action group
+            let tx_group = tx.group();
+            if tx_group > current_tx_group {
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    "transaction error: block has incorrect transaction group ordering"
+                );
+                return Err(eyre!(
+                    "transactions have incorrect transaction group ordering"
+                ));
             }
 
             // execute tx and store in `execution_results` list on success
@@ -699,19 +737,14 @@ impl App {
                     debug!(
                         transaction_hash = %telemetry::display::base64(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to execute transaction, not including in block"
+                        "transaction error: failed to execute transaction"
                     );
-                    excluded_tx_count += 1.0;
+                    return Err(eyre!("transaction failed to execute"));
                 }
             }
-        }
 
-        if excluded_tx_count > 0.0 {
-            info!(
-                excluded_tx_count = excluded_tx_count,
-                included_tx_count = execution_results.len(),
-                "excluded transactions from block"
-            );
+            // update current action group to tx's action group
+            current_tx_group = tx_group;
         }
 
         self.execution_results = Some(execution_results);
