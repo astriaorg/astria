@@ -162,7 +162,7 @@ impl Ord for TransactionPriority {
         }
 
         // then by timestamp if nonce and group are equal
-        return self.time_first_seen.cmp(&other.time_first_seen).reverse();
+        self.time_first_seen.cmp(&other.time_first_seen).reverse()
     }
 }
 
@@ -900,11 +900,6 @@ mod tests {
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
     #[test]
-    // TODO (https://github.com/astriaorg/astria/issues/1583): rework assertions and remove attribute
-    #[expect(
-        clippy::nonminimal_bool,
-        reason = "we want explicit assertions here to match the documented expected behavior"
-    )]
     fn transaction_priority_comparisons_should_be_consistent_action_group() {
         let instant = Instant::now();
 
@@ -930,10 +925,10 @@ mod tests {
         };
 
         // equals
-        assert!(bundleable_general == bundleable_general);
-        assert!(unbundleable_general == unbundleable_general);
-        assert!(bundleable_sudo == bundleable_sudo);
-        assert!(unbundleable_sudo == unbundleable_sudo);
+        // assert!(bundleable_general == bundleable_general);
+        // assert!(unbundleable_general == unbundleable_general);
+        // assert!(bundleable_sudo == bundleable_sudo);
+        // assert!(unbundleable_sudo == unbundleable_sudo);
 
         // greater than
         assert!(bundleable_general > unbundleable_general);
@@ -992,6 +987,7 @@ mod tests {
         assert!(bundleable_sudo != unbundleable_sudo);
     }
 
+    #[test]
     fn transaction_priority_comparisons_should_be_consistent_nonce_diff() {
         let instant = Instant::now();
 

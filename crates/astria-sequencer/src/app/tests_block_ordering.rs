@@ -137,7 +137,7 @@ async fn app_prepare_proposal_ordering_fail() {
         .expect_err("expected ordering error");
 
     assert!(
-        format!("{:?}", result).contains("transactions have incorrect transaction group ordering"),
+        format!("{result:?}").contains("transactions have incorrect transaction group ordering"),
         "process proposal should due to incorrect ordering"
     );
 }
