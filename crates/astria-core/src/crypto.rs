@@ -86,7 +86,7 @@ impl SigningKey {
     /// Returns the address bytes of the verification key associated with this signing key.
     #[must_use]
     pub fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
-        self.verification_key().address_bytes()
+        *self.verification_key().address_bytes()
     }
 
     /// Attempts to create an Astria bech32m `[Address]` with the given prefix.
@@ -167,8 +167,8 @@ impl VerificationKey {
     ///
     /// The address is the first 20 bytes of the sha256 hash of the verification key.
     #[must_use]
-    pub fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
-        *self.address_bytes.get_or_init(|| {
+    pub fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
+        self.address_bytes.get_or_init(|| {
             fn first_20(array: [u8; 32]) -> [u8; ADDRESS_LEN] {
                 [
                     array[0], array[1], array[2], array[3], array[4], array[5], array[6], array[7],
@@ -178,7 +178,6 @@ impl VerificationKey {
             }
             /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
             /// that would violate this assumption.
-            #[allow(clippy::assertions_on_constants)]
             const _: () = assert!(ADDRESS_LEN <= 32);
             let bytes: [u8; 32] = Sha256::digest(self).into();
             first_20(bytes)
@@ -311,8 +310,10 @@ mod tests {
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
     #[test]
-    // allow: we want explicit assertions here to match the documented expected behavior.
-    #[allow(clippy::nonminimal_bool)]
+    #[expect(
+        clippy::nonminimal_bool,
+        reason = "we want explicit assertions here to match the documented expected behavior"
+    )]
     fn verification_key_comparisons_should_be_consistent() {
         // A key which compares greater than "low" ones below, and with its address uninitialized.
         let high_uninit = VerificationKey {

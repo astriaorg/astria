@@ -121,7 +121,7 @@ pub(super) async fn verify_metadata(
             verification_tasks.spawn(
                 VerificationTaskKey {
                     index,
-                    block_hash: blob.block_hash(),
+                    block_hash: *blob.block_hash(),
                     sequencer_height: blob.height(),
                 },
                 blob_verifier
@@ -136,10 +136,10 @@ pub(super) async fn verify_metadata(
         match verification_result {
             Ok(Some(verified_blob)) => {
                 if let Some(dropped_entry) =
-                    verified_header_blobs.insert(verified_blob.block_hash(), verified_blob)
+                    verified_header_blobs.insert(*verified_blob.block_hash(), verified_blob)
                 {
                     let accepted_entry = verified_header_blobs
-                        .get(&dropped_entry.block_hash())
+                        .get(dropped_entry.block_hash())
                         .expect("must exist; just inserted an item under the same key");
                     info!(
                         block_hash = %base64(&dropped_entry.block_hash()),
@@ -291,7 +291,7 @@ impl BlobVerifier {
         .and_then(|()| {
             ensure_block_hashes_match(
                 cached.commit_header.commit.block_id.hash.as_bytes(),
-                &metadata.block_hash(),
+                metadata.block_hash(),
             )
         }) {
             info!(reason = %error, "failed to verify metadata retrieved from Celestia; dropping it");
@@ -456,9 +456,11 @@ impl RateLimitedVerificationClient {
         mut self,
         height: SequencerHeight,
     ) -> Result<Box<tendermint_rpc::endpoint::commit::Response>, BoxError> {
-        // allow: it is desired that the wildcard matches all future added variants because
-        // this call must only return a single specific variant, panicking otherwise.
-        #[allow(clippy::match_wildcard_for_single_variants)]
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "it is desired that the wildcard matches all future added variants because \
+                      this call must only return a single specific variant, panicking otherwise"
+        )]
         match self
             .inner
             .ready()
@@ -479,9 +481,11 @@ impl RateLimitedVerificationClient {
         prev_height: SequencerHeight,
         height: SequencerHeight,
     ) -> Result<Box<tendermint_rpc::endpoint::validators::Response>, BoxError> {
-        // allow: it is desired that the wildcard matches all future added variants because
-        // this call must only return a single specific variant, panicking otherwise.
-        #[allow(clippy::match_wildcard_for_single_variants)]
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "it is desired that the wildcard matches all future added variants because \
+                      this call must only return a single specific variant, panicking otherwise"
+        )]
         match self
             .inner
             .ready()

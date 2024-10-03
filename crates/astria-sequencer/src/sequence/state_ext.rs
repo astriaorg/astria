@@ -7,22 +7,17 @@ use astria_eyre::{
     },
 };
 use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
 use cnidarium::{
     StateRead,
     StateWrite,
 };
 use tracing::instrument;
 
+use super::storage;
+use crate::storage::StoredValue;
+
 const SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY: &str = "seqbasefee";
 const SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "seqmultiplier";
-
-/// Newtype wrapper to read and write a u128 from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct Fee(u128);
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -34,8 +29,9 @@ pub(crate) trait StateReadExt: StateRead {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sequence action base fee from state")?
             .ok_or_eyre("sequence action base fee not found")?;
-        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
-        Ok(fee)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
+            .wrap_err("invalid sequence action base fee bytes")
     }
 
     #[instrument(skip_all)]
@@ -46,8 +42,9 @@ pub(crate) trait StateReadExt: StateRead {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sequence action byte cost multiplier from state")?
             .ok_or_eyre("sequence action byte cost multiplier not found")?;
-        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
-        Ok(fee)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
+            .wrap_err("invalid sequence action byte cost multiplier bytes")
     }
 }
 
@@ -56,19 +53,24 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_sequence_action_base_fee(&mut self, fee: u128) {
-        self.put_raw(
-            SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY.to_string(),
-            borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
-        );
+    fn put_sequence_action_base_fee(&mut self, fee: u128) -> Result<()> {
+        let bytes = StoredValue::from(storage::Fee::from(fee))
+            .serialize()
+            .context("failed to serialize sequence action base fee")?;
+        self.put_raw(SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY.to_string(), bytes);
+        Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_sequence_action_byte_cost_multiplier(&mut self, fee: u128) {
+    fn put_sequence_action_byte_cost_multiplier(&mut self, fee: u128) -> Result<()> {
+        let bytes = StoredValue::from(storage::Fee::from(fee))
+            .serialize()
+            .context("failed to serialize sequence action byte cost multiplier")?;
         self.put_raw(
             SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY.to_string(),
-            borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
+            bytes,
         );
+        Ok(())
     }
 }
 
@@ -90,7 +92,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee = 42;
-        state.put_sequence_action_base_fee(fee);
+        state.put_sequence_action_base_fee(fee).unwrap();
         assert_eq!(state.get_sequence_action_base_fee().await.unwrap(), fee);
     }
 
@@ -101,7 +103,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee = 42;
-        state.put_sequence_action_byte_cost_multiplier(fee);
+        state.put_sequence_action_byte_cost_multiplier(fee).unwrap();
         assert_eq!(
             state
                 .get_sequence_action_byte_cost_multiplier()

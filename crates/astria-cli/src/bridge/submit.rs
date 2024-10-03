@@ -7,7 +7,6 @@ use astria_core::{
     crypto::SigningKey,
     protocol::transaction::v1alpha1::{
         Action,
-        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -17,7 +16,6 @@ use astria_sequencer_client::{
     HttpClient,
     SequencerClientExt as _,
 };
-use clap::Args;
 use color_eyre::eyre::{
     self,
     ensure,
@@ -30,8 +28,8 @@ use tracing::{
     warn,
 };
 
-#[derive(Args, Debug)]
-pub(crate) struct WithdrawalEvents {
+#[derive(clap::Args, Debug)]
+pub(crate) struct Command {
     #[arg(long, short)]
     input: PathBuf,
     #[arg(long)]
@@ -44,7 +42,7 @@ pub(crate) struct WithdrawalEvents {
     sequencer_url: String,
 }
 
-impl WithdrawalEvents {
+impl Command {
     pub(crate) async fn run(self) -> eyre::Result<()> {
         let signing_key = read_signing_key(&self.signing_key).wrap_err_with(|| {
             format!(
@@ -97,7 +95,7 @@ impl WithdrawalEvents {
     }
 }
 
-fn read_actions<P: AsRef<Path>>(path: P) -> eyre::Result<super::collect::ActionsByRollupHeight> {
+fn read_actions<P: AsRef<Path>>(path: P) -> eyre::Result<super::ActionsByRollupHeight> {
     let s = std::fs::read_to_string(path).wrap_err("failed buffering file contents as string")?;
     serde_json::from_str(&s)
         .wrap_err("failed deserializing file contents height-to-sequencer-actions serde object")
@@ -119,7 +117,7 @@ async fn submit_transaction(
     actions: Vec<Action>,
 ) -> eyre::Result<Response> {
     let from_address = Address::builder()
-        .array(signing_key.verification_key().address_bytes())
+        .array(*signing_key.verification_key().address_bytes())
         .prefix(prefix)
         .try_build()
         .wrap_err("failed constructing a valid from address from the provided prefix")?;
@@ -129,14 +127,13 @@ async fn submit_transaction(
         .await
         .wrap_err("failed to get nonce")?;
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(nonce_res.nonce)
-            .chain_id(chain_id)
-            .build(),
-        actions,
-    }
-    .into_signed(signing_key);
+    let tx = UnsignedTransaction::builder()
+        .actions(actions)
+        .nonce(nonce_res.nonce)
+        .chain_id(chain_id)
+        .try_build()
+        .wrap_err("failed to build transaction from actions")?
+        .into_signed(signing_key);
     let res = client
         .submit_transaction_sync(tx)
         .await

@@ -83,8 +83,10 @@ impl ConfigBuilder {
     /// respectively, starts the http server if enabled, sets the global metrics recorder if
     /// requested and returns a new metrics object of type `T` along with a handle for rendering
     /// current metrics.
-    // allow: no useful error info can be added without writing excessive details.
-    #[allow(clippy::missing_errors_doc)]
+    #[expect(
+        clippy::missing_errors_doc,
+        reason = "no useful error info can be added without writing excessive details"
+    )]
     pub fn build<T: Metrics>(self, config: &T::Config) -> Result<(T, Handle), Error> {
         // Apply settings to the prometheus builder.
         let mut prometheus_builder = PrometheusBuilder::new();

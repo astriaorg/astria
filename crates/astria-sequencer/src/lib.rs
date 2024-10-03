@@ -1,6 +1,5 @@
 pub(crate) mod accounts;
 pub(crate) mod address;
-mod api_state_ext;
 pub(crate) mod app;
 pub(crate) mod assets;
 pub(crate) mod authority;
@@ -19,7 +18,7 @@ pub(crate) mod proposal;
 pub(crate) mod sequence;
 mod sequencer;
 pub(crate) mod service;
-pub(crate) mod state_ext;
+pub(crate) mod storage;
 pub(crate) mod storage_keys;
 #[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod test_utils;

@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ template "sequencer.fullname" . }}
+  name: {{ include "sequencer.name" . }}
 {{- if .Values.alerting.prometheusRule.namespace }}
   namespace: {{ .Values.alerting.prometheusRule.namespace | quote }}
 {{- end }}
@@ -14,7 +14,7 @@ metadata:
 spec:
 {{- if .Values.alerting.prometheusRule.rules }}
   groups:
-  - name: {{ template "sequencer.fullname" . }}
+  - name: {{ template "sequencer.name" . }}
     rules: {{- toYaml .Values.alerting.prometheusRule.rules | nindent 4 }}
 {{- end }}
 {{- end }}

@@ -12,6 +12,7 @@ data:
   SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencerChainId }}"
   SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.addressPrefix }}"
   SEQUENCER_NATIVE_DENOM: "{{ .Values.config.sequencerNativeDenom }}"
+  SEQUENCER_FAUCET_PRECISION: "{{ .Values.config.faucetPrecision }}"
   {{- if not .Values.secretProvider.enabled }}
   SEQUENCER_FAUCET_PRIVATE_KEY: "{{ .Values.config.fundingPrivateKey.devContent }}"
   {{- end }}
