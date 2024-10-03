@@ -7,7 +7,6 @@ use astria_eyre::eyre::{
 use itertools::Itertools as _;
 use tokio::{
     select,
-    task::JoinError,
     time::timeout,
 };
 use tokio_util::{
@@ -22,6 +21,8 @@ use tracing::{
 
 use crate::{
     auction_driver,
+    flatten,
+    optimistic_executor,
     Config,
     Metrics,
 };
@@ -47,6 +48,7 @@ impl Auctioneer {
     ) -> eyre::Result<Self> {
         let Config {
             sequencer_grpc_endpoint,
+            rollup_id,
             ..
         } = cfg;
 
@@ -65,9 +67,11 @@ impl Auctioneer {
         .wrap_err("failed to initialize the auction driver")?;
         tasks.spawn(Self::AUCTION_DRIVER, auction_driver.run());
 
-        let optimistic_executor = crate::optimistic_executor::Builder {
+        let optimistic_executor = optimistic_executor::Builder {
             metrics,
+            shutdown_token: shutdown_token.clone(),
             sequencer_grpc_endpoint,
+            rollup_id,
         }
         .build()
         .wrap_err("failed to initialize the optimistic executor")?;
@@ -137,13 +141,5 @@ impl Auctioneer {
             info!("all tasks have shut down regularly");
         }
         info!("shutting down");
-    }
-}
-
-pub(super) fn flatten<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {
-    match res {
-        Ok(Ok(val)) => Ok(val),
-        Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
-        Err(err) => Err(err).wrap_err("task panicked"),
     }
 }

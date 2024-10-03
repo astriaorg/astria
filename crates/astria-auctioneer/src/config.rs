@@ -23,6 +23,8 @@ pub struct Config {
     pub pretty_print: bool,
     /// The endpoint for the sequencer gRPC service used for the optimistic block stream
     pub sequencer_grpc_endpoint: String,
+    /// The rollup ID used to filter the optimistic blocks stream
+    pub rollup_id: String,
 }
 
 impl config::Config for Config {

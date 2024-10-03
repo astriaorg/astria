@@ -117,84 +117,24 @@ impl State {
 }
 
 // TODO: instead of state, should `CurrentBlock` just be:
-// pub(crate) struct CurrentBlock {
-//     optimistic: Option<Optimistic>,
-//     executed: Option<Executed>,
-//     committed: Option<Committed>,
-// }
-
-// impl CurrentBlock {
-//     pub(crate) fn is_optimistic(self) -> bool {
-//         self.optimistic.is_some()
-//     }
-
-//     pub(crate) fn apply_optimistic(self, new_block: Optimistic) -> Self {
-//         unimplemented!()
-//     }
-//     // etc
-// }
-
-#[derive(Debug, Clone)]
 pub(crate) struct CurrentBlock {
-    inner: State,
+    optimistic: Option<Optimistic>,
+    executed: Option<Executed>,
+    committed: Option<Committed>,
 }
 
 impl CurrentBlock {
-    pub(crate) fn apply_optimistic_block(self, optimistic_block: Optimistic) -> Self {
-        // check for reorg or new block to get the starting state
-        let starting_state = self.inner.handle_reorg(optimistic_block);
-
-        let new_state = match starting_state {
-            State::OptimisticBlock(optimistic) => todo!(),
-            State::ExecutedBlock(executed) => todo!(),
-            State::BlockCommitment(committed) => todo!(),
-            State::ExecutedAndCommitted(executed_and_committed) => todo!(),
-        };
-
-        Self {
-            inner: new_state,
-        }
+    pub(crate) fn apply_optimistic_block(self, _optimistic_block: Optimistic) -> Self {
+        unimplemented!()
     }
 
-    pub(crate) fn apply_executed_block(self, executed_block: Executed) -> Self {
-        let new_state = match self.inner {
-            State::OptimisticBlock(optimistic) => {
-                State::ExecutedBlock(optimistic.into_executed_block(executed_block))
-            }
-            State::BlockCommitment(committed) => {
-                State::ExecutedAndCommitted(committed.into_exec_and_commit(executed_block))
-            }
-            State::ExecutedBlock(executed) => panic!("double executed block"),
-            State::ExecutedAndCommitted(executed_and_committed) => panic!("double executed block"),
-        };
-
-        Self {
-            inner: new_state,
-        }
+    pub(crate) fn apply_executed_block(self, _executed_block: Executed) -> Self {
+        unimplemented!()
     }
 
-    pub(crate) fn apply_block_commitment(self, block_commitment: Committed) -> Self {
-        let new_state = match self.inner {
-            State::OptimisticBlock(optimistic) => todo!(),
-            State::ExecutedBlock(executed) => todo!(),
-            State::BlockCommitment(committed) => todo!(),
-            State::ExecutedAndCommitted(executed_and_committed) => todo!(),
-        };
-
-        Self {
-            inner: new_state,
-        }
+    pub(crate) fn apply_block_commitment(self, _block_commitment: Committed) -> Self {
+        unimplemented!()
     }
-}
 
-pub(crate) struct Handle {
-    rx: watch::Receiver<CurrentBlock>,
-}
-
-impl Handle {
-    // TODO: this will be called by the auction driver
-    pub(crate) async fn get_block(&mut self) -> CurrentBlock {
-        self.rx.changed().await;
-        todo!("return the new state after it is changed");
-    }
+    // TODO: add getter funcs for current state or make fields pub(crate)
 }

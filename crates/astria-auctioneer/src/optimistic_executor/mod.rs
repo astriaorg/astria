@@ -6,86 +6,161 @@ mod optimistic_block_stream;
 use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre;
 pub(crate) use builder::Builder;
-use optimistic_block_stream::OptimisticBlockStream;
 use sequencer_client::SequencerGrpcClient;
 use tokio::{
     select,
-    sync::{
-        mpsc,
-        watch,
-    },
+    sync::watch,
 };
 use tokio_stream::StreamExt as _;
-use tracing::info;
+use tokio_util::{
+    sync::CancellationToken,
+    task::JoinMap,
+};
+use tracing::{
+    error,
+    info,
+};
 
-use crate::block::{
+mod block;
+
+use block::{
     Committed,
     CurrentBlock,
-    Executed,
     Optimistic,
 };
 
 mod sequencer_client;
 use astria_eyre::eyre::WrapErr as _;
 
+use crate::{
+    auction,
+    flatten,
+};
+
 pub(crate) struct Handle {
     block_rx: watch::Receiver<CurrentBlock>,
 }
 
 pub(crate) struct OptimisticExecutor {
-    sequencer_grpc_url: String,
+    metrics: &'static crate::Metrics,
+    shutdown_token: CancellationToken,
+    sequencer_grpc_endpoint: String,
     rollup_id: RollupId,
-    optimistic_blocks_rx: mpsc::Receiver<Optimistic>,
-    executed_blocks_rx: mpsc::Receiver<Executed>,
-    block_commitments_rx: mpsc::Receiver<Committed>,
-    // watch::Sender<CurrentBlock>,
-    block: CurrentBlock,
 }
 
 impl OptimisticExecutor {
-    pub(crate) async fn run(mut self) -> eyre::Result<()> {
-        let Self {
-            sequencer_grpc_url,
-            rollup_id,
-            executed_blocks_rx: mut exec_rx,
-            block_commitments_rx: mut commit_rx,
-            mut block,
-            ..
-        } = self;
-
-        // TODO: use grpc streams instead of channels
-        let mut sequencer_client = SequencerGrpcClient::new(&sequencer_grpc_url)
+    pub(crate) async fn run(self) -> eyre::Result<()> {
+        let mut sequencer_client = SequencerGrpcClient::new(&self.sequencer_grpc_endpoint)
             .wrap_err("failed to initialize sequencer grpc client")?;
-        let stream_client = sequencer_client
-            .optimistic_block_stream(rollup_id)
+
+        let mut optimistic_stream_client = sequencer_client
+            .optimistic_block_stream(self.rollup_id)
             .await
             .wrap_err("failed to stream optimistic blocks")?;
-        let mut optimistic_block_stream = OptimisticBlockStream::new(stream_client);
+        let mut commit_stream_client = sequencer_client
+            .block_commitment_stream()
+            .await
+            .wrap_err("failed to stream block commitments")?;
+
+        // let executed_stream_client = sequencer_client
+        //     .executed_block_stream(rollup_id)
+        //     .await
+        //     .wrap_err("failed to stream executed blocks")?;
+
+        // let bundle_stream = BundleServiceClient::new(bundle_service_grpc_url)
+        //     .wrap_err("failed to initialize bundle service grpc client")?;
+
+        // loop over:
+        // 1. block streams to update current block
+        //      1. optimistic block stream
+        //          1. reorg by shutting down current auction fut, dumping the oneshot  (this is the
+        //             state transition)
+        //          2. start new auction fut in the joinmap with the sequencer block hash as key
+        //          3. send new execute_fut to the optimistic execution stream
+        //      2. executed block stream
+        //          1. update curr block state (react if invalid state transition? maybe by dropping
+        //             the block and its auction)
+        //          2. send executed signal to the auction so it will start pulling bundles
+        //      3. block commitment stream
+        //          1. update curr block state (react if invalid state transition? maybe by dropping
+        //             the block and its auction. altho this shouldnt happen because the block has
+        //             to have an opt)
+        //          2. send commit signal to the auction so it will start the timer
+        // 2. forward bundles from bundle stream into the correct auction fut
+        //      - bundles will build up in the channel into the auction until the executed signal is
+        //        sent to the auction fut. so if backpressure builds up here, i.e. bids arrive way
+        //        before execution, we can decide how to react here. for example, we can drop all
+        //        the bundles that are stuck in the channel and log a warning, or we can kill the
+        //        auction for that given block
+        // 3. execute the execute_fut if not terminated?
+        // 4. handle auction_map.join_next() somehow
+        // 4. cancellation token or something
+        //
+
+        let mut auctions: JoinMap<auction::Id, eyre::Result<auction::Winner>> = JoinMap::new();
+        let mut curr_block: Option<CurrentBlock> = None;
+
+        let reason = {
+            loop {
+                select! {
+                    biased;
+                    () = self.shutdown_token.cancelled() => {
+                        break Ok("received shutdown signal");
+                    },
+
+                    Some((id, res)) = auctions.join_next() => {
+                        let id = id.sequencer_block_hash;
+                        break flatten(res)
+                            .wrap_err_with(|| "auction failed for block {id}")
+                            .map(|_| "auction {id} failed");
+                    },
+
+                    optimistic_block = optimistic_stream_client.next() => {
+                        let raw = optimistic_block.unwrap().wrap_err("failed to receive optimistic block")?;
+                        let next_block = curr_block.map(|block| block.apply_optimistic_block(Optimistic::from_raw(raw)));
+                        curr_block = next_block;
+                    },
+                    block_commitment = commit_stream_client.next() => {
+                        let raw = block_commitment.unwrap().wrap_err("failed to receive block commitment")?;
+                        let next_block = curr_block.map(|block| block.apply_block_commitment(Committed::from_raw(raw)));
+                        curr_block = next_block;
+                    },
+                }
+            }
+        };
 
         // TODO: probably want to interact with the block state machine via the handle
-        loop {
-            let old_block = block.clone();
-            let new_block = select! {
-                optimistic_block = optimistic_block_stream.next() => {
-                    // TODO: stop doing this unwrap unwrap thing with the stream
-                    // curr_block = block.borrow();
-                    // let next = curr_block.apply_optimistic_block(optimistic_block.unwrap().unwrap())
-                    // block.send(next);
+        // loop {
+        //     let old_block = block.clone();
+        //     let new_block = select! {
+        //         optimistic_block = optimistic_block_stream.next() => {
+        //             // TODO: stop doing this unwrap unwrap thing with the stream
+        //             // curr_block = block.borrow();
+        //             // let next =
+        // curr_block.apply_optimistic_block(optimistic_block.unwrap().unwrap())
+        // // block.send(next);
 
+        //             // TODO: add execute_fut fused future that sends this to the optimistic
+        // execution stream         },
+        //         exec = exec_rx.recv() => {
+        //             block.apply_executed_block(exec.unwrap())
+        //         },
+        //         commit = commit_rx.recv() => {
+        //             block.apply_block_commitment(commit.unwrap())
+        //         },
+        //     };
 
-                    // TODO: add execute_fut fused future that sends this to the optimistic execution stream
-                },
-                exec = exec_rx.recv() => {
-                    block.apply_executed_block(exec.unwrap())
-                },
-                commit = commit_rx.recv() => {
-                    block.apply_block_commitment(commit.unwrap())
-                },
-            };
+        //     info!(parent = ?old_block, block = ?new_block, "block state updated");
+        //     block = new_block;
+        //     // block_tx.send_modify(curr_state)
+        // }
 
-            info!(parent = ?old_block, block = ?new_block, "block state updated");
-            block = new_block;
-            // block_tx.send_modify(curr_state)
-        }
+        match reason {
+            Ok(msg) => info!(%msg, "shutting down"),
+            Err(err) => error!(%err, "shutting down due to error"),
+        };
+
+        // TODO: self.shutdown
+        Ok(())
     }
 }

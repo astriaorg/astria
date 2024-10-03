@@ -1,13 +1,15 @@
 use std::pin::Pin;
 
 use astria_core::generated::sequencerblock::v1alpha1::StreamOptimisticBlockResponse;
-use astria_eyre::eyre;
+use astria_eyre::eyre::{
+    self,
+};
 use futures::{
     Stream,
     StreamExt as _,
 };
 
-use crate::block;
+use super::block;
 
 pub(crate) struct OptimisticBlockStream {
     // TODO: does this need to be pinned?

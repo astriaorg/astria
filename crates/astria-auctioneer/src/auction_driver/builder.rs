@@ -13,6 +13,9 @@ impl Builder {
             metrics,
         } = self;
 
+        // TODO: this should probably initialize the driver/auction fut, then run it and return the
+        // handle
+
         Ok(AuctionDriver {
             metrics,
         })

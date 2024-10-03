@@ -1,26 +1,35 @@
-struct Bundle;
+use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
 
-pub(crate) struct Bid {
+struct _Bundle;
+
+pub(crate) struct _Bid {
     fee: u64,
-    bundle: Bundle,
+    bundle: _Bundle,
 }
 
-pub(crate) enum State {
+pub(crate) enum _State {
     Closed,
     Open,
     Timer,
     Result,
 }
 
-pub(crate) struct FirstPriceAuction {
-    state: State,
+pub(crate) struct _FirstPriceAuction {
     latency_margin: u64,
 }
 
-impl FirstPriceAuction {
-    pub(crate) fn committed(&self) -> bool {
-        todo!("return whether the timer has been activated")
-    }
+impl _FirstPriceAuction {
+    // TODO:
+    // 1. add bid
+    // 2. start timer
+    // 3. get result
+}
 
-    pub(crate) fn new_bid() {}
+#[derive(Hash, Eq, PartialEq)]
+pub(crate) struct Id {
+    pub(crate) sequencer_block_hash: String,
+}
+
+pub(crate) struct Winner {
+    _submitted_transaction: SignedTransaction,
 }
