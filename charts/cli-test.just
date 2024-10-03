@@ -24,7 +24,6 @@ sequencerRpc := "http://rpc.sequencer.localdev.me"
 sequencerChainId := "sequencer-test-chain-0"
 asset := "test"
 defaultTag := "latest"
-run tag=defaultTag:
 
 validate-output output expected_format:
   #!/usr/bin/env bash
