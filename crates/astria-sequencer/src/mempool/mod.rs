@@ -106,6 +106,35 @@ impl RemovalCache {
     }
 }
 
+struct ContainedTxLock<'a> {
+    mempool: &'a Mempool,
+    txs: RwLockWriteGuard<'a, HashSet<[u8; 32]>>,
+}
+
+impl<'a> ContainedTxLock<'a> {
+    fn add(&mut self, id: [u8; 32]) {
+        if !self.txs.insert(id) {
+            self.mempool.metrics.increment_internal_logic_error();
+            error!(
+                tx_hash = %telemetry::display::hex(&id),
+                "attempted to add transaction already tracked in mempool's tracked container, is logic \
+                error"
+            );
+        }
+    }
+
+    fn remove(&mut self, id: [u8; 32]) {
+        if !self.txs.remove(&id) {
+            self.mempool.metrics.increment_internal_logic_error();
+            error!(
+                tx_hash = %telemetry::display::hex(&id),
+                "attempted to remove transaction absent from mempool's tracked container, is logic \
+                error"
+            );
+        }
+    }
+}
+
 /// [`Mempool`] is an account-based structure for maintaining transactions for execution.
 ///
 /// The transactions are split between pending and parked, where pending transactions are ready for
@@ -161,29 +190,10 @@ impl Mempool {
         self.contained_txs.read().await.len()
     }
 
-    /// Adds a transaction to the mempool's tracked transactions.
-    /// Will increment logic error metrics and log error if transaction is already present.
-    fn add_to_contained_txs(&self, tx_hash: [u8; 32], contained_txs: &mut HashSet<[u8; 32]>) {
-        if !contained_txs.insert(tx_hash) {
-            self.metrics.increment_internal_logic_error();
-            error!(
-                tx_hash = %telemetry::display::hex(&tx_hash),
-                "attempted to add transaction already tracked in mempool's tracked container, is logic \
-                error"
-            );
-        }
-    }
-
-    /// Removes a transaction from the mempool's tracked transactions.
-    /// Will increment logic error metrics and log error if transaction is not present.
-    fn remove_from_contained_txs(&self, tx_hash: [u8; 32], contained_txs: &mut HashSet<[u8; 32]>) {
-        if !contained_txs.remove(&tx_hash) {
-            self.metrics.increment_internal_logic_error();
-            error!(
-                tx_hash = %telemetry::display::hex(&tx_hash),
-                "attempted to remove transaction absent from mempool's tracked container, is logic \
-                error"
-            );
+    async fn lock_contained_txs(&self) -> ContainedTxLock<'_> {
+        ContainedTxLock {
+            mempool: self,
+            txs: self.contained_txs.write().await,
         }
     }
 
@@ -249,11 +259,10 @@ impl Mempool {
                     if let Err(error) =
                         pending.add(ttx, current_account_nonce, &current_account_balances)
                     {
-                        // remove from tracked
-                        // note: this branch is not expected to be hit so grabbing the lock inside
+                        // NOTE: this branch is not expected to be hit so grabbing the lock inside
                         // of the loop is more performant.
-                        let mut contained_txs = self.contained_txs.write().await;
-                        self.remove_from_contained_txs(timemarked_tx.id(), &mut contained_txs);
+                        let mut contained_lock = self.lock_contained_txs().await;
+                        contained_lock.remove(timemarked_tx.id());
                         error!(
                             current_account_nonce,
                             tx_hash = %telemetry::display::hex(&tx_id),
@@ -264,8 +273,8 @@ impl Mempool {
                 }
 
                 // track in contained txs
-                let mut contained_txs = self.contained_txs.write().await;
-                self.add_to_contained_txs(timemarked_tx.id(), &mut contained_txs);
+                let mut contained_lock = self.lock_contained_txs().await;
+                contained_lock.add(timemarked_tx.id());
 
                 Ok(())
             }
@@ -317,9 +326,9 @@ impl Mempool {
         // Add the original tx first to preserve its reason for removal. The second
         // attempt to add it inside the loop below will be a no-op.
         removal_cache.add(tx_hash, reason);
-        let mut contained_txs = self.contained_txs.write().await;
+        let mut contained_lock = self.lock_contained_txs().await;
         for removed_tx in removed_txs {
-            self.remove_from_contained_txs(removed_tx, &mut contained_txs);
+            contained_lock.remove(removed_tx);
             removal_cache.add(removed_tx, RemovalReason::LowerNonceInvalidated);
         }
     }
@@ -414,10 +423,9 @@ impl Mempool {
                 for tx in promtion_txs {
                     let tx_id = tx.id();
                     if let Err(error) = pending.add(tx, current_nonce, &current_balances) {
-                        // remove from tracked
-                        let mut contained_txs = self.contained_txs.write().await;
-                        self.remove_from_contained_txs(tx_id, &mut contained_txs);
-                        // this shouldn't happen
+                        // NOTE: this shouldn't happen. Promotions should never fail.
+                        let mut contained_lock = self.lock_contained_txs().await;
+                        contained_lock.remove(tx_id);
                         self.metrics.increment_internal_logic_error();
                         error!(
                             address = %telemetry::display::base64(&address),
@@ -433,10 +441,10 @@ impl Mempool {
                 for tx in demotion_txs {
                     let tx_id = tx.id();
                     if let Err(error) = parked.add(tx, current_nonce, &current_balances) {
-                        // remove from tracked
-                        let mut contained_txs = self.contained_txs.write().await;
-                        self.remove_from_contained_txs(tx_id, &mut contained_txs);
-                        // this shouldn't happen
+                        // NOTE: this shouldn't happen normally but could on the edge case of
+                        // the parked queue being full for the account.
+                        let mut contained_lock = self.lock_contained_txs().await;
+                        contained_lock.remove(tx_id);
                         self.metrics.increment_internal_logic_error();
                         error!(
                             address = %telemetry::display::base64(&address),
@@ -1084,7 +1092,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tx_tracked_set() {
+    async fn tx_tracked_edge_cases() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics);
         let account_balances = mock_balances(100, 100);
@@ -1107,7 +1115,7 @@ mod tests {
             .unwrap();
         assert!(mempool.is_tracked(tx0.id().get()).await);
 
-        // remove the transactions from the mempool
+        // remove the transactions from the mempool, should remove both
         mempool
             .remove_tx_invalid(tx0.clone(), RemovalReason::Expired)
             .await;
@@ -1126,7 +1134,7 @@ mod tests {
             .await
             .unwrap();
 
-        // check that the transactions are in the tracked set
+        // check that the transactions are in the tracked set on re-insertion
         assert!(mempool.is_tracked(tx0.id().get()).await);
         assert!(mempool.is_tracked(tx1.id().get()).await);
 

@@ -22,7 +22,7 @@ use crate::{
 };
 
 #[tokio::test]
-async fn future_nonce_ok() {
+async fn future_nonces_are_accepted() {
     // The mempool should allow future nonces.
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
@@ -136,7 +136,7 @@ async fn can_reinsert_after_recheck_fail() {
 }
 
 #[tokio::test]
-async fn receck_adds_non_tracked_tx() {
+async fn recheck_adds_non_tracked_tx() {
     // The mempool should be able to insert a transaction on recheck if it isn't in the mempool.
     // This could happen in the case of a sequencer restart as the cometbft mempool persists but
     // the appside one does not.
