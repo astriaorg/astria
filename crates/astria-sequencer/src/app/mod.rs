@@ -662,6 +662,10 @@ impl App {
         self.metrics
             .set_transactions_in_mempool_total(self.mempool.len().await);
 
+        // XXX: we need to unwrap the app's state arc to write
+        // to the ephemeral store.
+        // this is okay as we should have the only reference to the state
+        // at this point.
         let mut state_tx = Arc::try_begin_transaction(&mut self.state)
             .expect("state Arc should not be referenced elsewhere");
         state_tx.object_put(EXECUTION_RESULTS_KEY, execution_results);
