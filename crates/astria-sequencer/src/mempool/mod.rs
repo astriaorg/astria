@@ -228,7 +228,7 @@ impl Mempool {
                 ) {
                     Ok(()) => {
                         // track in contained txs
-                        self.contained_txs.write().await.insert(id);
+                        self.lock_contained_txs().await.add(id);
                         Ok(())
                     }
                     Err(err) => Err(err),
@@ -261,8 +261,7 @@ impl Mempool {
                     {
                         // NOTE: this branch is not expected to be hit so grabbing the lock inside
                         // of the loop is more performant.
-                        let mut contained_lock = self.lock_contained_txs().await;
-                        contained_lock.remove(timemarked_tx.id());
+                        self.lock_contained_txs().await.remove(timemarked_tx.id());
                         error!(
                             current_account_nonce,
                             tx_hash = %telemetry::display::hex(&tx_id),
@@ -273,8 +272,7 @@ impl Mempool {
                 }
 
                 // track in contained txs
-                let mut contained_lock = self.lock_contained_txs().await;
-                contained_lock.add(timemarked_tx.id());
+                self.lock_contained_txs().await.add(timemarked_tx.id());
 
                 Ok(())
             }
@@ -423,9 +421,10 @@ impl Mempool {
                 for tx in promtion_txs {
                     let tx_id = tx.id();
                     if let Err(error) = pending.add(tx, current_nonce, &current_balances) {
-                        // NOTE: this shouldn't happen. Promotions should never fail.
-                        let mut contained_lock = self.lock_contained_txs().await;
-                        contained_lock.remove(tx_id);
+                        // NOTE: this shouldn't happen. Promotions should never fail. This also
+                        // means grabbing the lock inside the loop is more
+                        // performant.
+                        self.lock_contained_txs().await.remove(tx_id);
                         self.metrics.increment_internal_logic_error();
                         error!(
                             address = %telemetry::display::base64(&address),
@@ -442,9 +441,9 @@ impl Mempool {
                     let tx_id = tx.id();
                     if let Err(error) = parked.add(tx, current_nonce, &current_balances) {
                         // NOTE: this shouldn't happen normally but could on the edge case of
-                        // the parked queue being full for the account.
-                        let mut contained_lock = self.lock_contained_txs().await;
-                        contained_lock.remove(tx_id);
+                        // the parked queue being full for the account. This also means
+                        // grabbing the lock inside the loop is more performant.
+                        self.lock_contained_txs().await.remove(tx_id);
                         self.metrics.increment_internal_logic_error();
                         error!(
                             address = %telemetry::display::base64(&address),
@@ -463,10 +462,10 @@ impl Mempool {
 
         // add to removal cache for cometbft and remove from the tracked set
         let mut removal_cache = self.comet_bft_removal_cache.write().await;
-        let mut tracked_txs = self.contained_txs.write().await;
+        let mut contained_lock = self.lock_contained_txs().await;
         for (tx_hash, reason) in removed_txs {
             removal_cache.add(tx_hash, reason);
-            tracked_txs.remove(&tx_hash);
+            contained_lock.remove(tx_hash);
         }
     }
 
@@ -528,6 +527,7 @@ mod tests {
                 .is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
+        assert_eq!(mempool.len().await, 1);
 
         // try to insert again
         assert_eq!(
@@ -1092,7 +1092,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tx_tracked_edge_cases() {
+    async fn tx_tracked_invalid_removal_removes_all() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics);
         let account_balances = mock_balances(100, 100);
@@ -1123,6 +1123,68 @@ mod tests {
         // check that the transactions are not in the tracked set
         assert!(!mempool.is_tracked(tx0.id().get()).await);
         assert!(!mempool.is_tracked(tx1.id().get()).await);
+    }
+
+    #[tokio::test]
+    async fn tx_tracked_maintenance_removes_all() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+
+        let tx0 = MockTxBuilder::new().nonce(0).build();
+        let tx1 = MockTxBuilder::new().nonce(1).build();
+
+        mempool
+            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // remove the transacitons from the mempool via maintenance
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
+            2,
+        );
+        mempool.run_maintenance(&mock_state, false).await;
+
+        // check that the transactions are not in the tracked set
+        assert!(!mempool.is_tracked(tx0.id().get()).await);
+        assert!(!mempool.is_tracked(tx1.id().get()).await);
+    }
+
+    #[tokio::test]
+    async fn tx_tracked_reinsertion_ok() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+
+        let tx0 = MockTxBuilder::new().nonce(0).build();
+        let tx1 = MockTxBuilder::new().nonce(1).build();
+
+        mempool
+            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        mempool
+            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // remove the transactions from the mempool, should remove both
+        mempool
+            .remove_tx_invalid(tx0.clone(), RemovalReason::Expired)
+            .await;
+
+        assert!(!mempool.is_tracked(tx0.id().get()).await);
+        assert!(!mempool.is_tracked(tx1.id().get()).await);
 
         // re-insert the transactions into the mempool
         mempool
@@ -1137,18 +1199,5 @@ mod tests {
         // check that the transactions are in the tracked set on re-insertion
         assert!(mempool.is_tracked(tx0.id().get()).await);
         assert!(mempool.is_tracked(tx1.id().get()).await);
-
-        // remove the transacitons from the mempool via maintenance
-        let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(
-            &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-            2,
-        );
-        mempool.run_maintenance(&mock_state, false).await;
-
-        // check that the transactions are not in the tracked set
-        assert!(!mempool.is_tracked(tx0.id().get()).await);
-        assert!(!mempool.is_tracked(tx1.id().get()).await);
     }
 }
