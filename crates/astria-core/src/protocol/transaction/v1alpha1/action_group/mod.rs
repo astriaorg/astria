@@ -134,6 +134,10 @@ impl Error {
             group,
         })
     }
+
+    fn empty() -> Self {
+        Self(ErrorKind::Empty)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -149,10 +153,13 @@ enum ErrorKind {
     },
     #[error("attempted to create bundle with non bundleable `ActionGroup` type: {group}")]
     NotBundleable { group: ActionGroup },
+    #[error("actions cannot be empty")]
+    Empty,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub(super) struct Actions {
+    group: ActionGroup,
     inner: Vec<Action>,
 }
 
@@ -166,8 +173,8 @@ impl Actions {
         self.inner
     }
 
-    pub(super) fn group(&self) -> Option<ActionGroup> {
-        self.inner.first().map(super::action::Action::group)
+    pub(super) fn group(&self) -> ActionGroup {
+        self.group
     }
 
     pub(super) fn try_from_list_of_actions(actions: Vec<Action>) -> Result<Self, Error> {
@@ -176,7 +183,7 @@ impl Actions {
             Some(action) => action.group(),
             None => {
                 // empty `actions`
-                return Ok(Self::default());
+                return Err(Error::empty());
             }
         };
 
@@ -193,6 +200,7 @@ impl Actions {
         }
 
         Ok(Self {
+            group,
             inner: actions,
         })
     }
