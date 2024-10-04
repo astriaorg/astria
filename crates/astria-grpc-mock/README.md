@@ -13,9 +13,10 @@ in local testing. Heavily influenced by [Wiremock](https://docs.rs/wiremock/late
 ## Usage
 
 The GRPC mock crate works by providing the functionality to mount `Mock`s to `MockServer`s.
-A `Mock`, among other fields, contains a `Matcher` and a `Response`. Upon being
-mounted tothe server, the `Mock` will check incoming requests to the server for
-a match using the `Matcher`, and if the criteria is met, respond with `Response`.
+A `Mock`, among other fields, contains a `Matcher` and a `ResponseTemplate`. Upon
+being mounted to the server, the `Mock` will check incoming requests to the server
+for a match using the `Matcher`. If the criteria is met, it will respond with
+`ResponseTemplate::respond()`.
 
 To use the GRPC mock functionality, you first need to instantiate a `MockServer`
 with `MockServer::new()`.
@@ -23,7 +24,7 @@ with `MockServer::new()`.
 To create a `Mock`, a typical flow is the following:
 
 ```rust
-Mock::for_rpc_given( "rpc_name", {Matcher} ).respond_with( {Response} );
+Mock::for_rpc_given( "rpc_name", {Matcher} ).respond_with( {ResponseTemplate} );
 ```
 
 Additionally, you can further customize a given `Mock` with the following methods:
@@ -37,9 +38,9 @@ it can aid in determining failure points during testing.
 There are two ways of mounting a `Mock` to a server:
 
 1. `Mock::mount()` - This is the simplest way of mounting the mock, simply mounting
-the mock to the server. The mock will be verified once the `MockServer` is dropped,
-panicking if it did not receive an expected number of requests or if there were
-any bad responses from the `Mock`.
+the mock to the server. The mock will be verified once the `MockServer` is dropped
+or manually verified, panicking if it did not receive an expected number of requests
+or if there were any bad responses from the `Mock`.
 2. `Mock::mount_as_scoped()` - This method is best used if you want to evaluate
 the outcome of a `Mock` before shutting down the server. It returns a `MockGuard`,
 which can be eagerly evaluated by calling `MockGuard::wait_until_satisfied()`. Otherwise

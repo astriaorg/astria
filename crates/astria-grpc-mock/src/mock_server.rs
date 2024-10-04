@@ -57,7 +57,10 @@ use crate::{
 /// let mock_message = MockMessage {
 ///     name: "test".to_string(),
 /// };
+///
 /// let server = MockServer::new();
+/// block_on(server.disable_request_recording());
+///
 /// let mock = Mock::for_rpc_given("rpc", matcher::message_exact_pbjson(&mock_message))
 ///     .respond_with(response::constant_response(mock_message.clone()));
 /// let _mock_guard = block_on(server.register_as_scoped(mock));
@@ -66,6 +69,7 @@ use crate::{
 ///     "rpc",
 ///     tonic::Request::new(mock_message.clone()),
 /// ));
+///
 /// assert_eq!(rsp.unwrap().into_inner(), mock_message);
 /// ```
 #[derive(Clone, Default)]
@@ -96,7 +100,7 @@ impl MockServer {
     }
 
     /// Takes an RPC name and [`tonic::Request`] and returns a [`tonic::Response`] based on the
-    /// first [`Mock`] that matches the RPC name and request. If no [`Mock`] matches, it will
+    /// first [`Mock`] that matches the RPC name and request. If no mock matches, it will
     /// return a status with [`tonic::Code::NotFound`]. See [`MockServer`] docs for example usage.
     pub async fn handle_request<
         T: erased_serde::Serialize + prost::Name + Clone + Send + Sync + 'static,
@@ -114,7 +118,7 @@ impl MockServer {
     }
 
     /// Mounts a [`Mock`] to the server. Once mounted, the server will respond to calls to
-    /// [`MockServer::handle_request`] that match one of the mounted [`Mock`]s. See [`MockServer`]
+    /// [`MockServer::handle_request`] that match one of the mounted mocks. See [`MockServer`]
     /// docs for example usage.
     pub async fn register(&self, mock: Mock) {
         self.state.write().await.mock_set.register(mock);
@@ -138,8 +142,8 @@ impl MockServer {
     ///
     /// # Panics
     ///
-    /// Panics with information about the failed verifications and recieved requests if any of the
-    /// mounted mocks were not satisfied or if any of them returned a bad response.
+    /// Panics with information about the failed verifications along with recieved requests if any
+    /// of the mounted mocks were not satisfied, or if any of them returned a bad response.
     ///
     /// # Examples
     ///
@@ -212,10 +216,10 @@ pub struct MockGuard {
 }
 
 impl MockGuard {
-    /// Awaits satisfaction of the [`Mock`] that the guard is associated with. The mock will be
-    /// satisfied when it has received the expected number of matching requests. If the mock expects
-    /// 0 requests, this method will return immediately, so it is best practice instead to wait
-    /// until the guard is dropped so that it can be ensured no matching requests were made.
+    /// Awaits satisfaction of the associated [`Mock`]. which will occur when it has
+    /// received the expected number of matching requests. If the mock expects 0 requests, this
+    /// method will return immediately, so it is best practice to instead wait until the guard
+    /// is dropped so that it can be ensured no matching requests were made.
     ///
     /// # Examples
     ///

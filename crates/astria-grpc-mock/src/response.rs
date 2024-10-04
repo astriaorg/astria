@@ -9,7 +9,7 @@ use super::{
 };
 use crate::erase_response;
 
-/// Constructs a [`ResponseTemplate`] that will respond every time with [`tonic::Response<T>`]
+/// Constructs a [`ResponseTemplate`] that will respond every with [`tonic::Response<T>`]
 /// where `T` is the type of `value` and the `message` of the response is `value`.
 ///
 /// # Examples
@@ -84,7 +84,7 @@ impl Respond for ConstantResponse {
     }
 }
 
-/// Constructs a [`ResponseTemplate`] that will respond every time with [`tonic::Response<T>`]
+/// Constructs a [`ResponseTemplate`] that will respond with [`tonic::Response<T>`]
 /// where the constant response is the default value of `T`.
 ///
 /// # Examples
@@ -145,7 +145,7 @@ pub fn default_response<
     }
 }
 
-/// Constructs a [`ResponseTemplate`] that will respond every time with [`tonic::Response<T>`]
+/// Constructs a [`ResponseTemplate`] that will respond with [`tonic::Response<T>`],
 /// where the response is the return value of `responder({Request})`.
 ///
 /// # Examples
@@ -227,8 +227,8 @@ impl Respond for ErrorResponse {
     }
 }
 
-/// Constructs a [`ResponseTemplate`] that will respond with a [`tonic::Status`] error of the given
-/// code every time.
+/// Constructs a [`ResponseTemplate`] that will respond with a [`tonic::Status`] error containing
+/// the given [`tonic::Code`].
 ///
 /// # Examples
 ///

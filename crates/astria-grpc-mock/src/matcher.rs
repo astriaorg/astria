@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::mock::Match;
 
-/// Returns a [`MessagePartialJsonMatcher`] to be included as an argument in
+/// Returns a [`MessagePartialJsonMatcher`] to be passed as an argument to
 /// [`Mock::for_rpc_given`]. Matcher will return true if the given request's message is contained in
 /// the expected message.
 ///
@@ -16,9 +16,14 @@ use crate::mock::Match;
 ///
 /// ```rust
 /// use astria_grpc_mock::matcher;
+/// use serde_json::json;
 ///
-/// // returns a mock builder which will match any request with a message that contains "expected message"
-/// let _mock_builder = astria_grpc_mock::Mock::for_rpc_given("rpc", matcher::message_partial_pbjson(&"expected message"));
+/// // returns a mock builder which will match any request with a message that is contained
+/// // in `{"key": "value", "key2": "value2"}`
+/// let _mock_builder = astria_grpc_mock::Mock::for_rpc_given(
+///     "rpc",
+///     matcher::message_partial_pbjson(&json!({"key": "value", "key2": "value2"}))
+/// );
 /// ```
 pub fn message_partial_pbjson<T: serde::Serialize>(value: &T) -> MessagePartialJsonMatcher {
     MessagePartialJsonMatcher(
@@ -39,7 +44,7 @@ impl Match for MessagePartialJsonMatcher {
     }
 }
 
-/// Returns a [`MessageExactMatcher`] to be included as an argument in [`Mock::for_rpc_given`].
+/// Returns a [`MessageExactMatcher`] to be passed as an argument to [`Mock::for_rpc_given`].
 /// Matcher will return true only if the given request's message exactly matches the expected
 /// message.
 ///
@@ -81,8 +86,8 @@ impl Match for MessageExactMatcher {
     }
 }
 
-/// Returns a [`MessageTypeMatcher`] to be included as an argument in [`Mock::for_rpc_given`].
-/// Matcher will return true if the given request's message is the same type as the expected
+/// Returns a [`MessageTypeMatcher`] to be passed as an argument to [`Mock::for_rpc_given`].
+/// Matcher will return true if the given request's message is of the same type as the expected
 /// message.
 ///
 /// # Examples

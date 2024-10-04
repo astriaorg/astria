@@ -21,6 +21,7 @@ use crate::{
 /// * [`MessageExactMatcher`]
 /// * [`MessageTypeMatcher`]
 pub trait Match: Send + Sync {
+    /// Returns true if the given request fulfills the matcher's criteria, false if otherwise.
     fn matches(&self, req: &tonic::Request<AnyMessage>) -> bool;
 }
 
@@ -34,8 +35,8 @@ impl Match for Matcher {
 
 /// A mock that can be mounted on a [`MockServer`]. Given
 /// an `rpc` whose request fulfills all `matchers`, it will respond with
-/// `response` up to `max_n_matches` times (if it is `Some`, otherwise will
-/// continue responding until `Drop`). It can be set to expect a range in
+/// `response::respond()` up to `max_n_matches` times (if it is `Some`, otherwise will
+/// continue responding until dropped). It can be set to expect a range in
 /// number of requests `expectation_range` and can also be given a name,
 /// which is best practice.
 ///
@@ -99,7 +100,7 @@ impl Mock {
     }
 
     /// Sets the name of the given [`Mock`]. Calling this is best practice, as the name will be
-    /// displayed when the mock is verified if it failed. See [`Mock`] docs for example usage.
+    /// displayed if validation (of the server or mock) fails. See [`Mock`] docs for example usage.
     #[must_use = "a mock must be mounted on a server to be useful"]
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name.replace(name.into());
@@ -120,7 +121,7 @@ impl Mock {
 }
 
 /// A builder for [`Mock`] which is returned by [`Mock::for_rpc_given`].
-/// Takes a given `rpc` and a list of `Matcher`s. and returns a [`Mock`].
+/// Takes a given `rpc` and a list of `Matcher`s, and returns a [`Mock`].
 /// Optionally, additional matchers can be added with the [`MockBuilder::and`] method.
 ///
 /// # Examples
@@ -147,15 +148,15 @@ pub struct MockBuilder {
 }
 
 impl MockBuilder {
-    /// Adds an additional `Matcher` to the [`MockBuilder`]'s `matchers` set. See [`MockBuilder`]
-    /// docs for example usage.
+    /// Adds an additional `Matcher` to the [`MockBuilder`]'s `matchers` set. There is no maximum
+    /// number of matchers that can be pushed. See [`MockBuilder`] docs for example usage.
     pub fn and(mut self, matcher: impl Match + 'static) -> Self {
         self.matchers.push(Matcher(Box::new(matcher)));
         self
     }
 
-    /// Returns a [`Mock`] which will respond with the given [`ResponseTemplate`]. See
-    /// [`MockBuilder`] docs for example usage.
+    /// Returns a [`Mock`] which will respond with the given [`ResponseTemplate`]'s `respond()`
+    /// implementation. See [`MockBuilder`] docs for example usage.
     pub fn respond_with(self, rsp: ResponseTemplate) -> Mock {
         let Self {
             rpc,
@@ -173,7 +174,7 @@ impl MockBuilder {
 }
 
 /// A range used by [`Mock`] to specify how many times it should expect to receive
-/// a request.
+/// a matching request.
 #[derive(Clone, Debug)]
 pub struct Times(TimesEnum);
 
