@@ -226,7 +226,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::test_utils::{
+        app::benchmark_and_test_utils::{
             mock_balances,
             mock_tx_cost,
         },
@@ -241,7 +241,7 @@ mod tests {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: Bytes::from_static(b"hello world"),
-                    fee_asset: crate::test_utils::nria().into(),
+                    fee_asset: crate::benchmark_and_test_utils::nria().into(),
                 }
                 .into(),
             ])
@@ -452,7 +452,8 @@ mod tests {
             vec![
                 astria_core::generated::protocol::genesis::v1alpha1::Account {
                     address: Some(
-                        crate::test_utils::astria_address(funded_key.address_bytes()).to_raw(),
+                        crate::benchmark_and_test_utils::astria_address(funded_key.address_bytes())
+                            .to_raw(),
                     ),
                     balance: Some(10u128.pow(19).into()),
                 },
@@ -461,7 +462,7 @@ mod tests {
             vec![]
         };
         let genesis_state = {
-            let mut state = crate::app::test_utils::proto_genesis_state();
+            let mut state = crate::app::benchmark_and_test_utils::proto_genesis_state();
             state.accounts = accounts;
             state
         }

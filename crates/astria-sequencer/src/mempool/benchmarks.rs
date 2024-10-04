@@ -19,7 +19,7 @@ use sha2::{
 };
 
 use crate::{
-    app::test_utils::{
+    app::benchmark_and_test_utils::{
         mock_balances,
         mock_state_getter,
         mock_state_put_account_balances,

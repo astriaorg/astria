@@ -22,13 +22,20 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    app::test_utils::{
-        get_alice_signing_key,
-        get_bridge_signing_key,
-        initialize_app,
-        BOB_ADDRESS,
+    app::{
+        benchmark_and_test_utils::BOB_ADDRESS,
+        test_utils::{
+            get_alice_signing_key,
+            get_bridge_signing_key,
+            initialize_app,
+        },
     },
     assets::StateReadExt as _,
+    benchmark_and_test_utils::{
+        astria_address,
+        astria_address_from_hex_string,
+        nria,
+    },
     bridge::{
         calculate_base_deposit_fee,
         StateWriteExt as _,
@@ -36,11 +43,6 @@ use crate::{
     sequence::{
         calculate_fee_from_state,
         StateWriteExt as _,
-    },
-    test_utils::{
-        astria_address,
-        astria_address_from_hex_string,
-        nria,
     },
 };
 
