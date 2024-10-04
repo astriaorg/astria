@@ -109,6 +109,10 @@ impl TimemarkedTransaction {
     pub(super) fn cost(&self) -> &HashMap<IbcPrefixed, u128> {
         &self.cost
     }
+
+    pub(super) fn id(&self) -> [u8; 32] {
+        self.tx_hash
+    }
 }
 
 impl fmt::Display for TimemarkedTransaction {

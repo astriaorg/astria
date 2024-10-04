@@ -218,8 +218,8 @@ pub(crate) async fn initialize_app_with_storage(
         .await
         .expect("failed to create temp storage backing chain state");
     let snapshot = storage.latest_snapshot();
-    let mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mempool = Mempool::new(metrics);
     let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
