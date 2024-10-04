@@ -760,7 +760,6 @@ dependencies = [
  "futures",
  "prost",
  "serde",
- "serde_json",
  "tokio",
  "tokio-stream",
  "tonic 0.10.2",

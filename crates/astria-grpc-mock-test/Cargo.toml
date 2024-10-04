@@ -9,7 +9,6 @@ rust-version = "1.81.0"
 [dependencies]
 prost.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 tokio = { workspace = true, features = [
   "macros",
   "rt",
