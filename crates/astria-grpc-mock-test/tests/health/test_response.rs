@@ -10,7 +10,6 @@ use astria_grpc_mock_test::health::{
     HealthCheckRequest,
     HealthCheckResponse,
 };
-use futures::future::join;
 use tokio::time::timeout;
 
 use crate::test_utils::start_mock_server;
@@ -26,7 +25,6 @@ async fn default_response_works() {
     server.mocked.register(mock).await;
     let rsp = client
         .check(HealthCheckRequest {
-            name: "helloworld".to_string(),
             service: "helloworld".to_string(),
         })
         .await
@@ -48,7 +46,6 @@ async fn constant_response_works() {
     server.mocked.register(mock).await;
     let rsp = client
         .check(HealthCheckRequest {
-            name: "helloworld".to_string(),
             service: "helloworld".to_string(),
         })
         .await
@@ -71,7 +68,6 @@ async fn dynamic_response_works() {
     server.mocked.register(mock).await;
     let rsp_1 = client
         .check(HealthCheckRequest {
-            name: "helloworld".to_string(),
             service: "1".to_string(),
         })
         .await
@@ -81,7 +77,6 @@ async fn dynamic_response_works() {
     expected_response.status = 2;
     let rsp_2 = client
         .check(HealthCheckRequest {
-            name: "helloworld".to_string(),
             service: "2".to_string(),
         })
         .await
@@ -105,7 +100,10 @@ fn dynamic_responder(request: &HealthCheckRequest) -> HealthCheckResponse {
 #[tokio::test]
 async fn response_delay_works_as_expected() {
     let server = start_mock_server().await;
-    let mut client = HealthClient::connect(format!("http://{}", server.local_addr))
+    let mut err_client = HealthClient::connect(format!("http://{}", server.local_addr))
+        .await
+        .unwrap();
+    let mut ok_client = HealthClient::connect(format!("http://{}", server.local_addr))
         .await
         .unwrap();
     let mock = Mock::for_rpc_given("check", matcher::message_type::<HealthCheckRequest>())
@@ -113,25 +111,22 @@ async fn response_delay_works_as_expected() {
             response::default_response::<HealthCheckResponse>()
                 .set_delay(Duration::from_millis(250)),
         );
-    let mock_guard = server.mocked.register_as_scoped(mock).await;
-    let rsp_fut = client.check(HealthCheckRequest {
-        name: "helloworld".to_string(),
+    mock.mount(&server.mocked).await;
+
+    let rsp_fut_expect_err = err_client.check(HealthCheckRequest {
+        service: "helloworld".to_string(),
+    });
+    let rsp_fut_expect_ok = ok_client.check(HealthCheckRequest {
         service: "helloworld".to_string(),
     });
 
-    timeout(
-        Duration::from_millis(250),
-        join(mock_guard.wait_until_satisfied(), rsp_fut),
-    )
-    .await
-    .unwrap_err();
-
-    let rsp = client
-        .check(HealthCheckRequest {
-            name: "helloworld".to_string(),
-            service: "helloworld".to_string(),
-        })
+    timeout(Duration::from_millis(200), rsp_fut_expect_err)
         .await
-        .unwrap();
-    assert_eq!(&HealthCheckResponse::default(), rsp.get_ref());
+        .unwrap_err(); // should be error
+    let ok_rsp = timeout(Duration::from_millis(300), rsp_fut_expect_ok)
+        .await
+        .unwrap(); // should be ok
+
+    assert!(ok_rsp.is_ok());
+    assert_eq!(&HealthCheckResponse::default(), ok_rsp.unwrap().get_ref());
 }

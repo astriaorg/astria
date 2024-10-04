@@ -3,8 +3,6 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HealthCheckRequest {
     #[prost(string, tag = "1")]
-    pub name: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
     pub service: ::prost::alloc::string::String,
 }
 impl ::prost::Name for HealthCheckRequest {

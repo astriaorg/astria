@@ -29,14 +29,12 @@ async fn mock_expect_two_works() {
     let two_checks = async move {
         let res_one = client
             .check(HealthCheckRequest {
-                name: "helloworld".to_string(),
                 service: "helloworld".to_string(),
             })
             .await?;
 
         let res_two = client
             .check(HealthCheckRequest {
-                name: "helloworld".to_string(),
                 service: "helloworld".to_string(),
             })
             .await?;
@@ -64,7 +62,6 @@ async fn response_guard_wait_until_satisfied_works() {
 
     let guard = server.mocked.register_as_scoped(mock).await;
     let check = client.check(HealthCheckRequest {
-        name: "helloworld".to_string(),
         service: "helloworld".to_string(),
     });
 
@@ -88,7 +85,6 @@ async fn up_to_n_times_works_as_expected() {
 
     let guard = server.mocked.register_as_scoped(mock).await;
     let check = client.check(HealthCheckRequest {
-        name: "helloworld".to_string(),
         service: "helloworld".to_string(),
     });
 
@@ -98,7 +94,6 @@ async fn up_to_n_times_works_as_expected() {
 
     let err_rsp = client
         .check(HealthCheckRequest {
-            name: "helloworld".to_string(),
             service: "helloworld".to_string(),
         })
         .await
@@ -118,7 +113,6 @@ async fn incorrect_mock_response_fails_server() {
     server.mocked.register(mock).await;
     let _ = client
         .check(HealthCheckRequest {
-            name: "helloworld".to_string(),
             service: "helloworld".to_string(),
         })
         .await;
@@ -136,7 +130,6 @@ async fn incorrect_mock_response_fails_guard() {
 
     let guard = server.mocked.register_as_scoped(mock).await;
     let check = client.check(HealthCheckRequest {
-        name: "helloworld".to_string(),
         service: "helloworld".to_string(),
     });
 

@@ -75,3 +75,46 @@ impl Health for HealthService {
         unimplemented!()
     }
 }
+
+#[derive(::prost::Message, Clone, PartialEq)]
+pub(crate) struct MockMessage {
+    #[prost(string, tag = "1")]
+    pub(crate) field_one: String,
+    #[prost(string, tag = "2")]
+    pub(crate) field_two: String,
+}
+
+impl ::prost::Name for MockMessage {
+    const NAME: &'static str = "MockMessage";
+    const PACKAGE: &'static str = "test_utils";
+
+    fn full_name() -> String {
+        "test_utils.MockMessage".to_string()
+    }
+}
+
+impl serde::Serialize for MockMessage {
+    #[allow(clippy::arithmetic_side_effects)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.field_one.is_empty() {
+            len += 1;
+        }
+        if !self.field_two.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser =
+            serializer.serialize_struct("grpc.health.v1.HealthCheckRequest", len)?;
+        if !self.field_one.is_empty() {
+            struct_ser.serialize_field("field_one", &self.field_one)?;
+        }
+        if !self.field_two.is_empty() {
+            struct_ser.serialize_field("field_two", &self.field_two)?;
+        }
+        struct_ser.end()
+    }
+}
