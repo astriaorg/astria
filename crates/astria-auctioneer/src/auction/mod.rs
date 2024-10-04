@@ -1,10 +1,10 @@
 use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
 
-struct _Bundle;
+struct Bundle;
 
-pub(crate) struct _Bid {
+pub(crate) struct Bid {
     fee: u64,
-    bundle: _Bundle,
+    bundle: Bundle,
 }
 
 pub(crate) enum _State {

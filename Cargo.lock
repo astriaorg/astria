@@ -520,6 +520,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "tempfile",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "tokio-test",

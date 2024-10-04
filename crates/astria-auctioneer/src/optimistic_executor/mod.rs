@@ -5,12 +5,11 @@ mod optimistic_block_stream;
 
 use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre;
+use block::CurrentBlock;
 pub(crate) use builder::Builder;
+use futures::future::Fuse;
 use sequencer_client::SequencerGrpcClient;
-use tokio::{
-    select,
-    sync::watch,
-};
+use tokio::select;
 use tokio_stream::StreamExt as _;
 use tokio_util::{
     sync::CancellationToken,
@@ -19,29 +18,21 @@ use tokio_util::{
 use tracing::{
     error,
     info,
+    instrument::Instrumented,
 };
 
-mod block;
-
-use block::{
-    Committed,
-    CurrentBlock,
-    Optimistic,
-};
-
+mod optimistic_execution_client;
 mod sequencer_client;
 use astria_eyre::eyre::WrapErr as _;
 
 use crate::{
     auction,
+    block,
     flatten,
 };
 
-pub(crate) struct Handle {
-    block_rx: watch::Receiver<CurrentBlock>,
-}
-
 pub(crate) struct OptimisticExecutor {
+    #[allow(dead_code)]
     metrics: &'static crate::Metrics,
     shutdown_token: CancellationToken,
     sequencer_grpc_endpoint: String,
@@ -94,10 +85,12 @@ impl OptimisticExecutor {
         //        auction for that given block
         // 3. execute the execute_fut if not terminated?
         // 4. handle auction_map.join_next() somehow
-        // 4. cancellation token or something
+        // 5. cancellation token or something
         //
 
-        let mut auctions: JoinMap<auction::Id, eyre::Result<auction::Winner>> = JoinMap::new();
+        // maybe just make this a fused future `auction_fut`
+        let mut execution_fut: Fuse<Instrumented<ExecutionFut>> = Fuse::terminated();
+        let mut auction_futs: JoinMap<auction::Id, eyre::Result<auction::Winner>> = JoinMap::new();
         let mut curr_block: Option<CurrentBlock> = None;
 
         let reason = {
@@ -108,7 +101,7 @@ impl OptimisticExecutor {
                         break Ok("received shutdown signal");
                     },
 
-                    Some((id, res)) = auctions.join_next() => {
+                    Some((id, res)) = auction_futs.join_next() => {
                         let id = id.sequencer_block_hash;
                         break flatten(res)
                             .wrap_err_with(|| "auction failed for block {id}")
@@ -116,51 +109,29 @@ impl OptimisticExecutor {
                     },
 
                     optimistic_block = optimistic_stream_client.next() => {
-                        let raw = optimistic_block.unwrap().wrap_err("failed to receive optimistic block")?;
-                        let next_block = curr_block.map(|block| block.apply_optimistic_block(Optimistic::from_raw(raw)));
+                        let opt = block::Optimistic::from_raw(optimistic_block.unwrap().wrap_err("failed to receive optimistic block")?);
+                        let next_block = curr_block.map(|block| block.apply_optimistic_block(opt));
                         curr_block = next_block;
                     },
                     block_commitment = commit_stream_client.next() => {
-                        let raw = block_commitment.unwrap().wrap_err("failed to receive block commitment")?;
-                        let next_block = curr_block.map(|block| block.apply_block_commitment(Committed::from_raw(raw)));
+                        let commit = block::Committed::from_raw(block_commitment.unwrap().wrap_err("failed to receive block commitment")?);
+                        let next_block = curr_block.map(|block| block.apply_block_commitment(commit));
                         curr_block = next_block;
                     },
                 }
             }
         };
 
-        // TODO: probably want to interact with the block state machine via the handle
-        // loop {
-        //     let old_block = block.clone();
-        //     let new_block = select! {
-        //         optimistic_block = optimistic_block_stream.next() => {
-        //             // TODO: stop doing this unwrap unwrap thing with the stream
-        //             // curr_block = block.borrow();
-        //             // let next =
-        // curr_block.apply_optimistic_block(optimistic_block.unwrap().unwrap())
-        // // block.send(next);
-
-        //             // TODO: add execute_fut fused future that sends this to the optimistic
-        // execution stream         },
-        //         exec = exec_rx.recv() => {
-        //             block.apply_executed_block(exec.unwrap())
-        //         },
-        //         commit = commit_rx.recv() => {
-        //             block.apply_block_commitment(commit.unwrap())
-        //         },
-        //     };
-
-        //     info!(parent = ?old_block, block = ?new_block, "block state updated");
-        //     block = new_block;
-        //     // block_tx.send_modify(curr_state)
-        // }
-
         match reason {
             Ok(msg) => info!(%msg, "shutting down"),
             Err(err) => error!(%err, "shutting down due to error"),
         };
 
-        // TODO: self.shutdown
+        self.shutdown();
         Ok(())
+    }
+
+    async fn shutdown(mut self) {
+        self.shutdown_token.cancel();
     }
 }

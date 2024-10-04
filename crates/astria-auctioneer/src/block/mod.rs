@@ -5,7 +5,6 @@ use astria_core::{
         StreamOptimisticBlockResponse,
     },
 };
-use tokio::sync::watch;
 
 // TODO: these should be created from the protos
 #[derive(Debug, Clone)]
@@ -54,10 +53,6 @@ impl Executed {
         self.raw
     }
 
-    fn into_exec_and_commit(self, _commit: Committed) -> ExecutedAndCommitted {
-        todo!()
-    }
-
     fn reorg(self) -> Optimistic {
         todo!()
     }
@@ -78,47 +73,11 @@ impl Committed {
     pub(crate) fn into_raw(self) -> SequencerBlockCommit {
         self.raw
     }
-
-    fn into_exec_and_commit(self, _executed_block: Executed) -> ExecutedAndCommitted {
-        todo!()
-    }
-
-    fn new_block(self) -> Optimistic {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ExecutedAndCommitted(Executed, Committed);
-
-impl ExecutedAndCommitted {
-    fn new_block(self) -> Optimistic {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone)]
-enum State {
-    OptimisticBlock(Optimistic),
-    ExecutedBlock(Executed),
-    BlockCommitment(Committed),
-    ExecutedAndCommitted(ExecutedAndCommitted),
-}
-
-impl State {
-    fn handle_reorg(self, _new_block: Optimistic) -> Self {
-        match self {
-            State::OptimisticBlock(_) => todo!(),
-            State::ExecutedBlock(_) => todo!(),
-            State::BlockCommitment(_) => todo!(),
-            State::ExecutedAndCommitted(_) => todo!(),
-        }
-    }
 }
 
 // TODO: instead of state, should `CurrentBlock` just be:
 pub(crate) struct CurrentBlock {
-    optimistic: Option<Optimistic>,
+    optimistic: Optimistic,
     executed: Option<Executed>,
     committed: Option<Committed>,
 }
@@ -136,5 +95,13 @@ impl CurrentBlock {
         unimplemented!()
     }
 
-    // TODO: add getter funcs for current state or make fields pub(crate)
+    pub(crate) fn reorg(self, _opt: Optimistic) -> Result<(), CurrentBlockError> {
+        unimplemented!()
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub(crate) enum CurrentBlockError {
+    #[error("height out of order")]
+    HeightOutOfOrder,
 }

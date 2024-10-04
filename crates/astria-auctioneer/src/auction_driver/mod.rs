@@ -1,13 +1,45 @@
 use astria_eyre::eyre;
+use tokio::sync::{
+    mpsc,
+    oneshot,
+};
+use tokio_util::sync::CancellationToken;
 
-use crate::Metrics;
+use crate::{
+    auction,
+    Metrics,
+};
 
 mod builder;
 pub(crate) use builder::Builder;
 
+pub(crate) struct Handle {
+    executed_block_tx: Option<oneshot::Sender<()>>,
+    block_commitments_tx: Option<oneshot::Sender<()>>,
+    reorg_tx: Option<oneshot::Sender<()>>,
+    new_bids_tx: mpsc::Sender<auction::Bid>,
+}
+
+impl Handle {
+    pub(crate) async fn send_bundle(&self, bundle: auction::Bid) -> eyre::Result<()> {
+        self.new_bids_tx.send(bundle).await?;
+        Ok(())
+    }
+
+    pub(crate) fn executed_block(&mut self) -> eyre::Result<()> {
+        let tx = self
+            .executed_block_tx
+            .take()
+            .expect("should only send executed signal to auction once per block");
+        let _ = tx.send(());
+        Ok(())
+    }
+}
+
 pub(crate) struct AuctionDriver {
     #[allow(dead_code)]
     metrics: &'static Metrics,
+    shutdown_token: CancellationToken,
     // TODO:
     // - The current block being used to drive the [`Auction`]
     // - The current [`Auction`] being driven
@@ -15,6 +47,10 @@ pub(crate) struct AuctionDriver {
     // oneshot channels for:
     // - start the timer
     // - graceful shutdown
+    executed_block_rx: oneshot::Receiver<()>,
+    block_commitments_rx: oneshot::Receiver<()>,
+    reorg_rx: oneshot::Receiver<()>,
+    new_bids_rx: mpsc::Receiver<auction::Bid>,
 }
 
 impl AuctionDriver {

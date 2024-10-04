@@ -1,15 +1,8 @@
 use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre;
-use tokio::sync::{
-    mpsc,
-    watch,
-};
 use tokio_util::sync::CancellationToken;
 
-use super::{
-    Handle,
-    OptimisticExecutor,
-};
+use super::OptimisticExecutor;
 use crate::Metrics;
 
 pub(crate) struct Builder {
