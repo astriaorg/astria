@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::mock::Match;
 
 /// Returns a [`MessagePartialJsonMatcher`] to be passed as an argument to
-/// [`Mock::for_rpc_given`]. Matcher will return true if the given request's message is contained in
+/// [`Mock::for_rpc_given`]. Matcher will return true if the given request's message contains
 /// the expected message.
 ///
 /// # Examples
@@ -18,11 +18,11 @@ use crate::mock::Match;
 /// use astria_grpc_mock::matcher;
 /// use serde_json::json;
 ///
-/// // returns a mock builder which will match any request with a message that is contained
-/// // in `{"key": "value", "key2": "value2"}`
+/// // returns a mock builder which will match any request with a message that contains
+/// // `{"key": "value"}`
 /// let _mock_builder = astria_grpc_mock::Mock::for_rpc_given(
 ///     "rpc",
-///     matcher::message_partial_pbjson(&json!({"key": "value", "key2": "value2"}))
+///     matcher::message_partial_pbjson(&json!({"key": "value"}))
 /// );
 /// ```
 pub fn message_partial_pbjson<T: serde::Serialize>(value: &T) -> MessagePartialJsonMatcher {
@@ -31,8 +31,8 @@ pub fn message_partial_pbjson<T: serde::Serialize>(value: &T) -> MessagePartialJ
     )
 }
 
-/// A matcher returned by [`message_partial_pbjson`], which will match any JSON message contained by
-/// the expected message.
+/// A matcher returned by [`message_partial_pbjson`], which will match any JSON message that
+/// contains the expected message.
 pub struct MessagePartialJsonMatcher(Value);
 
 impl Match for MessagePartialJsonMatcher {
