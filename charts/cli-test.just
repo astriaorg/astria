@@ -52,16 +52,9 @@ bech32m tag=defaultTag:
   #!/usr/bin/env bash
   set -e 
 
-  # make a new account to get the address bytes
-  output=$(just cli-test command {{ tag }} sequencer account create)
-  expected_format="^Create Sequencer Account\n\nPrivate Key:\s+\"[0-9a-f]{64}\"\nPublic Key:\s+\"[0-9a-f]{64}\"\nAddress:\s+\"[0-9a-f]{40}\"$"
-  just cli-test validate-output "$output" "$expected_format"
-
   printf "\nRunning the 'sequencer address bech32' command...\n"
-  address=$(echo "$output" | perl -ne 'print $1 if /Address:\s+"([0-9a-f]{40})"/')
-  # Run the second command with the extracted address
-  output=$(just cli-test command {{ tag }} sequencer address bech32m --bytes "$address")
-  expected_format="^astria[0-9a-z]{39}$"
+  output=$(just cli-test command {{ tag }} sequencer address bech32m --bytes 25b2418bb3a1ac1799f17906579acb6230fbe9d2)
+  expected_format="^astria1ykeyrzan5xkp0x030yr90xktvgc0h6wjpdkgsm$"
   astria_address=$(echo "$output")
   just cli-test validate-output "$astria_address" "$expected_format"
 
