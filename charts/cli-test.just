@@ -13,7 +13,7 @@ deploy:
 command tag *ARGS:
   docker run --rm --network host "ghcr.io/astriaorg/astria-cli{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}" {{ ARGS }}
 
-fundedAccount := "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+sudoAccount := "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
 privKey1 := "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
 privKey2 := "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
 ibcAddAddress := "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
@@ -70,13 +70,13 @@ get-balance tag=defaultTag:
   set -e 
 
   printf "\nRunning the 'sequencer account balance' command...\n"
-  output=$(just cli-test command {{ tag }} sequencer account balance {{fundedAccount}} --sequencer-url {{sequencerRpc}})
+  output=$(just cli-test command {{ tag }} sequencer account balance {{sudoAccount}} --sequencer-url {{sequencerRpc}})
   expected_format="^Balances for address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm\n\s+[0-9]{18} nria$"
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
 
   printf "\nRunning the 'sequencer balance get' command...\n"
-  output=$(just cli-test command {{ tag }} sequencer balance get {{fundedAccount}} --sequencer-url {{sequencerRpc}})
+  output=$(just cli-test command {{ tag }} sequencer balance get {{sudoAccount}} --sequencer-url {{sequencerRpc}})
   expected_format="^Balances for address: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm\n\s+[0-9]{18} nria$"
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
@@ -86,7 +86,7 @@ get-nonce tag=defaultTag:
   set -e 
 
   printf "\nRunning the 'sequencer account nonce' command...\n"
-  output=$(just cli-test command {{ tag }} sequencer account nonce {{fundedAccount}} --sequencer-url {{sequencerRpc}})
+  output=$(just cli-test command {{ tag }} sequencer account nonce {{sudoAccount}} --sequencer-url {{sequencerRpc}})
   expected_format="^Nonce for address astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm\n\s+[0-9]+ at height [0-9]*$"
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
@@ -144,7 +144,7 @@ sudo-address-change tag=defaultTag:
   just cli-test validate-output "$output" "$expected_format"
 
   printf "\nRunning the 'sequencer sudo sudo-address-change' command to revert the sudo address to the original one...\n"
-  output=$(just cli-test command {{ tag }} sequencer sudo sudo-address-change --address {{fundedAccount}} --private-key {{privKey2}} --sequencer-url {{sequencerRpc}} --sequencer.chain-id {{sequencerChainId}})
+  output=$(just cli-test command {{ tag }} sequencer sudo sudo-address-change --address {{sudoAccount}} --private-key {{privKey2}} --sequencer-url {{sequencerRpc}} --sequencer.chain-id {{sequencerChainId}})
   expected_format="^sending tx from address: astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u\nSudoAddressChange completed!\nIncluded in block: [0-9]+$"
   echo "Output:\n$output"
   just cli-test validate-output "$output" "$expected_format"
