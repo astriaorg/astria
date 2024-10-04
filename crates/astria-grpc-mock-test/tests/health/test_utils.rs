@@ -94,7 +94,10 @@ impl ::prost::Name for MockMessage {
 }
 
 impl serde::Serialize for MockMessage {
-    #[allow(clippy::arithmetic_side_effects)]
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "will never overflow for test purposes"
+    )]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
