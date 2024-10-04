@@ -515,7 +515,7 @@ impl App {
     /// writing to the app's `StateDelta`.
     ///
     /// The result of execution of every transaction which is successful
-    /// is stored in `self.execution_results`.
+    /// is stored in ephemeral storage for usage in `process_proposal`.
     ///
     /// Returns the transactions which were successfully executed
     /// in both their [`SignedTransaction`] and raw bytes form.
@@ -671,9 +671,6 @@ impl App {
     }
 
     /// Executes the given transactions, writing to the app's `StateDelta`.
-    ///
-    /// The result of execution of every transaction which is successful
-    /// is stored in `self.execution_results`.
     ///
     /// Unlike the usual flow of an ABCI application, this is called during
     /// the proposal phase, ie. `process_proposal`.
