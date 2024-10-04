@@ -713,6 +713,7 @@ dependencies = [
  "penumbra-proto",
  "prost",
  "rand 0.8.5",
+ "regex",
  "serde",
  "sha2 0.10.8",
  "tempfile",
@@ -803,7 +804,9 @@ dependencies = [
  "hex",
  "ibc-proto",
  "ibc-types",
+ "indexmap 2.4.0",
  "insta",
+ "is_sorted",
  "matchit",
  "penumbra-ibc",
  "penumbra-proto",
@@ -926,6 +929,8 @@ dependencies = [
  "hex",
  "indenter",
  "itertools 0.12.1",
+ "maplit",
+ "pbjson-types",
  "predicates",
  "prost",
  "rlp",
@@ -4355,6 +4360,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "is_sorted"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "357376465c37db3372ef6a00585d336ed3d0f11d4345eef77ebcb05865392b21"
+
+[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4806,6 +4817,12 @@ dependencies = [
  "cc",
  "libc",
 ]
+
+[[package]]
+name = "maplit"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "matchers"

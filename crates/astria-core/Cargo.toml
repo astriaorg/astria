@@ -36,6 +36,7 @@ penumbra-ibc = { workspace = true }
 penumbra-proto = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 sha2 = { workspace = true }
 tendermint = { workspace = true }

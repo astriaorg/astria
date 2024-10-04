@@ -35,11 +35,15 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
+use indexmap::IndexMap;
 use telemetry::Metrics as _;
 
 use crate::{
     accounts::StateWriteExt,
-    app::App,
+    app::{
+        vote_extension,
+        App,
+    },
     assets::StateWriteExt as AssetStateWriteExt,
     bridge::StateWriteExt as BridgeStateWriteExt,
     ibc::StateWriteExt as IbcStateWriteExt,
@@ -181,10 +185,18 @@ pub(crate) fn address_prefixes() -> AddressPrefixes {
 
 pub(crate) fn proto_genesis_state()
 -> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
-    use astria_core::generated::protocol::genesis::v1alpha1::{
-        GenesisAppState,
-        IbcParameters,
+    use astria_core::{
+        generated::protocol::genesis::v1alpha1::{
+            GenesisAppState,
+            IbcParameters,
+            SlinkyGenesis,
+        },
+        slinky::market_map::v1::{
+            MarketMap,
+            Params,
+        },
     };
+
     GenesisAppState {
         address_prefixes: Some(address_prefixes().to_raw()),
         accounts: default_genesis_accounts()
@@ -203,6 +215,27 @@ pub(crate) fn proto_genesis_state()
         }),
         allowed_fee_assets: vec![crate::test_utils::nria().to_string()],
         fees: Some(default_fees().to_raw()),
+        slinky: Some(SlinkyGenesis {
+            market_map: Some(
+                astria_core::slinky::market_map::v1::GenesisState {
+                    market_map: MarketMap {
+                        markets: IndexMap::new(),
+                    },
+                    last_updated: 0,
+                    params: Params {
+                        market_authorities: vec![],
+                        admin: astria_address_from_hex_string(ALICE_ADDRESS),
+                    },
+                }
+                .into_raw(),
+            ),
+            oracle: Some(
+                astria_core::generated::astria_vendored::slinky::oracle::v1::GenesisState {
+                    currency_pair_genesis: vec![],
+                    next_id: 0,
+                },
+            ),
+        }),
     }
 }
 
@@ -220,7 +253,14 @@ pub(crate) async fn initialize_app_with_storage(
     let snapshot = storage.latest_snapshot();
     let mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
+    let mut app = App::new(
+        snapshot,
+        mempool,
+        vote_extension::Handler::new(None),
+        metrics,
+    )
+    .await
+    .unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
 

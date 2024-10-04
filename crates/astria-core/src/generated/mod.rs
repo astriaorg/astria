@@ -11,6 +11,8 @@
 //! [`buf`]: https://buf.build
 //! [`tools/protobuf-compiler`]: ../../../../tools/protobuf-compiler
 
+pub use astria::*;
+
 #[path = ""]
 pub mod astria_vendored {
     #[path = ""]
@@ -35,122 +37,188 @@ pub mod astria_vendored {
             }
         }
     }
-}
 
-#[path = ""]
-pub mod bundle {
-    pub mod v1alpha1 {
-        include!("astria.bundle.v1alpha1.rs");
+    #[path = ""]
+    pub mod slinky {
+        pub mod abci {
+            pub mod v1 {
+                include!("astria_vendored.slinky.abci.v1.rs");
 
-        #[cfg(feature = "serde")]
-        mod _serde_impl {
-            use super::*;
-            include!("astria.bundle.v1alpha1.serde.rs");
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria_vendored.slinky.abci.v1.serde.rs");
+                }
+            }
         }
-    }
-}
 
-#[path = ""]
-pub mod execution {
-    #[path = "astria.execution.v1alpha1.rs"]
-    pub mod v1alpha1;
+        pub mod marketmap {
+            pub mod v1 {
+                include!("astria_vendored.slinky.marketmap.v1.rs");
 
-    pub mod v1alpha2 {
-        include!("astria.execution.v1alpha2.rs");
-
-        #[cfg(feature = "serde")]
-        mod _serde_impl {
-            use super::*;
-            include!("astria.execution.v1alpha2.serde.rs");
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria_vendored.slinky.marketmap.v1.serde.rs");
+                }
+            }
         }
-    }
-}
 
-#[path = ""]
-pub mod primitive {
-    pub mod v1 {
-        include!("astria.primitive.v1.rs");
+        pub mod oracle {
+            pub mod v1 {
+                include!("astria_vendored.slinky.oracle.v1.rs");
 
-        #[cfg(feature = "serde")]
-        mod _serde_impl {
-            use super::*;
-            include!("astria.primitive.v1.serde.rs");
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria_vendored.slinky.oracle.v1.serde.rs");
+                }
+            }
         }
-    }
-}
 
-#[path = ""]
-pub mod protocol {
-    #[path = ""]
-    pub mod accounts {
-        #[path = "astria.protocol.accounts.v1alpha1.rs"]
-        pub mod v1alpha1;
-    }
-    #[path = ""]
-    pub mod asset {
-        #[path = "astria.protocol.asset.v1alpha1.rs"]
-        pub mod v1alpha1;
-    }
-    #[path = ""]
-    pub mod bridge {
-        #[path = "astria.protocol.bridge.v1alpha1.rs"]
-        pub mod v1alpha1;
-    }
-    #[path = ""]
-    pub mod genesis {
-        pub mod v1alpha1 {
-            include!("astria.protocol.genesis.v1alpha1.rs");
+        pub mod service {
+            pub mod v1 {
+                include!("astria_vendored.slinky.service.v1.rs");
 
-            #[cfg(feature = "serde")]
-            mod _serde_impls {
-                use super::*;
-                include!("astria.protocol.genesis.v1alpha1.serde.rs");
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria_vendored.slinky.service.v1.serde.rs");
+                }
+            }
+        }
+
+        pub mod types {
+            pub mod v1 {
+                include!("astria_vendored.slinky.types.v1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria_vendored.slinky.types.v1.serde.rs");
+                }
             }
         }
     }
-    #[path = ""]
-    pub mod memos {
-        pub mod v1alpha1 {
-            include!("astria.protocol.memos.v1alpha1.rs");
+}
 
-            #[cfg(feature = "serde")]
-            mod _serde_impls {
-                use super::*;
-                include!("astria.protocol.memos.v1alpha1.serde.rs");
-            }
-        }
-    }
+#[path = ""]
+pub mod astria {
     #[path = ""]
-    pub mod transactions {
+    pub mod bundle {
         pub mod v1alpha1 {
-            include!("astria.protocol.transactions.v1alpha1.rs");
+            include!("astria.bundle.v1alpha1.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("astria.protocol.transactions.v1alpha1.serde.rs");
+                include!("astria.bundle.v1alpha1.serde.rs");
             }
         }
     }
-}
 
-#[path = ""]
-pub mod sequencerblock {
-    pub mod v1alpha1 {
-        include!("astria.sequencerblock.v1alpha1.rs");
+    #[path = ""]
+    pub mod execution {
+        #[path = "astria.execution.v1alpha1.rs"]
+        pub mod v1alpha1;
 
-        #[cfg(feature = "serde")]
-        mod _serde_impl {
-            use super::*;
-            include!("astria.sequencerblock.v1alpha1.serde.rs");
+        pub mod v1alpha2 {
+            include!("astria.execution.v1alpha2.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.execution.v1alpha2.serde.rs");
+            }
         }
     }
-}
 
-#[path = ""]
-pub mod composer {
-    #[path = "astria.composer.v1alpha1.rs"]
-    pub mod v1alpha1;
+    #[path = ""]
+    pub mod primitive {
+        pub mod v1 {
+            include!("astria.primitive.v1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.primitive.v1.serde.rs");
+            }
+        }
+    }
+
+    #[path = ""]
+    pub mod protocol {
+        #[path = ""]
+        pub mod accounts {
+            #[path = "astria.protocol.accounts.v1alpha1.rs"]
+            pub mod v1alpha1;
+        }
+        #[path = ""]
+        pub mod asset {
+            #[path = "astria.protocol.asset.v1alpha1.rs"]
+            pub mod v1alpha1;
+        }
+        #[path = ""]
+        pub mod bridge {
+            #[path = "astria.protocol.bridge.v1alpha1.rs"]
+            pub mod v1alpha1;
+        }
+        #[path = ""]
+        pub mod genesis {
+            pub mod v1alpha1 {
+                include!("astria.protocol.genesis.v1alpha1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impls {
+                    use super::*;
+                    include!("astria.protocol.genesis.v1alpha1.serde.rs");
+                }
+            }
+        }
+        #[path = ""]
+        pub mod memos {
+            pub mod v1alpha1 {
+                include!("astria.protocol.memos.v1alpha1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impls {
+                    use super::*;
+                    include!("astria.protocol.memos.v1alpha1.serde.rs");
+                }
+            }
+        }
+        #[path = ""]
+        pub mod transactions {
+            pub mod v1alpha1 {
+                include!("astria.protocol.transactions.v1alpha1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria.protocol.transactions.v1alpha1.serde.rs");
+                }
+            }
+        }
+    }
+
+    #[path = ""]
+    pub mod sequencerblock {
+        pub mod v1alpha1 {
+            include!("astria.sequencerblock.v1alpha1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.sequencerblock.v1alpha1.serde.rs");
+            }
+        }
+    }
+
+    #[path = ""]
+    pub mod composer {
+        #[path = "astria.composer.v1alpha1.rs"]
+        pub mod v1alpha1;
+    }
 }
 
 #[path = ""]

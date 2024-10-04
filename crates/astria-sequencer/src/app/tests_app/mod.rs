@@ -30,7 +30,10 @@ use tendermint::{
     abci::{
         self,
         request::PrepareProposal,
-        types::CommitInfo,
+        types::{
+            CommitInfo,
+            ExtendedCommitInfo,
+        },
     },
     account,
     block::{
@@ -249,6 +252,20 @@ async fn app_transfer_block_fees_to_sudo() {
     let proposer_address: tendermint::account::Id = [99u8; 20].to_vec().try_into().unwrap();
 
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], HashMap::new());
+    let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
+        round: 0u16.into(),
+        votes: vec![],
+    }
+    .into();
+
+    let txs_with_commit_info: Vec<Bytes> =
+        std::iter::once(extended_commit_info.encode_to_vec().into())
+            .chain(
+                commitments
+                    .into_iter()
+                    .chain(vec![signed_tx.to_raw().encode_to_vec().into()]),
+            )
+            .collect();
 
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
@@ -256,7 +273,7 @@ async fn app_transfer_block_fees_to_sudo() {
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address,
-        txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+        txs: txs_with_commit_info,
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -280,6 +297,7 @@ async fn app_transfer_block_fees_to_sudo() {
     assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
 }
 
+#[allow(clippy::too_many_lines)]
 #[tokio::test]
 async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     use astria_core::{
@@ -357,6 +375,19 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
+    let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
+        round: 0u16.into(),
+        votes: vec![],
+    }
+    .into();
+    let txs_with_commit_info: Vec<Bytes> =
+        std::iter::once(extended_commit_info.encode_to_vec().into())
+            .chain(
+                commitments
+                    .into_iter()
+                    .chain(vec![signed_tx.to_raw().encode_to_vec().into()]),
+            )
+            .collect();
 
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
@@ -364,7 +395,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+        txs: txs_with_commit_info,
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -449,6 +480,19 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
+    let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
+        round: 0u16.into(),
+        votes: vec![],
+    }
+    .into();
+    let txs_with_commit_info: Vec<Bytes> =
+        std::iter::once(extended_commit_info.encode_to_vec().into())
+            .chain(
+                commitments
+                    .into_iter()
+                    .chain(vec![signed_tx.to_raw().encode_to_vec().into()]),
+            )
+            .collect();
 
     let timestamp = Time::now();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
@@ -458,7 +502,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+        txs: txs_with_commit_info,
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -494,7 +538,10 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         proposer_address,
         txs: vec![],
         max_tx_bytes: 1_000_000,
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
 
@@ -518,7 +565,10 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
         txs: finalize_block.txs.clone(),
-        proposed_last_commit: None,
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
 
@@ -617,7 +667,10 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: Height::default(),
         time: Time::now(),
@@ -636,9 +689,9 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     // see only first tx made it in
     assert_eq!(
         result.txs.len(),
-        3,
-        "total transaction length should be three, including the two commitments and the one tx \
-         that fit"
+        4,
+        "total transaction length should be four, including the extended commit info, two \
+         commitments and the one tx that fit"
     );
     assert_eq!(
         app.mempool.len().await,
@@ -706,7 +759,10 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 600_000, // make large enough to overflow sequencer bytes first
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: Height::default(),
         time: Time::now(),
@@ -725,9 +781,9 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     // see only first tx made it in
     assert_eq!(
         result.txs.len(),
-        3,
-        "total transaction length should be three, including the two commitments and the one tx \
-         that fit"
+        4,
+        "total transaction length should be four, including the extended commit info, two \
+         commitments and the one tx that fit"
     );
     assert_eq!(
         app.mempool.len().await,

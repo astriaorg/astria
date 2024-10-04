@@ -5,9 +5,24 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::genesis::v1alpha1::{
-        AddressPrefixes,
-        IbcParameters,
+    generated::{
+        astria_vendored::slinky::{
+            marketmap,
+            marketmap::v1::{
+                Market,
+                MarketMap,
+            },
+            oracle,
+            oracle::v1::{
+                CurrencyPairGenesis,
+                QuotePrice,
+            },
+            types::v1::CurrencyPair,
+        },
+        protocol::genesis::v1alpha1::{
+            AddressPrefixes,
+            IbcParameters,
+        },
     },
     primitive::v1::Address,
     protocol::genesis::v1alpha1::{
@@ -46,6 +61,66 @@ fn charlie() -> Address {
         .slice(hex::decode("60709e2d391864b732b4f0f51e387abb76743871").unwrap())
         .try_build()
         .unwrap()
+}
+
+fn genesis_state_markets() -> MarketMap {
+    use astria_core::generated::astria_vendored::slinky::marketmap::v1::{
+        ProviderConfig,
+        Ticker,
+    };
+    use maplit::{
+        btreemap,
+        convert_args,
+    };
+    let markets = convert_args!(btreemap!(
+        "BTC/USD" => Market {
+            ticker: Some(Ticker {
+                currency_pair: Some(CurrencyPair {
+                    base: "BTC".to_string(),
+                    quote: "USD".to_string(),
+                }),
+                decimals: 8,
+                min_provider_count: 3,
+                enabled: true,
+                metadata_json: String::new(),
+            }),
+            provider_configs: vec![ProviderConfig {
+                name: "coingecko_api".to_string(),
+                off_chain_ticker: "bitcoin/usd".to_string(),
+                normalize_by_pair: Some(CurrencyPair {
+                    base: "USDT".to_string(),
+                    quote: "USD".to_string(),
+                }),
+                invert: false,
+                metadata_json: String::new(),
+            }],
+        },
+        "ETH/USD" => Market {
+            ticker: Some(Ticker {
+                currency_pair: Some(CurrencyPair {
+                    base: "ETH".to_string(),
+                    quote: "USD".to_string(),
+                }),
+                decimals: 8,
+                min_provider_count: 3,
+                enabled: true,
+                metadata_json: String::new(),
+            }),
+            provider_configs: vec![ProviderConfig {
+                name: "coingecko_api".to_string(),
+                off_chain_ticker: "ethereum/usd".to_string(),
+                normalize_by_pair: Some(CurrencyPair {
+                    base: "USDT".to_string(),
+                    quote: "USD".to_string(),
+                }),
+                invert: false,
+                metadata_json: String::new(),
+            }],
+        },
+    ));
+    MarketMap {
+        markets,
+    }
 }
 
 fn accounts() -> Vec<Account> {
@@ -98,6 +173,57 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
                 ics20_withdrawal_base_fee: 24,
             }
             .into_raw(),
+        ),
+        slinky: Some(
+            astria_core::generated::protocol::genesis::v1alpha1::SlinkyGenesis {
+                market_map: Some(
+                    astria_core::generated::astria_vendored::slinky::marketmap::v1::GenesisState {
+                        market_map: Some(genesis_state_markets()),
+                        last_updated: 0,
+                        params: Some(marketmap::v1::Params {
+                            market_authorities: vec![alice().to_string(), bob().to_string()],
+                            admin: alice().to_string(),
+                        }),
+                    },
+                ),
+                oracle: Some(oracle::v1::GenesisState {
+                    currency_pair_genesis: vec![
+                        CurrencyPairGenesis {
+                            id: 0,
+                            nonce: 0,
+                            currency_pair_price: Some(QuotePrice {
+                                price: 5_834_065_777_u128.to_string(),
+                                block_height: 0,
+                                block_timestamp: Some(pbjson_types::Timestamp {
+                                    seconds: 1_720_122_395,
+                                    nanos: 0,
+                                }),
+                            }),
+                            currency_pair: Some(CurrencyPair {
+                                base: "BTC".to_string(),
+                                quote: "USD".to_string(),
+                            }),
+                        },
+                        CurrencyPairGenesis {
+                            id: 1,
+                            nonce: 0,
+                            currency_pair_price: Some(QuotePrice {
+                                price: 3_138_872_234_u128.to_string(),
+                                block_height: 0,
+                                block_timestamp: Some(pbjson_types::Timestamp {
+                                    seconds: 1_720_122_395,
+                                    nanos: 0,
+                                }),
+                            }),
+                            currency_pair: Some(CurrencyPair {
+                                base: "ETH".to_string(),
+                                quote: "USD".to_string(),
+                            }),
+                        },
+                    ],
+                    next_id: 2,
+                }),
+            },
         ),
     }
 }

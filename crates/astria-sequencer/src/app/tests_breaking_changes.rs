@@ -134,6 +134,21 @@ async fn app_finalize_block_snapshot() {
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
+    let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
+        tendermint::abci::types::ExtendedCommitInfo {
+            round: 0u16.into(),
+            votes: vec![],
+        }
+        .into();
+    let txs_with_commit_info: Vec<Bytes> =
+        std::iter::once(extended_commit_info.encode_to_vec().into())
+            .chain(
+                commitments
+                    .into_iter()
+                    .chain(vec![signed_tx.to_raw().encode_to_vec().into()]),
+            )
+            .collect();
+
     let timestamp = Time::unix_epoch();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
     let finalize_block = abci::request::FinalizeBlock {
@@ -142,7 +157,7 @@ async fn app_finalize_block_snapshot() {
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+        txs: txs_with_commit_info,
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
