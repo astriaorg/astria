@@ -153,6 +153,7 @@ impl Protobuf for Action {
     }
 }
 
+// TODO: add unit tests for these methods (https://github.com/astriaorg/astria/issues/1593)
 impl Action {
     #[must_use]
     pub fn as_sequence(&self) -> Option<&SequenceAction> {
@@ -168,6 +169,14 @@ impl Action {
             return None;
         };
         Some(transfer_action)
+    }
+
+    pub fn is_fee_asset_change(&self) -> bool {
+        matches!(self, Self::FeeAssetChange(_))
+    }
+
+    pub fn is_fee_change(&self) -> bool {
+        matches!(self, Self::FeeChange(_))
     }
 }
 
@@ -263,7 +272,37 @@ impl TryFrom<raw::Action> for Action {
     }
 }
 
-#[allow(clippy::module_name_repetitions)]
+// TODO: replace this trait with a Protobuf:FullName implementation.
+// Issue tracked in #1567
+pub(super) trait ActionName {
+    fn name(&self) -> &'static str;
+}
+
+impl ActionName for Action {
+    fn name(&self) -> &'static str {
+        match self {
+            Action::Sequence(_) => "Sequence",
+            Action::Transfer(_) => "Transfer",
+            Action::ValidatorUpdate(_) => "ValidatorUpdate",
+            Action::SudoAddressChange(_) => "SudoAddressChange",
+            Action::Ibc(_) => "Ibc",
+            Action::IbcSudoChange(_) => "IbcSudoChange",
+            Action::Ics20Withdrawal(_) => "Ics20Withdrawal",
+            Action::IbcRelayerChange(_) => "IbcRelayerChange",
+            Action::FeeAssetChange(_) => "FeeAssetChange",
+            Action::InitBridgeAccount(_) => "InitBridgeAccount",
+            Action::BridgeLock(_) => "BridgeLock",
+            Action::BridgeUnlock(_) => "BridgeUnlock",
+            Action::BridgeSudoChange(_) => "BridgeSudoChange",
+            Action::FeeChange(_) => "FeeChange",
+        }
+    }
+}
+
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct ActionError(ActionErrorKind);
@@ -393,7 +432,10 @@ enum SequenceActionErrorKind {
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 pub struct SequenceAction {
     pub rollup_id: RollupId,
     pub data: Bytes,
@@ -445,7 +487,10 @@ impl Protobuf for SequenceAction {
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
@@ -691,7 +736,10 @@ impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdat
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 pub struct SudoAddressChangeAction {
     pub new_address: Address,
 }
@@ -765,7 +813,10 @@ enum SudoAddressChangeActionErrorKind {
 }
 
 #[derive(Debug, Clone)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 pub struct IbcSudoChangeAction {
     pub new_address: Address,
 }
@@ -1166,7 +1217,10 @@ enum Ics20WithdrawalErrorKind {
     InvalidDenom { source: asset::ParseDenomError },
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub enum IbcRelayerChangeAction {
     Addition(Address),
@@ -1247,7 +1301,10 @@ enum IbcRelayerChangeActionErrorKind {
     MissingAddress,
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub enum FeeAssetChangeAction {
     Addition(asset::Denom),
@@ -1328,7 +1385,10 @@ enum FeeAssetChangeActionErrorKind {
     MissingAsset,
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub struct InitBridgeAccountAction {
     // the rollup ID to register for the sender of this action
@@ -1469,11 +1529,7 @@ impl InitBridgeAccountActionError {
     }
 }
 
-// allow pedantic clippy as the errors have the same prefix (for consistency
-// with other error types) as well as the same postfix (due to the types the
-// errors are referencing), both of which cause clippy to complain.
 #[derive(Debug, thiserror::Error)]
-#[allow(clippy::enum_variant_names)]
 enum InitBridgeAccountActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
@@ -1489,7 +1545,10 @@ enum InitBridgeAccountActionErrorKind {
     InvalidWithdrawerAddress(#[source] AddressError),
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub struct BridgeLockAction {
     pub to: Address,
@@ -1621,7 +1680,10 @@ enum BridgeLockActionErrorKind {
     InvalidFeeAsset(#[source] asset::ParseDenomError),
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeUnlockAction {
     pub to: Address,
@@ -1769,7 +1831,10 @@ enum BridgeUnlockActionErrorKind {
     BridgeAddress { source: AddressError },
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub struct BridgeSudoChangeAction {
     pub bridge_address: Address,
@@ -1916,7 +1981,10 @@ pub enum FeeChange {
     Ics20WithdrawalBaseFee,
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub struct FeeChangeAction {
     pub fee_change: FeeChange,

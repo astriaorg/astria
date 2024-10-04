@@ -31,6 +31,8 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceNamePrefix . }}-conductor"
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_CONDUCTOR_EXPECTED_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.conductor.sequencerChainId . }}"
+  ASTRIA_CONDUCTOR_EXPECTED_CELESTIA_CHAIN_ID: "{{ tpl .Values.config.conductor.celestiaChainId . }}"
   {{- end }}
 ---
 apiVersion: v1

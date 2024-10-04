@@ -46,13 +46,11 @@ just deploy astria-local
 
 # Deploys a geth rollup chain + faucet + blockscout + ingress
 # w/ defaults running against local network, along with a bridge withdawer.
-# NOTE - default values can be found in `helm/rollup/values.yaml`
+# NOTE - default values can be found in `../dev/values/rollup/dev.yaml`
 just deploy rollup
 
-# Deploy only the rollup chain, faucet, blockscout instance without withdrawer:
-just deploy dev-rollup
 # w/ custom name and id for further customization see the values file at
-# `dev/values/rollup/dev.yml`
+# `../dev/values/rollup/dev.yml`
 just deploy dev-rollup <rollup_name> <network_id>
 
 # Send funds into the rollup chain, by default transfers 10 RIA to the rollup
@@ -80,16 +78,19 @@ The default rollup faucet is available at <http://faucet.astria.localdev.me>.
 If you deploy a custom faucet, it will be reachable at
 `http://faucet.<rollup_name>.localdev.me`.
 
-By default, the faucet is funded by the account that is funded during geth
-genesis. This key is defined in `./evm-rollup/values.yaml` and is identical to
-the key in `./evm-rollup/files/keys/private_key.txt`.
+By default, no account is funded during geth genesis.
+Run `just init-rollup-bridge` to fund the faucet account. This account key is
+defined in `../dev/values/rollup/dev.yaml` and is identical to the key in
+`./evm-rollup/files/keys/private_key.txt`.
+
+The default sequencer faucet is available at <http://sequencer-faucet.localdev.me>.
 
 ### Blockscout
 
-The default Blockscout app is available at <http://blockscout.astria.localdev.me>.
+The default Blockscout app is available at <http://explorer.astria.localdev.me>.
 
 If you deploy a custom Blockscout app, it will be available at
-`http://blockscout.<rollup_name>.localdev.me`.
+`http://explorer.<rollup_name>.localdev.me`.
 
 ### Sequencer
 

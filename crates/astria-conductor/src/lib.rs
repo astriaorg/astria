@@ -1,6 +1,7 @@
 //! # Astria Conductor
 //!
 //! The Astria conductor connects the shared sequencer layer and the execution layer.
+//!
 //! When a block is received from the sequencer layer, the conductor pushes it to the execution
 //! layer. There are two ways for a block to be received:
 //!

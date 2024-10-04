@@ -11,9 +11,9 @@ use crate::accounts::{
 };
 
 #[instrument(skip_all)]
-pub(crate) async fn get_account_balances<S: StateRead>(
+pub(crate) async fn get_account_balances<S: StateRead, T: AddressBytes>(
     state: S,
-    address: impl AddressBytes,
+    address: &T,
 ) -> Result<HashMap<asset::IbcPrefixed, u128>> {
     use futures::TryStreamExt as _;
     state
@@ -54,7 +54,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // native account should work with ibc too
-        state.put_native_asset(&nria());
+        state.put_native_asset(nria()).unwrap();
 
         let asset_0 = state.get_native_asset().await.unwrap();
         let asset_1: Denom = "asset_0".parse().unwrap();
@@ -62,13 +62,13 @@ mod tests {
 
         // also need to add assets to the ibc state
         state
-            .put_ibc_asset(&asset_0.clone())
+            .put_ibc_asset(asset_0.clone())
             .expect("should be able to call other trait method on state object");
         state
-            .put_ibc_asset(&asset_1.clone().unwrap_trace_prefixed())
+            .put_ibc_asset(asset_1.clone().unwrap_trace_prefixed())
             .expect("should be able to call other trait method on state object");
         state
-            .put_ibc_asset(&asset_2.clone().unwrap_trace_prefixed())
+            .put_ibc_asset(asset_2.clone().unwrap_trace_prefixed())
             .expect("should be able to call other trait method on state object");
 
         // create needed variables
@@ -79,16 +79,16 @@ mod tests {
 
         // add balances to the account
         state
-            .put_account_balance(address, asset_0.clone(), amount_expected_0)
+            .put_account_balance(&address, &asset_0, amount_expected_0)
             .expect("putting an account balance should not fail");
         state
-            .put_account_balance(address, &asset_1, amount_expected_1)
+            .put_account_balance(&address, &asset_1, amount_expected_1)
             .expect("putting an account balance should not fail");
         state
-            .put_account_balance(address, &asset_2, amount_expected_2)
+            .put_account_balance(&address, &asset_2, amount_expected_2)
             .expect("putting an account balance should not fail");
 
-        let balances = get_account_balances(state, address).await.unwrap();
+        let balances = get_account_balances(state, &address).await.unwrap();
 
         assert_eq!(
             balances.get(&asset_0.to_ibc_prefixed()).unwrap(),

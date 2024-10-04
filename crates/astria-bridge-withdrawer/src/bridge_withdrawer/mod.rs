@@ -167,8 +167,11 @@ impl BridgeWithdrawer {
         self.api_server.local_addr()
     }
 
-    // Panic won't happen because `startup_task` is unwraped lazily after checking if it's `Some`.
-    #[allow(clippy::missing_panics_doc)]
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "Panic won't happen because `startup_task` is unwraped lazily after checking if \
+                  it's `Some`."
+    )]
     pub async fn run(self) {
         let Self {
             shutdown_token,
@@ -255,7 +258,10 @@ impl BridgeWithdrawer {
     }
 }
 
-#[allow(clippy::struct_field_names)] // allow: for parity with the `Shutdown` struct.
+#[expect(
+    clippy::struct_field_names,
+    reason = "for parity with the `Shutdown` struct"
+)]
 struct TaskHandles {
     api_task: JoinHandle<eyre::Result<()>>,
     startup_task: Option<JoinHandle<eyre::Result<()>>>,

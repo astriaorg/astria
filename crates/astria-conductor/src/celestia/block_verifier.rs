@@ -217,7 +217,7 @@ fn verify_vote_signature(
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::collections::BTreeMap;
 
     use astria_core::{

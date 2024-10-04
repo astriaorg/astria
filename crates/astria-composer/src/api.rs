@@ -74,9 +74,6 @@ impl IntoResponse for Readyz {
     }
 }
 
-// axum does not allow non-async handlers. This attribute can be removed
-// once this method contains `await` statements.
-#[allow(clippy::unused_async)]
 #[instrument(skip_all)]
 async fn readyz(State(composer_status): State<ComposerStatus>) -> Readyz {
     debug!("received readyz request");
