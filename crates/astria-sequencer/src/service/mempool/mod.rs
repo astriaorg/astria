@@ -132,9 +132,7 @@ impl IntoCheckTxResponse for InsertionError {
                 log: "transaction failed insertion because parked container is full".into(),
                 ..response::CheckTx::default()
             },
-            InsertionError::AccountBalanceTooLow
-            | InsertionError::NonceGap
-            | InsertionError::PendingSizeLimit => {
+            InsertionError::AccountBalanceTooLow | InsertionError::NonceGap => {
                 // NOTE: these are handled interally by the mempool and don't
                 // block transaction inclusion in the mempool. they shouldn't
                 // be bubbled up to the client.

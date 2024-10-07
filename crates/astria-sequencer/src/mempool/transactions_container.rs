@@ -173,15 +173,11 @@ pub(crate) enum InsertionError {
     AccountSizeLimit,
     AccountBalanceTooLow,
     ParkedSizeLimit,
-    PendingSizeLimit,
 }
 
 impl fmt::Display for InsertionError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            InsertionError::ParkedSizeLimit => {
-                write!(f, "parked container size limit reached")
-            }
             InsertionError::AlreadyPresent => {
                 write!(f, "transaction already exists in the mempool")
             }
@@ -197,11 +193,8 @@ impl fmt::Display for InsertionError {
             InsertionError::AccountBalanceTooLow => {
                 write!(f, "account does not have enough balance to cover costs")
             }
-            InsertionError::PendingSizeLimit => {
-                write!(
-                    f,
-                    "maximum number of pending transactions has been reached for the given account"
-                )
+            InsertionError::ParkedSizeLimit => {
+                write!(f, "parked container size limit reached")
             }
         }
     }
@@ -282,10 +275,6 @@ impl PendingTransactionsForAccount {
 }
 
 impl TransactionsForAccount for PendingTransactionsForAccount {
-    fn size_insertion_error() -> InsertionError {
-        InsertionError::PendingSizeLimit
-    }
-
     fn txs(&self) -> &BTreeMap<u32, TimemarkedTransaction> {
         &self.txs
     }
@@ -374,12 +363,15 @@ impl<const MAX_TX_COUNT: usize> ParkedTransactionsForAccount<MAX_TX_COUNT> {
 impl<const MAX_TX_COUNT: usize> TransactionsForAccount
     for ParkedTransactionsForAccount<MAX_TX_COUNT>
 {
-    fn size_insertion_error() -> InsertionError {
-        InsertionError::ParkedSizeLimit
-    }
-
     fn txs(&self) -> &BTreeMap<u32, TimemarkedTransaction> {
         &self.txs
+    }
+
+    fn check_container_size(len: usize, max_tx_count: Option<usize>) -> Result<(), InsertionError> {
+        if max_tx_count.is_some() && len >= max_tx_count.unwrap() {
+            return Err(InsertionError::ParkedSizeLimit);
+        }
+        Ok(())
     }
 
     fn txs_mut(&mut self) -> &mut BTreeMap<u32, TimemarkedTransaction> {
@@ -413,7 +405,9 @@ pub(super) trait TransactionsForAccount: Default {
         Self::default()
     }
 
-    fn size_insertion_error() -> InsertionError;
+    fn check_container_size(_: usize, _: Option<usize>) -> Result<(), InsertionError> {
+        Ok(())
+    }
 
     fn txs(&self) -> &BTreeMap<u32, TimemarkedTransaction>;
 
@@ -517,15 +511,29 @@ pub(super) struct TransactionsContainer<T> {
     max_tx_count: Option<usize>,
 }
 
-impl<T: TransactionsForAccount> TransactionsContainer<T> {
-    pub(super) fn new(tx_ttl: Duration, max_tx_count: Option<usize>) -> Self {
-        TransactionsContainer::<T> {
+impl TransactionsContainer<PendingTransactionsForAccount> {
+    pub(super) fn new(tx_ttl: Duration) -> Self {
+        TransactionsContainer::<PendingTransactionsForAccount> {
             txs: HashMap::new(),
             tx_ttl,
-            max_tx_count,
+            max_tx_count: None,
         }
     }
+}
 
+impl<const MAX_PARKED_TXS_PER_ACCOUNT: usize>
+    TransactionsContainer<ParkedTransactionsForAccount<MAX_PARKED_TXS_PER_ACCOUNT>>
+{
+    pub(super) fn new(tx_ttl: Duration, max_tx_count: usize) -> Self {
+        TransactionsContainer::<ParkedTransactionsForAccount<MAX_PARKED_TXS_PER_ACCOUNT>> {
+            txs: HashMap::new(),
+            tx_ttl,
+            max_tx_count: Some(max_tx_count),
+        }
+    }
+}
+
+impl<T: TransactionsForAccount> TransactionsContainer<T> {
     /// Returns all of the currently tracked addresses.
     pub(super) fn addresses(&self) -> impl Iterator<Item = &[u8; 20]> {
         self.txs.keys()
@@ -572,9 +580,7 @@ impl<T: TransactionsForAccount> TransactionsContainer<T> {
         current_account_nonce: u32,
         current_account_balances: &HashMap<IbcPrefixed, u128>,
     ) -> Result<(), InsertionError> {
-        if self.max_tx_count.is_some() && self.len() >= self.max_tx_count.unwrap() {
-            return Err(T::size_insertion_error());
-        }
+        T::check_container_size(self.len(), self.max_tx_count)?;
 
         match self.txs.entry(*ttx.address()) {
             hash_map::Entry::Occupied(entry) => {
@@ -1310,7 +1316,7 @@ mod tests {
 
     #[test]
     fn transactions_container_add() {
-        let mut pending_txs = PendingTransactions::new(TX_TTL, None);
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
         // transactions to add to accounts
         let ttx_s0_0_0 = MockTTXBuilder::new().nonce(0).build();
         // Same nonce and signer as `ttx_s0_0_0`, but different chain id.
@@ -1413,7 +1419,7 @@ mod tests {
 
     #[test]
     fn transactions_container_remove() {
-        let mut pending_txs = PendingTransactions::new(TX_TTL, None);
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
         let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
@@ -1472,7 +1478,7 @@ mod tests {
 
     #[test]
     fn transactions_container_clear_account() {
-        let mut pending_txs = PendingTransactions::new(TX_TTL, None);
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
         let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
@@ -1523,7 +1529,7 @@ mod tests {
 
     #[tokio::test]
     async fn transactions_container_recost_transactions() {
-        let mut pending_txs = PendingTransactions::new(TX_TTL, None);
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
         let account_balances = mock_balances(1, 1);
 
         // transaction to add to account
@@ -1573,7 +1579,7 @@ mod tests {
     #[tokio::test]
     #[expect(clippy::too_many_lines, reason = "it's a test")]
     async fn transactions_container_clean_account_stale_expired() {
-        let mut pending_txs = PendingTransactions::new(TX_TTL, None);
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
         let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
@@ -1695,7 +1701,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn transactions_container_clean_accounts_expired_transactions() {
-        let mut pending_txs = PendingTransactions::new(TX_TTL, None);
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
         let account_balances = mock_balances(1, 1);
 
         // transactions to add to accounts
@@ -1762,7 +1768,7 @@ mod tests {
 
     #[test]
     fn pending_transactions_pending_nonce() {
-        let mut pending_txs = PendingTransactions::new(TX_TTL, None);
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
         let account_balances = mock_balances(1, 1);
 
         // transactions to add for account 0
@@ -1790,7 +1796,7 @@ mod tests {
 
     #[tokio::test]
     async fn pending_transactions_builder_queue() {
-        let mut pending_txs = PendingTransactions::new(TX_TTL, None);
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
         let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
@@ -1873,7 +1879,7 @@ mod tests {
 
     #[tokio::test]
     async fn parked_transactions_find_promotables() {
-        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, None);
+        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 100);
 
         // transactions to add to accounts
         let ttx_1 = MockTTXBuilder::new()
@@ -1940,7 +1946,7 @@ mod tests {
 
     #[tokio::test]
     async fn pending_transactions_find_demotables() {
-        let mut pending_txs = PendingTransactions::new(TX_TTL, None);
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to account
         let ttx_1 = MockTTXBuilder::new()
@@ -2019,7 +2025,7 @@ mod tests {
 
     #[tokio::test]
     async fn pending_transactions_remaining_account_balances() {
-        let mut pending_txs = PendingTransactions::new(TX_TTL, None);
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to account
         let ttx_1 = MockTTXBuilder::new()
@@ -2075,7 +2081,7 @@ mod tests {
 
     #[tokio::test]
     async fn parked_transactions_size_limit_works() {
-        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, Some(1));
+        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 1);
 
         // transactions to add to account
         let ttx_1 = MockTTXBuilder::new().nonce(1).build();

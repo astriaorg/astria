@@ -172,10 +172,10 @@ impl Mempool {
     #[must_use]
     pub(crate) fn new(metrics: &'static Metrics, parked_max_tx_count: usize) -> Self {
         Self {
-            pending: Arc::new(RwLock::new(PendingTransactions::new(TX_TTL, None))),
+            pending: Arc::new(RwLock::new(PendingTransactions::new(TX_TTL))),
             parked: Arc::new(RwLock::new(ParkedTransactions::new(
                 TX_TTL,
-                Some(parked_max_tx_count),
+                parked_max_tx_count,
             ))),
             comet_bft_removal_cache: Arc::new(RwLock::new(RemovalCache::new(
                 NonZeroUsize::try_from(REMOVAL_CACHE_SIZE)
@@ -242,8 +242,7 @@ impl Mempool {
                 | InsertionError::NonceTooLow
                 | InsertionError::NonceTaken
                 | InsertionError::AccountSizeLimit
-                | InsertionError::ParkedSizeLimit
-                | InsertionError::PendingSizeLimit,
+                | InsertionError::ParkedSizeLimit,
             ) => error,
             Ok(()) => {
                 // check parked for txs able to be promoted
