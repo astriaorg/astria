@@ -20,6 +20,7 @@ pub(super) struct Command {
 }
 
 impl Command {
+    #[instrument(name = "Sequencer::Account::run", skip_all, err)]
     pub(super) async fn run(self) -> eyre::Result<()> {
         match self.command {
             SubCommand::Create(create) => create.run(),
@@ -48,6 +49,7 @@ impl Create {
         clippy::unnecessary_wraps,
         reason = "for consistency with all the other commands"
     )]
+    #[instrument(name = "Sequencer::Account::Create::run", skip_all, err)]
     fn run(self) -> eyre::Result<()> {
         let signing_key = SigningKey::new(OsRng);
         let pretty_signing_key = hex::encode(signing_key.as_bytes());
@@ -71,6 +73,7 @@ struct Balance {
 }
 
 impl Balance {
+    #[instrument(name = "Sequencer::Account::Balance::run", skip_all, err)]
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
         let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
@@ -97,6 +100,7 @@ struct Nonce {
 }
 
 impl Nonce {
+    #[instrument(name = "Sequencer::Account::Nonce::run", skip_all, err)]
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
         let sequencer_client = HttpClient::new(args.sequencer_url.as_str())

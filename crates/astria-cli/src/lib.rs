@@ -14,6 +14,7 @@ use clap::{
     Subcommand,
 };
 use color_eyre::eyre;
+use tracing::instrument;
 
 const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-10.devnet.astria.org";
 const DEFAULT_SEQUENCER_CHAIN_ID: &str = "astria-dusk-10";
@@ -35,6 +36,7 @@ impl Cli {
     ///
     /// Returns various errors if executing a subcommand fails. The errors are
     /// not explicitly listed here.
+    #[instrument(name = "Cli::run", skip_all, err)]
     pub async fn run() -> eyre::Result<()> {
         let cli = Self::parse();
         match cli.command {

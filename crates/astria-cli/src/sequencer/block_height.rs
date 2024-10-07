@@ -15,6 +15,7 @@ pub(super) struct Command {
 }
 
 impl Command {
+    #[instrument(name = "Sequencer::Blockheight::run", skip_all, err)]
     pub(super) async fn run(self) -> eyre::Result<()> {
         let SubCommand::Get(get) = self.command;
         get.run().await
@@ -46,6 +47,7 @@ struct Get {
 }
 
 impl Get {
+    #[instrument(name = "Sequencer::Blockheight::Get::run", skip_all, err)]
     async fn run(self) -> eyre::Result<()> {
         let sequencer_client = HttpClient::new(self.sequencer_url.as_str())
             .wrap_err("failed constructing http sequencer client")?;
