@@ -71,7 +71,7 @@ genesis:
     #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
 
 sequencer:
-  mempool: 
+  mempool:
     parked:
       maxTxCount: 200
   metrics:
