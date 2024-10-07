@@ -83,7 +83,7 @@ async fn transaction_execution_records_fee_event() {
         event.attributes[2],
         (
             "actionType",
-            "astria.protocol.transactions.v1alpha1.TransferAction"
+            "astria.protocol.transactions.v1alpha1.Transfer"
         )
             .index()
             .into()
