@@ -33,7 +33,7 @@ use crate::{
 };
 
 #[tokio::test]
-async fn app_prepare_proposal_ordering_ok() {
+async fn app_process_proposal_ordering_ok() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
     // create transactions that should pass with expected ordering
@@ -73,7 +73,7 @@ async fn app_prepare_proposal_ordering_ok() {
     );
 
     let process_proposal = ProcessProposal {
-        hash: Hash::default(),
+        hash: Hash::Sha256([1; 32]),
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
@@ -92,8 +92,8 @@ async fn app_prepare_proposal_ordering_ok() {
 }
 
 #[tokio::test]
-async fn app_prepare_proposal_ordering_fail() {
-    // Tests that prepare proposal will reject blocks that contain transactions that are out of
+async fn app_process_proposal_ordering_fail() {
+    // Tests that process proposal will reject blocks that contain transactions that are out of
     // order.
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
@@ -143,7 +143,7 @@ async fn app_prepare_proposal_ordering_fail() {
 }
 
 #[tokio::test]
-async fn app_process_proposal_account_block_misordering_ok() {
+async fn app_prepare_proposal_account_block_misordering_ok() {
     // This test ensures that if an account has transactions that are valid eventually but are
     // invalid in the same block that they aren't rejected but instead are included in multiple
     // blocks.
