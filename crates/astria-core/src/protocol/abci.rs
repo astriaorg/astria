@@ -22,6 +22,9 @@ impl AbciErrorCode {
     pub const TRANSACTION_INSERTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(11) }); 
     pub const LOWER_NONCE_INVALIDATED: Self = Self(unsafe { NonZeroU32::new_unchecked(12) }); 
     pub const BAD_REQUEST: Self = Self(unsafe { NonZeroU32::new_unchecked(13) });
+    pub const ALREADY_PRESENT: Self = Self(unsafe { NonZeroU32::new_unchecked(14) });
+    pub const NONCE_TAKEN: Self = Self(unsafe { NonZeroU32::new_unchecked(15) });
+    pub const ACCOUNT_SIZE_LIMIT: Self = Self(unsafe { NonZeroU32::new_unchecked(16) });
 }
 
 impl AbciErrorCode {
@@ -52,6 +55,13 @@ impl AbciErrorCode {
             }
             Self::LOWER_NONCE_INVALIDATED => "lower nonce was invalidated in mempool".into(),
             Self::BAD_REQUEST => "the request payload was malformed".into(),
+            Self::ALREADY_PRESENT => "the transaction is already present in the mempool".into(),
+            Self::NONCE_TAKEN => "there is already a transaction with the same nonce for the \
+                                  account in the mempool"
+                .into(),
+            Self::ACCOUNT_SIZE_LIMIT => {
+                "the account has reached the maximum number of parked transactions".into()
+            }
             Self(other) => {
                 format!("invalid error code {other}: should be unreachable (this is a bug)")
             }

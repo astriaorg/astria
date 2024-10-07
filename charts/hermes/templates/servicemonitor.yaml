@@ -1,0 +1,28 @@
+{{- if and .Values.serviceMonitor.enabled .Values.telemetry.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hermes-relayer-metrics
+  labels:
+    app: {{ include "hermes.fullname" . }}
+    {{- with .Values.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  jobLabel: hermes-relayer-metric
+  namespaceSelector:
+    matchNames:
+      - {{ include "hermes.namespace" . }}
+  selector:
+    matchLabels:
+      app: {{ include "hermes.fullname" . }}
+  endpoints:
+    - port: telemetry
+      path: /metrics
+      {{- with .Values.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+{{- end }}

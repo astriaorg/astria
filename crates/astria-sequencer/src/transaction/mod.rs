@@ -20,7 +20,6 @@ use astria_eyre::{
 pub(crate) use checks::{
     check_balance_for_total_fees_and_transfers,
     check_chain_id_mempool,
-    check_nonce_mempool,
     get_total_transaction_cost,
 };
 use cnidarium::StateWrite;
