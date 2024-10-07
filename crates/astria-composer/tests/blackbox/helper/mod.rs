@@ -24,7 +24,7 @@ use astria_core::{
     },
     protocol::{
         abci::AbciErrorCode,
-        transactions::v1alpha1::SignedTransaction,
+        transaction::v1alpha1::SignedTransaction,
     },
 };
 use astria_eyre::eyre;

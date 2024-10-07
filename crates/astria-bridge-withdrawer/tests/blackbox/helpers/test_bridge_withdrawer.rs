@@ -20,7 +20,7 @@ use astria_core::{
     protocol::{
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
         memos::v1alpha1::Ics20WithdrawalFromRollup,
-        transactions::v1alpha1::{
+        transaction::v1alpha1::{
             action::{
                 BridgeUnlock,
                 Ics20Withdrawal,
