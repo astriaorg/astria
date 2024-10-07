@@ -268,7 +268,7 @@ mod tests {
             txs,
             proposed_last_commit: None,
             misbehavior: vec![],
-            hash: Hash::default(),
+            hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),
             next_validators_hash: Hash::default(),
             time: Time::now(),
@@ -470,8 +470,8 @@ mod tests {
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let mempool = Mempool::new();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics);
         let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
@@ -502,16 +502,17 @@ mod tests {
         let mut header = default_header();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
+        mempool
+            .insert(signed_tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+            .await
+            .unwrap();
+
         let process_proposal = new_process_proposal_request(block_data.clone());
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
             .await
             .unwrap();
 
-        mempool
-            .insert(signed_tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
-            .await
-            .unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),
