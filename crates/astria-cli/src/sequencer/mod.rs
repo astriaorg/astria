@@ -8,6 +8,7 @@ mod block_height;
 mod bridge_lock;
 mod init_bridge_account;
 mod sudo;
+mod threshold;
 mod transfer;
 
 #[derive(Debug, clap::Args)]
@@ -27,6 +28,7 @@ impl Command {
             SubCommand::InitBridgeAccount(init_bridge_account) => init_bridge_account.run().await,
             SubCommand::Sudo(sudo) => sudo.run().await,
             SubCommand::Transfer(transfer) => transfer.run().await,
+            SubCommand::Threshold(threshold) => threshold.run().await,
         }
     }
 }
@@ -51,4 +53,6 @@ enum SubCommand {
     Sudo(sudo::Command),
     /// Command for sending balance between accounts
     Transfer(transfer::Command),
+    /// Commands for threshold signing
+    Threshold(threshold::Command),
 }
