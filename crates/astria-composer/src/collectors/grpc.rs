@@ -12,7 +12,7 @@ use astria_core::{
         asset,
         RollupId,
     },
-    protocol::transactions::v1alpha1::action::Sequence,
+    protocol::transaction::v1alpha1::action::Sequence,
 };
 use tokio::sync::mpsc::error::SendTimeoutError;
 use tonic::{

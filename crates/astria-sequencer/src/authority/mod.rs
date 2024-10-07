@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use astria_core::{
     primitive::v1::ADDRESS_LEN,
-    protocol::transactions::v1alpha1::action::ValidatorUpdate,
+    protocol::transaction::v1alpha1::action::ValidatorUpdate,
 };
 use astria_eyre::eyre::{
     Result,

@@ -1,5 +1,5 @@
 use astria_core::{
-    protocol::transactions::v1alpha1::action::Sequence,
+    protocol::transaction::v1alpha1::action::Sequence,
     Protobuf as _,
 };
 use astria_eyre::eyre::{

@@ -1,5 +1,5 @@
 use astria_core::{
-    protocol::transactions::v1alpha1::action::{
+    protocol::transaction::v1alpha1::action::{
         BridgeLock,
         Transfer,
     },

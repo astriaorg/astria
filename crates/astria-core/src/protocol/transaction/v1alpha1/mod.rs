@@ -570,7 +570,7 @@ mod tests {
     use super::*;
     use crate::{
         primitive::v1::Address,
-        protocol::transactions::v1alpha1::action::Transfer,
+        protocol::transaction::v1alpha1::action::Transfer,
     };
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 

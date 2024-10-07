@@ -39,7 +39,7 @@ use astria_core::protocol::{
         BridgeAccountInfoResponse,
         BridgeAccountLastTxHashResponse,
     },
-    transactions::v1alpha1::{
+    transaction::v1alpha1::{
         TransactionFeeResponse,
         UnsignedTransaction,
     },
@@ -51,7 +51,7 @@ pub use astria_core::{
             BalanceResponse,
             NonceResponse,
         },
-        transactions::v1alpha1::SignedTransaction,
+        transaction::v1alpha1::SignedTransaction,
     },
     sequencerblock::v1alpha1::{
         block::SequencerBlockError,

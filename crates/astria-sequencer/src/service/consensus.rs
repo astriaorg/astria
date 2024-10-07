@@ -209,7 +209,7 @@ mod tests {
             VerificationKey,
         },
         primitive::v1::RollupId,
-        protocol::transactions::v1alpha1::{
+        protocol::transaction::v1alpha1::{
             action::Sequence,
             UnsignedTransaction,
         },

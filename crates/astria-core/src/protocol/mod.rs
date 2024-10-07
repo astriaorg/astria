@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use indexmap::IndexMap;
-use transactions::v1alpha1::SignedTransaction;
+use transaction::v1alpha1::SignedTransaction;
 
 use crate::primitive::v1::RollupId;
 
@@ -10,7 +10,7 @@ pub mod asset;
 pub mod bridge;
 pub mod genesis;
 pub mod memos;
-pub mod transactions;
+pub mod transaction;
 
 #[cfg(any(feature = "test-utils", test))]
 pub mod test_utils;

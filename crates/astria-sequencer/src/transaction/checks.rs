@@ -6,7 +6,7 @@ use astria_core::{
         RollupId,
         TransactionId,
     },
-    protocol::transactions::v1alpha1::{
+    protocol::transaction::v1alpha1::{
         action::{
             Action,
             BridgeLock,
@@ -295,7 +295,7 @@ mod tests {
             RollupId,
             ADDRESS_LEN,
         },
-        protocol::transactions::v1alpha1::action::{
+        protocol::transaction::v1alpha1::action::{
             Sequence,
             Transfer,
         },

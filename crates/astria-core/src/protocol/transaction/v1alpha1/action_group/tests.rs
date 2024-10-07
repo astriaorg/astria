@@ -7,7 +7,7 @@ use crate::{
         Address,
         RollupId,
     },
-    protocol::transactions::v1alpha1::{
+    protocol::transaction::v1alpha1::{
         action::{
             Action,
             BridgeLock,

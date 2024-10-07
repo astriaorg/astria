@@ -4,7 +4,7 @@ use astria_core::{
     crypto::SigningKey,
     generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse,
     primitive::v1::Address,
-    protocol::transactions::v1alpha1::{
+    protocol::transaction::v1alpha1::{
         action::Transfer,
         SignedTransaction,
         UnsignedTransaction,

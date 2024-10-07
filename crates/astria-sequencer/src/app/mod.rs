@@ -24,7 +24,7 @@ use astria_core::{
     protocol::{
         abci::AbciErrorCode,
         genesis::v1alpha1::GenesisAppState,
-        transactions::v1alpha1::{
+        transaction::v1alpha1::{
             action::ValidatorUpdate,
             Action,
             SignedTransaction,

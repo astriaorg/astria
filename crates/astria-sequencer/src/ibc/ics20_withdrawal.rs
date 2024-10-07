@@ -6,7 +6,7 @@ use astria_core::{
     },
     protocol::{
         memos::v1alpha1::Ics20WithdrawalFromRollup,
-        transactions::v1alpha1::action,
+        transaction::v1alpha1::action,
     },
     Protobuf as _,
 };

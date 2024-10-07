@@ -1,4 +1,4 @@
-use astria_core::protocol::transactions::v1alpha1::action::FeeAssetChange;
+use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
 use astria_eyre::eyre::{
     bail,
     ensure,

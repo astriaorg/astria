@@ -14,7 +14,7 @@ use astria_core::{
     primitive::v1::asset::IbcPrefixed,
     protocol::{
         abci::AbciErrorCode,
-        transactions::v1alpha1::SignedTransaction,
+        transaction::v1alpha1::SignedTransaction,
     },
 };
 use astria_eyre::eyre::WrapErr as _;

@@ -32,7 +32,7 @@ use crate::{
         TransactionId,
         TransactionIdError,
     },
-    protocol::transactions::v1alpha1::{
+    protocol::transaction::v1alpha1::{
         action,
         SignedTransaction,
         SignedTransactionError,

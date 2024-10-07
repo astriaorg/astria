@@ -8,7 +8,7 @@ use astria_core::{
     },
     protocol::{
         genesis::v1alpha1::GenesisAppState,
-        transactions::v1alpha1::{
+        transaction::v1alpha1::{
             action::{
                 BridgeLock,
                 BridgeUnlock,
@@ -498,7 +498,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_addition() {
-    use astria_core::protocol::transactions::v1alpha1::action::FeeAssetChange;
+    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -525,7 +525,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_removal() {
-    use astria_core::protocol::transactions::v1alpha1::action::FeeAssetChange;
+    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -559,7 +559,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_invalid() {
-    use astria_core::protocol::transactions::v1alpha1::action::FeeAssetChange;
+    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
 
@@ -585,7 +585,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
 
 #[tokio::test]
 async fn app_execute_transaction_init_bridge_account_ok() {
-    use astria_core::protocol::transactions::v1alpha1::action::InitBridgeAccount;
+    use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccount;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -649,7 +649,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
 
 #[tokio::test]
 async fn app_execute_transaction_init_bridge_account_account_already_registered() {
-    use astria_core::protocol::transactions::v1alpha1::action::InitBridgeAccount;
+    use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccount;
 
     let alice = get_alice_signing_key();
     let mut app = initialize_app(None, vec![]).await;
@@ -781,7 +781,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
 
 #[tokio::test]
 async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
-    use astria_core::protocol::transactions::v1alpha1::action::BridgeLock;
+    use astria_core::protocol::transaction::v1alpha1::action::BridgeLock;
 
     let alice = get_alice_signing_key();
     let mut app = initialize_app(None, vec![]).await;

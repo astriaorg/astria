@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use astria_core::{
     protocol::{
         genesis::v1alpha1::Account,
-        transactions::v1alpha1::{
+        transaction::v1alpha1::{
             action::{
                 FeeChange,
                 FeeChangeKind,

@@ -3,7 +3,7 @@ use astria_core::{
         TransactionId,
         ADDRESS_LEN,
     },
-    protocol::transactions::v1alpha1::SignedTransaction,
+    protocol::transaction::v1alpha1::SignedTransaction,
 };
 use cnidarium::{
     StateRead,

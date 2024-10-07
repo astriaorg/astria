@@ -11,7 +11,7 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
-    protocol::transactions::v1alpha1::SignedTransaction,
+    protocol::transaction::v1alpha1::SignedTransaction,
 };
 use sha2::{
     Digest as _,
