@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client;
+use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -15,6 +15,7 @@ use axum::{
     Server,
 };
 use ethereum::watcher::Watcher;
+use http::Uri;
 use hyper::server::conn::AddrIncoming;
 use startup::Startup;
 use tokio::{
@@ -93,10 +94,10 @@ impl BridgeWithdrawer {
             .parse()
             .wrap_err("failed to parse sequencer bridge address")?;
 
-        let sequencer_grpc_connection =
-            tonic::transport::Endpoint::new(sequencer_grpc_endpoint)?.connect_lazy();
-        let sequencer_grpc_client =
-            sequencer_service_client::SequencerServiceClient::new(sequencer_grpc_connection);
+        let sequencer_grpc_client = connect_sequencer_grpc(&sequencer_grpc_endpoint)
+            .wrap_err_with(|| {
+                format!("failed to connect to Sequencer over gRPC at `{sequencer_grpc_endpoint}`")
+            })?;
         let sequencer_cometbft_client =
             sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
                 .wrap_err("failed constructing cometbft http client")?;
@@ -166,8 +167,11 @@ impl BridgeWithdrawer {
         self.api_server.local_addr()
     }
 
-    // Panic won't happen because `startup_task` is unwraped lazily after checking if it's `Some`.
-    #[allow(clippy::missing_panics_doc)]
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "Panic won't happen because `startup_task` is unwraped lazily after checking if \
+                  it's `Some`."
+    )]
     pub async fn run(self) {
         let Self {
             shutdown_token,
@@ -254,7 +258,10 @@ impl BridgeWithdrawer {
     }
 }
 
-#[allow(clippy::struct_field_names)] // allow: for parity with the `Shutdown` struct.
+#[expect(
+    clippy::struct_field_names,
+    reason = "for parity with the `Shutdown` struct"
+)]
 struct TaskHandles {
     api_task: JoinHandle<eyre::Result<()>>,
     startup_task: Option<JoinHandle<eyre::Result<()>>>,
@@ -465,4 +472,15 @@ pub(crate) fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
     }
+}
+
+fn connect_sequencer_grpc(
+    sequencer_grpc_endpoint: &str,
+) -> eyre::Result<SequencerServiceClient<tonic::transport::Channel>> {
+    let uri: Uri = sequencer_grpc_endpoint
+        .parse()
+        .wrap_err("failed to parse endpoint as URI")?;
+    Ok(SequencerServiceClient::new(
+        tonic::transport::Endpoint::from(uri).connect_lazy(),
+    ))
 }

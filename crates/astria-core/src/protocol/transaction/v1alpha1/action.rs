@@ -35,6 +35,7 @@ pub enum Action {
     ValidatorUpdate(ValidatorUpdate),
     SudoAddressChange(SudoAddressChangeAction),
     Ibc(IbcRelay),
+    IbcSudoChange(IbcSudoChangeAction),
     Ics20Withdrawal(Ics20Withdrawal),
     IbcRelayerChange(IbcRelayerChangeAction),
     FeeAssetChange(FeeAssetChangeAction),
@@ -60,6 +61,7 @@ impl Protobuf for Action {
                 Value::SudoAddressChangeAction(act.clone().into_raw())
             }
             Action::Ibc(act) => Value::IbcAction(act.clone().into()),
+            Action::IbcSudoChange(act) => Value::IbcSudoChangeAction(act.clone().into_raw()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.to_raw()),
             Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.to_raw()),
             Action::FeeAssetChange(act) => Value::FeeAssetChangeAction(act.to_raw()),
@@ -112,6 +114,9 @@ impl Protobuf for Action {
                 SudoAddressChangeAction::try_from_raw(act)
                     .map_err(ActionError::sudo_address_change)?,
             ),
+            Value::IbcSudoChangeAction(act) => Self::IbcSudoChange(
+                IbcSudoChangeAction::try_from_raw(act).map_err(ActionError::ibc_sudo_change)?,
+            ),
             Value::IbcAction(act) => {
                 Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
             }
@@ -148,6 +153,7 @@ impl Protobuf for Action {
     }
 }
 
+// TODO: add unit tests for these methods (https://github.com/astriaorg/astria/issues/1593)
 impl Action {
     #[must_use]
     pub fn as_sequence(&self) -> Option<&SequenceAction> {
@@ -163,6 +169,14 @@ impl Action {
             return None;
         };
         Some(transfer_action)
+    }
+
+    pub fn is_fee_asset_change(&self) -> bool {
+        matches!(self, Self::FeeAssetChange(_))
+    }
+
+    pub fn is_fee_change(&self) -> bool {
+        matches!(self, Self::FeeChange(_))
     }
 }
 
@@ -181,6 +195,12 @@ impl From<TransferAction> for Action {
 impl From<SudoAddressChangeAction> for Action {
     fn from(value: SudoAddressChangeAction) -> Self {
         Self::SudoAddressChange(value)
+    }
+}
+
+impl From<IbcSudoChangeAction> for Action {
+    fn from(value: IbcSudoChangeAction) -> Self {
+        Self::IbcSudoChange(value)
     }
 }
 
@@ -252,7 +272,37 @@ impl TryFrom<raw::Action> for Action {
     }
 }
 
-#[allow(clippy::module_name_repetitions)]
+// TODO: replace this trait with a Protobuf:FullName implementation.
+// Issue tracked in #1567
+pub(super) trait ActionName {
+    fn name(&self) -> &'static str;
+}
+
+impl ActionName for Action {
+    fn name(&self) -> &'static str {
+        match self {
+            Action::Sequence(_) => "Sequence",
+            Action::Transfer(_) => "Transfer",
+            Action::ValidatorUpdate(_) => "ValidatorUpdate",
+            Action::SudoAddressChange(_) => "SudoAddressChange",
+            Action::Ibc(_) => "Ibc",
+            Action::IbcSudoChange(_) => "IbcSudoChange",
+            Action::Ics20Withdrawal(_) => "Ics20Withdrawal",
+            Action::IbcRelayerChange(_) => "IbcRelayerChange",
+            Action::FeeAssetChange(_) => "FeeAssetChange",
+            Action::InitBridgeAccount(_) => "InitBridgeAccount",
+            Action::BridgeLock(_) => "BridgeLock",
+            Action::BridgeUnlock(_) => "BridgeUnlock",
+            Action::BridgeSudoChange(_) => "BridgeSudoChange",
+            Action::FeeChange(_) => "FeeChange",
+        }
+    }
+}
+
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct ActionError(ActionErrorKind);
@@ -276,6 +326,10 @@ impl ActionError {
 
     fn sudo_address_change(inner: SudoAddressChangeActionError) -> Self {
         Self(ActionErrorKind::SudoAddressChange(inner))
+    }
+
+    fn ibc_sudo_change(inner: IbcSudoChangeActionError) -> Self {
+        Self(ActionErrorKind::IbcSudoChange(inner))
     }
 
     fn ibc(inner: Box<dyn std::error::Error + Send + Sync>) -> Self {
@@ -327,6 +381,8 @@ enum ActionErrorKind {
     ValidatorUpdate(#[source] ValidatorUpdateError),
     #[error("sudo address change action was not valid")]
     SudoAddressChange(#[source] SudoAddressChangeActionError),
+    #[error("ibc sudo address change action was not valid")]
+    IbcSudoChange(#[source] IbcSudoChangeActionError),
     #[error("ibc action was not valid")]
     Ibc(#[source] Box<dyn std::error::Error + Send + Sync>),
     #[error("ics20 withdrawal action was not valid")]
@@ -376,7 +432,10 @@ enum SequenceActionErrorKind {
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 pub struct SequenceAction {
     pub rollup_id: RollupId,
     pub data: Bytes,
@@ -428,7 +487,10 @@ impl Protobuf for SequenceAction {
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
@@ -674,7 +736,10 @@ impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdat
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 pub struct SudoAddressChangeAction {
     pub new_address: Address,
 }
@@ -744,6 +809,77 @@ enum SudoAddressChangeActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`new_address` field did not contain a valid address")]
+    Address { source: AddressError },
+}
+
+#[derive(Debug, Clone)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
+pub struct IbcSudoChangeAction {
+    pub new_address: Address,
+}
+
+impl Protobuf for IbcSudoChangeAction {
+    type Error = IbcSudoChangeActionError;
+    type Raw = raw::IbcSudoChangeAction;
+
+    fn into_raw(self) -> raw::IbcSudoChangeAction {
+        raw::IbcSudoChangeAction {
+            new_address: Some(self.new_address.into_raw()),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::IbcSudoChangeAction {
+        raw::IbcSudoChangeAction {
+            new_address: Some(self.new_address.to_raw()),
+        }
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::IbcSudoChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the raw action's `new_address` did not have the expected
+    /// length or if the field was not set.
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, IbcSudoChangeActionError> {
+        let raw::IbcSudoChangeAction {
+            new_address,
+        } = proto;
+        let Some(new_address) = new_address else {
+            return Err(IbcSudoChangeActionError::field_not_set("new_address"));
+        };
+        let new_address =
+            Address::try_from_raw(new_address).map_err(IbcSudoChangeActionError::address)?;
+        Ok(Self {
+            new_address,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct IbcSudoChangeActionError(IbcSudoChangeActionErrorKind);
+
+impl IbcSudoChangeActionError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(IbcSudoChangeActionErrorKind::FieldNotSet(field))
+    }
+
+    fn address(source: AddressError) -> Self {
+        Self(IbcSudoChangeActionErrorKind::Address {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum IbcSudoChangeActionErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("`new_sudo` field did not contain a valid address")]
     Address { source: AddressError },
 }
 
@@ -1081,7 +1217,10 @@ enum Ics20WithdrawalErrorKind {
     InvalidDenom { source: asset::ParseDenomError },
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub enum IbcRelayerChangeAction {
     Addition(Address),
@@ -1162,7 +1301,10 @@ enum IbcRelayerChangeActionErrorKind {
     MissingAddress,
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub enum FeeAssetChangeAction {
     Addition(asset::Denom),
@@ -1243,7 +1385,10 @@ enum FeeAssetChangeActionErrorKind {
     MissingAsset,
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub struct InitBridgeAccountAction {
     // the rollup ID to register for the sender of this action
@@ -1384,11 +1529,7 @@ impl InitBridgeAccountActionError {
     }
 }
 
-// allow pedantic clippy as the errors have the same prefix (for consistency
-// with other error types) as well as the same postfix (due to the types the
-// errors are referencing), both of which cause clippy to complain.
 #[derive(Debug, thiserror::Error)]
-#[allow(clippy::enum_variant_names)]
 enum InitBridgeAccountActionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
@@ -1404,7 +1545,10 @@ enum InitBridgeAccountActionErrorKind {
     InvalidWithdrawerAddress(#[source] AddressError),
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub struct BridgeLockAction {
     pub to: Address,
@@ -1536,7 +1680,10 @@ enum BridgeLockActionErrorKind {
     InvalidFeeAsset(#[source] asset::ParseDenomError),
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BridgeUnlockAction {
     pub to: Address,
@@ -1684,7 +1831,10 @@ enum BridgeUnlockActionErrorKind {
     BridgeAddress { source: AddressError },
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub struct BridgeSudoChangeAction {
     pub bridge_address: Address,
@@ -1831,7 +1981,10 @@ pub enum FeeChange {
     Ics20WithdrawalBaseFee,
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "for parity with the Protobuf spec"
+)]
 #[derive(Debug, Clone)]
 pub struct FeeChangeAction {
     pub fee_change: FeeChange,

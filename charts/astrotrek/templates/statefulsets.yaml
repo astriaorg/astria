@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.config.name }}-indexer-api
+  name: {{ .Values.config.name }}-indexer-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.config.name }}-indexer-api
+  name: {{ .Values.config.name }}-indexer-api
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.config.name }}-indexer-api
+    name: {{ .Values.config.name }}-indexer-api
+    spec:
+      containers:
+        - name: {{ .Values.config.name }}-indexer-api
+          image: {{ include "api.image" . }}
+          envFrom:
+            - configMapRef:
+                name: env
+          ports:
+            - containerPort: {{ .Values.ports.api }}
+              name: indexer-api
+              protocol: TCP
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+      restartPolicy: Always
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.config.name }}-db
+  name: {{ .Values.config.name }}-db
+spec:
+  serviceName: "{{ .Values.config.name }}-db"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.config.name }}-db
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.config.name }}-db
+    spec:
+      containers:
+        - args:
+            - -cshared_preload_libraries=timescaledb,pg_stat_statements
+            - -cpg_stat_statements.track=all
+          envFrom:
+            - configMapRef:
+                name: env
+          image: timescale/timescaledb-ha:pg15-latest
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready -U  -d astria
+            failureThreshold: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: {{ .Values.config.name }}-db
+          ports:
+            - containerPort: {{ .Values.ports.db }}
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /home/postgres/pgdata
+              name: db
+      restartPolicy: Always
+      volumes:
+        - name: db
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: astrotrek-shared-local-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

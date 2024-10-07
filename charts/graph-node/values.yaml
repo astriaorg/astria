@@ -1,0 +1,65 @@
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+
+serviceMonitor:
+  enabled: false
+  additionalLabels: {}
+  interval: 15s
+  scrapeTimeout: 10s
+
+graphNode:
+  image: graphprotocol/graph-node
+  tag: latest
+  replicas: 1
+  metrics:
+    enabled: false
+  ports:
+    http: 8000
+    jsonRpc: 8001
+    indexNode: 8020
+    metrics: 8030
+    subgraphMetrics: 8040
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  host: graph-node.localdev.me
+  tls: []
+  #  - secretName: graph-node-tls
+  #    hosts:
+  #      - graph-node.example.com
+
+ipfs:
+  image: ipfs/kubo
+  tag: v0.17.0
+  storage:
+    enabled: false
+    local: true
+    size: 5Gi
+  ports:
+    api: 5001
+
+postgres:
+  image: postgres
+  tag: latest
+  user: graph-node
+  password: let-me-in
+  database: graph-node
+  storage:
+    enabled: false
+    local: true
+    size: 10Gi
+  ports:
+    postgres: 5432
+
+environment:
+  ethereumNetwork: flame-local
+  ethereumRPC: http://astria-evm-service.astria-dev-cluster.svc.cluster.local:8545
+
+persistence:
+  storageClass: standard

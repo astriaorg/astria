@@ -34,10 +34,10 @@ delete:
   just wait-for-rollup > /dev/null
   echo "Deploying Hermes"
   just deploy hermes-local > /dev/null
-  kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=300s
+  kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=480s
 
 [no-cd]
-run:
+run tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
@@ -45,7 +45,7 @@ run:
   initial_celestia_balance=$(just ibc-test get-celestia-balance)
 
   # Create a bridge account on the sequencer
-  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria
+  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria {{tag}}
 
   # Execute the transfer from Celestia to the Rollup
   just ibc-test _do-ibc-transfer
@@ -225,8 +225,8 @@ cb address=celestia_dev_account_address namespace=defaultNamespace:
     'celestia-appd query bank balances {{address}}'
 
 # init sequencer bridge account
-init-bridge-acct:
-  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria
+init-bridge-acct tag=defaultTag:
+  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria {{tag}}
 
 defaultNobleTag := "local"
 # build custom noble image

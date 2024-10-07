@@ -1,8 +1,14 @@
 mod inner;
 
-use std::future::Future;
+use std::{
+    future::Future,
+    task::ready,
+};
 
-use astria_eyre::eyre;
+use astria_eyre::eyre::{
+    self,
+    Result,
+};
 use inner::{
     ConductorInner,
     InnerHandle,
@@ -51,7 +57,7 @@ impl Handle {
 }
 
 impl Future for Handle {
-    type Output = Result<eyre::Result<()>, tokio::task::JoinError>;
+    type Output = eyre::Result<()>;
 
     fn poll(
         self: std::pin::Pin<&mut Self>,
@@ -63,7 +69,9 @@ impl Future for Handle {
             .task
             .as_mut()
             .expect("the Conductor handle must not be polled after shutdown");
-        task.poll_unpin(cx)
+
+        let res = ready!(task.poll_unpin(cx));
+        std::task::Poll::Ready(crate::utils::flatten(res))
     }
 }
 
@@ -128,17 +136,18 @@ impl Conductor {
     #[instrument(skip_all, err)]
     async fn shutdown_or_restart(
         &mut self,
-        exit_reason: Result<RestartOrShutdown, JoinError>,
+        exit_reason: Result<Result<RestartOrShutdown>, JoinError>,
     ) -> eyre::Result<&'static str> {
         match exit_reason {
-            Ok(restart_or_shutdown) => match restart_or_shutdown {
+            Ok(Ok(restart_or_shutdown)) => match restart_or_shutdown {
                 RestartOrShutdown::Restart => {
                     self.restart();
                     return Ok("restarting");
                 }
-                RestartOrShutdown::Shutdown => Ok("conductor exiting"),
+                RestartOrShutdown::Shutdown => Ok("shutting down"),
             },
-            Err(err) => Err(eyre::ErrReport::from(err).wrap_err("conductor failed")),
+            Ok(Err(err)) => Err(err.wrap_err("conductor exited with an error")),
+            Err(err) => Err(eyre::Report::new(err).wrap_err("conductor panicked")),
         }
     }
 

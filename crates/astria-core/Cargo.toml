@@ -2,7 +2,7 @@
 name = "astria-core"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.76"
+rust-version = "1.81.0"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
@@ -55,6 +55,10 @@ server = ["dep:tonic"]
 test-utils = []
 base64-serde = ["dep:base64-serde"]
 brotli = ["dep:brotli"]
+# When enabled, this adds constructors for some types that skip the normal constructor validity
+# checks. It supports the case where the inputs are already deemed valid, e.g. having read them from
+# local storage.
+unchecked-constructors = []
 
 [dev-dependencies]
 astria-core = { path = ".", features = ["serde"] }

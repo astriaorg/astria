@@ -110,7 +110,6 @@ impl Service<MempoolRequest> for Mempool {
 /// as well as stateful checks (nonce and balance checks).
 ///
 /// If the tx passes all checks, status code 0 is returned.
-#[allow(clippy::too_many_lines)]
 #[instrument(skip_all)]
 async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'static>(
     req: request::CheckTx,
@@ -147,7 +146,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         Err(e) => {
             return response::CheckTx {
                 code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
-                log: e.to_string(),
+                log: format!("{e:#}"),
                 info: "failed decoding bytes as a protobuf SignedTransaction".into(),
                 ..response::CheckTx::default()
             };
@@ -161,7 +160,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
                        the signature was invalid"
                     .into(),
-                log: e.to_string(),
+                log: format!("{e:#}"),
                 ..response::CheckTx::default()
             };
         }
@@ -177,7 +176,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         return response::CheckTx {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
             info: "transaction failed stateless check".into(),
-            log: e.to_string(),
+            log: format!("{e:#}"),
             ..response::CheckTx::default()
         };
     };
@@ -192,7 +191,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         return response::CheckTx {
             code: Code::Err(AbciErrorCode::INVALID_NONCE.value()),
             info: "failed verifying transaction nonce".into(),
-            log: e.to_string(),
+            log: format!("{e:#}"),
             ..response::CheckTx::default()
         };
     };
@@ -206,7 +205,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
         return response::CheckTx {
             code: Code::Err(AbciErrorCode::INVALID_CHAIN_ID.value()),
             info: "failed verifying chain id".into(),
-            log: e.to_string(),
+            log: format!("{e:#}"),
             ..response::CheckTx::default()
         };
     }
@@ -266,7 +265,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     // tx is valid, push to mempool with current state
     let address = match state
-        .try_base_prefixed(&signed_tx.verification_key().address_bytes())
+        .try_base_prefixed(signed_tx.verification_key().address_bytes())
         .await
         .context("failed to generate address for signed transaction")
     {
@@ -283,7 +282,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     // fetch current account
     let current_account_nonce = match state
-        .get_account_nonce(address)
+        .get_account_nonce(&address)
         .await
         .wrap_err("failed fetching nonce for account")
     {
@@ -326,7 +325,7 @@ async fn handle_check_tx<S: accounts::StateReadExt + address::StateReadExt + 'st
 
     // grab current account's balances
     let current_account_balance: HashMap<IbcPrefixed, u128> =
-        match get_account_balances(&state, address)
+        match get_account_balances(&state, &address)
             .await
             .with_context(|| "failed fetching balances for account `{address}`")
         {

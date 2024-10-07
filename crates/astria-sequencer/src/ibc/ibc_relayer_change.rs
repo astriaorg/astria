@@ -47,7 +47,9 @@ impl ActionHandler for IbcRelayerChangeAction {
 
         match self {
             IbcRelayerChangeAction::Addition(address) => {
-                state.put_ibc_relayer_address(address);
+                state
+                    .put_ibc_relayer_address(address)
+                    .wrap_err("failed to put IBC relayer address")?;
             }
             IbcRelayerChangeAction::Removal(address) => {
                 state.delete_ibc_relayer_address(address);

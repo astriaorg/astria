@@ -51,7 +51,7 @@ impl ActionHandler for SequenceAction {
         );
 
         let curr_balance = state
-            .get_account_balance(from, &self.fee_asset)
+            .get_account_balance(&from, &self.fee_asset)
             .await
             .wrap_err("failed getting `from` account balance for fee payment")?;
         let fee = calculate_fee_from_state(&self.data, &state)
@@ -64,7 +64,7 @@ impl ActionHandler for SequenceAction {
             .await
             .wrap_err("failed to add to block fees")?;
         state
-            .decrease_balance(from, &self.fee_asset, fee)
+            .decrease_balance(&from, &self.fee_asset, fee)
             .await
             .wrap_err("failed updating `from` account balance")?;
         Ok(())
@@ -100,7 +100,7 @@ fn calculate_fee(data: &[u8], fee_per_byte: u128, base_fee: u128) -> Option<u128
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

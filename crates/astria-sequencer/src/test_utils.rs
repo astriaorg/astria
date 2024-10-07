@@ -15,6 +15,11 @@ pub(crate) fn astria_address(bytes: &[u8]) -> Address {
         .unwrap()
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn astria_compat_address(bytes: &[u8]) -> Address<Bech32> {
     Address::builder()

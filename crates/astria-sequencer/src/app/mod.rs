@@ -1,5 +1,8 @@
+mod action_handler;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
+mod state_ext;
+pub(crate) mod storage;
 #[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod test_utils;
 #[cfg(test)]
@@ -11,13 +14,11 @@ mod tests_breaking_changes;
 #[cfg(test)]
 mod tests_execute_transaction;
 
-mod action_handler;
 use std::{
     collections::VecDeque,
     sync::Arc,
 };
 
-pub(crate) use action_handler::ActionHandler;
 use astria_core::{
     generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
@@ -74,13 +75,19 @@ use tracing::{
     instrument,
 };
 
+pub(crate) use self::{
+    action_handler::ActionHandler,
+    state_ext::{
+        StateReadExt,
+        StateWriteExt,
+    },
+};
 use crate::{
     accounts::{
         component::AccountsComponent,
         StateWriteExt as _,
     },
     address::StateWriteExt as _,
-    api_state_ext::StateWriteExt as _,
     assets::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -99,6 +106,7 @@ use crate::{
         StateWriteExt as _,
     },
     component::Component as _,
+    grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
     mempool::{
         Mempool,
@@ -113,10 +121,6 @@ use crate::{
         },
     },
     sequence::component::SequenceComponent,
-    state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
     transaction::InvalidNonce,
 };
 
@@ -174,9 +178,10 @@ pub(crate) struct App {
 
     // the currently committed `AppHash` of the application state.
     // set whenever `commit` is called.
-    //
-    // allow clippy because we need be specific as to what hash this is.
-    #[allow(clippy::struct_field_names)]
+    #[expect(
+        clippy::struct_field_names,
+        reason = "we need to be specific as to what hash this is"
+    )]
     app_hash: AppHash,
 
     metrics: &'static Metrics,
@@ -230,27 +235,38 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
-        state_tx.put_base_prefix(genesis_state.address_prefixes().base());
-        state_tx.put_ibc_compat_prefix(genesis_state.address_prefixes().ibc_compat());
+        state_tx
+            .put_base_prefix(genesis_state.address_prefixes().base().to_string())
+            .wrap_err("failed to write base prefix to state")?;
+        state_tx
+            .put_ibc_compat_prefix(genesis_state.address_prefixes().ibc_compat().to_string())
+            .wrap_err("failed to write ibc-compat prefix to state")?;
 
         let native_asset = genesis_state.native_asset_base_denomination();
-        state_tx.put_native_asset(native_asset);
         state_tx
-            .put_ibc_asset(native_asset)
+            .put_native_asset(native_asset.clone())
+            .wrap_err("failed to write native asset to state")?;
+        state_tx
+            .put_ibc_asset(native_asset.clone())
             .wrap_err("failed to commit native asset as ibc asset to state")?;
 
         state_tx
-            .put_chain_id_and_revision_number(chain_id.try_into().wrap_err("invalid chain ID")?);
-        state_tx.put_block_height(0);
+            .put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?)
+            .wrap_err("failed to write chain id to state")?;
+        state_tx
+            .put_block_height(0)
+            .wrap_err("failed to write block height to state")?;
 
         for fee_asset in genesis_state.allowed_fee_assets() {
-            state_tx.put_allowed_fee_asset(fee_asset);
+            state_tx
+                .put_allowed_fee_asset(fee_asset)
+                .wrap_err("failed to write allowed fee asset to state")?;
         }
 
         // call init_chain on all components
         AccountsComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .wrap_err("failed to call init_chain on AccountsComponent")?;
+            .wrap_err("init_chain failed on AccountsComponent")?;
         AuthorityComponent::init_chain(
             &mut state_tx,
             &AuthorityComponentAppState {
@@ -259,16 +275,16 @@ impl App {
             },
         )
         .await
-        .wrap_err("failed to call init_chain on AuthorityComponent")?;
+        .wrap_err("init_chain failed on AuthorityComponent")?;
         BridgeComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .wrap_err("failed to call init_chain on BridgeComponent")?;
+            .wrap_err("init_chain failed on BridgeComponent")?;
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .wrap_err("failed to call init_chain on IbcComponent")?;
+            .wrap_err("init_chain failed on IbcComponent")?;
         SequenceComponent::init_chain(&mut state_tx, &genesis_state)
             .await
-            .wrap_err("failed to call init_chain on SequenceComponent")?;
+            .wrap_err("init_chain failed on SequenceComponent")?;
 
         state_tx.apply();
 
@@ -335,11 +351,7 @@ impl App {
         self.metrics
             .record_proposal_transactions(signed_txs_included.len());
 
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .wrap_err("failed to get block deposits in prepare_proposal")?;
+        let deposits = self.state.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
@@ -444,11 +456,7 @@ impl App {
         );
         self.metrics.record_proposal_transactions(signed_txs.len());
 
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .wrap_err("failed to get block deposits in process_proposal")?;
+        let deposits = self.state.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         let GeneratedCommitments {
@@ -537,7 +545,7 @@ impl App {
             // check if tx's sequence data will fit into sequence block
             let tx_sequence_data_bytes = tx
                 .unsigned_transaction()
-                .actions
+                .actions()
                 .iter()
                 .filter_map(Action::as_sequence)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
@@ -657,7 +665,7 @@ impl App {
             // check if tx's sequence data will fit into sequence block
             let tx_sequence_data_bytes = tx
                 .unsigned_transaction()
-                .actions
+                .actions()
                 .iter()
                 .filter_map(Action::as_sequence)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
@@ -761,7 +769,7 @@ impl App {
 
         self.begin_block(&begin_block)
             .await
-            .wrap_err("failed to call begin_block")?;
+            .wrap_err("begin_block failed")?;
 
         Ok(())
     }
@@ -869,23 +877,18 @@ impl App {
             tx_results.extend(execution_results);
         };
 
-        let end_block = self.end_block(height.value(), sudo_address).await?;
+        let end_block = self.end_block(height.value(), &sudo_address).await?;
 
-        // get and clear block deposits from state
+        // get deposits for this block from state's ephemeral cache and put them to storage.
         let mut state_tx = StateDelta::new(self.state.clone());
-        let deposits = self
-            .state
-            .get_block_deposits()
-            .await
-            .wrap_err("failed to get block deposits in end_block")?;
-        state_tx
-            .clear_block_deposits()
-            .await
-            .wrap_err("failed to clear block deposits")?;
+        let deposits_in_this_block = self.state.get_cached_block_deposits();
         debug!(
-            deposits = %telemetry::display::json(&deposits),
+            deposits = %telemetry::display::json(&deposits_in_this_block),
             "got block deposits from state"
         );
+        state_tx
+            .put_deposits(&block_hash, deposits_in_this_block.clone())
+            .wrap_err("failed to put deposits to state")?;
 
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
             block_hash,
@@ -898,7 +901,7 @@ impl App {
                 .into_iter()
                 .map(std::convert::Into::into)
                 .collect(),
-            deposits,
+            deposits_in_this_block,
         )
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
@@ -943,7 +946,9 @@ impl App {
             .get_block_height()
             .await
             .expect("block height must be set, as `put_block_height` was already called");
-        state.put_storage_version_by_height(height, new_version);
+        state
+            .put_storage_version_by_height(height, new_version)
+            .wrap_err("failed to put storage version by height")?;
         debug!(
             height,
             version = new_version,
@@ -972,28 +977,30 @@ impl App {
     ) -> Result<Vec<abci::Event>> {
         let mut state_tx = StateDelta::new(self.state.clone());
 
-        // store the block height
-        state_tx.put_block_height(begin_block.header.height.into());
-        // store the block time
-        state_tx.put_block_timestamp(begin_block.header.time);
+        state_tx
+            .put_block_height(begin_block.header.height.into())
+            .wrap_err("failed to put block height")?;
+        state_tx
+            .put_block_timestamp(begin_block.header.time)
+            .wrap_err("failed to put block timestamp")?;
 
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);
         AccountsComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .wrap_err("failed to call begin_block on AccountsComponent")?;
+            .wrap_err("begin_block failed on AccountsComponent")?;
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .wrap_err("failed to call begin_block on AuthorityComponent")?;
+            .wrap_err("begin_block failed on AuthorityComponent")?;
         BridgeComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .wrap_err("failed to call begin_block on BridgeComponent")?;
+            .wrap_err("begin_block failed on BridgeComponent")?;
         IbcComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .wrap_err("failed to call begin_block on IbcComponent")?;
+            .wrap_err("begin_block failed on IbcComponent")?;
         SequenceComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .wrap_err("failed to call begin_block on SequenceComponent")?;
+            .wrap_err("begin_block failed on SequenceComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1024,10 +1031,11 @@ impl App {
 
         // flag mempool for cleaning if we ran a fee change action
         self.recost_mempool = self.recost_mempool
-            || signed_tx
-                .actions()
-                .iter()
-                .any(|action| matches!(action, Action::FeeAssetChange(_) | Action::FeeChange(_)));
+            || signed_tx.is_bundleable_sudo_action_group()
+                && signed_tx
+                    .actions()
+                    .iter()
+                    .any(|act| act.is_fee_asset_change() || act.is_fee_change());
 
         Ok(state_tx.apply().1)
     }
@@ -1036,7 +1044,7 @@ impl App {
     async fn end_block(
         &mut self,
         height: u64,
-        fee_recipient: [u8; 20],
+        fee_recipient: &[u8; 20],
     ) -> Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -1050,19 +1058,19 @@ impl App {
         // call end_block on all components
         AccountsComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .wrap_err("failed to call end_block on AccountsComponent")?;
+            .wrap_err("end_block failed on AccountsComponent")?;
         AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .wrap_err("failed to call end_block on AuthorityComponent")?;
+            .wrap_err("end_block failed on AuthorityComponent")?;
         BridgeComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .wrap_err("failed to call end_block on BridgeComponent")?;
+            .wrap_err("end_block failed on BridgeComponent")?;
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .wrap_err("failed to call end_block on IbcComponent")?;
+            .wrap_err("end_block failed on IbcComponent")?;
         SequenceComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .wrap_err("failed to call end_block on SequenceComponent")?;
+            .wrap_err("end_block failed on SequenceComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1086,7 +1094,7 @@ impl App {
 
         for (asset, amount) in fees {
             state_tx
-                .increase_balance(fee_recipient, asset, amount)
+                .increase_balance(fee_recipient, &asset, amount)
                 .await
                 .wrap_err("failed to increase fee recipient balance")?;
         }

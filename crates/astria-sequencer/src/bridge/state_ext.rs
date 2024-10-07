@@ -1,13 +1,8 @@
-use std::collections::{
-    HashMap,
-    HashSet,
-};
+use std::collections::HashMap;
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::Deposit as RawDeposit,
     primitive::v1::{
         asset,
-        Address,
         RollupId,
         TransactionId,
         ADDRESS_LEN,
@@ -18,54 +13,33 @@ use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         bail,
-        format_err,
         OptionExt as _,
         Result,
         WrapErr as _,
     },
 };
 use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
 use cnidarium::{
     StateRead,
     StateWrite,
 };
-use futures::StreamExt as _;
-use hex::ToHex as _;
-use prost::Message as _;
 use tracing::{
     debug,
     instrument,
 };
 
+use super::storage;
 use crate::{
     accounts::AddressBytes,
     address,
+    storage::StoredValue,
 };
-
-/// Newtype wrapper to read and write a u128 from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct Balance(u128);
-
-/// Newtype wrapper to read and write a u32 from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct Nonce(u32);
-
-/// Newtype wrapper to read and write a Vec<[u8; 32]> from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct AssetId([u8; 32]);
-
-/// Newtype wrapper to read and write a u128 from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct Fee(u128);
 
 const BRIDGE_ACCOUNT_PREFIX: &str = "bridgeacc";
 const BRIDGE_ACCOUNT_SUDO_PREFIX: &str = "bsudo";
 const BRIDGE_ACCOUNT_WITHDRAWER_PREFIX: &str = "bwithdrawer";
-const DEPOSIT_PREFIX: &str = "deposit";
+const DEPOSITS_EPHEMERAL_KEY: &str = "deposits";
+const DEPOSIT_PREFIX: &[u8] = b"deposit/";
 const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
 const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
 const BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY: &str = "bridgesudofee";
@@ -109,16 +83,8 @@ fn asset_id_storage_key<T: AddressBytes>(address: &T) -> String {
     )
 }
 
-fn deposit_storage_key_prefix(rollup_id: &RollupId) -> String {
-    format!("{DEPOSIT_PREFIX}/{}", rollup_id.encode_hex::<String>())
-}
-
-fn deposit_storage_key(rollup_id: &RollupId, nonce: u32) -> Vec<u8> {
-    format!("{}/{}", deposit_storage_key_prefix(rollup_id), nonce).into()
-}
-
-fn deposit_nonce_storage_key(rollup_id: &RollupId) -> Vec<u8> {
-    format!("depositnonce/{}", rollup_id.encode_hex::<String>()).into()
+fn deposit_storage_key(block_hash: &[u8; 32], rollup_id: &RollupId) -> Vec<u8> {
+    [DEPOSIT_PREFIX, block_hash, rollup_id.as_ref()].concat()
 }
 
 fn bridge_account_sudo_address_storage_key<T: AddressBytes>(address: &T) -> String {
@@ -170,20 +136,18 @@ fn last_transaction_id_for_bridge_account_storage_key<T: AddressBytes>(address: 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     #[instrument(skip_all)]
-    async fn is_a_bridge_account<T: AddressBytes>(&self, address: T) -> Result<bool> {
+    async fn is_a_bridge_account<T: AddressBytes>(&self, address: &T) -> Result<bool> {
         let maybe_id = self.get_bridge_account_rollup_id(address).await?;
         Ok(maybe_id.is_some())
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn get_bridge_account_rollup_id<T: AddressBytes>(
         &self,
-        address: T,
+        address: &T,
     ) -> Result<Option<RollupId>> {
-        let Some(rollup_id_bytes) = self
-            .get_raw(&rollup_id_storage_key(&address))
+        let Some(bytes) = self
+            .get_raw(&rollup_id_storage_key(address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw account rollup ID from state")?
@@ -191,37 +155,39 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             debug!("account rollup ID not found, returning None");
             return Ok(None);
         };
-
-        let rollup_id =
-            RollupId::try_from_slice(&rollup_id_bytes).wrap_err("invalid rollup ID bytes")?;
-        Ok(Some(rollup_id))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::RollupId::try_from(value)
+                    .map(|stored_rollup_id| Some(RollupId::from(stored_rollup_id)))
+            })
+            .wrap_err("invalid rollup ID bytes")
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn get_bridge_account_ibc_asset<T: AddressBytes>(
         &self,
-        address: T,
+        address: &T,
     ) -> Result<asset::IbcPrefixed> {
         let bytes = self
-            .get_raw(&asset_id_storage_key(&address))
+            .get_raw(&asset_id_storage_key(address))
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw asset ID from state")?
-            .ok_or_eyre("asset ID not found")?;
-        let id = borsh::from_slice::<AssetId>(&bytes)
-            .wrap_err("failed to reconstruct asset ID from storage")?;
-        Ok(asset::IbcPrefixed::new(id.0))
+            .wrap_err("failed reading raw bridge account asset ID from state")?
+            .ok_or_eyre("bridge account asset ID not found")?;
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::IbcPrefixedDenom::try_from(value).map(asset::IbcPrefixed::from)
+            })
+            .wrap_err("invalid bridge account asset ID bytes")
     }
 
     #[instrument(skip_all)]
     async fn get_bridge_account_sudo_address<T: AddressBytes>(
         &self,
-        bridge_address: T,
+        bridge_address: &T,
     ) -> Result<Option<[u8; ADDRESS_LEN]>> {
-        let Some(sudo_address_bytes) = self
-            .get_raw(&bridge_account_sudo_address_storage_key(&bridge_address))
+        let Some(bytes) = self
+            .get_raw(&bridge_account_sudo_address_storage_key(bridge_address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge account sudo address from state")?
@@ -229,23 +195,23 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             debug!("bridge account sudo address not found, returning None");
             return Ok(None);
         };
-        let sudo_address = sudo_address_bytes.try_into().map_err(|bytes: Vec<_>| {
-            format_err!(
-                "failed to convert address `{}` bytes read from state to fixed length address",
-                bytes.len()
-            )
-        })?;
-        Ok(Some(sudo_address))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::AddressBytes::try_from(value).map(|stored_address_bytes| {
+                    Some(<[u8; ADDRESS_LEN]>::from(stored_address_bytes))
+                })
+            })
+            .wrap_err("invalid bridge account sudo address bytes")
     }
 
     #[instrument(skip_all)]
     async fn get_bridge_account_withdrawer_address<T: AddressBytes>(
         &self,
-        bridge_address: T,
+        bridge_address: &T,
     ) -> Result<Option<[u8; ADDRESS_LEN]>> {
-        let Some(withdrawer_address_bytes) = self
+        let Some(bytes) = self
             .get_raw(&bridge_account_withdrawer_address_storage_key(
-                &bridge_address,
+                bridge_address,
             ))
             .await
             .map_err(anyhow_to_eyre)
@@ -254,86 +220,37 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             debug!("bridge account withdrawer address not found, returning None");
             return Ok(None);
         };
-        let addr = withdrawer_address_bytes
-            .try_into()
-            .map_err(|bytes: Vec<_>| {
-                astria_eyre::eyre::Error::msg(format!(
-                    "failed converting `{}` bytes retrieved from storage to fixed address length",
-                    bytes.len()
-                ))
-            })?;
-        Ok(Some(addr))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::AddressBytes::try_from(value).map(|stored_address_bytes| {
+                    Some(<[u8; ADDRESS_LEN]>::from(stored_address_bytes))
+                })
+            })
+            .wrap_err("invalid bridge account withdrawer address bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_deposit_nonce(&self, rollup_id: &RollupId) -> Result<u32> {
-        let bytes = self
-            .nonverifiable_get_raw(&deposit_nonce_storage_key(rollup_id))
+    fn get_cached_block_deposits(&self) -> HashMap<RollupId, Vec<Deposit>> {
+        self.object_get(DEPOSITS_EPHEMERAL_KEY).unwrap_or_default()
+    }
+
+    #[instrument(skip_all)]
+    async fn get_deposits(
+        &self,
+        block_hash: &[u8; 32],
+        rollup_id: &RollupId,
+    ) -> Result<Vec<Deposit>> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(&deposit_storage_key(block_hash, rollup_id))
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw deposit nonce from state")?;
-        let Some(bytes) = bytes else {
-            // no deposits for this rollup id yet; return 0
-            return Ok(0);
+            .wrap_err("failed reading raw deposits from state")?
+        else {
+            return Ok(vec![]);
         };
-
-        let Nonce(nonce) =
-            Nonce(u32::from_be_bytes(bytes.try_into().expect(
-                "all deposit nonces stored should be 4 bytes; this is a bug",
-            )));
-        Ok(nonce)
-    }
-
-    #[instrument(skip_all)]
-    async fn get_deposit_rollup_ids(&self) -> Result<HashSet<RollupId>> {
-        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(DEPOSIT_PREFIX.as_bytes()));
-        let mut rollup_ids = HashSet::new();
-        while let Some(Ok((key, _))) = stream.next().await {
-            // the deposit key is of the form "deposit/{rollup_id}/{nonce}"
-            let key_str =
-                String::from_utf8(key).wrap_err("failed to convert deposit key to string")?;
-            let key_parts = key_str.split('/').collect::<Vec<_>>();
-            if key_parts.len() != 3 {
-                continue;
-            }
-            let rollup_id_bytes =
-                hex::decode(key_parts[1]).wrap_err("invalid rollup ID hex string")?;
-            let rollup_id =
-                RollupId::try_from_slice(&rollup_id_bytes).wrap_err("invalid rollup ID bytes")?;
-            rollup_ids.insert(rollup_id);
-        }
-        Ok(rollup_ids)
-    }
-
-    #[instrument(skip_all)]
-    async fn get_deposit_events(&self, rollup_id: &RollupId) -> Result<Vec<Deposit>> {
-        let mut stream = std::pin::pin!(
-            self.nonverifiable_prefix_raw(deposit_storage_key_prefix(rollup_id).as_bytes())
-        );
-        let mut deposits = Vec::new();
-        while let Some(Ok((_, value))) = stream.next().await {
-            let raw = RawDeposit::decode(value.as_ref()).wrap_err("invalid deposit bytes")?;
-            let deposit = Deposit::try_from_raw(raw).wrap_err("invalid deposit raw proto")?;
-            deposits.push(deposit);
-        }
-        Ok(deposits)
-    }
-
-    #[instrument(skip_all)]
-    async fn get_block_deposits(&self) -> Result<HashMap<RollupId, Vec<Deposit>>> {
-        let deposit_rollup_ids = self
-            .get_deposit_rollup_ids()
-            .await
-            .wrap_err("failed to get deposit rollup IDs")?;
-        let mut deposit_events = HashMap::new();
-        for rollup_id in deposit_rollup_ids {
-            let rollup_deposit_events = self
-                .get_deposit_events(&rollup_id)
-                .await
-                .wrap_err("failed to get deposit events")?;
-            deposit_events.insert(rollup_id, rollup_deposit_events);
-        }
-        Ok(deposit_events)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::Deposits::try_from(value).map(Vec::<Deposit>::from))
+            .context("invalid deposits bytes")
     }
 
     #[instrument(skip_all)]
@@ -344,8 +261,9 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw init bridge account base fee from state")?
             .ok_or_eyre("init bridge account base fee not found")?;
-        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
-        Ok(fee)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
+            .wrap_err("invalid fee bytes")
     }
 
     #[instrument(skip_all)]
@@ -356,8 +274,9 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge lock byte cost multiplier from state")?
             .ok_or_eyre("bridge lock byte cost multiplier not found")?;
-        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
-        Ok(fee)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
+            .wrap_err("invalid bridge lock byte cost multiplier bytes")
     }
 
     #[instrument(skip_all)]
@@ -368,16 +287,17 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge sudo change fee from state")?
             .ok_or_eyre("bridge sudo change fee not found")?;
-        let Fee(fee) = Fee::try_from_slice(&bytes).wrap_err("invalid fee bytes")?;
-        Ok(fee)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
+            .wrap_err("invalid bridge sudo change fee bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_last_transaction_id_for_bridge_account(
+    async fn get_last_transaction_id_for_bridge_account<T: AddressBytes>(
         &self,
-        address: &Address,
+        address: &T,
     ) -> Result<Option<TransactionId>> {
-        let Some(tx_hash_bytes) = self
+        let Some(bytes) = self
             .nonverifiable_get_raw(&last_transaction_id_for_bridge_account_storage_key(address))
             .await
             .map_err(anyhow_to_eyre)
@@ -385,12 +305,10 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         else {
             return Ok(None);
         };
-
-        let tx_hash: [u8; 32] = tx_hash_bytes
-            .try_into()
-            .expect("all transaction hashes stored should be 32 bytes; this is a bug");
-
-        Ok(Some(TransactionId::new(tx_hash)))
+        let tx_id = StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::TransactionId::try_from(value).map(TransactionId::from))
+            .wrap_err("invalid bridge account transaction hash bytes")?;
+        Ok(Some(tx_id))
     }
 }
 
@@ -399,66 +317,84 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_bridge_account_rollup_id<T: AddressBytes>(&mut self, address: T, rollup_id: &RollupId) {
-        self.put_raw(rollup_id_storage_key(&address), rollup_id.to_vec());
+    fn put_bridge_account_rollup_id<T: AddressBytes>(
+        &mut self,
+        address: &T,
+        rollup_id: RollupId,
+    ) -> Result<()> {
+        let bytes = StoredValue::from(storage::RollupId::from(&rollup_id))
+            .serialize()
+            .context("failed to serialize bridge account rollup id")?;
+        self.put_raw(rollup_id_storage_key(address), bytes);
+        Ok(())
     }
 
     #[instrument(skip_all)]
     fn put_bridge_account_ibc_asset<TAddress, TAsset>(
         &mut self,
-        address: TAddress,
+        address: &TAddress,
         asset: TAsset,
     ) -> Result<()>
     where
         TAddress: AddressBytes,
-        TAsset: Into<asset::IbcPrefixed> + std::fmt::Display,
+        TAsset: Into<asset::IbcPrefixed>,
     {
         let ibc = asset.into();
-        self.put_raw(
-            asset_id_storage_key(&address),
-            borsh::to_vec(&AssetId(ibc.get())).wrap_err("failed to serialize asset IDs")?,
-        );
+        let bytes = StoredValue::from(storage::IbcPrefixedDenom::from(&ibc))
+            .serialize()
+            .wrap_err("failed to serialize asset ids")?;
+        self.put_raw(asset_id_storage_key(address), bytes);
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn put_bridge_account_sudo_address<TBridgeAddress, TSudoAddress>(
         &mut self,
-        bridge_address: TBridgeAddress,
+        bridge_address: &TBridgeAddress,
         sudo_address: TSudoAddress,
-    ) where
+    ) -> Result<()>
+    where
         TBridgeAddress: AddressBytes,
         TSudoAddress: AddressBytes,
     {
+        let bytes = StoredValue::from(storage::AddressBytes::from(&sudo_address))
+            .serialize()
+            .context("failed to serialize bridge account sudo address")?;
         self.put_raw(
-            bridge_account_sudo_address_storage_key(&bridge_address),
-            sudo_address.address_bytes().to_vec(),
+            bridge_account_sudo_address_storage_key(bridge_address),
+            bytes,
         );
+        Ok(())
     }
 
     #[instrument(skip_all)]
     fn put_bridge_account_withdrawer_address<TBridgeAddress, TWithdrawerAddress>(
         &mut self,
-        bridge_address: TBridgeAddress,
+        bridge_address: &TBridgeAddress,
         withdrawer_address: TWithdrawerAddress,
-    ) where
+    ) -> Result<()>
+    where
         TBridgeAddress: AddressBytes,
         TWithdrawerAddress: AddressBytes,
     {
+        let bytes = StoredValue::from(storage::AddressBytes::from(&withdrawer_address))
+            .serialize()
+            .context("failed to serialize bridge account sudo address")?;
         self.put_raw(
-            bridge_account_withdrawer_address_storage_key(&bridge_address),
-            withdrawer_address.address_bytes().to_vec(),
+            bridge_account_withdrawer_address_storage_key(bridge_address),
+            bytes,
         );
+        Ok(())
     }
 
     #[instrument(skip_all)]
     async fn check_and_set_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
         &mut self,
-        address: T,
+        address: &T,
         withdrawal_event_id: &str,
         block_num: u64,
     ) -> Result<()> {
-        let key = bridge_account_withdrawal_event_storage_key(&address, withdrawal_event_id);
+        let key = bridge_account_withdrawal_event_storage_key(address, withdrawal_event_id);
 
         // Check if the withdrawal ID has already been used, if so return an error.
         let bytes = self
@@ -467,113 +403,101 @@ pub(crate) trait StateWriteExt: StateWrite {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw withdrawal event from state")?;
         if let Some(bytes) = bytes {
-            let existing_block_num = u64::from_be_bytes(
-                bytes
-                    .try_into()
-                    .expect("all block numbers stored should be 8 bytes; this is a bug"),
-            );
-
+            let existing_block_num = StoredValue::deserialize(&bytes)
+                .and_then(|value| storage::BlockHeight::try_from(value).map(u64::from))
+                .context("invalid withdrawal event block height bytes")?;
             bail!(
                 "withdrawal event ID {withdrawal_event_id} used by block number \
                  {existing_block_num}"
             );
         }
 
-        self.put_raw(key, block_num.to_be_bytes().to_vec());
+        let bytes = StoredValue::from(storage::BlockHeight::from(block_num))
+            .serialize()
+            .context("failed to serialize withdrawal event block height")?;
+        self.put_raw(key, bytes);
         Ok(())
     }
 
-    // the deposit "nonce" for a given rollup ID during a given block.
-    // this is only used to generate storage keys for each of the deposits within a block,
-    // and is reset to 0 at the beginning of each block.
+    /// Push the deposit onto the end of a Vec of deposits for this rollup ID.  These are held in
+    /// state's ephemeral store, pending being written to permanent storage during `finalize_block`.
     #[instrument(skip_all)]
-    fn put_deposit_nonce(&mut self, rollup_id: &RollupId, nonce: u32) {
-        self.nonverifiable_put_raw(
-            deposit_nonce_storage_key(rollup_id),
-            nonce.to_be_bytes().to_vec(),
-        );
+    fn cache_deposit_event(&mut self, deposit: Deposit) {
+        let mut cached_deposits = self.get_cached_block_deposits();
+        cached_deposits
+            .entry(deposit.rollup_id)
+            .or_default()
+            .push(deposit);
+        self.object_put(DEPOSITS_EPHEMERAL_KEY, cached_deposits);
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, err)]
-    async fn put_deposit_event(&mut self, deposit: Deposit) -> Result<()> {
-        let nonce = self.get_deposit_nonce(&deposit.rollup_id).await?;
-        self.put_deposit_nonce(
-            &deposit.rollup_id,
-            nonce.checked_add(1).ok_or_eyre("nonce overflowed")?,
-        );
-
-        let key = deposit_storage_key(&deposit.rollup_id, nonce);
-        self.nonverifiable_put_raw(key, deposit.into_raw().encode_to_vec());
-        Ok(())
-    }
-
-    // clears the deposit nonce and all deposits for for a given rollup ID.
-    #[instrument(skip_all)]
-    async fn clear_deposit_info(&mut self, rollup_id: &RollupId) {
-        self.nonverifiable_delete(deposit_nonce_storage_key(rollup_id));
-        let mut stream = std::pin::pin!(
-            self.nonverifiable_prefix_raw(deposit_storage_key_prefix(rollup_id).as_bytes())
-        );
-        while let Some(Ok((key, _))) = stream.next().await {
-            self.nonverifiable_delete(key);
-        }
-    }
-
-    #[instrument(skip_all)]
-    async fn clear_block_deposits(&mut self) -> Result<()> {
-        let deposit_rollup_ids = self
-            .get_deposit_rollup_ids()
-            .await
-            .wrap_err("failed to get deposit rollup ids")?;
-        for rollup_id in deposit_rollup_ids {
-            self.clear_deposit_info(&rollup_id).await;
+    fn put_deposits(
+        &mut self,
+        block_hash: &[u8; 32],
+        all_deposits: HashMap<RollupId, Vec<Deposit>>,
+    ) -> Result<()> {
+        for (rollup_id, deposits) in all_deposits {
+            let key = deposit_storage_key(block_hash, &rollup_id);
+            let bytes = StoredValue::from(storage::Deposits::from(deposits.iter()))
+                .serialize()
+                .context("failed to serialize bridge deposit")?;
+            self.nonverifiable_put_raw(key, bytes);
         }
         Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_init_bridge_account_base_fee(&mut self, fee: u128) {
-        self.put_raw(
-            INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY.to_string(),
-            borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
-        );
+    fn put_init_bridge_account_base_fee(&mut self, fee: u128) -> Result<()> {
+        let bytes = StoredValue::from(storage::Fee::from(fee))
+            .serialize()
+            .context("failed to serialize bridge account base fee")?;
+        self.put_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY.to_string(), bytes);
+        Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_bridge_lock_byte_cost_multiplier(&mut self, fee: u128) {
+    fn put_bridge_lock_byte_cost_multiplier(&mut self, fee: u128) -> Result<()> {
+        let bytes = StoredValue::from(storage::Fee::from(fee))
+            .serialize()
+            .context("failed to serialize bridge lock byte cost multiplier")?;
         self.put_raw(
             BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY.to_string(),
-            borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
+            bytes,
         );
+        Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_bridge_sudo_change_base_fee(&mut self, fee: u128) {
-        self.put_raw(
-            BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY.to_string(),
-            borsh::to_vec(&Fee(fee)).expect("failed to serialize fee"),
-        );
+    fn put_bridge_sudo_change_base_fee(&mut self, fee: u128) -> Result<()> {
+        let bytes = StoredValue::from(storage::Fee::from(fee))
+            .serialize()
+            .context("failed to serialize bridge sudo change base fee")?;
+        self.put_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY.to_string(), bytes);
+        Ok(())
     }
 
     #[instrument(skip_all)]
     fn put_last_transaction_id_for_bridge_account<T: AddressBytes>(
         &mut self,
-        address: T,
-        tx_id: &TransactionId,
-    ) {
+        address: &T,
+        tx_id: TransactionId,
+    ) -> Result<()> {
+        let bytes = StoredValue::from(storage::TransactionId::from(&tx_id))
+            .serialize()
+            .context("failed to serialize transaction hash for bridge account")?;
         self.nonverifiable_put_raw(
-            last_transaction_id_for_bridge_account_storage_key(&address),
-            tx_id.get().to_vec(),
+            last_transaction_id_for_bridge_account_storage_key(address),
+            bytes,
         );
+        Ok(())
     }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         primitive::v1::{
             asset,
@@ -586,14 +510,7 @@ mod test {
     use cnidarium::StateDelta;
     use insta::assert_snapshot;
 
-    use super::{
-        asset_id_storage_key,
-        bridge_account_sudo_address_storage_key,
-        bridge_account_withdrawer_address_storage_key,
-        rollup_id_storage_key,
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
     use crate::test_utils::astria_address;
 
     fn asset_0() -> asset::Denom {
@@ -614,7 +531,7 @@ mod test {
 
         // uninitialized ok
         assert_eq!(
-            state.get_bridge_account_rollup_id(address).await.expect(
+            state.get_bridge_account_rollup_id(&address).await.expect(
                 "call to get bridge account rollup id should not fail for uninitialized addresses"
             ),
             Option::None,
@@ -632,10 +549,12 @@ mod test {
         let address = astria_address(&[42u8; 20]);
 
         // can write new
-        state.put_bridge_account_rollup_id(address, &rollup_id);
+        state
+            .put_bridge_account_rollup_id(&address, rollup_id)
+            .unwrap();
         assert_eq!(
             state
-                .get_bridge_account_rollup_id(address)
+                .get_bridge_account_rollup_id(&address)
                 .await
                 .expect("a rollup ID was written and must exist inside the database")
                 .expect("expecting return value"),
@@ -645,10 +564,12 @@ mod test {
 
         // can rewrite with new value
         rollup_id = RollupId::new([2u8; 32]);
-        state.put_bridge_account_rollup_id(address, &rollup_id);
+        state
+            .put_bridge_account_rollup_id(&address, rollup_id)
+            .unwrap();
         assert_eq!(
             state
-                .get_bridge_account_rollup_id(address)
+                .get_bridge_account_rollup_id(&address)
                 .await
                 .expect("a rollup ID was written and must exist inside the database")
                 .expect("expecting return value"),
@@ -659,10 +580,12 @@ mod test {
         // can write additional account and both valid
         let rollup_id_1 = RollupId::new([2u8; 32]);
         let address_1 = astria_address(&[41u8; 20]);
-        state.put_bridge_account_rollup_id(address_1, &rollup_id_1);
+        state
+            .put_bridge_account_rollup_id(&address_1, rollup_id_1)
+            .unwrap();
         assert_eq!(
             state
-                .get_bridge_account_rollup_id(address_1)
+                .get_bridge_account_rollup_id(&address_1)
                 .await
                 .expect("a rollup ID was written and must exist inside the database")
                 .expect("expecting return value"),
@@ -672,7 +595,7 @@ mod test {
 
         assert_eq!(
             state
-                .get_bridge_account_rollup_id(address)
+                .get_bridge_account_rollup_id(&address)
                 .await
                 .expect("a rollup ID was written and must exist inside the database")
                 .expect("expecting return value"),
@@ -689,7 +612,7 @@ mod test {
 
         let address = astria_address(&[42u8; 20]);
         let _ = state
-            .get_bridge_account_ibc_asset(address)
+            .get_bridge_account_ibc_asset(&address)
             .await
             .expect_err("call to get bridge account asset ids should fail if no assets");
     }
@@ -705,10 +628,10 @@ mod test {
 
         // can write
         state
-            .put_bridge_account_ibc_asset(address, &asset)
+            .put_bridge_account_ibc_asset(&address, asset.clone())
             .expect("storing bridge account asset should not fail");
         let mut result = state
-            .get_bridge_account_ibc_asset(address)
+            .get_bridge_account_ibc_asset(&address)
             .await
             .expect("bridge asset id was written and must exist inside the database");
         assert_eq!(
@@ -720,10 +643,10 @@ mod test {
         // can update
         asset = "asset_2".parse::<asset::Denom>().unwrap();
         state
-            .put_bridge_account_ibc_asset(address, &asset)
+            .put_bridge_account_ibc_asset(&address, &asset)
             .expect("storing bridge account assets should not fail");
         result = state
-            .get_bridge_account_ibc_asset(address)
+            .get_bridge_account_ibc_asset(&address)
             .await
             .expect("bridge asset id was written and must exist inside the database");
         assert_eq!(
@@ -736,18 +659,18 @@ mod test {
         let address_1 = astria_address(&[41u8; 20]);
         let asset_1 = asset_1();
         state
-            .put_bridge_account_ibc_asset(address_1, &asset_1)
+            .put_bridge_account_ibc_asset(&address_1, &asset_1)
             .expect("storing bridge account assets should not fail");
         assert_eq!(
             state
-                .get_bridge_account_ibc_asset(address_1)
+                .get_bridge_account_ibc_asset(&address_1)
                 .await
                 .expect("bridge asset id was written and must exist inside the database"),
             asset_1.into(),
             "second bridge account asset not what was expected"
         );
         result = state
-            .get_bridge_account_ibc_asset(address)
+            .get_bridge_account_ibc_asset(&address)
             .await
             .expect("original bridge asset id was written and must exist inside the database");
         assert_eq!(
@@ -759,90 +682,54 @@ mod test {
     }
 
     #[tokio::test]
-    async fn get_deposit_nonce_uninitialized_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
-
-        let rollup_id = RollupId::new([2u8; 32]);
-
-        // uninitialized ok
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id)
-                .await
-                .expect("call to get deposit nonce should not fail on uninitialized rollup ids"),
-            0u32,
-            "uninitialized rollup id nonce should be zero"
-        );
-    }
-
-    #[tokio::test]
-    async fn put_deposit_nonce() {
+    async fn bridge_account_sudo_address_round_trip() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let rollup_id = RollupId::new([2u8; 32]);
-        let mut nonce = 1u32;
-
-        // can write
-        state.put_deposit_nonce(&rollup_id, nonce);
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id)
-                .await
-                .expect("a rollup id nonce was written and must exist inside the database"),
-            nonce,
-            "stored nonce did not match expected"
-        );
-
-        // can update
-        nonce = 2u32;
-        state.put_deposit_nonce(&rollup_id, nonce);
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id)
-                .await
-                .expect("a rollup id nonce was written and must exist inside the database"),
-            nonce,
-            "stored nonce did not match expected"
-        );
-
-        // writing to different account is ok
-        let rollup_id_1 = RollupId::new([3u8; 32]);
-        let nonce_1 = 3u32;
-        state.put_deposit_nonce(&rollup_id_1, nonce_1);
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id_1)
-                .await
-                .expect("a rollup id nonce was written and must exist inside the database"),
-            nonce_1,
-            "additional stored nonce did not match expected"
-        );
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id)
-                .await
-                .expect("a rollup id nonce was written and must exist inside the database"),
-            nonce,
-            "original stored nonce did not match expected"
-        );
+        let bridge_address = [1; 20];
+        let sudo_address = [2; 20];
+        state
+            .put_bridge_account_sudo_address(&bridge_address, sudo_address)
+            .unwrap();
+        let retrieved_sudo_address = state
+            .get_bridge_account_sudo_address(&bridge_address)
+            .await
+            .unwrap();
+        assert_eq!(retrieved_sudo_address, Some(sudo_address));
     }
 
     #[tokio::test]
-    async fn get_deposit_events_empty_ok() {
+    async fn bridge_account_withdrawer_address_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let bridge_address = [1; 20];
+        let withdrawer_address = [2; 20];
+        state
+            .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
+            .unwrap();
+        let retrieved_withdrawer_address = state
+            .get_bridge_account_withdrawer_address(&bridge_address)
+            .await
+            .unwrap();
+        assert_eq!(retrieved_withdrawer_address, Some(withdrawer_address));
+    }
+
+    #[tokio::test]
+    async fn get_deposits_empty_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
+        let block_hash = [32; 32];
         let rollup_id = RollupId::new([2u8; 32]);
 
         // no events ok
         assert_eq!(
             state
-                .get_deposit_events(&rollup_id)
+                .get_deposits(&block_hash, &rollup_id)
                 .await
                 .expect("call for rollup id with no deposit events should not fail"),
             vec![],
@@ -851,13 +738,13 @@ mod test {
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)] // allow: it's a test
-    async fn get_deposit_events() {
+    async fn get_deposits() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let rollup_id = RollupId::new([1u8; 32]);
+        let block_hash = [32; 32];
+        let rollup_id_1 = RollupId::new([1u8; 32]);
         let bridge_address = astria_address(&[42u8; 20]);
         let amount = 10u128;
         let asset = asset_0();
@@ -865,7 +752,7 @@ mod test {
 
         let mut deposit = Deposit {
             bridge_address,
-            rollup_id,
+            rollup_id: rollup_id_1,
             amount,
             asset: asset.clone(),
             destination_chain_address: destination_chain_address.to_string(),
@@ -873,29 +760,21 @@ mod test {
             source_action_index: 0,
         };
 
-        let mut deposits = vec![deposit.clone()];
+        let mut all_deposits = HashMap::new();
+        let mut rollup_1_deposits = vec![deposit.clone()];
+        all_deposits.insert(rollup_id_1, rollup_1_deposits.clone());
 
         // can write
         state
-            .put_deposit_event(deposit.clone())
-            .await
-            .expect("writing deposit events should be ok");
+            .put_deposits(&block_hash, all_deposits.clone())
+            .unwrap();
         assert_eq!(
             state
-                .get_deposit_events(&rollup_id)
+                .get_deposits(&block_hash, &rollup_id_1)
                 .await
                 .expect("deposit info was written to the database and must exist"),
-            deposits,
+            rollup_1_deposits,
             "stored deposits do not match what was expected"
-        );
-        // nonce is correct
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id)
-                .await
-                .expect("calls to get nonce should not fail"),
-            1u32,
-            "nonce was consumed and should've been incremented"
         );
 
         // can write additional
@@ -904,366 +783,98 @@ mod test {
             source_action_index: 1,
             ..deposit
         };
-        deposits.append(&mut vec![deposit.clone()]);
+        rollup_1_deposits.push(deposit.clone());
+        all_deposits.insert(rollup_id_1, rollup_1_deposits.clone());
         state
-            .put_deposit_event(deposit.clone())
-            .await
-            .expect("writing deposit events should be ok");
-        let mut returned_deposits = state
-            .get_deposit_events(&rollup_id)
-            .await
-            .expect("deposit info was written to the database and must exist");
-        returned_deposits.sort_by_key(|d| d.amount);
-        deposits.sort_by_key(|d| d.amount);
-        assert_eq!(
-            returned_deposits, deposits,
-            "stored deposits do not match what was expected"
-        );
-        // nonce is correct
+            .put_deposits(&block_hash, all_deposits.clone())
+            .unwrap();
         assert_eq!(
             state
-                .get_deposit_nonce(&rollup_id)
+                .get_deposits(&block_hash, &rollup_id_1)
                 .await
-                .expect("calls to get nonce should not fail"),
-            2u32,
-            "nonce was consumed and should've been incremented"
+                .expect("deposit info was written to the database and must exist"),
+            rollup_1_deposits,
+            "stored deposits do not match what was expected"
         );
 
         // can write different rollup id and both ok
-        let rollup_id_1 = RollupId::new([2u8; 32]);
+        let rollup_id_2 = RollupId::new([2u8; 32]);
         deposit = Deposit {
-            rollup_id: rollup_id_1,
+            rollup_id: rollup_id_2,
             source_action_index: 2,
             ..deposit
         };
-        let deposits_1 = vec![deposit.clone()];
-        state
-            .put_deposit_event(deposit)
-            .await
-            .expect("writing deposit events should be ok");
+        let rollup_2_deposits = vec![deposit.clone()];
+        all_deposits.insert(rollup_id_2, rollup_2_deposits.clone());
+        state.put_deposits(&block_hash, all_deposits).unwrap();
         assert_eq!(
             state
-                .get_deposit_events(&rollup_id_1)
+                .get_deposits(&block_hash, &rollup_id_2)
                 .await
                 .expect("deposit info was written to the database and must exist"),
-            deposits_1,
+            rollup_2_deposits,
             "stored deposits do not match what was expected"
         );
         // verify original still ok
-        returned_deposits = state
-            .get_deposit_events(&rollup_id)
-            .await
-            .expect("deposit info was written to the database and must exist");
-        returned_deposits.sort_by_key(|d| d.amount);
-        assert_eq!(
-            returned_deposits, deposits,
-            "stored deposits do not match what was expected"
-        );
-    }
-
-    #[tokio::test]
-    async fn get_deposit_rollup_ids() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let rollup_id_0 = RollupId::new([1u8; 32]);
-        let bridge_address = astria_address(&[42u8; 20]);
-        let amount = 10u128;
-        let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-
-        let mut deposit = Deposit {
-            bridge_address,
-            rollup_id: rollup_id_0,
-            amount,
-            asset: asset.clone(),
-            destination_chain_address: destination_chain_address.to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        };
-
-        // write same rollup id twice
-        state
-            .put_deposit_event(deposit.clone())
-            .await
-            .expect("writing deposit events should be ok");
-
-        // writing to same rollup id does not create duplicates
-        state
-            .put_deposit_event(deposit.clone())
-            .await
-            .expect("writing deposit events should be ok");
-
-        // writing additional different rollup id
-        let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit {
-            rollup_id: rollup_id_1,
-            source_action_index: 1,
-            ..deposit
-        };
-        state
-            .put_deposit_event(deposit)
-            .await
-            .expect("writing deposit events should be ok");
-        // ensure only two rollup ids are in system
-        let rollups = state
-            .get_deposit_rollup_ids()
-            .await
-            .expect("deposit info was written rollup ids should still be in database");
-        assert_eq!(rollups.len(), 2, "only two rollup ids should exits");
-        assert!(
-            rollups.contains(&rollup_id_0),
-            "deposit data was written for rollup and it should exist"
-        );
-        assert!(
-            rollups.contains(&rollup_id_1),
-            "deposit data was written for rollup and it should exist"
-        );
-    }
-
-    #[tokio::test]
-    async fn clear_deposit_info_uninitialized_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let rollup_id = RollupId::new([1u8; 32]);
-        // uninitialized delete ok
-        state.clear_deposit_info(&rollup_id).await;
-    }
-
-    #[tokio::test]
-    async fn clear_deposit_info() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = astria_address(&[42u8; 20]);
-        let amount = 10u128;
-        let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-
-        let deposit = Deposit {
-            bridge_address,
-            rollup_id,
-            amount,
-            asset: asset.clone(),
-            destination_chain_address: destination_chain_address.to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        };
-
-        let deposits = vec![deposit.clone()];
-
-        // can write
-        state
-            .put_deposit_event(deposit)
-            .await
-            .expect("writing deposit events should be ok");
         assert_eq!(
             state
-                .get_deposit_events(&rollup_id)
+                .get_deposits(&block_hash, &rollup_id_1)
                 .await
                 .expect("deposit info was written to the database and must exist"),
-            deposits,
+            rollup_1_deposits,
             "stored deposits do not match what was expected"
         );
-
-        // can delete
-        state.clear_deposit_info(&rollup_id).await;
-        assert_eq!(
-            state
-                .get_deposit_events(&rollup_id)
-                .await
-                .expect("deposit should return empty when none exists"),
-            vec![],
-            "deposits were cleared and should return empty vector"
-        );
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id)
-                .await
-                .expect("calls to get nonce should not fail"),
-            0u32,
-            "nonce should have been deleted also"
-        );
     }
 
     #[tokio::test]
-    async fn clear_deposit_info_multiple_accounts() {
+    async fn init_bridge_account_base_fee_round_trip() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = astria_address(&[42u8; 20]);
-        let amount = 10u128;
-        let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-        let mut deposit = Deposit {
-            bridge_address,
-            rollup_id,
-            amount,
-            asset: asset.clone(),
-            destination_chain_address: destination_chain_address.to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        };
-
-        // write to first
-        state
-            .put_deposit_event(deposit)
-            .await
-            .expect("writing deposit events should be ok");
-
-        // write to second
-        let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit {
-            bridge_address,
-            rollup_id: rollup_id_1,
-            amount,
-            asset: asset.clone(),
-            destination_chain_address: destination_chain_address.to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 1,
-        };
-        let deposits_1 = vec![deposit.clone()];
-
-        state
-            .put_deposit_event(deposit)
-            .await
-            .expect("writing deposit events for rollup 2 should be ok");
-
-        // delete first rollup's info
-        state.clear_deposit_info(&rollup_id).await;
-        assert_eq!(
-            state
-                .get_deposit_events(&rollup_id)
-                .await
-                .expect("deposit should return empty when none exists"),
-            vec![],
-            "deposits were cleared and should return empty vector"
-        );
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id)
-                .await
-                .expect("calls to get nonce should not fail"),
-            0u32,
-            "nonce should have been deleted also"
-        );
-
-        // second rollup's info should be intact
-        assert_eq!(
-            state
-                .get_deposit_events(&rollup_id_1)
-                .await
-                .expect("deposit should return empty when none exists"),
-            deposits_1,
-            "deposits were written to the database and should exist"
-        );
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id_1)
-                .await
-                .expect("calls to get nonce should not fail"),
-            1u32,
-            "nonce was written to the database and should exist"
-        );
+        state.put_init_bridge_account_base_fee(123).unwrap();
+        let retrieved_fee = state.get_init_bridge_account_base_fee().await.unwrap();
+        assert_eq!(retrieved_fee, 123);
     }
 
     #[tokio::test]
-    async fn clear_block_info_uninitialized_ok() {
+    async fn bridge_lock_byte_cost_multiplier_round_trip() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // uninitialized delete ok
-        state
-            .clear_block_deposits()
-            .await
-            .expect("calls to clear block deposit should succeed");
+        state.put_bridge_lock_byte_cost_multiplier(123).unwrap();
+        let retrieved_fee = state.get_bridge_lock_byte_cost_multiplier().await.unwrap();
+        assert_eq!(retrieved_fee, 123);
     }
 
     #[tokio::test]
-    async fn clear_block_deposits() {
+    async fn bridge_sudo_change_base_fee_round_trip() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let rollup_id = RollupId::new([1u8; 32]);
-        let bridge_address = astria_address(&[42u8; 20]);
-        let amount = 10u128;
-        let asset = asset_0();
-        let destination_chain_address = "0xdeadbeef";
-        let mut deposit = Deposit {
-            bridge_address,
-            rollup_id,
-            amount,
-            asset: asset.clone(),
-            destination_chain_address: destination_chain_address.to_string(),
-            source_transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        };
+        state.put_bridge_sudo_change_base_fee(123).unwrap();
+        let retrieved_fee = state.get_bridge_sudo_change_base_fee().await.unwrap();
+        assert_eq!(retrieved_fee, 123);
+    }
 
-        // write to first
-        state
-            .put_deposit_event(deposit.clone())
-            .await
-            .expect("writing deposit events should be ok");
+    #[tokio::test]
+    async fn last_transaction_id_for_bridge_account_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
 
-        // write to second
-        let rollup_id_1 = RollupId::new([2u8; 32]);
-        deposit = Deposit {
-            rollup_id: rollup_id_1,
-            source_action_index: 1,
-            ..deposit
-        };
+        let bridge_address = [1; 20];
+        let tx_hash = TransactionId::new([2; 32]);
         state
-            .put_deposit_event(deposit.clone())
+            .put_last_transaction_id_for_bridge_account(&bridge_address, tx_hash)
+            .unwrap();
+        let retrieved_tx_hash = state
+            .get_last_transaction_id_for_bridge_account(&bridge_address)
             .await
-            .expect("writing deposit events for rollup 2 should be ok");
-
-        // delete all info
-        state
-            .clear_block_deposits()
-            .await
-            .expect("clearing deposits call should not fail");
-        assert_eq!(
-            state
-                .get_deposit_events(&rollup_id)
-                .await
-                .expect("deposit should return empty when none exists"),
-            vec![],
-            "deposits were cleared and should return empty vector"
-        );
-        // check that all info was deleted
-        assert_eq!(
-            state
-                .get_deposit_events(&rollup_id_1)
-                .await
-                .expect("deposit should return empty when none exists"),
-            vec![],
-            "deposits were cleared and should return empty vector"
-        );
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id)
-                .await
-                .expect("deposit should return empty when none exists"),
-            0u32,
-            "nonce should have been deleted also"
-        );
-        assert_eq!(
-            state
-                .get_deposit_nonce(&rollup_id_1)
-                .await
-                .expect("deposit should return empty when none exists"),
-            0u32,
-            "nonce should have been deleted also"
-        );
+            .unwrap();
+        assert_eq!(retrieved_tx_hash, Some(tx_hash));
     }
 
     #[test]

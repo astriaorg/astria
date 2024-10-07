@@ -196,7 +196,7 @@ impl Consensus {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::{
         collections::HashMap,
         str::FromStr,
@@ -211,7 +211,6 @@ mod test {
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
             action::SequenceAction,
-            TransactionParams,
             UnsignedTransaction,
         },
     };
@@ -237,20 +236,18 @@ mod test {
     };
 
     fn make_unsigned_tx() -> UnsignedTransaction {
-        UnsignedTransaction {
-            params: TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test")
-                .build(),
-            actions: vec![
+        UnsignedTransaction::builder()
+            .actions(vec![
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: Bytes::from_static(b"hello world"),
                     fee_asset: crate::test_utils::nria().into(),
                 }
                 .into(),
-            ],
-        }
+            ])
+            .chain_id("test")
+            .try_build()
+            .unwrap()
     }
 
     fn new_prepare_proposal_request() -> request::PrepareProposal {
@@ -455,7 +452,7 @@ mod test {
             vec![
                 astria_core::generated::protocol::genesis::v1alpha1::Account {
                     address: Some(
-                        crate::test_utils::astria_address(&funded_key.address_bytes()).to_raw(),
+                        crate::test_utils::astria_address(funded_key.address_bytes()).to_raw(),
                     ),
                     balance: Some(10u128.pow(19).into()),
                 },

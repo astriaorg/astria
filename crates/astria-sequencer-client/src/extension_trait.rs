@@ -672,7 +672,6 @@ pub trait SequencerClientExt: Client {
     /// - If the transaction is not found.
     /// - If the transaction execution failed.
     /// - If the transaction proof is missing.
-    #[allow(clippy::blocks_in_conditions)] // Allow: erroneous clippy warning. Should be fixed in Rust 1.81
     #[instrument(skip_all)]
     async fn wait_for_tx_inclusion(
         &self,

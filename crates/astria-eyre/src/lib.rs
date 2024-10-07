@@ -105,7 +105,7 @@ mod anyhow_conversion {
     }
 
     #[cfg(test)]
-    mod test {
+    mod tests {
         #[test]
         fn anyhow_to_eyre_preserves_source_chain() {
             let mut errs = ["foo", "bar", "baz", "qux"];

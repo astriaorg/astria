@@ -10,13 +10,13 @@ images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
     pullPolicy: IfNotPresent
-    tag: 0.14.0
+    tag: 0.14.3
     devTag: latest
     overrideTag: ""
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
-    tag: "0.20.0"
+    tag: "0.21.0"
     devTag: latest
 
 
@@ -48,15 +48,13 @@ genesis:
   ## These values are used to configure astria native bridging
   ## Many of the fields have commented out example fields
 
-  # When using an erc20 canonical bridge, the address from which tokens will
-  # be sent via the bridge contract
-  bridgeSenderAddress: "0x0000000000000000000000000000000000000000"
   # Configure the sequencer bridge addresses and allowed assets if using
   # the astria canonical bridge. Recommend removing alloc values if so.
   bridgeAddresses: []
     # - address: "684ae50c49a434199199c9c698115391152d7b3f"
     #   startHeight: 1
     #   assetDenom: "nria"
+    #   senderAddress: "0x0000000000000000000000000000000000000000"
     #   assetPrecision: 9
 
 
@@ -178,6 +176,8 @@ config:
     sequencerGrpc: ""
     # The maximum number of requests to make to the sequencer per second
     sequencerRequestsPerSecond: 500
+    # The chain id of the celestia network the conductor communicates with
+    celestiaChainId: ""
 
   celestia:
     # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled

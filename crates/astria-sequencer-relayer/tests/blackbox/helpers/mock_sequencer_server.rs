@@ -96,8 +96,6 @@ impl MockSequencerServer {
     }
 }
 
-// allow: this is not performance-critical, with likely only one instance per test fixture.
-#[allow(clippy::large_enum_variant)]
 pub enum SequencerBlockToMount {
     GoodAtHeight(u32),
     BadAtHeight(u32),
