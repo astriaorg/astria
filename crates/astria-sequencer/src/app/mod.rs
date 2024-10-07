@@ -719,7 +719,6 @@ impl App {
         txs: Vec<SignedTransaction>,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> Result<Vec<ExecTxResult>> {
-        let mut excluded_tx_count = 0u32;
         let mut execution_results = Vec::new();
         let mut current_tx_group = ActionGroup::BundleableGeneral;
 
@@ -756,8 +755,6 @@ impl App {
                 return Err(eyre!(
                     "transactions have incorrect transaction group ordering"
                 ));
-                excluded_tx_count = excluded_tx_count.saturating_add(1);
-                continue;
             }
 
             // execute tx and store in `execution_results` list on success
