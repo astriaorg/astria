@@ -446,8 +446,8 @@ impl Mempool {
                     let tx_id = tx.id();
                     if let Err(error) = parked.add(tx, current_nonce, &current_balances) {
                         // NOTE: this shouldn't happen normally but could on the edge case of
-                        // the parked queue being full for the account. This also means
-                        // grabbing the lock inside the loop is more performant.
+                        // the parked queue being full for the account or globally.
+                        // Grabbing the lock inside the loop should be more performant.
                         self.lock_contained_txs().await.remove(tx_id);
                         self.metrics.increment_internal_logic_error();
                         error!(
