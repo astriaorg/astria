@@ -35,6 +35,7 @@ use transactions_container::{
     ParkedTransactions,
     PendingTransactions,
     TimemarkedTransaction,
+    TransactionsContainer as _,
 };
 
 use crate::{
@@ -554,7 +555,7 @@ mod tests {
                     tx1_replacement.clone(),
                     0,
                     account_balances.clone(),
-                    tx_cost.clone()
+                    tx_cost.clone(),
                 )
                 .await
                 .unwrap_err(),
@@ -989,7 +990,7 @@ mod tests {
                     tx100.clone(),
                     100,
                     account_balances.clone(),
-                    tx_cost.clone()
+                    tx_cost.clone(),
                 )
                 .await
                 .is_ok(),
@@ -1005,7 +1006,7 @@ mod tests {
                     tx101.clone(),
                     100,
                     account_balances.clone(),
-                    tx_cost.clone()
+                    tx_cost.clone(),
                 )
                 .await
                 .is_ok(),
