@@ -18,7 +18,7 @@ use astria_core::{
         RollupId,
         ROLLUP_ID_LEN,
     },
-    protocol::transaction::v1alpha1::action::Sequence,
+    protocol::transactions::v1alpha1::action::Sequence,
 };
 use astria_eyre::eyre;
 use prost::{
@@ -204,7 +204,7 @@ async fn mount_default_nonce_query_mock(server: &MockServer) -> MockGuard {
 
 /// Convert a `Request` object to a `SignedTransaction`
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
+    use astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =

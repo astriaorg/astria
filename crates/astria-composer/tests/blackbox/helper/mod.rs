@@ -24,7 +24,7 @@ use astria_core::{
     },
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
+        transactions::v1alpha1::SignedTransaction,
     },
 };
 use astria_eyre::eyre;
@@ -196,7 +196,7 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
 }
 
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
+    use astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =

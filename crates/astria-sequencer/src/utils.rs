@@ -1,6 +1,6 @@
 use astria_core::{
     generated::astria_vendored::tendermint::abci as raw,
-    protocol::transaction::v1alpha1::action::ValidatorUpdate,
+    protocol::transactions::v1alpha1::action::ValidatorUpdate,
     sequencerblock::v1alpha1::block::Deposit,
     Protobuf as _,
 };

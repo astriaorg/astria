@@ -18,7 +18,7 @@ use astria_core::{
     primitive::v1::RollupId,
     protocol::{
         genesis::v1alpha1::Account,
-        transaction::v1alpha1::{
+        transactions::v1alpha1::{
             action::{
                 BridgeLock,
                 BridgeSudoChange,
@@ -164,7 +164,7 @@ async fn app_finalize_block_snapshot() {
 #[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
-    use astria_core::protocol::transaction::v1alpha1::action::{
+    use astria_core::protocol::transactions::v1alpha1::action::{
         FeeAssetChange,
         InitBridgeAccount,
         SudoAddressChange,

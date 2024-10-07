@@ -1,6 +1,6 @@
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::InitBridgeAccount,
+    protocol::transactions::v1alpha1::action::InitBridgeAccount,
     Protobuf as _,
 };
 use astria_eyre::eyre::{

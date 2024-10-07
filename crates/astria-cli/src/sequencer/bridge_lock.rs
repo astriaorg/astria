@@ -3,7 +3,7 @@ use astria_core::{
         asset,
         Address,
     },
-    protocol::transaction::v1alpha1::{
+    protocol::transactions::v1alpha1::{
         action::BridgeLock,
         Action,
     },

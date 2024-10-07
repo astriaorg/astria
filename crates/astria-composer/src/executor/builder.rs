@@ -7,7 +7,7 @@ use std::{
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::Sequence,
+    protocol::transactions::v1alpha1::action::Sequence,
 };
 use astria_eyre::eyre::{
     self,

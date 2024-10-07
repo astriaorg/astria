@@ -3,7 +3,7 @@ use astria_core::{
         RollupId,
         ROLLUP_ID_LEN,
     },
-    protocol::transaction::v1alpha1::action::Sequence,
+    protocol::transactions::v1alpha1::action::Sequence,
 };
 
 mod sized_bundle {

@@ -19,7 +19,7 @@ pub use astria_core::{
             BalanceResponse,
             NonceResponse,
         },
-        transaction::v1alpha1::SignedTransaction,
+        transactions::v1alpha1::SignedTransaction,
     },
     sequencerblock::v1alpha1::SequencerBlock,
 };

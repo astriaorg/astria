@@ -5,7 +5,6 @@ use prost::{
     Name as _,
 };
 
-use super::raw;
 use crate::{
     crypto::{
         self,
@@ -13,6 +12,7 @@ use crate::{
         SigningKey,
         VerificationKey,
     },
+    generated::protocol::transactions::v1alpha1 as raw,
     primitive::v1::{
         asset,
         TransactionId,
@@ -570,7 +570,7 @@ mod tests {
     use super::*;
     use crate::{
         primitive::v1::Address,
-        protocol::transaction::v1alpha1::action::Transfer,
+        protocol::transactions::v1alpha1::action::Transfer,
     };
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 

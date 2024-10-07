@@ -20,11 +20,11 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1alpha1 as raw,
+    generated::protocol::transactions::v1alpha1 as raw,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1alpha1::GenesisAppState,
-        transaction::v1alpha1::{
+        transactions::v1alpha1::{
             action::ValidatorUpdate,
             Action,
             SignedTransaction,

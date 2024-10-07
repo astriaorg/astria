@@ -4,7 +4,7 @@ use astria_core::{
     crypto::SigningKey,
     generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse,
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::{
+    protocol::transactions::v1alpha1::{
         action::Transfer,
         SignedTransaction,
         UnsignedTransaction,
@@ -321,7 +321,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
 #[tokio::test]
 async fn get_transaction_fee() {
-    use astria_core::generated::protocol::transaction::v1alpha1::{
+    use astria_core::generated::protocol::transactions::v1alpha1::{
         TransactionFee,
         TransactionFeeResponse,
     };

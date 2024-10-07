@@ -18,7 +18,7 @@ use astria_core::{
             AddressPrefixes,
             GenesisAppState,
         },
-        transaction::v1alpha1::{
+        transactions::v1alpha1::{
             action::{
                 Sequence,
                 ValidatorUpdate,

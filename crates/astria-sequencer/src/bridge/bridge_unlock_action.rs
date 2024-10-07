@@ -1,4 +1,4 @@
-use astria_core::protocol::transaction::v1alpha1::action::{
+use astria_core::protocol::transactions::v1alpha1::action::{
     BridgeUnlock,
     Transfer,
 };
@@ -108,7 +108,7 @@ mod tests {
             RollupId,
             TransactionId,
         },
-        protocol::transaction::v1alpha1::action::BridgeUnlock,
+        protocol::transactions::v1alpha1::action::BridgeUnlock,
     };
     use cnidarium::StateDelta;
 

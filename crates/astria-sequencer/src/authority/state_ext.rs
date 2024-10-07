@@ -123,7 +123,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use astria_core::{
         primitive::v1::ADDRESS_LEN,
-        protocol::transaction::v1alpha1::action::ValidatorUpdate,
+        protocol::transactions::v1alpha1::action::ValidatorUpdate,
     };
     use cnidarium::StateDelta;
 

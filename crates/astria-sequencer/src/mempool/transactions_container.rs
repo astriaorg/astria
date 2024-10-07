@@ -12,7 +12,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::asset::IbcPrefixed,
-    protocol::transaction::v1alpha1::SignedTransaction,
+    protocol::transactions::v1alpha1::SignedTransaction,
 };
 use astria_eyre::eyre::{
     eyre,

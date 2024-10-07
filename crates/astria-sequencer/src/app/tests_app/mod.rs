@@ -10,7 +10,7 @@ use astria_core::{
     },
     protocol::{
         genesis::v1alpha1::Account,
-        transaction::v1alpha1::{
+        transactions::v1alpha1::{
             action::{
                 BridgeLock,
                 Sequence,

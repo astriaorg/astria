@@ -7,7 +7,7 @@ use prost::Message as _;
 
 use super::{
     group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-    transaction::v1alpha1::action::Sequence,
+    transactions::v1alpha1::action::Sequence,
 };
 use crate::{
     crypto::SigningKey,
@@ -15,7 +15,7 @@ use crate::{
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
-    protocol::transaction::v1alpha1::UnsignedTransaction,
+    protocol::transactions::v1alpha1::UnsignedTransaction,
     sequencerblock::v1alpha1::{
         block::Deposit,
         SequencerBlock,
@@ -64,7 +64,7 @@ impl ConfigureSequencerBlock {
         use tendermint::Time;
 
         use crate::{
-            protocol::transaction::v1alpha1::Action,
+            protocol::transactions::v1alpha1::Action,
             sequencerblock::v1alpha1::block::RollupData,
         };
 

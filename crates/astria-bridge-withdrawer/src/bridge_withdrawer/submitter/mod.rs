@@ -11,7 +11,7 @@ use astria_core::{
         },
         GetPendingNonceRequest,
     },
-    protocol::transaction::v1alpha1::{
+    protocol::transactions::v1alpha1::{
         Action,
         UnsignedTransaction,
     },

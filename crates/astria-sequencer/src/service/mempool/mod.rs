@@ -10,11 +10,11 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1alpha1 as raw,
+    generated::protocol::transactions::v1alpha1 as raw,
     primitive::v1::asset::IbcPrefixed,
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
+        transactions::v1alpha1::SignedTransaction,
     },
 };
 use astria_eyre::eyre::WrapErr as _;
