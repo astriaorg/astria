@@ -6,6 +6,11 @@ createChannels:
     portA: transfer
     chainB: celestia-local-0
     portB: transfer
+  - enabled: true
+    chainA: sequencer-test-chain-0
+    portA: transfer
+    chainB: noble-local-0
+    portB: transfer
 
 secretProvider:
   enabled: false
@@ -33,6 +38,44 @@ chains:
       interval: 1s
     gasPrice: 1
     gasDenom: nria
+    trustThreshold: 2/3
+    trustingPeriod: 14days
+
+  noble-local-0:
+    type: CosmosSdk
+    compatMode: "0.34"
+    rpcAddr: http://noble-local-service.astria-dev-cluster.svc.cluster.local:26657
+    grpcAddr: http://noble-local-service.astria-dev-cluster.svc.cluster.local:9090
+    rpcTimeout: 15s
+    ccvConsumerChain: false
+    accountPrefix: noble
+    storePrefix: ibc
+    key:
+      name: noble
+      # ibc account key
+      devContent:
+        private_key: d81d280b8d778f3252525702808ef7232dd07093daaf4eb559465aa19ff20d4b
+        public_key: 024f52f26509ba5abff2fd7eced2147dd2d3f93acea5748043203a096320259f94
+        address: [206 162 253 160 30 120 64 216 7 189 81 241 53 104 215 96 92 213 20 195]
+        address_type: Cosmos
+        account: noble1e630mgq70pqdspaa28cn26xhvpwd29xrlgkfe9
+      secret:
+        resourceName: projects/$PROJECT_ID/secrets/celestia-ibc-relay-key/versions/latest
+        filename: noble.json
+        key: token
+    eventSource:
+      mode: push
+      url: ws://noble-local-service.astria-dev-cluster.svc.cluster.local:26657/websocket
+      batchDelay: 200ms
+    gasDenom: "uusdc"
+    gasPrice: 0.0026
+    gasMultiplier: 1.2
+    defaultGas: "1000000"
+    maxGas: "10000000"
+    maxMsgNum: 30
+    maxTxSize: "2097152"
+    clockDrift: 5s
+    maxBlockTime: 30s
     trustThreshold: 2/3
     trustingPeriod: 14days
 

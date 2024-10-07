@@ -44,8 +44,10 @@ run tag=defaultTag:
   initial_balance=$(just evm-get-balance {{evm_destination_address}})
   initial_celestia_balance=$(just ibc-test get-celestia-balance)
 
-  # Create a bridge account on the sequencer
+  # Create a bridge account on the sequencer for Celestia
   just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria {{tag}}
+  # Create a bridge account on the sequencer for Noble
+  just init-ibc-bridge {{sequencer_noble_bridge_pkey}} transfer/channel-1/uusdc nria {{tag}}
 
   # Execute the transfer from Celestia to the Rollup
   just ibc-test _do-ibc-transfer
@@ -149,6 +151,7 @@ celestia_dev_account_address := "celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96
 celestia_chain_id := "celestia-local-0"
 celestia_node_url := "http://rpc.app.celestia.localdev.me:80"
 sequencer_tia_bridge_pkey := "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
+sequencer_noble_bridge_pkey := "690e87c2572f99ce604e42d493cae750e81947513e3e5e8d92ccfdf0c593e4f9"
 keyring_backend := "test"
 celestia_desitnation_address := "0x4a58639fb5458e65e4fa917ff951c390292c24a1"
 
