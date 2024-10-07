@@ -55,7 +55,7 @@ mod startup;
 mod state;
 mod submitter;
 
-pub struct BridgeWithdrawer {
+pub struct Settlor {
     // Token to signal all subtasks to shut down gracefully.
     shutdown_token: CancellationToken,
     api_server: api::ApiServer,
@@ -65,7 +65,7 @@ pub struct BridgeWithdrawer {
     state: Arc<State>,
 }
 
-impl BridgeWithdrawer {
+impl Settlor {
     /// Instantiates a new `Service`.
     ///
     /// # Errors

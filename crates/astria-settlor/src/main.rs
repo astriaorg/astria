@@ -1,7 +1,7 @@
 use std::process::ExitCode;
 
-use astria_bridge_withdrawer::{
-    BridgeWithdrawer,
+use astria_settlor::{
+    Settlor,
     Config,
     BUILD_INFO,
 };
@@ -54,7 +54,7 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (withdrawer, shutdown_handle) = match BridgeWithdrawer::new(cfg, metrics) {
+    let (withdrawer, shutdown_handle) = match Settlor::new(cfg, metrics) {
         Err(error) => {
             error!(%error, "failed initializing bridge withdrawer");
             return ExitCode::FAILURE;
