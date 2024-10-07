@@ -29,4 +29,3 @@ message TransactionParams {
   uint32 nonce = 1;
   string chain_id = 2;
 }
-
