@@ -21,9 +21,9 @@ noble:
   tf1OwnerMnemonic: discover plastic cushion urge lumber cattle voyage penalty file around donkey broom relax tilt rely pass lyrics guard almost duck text coach atom weekend
   tf2OwnerMnemonic: embark sand copper hurt height volume yellow carbon alpha bone public nerve pig runway nephew already tip need need leisure course outdoor media human
   # genesis amount
-  coins: "100000000000stake,100000000000ustake"
+  coins: "100000000000usdc,100000000000uusdc"
   # staking amount
-  validatorStake: "100000000000stake"
+  validatorStake: "100000000000uusdc"
   ibcAccountKeyName: "ibc_account"
   # mnemonic for ibc account, so we can add its key and get them funded during genesis
   ibcAccountMnemonic: toward theory gallery crane stem torch cheap main public figure boost episode garage cherry purpose naive vital unable minimum dance choose tuna blanket rifle

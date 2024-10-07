@@ -7,7 +7,7 @@ ls -la "$home_dir"
 KEYRING="--keyring-backend=$keyring_backend"
 
 # TODO - move to config?
-DENOM="stake"
+DENOM="uusdc"
 # FIXME - how necessary is this stuff for testing ibc?
 TF1_MINTING_DENOM="steeze"
 TF1_MINTING_BASEDENOM="u$TF1_MINTING_DENOM"
@@ -53,6 +53,7 @@ nobled --home "$home_dir" \
 
 TF1_OWNER=$(nobled --home "$home_dir" keys "$KEYRING" show tf1_owner -a)
 TF2_OWNER=$(nobled --home "$home_dir" keys "$KEYRING" show tf2_owner -a)
+IBC_ACCOUNT=$(nobled --home "$home_dir" keys "$KEYRING" show "$ibc_account_key_name" -a)
 
 # configuration changes
 echo "updating config.toml with sed"
@@ -67,7 +68,6 @@ sed -i 's/"authority": ""/"authority": "'"$TF1_OWNER"'"/g' "$home_dir/config/gen
 
 # FIXME - remove after dev
 cat "$home_dir/config/genesis.json"
-echo 'wtf'
 
 echo "updating genesis.json with jq"
 # cd to home_dir because we have permission here to touch
@@ -108,8 +108,7 @@ jq --arg TF1_MINTING_DENOM "$TF1_MINTING_DENOM" \
 jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.mint.minter.authority = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
 jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.params.params.authority = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
 jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.upgrade.params.authority = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-# FIXME why doesn't ibc-authority.params.authority exist?
-# jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.ibc-authority.params.authority = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
+jq --arg IBC_ACCOUNT "$IBC_ACCOUNT" '.app_state."ibc-authority".params.authority = $IBC_ACCOUNT' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
 
 jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.tokenfactory.owner.address = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
 jq --arg TF1_MINTING_BASEDENOM "$TF1_MINTING_BASEDENOM" '.app_state.tokenfactory.mintingDenom.denom = $TF1_MINTING_BASEDENOM' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"

@@ -4,12 +4,12 @@ createChannels:
   - enabled: true
     chainA: sequencer-test-chain-0
     portA: transfer
-    chainB: celestia-local-0
+    chainB: noble-local-0
     portB: transfer
   - enabled: true
     chainA: sequencer-test-chain-0
     portA: transfer
-    chainB: noble-local-0
+    chainB: celestia-local-0
     portB: transfer
 
 secretProvider:
@@ -54,11 +54,11 @@ chains:
       name: noble
       # ibc account key
       devContent:
-        private_key: d81d280b8d778f3252525702808ef7232dd07093daaf4eb559465aa19ff20d4b
-        public_key: 024f52f26509ba5abff2fd7eced2147dd2d3f93acea5748043203a096320259f94
-        address: [206 162 253 160 30 120 64 216 7 189 81 241 53 104 215 96 92 213 20 195]
+        private_key: efd82c7605e915439493f35ee67f425209654194b45c2ca0953df500e95ec894
+        public_key: 02f36bef15dbb5179aadea8dc5a4a177dd09d65dc5c9e60324382e7a1711311357
+        address: [12, 14, 100, 137, 228, 148, 219, 111, 50, 22, 137, 101, 196, 193, 62, 251, 218, 37, 6, 238]
         address_type: Cosmos
-        account: noble1e630mgq70pqdspaa28cn26xhvpwd29xrlgkfe9
+        account: noble1ps8xfz0yjndk7vsk39jufsf7l0dz2phwugrt6z
       secret:
         resourceName: projects/$PROJECT_ID/secrets/celestia-ibc-relay-key/versions/latest
         filename: noble.json
