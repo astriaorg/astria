@@ -670,7 +670,6 @@ impl Future for SubmitFut {
     // FIXME (https://github.com/astriaorg/astria/issues/1572): This function is too long and should be refactored.
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         const INVALID_NONCE: Code = Code::Err(AbciErrorCode::INVALID_NONCE.value());
-        const ALREADY_PRESENT: Code = Code::Err(AbciErrorCode::ALREADY_PRESENT.value());
         const NONCE_TAKEN: Code = Code::Err(AbciErrorCode::NONCE_TAKEN.value());
 
         loop {
@@ -697,7 +696,7 @@ impl Future for SubmitFut {
                     fut,
                 } => match ready!(fut.poll(cx)) {
                     Ok(rsp) => match rsp.code {
-                        tendermint::abci::Code::Ok | ALREADY_PRESENT => {
+                        tendermint::abci::Code::Ok => {
                             info!("sequencer responded with ok; submission successful");
 
                             this.metrics
