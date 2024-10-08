@@ -248,3 +248,10 @@ fn from_list_of_actions_empty() {
         "expected ErrorKind::Empty, got {error_kind:?}"
     );
 }
+
+#[test]
+fn should_be_in_expected_order() {
+    assert!(ActionGroup::UnbundleableSudo < ActionGroup::BundleableSudo);
+    assert!(ActionGroup::BundleableSudo < ActionGroup::UnbundleableGeneral);
+    assert!(ActionGroup::UnbundleableGeneral < ActionGroup::BundleableGeneral);
+}

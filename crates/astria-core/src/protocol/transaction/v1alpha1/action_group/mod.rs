@@ -80,12 +80,18 @@ impl Action {
     }
 }
 
+/// `ActionGroup`
+///
+/// Used to constrain the types of actions that can be included in a single
+/// transaction and the order which transactions are ran in a block.
+///
+/// NOTE: The ordering is important and must be maintained.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ActionGroup {
-    UnbundleableSudo,
-    BundleableSudo,
-    UnbundleableGeneral,
-    BundleableGeneral,
+    UnbundleableSudo = 1,
+    BundleableSudo = 2,
+    UnbundleableGeneral = 3,
+    BundleableGeneral = 4,
 }
 
 impl ActionGroup {
