@@ -978,6 +978,8 @@ mod tests {
         assert!(bundleable_sudo >= bundleable_sudo);
         assert!(bundleable_sudo >= unbundleable_sudo);
 
+        assert!(unbundleable_sudo >= unbundleable_sudo);
+
         // less than
         assert!(unbundleable_sudo < bundleable_sudo);
         assert!(unbundleable_sudo < unbundleable_general);

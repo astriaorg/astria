@@ -138,7 +138,7 @@ async fn app_process_proposal_ordering_fail() {
 
     assert!(
         format!("{result:?}").contains("transactions have incorrect transaction group ordering"),
-        "process proposal should due to incorrect ordering"
+        "process proposal should fail due to incorrect ordering"
     );
 }
 

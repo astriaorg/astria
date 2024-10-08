@@ -742,7 +742,7 @@ impl App {
                     tx_data_bytes = tx_sequence_data_bytes,
                     "transaction error: max block sequenced data limit passed"
                 );
-                return Err(eyre!("max block sequenced data limit passed"));
+                bail!("max block sequenced data limit passed");
             }
 
             // ensure transaction's group is less than or equal to current action group
@@ -752,9 +752,7 @@ impl App {
                     transaction_hash = %telemetry::display::base64(&tx_hash),
                     "transaction error: block has incorrect transaction group ordering"
                 );
-                return Err(eyre!(
-                    "transactions have incorrect transaction group ordering"
-                ));
+                bail!("transactions have incorrect transaction group ordering");
             }
 
             // execute tx and store in `execution_results` list on success
@@ -777,7 +775,7 @@ impl App {
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "transaction error: failed to execute transaction"
                     );
-                    return Err(eyre!("transaction failed to execute"));
+                    bail!("transaction failed to execute");
                 }
             }
 
