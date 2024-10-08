@@ -1,5 +1,5 @@
 use astria_core::{
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transaction::v1alpha1::action::Sequence,
     Protobuf as _,
 };
 use astria_eyre::eyre::{
@@ -25,7 +25,7 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-impl ActionHandler for SequenceAction {
+impl ActionHandler for Sequence {
     async fn check_stateless(&self) -> Result<()> {
         // TODO: do we want to place a maximum on the size of the data?
         // https://github.com/astriaorg/astria/issues/222

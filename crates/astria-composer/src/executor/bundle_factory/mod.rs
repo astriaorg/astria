@@ -11,7 +11,7 @@ use std::{
 use astria_core::{
     primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
-        action::SequenceAction,
+        action::Sequence,
         Action,
         UnsignedTransaction,
     },
@@ -29,9 +29,9 @@ mod tests;
 #[derive(Debug, thiserror::Error)]
 enum SizedBundleError {
     #[error("bundle does not have enough space left for the given sequence action")]
-    NotEnoughSpace(SequenceAction),
+    NotEnoughSpace(Sequence),
     #[error("sequence action is larger than the max bundle size")]
-    SequenceActionTooLarge(SequenceAction),
+    SequenceActionTooLarge(Sequence),
 }
 
 pub(super) struct SizedBundleReport<'a>(pub(super) &'a SizedBundle);
@@ -100,7 +100,7 @@ impl SizedBundle {
     /// # Errors
     /// - `seq_action` is beyond the max size allowed for the entire bundle
     /// - `seq_action` does not fit in the remaining space in the bundle
-    fn try_push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
+    fn try_push(&mut self, seq_action: Sequence) -> Result<(), SizedBundleError> {
         let seq_action_size = encoded_len(&seq_action);
 
         if seq_action_size > self.max_size {
@@ -162,7 +162,7 @@ pub(super) struct FinishedQueueFull {
     curr_bundle_size: usize,
     finished_queue_capacity: usize,
     sequence_action_size: usize,
-    seq_action: SequenceAction,
+    seq_action: Sequence,
 }
 
 impl From<FinishedQueueFull> for BundleFactoryError {
@@ -196,10 +196,7 @@ impl BundleFactory {
     /// Buffer `seq_action` into the current bundle. If the bundle won't fit `seq_action`, flush
     /// `curr_bundle` into the `finished` queue and start a new bundle, unless the `finished` queue
     /// is at capacity.
-    pub(super) fn try_push(
-        &mut self,
-        seq_action: SequenceAction,
-    ) -> Result<(), BundleFactoryError> {
+    pub(super) fn try_push(&mut self, seq_action: Sequence) -> Result<(), BundleFactoryError> {
         let seq_action = with_ibc_prefixed(seq_action);
         let seq_action_size = encoded_len(&seq_action);
 
@@ -289,14 +286,14 @@ impl<'a> NextFinishedBundle<'a> {
     }
 }
 
-fn with_ibc_prefixed(action: SequenceAction) -> SequenceAction {
-    SequenceAction {
+fn with_ibc_prefixed(action: Sequence) -> Sequence {
+    Sequence {
         fee_asset: action.fee_asset.to_ibc_prefixed().into(),
         ..action
     }
 }
 
-fn encoded_len(action: &SequenceAction) -> usize {
+fn encoded_len(action: &Sequence) -> usize {
     use prost::Message as _;
     action.to_raw().encoded_len()
 }

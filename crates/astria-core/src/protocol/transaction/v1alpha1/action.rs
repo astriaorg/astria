@@ -30,46 +30,44 @@ use crate::{
     serde(into = "raw::Action", try_from = "raw::Action")
 )]
 pub enum Action {
-    Sequence(SequenceAction),
-    Transfer(TransferAction),
+    Sequence(Sequence),
+    Transfer(Transfer),
     ValidatorUpdate(ValidatorUpdate),
-    SudoAddressChange(SudoAddressChangeAction),
+    SudoAddressChange(SudoAddressChange),
     Ibc(IbcRelay),
-    IbcSudoChange(IbcSudoChangeAction),
+    IbcSudoChange(IbcSudoChange),
     Ics20Withdrawal(Ics20Withdrawal),
-    IbcRelayerChange(IbcRelayerChangeAction),
-    FeeAssetChange(FeeAssetChangeAction),
-    InitBridgeAccount(InitBridgeAccountAction),
-    BridgeLock(BridgeLockAction),
-    BridgeUnlock(BridgeUnlockAction),
-    BridgeSudoChange(BridgeSudoChangeAction),
-    FeeChange(FeeChangeAction),
+    IbcRelayerChange(IbcRelayerChange),
+    FeeAssetChange(FeeAssetChange),
+    InitBridgeAccount(InitBridgeAccount),
+    BridgeLock(BridgeLock),
+    BridgeUnlock(BridgeUnlock),
+    BridgeSudoChange(BridgeSudoChange),
+    FeeChange(FeeChange),
 }
 
 impl Protobuf for Action {
-    type Error = ActionError;
+    type Error = Error;
     type Raw = raw::Action;
 
     #[must_use]
     fn to_raw(&self) -> Self::Raw {
         use raw::action::Value;
         let kind = match self {
-            Action::Sequence(act) => Value::SequenceAction(act.to_raw()),
-            Action::Transfer(act) => Value::TransferAction(act.to_raw()),
-            Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.to_raw()),
-            Action::SudoAddressChange(act) => {
-                Value::SudoAddressChangeAction(act.clone().into_raw())
-            }
-            Action::Ibc(act) => Value::IbcAction(act.clone().into()),
-            Action::IbcSudoChange(act) => Value::IbcSudoChangeAction(act.clone().into_raw()),
+            Action::Sequence(act) => Value::Sequence(act.to_raw()),
+            Action::Transfer(act) => Value::Transfer(act.to_raw()),
+            Action::ValidatorUpdate(act) => Value::ValidatorUpdate(act.to_raw()),
+            Action::SudoAddressChange(act) => Value::SudoAddressChange(act.clone().into_raw()),
+            Action::Ibc(act) => Value::Ibc(act.clone().into()),
+            Action::IbcSudoChange(act) => Value::IbcSudoChange(act.clone().into_raw()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.to_raw()),
-            Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.to_raw()),
-            Action::FeeAssetChange(act) => Value::FeeAssetChangeAction(act.to_raw()),
-            Action::InitBridgeAccount(act) => Value::InitBridgeAccountAction(act.to_raw()),
-            Action::BridgeLock(act) => Value::BridgeLockAction(act.to_raw()),
-            Action::BridgeUnlock(act) => Value::BridgeUnlockAction(act.to_raw()),
-            Action::BridgeSudoChange(act) => Value::BridgeSudoChangeAction(act.to_raw()),
-            Action::FeeChange(act) => Value::FeeChangeAction(act.to_raw()),
+            Action::IbcRelayerChange(act) => Value::IbcRelayerChange(act.to_raw()),
+            Action::FeeAssetChange(act) => Value::FeeAssetChange(act.to_raw()),
+            Action::InitBridgeAccount(act) => Value::InitBridgeAccount(act.to_raw()),
+            Action::BridgeLock(act) => Value::BridgeLock(act.to_raw()),
+            Action::BridgeUnlock(act) => Value::BridgeUnlock(act.to_raw()),
+            Action::BridgeSudoChange(act) => Value::BridgeSudoChange(act.to_raw()),
+            Action::FeeChange(act) => Value::FeeChange(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -82,7 +80,7 @@ impl Protobuf for Action {
     ///
     /// Returns an error if conversion of one of the inner raw action variants
     /// to a native action ([`SequenceAction`] or [`TransferAction`]) fails.
-    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, ActionError> {
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Error> {
         Self::try_from_raw(raw.clone())
     }
 
@@ -92,62 +90,57 @@ impl Protobuf for Action {
     ///
     /// Returns an error if conversion of one of the inner raw action variants
     /// to a native action ([`SequenceAction`] or [`TransferAction`]) fails.
-    fn try_from_raw(proto: raw::Action) -> Result<Self, ActionError> {
+    fn try_from_raw(proto: raw::Action) -> Result<Self, Error> {
         use raw::action::Value;
         let raw::Action {
             value,
         } = proto;
         let Some(action) = value else {
-            return Err(ActionError::unset());
+            return Err(Error::unset());
         };
         let action = match action {
-            Value::SequenceAction(act) => {
-                Self::Sequence(SequenceAction::try_from_raw(act).map_err(ActionError::sequence)?)
+            Value::Sequence(act) => {
+                Self::Sequence(Sequence::try_from_raw(act).map_err(Error::sequence)?)
             }
-            Value::TransferAction(act) => {
-                Self::Transfer(TransferAction::try_from_raw(act).map_err(ActionError::transfer)?)
+            Value::Transfer(act) => {
+                Self::Transfer(Transfer::try_from_raw(act).map_err(Error::transfer)?)
             }
-            Value::ValidatorUpdateAction(act) => Self::ValidatorUpdate(
-                ValidatorUpdate::try_from_raw(act).map_err(ActionError::validator_update)?,
+            Value::ValidatorUpdate(act) => Self::ValidatorUpdate(
+                ValidatorUpdate::try_from_raw(act).map_err(Error::validator_update)?,
             ),
-            Value::SudoAddressChangeAction(act) => Self::SudoAddressChange(
-                SudoAddressChangeAction::try_from_raw(act)
-                    .map_err(ActionError::sudo_address_change)?,
+            Value::SudoAddressChange(act) => Self::SudoAddressChange(
+                SudoAddressChange::try_from_raw(act).map_err(Error::sudo_address_change)?,
             ),
-            Value::IbcSudoChangeAction(act) => Self::IbcSudoChange(
-                IbcSudoChangeAction::try_from_raw(act).map_err(ActionError::ibc_sudo_change)?,
+            Value::IbcSudoChange(act) => Self::IbcSudoChange(
+                IbcSudoChange::try_from_raw(act).map_err(Error::ibc_sudo_change)?,
             ),
-            Value::IbcAction(act) => {
-                Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
+            Value::Ibc(act) => {
+                Self::Ibc(IbcRelay::try_from(act).map_err(|e| Error::ibc(e.into()))?)
             }
             Value::Ics20Withdrawal(act) => Self::Ics20Withdrawal(
-                Ics20Withdrawal::try_from_raw(act).map_err(ActionError::ics20_withdrawal)?,
+                Ics20Withdrawal::try_from_raw(act).map_err(Error::ics20_withdrawal)?,
             ),
-            Value::IbcRelayerChangeAction(act) => Self::IbcRelayerChange(
-                IbcRelayerChangeAction::try_from_raw_ref(&act)
-                    .map_err(ActionError::ibc_relayer_change)?,
+            Value::IbcRelayerChange(act) => Self::IbcRelayerChange(
+                IbcRelayerChange::try_from_raw_ref(&act).map_err(Error::ibc_relayer_change)?,
             ),
-            Value::FeeAssetChangeAction(act) => Self::FeeAssetChange(
-                FeeAssetChangeAction::try_from_raw_ref(&act)
-                    .map_err(ActionError::fee_asset_change)?,
+            Value::FeeAssetChange(act) => Self::FeeAssetChange(
+                FeeAssetChange::try_from_raw_ref(&act).map_err(Error::fee_asset_change)?,
             ),
-            Value::InitBridgeAccountAction(act) => Self::InitBridgeAccount(
-                InitBridgeAccountAction::try_from_raw(act)
-                    .map_err(ActionError::init_bridge_account)?,
+            Value::InitBridgeAccount(act) => Self::InitBridgeAccount(
+                InitBridgeAccount::try_from_raw(act).map_err(Error::init_bridge_account)?,
             ),
-            Value::BridgeLockAction(act) => Self::BridgeLock(
-                BridgeLockAction::try_from_raw(act).map_err(ActionError::bridge_lock)?,
+            Value::BridgeLock(act) => {
+                Self::BridgeLock(BridgeLock::try_from_raw(act).map_err(Error::bridge_lock)?)
+            }
+            Value::BridgeUnlock(act) => {
+                Self::BridgeUnlock(BridgeUnlock::try_from_raw(act).map_err(Error::bridge_unlock)?)
+            }
+            Value::BridgeSudoChange(act) => Self::BridgeSudoChange(
+                BridgeSudoChange::try_from_raw(act).map_err(Error::bridge_sudo_change)?,
             ),
-            Value::BridgeUnlockAction(act) => Self::BridgeUnlock(
-                BridgeUnlockAction::try_from_raw(act).map_err(ActionError::bridge_unlock)?,
-            ),
-            Value::BridgeSudoChangeAction(act) => Self::BridgeSudoChange(
-                BridgeSudoChangeAction::try_from_raw(act)
-                    .map_err(ActionError::bridge_sudo_change)?,
-            ),
-            Value::FeeChangeAction(act) => Self::FeeChange(
-                FeeChangeAction::try_from_raw_ref(&act).map_err(ActionError::fee_change)?,
-            ),
+            Value::FeeChange(act) => {
+                Self::FeeChange(FeeChange::try_from_raw_ref(&act).map_err(Error::fee_change)?)
+            }
         };
         Ok(action)
     }
@@ -156,7 +149,7 @@ impl Protobuf for Action {
 // TODO: add unit tests for these methods (https://github.com/astriaorg/astria/issues/1593)
 impl Action {
     #[must_use]
-    pub fn as_sequence(&self) -> Option<&SequenceAction> {
+    pub fn as_sequence(&self) -> Option<&Sequence> {
         let Self::Sequence(sequence_action) = self else {
             return None;
         };
@@ -164,7 +157,7 @@ impl Action {
     }
 
     #[must_use]
-    pub fn as_transfer(&self) -> Option<&TransferAction> {
+    pub fn as_transfer(&self) -> Option<&Transfer> {
         let Self::Transfer(transfer_action) = self else {
             return None;
         };
@@ -180,26 +173,26 @@ impl Action {
     }
 }
 
-impl From<SequenceAction> for Action {
-    fn from(value: SequenceAction) -> Self {
+impl From<Sequence> for Action {
+    fn from(value: Sequence) -> Self {
         Self::Sequence(value)
     }
 }
 
-impl From<TransferAction> for Action {
-    fn from(value: TransferAction) -> Self {
+impl From<Transfer> for Action {
+    fn from(value: Transfer) -> Self {
         Self::Transfer(value)
     }
 }
 
-impl From<SudoAddressChangeAction> for Action {
-    fn from(value: SudoAddressChangeAction) -> Self {
+impl From<SudoAddressChange> for Action {
+    fn from(value: SudoAddressChange) -> Self {
         Self::SudoAddressChange(value)
     }
 }
 
-impl From<IbcSudoChangeAction> for Action {
-    fn from(value: IbcSudoChangeAction) -> Self {
+impl From<IbcSudoChange> for Action {
+    fn from(value: IbcSudoChange) -> Self {
         Self::IbcSudoChange(value)
     }
 }
@@ -216,44 +209,44 @@ impl From<Ics20Withdrawal> for Action {
     }
 }
 
-impl From<IbcRelayerChangeAction> for Action {
-    fn from(value: IbcRelayerChangeAction) -> Self {
+impl From<IbcRelayerChange> for Action {
+    fn from(value: IbcRelayerChange) -> Self {
         Self::IbcRelayerChange(value)
     }
 }
 
-impl From<FeeAssetChangeAction> for Action {
-    fn from(value: FeeAssetChangeAction) -> Self {
+impl From<FeeAssetChange> for Action {
+    fn from(value: FeeAssetChange) -> Self {
         Self::FeeAssetChange(value)
     }
 }
 
-impl From<InitBridgeAccountAction> for Action {
-    fn from(value: InitBridgeAccountAction) -> Self {
+impl From<InitBridgeAccount> for Action {
+    fn from(value: InitBridgeAccount) -> Self {
         Self::InitBridgeAccount(value)
     }
 }
 
-impl From<BridgeLockAction> for Action {
-    fn from(value: BridgeLockAction) -> Self {
+impl From<BridgeLock> for Action {
+    fn from(value: BridgeLock) -> Self {
         Self::BridgeLock(value)
     }
 }
 
-impl From<BridgeUnlockAction> for Action {
-    fn from(value: BridgeUnlockAction) -> Self {
+impl From<BridgeUnlock> for Action {
+    fn from(value: BridgeUnlock) -> Self {
         Self::BridgeUnlock(value)
     }
 }
 
-impl From<BridgeSudoChangeAction> for Action {
-    fn from(value: BridgeSudoChangeAction) -> Self {
+impl From<BridgeSudoChange> for Action {
+    fn from(value: BridgeSudoChange) -> Self {
         Self::BridgeSudoChange(value)
     }
 }
 
-impl From<FeeChangeAction> for Action {
-    fn from(value: FeeChangeAction) -> Self {
+impl From<FeeChange> for Action {
+    fn from(value: FeeChange) -> Self {
         Self::FeeChange(value)
     }
 }
@@ -265,7 +258,7 @@ impl From<Action> for raw::Action {
 }
 
 impl TryFrom<raw::Action> for Action {
-    type Error = ActionError;
+    type Error = Error;
 
     fn try_from(value: raw::Action) -> Result<Self, Self::Error> {
         Self::try_from_raw(value)
@@ -299,24 +292,20 @@ impl ActionName for Action {
     }
 }
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct ActionError(ActionErrorKind);
+pub struct Error(ActionErrorKind);
 
-impl ActionError {
+impl Error {
     fn unset() -> Self {
         Self(ActionErrorKind::Unset)
     }
 
-    fn sequence(inner: SequenceActionError) -> Self {
+    fn sequence(inner: SequenceError) -> Self {
         Self(ActionErrorKind::Sequence(inner))
     }
 
-    fn transfer(inner: TransferActionError) -> Self {
+    fn transfer(inner: TransferError) -> Self {
         Self(ActionErrorKind::Transfer(inner))
     }
 
@@ -324,11 +313,11 @@ impl ActionError {
         Self(ActionErrorKind::ValidatorUpdate(inner))
     }
 
-    fn sudo_address_change(inner: SudoAddressChangeActionError) -> Self {
+    fn sudo_address_change(inner: SudoAddressChangeError) -> Self {
         Self(ActionErrorKind::SudoAddressChange(inner))
     }
 
-    fn ibc_sudo_change(inner: IbcSudoChangeActionError) -> Self {
+    fn ibc_sudo_change(inner: IbcSudoChangeError) -> Self {
         Self(ActionErrorKind::IbcSudoChange(inner))
     }
 
@@ -340,31 +329,31 @@ impl ActionError {
         Self(ActionErrorKind::Ics20Withdrawal(inner))
     }
 
-    fn ibc_relayer_change(inner: IbcRelayerChangeActionError) -> Self {
+    fn ibc_relayer_change(inner: IbcRelayerChangeError) -> Self {
         Self(ActionErrorKind::IbcRelayerChange(inner))
     }
 
-    fn fee_asset_change(inner: FeeAssetChangeActionError) -> Self {
+    fn fee_asset_change(inner: FeeAssetChangeError) -> Self {
         Self(ActionErrorKind::FeeAssetChange(inner))
     }
 
-    fn init_bridge_account(inner: InitBridgeAccountActionError) -> Self {
+    fn init_bridge_account(inner: InitBridgeAccountError) -> Self {
         Self(ActionErrorKind::InitBridgeAccount(inner))
     }
 
-    fn bridge_lock(inner: BridgeLockActionError) -> Self {
+    fn bridge_lock(inner: BridgeLockError) -> Self {
         Self(ActionErrorKind::BridgeLock(inner))
     }
 
-    fn bridge_unlock(inner: BridgeUnlockActionError) -> Self {
+    fn bridge_unlock(inner: BridgeUnlockError) -> Self {
         Self(ActionErrorKind::BridgeUnlock(inner))
     }
 
-    fn bridge_sudo_change(inner: BridgeSudoChangeActionError) -> Self {
+    fn bridge_sudo_change(inner: BridgeSudoChangeError) -> Self {
         Self(ActionErrorKind::BridgeSudoChange(inner))
     }
 
-    fn fee_change(inner: FeeChangeActionError) -> Self {
+    fn fee_change(inner: FeeChangeError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
 }
@@ -374,55 +363,55 @@ enum ActionErrorKind {
     #[error("required action value was not set")]
     Unset,
     #[error("sequence action was not valid")]
-    Sequence(#[source] SequenceActionError),
+    Sequence(#[source] SequenceError),
     #[error("transfer action was not valid")]
-    Transfer(#[source] TransferActionError),
+    Transfer(#[source] TransferError),
     #[error("validator update action was not valid")]
     ValidatorUpdate(#[source] ValidatorUpdateError),
     #[error("sudo address change action was not valid")]
-    SudoAddressChange(#[source] SudoAddressChangeActionError),
+    SudoAddressChange(#[source] SudoAddressChangeError),
     #[error("ibc sudo address change action was not valid")]
-    IbcSudoChange(#[source] IbcSudoChangeActionError),
+    IbcSudoChange(#[source] IbcSudoChangeError),
     #[error("ibc action was not valid")]
     Ibc(#[source] Box<dyn std::error::Error + Send + Sync>),
     #[error("ics20 withdrawal action was not valid")]
     Ics20Withdrawal(#[source] Ics20WithdrawalError),
     #[error("ibc relayer change action was not valid")]
-    IbcRelayerChange(#[source] IbcRelayerChangeActionError),
+    IbcRelayerChange(#[source] IbcRelayerChangeError),
     #[error("fee asset change action was not valid")]
-    FeeAssetChange(#[source] FeeAssetChangeActionError),
+    FeeAssetChange(#[source] FeeAssetChangeError),
     #[error("init bridge account action was not valid")]
-    InitBridgeAccount(#[source] InitBridgeAccountActionError),
+    InitBridgeAccount(#[source] InitBridgeAccountError),
     #[error("bridge lock action was not valid")]
-    BridgeLock(#[source] BridgeLockActionError),
+    BridgeLock(#[source] BridgeLockError),
     #[error("bridge unlock action was not valid")]
-    BridgeUnlock(#[source] BridgeUnlockActionError),
+    BridgeUnlock(#[source] BridgeUnlockError),
     #[error("bridge sudo change action was not valid")]
-    BridgeSudoChange(#[source] BridgeSudoChangeActionError),
+    BridgeSudoChange(#[source] BridgeSudoChangeError),
     #[error("fee change action was not valid")]
-    FeeChange(#[source] FeeChangeActionError),
+    FeeChange(#[source] FeeChangeError),
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct SequenceActionError(SequenceActionErrorKind);
+pub struct SequenceError(SequenceErrorKind);
 
-impl SequenceActionError {
+impl SequenceError {
     fn field_not_set(field: &'static str) -> Self {
-        Self(SequenceActionErrorKind::FieldNotSet(field))
+        Self(SequenceErrorKind::FieldNotSet(field))
     }
 
     fn rollup_id_length(inner: IncorrectRollupIdLength) -> Self {
-        Self(SequenceActionErrorKind::RollupIdLength(inner))
+        Self(SequenceErrorKind::RollupIdLength(inner))
     }
 
     fn fee_asset(inner: asset::ParseDenomError) -> Self {
-        Self(SequenceActionErrorKind::FeeAsset(inner))
+        Self(SequenceErrorKind::FeeAsset(inner))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum SequenceActionErrorKind {
+enum SequenceErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`rollup_id` field did not contain a valid rollup ID")]
@@ -432,29 +421,25 @@ enum SequenceActionErrorKind {
 }
 
 #[derive(Clone, Debug)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
-pub struct SequenceAction {
+pub struct Sequence {
     pub rollup_id: RollupId,
     pub data: Bytes,
     /// asset to use for fee payment.
     pub fee_asset: asset::Denom,
 }
 
-impl Protobuf for SequenceAction {
-    type Error = SequenceActionError;
-    type Raw = raw::SequenceAction;
+impl Protobuf for Sequence {
+    type Error = SequenceError;
+    type Raw = raw::Sequence;
 
     #[must_use]
-    fn to_raw(&self) -> raw::SequenceAction {
+    fn to_raw(&self) -> raw::Sequence {
         let Self {
             rollup_id,
             data,
             fee_asset,
         } = self;
-        raw::SequenceAction {
+        raw::Sequence {
             rollup_id: Some(rollup_id.to_raw()),
             data: data.clone(),
             fee_asset: fee_asset.to_string(),
@@ -466,17 +451,17 @@ impl Protobuf for SequenceAction {
     /// # Errors
     /// Returns `SequenceActionError` if the `proto.rollup_id` field was not 32 bytes.
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
-        let raw::SequenceAction {
+        let raw::Sequence {
             rollup_id,
             data,
             fee_asset,
         } = raw;
         let Some(rollup_id) = rollup_id else {
-            return Err(SequenceActionError::field_not_set("rollup_id"));
+            return Err(SequenceError::field_not_set("rollup_id"));
         };
         let rollup_id =
-            RollupId::try_from_raw(rollup_id).map_err(SequenceActionError::rollup_id_length)?;
-        let fee_asset = fee_asset.parse().map_err(SequenceActionError::fee_asset)?;
+            RollupId::try_from_raw(rollup_id).map_err(SequenceError::rollup_id_length)?;
+        let fee_asset = fee_asset.parse().map_err(SequenceError::fee_asset)?;
         let data = data.clone();
         Ok(Self {
             rollup_id,
@@ -487,11 +472,7 @@ impl Protobuf for SequenceAction {
 }
 
 #[derive(Clone, Debug)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
-pub struct TransferAction {
+pub struct Transfer {
     pub to: Address,
     pub amount: u128,
     /// asset to be transferred.
@@ -500,19 +481,19 @@ pub struct TransferAction {
     pub fee_asset: asset::Denom,
 }
 
-impl Protobuf for TransferAction {
-    type Error = TransferActionError;
-    type Raw = raw::TransferAction;
+impl Protobuf for Transfer {
+    type Error = TransferError;
+    type Raw = raw::Transfer;
 
     #[must_use]
-    fn to_raw(&self) -> raw::TransferAction {
+    fn to_raw(&self) -> raw::Transfer {
         let Self {
             to,
             amount,
             asset,
             fee_asset,
         } = self;
-        raw::TransferAction {
+        raw::Transfer {
             to: Some(to.to_raw()),
             amount: Some((*amount).into()),
             asset: asset.to_string(),
@@ -526,19 +507,19 @@ impl Protobuf for TransferAction {
     /// Returns `TransferActionError` if the raw action's `to` address did not have the expected
     /// length.
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
-        let raw::TransferAction {
+        let raw::Transfer {
             to,
             amount,
             asset,
             fee_asset,
         } = raw;
         let Some(to) = to else {
-            return Err(TransferActionError::field_not_set("to"));
+            return Err(TransferError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(to).map_err(TransferActionError::address)?;
+        let to = Address::try_from_raw(to).map_err(TransferError::address)?;
         let amount = amount.map_or(0, Into::into);
-        let asset = asset.parse().map_err(TransferActionError::asset)?;
-        let fee_asset = fee_asset.parse().map_err(TransferActionError::fee_asset)?;
+        let asset = asset.parse().map_err(TransferError::asset)?;
+        let fee_asset = fee_asset.parse().map_err(TransferError::fee_asset)?;
 
         Ok(Self {
             to,
@@ -551,9 +532,9 @@ impl Protobuf for TransferAction {
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct TransferActionError(TransferActionErrorKind);
+pub struct TransferError(TransferActionErrorKind);
 
-impl TransferActionError {
+impl TransferError {
     fn field_not_set(field: &'static str) -> Self {
         Self(TransferActionErrorKind::FieldNotSet(field))
     }
@@ -736,52 +717,48 @@ impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdat
 }
 
 #[derive(Clone, Debug)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
-pub struct SudoAddressChangeAction {
+pub struct SudoAddressChange {
     pub new_address: Address,
 }
 
-impl Protobuf for SudoAddressChangeAction {
-    type Error = SudoAddressChangeActionError;
-    type Raw = raw::SudoAddressChangeAction;
+impl Protobuf for SudoAddressChange {
+    type Error = SudoAddressChangeError;
+    type Raw = raw::SudoAddressChange;
 
-    fn into_raw(self) -> raw::SudoAddressChangeAction {
+    fn into_raw(self) -> raw::SudoAddressChange {
         let Self {
             new_address,
         } = self;
-        raw::SudoAddressChangeAction {
+        raw::SudoAddressChange {
             new_address: Some(new_address.into_raw()),
         }
     }
 
     #[must_use]
-    fn to_raw(&self) -> raw::SudoAddressChangeAction {
+    fn to_raw(&self) -> raw::SudoAddressChange {
         let Self {
             new_address,
         } = self;
-        raw::SudoAddressChangeAction {
+        raw::SudoAddressChange {
             new_address: Some(new_address.to_raw()),
         }
     }
 
-    /// Convert from a reference to a raw, unchecked protobuf [`raw::SudoAddressChangeAction`].
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::SudoAddressChange`].
     ///
     /// # Errors
     ///
     /// Returns an error if the raw action's `new_address` did not have the expected
     /// length.
-    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, SudoAddressChangeActionError> {
-        let raw::SudoAddressChangeAction {
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, SudoAddressChangeError> {
+        let raw::SudoAddressChange {
             new_address,
         } = proto;
         let Some(new_address) = new_address else {
-            return Err(SudoAddressChangeActionError::field_not_set("new_address"));
+            return Err(SudoAddressChangeError::field_not_set("new_address"));
         };
         let new_address =
-            Address::try_from_raw(new_address).map_err(SudoAddressChangeActionError::address)?;
+            Address::try_from_raw(new_address).map_err(SudoAddressChangeError::address)?;
         Ok(Self {
             new_address,
         })
@@ -790,22 +767,22 @@ impl Protobuf for SudoAddressChangeAction {
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct SudoAddressChangeActionError(SudoAddressChangeActionErrorKind);
+pub struct SudoAddressChangeError(SudoAddressChangeErrorKind);
 
-impl SudoAddressChangeActionError {
+impl SudoAddressChangeError {
     fn field_not_set(field: &'static str) -> Self {
-        Self(SudoAddressChangeActionErrorKind::FieldNotSet(field))
+        Self(SudoAddressChangeErrorKind::FieldNotSet(field))
     }
 
     fn address(source: AddressError) -> Self {
-        Self(SudoAddressChangeActionErrorKind::Address {
+        Self(SudoAddressChangeErrorKind::Address {
             source,
         })
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum SudoAddressChangeActionErrorKind {
+enum SudoAddressChangeErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`new_address` field did not contain a valid address")]
@@ -813,27 +790,23 @@ enum SudoAddressChangeActionErrorKind {
 }
 
 #[derive(Debug, Clone)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
-pub struct IbcSudoChangeAction {
+pub struct IbcSudoChange {
     pub new_address: Address,
 }
 
-impl Protobuf for IbcSudoChangeAction {
-    type Error = IbcSudoChangeActionError;
-    type Raw = raw::IbcSudoChangeAction;
+impl Protobuf for IbcSudoChange {
+    type Error = IbcSudoChangeError;
+    type Raw = raw::IbcSudoChange;
 
-    fn into_raw(self) -> raw::IbcSudoChangeAction {
-        raw::IbcSudoChangeAction {
+    fn into_raw(self) -> raw::IbcSudoChange {
+        raw::IbcSudoChange {
             new_address: Some(self.new_address.into_raw()),
         }
     }
 
     #[must_use]
-    fn to_raw(&self) -> raw::IbcSudoChangeAction {
-        raw::IbcSudoChangeAction {
+    fn to_raw(&self) -> raw::IbcSudoChange {
+        raw::IbcSudoChange {
             new_address: Some(self.new_address.to_raw()),
         }
     }
@@ -844,15 +817,15 @@ impl Protobuf for IbcSudoChangeAction {
     ///
     /// Returns an error if the raw action's `new_address` did not have the expected
     /// length or if the field was not set.
-    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, IbcSudoChangeActionError> {
-        let raw::IbcSudoChangeAction {
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, IbcSudoChangeError> {
+        let raw::IbcSudoChange {
             new_address,
         } = proto;
         let Some(new_address) = new_address else {
-            return Err(IbcSudoChangeActionError::field_not_set("new_address"));
+            return Err(IbcSudoChangeError::field_not_set("new_address"));
         };
         let new_address =
-            Address::try_from_raw(new_address).map_err(IbcSudoChangeActionError::address)?;
+            Address::try_from_raw(new_address).map_err(IbcSudoChangeError::address)?;
         Ok(Self {
             new_address,
         })
@@ -861,22 +834,22 @@ impl Protobuf for IbcSudoChangeAction {
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct IbcSudoChangeActionError(IbcSudoChangeActionErrorKind);
+pub struct IbcSudoChangeError(IbcSudoChangeErrorKind);
 
-impl IbcSudoChangeActionError {
+impl IbcSudoChangeError {
     fn field_not_set(field: &'static str) -> Self {
-        Self(IbcSudoChangeActionErrorKind::FieldNotSet(field))
+        Self(IbcSudoChangeErrorKind::FieldNotSet(field))
     }
 
     fn address(source: AddressError) -> Self {
-        Self(IbcSudoChangeActionErrorKind::Address {
+        Self(IbcSudoChangeErrorKind::Address {
             source,
         })
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum IbcSudoChangeActionErrorKind {
+enum IbcSudoChangeErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`new_sudo` field did not contain a valid address")]
@@ -1217,32 +1190,24 @@ enum Ics20WithdrawalErrorKind {
     InvalidDenom { source: asset::ParseDenomError },
 }
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
 #[derive(Debug, Clone)]
-pub enum IbcRelayerChangeAction {
+pub enum IbcRelayerChange {
     Addition(Address),
     Removal(Address),
 }
 
-impl Protobuf for IbcRelayerChangeAction {
-    type Error = IbcRelayerChangeActionError;
-    type Raw = raw::IbcRelayerChangeAction;
+impl Protobuf for IbcRelayerChange {
+    type Error = IbcRelayerChangeError;
+    type Raw = raw::IbcRelayerChange;
 
     #[must_use]
-    fn to_raw(&self) -> raw::IbcRelayerChangeAction {
+    fn to_raw(&self) -> raw::IbcRelayerChange {
         match self {
-            IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
-                value: Some(raw::ibc_relayer_change_action::Value::Addition(
-                    address.to_raw(),
-                )),
+            IbcRelayerChange::Addition(address) => raw::IbcRelayerChange {
+                value: Some(raw::ibc_relayer_change::Value::Addition(address.to_raw())),
             },
-            IbcRelayerChangeAction::Removal(address) => raw::IbcRelayerChangeAction {
-                value: Some(raw::ibc_relayer_change_action::Value::Removal(
-                    address.to_raw(),
-                )),
+            IbcRelayerChange::Removal(address) => raw::IbcRelayerChange {
+                value: Some(raw::ibc_relayer_change::Value::Removal(address.to_raw())),
             },
         }
     }
@@ -1252,81 +1217,71 @@ impl Protobuf for IbcRelayerChangeAction {
     /// # Errors
     ///
     /// - if the `address` field is invalid
-    fn try_from_raw_ref(
-        raw: &raw::IbcRelayerChangeAction,
-    ) -> Result<Self, IbcRelayerChangeActionError> {
+    fn try_from_raw_ref(raw: &raw::IbcRelayerChange) -> Result<Self, IbcRelayerChangeError> {
         match raw {
-            raw::IbcRelayerChangeAction {
-                value: Some(raw::ibc_relayer_change_action::Value::Addition(address)),
+            raw::IbcRelayerChange {
+                value: Some(raw::ibc_relayer_change::Value::Addition(address)),
             } => {
                 let address =
-                    Address::try_from_raw(address).map_err(IbcRelayerChangeActionError::address)?;
-                Ok(IbcRelayerChangeAction::Addition(address))
+                    Address::try_from_raw(address).map_err(IbcRelayerChangeError::address)?;
+                Ok(IbcRelayerChange::Addition(address))
             }
-            raw::IbcRelayerChangeAction {
-                value: Some(raw::ibc_relayer_change_action::Value::Removal(address)),
+            raw::IbcRelayerChange {
+                value: Some(raw::ibc_relayer_change::Value::Removal(address)),
             } => {
                 let address =
-                    Address::try_from_raw(address).map_err(IbcRelayerChangeActionError::address)?;
-                Ok(IbcRelayerChangeAction::Removal(address))
+                    Address::try_from_raw(address).map_err(IbcRelayerChangeError::address)?;
+                Ok(IbcRelayerChange::Removal(address))
             }
-            _ => Err(IbcRelayerChangeActionError::missing_address()),
+            _ => Err(IbcRelayerChangeError::missing_address()),
         }
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct IbcRelayerChangeActionError(IbcRelayerChangeActionErrorKind);
+pub struct IbcRelayerChangeError(IbcRelayerChangeErrorKind);
 
-impl IbcRelayerChangeActionError {
+impl IbcRelayerChangeError {
     #[must_use]
     fn address(source: AddressError) -> Self {
-        Self(IbcRelayerChangeActionErrorKind::Address {
+        Self(IbcRelayerChangeErrorKind::Address {
             source,
         })
     }
 
     #[must_use]
     fn missing_address() -> Self {
-        Self(IbcRelayerChangeActionErrorKind::MissingAddress)
+        Self(IbcRelayerChangeErrorKind::MissingAddress)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum IbcRelayerChangeActionErrorKind {
+enum IbcRelayerChangeErrorKind {
     #[error("the `address` was invalid")]
     Address { source: AddressError },
     #[error("the `address` was not set")]
     MissingAddress,
 }
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
 #[derive(Debug, Clone)]
-pub enum FeeAssetChangeAction {
+pub enum FeeAssetChange {
     Addition(asset::Denom),
     Removal(asset::Denom),
 }
 
-impl Protobuf for FeeAssetChangeAction {
-    type Error = FeeAssetChangeActionError;
-    type Raw = raw::FeeAssetChangeAction;
+impl Protobuf for FeeAssetChange {
+    type Error = FeeAssetChangeError;
+    type Raw = raw::FeeAssetChange;
 
     #[must_use]
-    fn to_raw(&self) -> raw::FeeAssetChangeAction {
+    fn to_raw(&self) -> raw::FeeAssetChange {
         match self {
-            FeeAssetChangeAction::Addition(asset) => raw::FeeAssetChangeAction {
-                value: Some(raw::fee_asset_change_action::Value::Addition(
-                    asset.to_string(),
-                )),
+            FeeAssetChange::Addition(asset) => raw::FeeAssetChange {
+                value: Some(raw::fee_asset_change::Value::Addition(asset.to_string())),
             },
-            FeeAssetChangeAction::Removal(asset) => raw::FeeAssetChangeAction {
-                value: Some(raw::fee_asset_change_action::Value::Removal(
-                    asset.to_string(),
-                )),
+            FeeAssetChange::Removal(asset) => raw::FeeAssetChange {
+                value: Some(raw::fee_asset_change::Value::Removal(asset.to_string())),
             },
         }
     }
@@ -1336,61 +1291,51 @@ impl Protobuf for FeeAssetChangeAction {
     /// # Errors
     ///
     /// - if the `asset` field is invalid
-    fn try_from_raw_ref(
-        raw: &raw::FeeAssetChangeAction,
-    ) -> Result<Self, FeeAssetChangeActionError> {
+    fn try_from_raw_ref(raw: &raw::FeeAssetChange) -> Result<Self, FeeAssetChangeError> {
         match raw {
-            raw::FeeAssetChangeAction {
-                value: Some(raw::fee_asset_change_action::Value::Addition(asset)),
+            raw::FeeAssetChange {
+                value: Some(raw::fee_asset_change::Value::Addition(asset)),
             } => {
-                let asset = asset
-                    .parse()
-                    .map_err(FeeAssetChangeActionError::invalid_asset)?;
-                Ok(FeeAssetChangeAction::Addition(asset))
+                let asset = asset.parse().map_err(FeeAssetChangeError::invalid_asset)?;
+                Ok(FeeAssetChange::Addition(asset))
             }
-            raw::FeeAssetChangeAction {
-                value: Some(raw::fee_asset_change_action::Value::Removal(asset)),
+            raw::FeeAssetChange {
+                value: Some(raw::fee_asset_change::Value::Removal(asset)),
             } => {
-                let asset = asset
-                    .parse()
-                    .map_err(FeeAssetChangeActionError::invalid_asset)?;
-                Ok(FeeAssetChangeAction::Removal(asset))
+                let asset = asset.parse().map_err(FeeAssetChangeError::invalid_asset)?;
+                Ok(FeeAssetChange::Removal(asset))
             }
-            _ => Err(FeeAssetChangeActionError::missing_asset()),
+            _ => Err(FeeAssetChangeError::missing_asset()),
         }
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct FeeAssetChangeActionError(FeeAssetChangeActionErrorKind);
+pub struct FeeAssetChangeError(FeeAssetChangeErrorKind);
 
-impl FeeAssetChangeActionError {
+impl FeeAssetChangeError {
     #[must_use]
     fn invalid_asset(err: asset::ParseDenomError) -> Self {
-        Self(FeeAssetChangeActionErrorKind::InvalidAsset(err))
+        Self(FeeAssetChangeErrorKind::InvalidAsset(err))
     }
 
     #[must_use]
     fn missing_asset() -> Self {
-        Self(FeeAssetChangeActionErrorKind::MissingAsset)
+        Self(FeeAssetChangeErrorKind::MissingAsset)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum FeeAssetChangeActionErrorKind {
+enum FeeAssetChangeErrorKind {
     #[error("the `asset` field was invalid")]
     InvalidAsset(#[source] asset::ParseDenomError),
     #[error("the `asset` field was not set")]
     MissingAsset,
 }
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
 #[derive(Debug, Clone)]
-pub struct InitBridgeAccountAction {
+pub struct InitBridgeAccount {
     // the rollup ID to register for the sender of this action
     pub rollup_id: RollupId,
     // the assets accepted by the bridge account
@@ -1406,13 +1351,13 @@ pub struct InitBridgeAccountAction {
     pub withdrawer_address: Option<Address>,
 }
 
-impl Protobuf for InitBridgeAccountAction {
-    type Error = InitBridgeAccountActionError;
-    type Raw = raw::InitBridgeAccountAction;
+impl Protobuf for InitBridgeAccount {
+    type Error = InitBridgeAccountError;
+    type Raw = raw::InitBridgeAccount;
 
     #[must_use]
-    fn into_raw(self) -> raw::InitBridgeAccountAction {
-        raw::InitBridgeAccountAction {
+    fn into_raw(self) -> raw::InitBridgeAccount {
+        raw::InitBridgeAccount {
             rollup_id: Some(self.rollup_id.to_raw()),
             asset: self.asset.to_string(),
             fee_asset: self.fee_asset.to_string(),
@@ -1422,8 +1367,8 @@ impl Protobuf for InitBridgeAccountAction {
     }
 
     #[must_use]
-    fn to_raw(&self) -> raw::InitBridgeAccountAction {
-        raw::InitBridgeAccountAction {
+    fn to_raw(&self) -> raw::InitBridgeAccount {
+        raw::InitBridgeAccount {
             rollup_id: Some(self.rollup_id.to_raw()),
             asset: self.asset.to_string(),
             fee_asset: self.fee_asset.to_string(),
@@ -1440,34 +1385,32 @@ impl Protobuf for InitBridgeAccountAction {
     /// - if the `rollup_id` field is invalid
     /// - if the `sudo_address` field is invalid
     /// - if the `withdrawer_address` field is invalid
-    fn try_from_raw(
-        proto: raw::InitBridgeAccountAction,
-    ) -> Result<Self, InitBridgeAccountActionError> {
+    fn try_from_raw(proto: raw::InitBridgeAccount) -> Result<Self, InitBridgeAccountError> {
         let Some(rollup_id) = proto.rollup_id else {
-            return Err(InitBridgeAccountActionError::field_not_set("rollup_id"));
+            return Err(InitBridgeAccountError::field_not_set("rollup_id"));
         };
         let rollup_id = RollupId::try_from_raw(&rollup_id)
-            .map_err(InitBridgeAccountActionError::invalid_rollup_id)?;
+            .map_err(InitBridgeAccountError::invalid_rollup_id)?;
         let asset = proto
             .asset
             .parse()
-            .map_err(InitBridgeAccountActionError::invalid_asset)?;
+            .map_err(InitBridgeAccountError::invalid_asset)?;
         let fee_asset = proto
             .fee_asset
             .parse()
-            .map_err(InitBridgeAccountActionError::invalid_fee_asset)?;
+            .map_err(InitBridgeAccountError::invalid_fee_asset)?;
         let sudo_address = proto
             .sudo_address
             .as_ref()
             .map(Address::try_from_raw)
             .transpose()
-            .map_err(InitBridgeAccountActionError::invalid_sudo_address)?;
+            .map_err(InitBridgeAccountError::invalid_sudo_address)?;
         let withdrawer_address = proto
             .withdrawer_address
             .as_ref()
             .map(Address::try_from_raw)
             .transpose()
-            .map_err(InitBridgeAccountActionError::invalid_withdrawer_address)?;
+            .map_err(InitBridgeAccountError::invalid_withdrawer_address)?;
 
         Ok(Self {
             rollup_id,
@@ -1486,51 +1429,49 @@ impl Protobuf for InitBridgeAccountAction {
     /// - if the `rollup_id` field is invalid
     /// - if the `sudo_address` field is invalid
     /// - if the `withdrawer_address` field is invalid
-    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, InitBridgeAccountActionError> {
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, InitBridgeAccountError> {
         Self::try_from_raw(proto.clone())
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct InitBridgeAccountActionError(InitBridgeAccountActionErrorKind);
+pub struct InitBridgeAccountError(InitBridgeAccountErrorKind);
 
-impl InitBridgeAccountActionError {
+impl InitBridgeAccountError {
     #[must_use]
     fn field_not_set(field: &'static str) -> Self {
-        Self(InitBridgeAccountActionErrorKind::FieldNotSet(field))
+        Self(InitBridgeAccountErrorKind::FieldNotSet(field))
     }
 
     #[must_use]
     fn invalid_rollup_id(err: IncorrectRollupIdLength) -> Self {
-        Self(InitBridgeAccountActionErrorKind::InvalidRollupId(err))
+        Self(InitBridgeAccountErrorKind::InvalidRollupId(err))
     }
 
     #[must_use]
     fn invalid_asset(err: asset::ParseDenomError) -> Self {
-        Self(InitBridgeAccountActionErrorKind::InvalidAsset(err))
+        Self(InitBridgeAccountErrorKind::InvalidAsset(err))
     }
 
     #[must_use]
     fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
-        Self(InitBridgeAccountActionErrorKind::InvalidFeeAsset(err))
+        Self(InitBridgeAccountErrorKind::InvalidFeeAsset(err))
     }
 
     #[must_use]
     fn invalid_sudo_address(err: AddressError) -> Self {
-        Self(InitBridgeAccountActionErrorKind::InvalidSudoAddress(err))
+        Self(InitBridgeAccountErrorKind::InvalidSudoAddress(err))
     }
 
     #[must_use]
     fn invalid_withdrawer_address(err: AddressError) -> Self {
-        Self(InitBridgeAccountActionErrorKind::InvalidWithdrawerAddress(
-            err,
-        ))
+        Self(InitBridgeAccountErrorKind::InvalidWithdrawerAddress(err))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum InitBridgeAccountActionErrorKind {
+enum InitBridgeAccountErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the `rollup_id` field was invalid")]
@@ -1545,12 +1486,8 @@ enum InitBridgeAccountActionErrorKind {
     InvalidWithdrawerAddress(#[source] AddressError),
 }
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
 #[derive(Debug, Clone)]
-pub struct BridgeLockAction {
+pub struct BridgeLock {
     pub to: Address,
     pub amount: u128,
     // asset to be transferred.
@@ -1561,13 +1498,13 @@ pub struct BridgeLockAction {
     pub destination_chain_address: String,
 }
 
-impl Protobuf for BridgeLockAction {
-    type Error = BridgeLockActionError;
-    type Raw = raw::BridgeLockAction;
+impl Protobuf for BridgeLock {
+    type Error = BridgeLockError;
+    type Raw = raw::BridgeLock;
 
     #[must_use]
-    fn into_raw(self) -> raw::BridgeLockAction {
-        raw::BridgeLockAction {
+    fn into_raw(self) -> raw::BridgeLock {
+        raw::BridgeLock {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
             asset: self.asset.to_string(),
@@ -1577,8 +1514,8 @@ impl Protobuf for BridgeLockAction {
     }
 
     #[must_use]
-    fn to_raw(&self) -> raw::BridgeLockAction {
-        raw::BridgeLockAction {
+    fn to_raw(&self) -> raw::BridgeLock {
+        raw::BridgeLock {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
             asset: self.asset.to_string(),
@@ -1595,22 +1532,20 @@ impl Protobuf for BridgeLockAction {
     /// - if the `to` field is invalid
     /// - if the `asset` field is invalid
     /// - if the `fee_asset` field is invalid
-    fn try_from_raw(proto: raw::BridgeLockAction) -> Result<Self, BridgeLockActionError> {
+    fn try_from_raw(proto: raw::BridgeLock) -> Result<Self, BridgeLockError> {
         let Some(to) = proto.to else {
-            return Err(BridgeLockActionError::field_not_set("to"));
+            return Err(BridgeLockError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(&to).map_err(BridgeLockActionError::address)?;
-        let amount = proto
-            .amount
-            .ok_or(BridgeLockActionError::missing_amount())?;
+        let to = Address::try_from_raw(&to).map_err(BridgeLockError::address)?;
+        let amount = proto.amount.ok_or(BridgeLockError::missing_amount())?;
         let asset = proto
             .asset
             .parse()
-            .map_err(BridgeLockActionError::invalid_asset)?;
+            .map_err(BridgeLockError::invalid_asset)?;
         let fee_asset = proto
             .fee_asset
             .parse()
-            .map_err(BridgeLockActionError::invalid_fee_asset)?;
+            .map_err(BridgeLockError::invalid_fee_asset)?;
         Ok(Self {
             to,
             amount: amount.into(),
@@ -1628,46 +1563,46 @@ impl Protobuf for BridgeLockAction {
     /// - if the `to` field is invalid
     /// - if the `asset` field is invalid
     /// - if the `fee_asset` field is invalid
-    fn try_from_raw_ref(proto: &raw::BridgeLockAction) -> Result<Self, BridgeLockActionError> {
+    fn try_from_raw_ref(proto: &raw::BridgeLock) -> Result<Self, BridgeLockError> {
         Self::try_from_raw(proto.clone())
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct BridgeLockActionError(BridgeLockActionErrorKind);
+pub struct BridgeLockError(BridgeLockErrorKind);
 
-impl BridgeLockActionError {
+impl BridgeLockError {
     #[must_use]
     fn field_not_set(field: &'static str) -> Self {
-        Self(BridgeLockActionErrorKind::FieldNotSet(field))
+        Self(BridgeLockErrorKind::FieldNotSet(field))
     }
 
     #[must_use]
     fn address(source: AddressError) -> Self {
-        Self(BridgeLockActionErrorKind::Address {
+        Self(BridgeLockErrorKind::Address {
             source,
         })
     }
 
     #[must_use]
     fn missing_amount() -> Self {
-        Self(BridgeLockActionErrorKind::MissingAmount)
+        Self(BridgeLockErrorKind::MissingAmount)
     }
 
     #[must_use]
     fn invalid_asset(err: asset::ParseDenomError) -> Self {
-        Self(BridgeLockActionErrorKind::InvalidAsset(err))
+        Self(BridgeLockErrorKind::InvalidAsset(err))
     }
 
     #[must_use]
     fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
-        Self(BridgeLockActionErrorKind::InvalidFeeAsset(err))
+        Self(BridgeLockErrorKind::InvalidFeeAsset(err))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum BridgeLockActionErrorKind {
+enum BridgeLockErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the `to` field was invalid")]
@@ -1680,12 +1615,8 @@ enum BridgeLockActionErrorKind {
     InvalidFeeAsset(#[source] asset::ParseDenomError),
 }
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BridgeUnlockAction {
+pub struct BridgeUnlock {
     pub to: Address,
     pub amount: u128,
     // asset to use for fee payment.
@@ -1700,13 +1631,13 @@ pub struct BridgeUnlockAction {
     pub rollup_withdrawal_event_id: String,
 }
 
-impl Protobuf for BridgeUnlockAction {
-    type Error = BridgeUnlockActionError;
-    type Raw = raw::BridgeUnlockAction;
+impl Protobuf for BridgeUnlock {
+    type Error = BridgeUnlockError;
+    type Raw = raw::BridgeUnlock;
 
     #[must_use]
-    fn into_raw(self) -> raw::BridgeUnlockAction {
-        raw::BridgeUnlockAction {
+    fn into_raw(self) -> raw::BridgeUnlock {
+        raw::BridgeUnlock {
             to: Some(self.to.into_raw()),
             amount: Some(self.amount.into()),
             fee_asset: self.fee_asset.to_string(),
@@ -1718,8 +1649,8 @@ impl Protobuf for BridgeUnlockAction {
     }
 
     #[must_use]
-    fn to_raw(&self) -> raw::BridgeUnlockAction {
-        raw::BridgeUnlockAction {
+    fn to_raw(&self) -> raw::BridgeUnlock {
+        raw::BridgeUnlock {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
             fee_asset: self.fee_asset.to_string(),
@@ -1739,8 +1670,8 @@ impl Protobuf for BridgeUnlockAction {
     /// - if the `amount` field is invalid
     /// - if the `fee_asset` field is invalid
     /// - if the `from` field is invalid
-    fn try_from_raw(proto: raw::BridgeUnlockAction) -> Result<Self, Self::Error> {
-        let raw::BridgeUnlockAction {
+    fn try_from_raw(proto: raw::BridgeUnlock) -> Result<Self, Self::Error> {
+        let raw::BridgeUnlock {
             to,
             amount,
             fee_asset,
@@ -1750,18 +1681,14 @@ impl Protobuf for BridgeUnlockAction {
             rollup_withdrawal_event_id,
         } = proto;
         let to = to
-            .ok_or_else(|| BridgeUnlockActionError::field_not_set("to"))
-            .and_then(|to| Address::try_from_raw(&to).map_err(BridgeUnlockActionError::address))?;
-        let amount = amount.ok_or_else(|| BridgeUnlockActionError::field_not_set("amount"))?;
-        let fee_asset = fee_asset
-            .parse()
-            .map_err(BridgeUnlockActionError::fee_asset)?;
+            .ok_or_else(|| BridgeUnlockError::field_not_set("to"))
+            .and_then(|to| Address::try_from_raw(&to).map_err(BridgeUnlockError::address))?;
+        let amount = amount.ok_or_else(|| BridgeUnlockError::field_not_set("amount"))?;
+        let fee_asset = fee_asset.parse().map_err(BridgeUnlockError::fee_asset)?;
 
         let bridge_address = bridge_address
-            .ok_or_else(|| BridgeUnlockActionError::field_not_set("bridge_address"))
-            .and_then(|to| {
-                Address::try_from_raw(&to).map_err(BridgeUnlockActionError::bridge_address)
-            })?;
+            .ok_or_else(|| BridgeUnlockError::field_not_set("bridge_address"))
+            .and_then(|to| Address::try_from_raw(&to).map_err(BridgeUnlockError::bridge_address))?;
         Ok(Self {
             to,
             amount: amount.into(),
@@ -1782,45 +1709,45 @@ impl Protobuf for BridgeUnlockAction {
     /// - if the `amount` field is invalid
     /// - if the `fee_asset` field is invalid
     /// - if the `from` field is invalid
-    fn try_from_raw_ref(proto: &raw::BridgeUnlockAction) -> Result<Self, BridgeUnlockActionError> {
+    fn try_from_raw_ref(proto: &raw::BridgeUnlock) -> Result<Self, BridgeUnlockError> {
         Self::try_from_raw(proto.clone())
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct BridgeUnlockActionError(BridgeUnlockActionErrorKind);
+pub struct BridgeUnlockError(BridgeUnlockErrorKind);
 
-impl BridgeUnlockActionError {
+impl BridgeUnlockError {
     #[must_use]
     fn field_not_set(field: &'static str) -> Self {
-        Self(BridgeUnlockActionErrorKind::FieldNotSet(field))
+        Self(BridgeUnlockErrorKind::FieldNotSet(field))
     }
 
     #[must_use]
     fn address(source: AddressError) -> Self {
-        Self(BridgeUnlockActionErrorKind::Address {
+        Self(BridgeUnlockErrorKind::Address {
             source,
         })
     }
 
     #[must_use]
     fn fee_asset(source: asset::ParseDenomError) -> Self {
-        Self(BridgeUnlockActionErrorKind::FeeAsset {
+        Self(BridgeUnlockErrorKind::FeeAsset {
             source,
         })
     }
 
     #[must_use]
     fn bridge_address(source: AddressError) -> Self {
-        Self(BridgeUnlockActionErrorKind::BridgeAddress {
+        Self(BridgeUnlockErrorKind::BridgeAddress {
             source,
         })
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum BridgeUnlockActionErrorKind {
+enum BridgeUnlockErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the `to` field was invalid")]
@@ -1831,25 +1758,21 @@ enum BridgeUnlockActionErrorKind {
     BridgeAddress { source: AddressError },
 }
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
 #[derive(Debug, Clone)]
-pub struct BridgeSudoChangeAction {
+pub struct BridgeSudoChange {
     pub bridge_address: Address,
     pub new_sudo_address: Option<Address>,
     pub new_withdrawer_address: Option<Address>,
     pub fee_asset: asset::Denom,
 }
 
-impl Protobuf for BridgeSudoChangeAction {
-    type Error = BridgeSudoChangeActionError;
-    type Raw = raw::BridgeSudoChangeAction;
+impl Protobuf for BridgeSudoChange {
+    type Error = BridgeSudoChangeError;
+    type Raw = raw::BridgeSudoChange;
 
     #[must_use]
-    fn into_raw(self) -> raw::BridgeSudoChangeAction {
-        raw::BridgeSudoChangeAction {
+    fn into_raw(self) -> raw::BridgeSudoChange {
+        raw::BridgeSudoChange {
             bridge_address: Some(self.bridge_address.to_raw()),
             new_sudo_address: self.new_sudo_address.map(Address::into_raw),
             new_withdrawer_address: self.new_withdrawer_address.map(Address::into_raw),
@@ -1858,8 +1781,8 @@ impl Protobuf for BridgeSudoChangeAction {
     }
 
     #[must_use]
-    fn to_raw(&self) -> raw::BridgeSudoChangeAction {
-        raw::BridgeSudoChangeAction {
+    fn to_raw(&self) -> raw::BridgeSudoChange {
+        raw::BridgeSudoChange {
             bridge_address: Some(self.bridge_address.to_raw()),
             new_sudo_address: self.new_sudo_address.as_ref().map(Address::to_raw),
             new_withdrawer_address: self.new_withdrawer_address.as_ref().map(Address::to_raw),
@@ -1876,30 +1799,28 @@ impl Protobuf for BridgeSudoChangeAction {
     /// - if the `new_sudo_address` field is invalid
     /// - if the `new_withdrawer_address` field is invalid
     /// - if the `fee_asset` field is invalid
-    fn try_from_raw(
-        proto: raw::BridgeSudoChangeAction,
-    ) -> Result<Self, BridgeSudoChangeActionError> {
+    fn try_from_raw(proto: raw::BridgeSudoChange) -> Result<Self, BridgeSudoChangeError> {
         let Some(bridge_address) = proto.bridge_address else {
-            return Err(BridgeSudoChangeActionError::field_not_set("bridge_address"));
+            return Err(BridgeSudoChangeError::field_not_set("bridge_address"));
         };
         let bridge_address = Address::try_from_raw(&bridge_address)
-            .map_err(BridgeSudoChangeActionError::invalid_bridge_address)?;
+            .map_err(BridgeSudoChangeError::invalid_bridge_address)?;
         let new_sudo_address = proto
             .new_sudo_address
             .as_ref()
             .map(Address::try_from_raw)
             .transpose()
-            .map_err(BridgeSudoChangeActionError::invalid_new_sudo_address)?;
+            .map_err(BridgeSudoChangeError::invalid_new_sudo_address)?;
         let new_withdrawer_address = proto
             .new_withdrawer_address
             .as_ref()
             .map(Address::try_from_raw)
             .transpose()
-            .map_err(BridgeSudoChangeActionError::invalid_new_withdrawer_address)?;
+            .map_err(BridgeSudoChangeError::invalid_new_withdrawer_address)?;
         let fee_asset = proto
             .fee_asset
             .parse()
-            .map_err(BridgeSudoChangeActionError::invalid_fee_asset)?;
+            .map_err(BridgeSudoChangeError::invalid_fee_asset)?;
 
         Ok(Self {
             bridge_address,
@@ -1918,46 +1839,44 @@ impl Protobuf for BridgeSudoChangeAction {
     /// - if the `new_sudo_address` field is invalid
     /// - if the `new_withdrawer_address` field is invalid
     /// - if the `fee_asset` field is invalid
-    fn try_from_raw_ref(
-        proto: &raw::BridgeSudoChangeAction,
-    ) -> Result<Self, BridgeSudoChangeActionError> {
+    fn try_from_raw_ref(proto: &raw::BridgeSudoChange) -> Result<Self, BridgeSudoChangeError> {
         Self::try_from_raw(proto.clone())
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct BridgeSudoChangeActionError(BridgeSudoChangeActionErrorKind);
+pub struct BridgeSudoChangeError(BridgeSudoChangeErrorKind);
 
-impl BridgeSudoChangeActionError {
+impl BridgeSudoChangeError {
     #[must_use]
     fn field_not_set(field: &'static str) -> Self {
-        Self(BridgeSudoChangeActionErrorKind::FieldNotSet(field))
+        Self(BridgeSudoChangeErrorKind::FieldNotSet(field))
     }
 
     #[must_use]
     fn invalid_bridge_address(err: AddressError) -> Self {
-        Self(BridgeSudoChangeActionErrorKind::InvalidBridgeAddress(err))
+        Self(BridgeSudoChangeErrorKind::InvalidBridgeAddress(err))
     }
 
     #[must_use]
     fn invalid_new_sudo_address(err: AddressError) -> Self {
-        Self(BridgeSudoChangeActionErrorKind::InvalidNewSudoAddress(err))
+        Self(BridgeSudoChangeErrorKind::InvalidNewSudoAddress(err))
     }
 
     #[must_use]
     fn invalid_new_withdrawer_address(err: AddressError) -> Self {
-        Self(BridgeSudoChangeActionErrorKind::InvalidNewWithdrawerAddress(err))
+        Self(BridgeSudoChangeErrorKind::InvalidNewWithdrawerAddress(err))
     }
 
     #[must_use]
     fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
-        Self(BridgeSudoChangeActionErrorKind::InvalidFeeAsset(err))
+        Self(BridgeSudoChangeErrorKind::InvalidFeeAsset(err))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum BridgeSudoChangeActionErrorKind {
+enum BridgeSudoChangeErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the `bridge_address` field was invalid")]
@@ -1971,7 +1890,7 @@ enum BridgeSudoChangeActionErrorKind {
 }
 
 #[derive(Debug, Clone)]
-pub enum FeeChange {
+pub enum FeeChangeKind {
     TransferBaseFee,
     SequenceBaseFee,
     SequenceByteCostMultiplier,
@@ -1981,46 +1900,40 @@ pub enum FeeChange {
     Ics20WithdrawalBaseFee,
 }
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "for parity with the Protobuf spec"
-)]
 #[derive(Debug, Clone)]
-pub struct FeeChangeAction {
-    pub fee_change: FeeChange,
+pub struct FeeChange {
+    pub fee_change: FeeChangeKind,
     pub new_value: u128,
 }
 
-impl Protobuf for FeeChangeAction {
-    type Error = FeeChangeActionError;
-    type Raw = raw::FeeChangeAction;
+impl Protobuf for FeeChange {
+    type Error = FeeChangeError;
+    type Raw = raw::FeeChange;
 
     #[must_use]
-    fn to_raw(&self) -> raw::FeeChangeAction {
-        raw::FeeChangeAction {
+    fn to_raw(&self) -> raw::FeeChange {
+        raw::FeeChange {
             value: Some(match self.fee_change {
-                FeeChange::TransferBaseFee => {
-                    raw::fee_change_action::Value::TransferBaseFee(self.new_value.into())
+                FeeChangeKind::TransferBaseFee => {
+                    raw::fee_change::Value::TransferBaseFee(self.new_value.into())
                 }
-                FeeChange::SequenceBaseFee => {
-                    raw::fee_change_action::Value::SequenceBaseFee(self.new_value.into())
+                FeeChangeKind::SequenceBaseFee => {
+                    raw::fee_change::Value::SequenceBaseFee(self.new_value.into())
                 }
-                FeeChange::SequenceByteCostMultiplier => {
-                    raw::fee_change_action::Value::SequenceByteCostMultiplier(self.new_value.into())
+                FeeChangeKind::SequenceByteCostMultiplier => {
+                    raw::fee_change::Value::SequenceByteCostMultiplier(self.new_value.into())
                 }
-                FeeChange::InitBridgeAccountBaseFee => {
-                    raw::fee_change_action::Value::InitBridgeAccountBaseFee(self.new_value.into())
+                FeeChangeKind::InitBridgeAccountBaseFee => {
+                    raw::fee_change::Value::InitBridgeAccountBaseFee(self.new_value.into())
                 }
-                FeeChange::BridgeLockByteCostMultiplier => {
-                    raw::fee_change_action::Value::BridgeLockByteCostMultiplier(
-                        self.new_value.into(),
-                    )
+                FeeChangeKind::BridgeLockByteCostMultiplier => {
+                    raw::fee_change::Value::BridgeLockByteCostMultiplier(self.new_value.into())
                 }
-                FeeChange::BridgeSudoChangeBaseFee => {
-                    raw::fee_change_action::Value::BridgeSudoChangeBaseFee(self.new_value.into())
+                FeeChangeKind::BridgeSudoChangeBaseFee => {
+                    raw::fee_change::Value::BridgeSudoChangeBaseFee(self.new_value.into())
                 }
-                FeeChange::Ics20WithdrawalBaseFee => {
-                    raw::fee_change_action::Value::Ics20WithdrawalBaseFee(self.new_value.into())
+                FeeChangeKind::Ics20WithdrawalBaseFee => {
+                    raw::fee_change::Value::Ics20WithdrawalBaseFee(self.new_value.into())
                 }
             }),
         }
@@ -2032,30 +1945,30 @@ impl Protobuf for FeeChangeAction {
     ///
     /// - if the fee change `value` field is missing
     /// - if the `new_value` field is missing
-    fn try_from_raw_ref(proto: &raw::FeeChangeAction) -> Result<Self, FeeChangeActionError> {
+    fn try_from_raw_ref(proto: &raw::FeeChange) -> Result<Self, FeeChangeError> {
         let (fee_change, new_value) = match proto.value {
-            Some(raw::fee_change_action::Value::TransferBaseFee(new_value)) => {
-                (FeeChange::TransferBaseFee, new_value)
+            Some(raw::fee_change::Value::TransferBaseFee(new_value)) => {
+                (FeeChangeKind::TransferBaseFee, new_value)
             }
-            Some(raw::fee_change_action::Value::SequenceBaseFee(new_value)) => {
-                (FeeChange::SequenceBaseFee, new_value)
+            Some(raw::fee_change::Value::SequenceBaseFee(new_value)) => {
+                (FeeChangeKind::SequenceBaseFee, new_value)
             }
-            Some(raw::fee_change_action::Value::SequenceByteCostMultiplier(new_value)) => {
-                (FeeChange::SequenceByteCostMultiplier, new_value)
+            Some(raw::fee_change::Value::SequenceByteCostMultiplier(new_value)) => {
+                (FeeChangeKind::SequenceByteCostMultiplier, new_value)
             }
-            Some(raw::fee_change_action::Value::InitBridgeAccountBaseFee(new_value)) => {
-                (FeeChange::InitBridgeAccountBaseFee, new_value)
+            Some(raw::fee_change::Value::InitBridgeAccountBaseFee(new_value)) => {
+                (FeeChangeKind::InitBridgeAccountBaseFee, new_value)
             }
-            Some(raw::fee_change_action::Value::BridgeLockByteCostMultiplier(new_value)) => {
-                (FeeChange::BridgeLockByteCostMultiplier, new_value)
+            Some(raw::fee_change::Value::BridgeLockByteCostMultiplier(new_value)) => {
+                (FeeChangeKind::BridgeLockByteCostMultiplier, new_value)
             }
-            Some(raw::fee_change_action::Value::BridgeSudoChangeBaseFee(new_value)) => {
-                (FeeChange::BridgeSudoChangeBaseFee, new_value)
+            Some(raw::fee_change::Value::BridgeSudoChangeBaseFee(new_value)) => {
+                (FeeChangeKind::BridgeSudoChangeBaseFee, new_value)
             }
-            Some(raw::fee_change_action::Value::Ics20WithdrawalBaseFee(new_value)) => {
-                (FeeChange::Ics20WithdrawalBaseFee, new_value)
+            Some(raw::fee_change::Value::Ics20WithdrawalBaseFee(new_value)) => {
+                (FeeChangeKind::Ics20WithdrawalBaseFee, new_value)
             }
-            None => return Err(FeeChangeActionError::missing_value_to_change()),
+            None => return Err(FeeChangeError::missing_value_to_change()),
         };
 
         Ok(Self {
@@ -2067,16 +1980,16 @@ impl Protobuf for FeeChangeAction {
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct FeeChangeActionError(FeeChangeActionErrorKind);
+pub struct FeeChangeError(FeeChangeErrorKind);
 
-impl FeeChangeActionError {
+impl FeeChangeError {
     fn missing_value_to_change() -> Self {
-        Self(FeeChangeActionErrorKind::MissingValueToChange)
+        Self(FeeChangeErrorKind::MissingValueToChange)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum FeeChangeActionErrorKind {
+enum FeeChangeErrorKind {
     #[error("the value which to change was missing")]
     MissingValueToChange,
 }

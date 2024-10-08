@@ -1,7 +1,7 @@
 use astria_core::{
     primitive::v1::asset,
     protocol::transaction::v1alpha1::{
-        action::InitBridgeAccountAction,
+        action::InitBridgeAccount,
         Action,
     },
 };
@@ -57,7 +57,7 @@ impl Command {
             self.sequencer_chain_id.clone(),
             &self.prefix,
             self.private_key.as_str(),
-            Action::InitBridgeAccount(InitBridgeAccountAction {
+            Action::InitBridgeAccount(InitBridgeAccount {
                 rollup_id,
                 asset: self.asset.clone(),
                 fee_asset: self.fee_asset.clone(),

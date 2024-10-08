@@ -1,6 +1,6 @@
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
+    protocol::transaction::v1alpha1::action::InitBridgeAccount,
     Protobuf as _,
 };
 use astria_eyre::eyre::{
@@ -30,7 +30,7 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-impl ActionHandler for InitBridgeAccountAction {
+impl ActionHandler for InitBridgeAccount {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
