@@ -7,6 +7,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use tracing::info;
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
@@ -15,7 +16,6 @@ pub(super) struct Command {
 }
 
 impl Command {
-    #[instrument(name = "Sequencer::Blockheight::run", skip_all, err)]
     pub(super) async fn run(self) -> eyre::Result<()> {
         let SubCommand::Get(get) = self.command;
         get.run().await
@@ -47,7 +47,6 @@ struct Get {
 }
 
 impl Get {
-    #[instrument(name = "Sequencer::Blockheight::Get::run", skip_all, err)]
     async fn run(self) -> eyre::Result<()> {
         let sequencer_client = HttpClient::new(self.sequencer_url.as_str())
             .wrap_err("failed constructing http sequencer client")?;
@@ -57,8 +56,7 @@ impl Get {
             .await
             .wrap_err("failed to get cometbft block")?;
 
-        println!("Block Height:");
-        println!("    {}", res.block.header.height);
+        info!(height = %res.block.header.height, "Block height retrieved");
 
         Ok(())
     }

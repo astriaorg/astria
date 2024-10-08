@@ -8,6 +8,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use tracing::info;
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
@@ -16,7 +17,6 @@ pub(super) struct Command {
 }
 
 impl Command {
-    #[instrument(name = "Sequencer::Balance::run", skip_all, err)]
     pub(super) async fn run(self) -> eyre::Result<()> {
         let SubCommand::Get(get) = self.command;
         get.run().await
@@ -43,7 +43,6 @@ struct Get {
 }
 
 impl Get {
-    #[instrument(name = "Sequencer::Balance::Get::run", skip_all, err)]
     async fn run(self) -> eyre::Result<()> {
         let sequencer_client = HttpClient::new(self.sequencer_url.as_str())
             .wrap_err("failed constructing http sequencer client")?;
@@ -53,9 +52,9 @@ impl Get {
             .await
             .wrap_err("failed to get balance")?;
 
-        println!("Balances for address: {}", self.address);
+        info!(address = %self.address, "Balances for address");
         for balance in res.balances {
-            println!("    {} {}", balance.balance, balance.denom);
+            info!(balance = %balance.balance, denom = %balance.denom, "Balance details");
         }
 
         Ok(())

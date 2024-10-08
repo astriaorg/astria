@@ -6,8 +6,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use tracing::instrument;
-
+use tracing::info;
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
@@ -15,7 +14,6 @@ pub(super) struct Command {
 }
 
 impl Command {
-    #[instrument(name = "Sequencer::Address::run", skip_all, err)]
     pub(super) fn run(self) -> eyre::Result<()> {
         let SubCommand::Bech32m(bech32m) = self.command;
         bech32m.run()
@@ -39,7 +37,6 @@ struct Bech32m {
 }
 
 impl Bech32m {
-    #[instrument(name = "Sequencer::Address::Bech32m::run", skip_all, err)]
     fn run(self) -> eyre::Result<()> {
         use hex::FromHex as _;
         let bytes = <[u8; ADDRESS_LEN]>::from_hex(&self.bytes)
@@ -52,7 +49,7 @@ impl Bech32m {
                 "failed constructing a valid bech32m address from the provided hex bytes and \
                  prefix",
             )?;
-        println!("{address}");
+        info!(address = %address, "constructed bech32m address");
         Ok(())
     }
 }

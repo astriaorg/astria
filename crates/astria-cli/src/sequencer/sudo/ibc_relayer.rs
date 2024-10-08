@@ -9,6 +9,7 @@ use color_eyre::{
     eyre,
     eyre::WrapErr as _,
 };
+use tracing::info;
 
 use crate::utils::submit_transaction;
 
@@ -52,8 +53,8 @@ impl Add {
         .await
         .wrap_err("failed to submit IbcRelayerChangeAction::Addition transaction")?;
 
-        println!("IbcRelayerChangeAction::Addition completed!");
-        println!("Included in block: {}", res.height);
+        info!(height = %res.height, address = %args.address, hash = %res.hash, "IbcRelayerChangeAction::Addition completed");
+
         Ok(())
     }
 }
@@ -77,8 +78,8 @@ impl Remove {
         .await
         .wrap_err("failed to submit IbcRelayerChangeAction::Removal transaction")?;
 
-        println!("IbcRelayerChangeAction::Removal completed!");
-        println!("Included in block: {}", res.height);
+        info!(height = %res.height, address = %args.address, hash = %res.hash, "IbcRelayerChangeAction::Removal completed");
+
         Ok(())
     }
 }

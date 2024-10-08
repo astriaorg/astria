@@ -9,6 +9,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use tracing::info;
 
 use crate::utils::submit_transaction;
 
@@ -56,8 +57,8 @@ impl Command {
         .await
         .wrap_err("failed to submit SudoAddressChange transaction")?;
 
-        println!("SudoAddressChange completed!");
-        println!("Included in block: {}", res.height);
+        info!(height = %res.height, address = %self.address, hash = %res.hash, "SudoAddressChange completed");
+
         Ok(())
     }
 }
