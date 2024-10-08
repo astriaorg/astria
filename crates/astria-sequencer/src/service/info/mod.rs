@@ -87,6 +87,12 @@ impl Info {
                 crate::bridge::query::bridge_account_info_request,
             )
             .wrap_err("invalid path: `bridge/account_info/:address`")?;
+        query_router
+            .insert(
+                "authority/validator_name/:address",
+                crate::authority::query::validator_name_request,
+            )
+            .wrap_err("invalid path: `authority/validator_name/:address`")?;
         Ok(Self {
             storage,
             query_router,

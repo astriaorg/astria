@@ -54,6 +54,9 @@ impl serde::Serialize for Action {
                 action::Value::IbcSudoChangeAction(v) => {
                     struct_ser.serialize_field("ibcSudoChangeAction", v)?;
                 }
+                action::Value::ValidatorUpdateWithNameAction(v) => {
+                    struct_ser.serialize_field("validatorUpdateWithNameAction", v)?;
+                }
             }
         }
         struct_ser.end()
@@ -94,6 +97,8 @@ impl<'de> serde::Deserialize<'de> for Action {
             "feeChangeAction",
             "ibc_sudo_change_action",
             "ibcSudoChangeAction",
+            "validator_update_with_name_action",
+            "validatorUpdateWithNameAction",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -112,6 +117,7 @@ impl<'de> serde::Deserialize<'de> for Action {
             FeeAssetChangeAction,
             FeeChangeAction,
             IbcSudoChangeAction,
+            ValidatorUpdateWithNameAction,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -147,6 +153,7 @@ impl<'de> serde::Deserialize<'de> for Action {
                             "feeAssetChangeAction" | "fee_asset_change_action" => Ok(GeneratedField::FeeAssetChangeAction),
                             "feeChangeAction" | "fee_change_action" => Ok(GeneratedField::FeeChangeAction),
                             "ibcSudoChangeAction" | "ibc_sudo_change_action" => Ok(GeneratedField::IbcSudoChangeAction),
+                            "validatorUpdateWithNameAction" | "validator_update_with_name_action" => Ok(GeneratedField::ValidatorUpdateWithNameAction),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -265,6 +272,13 @@ impl<'de> serde::Deserialize<'de> for Action {
                                 return Err(serde::de::Error::duplicate_field("ibcSudoChangeAction"));
                             }
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcSudoChangeAction)
+;
+                        }
+                        GeneratedField::ValidatorUpdateWithNameAction => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("validatorUpdateWithNameAction"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::ValidatorUpdateWithNameAction)
 ;
                         }
                     }
@@ -2757,5 +2771,114 @@ impl<'de> serde::Deserialize<'de> for UnsignedTransaction {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.UnsignedTransaction", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for ValidatorUpdateWithName {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.validator_update.is_some() {
+            len += 1;
+        }
+        if !self.name.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.ValidatorUpdateWithName", len)?;
+        if let Some(v) = self.validator_update.as_ref() {
+            struct_ser.serialize_field("validatorUpdate", v)?;
+        }
+        if !self.name.is_empty() {
+            struct_ser.serialize_field("name", &self.name)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for ValidatorUpdateWithName {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "validator_update",
+            "validatorUpdate",
+            "name",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            ValidatorUpdate,
+            Name,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
+                            "name" => Ok(GeneratedField::Name),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = ValidatorUpdateWithName;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.ValidatorUpdateWithName")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ValidatorUpdateWithName, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut validator_update__ = None;
+                let mut name__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::ValidatorUpdate => {
+                            if validator_update__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("validatorUpdate"));
+                            }
+                            validator_update__ = map_.next_value()?;
+                        }
+                        GeneratedField::Name => {
+                            if name__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("name"));
+                            }
+                            name__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(ValidatorUpdateWithName {
+                    validator_update: validator_update__,
+                    name: name__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.ValidatorUpdateWithName", FIELDS, GeneratedVisitor)
     }
 }

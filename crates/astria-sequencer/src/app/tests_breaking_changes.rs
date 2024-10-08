@@ -28,6 +28,7 @@ use astria_core::{
                 SequenceAction,
                 TransferAction,
                 ValidatorUpdate,
+                ValidatorUpdateWithName,
             },
             Action,
             UnsignedTransaction,
@@ -200,6 +201,14 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         verification_key: crate::test_utils::verification_key(1),
     };
 
+    let update_with_name = ValidatorUpdateWithName {
+        validator_update: ValidatorUpdate {
+            power: 100,
+            verification_key: crate::test_utils::verification_key(2),
+        },
+        name: "test".to_string(),
+    };
+
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
     let tx_bundleable_general = UnsignedTransaction::builder()
@@ -218,6 +227,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
+            Action::ValidatorUpdateWithName(update_with_name.clone()),
         ])
         .chain_id("test")
         .try_build()

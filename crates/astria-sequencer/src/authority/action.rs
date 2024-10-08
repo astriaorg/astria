@@ -4,6 +4,7 @@ use astria_core::protocol::transaction::v1alpha1::action::{
     IbcSudoChangeAction,
     SudoAddressChangeAction,
     ValidatorUpdate,
+    ValidatorUpdateWithName,
 };
 use astria_eyre::eyre::{
     bail,
@@ -45,7 +46,7 @@ impl ActionHandler for ValidatorUpdate {
             .wrap_err("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
 
-        // ensure that we're not removing the last validator or a validator
+        // ensure that we're not removing the last remaining validator or a validator
         // that doesn't exist, these both cause issues in cometBFT
         if self.power == 0 {
             let validator_set = state
@@ -60,7 +61,10 @@ impl ActionHandler for ValidatorUpdate {
                 bail!("cannot remove a non-existing validator");
             }
             // check that this is not the only validator, cannot remove the last one
-            ensure!(validator_set.len() != 1, "cannot remove the last validator");
+            ensure!(
+                validator_set.len() != 1,
+                "cannot remove the last remaining validator"
+            );
         }
 
         // add validator update in non-consensus state to be used in end_block
@@ -72,6 +76,39 @@ impl ActionHandler for ValidatorUpdate {
         state
             .put_validator_updates(validator_updates)
             .wrap_err("failed to put validator updates in state")?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl ActionHandler for ValidatorUpdateWithName {
+    async fn check_stateless(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        self.validator_update.check_and_execute(&mut state).await?;
+
+        let mut validator_names = state
+            .get_validator_names()
+            .await
+            .wrap_err("failed getting validator names from state")?;
+        match self.validator_update.power {
+            0 => {
+                validator_names.remove(&hex::encode(
+                    self.validator_update.verification_key.address_bytes(),
+                ));
+            }
+            _ => {
+                validator_names.insert(
+                    hex::encode(self.validator_update.verification_key.address_bytes()),
+                    self.name.clone(),
+                );
+            }
+        }
+        state
+            .put_validator_names(validator_names)
+            .wrap_err("failed to put validator names in state")?;
         Ok(())
     }
 }
