@@ -505,10 +505,10 @@ dependencies = [
  "ethers",
  "futures",
  "ibc-types",
- "prost",
+ "prost 0.12.6",
  "serde",
  "serde_json",
- "tendermint",
+ "tendermint 0.38.1",
  "thiserror",
 ]
 
@@ -533,13 +533,13 @@ dependencies = [
  "hyper 0.14.30",
  "ibc-types",
  "pin-project-lite",
- "prost",
+ "prost 0.12.6",
  "reqwest",
  "serde",
  "serde_json",
  "sha2 0.10.8",
  "tempfile",
- "tendermint",
+ "tendermint 0.38.1",
  "tendermint-rpc",
  "tokio",
  "tokio-stream",
@@ -577,7 +577,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha2 0.10.8",
- "tendermint",
+ "tendermint 0.38.1",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.18",
@@ -606,7 +606,7 @@ dependencies = [
  "insta",
  "itertools 0.12.1",
  "pin-project-lite",
- "prost",
+ "prost 0.12.6",
  "rand 0.8.5",
  "regex",
  "reqwest",
@@ -614,7 +614,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "tempfile",
- "tendermint",
+ "tendermint 0.38.1",
  "tendermint-rpc",
  "thiserror",
  "tokio",
@@ -660,13 +660,13 @@ dependencies = [
  "moka",
  "pbjson-types",
  "pin-project-lite",
- "prost",
+ "prost 0.12.6",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "serde",
  "serde_json",
  "sha2 0.10.8",
- "tendermint",
+ "tendermint 0.38.1",
  "tendermint-rpc",
  "thiserror",
  "tokio",
@@ -711,13 +711,13 @@ dependencies = [
  "pbjson-types",
  "penumbra-ibc",
  "penumbra-proto",
- "prost",
+ "prost 0.12.6",
  "rand 0.8.5",
  "serde",
  "sha2 0.10.8",
  "tempfile",
- "tendermint",
- "tendermint-proto",
+ "tendermint 0.38.1",
+ "tendermint-proto 0.38.1",
  "thiserror",
  "tonic 0.10.2",
  "tracing",
@@ -744,7 +744,7 @@ dependencies = [
  "erased-serde 0.4.5",
  "futures",
  "indenter",
- "prost",
+ "prost 0.12.6",
  "serde",
  "serde_json",
  "tokio",
@@ -757,7 +757,7 @@ name = "astria-grpc-mock-test"
 version = "0.1.0"
 dependencies = [
  "astria-grpc-mock",
- "prost",
+ "prost 0.12.6",
  "serde",
  "tokio",
  "tokio-stream",
@@ -809,15 +809,15 @@ dependencies = [
  "penumbra-proto",
  "penumbra-tower-trace",
  "pin-project-lite",
- "prost",
+ "prost 0.12.6",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "regex",
  "serde",
  "serde_json",
  "sha2 0.10.8",
- "tendermint",
- "tendermint-proto",
+ "tendermint 0.38.1",
+ "tendermint-proto 0.38.1",
  "thiserror",
  "tokio",
  "tonic 0.10.2",
@@ -840,12 +840,12 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime",
- "prost",
+ "prost 0.12.6",
  "regex",
  "serde",
  "serde_json",
- "tendermint",
- "tendermint-proto",
+ "tendermint 0.38.1",
+ "tendermint-proto 0.38.1",
  "tendermint-rpc",
  "thiserror",
  "tokio",
@@ -888,7 +888,7 @@ dependencies = [
  "k256",
  "pbjson-types",
  "pin-project-lite",
- "prost",
+ "prost 0.12.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "serde",
@@ -896,7 +896,7 @@ dependencies = [
  "serde_path_to_error",
  "sha2 0.10.8",
  "tempfile",
- "tendermint",
+ "tendermint 0.38.1",
  "tendermint-config",
  "tendermint-rpc",
  "thiserror",
@@ -927,7 +927,7 @@ dependencies = [
  "indenter",
  "itertools 0.12.1",
  "predicates",
- "prost",
+ "prost 0.12.6",
  "rlp",
  "serde",
  "serde_json",
@@ -1037,18 +1037,19 @@ dependencies = [
 
 [[package]]
 name = "async-tungstenite"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1e9efbe14612da0a19fb983059a0b621e9cf6225d7018ecab4f9988215540dc"
+checksum = "3609af4bbf701ddaf1f6bb4e6257dff4ff8932327d0e685d3f653724c258b1ac"
 dependencies = [
  "futures-io",
  "futures-util",
  "log",
  "pin-project-lite",
- "rustls-native-certs",
+ "rustls-native-certs 0.7.3",
+ "rustls-pki-types",
  "tokio",
- "tokio-rustls",
- "tungstenite",
+ "tokio-rustls 0.25.0",
+ "tungstenite 0.21.0",
 ]
 
 [[package]]
@@ -1555,9 +1556,9 @@ checksum = "f7d93904482a787d8caecb3a348788704fa044df6fb2402f28da5b91a2a5eabb"
 dependencies = [
  "anyhow",
  "celestia-tendermint-proto",
- "prost",
+ "prost 0.12.6",
  "prost-build",
- "prost-types",
+ "prost-types 0.12.6",
  "serde",
 ]
 
@@ -1591,8 +1592,8 @@ dependencies = [
  "futures",
  "num-traits",
  "once_cell",
- "prost",
- "prost-types",
+ "prost 0.12.6",
+ "prost-types 0.12.6",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -1615,8 +1616,8 @@ dependencies = [
  "flex-error",
  "num-derive",
  "num-traits",
- "prost",
- "prost-types",
+ "prost 0.12.6",
+ "prost-types 0.12.6",
  "serde",
  "serde_bytes",
  "subtle-encoding",
@@ -1838,7 +1839,7 @@ dependencies = [
  "sha2 0.10.8",
  "smallvec",
  "tempfile",
- "tendermint",
+ "tendermint 0.34.1",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -1853,7 +1854,7 @@ dependencies = [
  "async-trait",
  "cnidarium",
  "hex",
- "tendermint",
+ "tendermint 0.34.1",
 ]
 
 [[package]]
@@ -3816,10 +3817,10 @@ dependencies = [
  "http 0.2.12",
  "hyper 0.14.30",
  "log",
- "rustls",
- "rustls-native-certs",
+ "rustls 0.21.12",
+ "rustls-native-certs 0.6.3",
  "tokio",
- "tokio-rustls",
+ "tokio-rustls 0.24.1",
 ]
 
 [[package]]
@@ -3888,10 +3889,10 @@ dependencies = [
  "flex-error",
  "ics23",
  "informalsystems-pbjson",
- "prost",
+ "prost 0.12.6",
  "serde",
  "subtle-encoding",
- "tendermint-proto",
+ "tendermint-proto 0.34.1",
  "tonic 0.10.2",
 ]
 
@@ -3933,15 +3934,15 @@ dependencies = [
  "ics23",
  "num-traits",
  "proc-macro2 0.1.10",
- "prost",
+ "prost 0.12.6",
  "safe-regex",
  "serde",
  "serde_derive",
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
- "tendermint",
- "tendermint-proto",
+ "tendermint 0.34.1",
+ "tendermint-proto 0.34.1",
  "time",
  "tracing",
 ]
@@ -3962,14 +3963,14 @@ dependencies = [
  "ibc-types-timestamp",
  "ics23",
  "num-traits",
- "prost",
+ "prost 0.12.6",
  "serde",
  "serde_derive",
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
- "tendermint",
- "tendermint-proto",
+ "tendermint 0.34.1",
+ "tendermint-proto 0.34.1",
  "time",
 ]
 
@@ -3993,16 +3994,16 @@ dependencies = [
  "ics23",
  "num-traits",
  "primitive-types",
- "prost",
+ "prost 0.12.6",
  "safe-regex",
  "serde",
  "serde_derive",
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
  "tendermint-light-client-verifier",
- "tendermint-proto",
+ "tendermint-proto 0.34.1",
  "time",
  "tracing",
  "uint",
@@ -4026,15 +4027,15 @@ dependencies = [
  "ibc-types-timestamp",
  "ics23",
  "num-traits",
- "prost",
+ "prost 0.12.6",
  "safe-regex",
  "serde",
  "serde_derive",
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
- "tendermint",
- "tendermint-proto",
+ "tendermint 0.34.1",
+ "tendermint-proto 0.34.1",
  "time",
 ]
 
@@ -4046,7 +4047,7 @@ checksum = "fabf22b6da00e7d41dd50e8f3009fc112be5f8c9cdc131d3e37ed264844f5131"
 dependencies = [
  "anyhow",
  "bytes",
- "prost",
+ "prost 0.12.6",
 ]
 
 [[package]]
@@ -4082,16 +4083,16 @@ dependencies = [
  "ics23",
  "num-traits",
  "primitive-types",
- "prost",
+ "prost 0.12.6",
  "safe-regex",
  "serde",
  "serde_derive",
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
  "tendermint-light-client-verifier",
- "tendermint-proto",
+ "tendermint-proto 0.34.1",
  "time",
  "tracing",
  "uint",
@@ -4110,13 +4111,13 @@ dependencies = [
  "ibc-types-core-client",
  "ibc-types-core-connection",
  "num-traits",
- "prost",
+ "prost 0.12.6",
  "serde",
  "serde_derive",
  "serde_json",
  "subtle-encoding",
- "tendermint",
- "tendermint-proto",
+ "tendermint 0.34.1",
+ "tendermint-proto 0.34.1",
  "time",
 ]
 
@@ -4129,13 +4130,13 @@ dependencies = [
  "bytes",
  "displaydoc",
  "num-traits",
- "prost",
+ "prost 0.12.6",
  "serde",
  "serde_derive",
  "serde_json",
  "subtle-encoding",
- "tendermint",
- "tendermint-proto",
+ "tendermint 0.34.1",
+ "tendermint-proto 0.34.1",
  "time",
 ]
 
@@ -4174,7 +4175,7 @@ dependencies = [
  "bytes",
  "hex",
  "informalsystems-pbjson",
- "prost",
+ "prost 0.12.6",
  "ripemd",
  "serde",
  "sha2 0.10.8",
@@ -4488,11 +4489,11 @@ dependencies = [
  "http 0.2.12",
  "jsonrpsee-core",
  "pin-project",
- "rustls-native-certs",
+ "rustls-native-certs 0.6.3",
  "soketto",
  "thiserror",
  "tokio",
- "tokio-rustls",
+ "tokio-rustls 0.24.1",
  "tokio-util 0.7.11",
  "tracing",
  "url",
@@ -5233,7 +5234,7 @@ dependencies = [
  "opentelemetry-proto",
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk",
- "prost",
+ "prost 0.12.6",
  "thiserror",
  "tokio",
  "tonic 0.11.0",
@@ -5247,7 +5248,7 @@ checksum = "3a8fddc9b68f5b80dae9d6f510b88e02396f006ad48cac349411fbecc80caae4"
 dependencies = [
  "opentelemetry",
  "opentelemetry_sdk",
- "prost",
+ "prost 0.12.6",
  "tonic 0.11.0",
 ]
 
@@ -5400,8 +5401,8 @@ checksum = "2580e33f2292d34be285c5bc3dba5259542b083cfad6037b6d70345f24dcb735"
 dependencies = [
  "heck 0.4.1",
  "itertools 0.11.0",
- "prost",
- "prost-types",
+ "prost 0.12.6",
+ "prost-types 0.12.6",
 ]
 
 [[package]]
@@ -5414,7 +5415,7 @@ dependencies = [
  "chrono",
  "pbjson",
  "pbjson-build",
- "prost",
+ "prost 0.12.6",
  "prost-build",
  "serde",
 ]
@@ -5566,11 +5567,11 @@ dependencies = [
  "penumbra-proto",
  "penumbra-sct",
  "penumbra-txhash",
- "prost",
+ "prost 0.12.6",
  "serde",
  "serde_json",
  "sha2 0.10.8",
- "tendermint",
+ "tendermint 0.34.1",
  "tendermint-light-client-verifier",
  "time",
  "tonic 0.10.2",
@@ -5678,11 +5679,11 @@ dependencies = [
  "pbjson",
  "pbjson-types",
  "pin-project",
- "prost",
+ "prost 0.12.6",
  "serde",
  "serde_json",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
  "tonic 0.10.2",
  "tracing",
 ]
@@ -5718,7 +5719,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_core 0.6.4",
  "serde",
- "tendermint",
+ "tendermint 0.34.1",
  "tonic 0.10.2",
  "tracing",
 ]
@@ -5762,8 +5763,8 @@ dependencies = [
  "pin-project",
  "pin-project-lite",
  "sha2 0.10.8",
- "tendermint",
- "tendermint-proto",
+ "tendermint 0.34.1",
+ "tendermint-proto 0.34.1",
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.11",
@@ -6112,7 +6113,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "deb1435c188b76130da55f17a466d252ff7b1418b2ad3e037d127b94e3411f29"
 dependencies = [
  "bytes",
- "prost-derive",
+ "prost-derive 0.12.6",
+]
+
+[[package]]
+name = "prost"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b0487d90e047de87f984913713b85c601c05609aad5b0df4b4573fbf69aa13f"
+dependencies = [
+ "bytes",
+ "prost-derive 0.13.3",
 ]
 
 [[package]]
@@ -6129,8 +6140,8 @@ dependencies = [
  "once_cell",
  "petgraph",
  "prettyplease",
- "prost",
- "prost-types",
+ "prost 0.12.6",
+ "prost-types 0.12.6",
  "regex",
  "syn 2.0.75",
  "tempfile",
@@ -6150,12 +6161,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-derive"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9552f850d5f0964a4e4d0bf306459ac29323ddfbae05e35a7c0d35cb0803cc5"
+dependencies = [
+ "anyhow",
+ "itertools 0.12.1",
+ "proc-macro2 1.0.86",
+ "quote",
+ "syn 2.0.75",
+]
+
+[[package]]
 name = "prost-types"
 version = "0.12.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9091c90b0a32608e984ff2fa4091273cbdd755d54935c51d520887f4a1dbd5b0"
 dependencies = [
- "prost",
+ "prost 0.12.6",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4759aa0d3a6232fb8dbdb97b61de2c20047c68aca932c7ed76da9d788508d670"
+dependencies = [
+ "prost 0.13.3",
 ]
 
 [[package]]
@@ -6408,16 +6441,16 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
- "rustls",
- "rustls-native-certs",
- "rustls-pemfile",
+ "rustls 0.21.12",
+ "rustls-native-certs 0.6.3",
+ "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
  "serde_urlencoded",
  "sync_wrapper",
  "system-configuration",
  "tokio",
- "tokio-rustls",
+ "tokio-rustls 0.24.1",
  "tower-service",
  "url",
  "wasm-bindgen",
@@ -6664,8 +6697,22 @@ checksum = "3f56a14d1f48b391359b22f731fd4bd7e43c97f3c50eee276f3aa09c94784d3e"
 dependencies = [
  "log",
  "ring 0.17.8",
- "rustls-webpki",
+ "rustls-webpki 0.101.7",
  "sct",
+]
+
+[[package]]
+name = "rustls"
+version = "0.22.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf4ef73721ac7bcd79b2b315da7779d8fc09718c6b3d2d1b2d94850eb8c18432"
+dependencies = [
+ "log",
+ "ring 0.17.8",
+ "rustls-pki-types",
+ "rustls-webpki 0.102.8",
+ "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -6675,7 +6722,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9aace74cb666635c918e9c12bc0d348266037aa8eb599b5cba565709a8dff00"
 dependencies = [
  "openssl-probe",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
+ "schannel",
+ "security-framework",
+]
+
+[[package]]
+name = "rustls-native-certs"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5bfb394eeed242e909609f56089eecfe5fda225042e8b171791b9c95f5931e5"
+dependencies = [
+ "openssl-probe",
+ "rustls-pemfile 2.2.0",
+ "rustls-pki-types",
  "schannel",
  "security-framework",
 ]
@@ -6690,12 +6750,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls-pemfile"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dce314e5fee3f39953d46bb63bb8a46d40c2f8fb7cc5a3b6cab2bde9721d6e50"
+dependencies = [
+ "rustls-pki-types",
+]
+
+[[package]]
+name = "rustls-pki-types"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e696e35370c65c9c541198af4543ccd580cf17fc25d8e05c5a242b202488c55"
+
+[[package]]
 name = "rustls-webpki"
 version = "0.101.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b6275d1ee7a1cd780b64aca7726599a1dbc893b1e64144529e55c3c2f745765"
 dependencies = [
  "ring 0.17.8",
+ "untrusted 0.9.0",
+]
+
+[[package]]
+name = "rustls-webpki"
+version = "0.102.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64ca1bc8749bd4cf37b5ce386cc146580777b4e8572c7b97baf22c83f444bee9"
+dependencies = [
+ "ring 0.17.8",
+ "rustls-pki-types",
  "untrusted 0.9.0",
 ]
 
@@ -7403,11 +7489,40 @@ dependencies = [
  "ed25519-consensus",
  "flex-error",
  "futures",
+ "num-traits",
+ "once_cell",
+ "prost 0.12.6",
+ "prost-types 0.12.6",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "serde_repr",
+ "sha2 0.10.8",
+ "signature",
+ "subtle",
+ "subtle-encoding",
+ "tendermint-proto 0.34.1",
+ "time",
+ "zeroize",
+]
+
+[[package]]
+name = "tendermint"
+version = "0.38.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "505d9d6ffeb83b1de47c307c6e0d2dff56c6256989299010ad03cd80a8491e97"
+dependencies = [
+ "bytes",
+ "digest 0.10.7",
+ "ed25519",
+ "ed25519-consensus",
+ "flex-error",
+ "futures",
  "k256",
  "num-traits",
  "once_cell",
- "prost",
- "prost-types",
+ "prost 0.13.3",
+ "prost-types 0.13.3",
  "ripemd",
  "serde",
  "serde_bytes",
@@ -7417,22 +7532,22 @@ dependencies = [
  "signature",
  "subtle",
  "subtle-encoding",
- "tendermint-proto",
+ "tendermint-proto 0.38.1",
  "time",
  "zeroize",
 ]
 
 [[package]]
 name = "tendermint-config"
-version = "0.34.1"
+version = "0.38.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1a02da769166e2052cd537b1a97c78017632c2d9e19266367b27e73910434fc"
+checksum = "9de111ea653b2adaef627ac2452b463c77aa615c256eaaddf279ec5a1cf9775f"
 dependencies = [
  "flex-error",
  "serde",
  "serde_json",
- "tendermint",
- "toml 0.5.11",
+ "tendermint 0.38.1",
+ "toml 0.8.19",
  "url",
 ]
 
@@ -7445,7 +7560,7 @@ dependencies = [
  "derive_more",
  "flex-error",
  "serde",
- "tendermint",
+ "tendermint 0.34.1",
  "time",
 ]
 
@@ -7459,8 +7574,24 @@ dependencies = [
  "flex-error",
  "num-derive",
  "num-traits",
- "prost",
- "prost-types",
+ "prost 0.12.6",
+ "prost-types 0.12.6",
+ "serde",
+ "serde_bytes",
+ "subtle-encoding",
+ "time",
+]
+
+[[package]]
+name = "tendermint-proto"
+version = "0.38.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ed14abe3b0502a3afe21ca74ca5cdd6c7e8d326d982c26f98a394445eb31d6e"
+dependencies = [
+ "bytes",
+ "flex-error",
+ "prost 0.13.3",
+ "prost-types 0.13.3",
  "serde",
  "serde_bytes",
  "subtle-encoding",
@@ -7469,9 +7600,9 @@ dependencies = [
 
 [[package]]
 name = "tendermint-rpc"
-version = "0.34.1"
+version = "0.38.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71afae8bb5f6b14ed48d4e1316a643b6c2c3cbad114f510be77b4ed20b7b3e42"
+checksum = "02f96a2b8a0d3d0b59e4024b1a6bdc1589efc6af4709d08a480a20cc4ba90f63"
 dependencies = [
  "async-trait",
  "async-tungstenite",
@@ -7489,9 +7620,9 @@ dependencies = [
  "serde_json",
  "subtle",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.38.1",
  "tendermint-config",
- "tendermint-proto",
+ "tendermint-proto 0.38.1",
  "thiserror",
  "time",
  "tokio",
@@ -7674,7 +7805,18 @@ version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c28327cf380ac148141087fbfb9de9d7bd4e84ab5d2c28fbc911d753de8a7081"
 dependencies = [
- "rustls",
+ "rustls 0.21.12",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-rustls"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "775e0c0f0adb3a2f22a00c4745d728b479985fc15ee7ca6a2608388c5569860f"
+dependencies = [
+ "rustls 0.22.4",
+ "rustls-pki-types",
  "tokio",
 ]
 
@@ -7711,7 +7853,7 @@ dependencies = [
  "futures-util",
  "log",
  "tokio",
- "tungstenite",
+ "tungstenite 0.20.1",
 ]
 
 [[package]]
@@ -7742,15 +7884,6 @@ dependencies = [
  "hashbrown 0.14.5",
  "pin-project-lite",
  "tokio",
-]
-
-[[package]]
-name = "toml"
-version = "0.5.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -7841,12 +7974,12 @@ dependencies = [
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
- "prost",
- "rustls",
- "rustls-native-certs",
- "rustls-pemfile",
+ "prost 0.12.6",
+ "rustls 0.21.12",
+ "rustls-native-certs 0.6.3",
+ "rustls-pemfile 1.0.4",
  "tokio",
- "tokio-rustls",
+ "tokio-rustls 0.24.1",
  "tokio-stream",
  "tower",
  "tower-layer",
@@ -7873,7 +8006,7 @@ dependencies = [
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
- "prost",
+ "prost 0.12.6",
  "tokio",
  "tokio-stream",
  "tower",
@@ -7902,7 +8035,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f80db390246dfb46553481f6024f0082ba00178ea495dbb99e70ba9a4fafb5e1"
 dependencies = [
  "async-stream",
- "prost",
+ "prost 0.12.6",
  "tokio",
  "tokio-stream",
  "tonic 0.10.2",
@@ -7938,9 +8071,9 @@ dependencies = [
  "bytes",
  "futures",
  "pin-project",
- "prost",
- "tendermint",
- "tendermint-proto",
+ "prost 0.12.6",
+ "tendermint 0.34.1",
+ "tendermint-proto 0.34.1",
  "tokio",
  "tokio-stream",
  "tokio-util 0.6.10",
@@ -8162,7 +8295,27 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.8.5",
- "rustls",
+ "sha1",
+ "thiserror",
+ "url",
+ "utf-8",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ef1a641ea34f399a848dea702823bbecfb4c486f911735368f1f137cb8257e1"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "data-encoding",
+ "http 1.1.0",
+ "httparse",
+ "log",
+ "rand 0.8.5",
+ "rustls 0.22.4",
+ "rustls-pki-types",
  "sha1",
  "thiserror",
  "url",
