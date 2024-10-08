@@ -50,6 +50,29 @@ serviceMonitor:
   additionalLabels:
     release: kube-prometheus-stack
 
+alerting:
+  enabled: false
+  interval: ""
+  additionalLabels:
+    release: kube-prometheus-stack
+  annotations: {}
+  # scrapeTimeout: 10s
+  # path: /metrics
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: kube-prometheus-stack
+    namespace: monitoring
+    rules:
+    - alert: Composer_Node_Down
+      expr: up{container="composer"} == 0  # Insert your query Expression
+      for: 1m  # Rough number but should be enough to init warn
+      labels:
+        severity: warning
+      annotations:
+        summary: Composer is Down (instance {{ $labels.instance }})
+        description: "composer node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
 # When deploying in a production environment should use a secret provider
 # This is configured for use with GCP, need to set own resource names
 # and keys
