@@ -20,8 +20,8 @@ const COMPONENT_PREFIX: &str = "accounts/";
 const BALANCE_PREFIX: &str = "balance/";
 const NONCE: &str = "nonce";
 
-/// Example: `accounts/0101....0101/balance/`.
-///                   |40 hex chars|
+/// Example: `accounts/gGhH....zZ4=/balance/`.
+///                   |base64 chars|
 pub(in crate::accounts) fn balance_prefix<TAddress: AddressBytes>(address: &TAddress) -> String {
     format!(
         "{}/{BALANCE_PREFIX}",
@@ -29,8 +29,8 @@ pub(in crate::accounts) fn balance_prefix<TAddress: AddressBytes>(address: &TAdd
     )
 }
 
-/// Example: `accounts/0101....0101/balance/0202....0202`.
-///                   |40 hex chars|       |64 hex chars|
+/// Example: `accounts/gGhH....zZ4=/balance/0202....0202`.
+///                   |base64 chars|       |64 hex chars|
 pub(in crate::accounts) fn balance<'a, TAddress, TAsset>(
     address: &TAddress,
     asset: &'a TAsset,
@@ -46,8 +46,8 @@ where
     )
 }
 
-/// Example: `accounts/0101....0101/nonce`.
-///                   |40 hex chars|
+/// Example: `accounts/gGhH....zZ4=/nonce`.
+///                   |base64 chars|
 pub(in crate::accounts) fn nonce<TAddress: AddressBytes>(address: &TAddress) -> String {
     format!(
         "{}/{NONCE}",

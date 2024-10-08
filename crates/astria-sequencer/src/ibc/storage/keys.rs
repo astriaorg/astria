@@ -15,8 +15,8 @@ pub(in crate::ibc) const IBC_SUDO: &str = "ibc/sudo";
 pub(in crate::ibc) const ICS20_WITHDRAWAL_BASE_FEE: &str = "ibc/ics20_withdrawal_base_fee";
 const IBC_RELAYER_PREFIX: &str = "ibc/relayer/";
 
-/// Example: `ibc/channel-xxx/balance/0101....0101`.
-///                      |int|       |64 hex chars|
+/// Example: `ibc/channel-xxx/balance/ibc/0101....0101`.
+///                      |int|           |64 hex chars|
 pub(in crate::ibc) fn channel_balance<'a, TAsset>(channel: &ChannelId, asset: &'a TAsset) -> String
 where
     &'a TAsset: Into<Cow<'a, IbcPrefixed>>,
@@ -24,8 +24,8 @@ where
     format!("ibc/{channel}/balance/{}", Asset::from(asset))
 }
 
-/// Example: `ibc/relayer/0101....0101`.
-///                      |40 hex chars|
+/// Example: `ibc/relayer/gGhH....zZ4=`.
+///                      |base64 chars|
 pub(in crate::ibc) fn ibc_relayer<T: AddressBytes>(address: &T) -> String {
     AccountPrefixer::new(IBC_RELAYER_PREFIX, address).to_string()
 }

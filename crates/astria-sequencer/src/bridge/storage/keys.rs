@@ -17,8 +17,8 @@ const BRIDGE_ACCOUNT_WITHDRAWER_PREFIX: &str = "bridge/withdrawer/";
 pub(in crate::bridge) const DEPOSITS_EPHEMERAL: &str = "bridge/deposits";
 const DEPOSIT_PREFIX: &[u8] = b"bridge/deposit/";
 
-/// Example: `bridge/account/0101....0101/rollup_id`.
-///                         |40 hex chars|
+/// Example: `bridge/account/gGhH....zZ4=/rollup_id`.
+///                         |base64 chars|
 pub(in crate::bridge) fn rollup_id<T: AddressBytes>(address: &T) -> String {
     format!(
         "{}/rollup_id",
@@ -26,8 +26,8 @@ pub(in crate::bridge) fn rollup_id<T: AddressBytes>(address: &T) -> String {
     )
 }
 
-/// Example: `bridge/account/0101....0101/asset_id`.
-///                         |40 hex chars|
+/// Example: `bridge/account/gGhH....zZ4=/asset_id`.
+///                         |base64 chars|
 pub(in crate::bridge) fn asset_id<T: AddressBytes>(address: &T) -> String {
     format!(
         "{}/asset_id",
@@ -35,20 +35,20 @@ pub(in crate::bridge) fn asset_id<T: AddressBytes>(address: &T) -> String {
     )
 }
 
-/// Example: `bridge/sudo/0101....0101`.
-///                      |40 hex chars|
+/// Example: `bridge/sudo/gGhH....zZ4=`.
+///                      |base64 chars|
 pub(in crate::bridge) fn bridge_account_sudo_address<T: AddressBytes>(address: &T) -> String {
     AccountPrefixer::new(BRIDGE_ACCOUNT_SUDO_PREFIX, address).to_string()
 }
 
-/// Example: `bridge/withdrawer/0101....0101`.
-///                            |40 hex chars|
+/// Example: `bridge/withdrawer/gGhH....zZ4=`.
+///                            |base64 chars|
 pub(in crate::bridge) fn bridge_account_withdrawer_address<T: AddressBytes>(address: &T) -> String {
     AccountPrefixer::new(BRIDGE_ACCOUNT_WITHDRAWER_PREFIX, address).to_string()
 }
 
-/// Example: `bridge/account/0101....0101/withdrawal_event/<event id>`.
-///                         |40 hex chars|                |UTF-8 chars|
+/// Example: `bridge/account/gGhH....zZ4=/withdrawal_event/<event id>`.
+///                         |base64 chars|                |UTF-8 chars|
 pub(in crate::bridge) fn bridge_account_withdrawal_event<T: AddressBytes>(
     address: &T,
     withdrawal_event_id: &str,

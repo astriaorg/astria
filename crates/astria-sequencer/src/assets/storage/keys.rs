@@ -14,8 +14,8 @@ pub(in crate::assets) const NATIVE_ASSET: &str = "assets/native_asset";
 pub(in crate::assets) const BLOCK_FEES_PREFIX: &[u8] = b"assets/block_fees/";
 pub(in crate::assets) const FEE_ASSET_PREFIX: &[u8] = b"assets/fee_asset/";
 
-/// Example: `assets/0101....0101`.
-///                 |64 hex chars|
+/// Example: `assets/ibc/0101....0101`.
+///                     |64 hex chars|
 pub(in crate::assets) fn asset<'a, TAsset>(asset: &'a TAsset) -> String
 where
     &'a TAsset: Into<Cow<'a, IbcPrefixed>>,

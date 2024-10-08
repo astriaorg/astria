@@ -8,7 +8,10 @@ use std::{
     str::FromStr,
 };
 
-use astria_core::primitive::v1::asset::IbcPrefixed;
+use astria_core::primitive::v1::asset::{
+    denom::ParseIbcPrefixedError,
+    IbcPrefixed,
+};
 
 use crate::accounts::AddressBytes;
 
@@ -29,11 +32,15 @@ impl<'a, T> AccountPrefixer<'a, T> {
 
 impl<'a, T: AddressBytes> Display for AccountPrefixer<'a, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use base64::engine::{
+            general_purpose::URL_SAFE,
+            Engine as _,
+        };
         write!(
             f,
             "{}{}",
             self.prefix,
-            hex::encode(self.address.address_bytes())
+            URL_SAFE.encode(self.address.address_bytes())
         )
     }
 }
@@ -55,7 +62,7 @@ impl<'a> Asset<'a> {
 
 impl<'a> Display for Asset<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(&hex::encode(self.0.as_bytes()))
+        self.0.fmt(f)
     }
 }
 
@@ -68,20 +75,11 @@ where
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("failed to parse input as asset key")]
-pub(crate) struct ParseAssetKeyError {
-    #[from]
-    source: hex::FromHexError,
-}
-
 impl<'a> FromStr for Asset<'a> {
-    type Err = ParseAssetKeyError;
+    type Err = ParseIbcPrefixedError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        use hex::FromHex as _;
-        let bytes = <[u8; IbcPrefixed::ENCODED_HASH_LEN]>::from_hex(s)?;
-        Ok(Self(Cow::Owned(IbcPrefixed::new(bytes))))
+        Ok(Self(Cow::Owned(s.parse()?)))
     }
 }
 
