@@ -231,7 +231,7 @@ impl Mempool {
                     &current_account_balances,
                 ) {
                     Ok(()) => {
-                        // log current size of pending
+                        // log current size of parked
                         self.metrics
                             .set_transactions_in_mempool_parked(parked.len());
 
