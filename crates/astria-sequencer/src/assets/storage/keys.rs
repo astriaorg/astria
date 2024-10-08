@@ -10,27 +10,27 @@ use astria_eyre::eyre::{
 
 use crate::storage::keys::Asset;
 
-pub(in crate::assets) const NATIVE_ASSET_KEY: &str = "assets/native_asset";
+pub(in crate::assets) const NATIVE_ASSET: &str = "assets/native_asset";
 pub(in crate::assets) const BLOCK_FEES_PREFIX: &[u8] = b"assets/block_fees/";
 pub(in crate::assets) const FEE_ASSET_PREFIX: &[u8] = b"assets/fee_asset/";
 
 /// Example: `assets/0101....0101`.
 ///                 |64 hex chars|
-pub(in crate::assets) fn asset_key<'a, TAsset>(asset: &'a TAsset) -> String
+pub(in crate::assets) fn asset<'a, TAsset>(asset: &'a TAsset) -> String
 where
     &'a TAsset: Into<Cow<'a, IbcPrefixed>>,
 {
     format!("assets/{}", Asset::from(asset))
 }
 
-pub(in crate::assets) fn fee_asset_key<'a, TAsset>(asset: &'a TAsset) -> Vec<u8>
+pub(in crate::assets) fn fee_asset<'a, TAsset>(asset: &'a TAsset) -> Vec<u8>
 where
     &'a TAsset: Into<Cow<'a, IbcPrefixed>>,
 {
     [FEE_ASSET_PREFIX, Asset::from(asset).as_bytes()].concat()
 }
 
-pub(in crate::assets) fn block_fees_key<'a, TAsset>(asset: &'a TAsset) -> Vec<u8>
+pub(in crate::assets) fn block_fees<'a, TAsset>(asset: &'a TAsset) -> Vec<u8>
 where
     &'a TAsset: Into<Cow<'a, IbcPrefixed>>,
 {
@@ -55,15 +55,15 @@ fn extract_asset_from_key(key: &[u8], prefix: &[u8]) -> Result<IbcPrefixed> {
             telemetry::display::hex(prefix)
         )
     })?;
-    if suffix.len() != IbcPrefixed::LENGTH {
+    if suffix.len() != IbcPrefixed::ENCODED_HASH_LEN {
         bail!(
             "suffix `{}` of key `{}` is not {} bytes",
             telemetry::display::hex(suffix),
             telemetry::display::hex(key),
-            IbcPrefixed::LENGTH
+            IbcPrefixed::ENCODED_HASH_LEN
         );
     }
-    let mut buffer = [0; IbcPrefixed::LENGTH];
+    let mut buffer = [0; IbcPrefixed::ENCODED_HASH_LEN];
     buffer.copy_from_slice(suffix);
     Ok(IbcPrefixed::new(buffer))
 }
@@ -77,41 +77,41 @@ mod tests {
 
     const COMPONENT_PREFIX: &str = "assets/";
 
-    fn asset() -> Denom {
+    fn test_asset() -> Denom {
         "an/asset/with/a/prefix".parse().unwrap()
     }
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(NATIVE_ASSET_KEY);
-        insta::assert_snapshot!(asset_key(&asset()));
-        insta::assert_snapshot!(base64(&fee_asset_key(&asset())));
-        insta::assert_snapshot!(base64(&block_fees_key(&asset())));
+        insta::assert_snapshot!(NATIVE_ASSET);
+        insta::assert_snapshot!(asset(&test_asset()));
+        insta::assert_snapshot!(base64(&fee_asset(&test_asset())));
+        insta::assert_snapshot!(base64(&block_fees(&test_asset())));
     }
 
     #[test]
     fn keys_should_have_component_prefix() {
-        assert!(NATIVE_ASSET_KEY.starts_with(COMPONENT_PREFIX));
-        assert!(asset_key(&asset()).starts_with(COMPONENT_PREFIX));
-        assert!(fee_asset_key(&asset()).starts_with(COMPONENT_PREFIX.as_bytes()));
-        assert!(block_fees_key(&asset()).starts_with(COMPONENT_PREFIX.as_bytes()));
+        assert!(NATIVE_ASSET.starts_with(COMPONENT_PREFIX));
+        assert!(asset(&test_asset()).starts_with(COMPONENT_PREFIX));
+        assert!(fee_asset(&test_asset()).starts_with(COMPONENT_PREFIX.as_bytes()));
+        assert!(block_fees(&test_asset()).starts_with(COMPONENT_PREFIX.as_bytes()));
     }
 
     #[test]
     fn prefixes_should_be_prefixes_of_relevant_keys() {
-        assert!(fee_asset_key(&asset()).starts_with(FEE_ASSET_PREFIX));
-        assert!(block_fees_key(&asset()).starts_with(BLOCK_FEES_PREFIX));
+        assert!(fee_asset(&test_asset()).starts_with(FEE_ASSET_PREFIX));
+        assert!(block_fees(&test_asset()).starts_with(BLOCK_FEES_PREFIX));
     }
 
     #[test]
     fn should_extract_asset_from_key() {
         let asset = IbcPrefixed::new([1; 32]);
 
-        let key = fee_asset_key(&asset);
+        let key = fee_asset(&asset);
         let recovered_asset = extract_asset_from_fee_asset_key(&key).unwrap();
         assert_eq!(asset, recovered_asset);
 
-        let key = block_fees_key(&asset);
+        let key = block_fees(&asset);
         let recovered_asset = extract_asset_from_block_fees_key(&key).unwrap();
         assert_eq!(asset, recovered_asset);
     }

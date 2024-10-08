@@ -19,11 +19,7 @@ use tracing::instrument;
 use super::{
     storage::{
         self,
-        keys::{
-            SUDO_KEY,
-            VALIDATOR_SET_KEY,
-            VALIDATOR_UPDATES_KEY,
-        },
+        keys,
     },
     ValidatorSet,
 };
@@ -37,7 +33,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
-            .get_raw(SUDO_KEY)
+            .get_raw(keys::SUDO)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sudo key from state")?
@@ -53,7 +49,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_validator_set(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
-            .get_raw(VALIDATOR_SET_KEY)
+            .get_raw(keys::VALIDATOR_SET)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator set from state")?
@@ -69,7 +65,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_validator_updates(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(VALIDATOR_UPDATES_KEY)
+            .nonverifiable_get_raw(keys::VALIDATOR_UPDATES)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator updates from state")?
@@ -92,7 +88,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::AddressBytes::from(&address))
             .serialize()
             .wrap_err("failed to serialize sudo address")?;
-        self.put_raw(SUDO_KEY.to_string(), bytes);
+        self.put_raw(keys::SUDO.to_string(), bytes);
         Ok(())
     }
 
@@ -101,7 +97,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_set))
             .serialize()
             .wrap_err("failed to serialize validator set")?;
-        self.put_raw(VALIDATOR_SET_KEY.to_string(), bytes);
+        self.put_raw(keys::VALIDATOR_SET.to_string(), bytes);
         Ok(())
     }
 
@@ -110,13 +106,13 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_updates))
             .serialize()
             .wrap_err("failed to serialize validator updates")?;
-        self.nonverifiable_put_raw(VALIDATOR_UPDATES_KEY.to_vec(), bytes);
+        self.nonverifiable_put_raw(keys::VALIDATOR_UPDATES.to_vec(), bytes);
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn clear_validator_updates(&mut self) {
-        self.nonverifiable_delete(VALIDATOR_UPDATES_KEY.to_vec());
+        self.nonverifiable_delete(keys::VALIDATOR_UPDATES.to_vec());
     }
 }
 

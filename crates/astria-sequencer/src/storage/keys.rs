@@ -13,12 +13,12 @@ use astria_core::primitive::v1::asset::IbcPrefixed;
 use crate::accounts::AddressBytes;
 
 /// Helper struct whose `Display` impl outputs the prefix followed by the hex-encoded address.
-pub(crate) struct AddressPrefixer<'a, T> {
+pub(crate) struct AccountPrefixer<'a, T> {
     prefix: &'static str,
     address: &'a T,
 }
 
-impl<'a, T> AddressPrefixer<'a, T> {
+impl<'a, T> AccountPrefixer<'a, T> {
     pub(crate) fn new(prefix: &'static str, address: &'a T) -> Self {
         Self {
             prefix,
@@ -27,7 +27,7 @@ impl<'a, T> AddressPrefixer<'a, T> {
     }
 }
 
-impl<'a, T: AddressBytes> Display for AddressPrefixer<'a, T> {
+impl<'a, T: AddressBytes> Display for AccountPrefixer<'a, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -80,7 +80,7 @@ impl<'a> FromStr for Asset<'a> {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use hex::FromHex as _;
-        let bytes = <[u8; IbcPrefixed::LENGTH]>::from_hex(s)?;
+        let bytes = <[u8; IbcPrefixed::ENCODED_HASH_LEN]>::from_hex(s)?;
         Ok(Self(Cow::Owned(IbcPrefixed::new(bytes))))
     }
 }

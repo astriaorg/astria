@@ -31,11 +31,8 @@ use tracing::instrument;
 use super::storage::{
     self,
     keys::{
-        balance_key,
-        balance_prefix,
+        self,
         extract_asset_from_key,
-        nonce_key,
-        TRANSFER_BASE_FEE_KEY,
     },
 };
 use crate::{
@@ -126,7 +123,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         &self,
         address: &T,
     ) -> AccountAssetsStream<Self::PrefixKeysStream> {
-        let prefix = balance_prefix(address);
+        let prefix = keys::balance_prefix(address);
         AccountAssetsStream {
             underlying: self.prefix_keys(&prefix),
         }
@@ -137,7 +134,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         &self,
         address: &T,
     ) -> AccountAssetBalancesStream<Self::PrefixRawStream> {
-        let prefix = balance_prefix(address);
+        let prefix = keys::balance_prefix(address);
         AccountAssetBalancesStream {
             underlying: self.prefix_raw(&prefix),
         }
@@ -155,7 +152,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let Some(bytes) = self
-            .get_raw(&balance_key(address, asset))
+            .get_raw(&keys::balance(address, asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw account balance from state")?
@@ -170,7 +167,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     #[instrument(skip_all)]
     async fn get_account_nonce<T: AddressBytes>(&self, address: &T) -> Result<u32> {
         let bytes = self
-            .get_raw(&nonce_key(address))
+            .get_raw(&keys::nonce(address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw account nonce from state")?;
@@ -186,7 +183,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     #[instrument(skip_all)]
     async fn get_transfer_base_fee(&self) -> Result<u128> {
         let bytes = self
-            .get_raw(TRANSFER_BASE_FEE_KEY)
+            .get_raw(keys::TRANSFER_BASE_FEE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw transfer base fee from state")?;
@@ -218,7 +215,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Balance::from(balance))
             .serialize()
             .wrap_err("failed to serialize balance")?;
-        self.put_raw(balance_key(address, asset), bytes);
+        self.put_raw(keys::balance(address, asset), bytes);
         Ok(())
     }
 
@@ -227,7 +224,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Nonce::from(nonce))
             .serialize()
             .wrap_err("failed to serialize nonce")?;
-        self.put_raw(nonce_key(address), bytes);
+        self.put_raw(keys::nonce(address), bytes);
         Ok(())
     }
 
@@ -290,7 +287,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .wrap_err("failed to serialize fee")?;
-        self.put_raw(TRANSFER_BASE_FEE_KEY.to_string(), bytes);
+        self.put_raw(keys::TRANSFER_BASE_FEE.to_string(), bytes);
         Ok(())
     }
 }

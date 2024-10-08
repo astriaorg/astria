@@ -6,21 +6,18 @@ use ibc_types::core::channel::ChannelId;
 use crate::{
     accounts::AddressBytes,
     storage::keys::{
-        AddressPrefixer,
+        AccountPrefixer,
         Asset,
     },
 };
 
-pub(in crate::ibc) const IBC_SUDO_KEY: &str = "ibc/sudo";
-pub(in crate::ibc) const ICS20_WITHDRAWAL_BASE_FEE_KEY: &str = "ibc/ics20_withdrawal_base_fee";
+pub(in crate::ibc) const IBC_SUDO: &str = "ibc/sudo";
+pub(in crate::ibc) const ICS20_WITHDRAWAL_BASE_FEE: &str = "ibc/ics20_withdrawal_base_fee";
 const IBC_RELAYER_PREFIX: &str = "ibc/relayer/";
 
 /// Example: `ibc/channel-xxx/balance/0101....0101`.
 ///                      |int|       |64 hex chars|
-pub(in crate::ibc) fn channel_balance_key<'a, TAsset>(
-    channel: &ChannelId,
-    asset: &'a TAsset,
-) -> String
+pub(in crate::ibc) fn channel_balance<'a, TAsset>(channel: &ChannelId, asset: &'a TAsset) -> String
 where
     &'a TAsset: Into<Cow<'a, IbcPrefixed>>,
 {
@@ -29,8 +26,8 @@ where
 
 /// Example: `ibc/relayer/0101....0101`.
 ///                      |40 hex chars|
-pub(in crate::ibc) fn ibc_relayer_key<T: AddressBytes>(address: &T) -> String {
-    AddressPrefixer::new(IBC_RELAYER_PREFIX, address).to_string()
+pub(in crate::ibc) fn ibc_relayer<T: AddressBytes>(address: &T) -> String {
+    AccountPrefixer::new(IBC_RELAYER_PREFIX, address).to_string()
 }
 
 #[cfg(test)]
@@ -60,17 +57,17 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(IBC_SUDO_KEY);
-        insta::assert_snapshot!(ICS20_WITHDRAWAL_BASE_FEE_KEY);
-        insta::assert_snapshot!(channel_balance_key(&channel_id(), &asset()));
-        insta::assert_snapshot!(ibc_relayer_key(&address()));
+        insta::assert_snapshot!(IBC_SUDO);
+        insta::assert_snapshot!(ICS20_WITHDRAWAL_BASE_FEE);
+        insta::assert_snapshot!(channel_balance(&channel_id(), &asset()));
+        insta::assert_snapshot!(ibc_relayer(&address()));
     }
 
     #[test]
     fn keys_should_have_component_prefix() {
-        assert!(IBC_SUDO_KEY.starts_with(COMPONENT_PREFIX));
-        assert!(ICS20_WITHDRAWAL_BASE_FEE_KEY.starts_with(COMPONENT_PREFIX));
-        assert!(channel_balance_key(&channel_id(), &asset()).starts_with(COMPONENT_PREFIX));
-        assert!(ibc_relayer_key(&address()).starts_with(COMPONENT_PREFIX));
+        assert!(IBC_SUDO.starts_with(COMPONENT_PREFIX));
+        assert!(ICS20_WITHDRAWAL_BASE_FEE.starts_with(COMPONENT_PREFIX));
+        assert!(channel_balance(&channel_id(), &asset()).starts_with(COMPONENT_PREFIX));
+        assert!(ibc_relayer(&address()).starts_with(COMPONENT_PREFIX));
     }
 }

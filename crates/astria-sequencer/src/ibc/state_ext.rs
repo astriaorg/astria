@@ -29,12 +29,7 @@ use tracing::{
 
 use super::storage::{
     self,
-    keys::{
-        channel_balance_key,
-        ibc_relayer_key,
-        IBC_SUDO_KEY,
-        ICS20_WITHDRAWAL_BASE_FEE_KEY,
-    },
+    keys,
 };
 use crate::{
     accounts::AddressBytes,
@@ -54,7 +49,7 @@ pub(crate) trait StateReadExt: StateRead {
         &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let Some(bytes) = self
-            .get_raw(&channel_balance_key(channel, asset))
+            .get_raw(&keys::channel_balance(channel, asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading ibc channel balance from state")?
@@ -70,7 +65,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
-            .get_raw(IBC_SUDO_KEY)
+            .get_raw(keys::IBC_SUDO)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw ibc sudo address from state")?
@@ -86,7 +81,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn is_ibc_relayer<T: AddressBytes>(&self, address: T) -> Result<bool> {
         Ok(self
-            .get_raw(&ibc_relayer_key(&address))
+            .get_raw(&keys::ibc_relayer(&address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read ibc relayer key from state")?
@@ -96,7 +91,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ics20_withdrawal_base_fee(&self) -> Result<u128> {
         let Some(bytes) = self
-            .get_raw(ICS20_WITHDRAWAL_BASE_FEE_KEY)
+            .get_raw(keys::ICS20_WITHDRAWAL_BASE_FEE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading ics20 withdrawal fee from state")?
@@ -127,7 +122,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Balance::from(balance))
             .serialize()
             .wrap_err("failed to serialize ibc channel balance")?;
-        self.put_raw(channel_balance_key(channel, asset), bytes);
+        self.put_raw(keys::channel_balance(channel, asset), bytes);
         Ok(())
     }
 
@@ -160,7 +155,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::AddressBytes::from(&address))
             .serialize()
             .wrap_err("failed to serialize ibc sudo address")?;
-        self.put_raw(IBC_SUDO_KEY.to_string(), bytes);
+        self.put_raw(keys::IBC_SUDO.to_string(), bytes);
         Ok(())
     }
 
@@ -169,13 +164,13 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::Unit
             .serialize()
             .wrap_err("failed to serialize unit for ibc relayer address")?;
-        self.put_raw(ibc_relayer_key(address), bytes);
+        self.put_raw(keys::ibc_relayer(address), bytes);
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn delete_ibc_relayer_address<T: AddressBytes>(&mut self, address: &T) {
-        self.delete(ibc_relayer_key(address));
+        self.delete(keys::ibc_relayer(address));
     }
 
     #[instrument(skip_all)]
@@ -183,7 +178,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .wrap_err("failed to serialize ics20 withdrawal base fee")?;
-        self.put_raw(ICS20_WITHDRAWAL_BASE_FEE_KEY.to_string(), bytes);
+        self.put_raw(keys::ICS20_WITHDRAWAL_BASE_FEE.to_string(), bytes);
         Ok(())
     }
 }

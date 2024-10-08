@@ -10,12 +10,12 @@ use astria_eyre::eyre::{
 use crate::{
     accounts::AddressBytes,
     storage::keys::{
-        AddressPrefixer,
+        AccountPrefixer,
         Asset,
     },
 };
 
-pub(in crate::accounts) const TRANSFER_BASE_FEE_KEY: &str = "accounts/transfer_base_fee";
+pub(in crate::accounts) const TRANSFER_BASE_FEE: &str = "accounts/transfer_base_fee";
 const COMPONENT_PREFIX: &str = "accounts/";
 const BALANCE_PREFIX: &str = "balance/";
 const NONCE: &str = "nonce";
@@ -25,13 +25,13 @@ const NONCE: &str = "nonce";
 pub(in crate::accounts) fn balance_prefix<TAddress: AddressBytes>(address: &TAddress) -> String {
     format!(
         "{}/{BALANCE_PREFIX}",
-        AddressPrefixer::new(COMPONENT_PREFIX, address)
+        AccountPrefixer::new(COMPONENT_PREFIX, address)
     )
 }
 
 /// Example: `accounts/0101....0101/balance/0202....0202`.
 ///                   |40 hex chars|       |64 hex chars|
-pub(in crate::accounts) fn balance_key<'a, TAddress, TAsset>(
+pub(in crate::accounts) fn balance<'a, TAddress, TAsset>(
     address: &TAddress,
     asset: &'a TAsset,
 ) -> String
@@ -41,17 +41,17 @@ where
 {
     format!(
         "{}/{BALANCE_PREFIX}{}",
-        AddressPrefixer::new(COMPONENT_PREFIX, address),
+        AccountPrefixer::new(COMPONENT_PREFIX, address),
         Asset::from(asset)
     )
 }
 
 /// Example: `accounts/0101....0101/nonce`.
 ///                   |40 hex chars|
-pub(in crate::accounts) fn nonce_key<TAddress: AddressBytes>(address: &TAddress) -> String {
+pub(in crate::accounts) fn nonce<TAddress: AddressBytes>(address: &TAddress) -> String {
     format!(
         "{}/{NONCE}",
-        AddressPrefixer::new(COMPONENT_PREFIX, address)
+        AccountPrefixer::new(COMPONENT_PREFIX, address)
     )
 }
 
@@ -86,27 +86,27 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(TRANSFER_BASE_FEE_KEY);
-        insta::assert_snapshot!(balance_key(&address(), &asset()));
-        insta::assert_snapshot!(nonce_key(&address()));
+        insta::assert_snapshot!(TRANSFER_BASE_FEE);
+        insta::assert_snapshot!(balance(&address(), &asset()));
+        insta::assert_snapshot!(nonce(&address()));
     }
 
     #[test]
     fn keys_should_have_component_prefix() {
-        assert!(TRANSFER_BASE_FEE_KEY.starts_with(COMPONENT_PREFIX));
-        assert!(balance_key(&address(), &asset()).starts_with(COMPONENT_PREFIX));
-        assert!(nonce_key(&address()).starts_with(COMPONENT_PREFIX));
+        assert!(TRANSFER_BASE_FEE.starts_with(COMPONENT_PREFIX));
+        assert!(balance(&address(), &asset()).starts_with(COMPONENT_PREFIX));
+        assert!(nonce(&address()).starts_with(COMPONENT_PREFIX));
     }
 
     #[test]
     fn balance_prefix_should_be_prefix_of_balance_key() {
-        assert!(balance_key(&address(), &asset()).starts_with(&balance_prefix(&address())));
+        assert!(balance(&address(), &asset()).starts_with(&balance_prefix(&address())));
     }
 
     #[test]
     fn should_extract_asset_from_key() {
         let asset = IbcPrefixed::new([2; 32]);
-        let key = balance_key(&[1; 20], &asset);
+        let key = balance(&[1; 20], &asset);
         let recovered_asset = extract_asset_from_key(&key).unwrap();
         assert_eq!(asset, recovered_asset);
     }

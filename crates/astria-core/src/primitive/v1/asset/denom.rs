@@ -565,17 +565,17 @@ pub struct IbcPrefixed {
 }
 
 impl IbcPrefixed {
-    pub const LENGTH: usize = 32;
+    pub const ENCODED_HASH_LEN: usize = 32;
 
     #[must_use]
-    pub const fn new(id: [u8; Self::LENGTH]) -> Self {
+    pub const fn new(id: [u8; Self::ENCODED_HASH_LEN]) -> Self {
         Self {
             id,
         }
     }
 
     #[must_use]
-    pub const fn as_bytes(&self) -> &[u8; Self::LENGTH] {
+    pub const fn as_bytes(&self) -> &[u8; Self::ENCODED_HASH_LEN] {
         &self.id
     }
 
@@ -610,7 +610,7 @@ impl FromStr for IbcPrefixed {
         if segments.next().is_some() {
             return Err(ParseIbcPrefixedError::too_many_segments());
         }
-        let id = <[u8; Self::LENGTH]>::from_hex(hex).map_err(Self::Err::hex)?;
+        let id = <[u8; Self::ENCODED_HASH_LEN]>::from_hex(hex).map_err(Self::Err::hex)?;
         Ok(Self {
             id,
         })
