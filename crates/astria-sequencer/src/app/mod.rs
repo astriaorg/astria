@@ -152,6 +152,22 @@ struct ProposalIdentifier {
     timestamp: tendermint::Time,
 }
 
+impl ProposalIdentifier {
+    fn from_prepare_proposal(proposal: &abci::request::PrepareProposal) -> Self {
+        Self {
+            validator_address: proposal.proposer_address,
+            timestamp: proposal.time,
+        }
+    }
+    
+    fn from_process_proposal(proposal: &abci::request::ProcessProposal) -> Self {
+        Self {
+            validator_address: proposal.proposer_address,
+            timestamp: proposal.time,
+        }
+    }
+}
+
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
 /// Note: this is called `App` because this is a Tendermint ABCI application,
@@ -167,8 +183,11 @@ pub(crate) struct App {
     //
     // Transactions are pulled from this mempool during `prepare_proposal`.
     mempool: Mempool,
-
-
+    
+    // TODO: The constructed_proposal_id and executed_proposal_hash fields should be stored
+    // in the ephemeral storage instead of on the app struct, to avoid any issues with
+    // forgetting to reset them. 
+    
     // An identifier for a given proposal constructed by this app.
     //
     // Used to avoid executing a block in both `prepare_proposal` and `process_proposal`. It
@@ -344,10 +363,7 @@ impl App {
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
     ) -> Result<abci::response::PrepareProposal> {
-        self.constructed_proposal_id = Some(ProposalIdentifier {
-            validator_address: prepare_proposal.proposer_address,
-            timestamp: prepare_proposal.time,
-        });
+        self.constructed_proposal_id = Some(ProposalIdentifier::from_prepare_proposal(&prepare_proposal));
         self.update_state_for_new_round(&storage);
 
         let mut block_size_constraints = BlockSizeConstraints::new(
@@ -403,10 +419,7 @@ impl App {
         // if we didn't propose this block, `self.validator_address` will be None or a different
         // value, so we will execute  block as normal.
         if let Some(constructed_id) = self.constructed_proposal_id {
-            let proposal_id = ProposalIdentifier {
-                validator_address: process_proposal.proposer_address,
-                timestamp: process_proposal.time,
-            };
+            let proposal_id = ProposalIdentifier::from_process_proposal(&process_proposal);
             if constructed_id == proposal_id {
                 debug!("skipping process_proposal as we are the proposer for this block");
                 self.constructed_proposal_id = None;
