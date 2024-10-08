@@ -231,6 +231,10 @@ impl Mempool {
                     &current_account_balances,
                 ) {
                     Ok(()) => {
+                        // log current size of pending
+                        self.metrics
+                            .set_transactions_in_mempool_parked(parked.len());
+
                         // track in contained txs
                         self.lock_contained_txs().await.add(id);
                         Ok(())
