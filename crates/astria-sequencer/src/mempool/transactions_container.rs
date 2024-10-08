@@ -711,6 +711,14 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
             .sum()
     }
 
+    /// Returns the nonces contained for the given account.
+    fn nonces_for_account(&self, address: &[u8; 20]) -> Vec<u32> {
+        self.txs()
+            .get(address)
+            .map(|account_txs| account_txs.txs().keys().copied().collect())
+            .unwrap_or_default()
+    }
+
     #[cfg(test)]
     fn contains_tx(&self, tx_hash: &[u8; 32]) -> bool {
         self.txs()
@@ -2146,5 +2154,59 @@ mod tests {
         parked_txs.remove(ttx_1.signed_tx).unwrap();
         // adding should now be okay
         parked_txs.add(ttx_2, 0, &account_balances_full).unwrap();
+    }
+
+    #[tokio::test]
+    async fn account_nonces_pending() {
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
+        let account_balances_full = mock_balances(100, 100);
+
+        let tx0 = MockTTXBuilder::new().nonce(0).build();
+        let tx1 = MockTTXBuilder::new().nonce(1).build();
+        let tx2 = MockTTXBuilder::new().nonce(2).build();
+
+        // empty ok
+        let account_nonces = pending_txs
+            .nonces_for_account(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes());
+        assert_eq!(account_nonces, Vec::<u32>::new(), "should return nothing");
+
+        pending_txs.add(tx0, 0, &account_balances_full).unwrap();
+        pending_txs.add(tx1, 0, &account_balances_full).unwrap();
+        pending_txs.add(tx2, 0, &account_balances_full).unwrap();
+
+        let account_nonces = pending_txs
+            .nonces_for_account(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes());
+        assert_eq!(
+            account_nonces,
+            vec![0, 1, 2],
+            "should return all nonces for account"
+        );
+    }
+
+    #[tokio::test]
+    async fn account_nonces_parked() {
+        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 100);
+        let account_balances_full = mock_balances(100, 100);
+
+        let tx2 = MockTTXBuilder::new().nonce(2).build();
+        let tx3 = MockTTXBuilder::new().nonce(3).build();
+        let tx6 = MockTTXBuilder::new().nonce(6).build();
+
+        // empty ok
+        let account_nonces =
+            parked_txs.nonces_for_account(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes());
+        assert_eq!(account_nonces, Vec::<u32>::new(), "should return nothing");
+
+        parked_txs.add(tx6, 0, &account_balances_full).unwrap();
+        parked_txs.add(tx2, 0, &account_balances_full).unwrap();
+        parked_txs.add(tx3, 0, &account_balances_full).unwrap();
+
+        let account_nonces =
+            parked_txs.nonces_for_account(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes());
+        assert_eq!(
+            account_nonces,
+            vec![2, 3, 6],
+            "should return all nonces for account"
+        );
     }
 }

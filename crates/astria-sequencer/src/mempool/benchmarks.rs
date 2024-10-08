@@ -354,7 +354,8 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
         });
 }
 
-/// Benchmarks `Mempool::pending_nonce` on a mempool with the given number of existing entries.
+/// Benchmarks `Mempool::next_available_nonce` on a mempool with the given number of existing
+/// entries.
 #[divan::bench(
     max_time = MAX_TIME,
     types = [
@@ -364,7 +365,7 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
         mempool_with_100000_txs
     ]
 )]
-fn pending_nonce<T: MempoolSize>(bencher: divan::Bencher) {
+fn next_available_nonce<T: MempoolSize>(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -380,7 +381,7 @@ fn pending_nonce<T: MempoolSize>(bencher: divan::Bencher) {
         })
         .bench_values(move |(mempool, address)| {
             runtime.block_on(async {
-                mempool.pending_nonce(address).await.unwrap();
+                mempool.next_available_nonce(address).await.unwrap();
             });
         });
 }

@@ -478,13 +478,37 @@ impl Mempool {
         }
     }
 
-    /// Returns the highest pending nonce for the given address if it exists in the mempool. Note:
-    /// does not take into account gapped nonces in the parked queue. For example, if the
-    /// pending queue for an account has nonces [0,1] and the parked queue has [3], [1] will be
-    /// returned.
+    /// Returns the nonces contained for the given account.
     #[instrument(skip_all)]
-    pub(crate) async fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
-        self.pending.read().await.pending_nonce(address)
+    pub(crate) async fn account_nonces(&self, address: &[u8; 20]) -> (Vec<u32>, Vec<u32>) {
+        (
+            self.pending.read().await.nonces_for_account(address),
+            self.parked.read().await.nonces_for_account(address),
+        )
+    }
+
+    /// Returns the next available nonce for the given account. Will return None if there
+    /// are no nonces for this account in the mempool.
+    #[instrument(skip_all)]
+    pub(crate) async fn next_available_nonce(&self, address: &[u8; 20]) -> Option<u32> {
+        let (pending_nonces, parked_nonces) = self.account_nonces(address).await;
+        let mut all_nonces = pending_nonces.into_iter().chain(parked_nonces).peekable();
+
+        if all_nonces.peek().is_none() {
+            return None;
+        }
+
+        // find the first gap if present else return next highest nonce
+        let mut current_nonce = all_nonces.next().unwrap();
+        for nonce in all_nonces {
+            if nonce != current_nonce.saturating_add(1) {
+                return Some(current_nonce.saturating_add(1));
+            }
+            current_nonce = nonce;
+        }
+
+        // If no gap found, return the next nonce after the highest one
+        Some(current_nonce.saturating_add(1))
     }
 
     async fn acquire_both_locks(
@@ -514,8 +538,6 @@ mod tests {
             mock_tx_cost,
             MockTxBuilder,
             ALICE_ADDRESS,
-            BOB_ADDRESS,
-            CAROL_ADDRESS,
         },
         test_utils::astria_address_from_hex_string,
     };
@@ -958,93 +980,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_get_pending_nonce() {
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-
-        let account_balances = mock_balances(100, 100);
-        let tx_cost = mock_tx_cost(10, 10, 0);
-
-        // sign and insert nonces 0,1
-        let tx0 = MockTxBuilder::new().nonce(0).build();
-        assert!(
-            mempool
-                .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 0 transaction into mempool"
-        );
-        let tx1 = MockTxBuilder::new().nonce(1).build();
-        assert!(
-            mempool
-                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 1 transaction into mempool"
-        );
-
-        // sign and insert nonces 100, 101
-        let tx100 = MockTxBuilder::new()
-            .nonce(100)
-            .signer(get_bob_signing_key())
-            .build();
-        assert!(
-            mempool
-                .insert(
-                    tx100.clone(),
-                    100,
-                    account_balances.clone(),
-                    tx_cost.clone(),
-                )
-                .await
-                .is_ok(),
-            "should be able to insert nonce 100 transaction into mempool"
-        );
-        let tx101 = MockTxBuilder::new()
-            .nonce(101)
-            .signer(get_bob_signing_key())
-            .build();
-        assert!(
-            mempool
-                .insert(
-                    tx101.clone(),
-                    100,
-                    account_balances.clone(),
-                    tx_cost.clone(),
-                )
-                .await
-                .is_ok(),
-            "should be able to insert nonce 101 transaction into mempool"
-        );
-
-        assert_eq!(mempool.len().await, 4);
-
-        // Check the pending nonces
-        assert_eq!(
-            mempool
-                .pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes())
-                .await
-                .unwrap(),
-            1
-        );
-        assert_eq!(
-            mempool
-                .pending_nonce(astria_address_from_hex_string(BOB_ADDRESS).as_bytes())
-                .await
-                .unwrap(),
-            101
-        );
-
-        // Check the pending nonce for an address with no txs is `None`.
-        assert!(
-            mempool
-                .pending_nonce(astria_address_from_hex_string(CAROL_ADDRESS).as_bytes())
-                .await
-                .is_none()
-        );
-    }
-
-    #[tokio::test]
     async fn tx_removal_cache() {
         let mut tx_cache = RemovalCache::new(NonZeroUsize::try_from(2).unwrap());
 
@@ -1233,6 +1168,138 @@ mod tests {
                 .unwrap_err(),
             InsertionError::ParkedSizeLimit,
             "size limit should be enforced"
+        );
+    }
+
+    #[tokio::test]
+    async fn account_nonces() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(0, 0, 0);
+
+        // pending
+        let tx0 = MockTxBuilder::new().nonce(0).build();
+        let tx1 = MockTxBuilder::new().nonce(1).build();
+        // parked
+        let tx4 = MockTxBuilder::new().nonce(4).build();
+        let tx6 = MockTxBuilder::new().nonce(6).build();
+
+        // other account which shouldn't be returned
+        let tx3 = MockTxBuilder::new()
+            .nonce(3)
+            .signer(get_bob_signing_key())
+            .build();
+
+        // insert the transactions into the mempool
+        mempool
+            .insert(tx6.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        mempool
+            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        mempool
+            .insert(tx3.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        mempool
+            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        mempool
+            .insert(tx4.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        let account_nonces = mempool
+            .account_nonces(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes())
+            .await;
+        assert_eq!(account_nonces, (vec![0, 1], vec![4, 6]));
+    }
+
+    #[tokio::test]
+    async fn next_available_nonce_empty() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+
+        // empty is none
+        assert_eq!(
+            mempool
+                .next_available_nonce(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes())
+                .await,
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn next_available_nonce_non_gapped() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(0, 0, 0);
+
+        // pending
+        let tx0 = MockTxBuilder::new().nonce(0).build();
+        let tx1 = MockTxBuilder::new().nonce(1).build();
+
+        // insert the transactions into the mempool
+        mempool
+            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        mempool
+            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            mempool
+                .next_available_nonce(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes())
+                .await,
+            Some(2)
+        );
+    }
+
+    #[tokio::test]
+    async fn next_available_nonce_gapped() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let account_balances = mock_balances(1, 100);
+        let tx_cost = mock_tx_cost(1, 0, 0);
+
+        // pending
+        let tx0 = MockTxBuilder::new().nonce(0).build();
+        let tx1 = MockTxBuilder::new().nonce(1).build();
+        let tx3 = MockTxBuilder::new().nonce(3).build();
+
+        // insert the transactions into the mempool
+        mempool
+            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        mempool
+            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        mempool
+            .insert(tx3.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            mempool
+                .next_available_nonce(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes())
+                .await,
+            Some(2)
         );
     }
 }
