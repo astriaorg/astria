@@ -2,9 +2,9 @@ use std::borrow::Cow;
 
 use astria_core::primitive::v1::asset::IbcPrefixed;
 use astria_eyre::eyre::{
-    ContextCompat,
+    eyre,
     Result,
-    WrapErr,
+    WrapErr as _,
 };
 
 use crate::storage::keys::Asset;
@@ -51,7 +51,7 @@ fn extract_asset_from_key(key: &[u8], prefix: &str) -> Result<IbcPrefixed> {
         .wrap_err_with(|| format!("key `{}` not valid utf8", telemetry::display::hex(key),))?;
     let suffix = key_str
         .strip_prefix(prefix)
-        .wrap_err_with(|| format!("key `{key_str}` did not have prefix `{prefix}`",))?;
+        .ok_or_else(|| eyre!("key `{key_str}` did not have prefix `{prefix}`"))?;
     suffix.parse().wrap_err_with(|| {
         format!("failed to parse suffix `{suffix}` of key `{key_str}` as an ibc-prefixed asset",)
     })

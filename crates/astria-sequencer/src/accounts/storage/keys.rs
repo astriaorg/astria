@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use astria_core::primitive::v1::asset::IbcPrefixed;
 use astria_eyre::eyre::{
-    ContextCompat as _,
+    OptionExt as _,
     Result,
     WrapErr as _,
 };
@@ -59,7 +59,7 @@ pub(in crate::accounts) fn extract_asset_from_key(key: &str) -> Result<IbcPrefix
     Ok(key
         .strip_prefix(COMPONENT_PREFIX)
         .and_then(|s| s.split_once(BALANCE_PREFIX).map(|(_, asset)| asset))
-        .wrap_err("failed to strip prefix from account balance key")?
+        .ok_or_eyre("failed to strip prefix from account balance key")?
         .parse::<Asset>()
         .wrap_err("failed to parse storage key suffix as address hunk")?
         .get())
