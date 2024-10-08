@@ -5,7 +5,7 @@ use astria_core::{
     generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse,
     primitive::v1::Address,
     protocol::transaction::v1alpha1::{
-        action::TransferAction,
+        action::Transfer,
         SignedTransaction,
         UnsignedTransaction,
     },
@@ -148,7 +148,7 @@ fn create_signed_transaction() -> SignedTransaction {
     let alice_key = SigningKey::from(alice_secret_bytes);
 
     let actions = vec![
-        TransferAction {
+        Transfer {
             to: bob_address(),
             amount: 333_333,
             asset: "nria".parse().unwrap(),

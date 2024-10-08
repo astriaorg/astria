@@ -1,8 +1,8 @@
 use astria_core::protocol::transaction::v1alpha1::action::{
-    FeeChangeAction,
+    FeeChange,
     FeeComponents,
-    IbcSudoChangeAction,
-    SudoAddressChangeAction,
+    IbcSudoChange,
+    SudoAddressChange,
     ValidatorUpdate,
 };
 use astria_eyre::eyre::{
@@ -75,7 +75,7 @@ impl ActionHandler for ValidatorUpdate {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for SudoAddressChangeAction {
+impl ActionHandler for SudoAddressChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -105,7 +105,7 @@ impl ActionHandler for SudoAddressChangeAction {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for FeeChangeAction {
+impl ActionHandler for FeeChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -151,7 +151,7 @@ impl ActionHandler for FeeChangeAction {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for IbcSudoChangeAction {
+impl ActionHandler for IbcSudoChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -183,16 +183,16 @@ mod tests {
     use astria_core::{
         primitive::v1::TransactionId,
         protocol::transaction::v1alpha1::action::{
-            BridgeLockAction,
+            BridgeLock,
             BridgeLockFeeComponents,
             FeeComponents,
             Ics20Withdrawal,
             Ics20WithdrawalFeeComponents,
-            InitBridgeAccountAction,
+            InitBridgeAccount,
             InitBridgeAccountFeeComponents,
-            SequenceAction,
+            Sequence,
             SequenceFeeComponents,
-            TransferAction,
+            Transfer,
             TransferFeeComponents,
         },
     };
@@ -231,7 +231,7 @@ mod tests {
             ))
             .unwrap();
 
-        let fee_change = FeeChangeAction {
+        let fee_change = FeeChange {
             fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents {
                 base_fee: 10,
                 computed_cost_multiplier: 0,
@@ -240,7 +240,7 @@ mod tests {
 
         fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(
-            TransferAction::fee_components(&state)
+            Transfer::fee_components(&state)
                 .await
                 .unwrap()
                 .unwrap()
@@ -259,7 +259,7 @@ mod tests {
             ))
             .unwrap();
 
-        let fee_change = FeeChangeAction {
+        let fee_change = FeeChange {
             fee_change: FeeComponents::SequenceFeeComponents(SequenceFeeComponents {
                 base_fee: 3,
                 computed_cost_multiplier: 4,
@@ -268,7 +268,7 @@ mod tests {
 
         fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(
-            SequenceAction::fee_components(&state)
+            Sequence::fee_components(&state)
                 .await
                 .unwrap()
                 .unwrap()
@@ -276,7 +276,7 @@ mod tests {
             3
         );
         assert_eq!(
-            SequenceAction::fee_components(&state)
+            Sequence::fee_components(&state)
                 .await
                 .unwrap()
                 .unwrap()
@@ -294,7 +294,7 @@ mod tests {
             ))
             .unwrap();
 
-        let fee_change = FeeChangeAction {
+        let fee_change = FeeChange {
             fee_change: FeeComponents::InitBridgeAccountFeeComponents(
                 InitBridgeAccountFeeComponents {
                     base_fee: 2,
@@ -305,7 +305,7 @@ mod tests {
 
         fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(
-            InitBridgeAccountAction::fee_components(&state)
+            InitBridgeAccount::fee_components(&state)
                 .await
                 .unwrap()
                 .unwrap()
@@ -323,7 +323,7 @@ mod tests {
             ))
             .unwrap();
 
-        let fee_change = FeeChangeAction {
+        let fee_change = FeeChange {
             fee_change: FeeComponents::BridgeLockFeeComponents(BridgeLockFeeComponents {
                 base_fee: 0,
                 computed_cost_multiplier: 2,
@@ -332,7 +332,7 @@ mod tests {
 
         fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(
-            BridgeLockAction::fee_components(&state)
+            BridgeLock::fee_components(&state)
                 .await
                 .unwrap()
                 .unwrap()
@@ -350,7 +350,7 @@ mod tests {
             ))
             .unwrap();
 
-        let fee_change = FeeChangeAction {
+        let fee_change = FeeChange {
             fee_change: FeeComponents::Ics20WithdrawalFeeComponents(Ics20WithdrawalFeeComponents {
                 base_fee: 2,
                 computed_cost_multiplier: 0,

@@ -3,7 +3,7 @@ use astria_core::{
         RollupId,
         ROLLUP_ID_LEN,
     },
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transaction::v1alpha1::action::Sequence,
 };
 
 mod sized_bundle {
@@ -203,7 +203,7 @@ mod bundle_factory {
         // try to push a third bundle that wouldn't fit in `curr_bundle`, forcing the factory to
         // flush it into `finished` this shouldn't work since the `finished` queue's
         // capacity is 1.
-        let seq_action1 = SequenceAction {
+        let seq_action1 = Sequence {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             ..sequence_action_of_max_size(200)
         };
@@ -256,7 +256,7 @@ mod bundle_factory {
 
         // push another sequence action that is <100 bytes total to force the current bundle to
         // flush
-        let seq_action1 = SequenceAction {
+        let seq_action1 = Sequence {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             ..sequence_action_of_max_size(200)
         };
@@ -290,7 +290,7 @@ mod bundle_factory {
         let seq_action0 = sequence_action_of_max_size(200);
         bundle_factory.try_push(seq_action0.clone()).unwrap();
 
-        let seq_action1 = SequenceAction {
+        let seq_action1 = Sequence {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             ..sequence_action_of_max_size(200)
         };

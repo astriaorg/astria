@@ -6,18 +6,18 @@ use astria_core::{
     },
     protocol::transaction::v1alpha1::action::{
         self,
-        BridgeLockAction,
-        BridgeSudoChangeAction,
-        BridgeUnlockAction,
-        FeeAssetChangeAction,
-        FeeChangeAction,
+        BridgeLock,
+        BridgeSudoChange,
+        BridgeUnlock,
+        FeeAssetChange,
+        FeeChange,
         FeeComponents,
-        IbcRelayerChangeAction,
-        IbcSudoChangeAction,
-        InitBridgeAccountAction,
-        SequenceAction,
-        SudoAddressChangeAction,
-        TransferAction,
+        IbcRelayerChange,
+        IbcSudoChange,
+        InitBridgeAccount,
+        Sequence,
+        SudoAddressChange,
+        Transfer,
         ValidatorUpdate,
     },
     sequencerblock::v1alpha1::block::Deposit,
@@ -97,7 +97,7 @@ impl Fee {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for TransferAction {
+impl FeeHandler for Transfer {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fee_components = Self::fee_components(&state).await?;
@@ -131,7 +131,7 @@ impl FeeHandler for TransferAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for BridgeLockAction {
+impl FeeHandler for BridgeLock {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fee_components = Self::fee_components(&state).await?;
@@ -174,7 +174,7 @@ impl FeeHandler for BridgeLockAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for BridgeSudoChangeAction {
+impl FeeHandler for BridgeSudoChange {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fee_components = Self::fee_components(&state).await?;
@@ -208,7 +208,7 @@ impl FeeHandler for BridgeSudoChangeAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for BridgeUnlockAction {
+impl FeeHandler for BridgeUnlock {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fee_components = Self::fee_components(&state).await?;
@@ -242,7 +242,7 @@ impl FeeHandler for BridgeUnlockAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for InitBridgeAccountAction {
+impl FeeHandler for InitBridgeAccount {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fee_components = Self::fee_components(&state).await?;
@@ -311,7 +311,7 @@ impl FeeHandler for action::Ics20Withdrawal {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for SequenceAction {
+impl FeeHandler for Sequence {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fee_components = Self::fee_components(&state).await?;
@@ -363,7 +363,7 @@ impl FeeHandler for ValidatorUpdate {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for SudoAddressChangeAction {
+impl FeeHandler for SudoAddressChange {
     async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
     }
@@ -378,7 +378,7 @@ impl FeeHandler for SudoAddressChangeAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for FeeChangeAction {
+impl FeeHandler for FeeChange {
     async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
     }
@@ -393,7 +393,7 @@ impl FeeHandler for FeeChangeAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for IbcSudoChangeAction {
+impl FeeHandler for IbcSudoChange {
     async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
     }
@@ -408,7 +408,7 @@ impl FeeHandler for IbcSudoChangeAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for IbcRelayerChangeAction {
+impl FeeHandler for IbcRelayerChange {
     async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
     }
@@ -423,7 +423,7 @@ impl FeeHandler for IbcRelayerChangeAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for FeeAssetChangeAction {
+impl FeeHandler for FeeAssetChange {
     async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
     }
@@ -520,7 +520,7 @@ pub(crate) async fn calculate_sequence_action_fee_from_state<S: crate::fees::Sta
     let Some(GenericFeeComponents {
         base_fee,
         computed_cost_multiplier,
-    }) = SequenceAction::fee_components(state).await?
+    }) = Sequence::fee_components(state).await?
     else {
         bail!("no fee components found for sequence action");
     };
@@ -552,7 +552,7 @@ mod tests {
             TRANSACTION_ID_LEN,
         },
         protocol::transaction::v1alpha1::action::{
-            BridgeLockAction,
+            BridgeLock,
             BridgeLockFeeComponents,
             FeeComponents,
             TransferFeeComponents,
@@ -617,7 +617,7 @@ mod tests {
 
         let bridge_address = astria_address(&[1; 20]);
         let asset = test_asset();
-        let bridge_lock = BridgeLockAction {
+        let bridge_lock = BridgeLock {
             to: bridge_address,
             asset: asset.clone(),
             amount: 100,

@@ -1,4 +1,4 @@
-use astria_core::protocol::transaction::v1alpha1::action::IbcRelayerChangeAction;
+use astria_core::protocol::transaction::v1alpha1::action::IbcRelayerChange;
 use astria_eyre::eyre::{
     ensure,
     Result,
@@ -18,7 +18,7 @@ use crate::{
 };
 
 #[async_trait]
-impl ActionHandler for IbcRelayerChangeAction {
+impl ActionHandler for IbcRelayerChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -29,7 +29,7 @@ impl ActionHandler for IbcRelayerChangeAction {
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         match self {
-            IbcRelayerChangeAction::Addition(addr) | IbcRelayerChangeAction::Removal(addr) => {
+            IbcRelayerChange::Addition(addr) | IbcRelayerChange::Removal(addr) => {
                 state.ensure_base_prefix(addr).await.wrap_err(
                     "failed check for base prefix of provided address to be added/removed",
                 )?;
@@ -46,12 +46,12 @@ impl ActionHandler for IbcRelayerChangeAction {
         );
 
         match self {
-            IbcRelayerChangeAction::Addition(address) => {
+            IbcRelayerChange::Addition(address) => {
                 state
                     .put_ibc_relayer_address(address)
                     .wrap_err("failed to put IBC relayer address")?;
             }
-            IbcRelayerChangeAction::Removal(address) => {
+            IbcRelayerChange::Removal(address) => {
                 state.delete_ibc_relayer_address(address);
             }
         }

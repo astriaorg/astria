@@ -5,7 +5,6 @@ use prost::{
     Name as _,
 };
 
-use super::raw;
 use crate::{
     crypto::{
         self,
@@ -13,6 +12,7 @@ use crate::{
         SigningKey,
         VerificationKey,
     },
+    generated::protocol::transactions::v1alpha1 as raw,
     primitive::v1::{
         asset,
         TransactionId,
@@ -180,11 +180,7 @@ impl SignedTransaction {
 
     #[must_use]
     pub fn is_bundleable_sudo_action_group(&self) -> bool {
-        if let Some(group) = self.transaction.actions.group() {
-            group.is_bundleable_sudo()
-        } else {
-            false
-        }
+        self.transaction.actions.group().is_bundleable_sudo()
     }
 
     #[must_use]
@@ -351,7 +347,7 @@ impl UnsignedTransaction {
 pub struct UnsignedTransactionError(UnsignedTransactionErrorKind);
 
 impl UnsignedTransactionError {
-    fn action(inner: action::ActionError) -> Self {
+    fn action(inner: action::Error) -> Self {
         Self(UnsignedTransactionErrorKind::Action(inner))
     }
 
@@ -377,7 +373,7 @@ impl UnsignedTransactionError {
 #[derive(Debug, thiserror::Error)]
 enum UnsignedTransactionErrorKind {
     #[error("`actions` field is invalid")]
-    Action(#[source] action::ActionError),
+    Action(#[source] action::Error),
     #[error("`params` field is unset")]
     UnsetParams(),
     #[error(
@@ -574,7 +570,7 @@ mod tests {
     use super::*;
     use crate::{
         primitive::v1::Address,
-        protocol::transaction::v1alpha1::action::TransferAction,
+        protocol::transaction::v1alpha1::action::Transfer,
     };
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
@@ -596,7 +592,7 @@ mod tests {
             227, 96, 127, 152, 22, 47, 146, 10,
         ]);
 
-        let transfer = TransferAction {
+        let transfer = Transfer {
             to: Address::builder()
                 .array([0; 20])
                 .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -631,7 +627,7 @@ mod tests {
             178, 63, 69, 238, 27, 96, 95, 213, 135, 120, 87, 106, 196,
         ]);
 
-        let transfer = TransferAction {
+        let transfer = Transfer {
             to: Address::builder()
                 .array([0; 20])
                 .prefix(ASTRIA_ADDRESS_PREFIX)

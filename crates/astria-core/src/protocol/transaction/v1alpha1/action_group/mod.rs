@@ -11,22 +11,22 @@ use penumbra_ibc::IbcRelay;
 use super::{
     action::{
         ActionName,
-        BridgeLockAction,
-        BridgeSudoChangeAction,
-        BridgeUnlockAction,
-        FeeAssetChangeAction,
-        FeeChangeAction,
-        IbcRelayerChangeAction,
-        IbcSudoChangeAction,
+        BridgeLock,
+        BridgeSudoChange,
+        BridgeUnlock,
+        FeeAssetChange,
+        IbcRelayerChange,
+        IbcSudoChange,
         Ics20Withdrawal,
-        InitBridgeAccountAction,
-        SequenceAction,
-        SudoAddressChangeAction,
-        TransferAction,
+        InitBridgeAccount,
+        Sequence,
+        SudoAddressChange,
+        Transfer,
         ValidatorUpdate,
     },
     Action,
 };
+use crate::generated::protocol::transactions::v1alpha1::FeeChange;
 
 trait BelongsToGroup {
     const GROUP: ActionGroup;
@@ -43,39 +43,39 @@ macro_rules! impl_belong_to_group {
 }
 
 impl_belong_to_group!(
-    (SequenceAction, ActionGroup::BundleableGeneral),
-    (TransferAction, ActionGroup::BundleableGeneral),
+    (Sequence, ActionGroup::BundleableGeneral),
+    (Transfer, ActionGroup::BundleableGeneral),
     (ValidatorUpdate, ActionGroup::BundleableGeneral),
-    (SudoAddressChangeAction, ActionGroup::UnbundleableSudo),
-    (IbcRelayerChangeAction, ActionGroup::BundleableSudo),
+    (SudoAddressChange, ActionGroup::UnbundleableSudo),
+    (IbcRelayerChange, ActionGroup::BundleableSudo),
     (Ics20Withdrawal, ActionGroup::BundleableGeneral),
-    (InitBridgeAccountAction, ActionGroup::UnbundleableGeneral),
-    (BridgeLockAction, ActionGroup::BundleableGeneral),
-    (BridgeUnlockAction, ActionGroup::BundleableGeneral),
-    (BridgeSudoChangeAction, ActionGroup::UnbundleableGeneral),
-    (FeeChangeAction, ActionGroup::BundleableSudo),
-    (FeeAssetChangeAction, ActionGroup::BundleableSudo),
+    (InitBridgeAccount, ActionGroup::UnbundleableGeneral),
+    (BridgeLock, ActionGroup::BundleableGeneral),
+    (BridgeUnlock, ActionGroup::BundleableGeneral),
+    (BridgeSudoChange, ActionGroup::UnbundleableGeneral),
+    (FeeChange, ActionGroup::BundleableSudo),
+    (FeeAssetChange, ActionGroup::BundleableSudo),
     (IbcRelay, ActionGroup::BundleableGeneral),
-    (IbcSudoChangeAction, ActionGroup::UnbundleableSudo),
+    (IbcSudoChange, ActionGroup::UnbundleableSudo),
 );
 
 impl Action {
     const fn group(&self) -> ActionGroup {
         match self {
-            Action::Sequence(_) => SequenceAction::GROUP,
-            Action::Transfer(_) => TransferAction::GROUP,
+            Action::Sequence(_) => Sequence::GROUP,
+            Action::Transfer(_) => Transfer::GROUP,
             Action::ValidatorUpdate(_) => ValidatorUpdate::GROUP,
-            Action::SudoAddressChange(_) => SudoAddressChangeAction::GROUP,
-            Action::IbcRelayerChange(_) => IbcRelayerChangeAction::GROUP,
+            Action::SudoAddressChange(_) => SudoAddressChange::GROUP,
+            Action::IbcRelayerChange(_) => IbcRelayerChange::GROUP,
             Action::Ics20Withdrawal(_) => Ics20Withdrawal::GROUP,
-            Action::InitBridgeAccount(_) => InitBridgeAccountAction::GROUP,
-            Action::BridgeLock(_) => BridgeLockAction::GROUP,
-            Action::BridgeUnlock(_) => BridgeUnlockAction::GROUP,
-            Action::BridgeSudoChange(_) => BridgeSudoChangeAction::GROUP,
-            Action::FeeChange(_) => FeeChangeAction::GROUP,
-            Action::FeeAssetChange(_) => FeeAssetChangeAction::GROUP,
+            Action::InitBridgeAccount(_) => InitBridgeAccount::GROUP,
+            Action::BridgeLock(_) => BridgeLock::GROUP,
+            Action::BridgeUnlock(_) => BridgeUnlock::GROUP,
+            Action::BridgeSudoChange(_) => BridgeSudoChange::GROUP,
+            Action::FeeChange(_) => FeeChange::GROUP,
+            Action::FeeAssetChange(_) => FeeAssetChange::GROUP,
             Action::Ibc(_) => IbcRelay::GROUP,
-            Action::IbcSudoChange(_) => IbcSudoChangeAction::GROUP,
+            Action::IbcSudoChange(_) => IbcSudoChange::GROUP,
         }
     }
 }
@@ -134,6 +134,10 @@ impl Error {
             group,
         })
     }
+
+    fn empty() -> Self {
+        Self(ErrorKind::Empty)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -149,10 +153,13 @@ enum ErrorKind {
     },
     #[error("attempted to create bundle with non bundleable `ActionGroup` type: {group}")]
     NotBundleable { group: ActionGroup },
+    #[error("actions cannot be empty")]
+    Empty,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub(super) struct Actions {
+    group: ActionGroup,
     inner: Vec<Action>,
 }
 
@@ -166,8 +173,8 @@ impl Actions {
         self.inner
     }
 
-    pub(super) fn group(&self) -> Option<ActionGroup> {
-        self.inner.first().map(super::action::Action::group)
+    pub(super) fn group(&self) -> ActionGroup {
+        self.group
     }
 
     pub(super) fn try_from_list_of_actions(actions: Vec<Action>) -> Result<Self, Error> {
@@ -176,7 +183,7 @@ impl Actions {
             Some(action) => action.group(),
             None => {
                 // empty `actions`
-                return Ok(Self::default());
+                return Err(Error::empty());
             }
         };
 
@@ -193,6 +200,7 @@ impl Actions {
         }
 
         Ok(Self {
+            group,
             inner: actions,
         })
     }

@@ -6,11 +6,11 @@ use astria_core::{
         action::{
             self,
             Action,
-            BridgeLockAction,
-            BridgeSudoChangeAction,
-            BridgeUnlockAction,
-            InitBridgeAccountAction,
-            TransferAction,
+            BridgeLock,
+            BridgeSudoChange,
+            BridgeUnlock,
+            InitBridgeAccount,
+            Transfer,
         },
         SignedTransaction,
         UnsignedTransaction,
@@ -26,7 +26,6 @@ use tracing::instrument;
 
 use crate::{
     accounts::StateReadExt as _,
-    address::StateReadExt as _,
     app::StateReadExt as _,
     bridge::StateReadExt as _,
     fees::{
@@ -34,26 +33,6 @@ use crate::{
         GenericFeeComponents,
     },
 };
-
-#[instrument(skip_all)]
-pub(crate) async fn check_nonce_mempool<S: StateRead>(
-    tx: &SignedTransaction,
-    state: &S,
-) -> Result<()> {
-    let signer_address = state
-        .try_base_prefixed(tx.verification_key().address_bytes())
-        .await
-        .wrap_err(
-            "failed constructing the signer address from signed transaction verification and \
-             prefix provided by app state",
-        )?;
-    let curr_nonce = state
-        .get_account_nonce(&signer_address)
-        .await
-        .wrap_err("failed to get account nonce")?;
-    ensure!(tx.nonce() >= curr_nonce, "nonce already used by account");
-    Ok(())
-}
 
 #[instrument(skip_all)]
 pub(crate) async fn check_chain_id_mempool<S: StateRead>(
@@ -73,22 +52,22 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     tx: &UnsignedTransaction,
     state: &S,
 ) -> Result<HashMap<asset::IbcPrefixed, u128>> {
-    let transfer_fees = TransferAction::fee_components(state)
+    let transfer_fees = Transfer::fee_components(state)
         .await
         .wrap_err("failed to get transfer fees")?;
     let ics20_withdrawal_fees = action::Ics20Withdrawal::fee_components(state)
         .await
         .wrap_err("failed to get ics20 withdrawal fees")?;
-    let init_bridge_account_fees = InitBridgeAccountAction::fee_components(state)
+    let init_bridge_account_fees = InitBridgeAccount::fee_components(state)
         .await
         .wrap_err("failed to get init bridge account fees")?;
-    let bridge_lock_fees = BridgeLockAction::fee_components(state)
+    let bridge_lock_fees = BridgeLock::fee_components(state)
         .await
         .wrap_err("failed to get bridge lock fees")?;
-    let bridge_unlock_fees = BridgeUnlockAction::fee_components(state)
+    let bridge_unlock_fees = BridgeUnlock::fee_components(state)
         .await
         .wrap_err("failed to get bridge unlock fees")?;
-    let bridge_sudo_change_fees = BridgeSudoChangeAction::fee_components(state)
+    let bridge_sudo_change_fees = BridgeSudoChange::fee_components(state)
         .await
         .wrap_err("failed to get bridge sudo change fees")?;
 
@@ -268,7 +247,7 @@ fn ics20_withdrawal_updates_fees(
 }
 
 fn bridge_lock_update_fees(
-    act: &BridgeLockAction,
+    act: &BridgeLock,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     bridge_lock_fees: &Option<GenericFeeComponents>,
 ) {
@@ -349,8 +328,8 @@ mod tests {
             ADDRESS_LEN,
         },
         protocol::transaction::v1alpha1::action::{
-            SequenceAction,
-            TransferAction,
+            Sequence,
+            Transfer,
         },
     };
     use bytes::Bytes;
@@ -455,7 +434,7 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = TransferAction::fee_components(&state_tx)
+        let transfer_fee = Transfer::fee_components(&state_tx)
             .await
             .unwrap()
             .unwrap()
@@ -487,13 +466,13 @@ mod tests {
             .unwrap();
 
         let actions = vec![
-            Action::Transfer(TransferAction {
+            Action::Transfer(Transfer {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: crate::test_utils::nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
-            Action::Sequence(SequenceAction {
+            Action::Sequence(Sequence {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
                 fee_asset: crate::test_utils::nria().into(),
@@ -595,7 +574,7 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = TransferAction::fee_components(&state_tx)
+        let transfer_fee = Transfer::fee_components(&state_tx)
             .await
             .unwrap()
             .unwrap()
@@ -616,13 +595,13 @@ mod tests {
             .unwrap();
 
         let actions = vec![
-            Action::Transfer(TransferAction {
+            Action::Transfer(Transfer {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: crate::test_utils::nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
-            Action::Sequence(SequenceAction {
+            Action::Sequence(Sequence {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
                 fee_asset: crate::test_utils::nria().into(),

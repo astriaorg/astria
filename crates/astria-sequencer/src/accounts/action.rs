@@ -1,4 +1,4 @@
-use astria_core::protocol::transaction::v1alpha1::action::TransferAction;
+use astria_core::protocol::transaction::v1alpha1::action::Transfer;
 use astria_eyre::eyre::{
     ensure,
     Result,
@@ -22,7 +22,7 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-impl ActionHandler for TransferAction {
+impl ActionHandler for Transfer {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -50,7 +50,7 @@ impl ActionHandler for TransferAction {
 }
 
 pub(crate) async fn execute_transfer<S, TAddress>(
-    action: &TransferAction,
+    action: &Transfer,
     from: &TAddress,
     mut state: S,
 ) -> Result<()>
@@ -72,7 +72,7 @@ where
 }
 
 pub(crate) async fn check_transfer<S, TAddress>(
-    action: &TransferAction,
+    action: &Transfer,
     from: &TAddress,
     state: &S,
 ) -> Result<()>

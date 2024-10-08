@@ -3,7 +3,7 @@ syntax = "proto3";
 package astria.protocol.genesis.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
-import "astria/protocol/transactions/v1alpha1/types.proto";
+import "astria/protocol/transactions/v1alpha1/action.proto";
 
 message GenesisAppState {
   string chain_id = 1;

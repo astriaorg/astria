@@ -26,7 +26,7 @@ use astria_core::{
                 FeeComponents,
                 Ics20WithdrawalFeeComponents,
                 InitBridgeAccountFeeComponents,
-                SequenceAction,
+                Sequence,
                 SequenceFeeComponents,
                 TransferFeeComponents,
                 ValidatorUpdate,
@@ -246,8 +246,8 @@ pub(crate) async fn initialize_app_with_storage(
         .await
         .expect("failed to create temp storage backing chain state");
     let snapshot = storage.latest_snapshot();
-    let mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
@@ -330,7 +330,7 @@ impl MockTxBuilder {
     pub(crate) fn build(self) -> Arc<SignedTransaction> {
         let tx = UnsignedTransaction::builder()
             .actions(vec![
-                SequenceAction {
+                Sequence {
                     rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
                     data: Bytes::from_static(&[0x99]),
                     fee_asset: denom_0(),

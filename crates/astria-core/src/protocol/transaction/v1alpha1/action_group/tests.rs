@@ -10,19 +10,19 @@ use crate::{
     protocol::transaction::v1alpha1::{
         action::{
             Action,
-            BridgeLockAction,
-            BridgeSudoChangeAction,
-            BridgeUnlockAction,
-            FeeAssetChangeAction,
-            FeeChangeAction,
+            BridgeLock,
+            BridgeSudoChange,
+            BridgeUnlock,
+            FeeAssetChange,
+            FeeChange,
             FeeComponents,
-            IbcRelayerChangeAction,
-            IbcSudoChangeAction,
+            IbcRelayerChange,
+            IbcSudoChange,
             Ics20Withdrawal,
-            InitBridgeAccountAction,
-            SequenceAction,
-            SudoAddressChangeAction,
-            TransferAction,
+            InitBridgeAccount,
+            Sequence,
+            SudoAddressChange,
+            Transfer,
             TransferFeeComponents,
             ValidatorUpdate,
         },
@@ -45,25 +45,25 @@ fn try_from_list_of_actions_bundleable_general() {
 
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
-        Action::Sequence(SequenceAction {
+        Action::Sequence(Sequence {
             rollup_id: RollupId::from([8; 32]),
             data: vec![].into(),
             fee_asset: asset.clone(),
         }),
-        Action::Transfer(TransferAction {
+        Action::Transfer(Transfer {
             to: address,
             amount: 100,
             asset: asset.clone(),
             fee_asset: asset.clone(),
         }),
-        Action::BridgeLock(BridgeLockAction {
+        Action::BridgeLock(BridgeLock {
             to: address,
             amount: 100,
             asset: asset.clone(),
             fee_asset: asset.clone(),
             destination_chain_address: String::new(),
         }),
-        Action::BridgeUnlock(BridgeUnlockAction {
+        Action::BridgeUnlock(BridgeUnlock {
             to: address,
             amount: 100,
             fee_asset: asset.clone(),
@@ -93,7 +93,7 @@ fn try_from_list_of_actions_bundleable_general() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::BundleableGeneral)
+        ActionGroup::BundleableGeneral
     ));
 }
 
@@ -107,19 +107,19 @@ fn from_list_of_actions_bundleable_sudo() {
 
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
-        Action::FeeChange(FeeChangeAction {
+        Action::FeeChange(FeeChange {
             fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents {
                 base_fee: 12,
                 computed_cost_multiplier: 0,
             }),
         }),
-        Action::FeeAssetChange(FeeAssetChangeAction::Addition(asset)),
-        Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(address)),
+        Action::FeeAssetChange(FeeAssetChange::Addition(asset)),
+        Action::IbcRelayerChange(IbcRelayerChange::Addition(address)),
     ];
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::BundleableSudo)
+        ActionGroup::BundleableSudo
     ));
 }
 
@@ -131,29 +131,29 @@ fn from_list_of_actions_unbundleable_sudo() {
         .try_build()
         .unwrap();
 
-    let actions = vec![Action::SudoAddressChange(SudoAddressChangeAction {
+    let actions = vec![Action::SudoAddressChange(SudoAddressChange {
         new_address: address,
     })];
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::UnbundleableSudo)
+        ActionGroup::UnbundleableSudo
     ));
 
-    let actions = vec![Action::IbcSudoChange(IbcSudoChangeAction {
+    let actions = vec![Action::IbcSudoChange(IbcSudoChange {
         new_address: address,
     })];
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::UnbundleableSudo)
+        ActionGroup::UnbundleableSudo
     ));
 
     let actions = vec![
-        Action::SudoAddressChange(SudoAddressChangeAction {
+        Action::SudoAddressChange(SudoAddressChange {
             new_address: address,
         }),
-        Action::SudoAddressChange(SudoAddressChangeAction {
+        Action::SudoAddressChange(SudoAddressChange {
             new_address: address,
         }),
     ];
@@ -175,7 +175,7 @@ fn from_list_of_actions_unbundleable_general() {
 
     let asset: Denom = "nria".parse().unwrap();
 
-    let init_bridge_account_action = InitBridgeAccountAction {
+    let init_bridge_account_action = InitBridgeAccount {
         rollup_id: RollupId::from([8; 32]),
         asset: asset.clone(),
         fee_asset: asset.clone(),
@@ -183,7 +183,7 @@ fn from_list_of_actions_unbundleable_general() {
         withdrawer_address: Some(address),
     };
 
-    let sudo_bridge_address_change_action = BridgeSudoChangeAction {
+    let sudo_bridge_address_change_action = BridgeSudoChange {
         new_sudo_address: Some(address),
         bridge_address: address,
         new_withdrawer_address: Some(address),
@@ -194,14 +194,14 @@ fn from_list_of_actions_unbundleable_general() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::UnbundleableGeneral)
+        ActionGroup::UnbundleableGeneral
     ));
 
     let actions = vec![sudo_bridge_address_change_action.clone().into()];
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        Some(ActionGroup::UnbundleableGeneral)
+        ActionGroup::UnbundleableGeneral
     ));
 
     let actions = vec![
@@ -226,12 +226,12 @@ fn from_list_of_actions_mixed() {
 
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
-        Action::Sequence(SequenceAction {
+        Action::Sequence(Sequence {
             rollup_id: RollupId::from([8; 32]),
             data: vec![].into(),
             fee_asset: asset.clone(),
         }),
-        Action::SudoAddressChange(SudoAddressChangeAction {
+        Action::SudoAddressChange(SudoAddressChange {
             new_address: address,
         }),
     ];
@@ -240,5 +240,14 @@ fn from_list_of_actions_mixed() {
     assert!(
         matches!(error_kind, ErrorKind::Mixed { .. }),
         "expected ErrorKind::Mixed, got {error_kind:?}"
+    );
+}
+
+#[test]
+fn from_list_of_actions_empty() {
+    let error_kind = Actions::try_from_list_of_actions(vec![]).unwrap_err().0;
+    assert!(
+        matches!(error_kind, ErrorKind::Empty { .. }),
+        "expected ErrorKind::Empty, got {error_kind:?}"
     );
 }
