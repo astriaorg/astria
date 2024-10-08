@@ -7,6 +7,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use tracing::info;
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
@@ -55,8 +56,7 @@ impl Get {
             .await
             .wrap_err("failed to get cometbft block")?;
 
-        println!("Block Height:");
-        println!("    {}", res.block.header.height);
+        info!(height = %res.block.header.height, "Block height retrieved");
 
         Ok(())
     }

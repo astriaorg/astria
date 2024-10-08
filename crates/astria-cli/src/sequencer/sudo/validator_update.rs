@@ -6,6 +6,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use tracing::info;
 
 use crate::utils::submit_transaction;
 
@@ -52,7 +53,7 @@ impl Command {
         .wrap_err("failed to construct public key from bytes")?;
         let validator_update = ValidatorUpdate {
             power: self.power,
-            verification_key,
+            verification_key: verification_key.clone(),
         };
 
         let res = submit_transaction(
@@ -65,8 +66,8 @@ impl Command {
         .await
         .wrap_err("failed to submit ValidatorUpdate transaction")?;
 
-        println!("ValidatorUpdate completed!");
-        println!("Included in block: {}", res.height);
+        info!(height = %res.height, verification_key = %verification_key, power = %self.power, hash = %res.hash, "ValidatorUpdate completed");
+
         Ok(())
     }
 }

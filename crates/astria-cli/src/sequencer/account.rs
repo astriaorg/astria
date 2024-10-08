@@ -12,6 +12,7 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use rand::rngs::OsRng;
+use tracing::info;
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
@@ -53,13 +54,9 @@ impl Create {
         let pretty_signing_key = hex::encode(signing_key.as_bytes());
         let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
         let pretty_address = hex::encode(signing_key.address_bytes());
-        println!("Create Sequencer Account");
-        println!();
         // TODO: don't print private keys to CLI, prefer writing to file:
         // https://github.com/astriaorg/astria/issues/594
-        println!("Private Key: {pretty_signing_key}");
-        println!("Public Key:  {pretty_verifying_key}");
-        println!("Address:     {pretty_address}");
+        info!(private_key = %pretty_signing_key, public_key = %pretty_verifying_key, address = %pretty_address, "Sequencer account created");
         Ok(())
     }
 }
@@ -81,9 +78,16 @@ impl Balance {
             .await
             .wrap_err("failed to get balance")?;
 
-        println!("Balances for address: {}", args.address);
+        info!(
+            address = %args.address,
+            "Balances for address"
+        );
         for balance in res.balances {
-            println!("    {} {}", balance.balance, balance.denom);
+            info!(
+                balance = %balance.balance,
+                denom = %balance.denom,
+                "Balance details"
+            );
         }
 
         Ok(())
@@ -107,8 +111,7 @@ impl Nonce {
             .await
             .wrap_err("failed to get nonce")?;
 
-        println!("Nonce for address {}", args.address);
-        println!("    {} at height {}", res.nonce, res.height);
+        info!(address = %args.address, nonce = res.nonce, "Nonce retrieved");
 
         Ok(())
     }

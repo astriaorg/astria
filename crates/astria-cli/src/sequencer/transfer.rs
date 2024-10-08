@@ -12,6 +12,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use tracing::info;
 
 use crate::utils::submit_transaction;
 
@@ -71,8 +72,16 @@ impl Command {
         .await
         .wrap_err("failed to submit transfer transaction")?;
 
-        println!("Transfer completed!");
-        println!("Included in block: {}", res.height);
+        info!(
+            to = %self.to_address,
+            amount = %self.amount,
+            asset = %self.asset,
+            fee_asset = %self.fee_asset,
+            height = %res.height,
+            hash = %res.hash,
+            "Transfer completed"
+        );
+
         Ok(())
     }
 }
