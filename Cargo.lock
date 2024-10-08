@@ -513,44 +513,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astria-bridge-withdrawer"
-version = "0.3.0"
-dependencies = [
- "astria-bridge-contracts",
- "astria-build-info",
- "astria-config",
- "astria-core",
- "astria-eyre",
- "astria-grpc-mock",
- "astria-sequencer-client",
- "astria-telemetry",
- "axum",
- "ethers",
- "futures",
- "hex",
- "http 0.2.12",
- "humantime",
- "hyper 0.14.30",
- "ibc-types",
- "pin-project-lite",
- "prost",
- "reqwest",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "tempfile",
- "tendermint",
- "tendermint-rpc",
- "tokio",
- "tokio-stream",
- "tokio-util 0.7.11",
- "tonic 0.10.2",
- "tracing",
- "tryhard",
- "wiremock",
-]
-
-[[package]]
 name = "astria-build-info"
 version = "0.1.0"
 dependencies = [
@@ -931,6 +893,44 @@ dependencies = [
  "rlp",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "astria-settlor"
+version = "0.3.0"
+dependencies = [
+ "astria-bridge-contracts",
+ "astria-build-info",
+ "astria-config",
+ "astria-core",
+ "astria-eyre",
+ "astria-grpc-mock",
+ "astria-sequencer-client",
+ "astria-telemetry",
+ "axum",
+ "ethers",
+ "futures",
+ "hex",
+ "http 0.2.12",
+ "humantime",
+ "hyper 0.14.30",
+ "ibc-types",
+ "pin-project-lite",
+ "prost",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "tempfile",
+ "tendermint",
+ "tendermint-rpc",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.11",
+ "tonic 0.10.2",
+ "tracing",
+ "tryhard",
+ "wiremock",
 ]
 
 [[package]]

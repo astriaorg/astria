@@ -48,7 +48,7 @@ jobs:
   bridge-withdrawer:
     uses: './.github/workflows/reusable-build.yml'
     with:
-      package-name: 'bridge-withdrawer'
+      package-name: 'settlor'
       tag: ${{ inputs.tag }}
 
   build:

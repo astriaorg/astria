@@ -9,13 +9,13 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  jobLabel: evm-bridge-withdrawer-metric
+  jobLabel: evm-settlor-metric
   namespaceSelector:
     matchNames:
-      - {{ include "evm-bridge-withdrawer.namespace" . }}
+      - {{ include "evm-settlor.namespace" . }}
   selector:
     matchLabels:
-      app: evm-bridge-withdrawer
+      app: evm-settlor
   endpoints:
     - port: metric
       path: /

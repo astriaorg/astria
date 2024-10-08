@@ -4,7 +4,7 @@ metadata:
   name: evm-bridge-withdrawer
   labels:
     app: evm-bridge-withdrawer
-  namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
+  namespace: {{ include "evm-settlor.namespace" . }}
 spec:
   replicas: {{ .Values.global.replicaCount }}
   selector:
@@ -18,8 +18,8 @@ spec:
         app: evm-bridge-withdrawer
     spec:
       containers:
-        - name: evm-bridge-withdrawer
-          image: {{ include "evm-bridge-withdrawer.image" . }}
+        - name: evm-settlor
+          image: {{ include "evm-settlor.image" . }}
           imagePullPolicy: {{ .Values.images.evmBridgeWithdrawer.pullPolicy }}
           command: [ "/usr/local/bin/astria-bridge-withdrawer" ]
           stdin: {{ .Values.global.useTTY }}
@@ -53,7 +53,7 @@ spec:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: evm-bridge-withdrawer-key
+              secretProviderClass: evm-settlor-key
           {{- else }}
           configMap:
             name: evm-bridge-withdrawer-private-key

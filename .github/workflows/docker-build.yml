@@ -16,7 +16,7 @@ on:
           - conductor
           - sequencer
           - sequencer-relayer
-          - evm-bridge-withdrawer
+          - evm-settlor
           - cli
   merge_group:
   push:
@@ -103,9 +103,9 @@ jobs:
       force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sequencer-relayer' }}
     secrets: inherit
 
-  evm-bridge-withdrawer:
+  settlor:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'evm-bridge-withdrawer')
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'evm-settlor')
     uses: "./.github/workflows/reusable-docker-build.yml"
     permissions:
       contents: read
@@ -113,10 +113,10 @@ jobs:
       packages: write
     with:
       depot-project-id: dl81f3fc6x
-      package-name: evm-bridge-withdrawer
-      binary-name: bridge-withdrawer
+      package-name: settlor
+      binary-name: settlor
       tag: ${{ inputs.tag }}
-      force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'evm-bridge-withdrawer' }}
+      force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'evm-settlor' }}
     secrets: inherit
 
   cli:
@@ -135,7 +135,7 @@ jobs:
     secrets: inherit
 
   smoke-test:
-    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
+    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-settlor, cli]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
@@ -232,7 +232,7 @@ jobs:
 
   docker:
     if: ${{ always() && !cancelled() }}
-    needs: [composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli, smoke-test, smoke-cli, ibc-bridge-test]
+    needs: [composer, conductor, sequencer, sequencer-relayer, settlor, cli, smoke-test, smoke-cli, ibc-bridge-test]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
