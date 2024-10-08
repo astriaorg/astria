@@ -147,12 +147,12 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 /// impacts sentry nodes does not halt the network and is cheaper computationally
 /// than an exhaustive comparison.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-struct ProposalIdentifier {
+struct ProposalFingerprint {
     validator_address: account::Id,
     timestamp: tendermint::Time,
 }
 
-impl ProposalIdentifier {
+impl ProposalFingerprint {
     fn from_prepare_proposal(proposal: &abci::request::PrepareProposal) -> Self {
         Self {
             validator_address: proposal.proposer_address,
@@ -195,7 +195,7 @@ pub(crate) struct App {
     // change round-to-round. In `process_proposal` we check if we prepared the proposal, and
     // if so, we clear the value, and we skip re-execution of the block's transactions to avoid
     // failures caused by re-execution.
-    executed_proposal_fingerprint: Option<ProposalIdentifier>,
+    executed_proposal_fingerprint: Option<ProposalFingerprint>,
 
     // This is set to the executed hash of the proposal during `process_proposal`
     //
@@ -364,7 +364,7 @@ impl App {
         storage: Storage,
     ) -> Result<abci::response::PrepareProposal> {
         self.executed_proposal_fingerprint =
-            Some(ProposalIdentifier::from_prepare_proposal(&prepare_proposal));
+            Some(ProposalFingerprint::from_prepare_proposal(&prepare_proposal));
         self.update_state_for_new_round(&storage);
 
         let mut block_size_constraints = BlockSizeConstraints::new(
@@ -420,7 +420,7 @@ impl App {
         // if we didn't propose this block, `self.validator_address` will be None or a different
         // value, so we will execute  block as normal.
         if let Some(constructed_id) = self.executed_proposal_fingerprint {
-            let proposal_id = ProposalIdentifier::from_process_proposal(&process_proposal);
+            let proposal_id = ProposalFingerprint::from_process_proposal(&process_proposal);
             if constructed_id == proposal_id {
                 debug!("skipping process_proposal as we are the proposer for this block");
                 self.executed_proposal_fingerprint = None;
