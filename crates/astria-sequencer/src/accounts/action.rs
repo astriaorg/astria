@@ -1,7 +1,4 @@
-use astria_core::{
-    protocol::transaction::v1alpha1::action::TransferAction,
-    Protobuf as _,
-};
+use astria_core::protocol::transaction::v1alpha1::action::TransferAction;
 use astria_eyre::eyre::{
     ensure,
     OptionExt as _,
@@ -71,7 +68,7 @@ where
         .await
         .wrap_err("failed to get transfer base fee")?;
     state
-        .get_and_increase_block_fees(&action.fee_asset, fee, TransferAction::full_name())
+        .get_and_increase_block_fees::<TransferAction, _>(&action.fee_asset, fee)
         .await
         .wrap_err("failed to add to block fees")?;
 

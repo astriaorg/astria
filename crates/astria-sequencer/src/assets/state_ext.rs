@@ -3,7 +3,10 @@ use std::{
     fmt::Display,
 };
 
-use astria_core::primitive::v1::asset;
+use astria_core::{
+    primitive::v1::asset,
+    Protobuf,
+};
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -36,13 +39,13 @@ use super::storage::{
 use crate::storage::StoredValue;
 
 /// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
-fn construct_tx_fee_event<T: Display>(asset: &T, fee_amount: u128, action_type: String) -> Event {
+fn construct_tx_fee_event<P: Protobuf, T: Display>(asset: &T, fee_amount: u128) -> Event {
     Event::new(
         "tx.fees",
         [
             ("asset", asset.to_string()).index(),
             ("feeAmount", fee_amount.to_string()).index(),
-            ("actionType", action_type).index(),
+            ("actionType", P::full_name()).index(),
         ],
     )
 }
@@ -174,17 +177,17 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     /// Adds `amount` to the block fees for `asset`.
     #[instrument(skip_all)]
-    async fn get_and_increase_block_fees<'a, TAsset>(
+    async fn get_and_increase_block_fees<'a, P, TAsset>(
         &mut self,
         asset: &'a TAsset,
         amount: u128,
-        action_type: String,
     ) -> Result<()>
     where
         TAsset: Sync + Display,
         &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
+        P: Protobuf,
     {
-        let tx_fee_event = construct_tx_fee_event(asset, amount, action_type);
+        let tx_fee_event = construct_tx_fee_event::<P, _>(asset, amount);
         let block_fees_key = keys::block_fees(asset);
 
         let current_amount = self
@@ -248,6 +251,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use std::collections::HashSet;
 
+    use astria_core::protocol::transaction::v1alpha1::action::TransferAction;
     use cnidarium::StateDelta;
 
     use super::*;
@@ -315,7 +319,7 @@ mod tests {
         let asset = asset_0();
         let amount = 100u128;
         state
-            .get_and_increase_block_fees(&asset, amount, "test".into())
+            .get_and_increase_block_fees::<TransferAction, _>(&asset, amount)
             .await
             .unwrap();
 
@@ -341,11 +345,11 @@ mod tests {
         let amount_second = 200u128;
 
         state
-            .get_and_increase_block_fees(&asset_first, amount_first, "test".into())
+            .get_and_increase_block_fees::<TransferAction, _>(&asset_first, amount_first)
             .await
             .unwrap();
         state
-            .get_and_increase_block_fees(&asset_second, amount_second, "test".into())
+            .get_and_increase_block_fees::<TransferAction, _>(&asset_second, amount_second)
             .await
             .unwrap();
         // holds expected
