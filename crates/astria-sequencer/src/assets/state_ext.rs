@@ -254,7 +254,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use std::collections::HashSet;
 
-    use astria_core::protocol::transaction::v1alpha1::action::TransferAction;
+    use astria_core::protocol::transaction::v1alpha1::action::Transfer;
     use cnidarium::StateDelta;
 
     use super::*;
@@ -322,7 +322,7 @@ mod tests {
         let asset = asset_0();
         let amount = 100u128;
         state
-            .get_and_increase_block_fees::<TransferAction, _>(&asset, amount)
+            .get_and_increase_block_fees::<Transfer, _>(&asset, amount)
             .await
             .unwrap();
 
@@ -348,11 +348,11 @@ mod tests {
         let amount_second = 200u128;
 
         state
-            .get_and_increase_block_fees::<TransferAction, _>(&asset_first, amount_first)
+            .get_and_increase_block_fees::<Transfer, _>(&asset_first, amount_first)
             .await
             .unwrap();
         state
-            .get_and_increase_block_fees::<TransferAction, _>(&asset_second, amount_second)
+            .get_and_increase_block_fees::<Transfer, _>(&asset_second, amount_second)
             .await
             .unwrap();
         // holds expected

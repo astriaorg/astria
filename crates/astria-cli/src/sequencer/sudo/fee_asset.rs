@@ -1,7 +1,7 @@
 use astria_core::{
     primitive::v1::asset,
     protocol::transaction::v1alpha1::{
-        action::FeeAssetChangeAction,
+        action::FeeAssetChange,
         Action,
     },
 };
@@ -50,7 +50,7 @@ impl Add {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeAssetChange(FeeAssetChangeAction::Addition(args.asset.clone())),
+            Action::FeeAssetChange(FeeAssetChange::Addition(args.asset.clone())),
         )
         .await
         .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
@@ -75,7 +75,7 @@ impl Remove {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeAssetChange(FeeAssetChangeAction::Removal(args.asset.clone())),
+            Action::FeeAssetChange(FeeAssetChange::Removal(args.asset.clone())),
         )
         .await
         .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;

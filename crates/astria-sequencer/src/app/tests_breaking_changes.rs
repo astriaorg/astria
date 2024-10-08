@@ -20,13 +20,13 @@ use astria_core::{
         genesis::v1alpha1::Account,
         transaction::v1alpha1::{
             action::{
-                BridgeLockAction,
-                BridgeSudoChangeAction,
-                BridgeUnlockAction,
-                IbcRelayerChangeAction,
-                IbcSudoChangeAction,
-                SequenceAction,
-                TransferAction,
+                BridgeLock,
+                BridgeSudoChange,
+                BridgeUnlock,
+                IbcRelayerChange,
+                IbcSudoChange,
+                Sequence,
+                Transfer,
                 ValidatorUpdate,
             },
             Action,
@@ -101,14 +101,14 @@ async fn app_finalize_block_snapshot() {
     app.commit(storage.clone()).await;
 
     let amount = 100;
-    let lock_action = BridgeLockAction {
+    let lock_action = BridgeLock {
         to: bridge_address,
         amount,
         asset: nria().into(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = SequenceAction {
+    let sequence_action = Sequence {
         rollup_id,
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
@@ -165,9 +165,9 @@ async fn app_finalize_block_snapshot() {
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
     use astria_core::protocol::transaction::v1alpha1::action::{
-        FeeAssetChangeAction,
-        InitBridgeAccountAction,
-        SudoAddressChangeAction,
+        FeeAssetChange,
+        InitBridgeAccount,
+        SudoAddressChange,
     };
 
     let alice = get_alice_signing_key();
@@ -204,14 +204,14 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let tx_bundleable_general = UnsignedTransaction::builder()
         .actions(vec![
-            TransferAction {
+            Transfer {
                 to: bob_address,
                 amount: 333_333,
                 asset: nria().into(),
                 fee_asset: nria().into(),
             }
             .into(),
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: Bytes::from_static(b"hello world"),
                 fee_asset: nria().into(),
@@ -225,12 +225,12 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let tx_bundleable_sudo = UnsignedTransaction::builder()
         .actions(vec![
-            IbcRelayerChangeAction::Addition(bob_address).into(),
-            IbcRelayerChangeAction::Addition(carol_address).into(),
-            IbcRelayerChangeAction::Removal(bob_address).into(),
-            FeeAssetChangeAction::Addition("test-0".parse().unwrap()).into(),
-            FeeAssetChangeAction::Addition("test-1".parse().unwrap()).into(),
-            FeeAssetChangeAction::Removal("test-0".parse().unwrap()).into(),
+            IbcRelayerChange::Addition(bob_address).into(),
+            IbcRelayerChange::Addition(carol_address).into(),
+            IbcRelayerChange::Removal(bob_address).into(),
+            FeeAssetChange::Addition("test-0".parse().unwrap()).into(),
+            FeeAssetChange::Addition("test-1".parse().unwrap()).into(),
+            FeeAssetChange::Removal("test-0".parse().unwrap()).into(),
         ])
         .nonce(1)
         .chain_id("test")
@@ -239,7 +239,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let tx_sudo_ibc = UnsignedTransaction::builder()
         .actions(vec![
-            IbcSudoChangeAction {
+            IbcSudoChange {
                 new_address: bob_address,
             }
             .into(),
@@ -251,7 +251,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let tx_sudo = UnsignedTransaction::builder()
         .actions(vec![
-            SudoAddressChangeAction {
+            SudoAddressChange {
                 new_address: bob_address,
             }
             .into(),
@@ -279,7 +279,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let tx = UnsignedTransaction::builder()
         .actions(vec![
-            InitBridgeAccountAction {
+            InitBridgeAccount {
                 rollup_id,
                 asset: nria().into(),
                 fee_asset: nria().into(),
@@ -296,7 +296,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let tx_bridge_bundleable = UnsignedTransaction::builder()
         .actions(vec![
-            BridgeLockAction {
+            BridgeLock {
                 to: bridge_address,
                 amount: 100,
                 asset: nria().into(),
@@ -304,7 +304,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 destination_chain_address: "nootwashere".to_string(),
             }
             .into(),
-            BridgeUnlockAction {
+            BridgeUnlock {
                 to: bob_address,
                 amount: 10,
                 fee_asset: nria().into(),
@@ -325,7 +325,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let tx_bridge = UnsignedTransaction::builder()
         .actions(vec![
-            BridgeSudoChangeAction {
+            BridgeSudoChange {
                 bridge_address,
                 new_sudo_address: Some(bob_address),
                 new_withdrawer_address: Some(bob_address),
