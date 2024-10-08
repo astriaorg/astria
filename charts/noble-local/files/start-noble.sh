@@ -16,27 +16,27 @@ KEYRING="--keyring-backend=$keyring_backend"
 
   # fund accounts
   nobled --home "$home_dir" "$KEYRING" \
-    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show masterminter -a)" 50ustake -y
+    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show masterminter -a)" 50uusdc -y
 
   sleep 2
   nobled --home "$home_dir" "$KEYRING" \
-    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show mintercontroller -a)" 50ustake -y
+    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show mintercontroller -a)" 50uusdc -y
 
   sleep 2
   nobled --home "$home_dir" "$KEYRING" \
-    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show minter -a)" 50ustake -y
+    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show minter -a)" 50uusdc -y
 
   sleep 2
   nobled --home "$home_dir" "$KEYRING" \
-    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show blacklister -a)" 50ustake -y
+    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show blacklister -a)" 50uusdc -y
 
   sleep 2
   nobled --home "$home_dir" "$KEYRING" \
-    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show pauser -a)" 50ustake -y
+    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show pauser -a)" 50uusdc -y
 
   sleep 2
   nobled --home "$home_dir" "$KEYRING" \
-    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show user -a)" 50ustake -y
+    tx bank send tf1_owner "$(nobled --home "$home_dir" "$KEYRING" keys show user -a)" 50uusdc -y
 
   sleep 2
 

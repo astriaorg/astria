@@ -21,7 +21,7 @@ noble:
   tf1OwnerMnemonic: discover plastic cushion urge lumber cattle voyage penalty file around donkey broom relax tilt rely pass lyrics guard almost duck text coach atom weekend
   tf2OwnerMnemonic: embark sand copper hurt height volume yellow carbon alpha bone public nerve pig runway nephew already tip need need leisure course outdoor media human
   # genesis amount
-  coins: "100000000000usdc,100000000000uusdc"
+  coins: "100000000000uusdc"
   # staking amount
   validatorStake: "100000000000uusdc"
   ibcAccountKeyName: "ibc_account"

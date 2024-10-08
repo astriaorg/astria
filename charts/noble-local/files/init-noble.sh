@@ -8,6 +8,7 @@ KEYRING="--keyring-backend=$keyring_backend"
 
 # TODO - move to config?
 DENOM="uusdc"
+BASEDENOM="u$DENOM"
 # FIXME - how necessary is this stuff for testing ibc?
 TF1_MINTING_DENOM="steeze"
 TF1_MINTING_BASEDENOM="u$TF1_MINTING_DENOM"
@@ -18,6 +19,8 @@ TF2_MINTING_BASEDENOM="u$TF2_MINTING_DENOM"
 nobled --home "$home_dir" \
   init "$chainid" \
   --chain-id "$chainid"
+
+nobled --home "$home_dir" config chain-id "$chainid"
 
 # add keys and genesis accounts
 # validator
@@ -80,7 +83,20 @@ jq --arg TF1_MINTING_DENOM "$TF1_MINTING_DENOM" \
    --arg TF1_MINTING_BASEDENOM "$TF1_MINTING_BASEDENOM" \
    --arg TF2_MINTING_DENOM "$TF2_MINTING_DENOM" \
    --arg TF2_MINTING_BASEDENOM "$TF2_MINTING_BASEDENOM" \
+   --arg DENOM "$DENOM" \
+   --arg BASEDENOM "$BASEDENOM" \
    '.app_state.bank.denom_metadata = [
+     {
+       "display": $DENOM,
+       "base": $BASEDENOM,
+       "name": $DENOM,
+       "symbol": $DENOM,
+       "denom_units": [
+         {"denom": $DENOM, "aliases": ["micro\($DENOM)"], "exponent": "0"},
+         {"denom": "m\($DENOM)", "aliases": ["mili\($DENOM)"], "exponent": "3"},
+         {"denom": $BASEDENOM, "aliases": null, "exponent": "6"}
+       ]
+     },
      {
        "display": $TF1_MINTING_DENOM,
        "base": $TF1_MINTING_BASEDENOM,
@@ -104,6 +120,7 @@ jq --arg TF1_MINTING_DENOM "$TF1_MINTING_DENOM" \
        ]
      }
    ]' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
+
 # update all the "authority" values
 jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.mint.minter.authority = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
 jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.params.params.authority = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
