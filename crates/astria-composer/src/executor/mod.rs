@@ -670,6 +670,9 @@ impl Future for SubmitFut {
     // FIXME (https://github.com/astriaorg/astria/issues/1572): This function is too long and should be refactored.
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         const INVALID_NONCE: Code = Code::Err(AbciErrorCode::INVALID_NONCE.value());
+        const ALREADY_PRESENT: Code = Code::Err(AbciErrorCode::ALREADY_PRESENT.value());
+        const NONCE_TAKEN: Code = Code::Err(AbciErrorCode::NONCE_TAKEN.value());
+
         loop {
             let this = self.as_mut().project();
 
@@ -694,7 +697,7 @@ impl Future for SubmitFut {
                     fut,
                 } => match ready!(fut.poll(cx)) {
                     Ok(rsp) => match rsp.code {
-                        tendermint::abci::Code::Ok => {
+                        tendermint::abci::Code::Ok | ALREADY_PRESENT => {
                             info!("sequencer responded with ok; submission successful");
 
                             this.metrics
@@ -708,7 +711,7 @@ impl Future for SubmitFut {
                                 .checked_add(1)
                                 .expect("nonce should not overflow")));
                         }
-                        INVALID_NONCE => {
+                        INVALID_NONCE | NONCE_TAKEN => {
                             info!(
                                 "sequencer rejected transaction due to invalid nonce; fetching \
                                  new nonce"
