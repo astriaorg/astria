@@ -50,21 +50,6 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_all_fees(&self) -> Result<FeeComponents> {
-        let bytes = self
-            .get_raw(TRANSFER_FEES_STORAGE_KEY)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw fee components from state")?;
-        let Some(bytes) = bytes else {
-            return Err(eyre!("fee components not set"));
-        };
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::FeeComponents::try_from(value).map(FeeComponents::from))
-            .wrap_err("invalid fees bytes")
-    }
-
-    #[instrument(skip_all)]
     async fn get_transfer_fees(&self) -> Result<FeeComponents> {
         let bytes = self
             .get_raw(TRANSFER_FEES_STORAGE_KEY)
