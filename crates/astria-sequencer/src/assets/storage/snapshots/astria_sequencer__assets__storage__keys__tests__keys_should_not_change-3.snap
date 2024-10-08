@@ -1,6 +1,6 @@
 ---
 source: crates/astria-sequencer/src/assets/storage/keys.rs
-assertion_line: 86
-expression: base64(&fee_asset_key(&asset()))
+assertion_line: 78
+expression: fee_asset(&test_asset())
 ---
-YXNzZXRzL2ZlZV9hc3NldC++QpoC0Ag3JFFnomFmdKl5oqxvmAZGi0ipdbFWrXETIA==
+assets/fee_asset/ibc/be429a02d00837245167a2616674a979a2ac6f9806468b48a975b156ad711320

@@ -32,16 +32,12 @@ impl<'a, T> AccountPrefixer<'a, T> {
 
 impl<'a, T: AddressBytes> Display for AccountPrefixer<'a, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use base64::engine::{
-            general_purpose::URL_SAFE,
-            Engine as _,
+        use base64::{
+            display::Base64Display,
+            engine::general_purpose::URL_SAFE,
         };
-        write!(
-            f,
-            "{}{}",
-            self.prefix,
-            URL_SAFE.encode(self.address.address_bytes())
-        )
+        f.write_str(self.prefix)?;
+        Base64Display::new(self.address.address_bytes(), &URL_SAFE).fmt(f)
     }
 }
 
@@ -53,10 +49,6 @@ pub(crate) struct Asset<'a>(Cow<'a, IbcPrefixed>);
 impl<'a> Asset<'a> {
     pub(crate) fn get(self) -> IbcPrefixed {
         self.0.into_owned()
-    }
-
-    pub(crate) fn as_bytes(&self) -> &[u8; 32] {
-        self.0.as_bytes()
     }
 }
 

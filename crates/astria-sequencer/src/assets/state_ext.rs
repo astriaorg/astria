@@ -108,7 +108,8 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_block_fees(&self) -> Result<Vec<(asset::IbcPrefixed, u128)>> {
         let mut fees = Vec::new();
 
-        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(keys::BLOCK_FEES_PREFIX));
+        let mut stream =
+            std::pin::pin!(self.nonverifiable_prefix_raw(keys::BLOCK_FEES_PREFIX.as_bytes()));
         while let Some(Ok((key, bytes))) = stream.next().await {
             let asset =
                 extract_asset_from_block_fees_key(&key).wrap_err("failed to extract asset")?;
@@ -130,7 +131,7 @@ pub(crate) trait StateReadExt: StateRead {
         &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         Ok(self
-            .nonverifiable_get_raw(&keys::fee_asset(asset))
+            .nonverifiable_get_raw(keys::fee_asset(asset).as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw fee asset from state")?
@@ -141,7 +142,8 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_allowed_fee_assets(&self) -> Result<Vec<asset::IbcPrefixed>> {
         let mut assets = Vec::new();
 
-        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(keys::FEE_ASSET_PREFIX));
+        let mut stream =
+            std::pin::pin!(self.nonverifiable_prefix_raw(keys::FEE_ASSET_PREFIX.as_bytes()));
         while let Some(Ok((key, _))) = stream.next().await {
             let asset =
                 extract_asset_from_fee_asset_key(&key).wrap_err("failed to extract asset")?;
@@ -191,7 +193,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let block_fees_key = keys::block_fees(asset);
 
         let current_amount = self
-            .nonverifiable_get_raw(&block_fees_key)
+            .nonverifiable_get_raw(block_fees_key.as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw block fees from state")?
@@ -209,7 +211,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Fee::from(new_amount))
             .serialize()
             .wrap_err("failed to serialize block fees")?;
-        self.nonverifiable_put_raw(block_fees_key, bytes);
+        self.nonverifiable_put_raw(block_fees_key.into_bytes(), bytes);
 
         self.record(tx_fee_event);
 
@@ -218,7 +220,8 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip_all)]
     async fn clear_block_fees(&mut self) {
-        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(keys::BLOCK_FEES_PREFIX));
+        let mut stream =
+            std::pin::pin!(self.nonverifiable_prefix_raw(keys::BLOCK_FEES_PREFIX.as_bytes()));
         while let Some(Ok((key, _))) = stream.next().await {
             self.nonverifiable_delete(key);
         }
@@ -229,7 +232,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     where
         &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
-        self.nonverifiable_delete(keys::fee_asset(asset));
+        self.nonverifiable_delete(keys::fee_asset(asset).into_bytes());
     }
 
     #[instrument(skip_all)]
@@ -240,7 +243,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::Unit
             .serialize()
             .context("failed to serialize unit for allowed fee asset")?;
-        self.nonverifiable_put_raw(keys::fee_asset(asset), bytes);
+        self.nonverifiable_put_raw(keys::fee_asset(asset).into_bytes(), bytes);
         Ok(())
     }
 }

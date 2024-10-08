@@ -3,14 +3,12 @@ pub(in crate::app) const REVISION_NUMBER: &str = "app/revision_number";
 pub(in crate::app) const BLOCK_HEIGHT: &str = "app/block_height";
 pub(in crate::app) const BLOCK_TIMESTAMP: &str = "app/block_timestamp";
 
-pub(in crate::app) fn storage_version_by_height(height: u64) -> Vec<u8> {
-    format!("app/storage_version/{height}").into_bytes()
+pub(in crate::app) fn storage_version_by_height(height: u64) -> String {
+    format!("app/storage_version/{height}")
 }
 
 #[cfg(test)]
 mod tests {
-    use telemetry::display::base64;
-
     use super::*;
 
     const COMPONENT_PREFIX: &str = "app/";
@@ -21,7 +19,7 @@ mod tests {
         insta::assert_snapshot!(REVISION_NUMBER);
         insta::assert_snapshot!(BLOCK_HEIGHT);
         insta::assert_snapshot!(BLOCK_TIMESTAMP);
-        insta::assert_snapshot!(base64(storage_version_by_height(42)));
+        insta::assert_snapshot!(storage_version_by_height(42));
     }
 
     #[test]
@@ -30,6 +28,6 @@ mod tests {
         assert!(REVISION_NUMBER.starts_with(COMPONENT_PREFIX));
         assert!(BLOCK_HEIGHT.starts_with(COMPONENT_PREFIX));
         assert!(BLOCK_TIMESTAMP.starts_with(COMPONENT_PREFIX));
-        assert!(storage_version_by_height(42).starts_with(COMPONENT_PREFIX.as_bytes()));
+        assert!(storage_version_by_height(42).starts_with(COMPONENT_PREFIX));
     }
 }

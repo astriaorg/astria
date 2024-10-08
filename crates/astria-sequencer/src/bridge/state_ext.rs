@@ -145,7 +145,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         rollup_id: &RollupId,
     ) -> Result<Vec<Deposit>> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(&keys::deposit(block_hash, rollup_id))
+            .nonverifiable_get_raw(keys::deposit(block_hash, rollup_id).as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw deposits from state")?
@@ -202,7 +202,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         address: &T,
     ) -> Result<Option<TransactionId>> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(&keys::last_transaction_id_for_bridge_account(address))
+            .nonverifiable_get_raw(keys::last_transaction_id_for_bridge_account(address).as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw last transaction hash for bridge account from state")?
@@ -343,7 +343,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             let bytes = StoredValue::from(storage::Deposits::from(deposits.iter()))
                 .serialize()
                 .context("failed to serialize bridge deposit")?;
-            self.nonverifiable_put_raw(key, bytes);
+            self.nonverifiable_put_raw(key.into_bytes(), bytes);
         }
         Ok(())
     }
@@ -384,7 +384,10 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::TransactionId::from(&tx_id))
             .serialize()
             .context("failed to serialize transaction hash for bridge account")?;
-        self.nonverifiable_put_raw(keys::last_transaction_id_for_bridge_account(address), bytes);
+        self.nonverifiable_put_raw(
+            keys::last_transaction_id_for_bridge_account(address).into(),
+            bytes,
+        );
         Ok(())
     }
 }

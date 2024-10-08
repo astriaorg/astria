@@ -65,7 +65,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_validator_updates(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(keys::VALIDATOR_UPDATES)
+            .nonverifiable_get_raw(keys::VALIDATOR_UPDATES.as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator updates from state")?
@@ -106,13 +106,13 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_updates))
             .serialize()
             .wrap_err("failed to serialize validator updates")?;
-        self.nonverifiable_put_raw(keys::VALIDATOR_UPDATES.to_vec(), bytes);
+        self.nonverifiable_put_raw(keys::VALIDATOR_UPDATES.into(), bytes);
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn clear_validator_updates(&mut self) {
-        self.nonverifiable_delete(keys::VALIDATOR_UPDATES.to_vec());
+        self.nonverifiable_delete(keys::VALIDATOR_UPDATES.into());
     }
 }
 

@@ -88,7 +88,7 @@ pub(crate) trait StateReadExt: StateRead {
 
         let key = keys::storage_version_by_height(height);
         let Some(bytes) = self
-            .nonverifiable_get_raw(&key)
+            .nonverifiable_get_raw(key.as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw storage_version from state")?
@@ -147,7 +147,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::StorageVersion::from(version))
             .serialize()
             .context("failed to serialize storage version")?;
-        self.nonverifiable_put_raw(keys::storage_version_by_height(height), bytes);
+        self.nonverifiable_put_raw(keys::storage_version_by_height(height).into_bytes(), bytes);
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 ---
 source: crates/astria-sequencer/src/bridge/storage/keys.rs
-assertion_line: 104
-expression: "base64(&deposit_key(&[1; 32], &RollupId::new([2; 32])))"
+assertion_line: 103
+expression: "deposit(&[1; 32], &RollupId::new([2; 32]))"
 ---
-YnJpZGdlL2RlcG9zaXQvAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQECAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg==
+bridge/deposit/AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=/AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=

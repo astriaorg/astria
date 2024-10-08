@@ -2,7 +2,6 @@ use std::borrow::Cow;
 
 use astria_core::primitive::v1::asset::IbcPrefixed;
 use astria_eyre::eyre::{
-    bail,
     ContextCompat,
     Result,
     WrapErr,
@@ -11,8 +10,8 @@ use astria_eyre::eyre::{
 use crate::storage::keys::Asset;
 
 pub(in crate::assets) const NATIVE_ASSET: &str = "assets/native_asset";
-pub(in crate::assets) const BLOCK_FEES_PREFIX: &[u8] = b"assets/block_fees/";
-pub(in crate::assets) const FEE_ASSET_PREFIX: &[u8] = b"assets/fee_asset/";
+pub(in crate::assets) const BLOCK_FEES_PREFIX: &str = "assets/block_fees/";
+pub(in crate::assets) const FEE_ASSET_PREFIX: &str = "assets/fee_asset/";
 
 /// Example: `assets/ibc/0101....0101`.
 ///                     |64 hex chars|
@@ -23,18 +22,18 @@ where
     format!("assets/{}", Asset::from(asset))
 }
 
-pub(in crate::assets) fn fee_asset<'a, TAsset>(asset: &'a TAsset) -> Vec<u8>
+pub(in crate::assets) fn fee_asset<'a, TAsset>(asset: &'a TAsset) -> String
 where
     &'a TAsset: Into<Cow<'a, IbcPrefixed>>,
 {
-    [FEE_ASSET_PREFIX, Asset::from(asset).as_bytes()].concat()
+    format!("{FEE_ASSET_PREFIX}{}", Asset::from(asset))
 }
 
-pub(in crate::assets) fn block_fees<'a, TAsset>(asset: &'a TAsset) -> Vec<u8>
+pub(in crate::assets) fn block_fees<'a, TAsset>(asset: &'a TAsset) -> String
 where
     &'a TAsset: Into<Cow<'a, IbcPrefixed>>,
 {
-    [BLOCK_FEES_PREFIX, Asset::from(asset).as_bytes()].concat()
+    format!("{BLOCK_FEES_PREFIX}{}", Asset::from(asset))
 }
 
 pub(in crate::assets) fn extract_asset_from_fee_asset_key(key: &[u8]) -> Result<IbcPrefixed> {
@@ -47,31 +46,20 @@ pub(in crate::assets) fn extract_asset_from_block_fees_key(key: &[u8]) -> Result
         .wrap_err("failed to extract asset from fee asset key")
 }
 
-fn extract_asset_from_key(key: &[u8], prefix: &[u8]) -> Result<IbcPrefixed> {
-    let suffix = key.strip_prefix(prefix).wrap_err_with(|| {
-        format!(
-            "key `{}` did not have prefix `{}`",
-            telemetry::display::hex(key),
-            telemetry::display::hex(prefix)
-        )
-    })?;
-    if suffix.len() != IbcPrefixed::ENCODED_HASH_LEN {
-        bail!(
-            "suffix `{}` of key `{}` is not {} bytes",
-            telemetry::display::hex(suffix),
-            telemetry::display::hex(key),
-            IbcPrefixed::ENCODED_HASH_LEN
-        );
-    }
-    let mut buffer = [0; IbcPrefixed::ENCODED_HASH_LEN];
-    buffer.copy_from_slice(suffix);
-    Ok(IbcPrefixed::new(buffer))
+fn extract_asset_from_key(key: &[u8], prefix: &str) -> Result<IbcPrefixed> {
+    let key_str = std::str::from_utf8(key)
+        .wrap_err_with(|| format!("key `{}` not valid utf8", telemetry::display::hex(key),))?;
+    let suffix = key_str
+        .strip_prefix(prefix)
+        .wrap_err_with(|| format!("key `{key_str}` did not have prefix `{prefix}`",))?;
+    suffix.parse().wrap_err_with(|| {
+        format!("failed to parse suffix `{suffix}` of key `{key_str}` as an ibc-prefixed asset",)
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use astria_core::primitive::v1::asset::Denom;
-    use telemetry::display::base64;
 
     use super::*;
 
@@ -85,16 +73,16 @@ mod tests {
     fn keys_should_not_change() {
         insta::assert_snapshot!(NATIVE_ASSET);
         insta::assert_snapshot!(asset(&test_asset()));
-        insta::assert_snapshot!(base64(&fee_asset(&test_asset())));
-        insta::assert_snapshot!(base64(&block_fees(&test_asset())));
+        insta::assert_snapshot!(fee_asset(&test_asset()));
+        insta::assert_snapshot!(block_fees(&test_asset()));
     }
 
     #[test]
     fn keys_should_have_component_prefix() {
         assert!(NATIVE_ASSET.starts_with(COMPONENT_PREFIX));
         assert!(asset(&test_asset()).starts_with(COMPONENT_PREFIX));
-        assert!(fee_asset(&test_asset()).starts_with(COMPONENT_PREFIX.as_bytes()));
-        assert!(block_fees(&test_asset()).starts_with(COMPONENT_PREFIX.as_bytes()));
+        assert!(fee_asset(&test_asset()).starts_with(COMPONENT_PREFIX));
+        assert!(block_fees(&test_asset()).starts_with(COMPONENT_PREFIX));
     }
 
     #[test]
@@ -108,11 +96,11 @@ mod tests {
         let asset = IbcPrefixed::new([1; 32]);
 
         let key = fee_asset(&asset);
-        let recovered_asset = extract_asset_from_fee_asset_key(&key).unwrap();
+        let recovered_asset = extract_asset_from_fee_asset_key(key.as_bytes()).unwrap();
         assert_eq!(asset, recovered_asset);
 
         let key = block_fees(&asset);
-        let recovered_asset = extract_asset_from_block_fees_key(&key).unwrap();
+        let recovered_asset = extract_asset_from_block_fees_key(key.as_bytes()).unwrap();
         assert_eq!(asset, recovered_asset);
     }
 }

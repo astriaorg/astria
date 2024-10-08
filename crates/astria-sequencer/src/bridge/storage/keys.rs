@@ -1,4 +1,8 @@
 use astria_core::primitive::v1::RollupId;
+use base64::{
+    display::Base64Display,
+    engine::general_purpose::URL_SAFE,
+};
 
 use crate::{
     accounts::AddressBytes,
@@ -15,7 +19,7 @@ const BRIDGE_ACCOUNT_SUDO_PREFIX: &str = "bridge/sudo/";
 const BRIDGE_ACCOUNT_WITHDRAWER_PREFIX: &str = "bridge/withdrawer/";
 
 pub(in crate::bridge) const DEPOSITS_EPHEMERAL: &str = "bridge/deposits";
-const DEPOSIT_PREFIX: &[u8] = b"bridge/deposit/";
+const DEPOSIT_PREFIX: &str = "bridge/deposit/";
 
 /// Example: `bridge/account/gGhH....zZ4=/rollup_id`.
 ///                         |base64 chars|
@@ -60,25 +64,26 @@ pub(in crate::bridge) fn bridge_account_withdrawal_event<T: AddressBytes>(
     )
 }
 
-pub(in crate::bridge) fn deposit(block_hash: &[u8; 32], rollup_id: &RollupId) -> Vec<u8> {
-    [DEPOSIT_PREFIX, block_hash, rollup_id.as_ref()].concat()
+pub(in crate::bridge) fn deposit(block_hash: &[u8; 32], rollup_id: &RollupId) -> String {
+    format!(
+        "{DEPOSIT_PREFIX}{}/{}",
+        Base64Display::new(block_hash, &URL_SAFE),
+        Base64Display::new(rollup_id.as_ref(), &URL_SAFE)
+    )
 }
 
 pub(in crate::bridge) fn last_transaction_id_for_bridge_account<T: AddressBytes>(
     address: &T,
-) -> Vec<u8> {
-    [
-        BRIDGE_ACCOUNT_PREFIX.as_bytes(),
-        address.address_bytes(),
-        b"/last_tx",
-    ]
-    .concat()
+) -> String {
+    format!(
+        "{BRIDGE_ACCOUNT_PREFIX}{}/last_tx",
+        Base64Display::new(address.address_bytes(), &URL_SAFE)
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use astria_core::primitive::v1::Address;
-    use telemetry::display::base64;
 
     use super::*;
 
@@ -101,8 +106,8 @@ mod tests {
         insta::assert_snapshot!(bridge_account_sudo_address(&address()));
         insta::assert_snapshot!(bridge_account_withdrawer_address(&address()));
         insta::assert_snapshot!(bridge_account_withdrawal_event(&address(), "the-event"));
-        insta::assert_snapshot!(base64(&deposit(&[1; 32], &RollupId::new([2; 32]))));
-        insta::assert_snapshot!(base64(&last_transaction_id_for_bridge_account(&address())));
+        insta::assert_snapshot!(deposit(&[1; 32], &RollupId::new([2; 32])));
+        insta::assert_snapshot!(last_transaction_id_for_bridge_account(&address()));
     }
 
     #[test]
@@ -118,13 +123,8 @@ mod tests {
         assert!(
             bridge_account_withdrawal_event(&address(), "the-event").starts_with(COMPONENT_PREFIX)
         );
-        assert!(
-            deposit(&[1; 32], &RollupId::new([2; 32])).starts_with(COMPONENT_PREFIX.as_bytes())
-        );
-        assert!(
-            last_transaction_id_for_bridge_account(&address())
-                .starts_with(COMPONENT_PREFIX.as_bytes())
-        );
+        assert!(deposit(&[1; 32], &RollupId::new([2; 32])).starts_with(COMPONENT_PREFIX));
+        assert!(last_transaction_id_for_bridge_account(&address()).starts_with(COMPONENT_PREFIX));
     }
 
     #[test]
@@ -136,8 +136,7 @@ mod tests {
                 .starts_with(BRIDGE_ACCOUNT_PREFIX)
         );
         assert!(
-            last_transaction_id_for_bridge_account(&address())
-                .starts_with(BRIDGE_ACCOUNT_PREFIX.as_bytes())
+            last_transaction_id_for_bridge_account(&address()).starts_with(BRIDGE_ACCOUNT_PREFIX)
         );
     }
 }

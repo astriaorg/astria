@@ -1,6 +1,6 @@
 ---
 source: crates/astria-sequencer/src/grpc/storage/keys.rs
-assertion_line: 38
-expression: base64(&block_hash_by_height_key(42))
+assertion_line: 44
+expression: block_hash_by_height(42)
 ---
-Z3JwYy9ibG9ja19oYXNoLyoAAAAAAAAA
+grpc/block_hash/42
