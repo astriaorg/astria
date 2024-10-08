@@ -10,13 +10,13 @@ use astria_core::{
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
             action::{
-                BridgeLockAction,
-                BridgeUnlockAction,
-                IbcRelayerChangeAction,
-                IbcSudoChangeAction,
-                SequenceAction,
-                SudoAddressChangeAction,
-                TransferAction,
+                BridgeLock,
+                BridgeUnlock,
+                IbcRelayerChange,
+                IbcSudoChange,
+                Sequence,
+                SudoAddressChange,
+                Transfer,
                 ValidatorUpdate,
             },
             Action,
@@ -105,7 +105,7 @@ async fn app_execute_transaction_transfer() {
     let value = 333_333;
     let tx = UnsignedTransaction::builder()
         .actions(vec![
-            TransferAction {
+            Transfer {
                 to: bob_address,
                 amount: value,
                 asset: crate::test_utils::nria().into(),
@@ -163,7 +163,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let tx = UnsignedTransaction::builder()
         .actions(vec![
-            TransferAction {
+            Transfer {
                 to: bob_address,
                 amount: value,
                 asset: test_asset(),
@@ -229,7 +229,7 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
     // 0-value transfer; only fee is deducted from sender
     let tx = UnsignedTransaction::builder()
         .actions(vec![
-            TransferAction {
+            Transfer {
                 to: bob,
                 amount: 0,
                 asset: nria().into(),
@@ -272,7 +272,7 @@ async fn app_execute_transaction_sequence() {
 
     let tx = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -308,7 +308,7 @@ async fn app_execute_transaction_invalid_fee_asset() {
 
     let tx = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: test_asset(),
@@ -364,9 +364,9 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
 
     let tx = UnsignedTransaction::builder()
-        .actions(vec![Action::IbcRelayerChange(
-            IbcRelayerChangeAction::Addition(alice_address),
-        )])
+        .actions(vec![Action::IbcRelayerChange(IbcRelayerChange::Addition(
+            alice_address,
+        ))])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -395,7 +395,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = UnsignedTransaction::builder()
-        .actions(vec![IbcRelayerChangeAction::Removal(alice_address).into()])
+        .actions(vec![IbcRelayerChange::Removal(alice_address).into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -425,7 +425,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = UnsignedTransaction::builder()
-        .actions(vec![IbcRelayerChangeAction::Removal(alice_address).into()])
+        .actions(vec![IbcRelayerChange::Removal(alice_address).into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -443,7 +443,7 @@ async fn app_execute_transaction_sudo_address_change() {
 
     let new_address = astria_address_from_hex_string(BOB_ADDRESS);
     let tx = UnsignedTransaction::builder()
-        .actions(vec![Action::SudoAddressChange(SudoAddressChangeAction {
+        .actions(vec![Action::SudoAddressChange(SudoAddressChange {
             new_address,
         })])
         .chain_id("test")
@@ -481,7 +481,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
     .unwrap();
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
     let tx = UnsignedTransaction::builder()
-        .actions(vec![Action::SudoAddressChange(SudoAddressChangeAction {
+        .actions(vec![Action::SudoAddressChange(SudoAddressChange {
             new_address: alice_address,
         })])
         .chain_id("test")
@@ -500,7 +500,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_addition() {
-    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
+    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -508,9 +508,9 @@ async fn app_execute_transaction_fee_asset_change_addition() {
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
 
     let tx = UnsignedTransaction::builder()
-        .actions(vec![Action::FeeAssetChange(
-            FeeAssetChangeAction::Addition(test_asset()),
-        )])
+        .actions(vec![Action::FeeAssetChange(FeeAssetChange::Addition(
+            test_asset(),
+        ))])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -527,7 +527,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_removal() {
-    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
+    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -542,7 +542,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = UnsignedTransaction::builder()
-        .actions(vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
+        .actions(vec![Action::FeeAssetChange(FeeAssetChange::Removal(
             test_asset(),
         ))])
         .chain_id("test")
@@ -561,14 +561,14 @@ async fn app_execute_transaction_fee_asset_change_removal() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_invalid() {
-    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
+    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
 
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
 
     let tx = UnsignedTransaction::builder()
-        .actions(vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
+        .actions(vec![Action::FeeAssetChange(FeeAssetChange::Removal(
             nria().into(),
         ))])
         .chain_id("test")
@@ -587,7 +587,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
 
 #[tokio::test]
 async fn app_execute_transaction_init_bridge_account_ok() {
-    use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccountAction;
+    use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccount;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -599,7 +599,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     app.apply(state_tx);
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let action = InitBridgeAccountAction {
+    let action = InitBridgeAccount {
         rollup_id,
         asset: nria().into(),
         fee_asset: nria().into(),
@@ -651,13 +651,13 @@ async fn app_execute_transaction_init_bridge_account_ok() {
 
 #[tokio::test]
 async fn app_execute_transaction_init_bridge_account_account_already_registered() {
-    use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccountAction;
+    use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccount;
 
     let alice = get_alice_signing_key();
     let mut app = initialize_app(None, vec![]).await;
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let action = InitBridgeAccountAction {
+    let action = InitBridgeAccount {
         rollup_id,
         asset: nria().into(),
         fee_asset: nria().into(),
@@ -673,7 +673,7 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
     let signed_tx = Arc::new(tx.into_signed(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
-    let action = InitBridgeAccountAction {
+    let action = InitBridgeAccount {
         rollup_id,
         asset: nria().into(),
         fee_asset: nria().into(),
@@ -711,7 +711,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     app.apply(state_tx);
 
     let amount = 100;
-    let action = BridgeLockAction {
+    let action = BridgeLock {
         to: bridge_address,
         amount,
         asset: nria().into(),
@@ -783,7 +783,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
 
 #[tokio::test]
 async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
-    use astria_core::protocol::transaction::v1alpha1::action::BridgeLockAction;
+    use astria_core::protocol::transaction::v1alpha1::action::BridgeLock;
 
     let alice = get_alice_signing_key();
     let mut app = initialize_app(None, vec![]).await;
@@ -792,7 +792,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
     let bridge_address = astria_address(&[99; 20]);
 
     let amount = 100;
-    let action = BridgeLockAction {
+    let action = BridgeLock {
         to: bridge_address,
         amount,
         asset: nria().into(),
@@ -821,7 +821,7 @@ async fn app_execute_transaction_invalid_nonce() {
 
     let tx = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -870,7 +870,7 @@ async fn app_execute_transaction_invalid_chain_id() {
     let data = Bytes::from_static(b"hello world");
     let tx = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -927,7 +927,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     // transfer just enough to cover single sequence fee with data
     let signed_tx = UnsignedTransaction::builder()
         .actions(vec![
-            TransferAction {
+            Transfer {
                 to: keypair_address,
                 amount: fee,
                 asset: nria().into(),
@@ -944,13 +944,13 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     // build double transfer exceeding balance
     let signed_tx_fail = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: data.clone(),
                 fee_asset: nria().into(),
             }
             .into(),
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: data.clone(),
                 fee_asset: nria().into(),
@@ -973,7 +973,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     // build single transfer to see passes
     let signed_tx_pass = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -1025,7 +1025,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     app.apply(state_tx);
 
     let amount = 100;
-    let action = BridgeLockAction {
+    let action = BridgeLock {
         to: bridge_address,
         amount,
         asset: nria().into(),
@@ -1047,7 +1047,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     );
 
     // see can unlock through bridge unlock
-    let action = BridgeUnlockAction {
+    let action = BridgeUnlock {
         to: alice_address,
         amount,
         fee_asset: nria().into(),
@@ -1097,7 +1097,7 @@ async fn app_execute_transaction_action_index_correctly_increments() {
     app.apply(state_tx);
 
     let amount = 100;
-    let action = BridgeLockAction {
+    let action = BridgeLock {
         to: bridge_address,
         amount,
         asset: nria().into(),
@@ -1146,7 +1146,7 @@ async fn transaction_execution_records_deposit_event() {
         .put_bridge_account_ibc_asset(&bob_address, nria())
         .unwrap();
 
-    let action = BridgeLockAction {
+    let action = BridgeLock {
         to: bob_address,
         amount: 1,
         asset: nria().into(),
@@ -1189,7 +1189,7 @@ async fn app_execute_transaction_ibc_sudo_change() {
     let new_address = astria_address_from_hex_string(BOB_ADDRESS);
 
     let tx = UnsignedTransaction::builder()
-        .actions(vec![Action::IbcSudoChange(IbcSudoChangeAction {
+        .actions(vec![Action::IbcSudoChange(IbcSudoChange {
             new_address,
         })])
         .chain_id("test")
@@ -1224,7 +1224,7 @@ async fn app_execute_transaction_ibc_sudo_change_error() {
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = UnsignedTransaction::builder()
-        .actions(vec![Action::IbcSudoChange(IbcSudoChangeAction {
+        .actions(vec![Action::IbcSudoChange(IbcSudoChange {
             new_address: alice_address,
         })])
         .chain_id("test")

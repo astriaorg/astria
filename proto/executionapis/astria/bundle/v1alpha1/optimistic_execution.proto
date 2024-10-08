@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package astria.bundle.v1alpha1;
+
+import "astria/execution/v1alpha2/execution.proto";
+import "astria/sequencerblock/v1alpha1/block.proto";
+import "google/protobuf/timestamp.proto";
+
+// The "BaseBlock" is the information needed to simulate bundles on top of
+// a Sequencer block which may not have been committed yet.
+message BaseBlock {
+  // This is the block hash for the proposed block.
+  bytes sequencer_block_hash = 1;
+  // List of transactions to include in the new block.
+  repeated astria.sequencerblock.v1alpha1.RollupData transactions = 2;
+  // Timestamp to be used for new block.
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message ExecuteOptimisticBlockStreamRequest {
+  BaseBlock base_block = 1;
+}
+
+message ExecuteOptimisticBlockStreamResponse {
+  // Metadata identifying the block resulting from executing a block. Includes number, hash,
+  // parent hash and timestamp.
+  astria.execution.v1alpha2.Block block = 1;
+  // The base_sequencer_block_hash is the hash from the base sequencer block this block
+  // is based on. This is used to associate an optimistic execution result with the hash
+  // received once a sequencer block is committed.
+  bytes base_sequencer_block_hash = 2;
+}
+
+service OptimisticExecutionService {
+  // Stream blocks from the Auctioneer to Geth for optimistic execution. Geth will stream back
+  // metadata from the executed blocks.
+  rpc ExecuteOptimisticBlockStream(stream ExecuteOptimisticBlockStreamRequest) returns (stream ExecuteOptimisticBlockStreamResponse);
+}

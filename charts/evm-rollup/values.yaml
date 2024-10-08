@@ -10,7 +10,7 @@ images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
     pullPolicy: IfNotPresent
-    tag: 0.14.1
+    tag: 0.14.3
     devTag: latest
     overrideTag: ""
   conductor:
@@ -48,15 +48,13 @@ genesis:
   ## These values are used to configure astria native bridging
   ## Many of the fields have commented out example fields
 
-  # When using an erc20 canonical bridge, the address from which tokens will
-  # be sent via the bridge contract
-  bridgeSenderAddress: "0x0000000000000000000000000000000000000000"
   # Configure the sequencer bridge addresses and allowed assets if using
   # the astria canonical bridge. Recommend removing alloc values if so.
   bridgeAddresses: []
     # - address: "684ae50c49a434199199c9c698115391152d7b3f"
     #   startHeight: 1
     #   assetDenom: "nria"
+    #   senderAddress: "0x0000000000000000000000000000000000000000"
     #   assetPrecision: 9
 
 

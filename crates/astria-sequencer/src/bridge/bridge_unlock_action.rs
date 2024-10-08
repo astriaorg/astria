@@ -1,6 +1,6 @@
 use astria_core::protocol::transaction::v1alpha1::action::{
-    BridgeUnlockAction,
-    TransferAction,
+    BridgeUnlock,
+    Transfer,
 };
 use astria_eyre::eyre::{
     bail,
@@ -25,7 +25,7 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-impl ActionHandler for BridgeUnlockAction {
+impl ActionHandler for BridgeUnlock {
     // TODO(https://github.com/astriaorg/astria/issues/1430): move checks to the `BridgeUnlock` parsing.
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.amount > 0, "amount must be greater than zero",);
@@ -78,7 +78,7 @@ impl ActionHandler for BridgeUnlockAction {
             "unauthorized to unlock bridge account",
         );
 
-        let transfer_action = TransferAction {
+        let transfer_action = Transfer {
             to: self.to,
             asset: asset.into(),
             amount: self.amount,
@@ -108,7 +108,7 @@ mod tests {
             RollupId,
             TransactionId,
         },
-        protocol::transaction::v1alpha1::action::BridgeUnlockAction,
+        protocol::transaction::v1alpha1::action::BridgeUnlock,
     };
     use cnidarium::StateDelta;
 
@@ -155,7 +155,7 @@ mod tests {
             .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
 
-        let bridge_unlock = BridgeUnlockAction {
+        let bridge_unlock = BridgeUnlock {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
@@ -198,7 +198,7 @@ mod tests {
             .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
 
-        let bridge_unlock = BridgeUnlockAction {
+        let bridge_unlock = BridgeUnlock {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset,
@@ -252,7 +252,7 @@ mod tests {
             .put_account_balance(&bridge_address, &asset, 3 * transfer_amount)
             .unwrap();
 
-        let bridge_unlock_first = BridgeUnlockAction {
+        let bridge_unlock_first = BridgeUnlock {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
@@ -261,7 +261,7 @@ mod tests {
             rollup_block_number: 1,
             rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
         };
-        let bridge_unlock_second = BridgeUnlockAction {
+        let bridge_unlock_second = BridgeUnlock {
             rollup_block_number: 10,
             ..bridge_unlock_first.clone()
         };

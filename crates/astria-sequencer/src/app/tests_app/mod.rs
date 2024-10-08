@@ -12,9 +12,9 @@ use astria_core::{
         genesis::v1alpha1::Account,
         transaction::v1alpha1::{
             action::{
-                BridgeLockAction,
-                SequenceAction,
-                TransferAction,
+                BridgeLock,
+                Sequence,
+                Transfer,
             },
             UnsignedTransaction,
         },
@@ -233,7 +233,7 @@ async fn app_transfer_block_fees_to_sudo() {
     let amount = 333_333;
     let tx = UnsignedTransaction::builder()
         .actions(vec![
-            TransferAction {
+            Transfer {
                 to: bob_address,
                 amount,
                 asset: nria().into(),
@@ -326,14 +326,14 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     app.commit(storage.clone()).await;
 
     let amount = 100;
-    let lock_action = BridgeLockAction {
+    let lock_action = BridgeLock {
         to: bridge_address,
         amount,
         asset: nria().into(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = SequenceAction {
+    let sequence_action = Sequence {
         rollup_id,
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
@@ -418,14 +418,14 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     app.commit(storage.clone()).await;
 
     let amount = 100;
-    let lock_action = BridgeLockAction {
+    let lock_action = BridgeLock {
         to: bridge_address,
         amount,
         asset: nria().into(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = SequenceAction {
+    let sequence_action = Sequence {
         rollup_id,
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
@@ -568,7 +568,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     let alice = get_alice_signing_key();
     let tx_pass = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
@@ -582,7 +582,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     let tx_overflow = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
@@ -658,7 +658,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     let alice = get_alice_signing_key();
     let tx_pass = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 200_000]),
                 fee_asset: nria().into(),
@@ -671,7 +671,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .into_signed(&alice);
     let tx_overflow = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),

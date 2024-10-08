@@ -1,4 +1,4 @@
-use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
+use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
 use astria_eyre::eyre::{
     bail,
     ensure,
@@ -19,7 +19,7 @@ use crate::{
 };
 
 #[async_trait]
-impl ActionHandler for FeeAssetChangeAction {
+impl ActionHandler for FeeAssetChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -38,12 +38,12 @@ impl ActionHandler for FeeAssetChangeAction {
             "unauthorized address for fee asset change"
         );
         match self {
-            FeeAssetChangeAction::Addition(asset) => {
+            FeeAssetChange::Addition(asset) => {
                 state
                     .put_allowed_fee_asset(asset)
                     .context("failed to write allowed fee asset to state")?;
             }
-            FeeAssetChangeAction::Removal(asset) => {
+            FeeAssetChange::Removal(asset) => {
                 state.delete_allowed_fee_asset(asset);
 
                 if state

@@ -1,59 +1,3 @@
-/// `SignedTransaction` is a transaction that has
-/// been signed by the given public key.
-/// It wraps an `UnsignedTransaction` with a
-/// signature and public key.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SignedTransaction {
-    #[prost(bytes = "bytes", tag = "1")]
-    pub signature: ::prost::bytes::Bytes,
-    #[prost(bytes = "bytes", tag = "2")]
-    pub public_key: ::prost::bytes::Bytes,
-    #[prost(message, optional, tag = "3")]
-    pub transaction: ::core::option::Option<::pbjson_types::Any>,
-}
-impl ::prost::Name for SignedTransaction {
-    const NAME: &'static str = "SignedTransaction";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
-    }
-}
-/// `UnsignedTransaction` is a transaction that does
-/// not have an attached signature.
-/// Note: `value` must be set, it cannot be `None`.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UnsignedTransaction {
-    #[prost(message, repeated, tag = "1")]
-    pub actions: ::prost::alloc::vec::Vec<Action>,
-    #[prost(message, optional, tag = "2")]
-    pub params: ::core::option::Option<TransactionParams>,
-}
-impl ::prost::Name for UnsignedTransaction {
-    const NAME: &'static str = "UnsignedTransaction";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
-    }
-}
-/// `TransactionParams` contains parameters that define the
-/// validity of the transaction.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TransactionParams {
-    #[prost(uint32, tag = "1")]
-    pub nonce: u32,
-    #[prost(string, tag = "2")]
-    pub chain_id: ::prost::alloc::string::String,
-}
-impl ::prost::Name for TransactionParams {
-    const NAME: &'static str = "TransactionParams";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
-    }
-}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
@@ -70,38 +14,38 @@ pub mod action {
     pub enum Value {
         /// Core protocol actions are defined on 1-10
         #[prost(message, tag = "1")]
-        TransferAction(super::TransferAction),
+        Transfer(super::Transfer),
         #[prost(message, tag = "2")]
-        SequenceAction(super::SequenceAction),
+        Sequence(super::Sequence),
         /// Bridge actions are defined on 11-20
         #[prost(message, tag = "11")]
-        InitBridgeAccountAction(super::InitBridgeAccountAction),
+        InitBridgeAccount(super::InitBridgeAccount),
         #[prost(message, tag = "12")]
-        BridgeLockAction(super::BridgeLockAction),
+        BridgeLock(super::BridgeLock),
         #[prost(message, tag = "13")]
-        BridgeUnlockAction(super::BridgeUnlockAction),
+        BridgeUnlock(super::BridgeUnlock),
         #[prost(message, tag = "14")]
-        BridgeSudoChangeAction(super::BridgeSudoChangeAction),
+        BridgeSudoChange(super::BridgeSudoChange),
         /// IBC user actions are defined on 21-30
         #[prost(message, tag = "21")]
-        IbcAction(::penumbra_proto::core::component::ibc::v1::IbcRelay),
+        Ibc(::penumbra_proto::core::component::ibc::v1::IbcRelay),
         #[prost(message, tag = "22")]
         Ics20Withdrawal(super::Ics20Withdrawal),
         /// POA sudo actions are defined on 50-60
         #[prost(message, tag = "50")]
-        SudoAddressChangeAction(super::SudoAddressChangeAction),
+        SudoAddressChange(super::SudoAddressChange),
         #[prost(message, tag = "51")]
-        ValidatorUpdateAction(
+        ValidatorUpdate(
             crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
         ),
         #[prost(message, tag = "52")]
-        IbcRelayerChangeAction(super::IbcRelayerChangeAction),
+        IbcRelayerChange(super::IbcRelayerChange),
         #[prost(message, tag = "53")]
-        FeeAssetChangeAction(super::FeeAssetChangeAction),
+        FeeAssetChange(super::FeeAssetChange),
         #[prost(message, tag = "55")]
-        FeeChangeAction(super::FeeChangeAction),
+        FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
-        IbcSudoChangeAction(super::IbcSudoChangeAction),
+        IbcSudoChange(super::IbcSudoChange),
     }
 }
 impl ::prost::Name for Action {
@@ -117,7 +61,7 @@ impl ::prost::Name for Action {
 /// be considered invalid by the sequencer.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TransferAction {
+pub struct Transfer {
     #[prost(message, optional, tag = "1")]
     pub to: ::core::option::Option<super::super::super::primitive::v1::Address>,
     #[prost(message, optional, tag = "2")]
@@ -129,21 +73,21 @@ pub struct TransferAction {
     #[prost(string, tag = "4")]
     pub fee_asset: ::prost::alloc::string::String,
 }
-impl ::prost::Name for TransferAction {
-    const NAME: &'static str = "TransferAction";
+impl ::prost::Name for Transfer {
+    const NAME: &'static str = "Transfer";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
-/// `SequenceAction` represents a transaction destined for another
+/// `Sequence` represents a transaction destined for another
 /// chain, ordered by the sequencer.
 ///
 /// It contains the rollup ID of the destination chain, and the
 /// opaque transaction data.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SequenceAction {
+pub struct Sequence {
     #[prost(message, optional, tag = "1")]
     pub rollup_id: ::core::option::Option<super::super::super::primitive::v1::RollupId>,
     #[prost(bytes = "bytes", tag = "2")]
@@ -152,26 +96,26 @@ pub struct SequenceAction {
     #[prost(string, tag = "3")]
     pub fee_asset: ::prost::alloc::string::String,
 }
-impl ::prost::Name for SequenceAction {
-    const NAME: &'static str = "SequenceAction";
+impl ::prost::Name for Sequence {
+    const NAME: &'static str = "Sequence";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
-/// / `SudoAddressChangeAction` represents a transaction that changes
+/// / `SudoAddressChange` represents a transaction that changes
 /// / the sudo address of the chain, which is the address authorized to
 /// / make validator update actions.
 /// /
 /// / It contains the new sudo address.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SudoAddressChangeAction {
+pub struct SudoAddressChange {
     #[prost(message, optional, tag = "1")]
     pub new_address: ::core::option::Option<super::super::super::primitive::v1::Address>,
 }
-impl ::prost::Name for SudoAddressChangeAction {
-    const NAME: &'static str = "SudoAddressChangeAction";
+impl ::prost::Name for SudoAddressChange {
+    const NAME: &'static str = "SudoAddressChange";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
@@ -252,17 +196,17 @@ impl ::prost::Name for IbcHeight {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
-/// `IbcRelayerChangeAction` represents a transaction that adds
+/// `IbcRelayerChange` represents a transaction that adds
 /// or removes an IBC relayer address.
 /// The bytes contained in each variant are the address to add or remove.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct IbcRelayerChangeAction {
-    #[prost(oneof = "ibc_relayer_change_action::Value", tags = "1, 2")]
-    pub value: ::core::option::Option<ibc_relayer_change_action::Value>,
+pub struct IbcRelayerChange {
+    #[prost(oneof = "ibc_relayer_change::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<ibc_relayer_change::Value>,
 }
-/// Nested message and enum types in `IbcRelayerChangeAction`.
-pub mod ibc_relayer_change_action {
+/// Nested message and enum types in `IbcRelayerChange`.
+pub mod ibc_relayer_change {
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
@@ -272,23 +216,23 @@ pub mod ibc_relayer_change_action {
         Removal(super::super::super::super::primitive::v1::Address),
     }
 }
-impl ::prost::Name for IbcRelayerChangeAction {
-    const NAME: &'static str = "IbcRelayerChangeAction";
+impl ::prost::Name for IbcRelayerChange {
+    const NAME: &'static str = "IbcRelayerChange";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
-/// `FeeAssetChangeAction` represents a transaction that adds
+/// `FeeAssetChange` represents a transaction that adds
 /// or removes an asset for fee payments.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FeeAssetChangeAction {
-    #[prost(oneof = "fee_asset_change_action::Value", tags = "1, 2")]
-    pub value: ::core::option::Option<fee_asset_change_action::Value>,
+pub struct FeeAssetChange {
+    #[prost(oneof = "fee_asset_change::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<fee_asset_change::Value>,
 }
-/// Nested message and enum types in `FeeAssetChangeAction`.
-pub mod fee_asset_change_action {
+/// Nested message and enum types in `FeeAssetChange`.
+pub mod fee_asset_change {
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
@@ -298,22 +242,22 @@ pub mod fee_asset_change_action {
         Removal(::prost::alloc::string::String),
     }
 }
-impl ::prost::Name for FeeAssetChangeAction {
-    const NAME: &'static str = "FeeAssetChangeAction";
+impl ::prost::Name for FeeAssetChange {
+    const NAME: &'static str = "FeeAssetChange";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
-/// `InitBridgeAccountAction` represents a transaction that initializes
+/// `InitBridgeAccount` represents a transaction that initializes
 /// a bridge account for the given rollup on the chain.
 ///
 /// The sender of the transaction is used as the owner of the bridge account
 /// and is the only actor authorized to transfer out of this account via
-/// a `TransferAction`.
+/// a `Transfer`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct InitBridgeAccountAction {
+pub struct InitBridgeAccount {
     /// the rollup ID to register with the bridge account (the tx sender)
     #[prost(message, optional, tag = "1")]
     pub rollup_id: ::core::option::Option<super::super::super::primitive::v1::RollupId>,
@@ -337,21 +281,21 @@ pub struct InitBridgeAccountAction {
         super::super::super::primitive::v1::Address,
     >,
 }
-impl ::prost::Name for InitBridgeAccountAction {
-    const NAME: &'static str = "InitBridgeAccountAction";
+impl ::prost::Name for InitBridgeAccount {
+    const NAME: &'static str = "InitBridgeAccount";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
-/// `BridgeLockAction` represents a transaction that transfers
+/// `BridgeLock` represents a transaction that transfers
 /// funds from a sequencer account to a bridge account.
 ///
-/// It's the same as a `TransferAction` but with the added
+/// It's the same as a `Transfer` but with the added
 /// `destination_chain_address` field.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BridgeLockAction {
+pub struct BridgeLock {
     /// the address of the bridge account to transfer to
     #[prost(message, optional, tag = "1")]
     pub to: ::core::option::Option<super::super::super::primitive::v1::Address>,
@@ -369,21 +313,21 @@ pub struct BridgeLockAction {
     #[prost(string, tag = "5")]
     pub destination_chain_address: ::prost::alloc::string::String,
 }
-impl ::prost::Name for BridgeLockAction {
-    const NAME: &'static str = "BridgeLockAction";
+impl ::prost::Name for BridgeLock {
+    const NAME: &'static str = "BridgeLock";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
-/// `BridgeUnlockAction` represents a transaction that transfers
+/// `BridgeUnlock` represents a transaction that transfers
 /// funds from a bridge account to a sequencer account.
 ///
-/// It's the same as a `TransferAction` but without the `asset` field
+/// It's the same as a `Transfer` but without the `asset` field
 /// and with the `memo` field.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BridgeUnlockAction {
+pub struct BridgeUnlock {
     /// the to withdraw funds to
     #[prost(message, optional, tag = "1")]
     pub to: ::core::option::Option<super::super::super::primitive::v1::Address>,
@@ -416,8 +360,8 @@ pub struct BridgeUnlockAction {
     #[prost(string, tag = "7")]
     pub rollup_withdrawal_event_id: ::prost::alloc::string::String,
 }
-impl ::prost::Name for BridgeUnlockAction {
-    const NAME: &'static str = "BridgeUnlockAction";
+impl ::prost::Name for BridgeUnlock {
+    const NAME: &'static str = "BridgeUnlock";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
@@ -425,7 +369,7 @@ impl ::prost::Name for BridgeUnlockAction {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BridgeSudoChangeAction {
+pub struct BridgeSudoChange {
     /// the address of the bridge account to change the sudo or withdrawer addresses for
     #[prost(message, optional, tag = "1")]
     pub bridge_address: ::core::option::Option<
@@ -445,8 +389,8 @@ pub struct BridgeSudoChangeAction {
     #[prost(string, tag = "4")]
     pub fee_asset: ::prost::alloc::string::String,
 }
-impl ::prost::Name for BridgeSudoChangeAction {
-    const NAME: &'static str = "BridgeSudoChangeAction";
+impl ::prost::Name for BridgeSudoChange {
+    const NAME: &'static str = "BridgeSudoChange";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
@@ -454,14 +398,14 @@ impl ::prost::Name for BridgeSudoChangeAction {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FeeChangeAction {
+pub struct FeeChange {
     /// note that the proto number ranges are doubled from that of `Action`.
     /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
-    #[prost(oneof = "fee_change_action::Value", tags = "1, 2, 3, 20, 21, 22, 40")]
-    pub value: ::core::option::Option<fee_change_action::Value>,
+    #[prost(oneof = "fee_change::Value", tags = "1, 2, 3, 20, 21, 22, 40")]
+    pub value: ::core::option::Option<fee_change::Value>,
 }
-/// Nested message and enum types in `FeeChangeAction`.
-pub mod fee_change_action {
+/// Nested message and enum types in `FeeChange`.
+pub mod fee_change {
     /// note that the proto number ranges are doubled from that of `Action`.
     /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
     #[allow(clippy::derive_partial_eq_without_eq)]
@@ -486,8 +430,8 @@ pub mod fee_change_action {
         Ics20WithdrawalBaseFee(super::super::super::super::primitive::v1::Uint128),
     }
 }
-impl ::prost::Name for FeeChangeAction {
-    const NAME: &'static str = "FeeChangeAction";
+impl ::prost::Name for FeeChange {
+    const NAME: &'static str = "FeeChange";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
@@ -495,12 +439,12 @@ impl ::prost::Name for FeeChangeAction {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct IbcSudoChangeAction {
+pub struct IbcSudoChange {
     #[prost(message, optional, tag = "1")]
     pub new_address: ::core::option::Option<super::super::super::primitive::v1::Address>,
 }
-impl ::prost::Name for IbcSudoChangeAction {
-    const NAME: &'static str = "IbcSudoChangeAction";
+impl ::prost::Name for IbcSudoChange {
+    const NAME: &'static str = "IbcSudoChange";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
@@ -532,6 +476,62 @@ pub struct TransactionFee {
 }
 impl ::prost::Name for TransactionFee {
     const NAME: &'static str = "TransactionFee";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+/// `SignedTransaction` is a transaction that has
+/// been signed by the given public key.
+/// It wraps an `UnsignedTransaction` with a
+/// signature and public key.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SignedTransaction {
+    #[prost(bytes = "bytes", tag = "1")]
+    pub signature: ::prost::bytes::Bytes,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub public_key: ::prost::bytes::Bytes,
+    #[prost(message, optional, tag = "3")]
+    pub transaction: ::core::option::Option<::pbjson_types::Any>,
+}
+impl ::prost::Name for SignedTransaction {
+    const NAME: &'static str = "SignedTransaction";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+/// `UnsignedTransaction` is a transaction that does
+/// not have an attached signature.
+/// Note: `value` must be set, it cannot be `None`.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnsignedTransaction {
+    #[prost(message, repeated, tag = "1")]
+    pub actions: ::prost::alloc::vec::Vec<Action>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<TransactionParams>,
+}
+impl ::prost::Name for UnsignedTransaction {
+    const NAME: &'static str = "UnsignedTransaction";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+/// `TransactionParams` contains parameters that define the
+/// validity of the transaction.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionParams {
+    #[prost(uint32, tag = "1")]
+    pub nonce: u32,
+    #[prost(string, tag = "2")]
+    pub chain_id: ::prost::alloc::string::String,
+}
+impl ::prost::Name for TransactionParams {
+    const NAME: &'static str = "TransactionParams";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)

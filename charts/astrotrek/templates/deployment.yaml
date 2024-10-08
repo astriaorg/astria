@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.config.name }}-indexer
+  labels:
+    app: {{ .Values.config.name }}-indexer
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+     app: {{ .Values.config.name }}-indexer
+  template:
+    metadata:
+      labels:
+       app: {{ .Values.config.name }}-indexer
+    spec:
+      containers:
+        - name: {{ .Values.config.name }}-indexer
+          image: {{ include "indexer.image" . }}
+          envFrom:
+            - configMapRef:
+                name: env
+      restartPolicy: Always
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.namespace }}
+  labels:
+   app: {{ .Values.config.name }}-frontend
+  name: {{ .Values.config.name }}-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+     app: {{ .Values.config.name }}-frontend
+  template:
+    metadata:
+      labels:
+       app: {{ .Values.config.name }}-frontend
+    spec:
+      containers:
+        - args:
+            - npm
+            - run
+            - start
+          envFrom:
+            - configMapRef:
+                name: env
+          image: {{ include "frontend.image" . }}
+          name: {{ .Values.config.name }}-frontend
+          ports:
+            - containerPort: {{ .Values.ports.frontend }}
+              protocol: TCP
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+      restartPolicy: Always

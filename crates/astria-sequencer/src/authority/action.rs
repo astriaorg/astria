@@ -1,8 +1,8 @@
 use astria_core::protocol::transaction::v1alpha1::action::{
     FeeChange,
-    FeeChangeAction,
-    IbcSudoChangeAction,
-    SudoAddressChangeAction,
+    FeeChangeKind,
+    IbcSudoChange,
+    SudoAddressChange,
     ValidatorUpdate,
 };
 use astria_eyre::eyre::{
@@ -77,7 +77,7 @@ impl ActionHandler for ValidatorUpdate {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for SudoAddressChangeAction {
+impl ActionHandler for SudoAddressChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -107,7 +107,7 @@ impl ActionHandler for SudoAddressChangeAction {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for FeeChangeAction {
+impl ActionHandler for FeeChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -127,25 +127,25 @@ impl ActionHandler for FeeChangeAction {
         ensure!(sudo_address == from, "signer is not the sudo key");
 
         match self.fee_change {
-            FeeChange::TransferBaseFee => state
+            FeeChangeKind::TransferBaseFee => state
                 .put_transfer_base_fee(self.new_value)
                 .wrap_err("failed to put transfer base fee"),
-            FeeChange::SequenceBaseFee => state
+            FeeChangeKind::SequenceBaseFee => state
                 .put_sequence_action_base_fee(self.new_value)
                 .wrap_err("failed to put sequence action base fee"),
-            FeeChange::SequenceByteCostMultiplier => state
+            FeeChangeKind::SequenceByteCostMultiplier => state
                 .put_sequence_action_byte_cost_multiplier(self.new_value)
                 .wrap_err("failed to put sequence action byte cost multiplier"),
-            FeeChange::InitBridgeAccountBaseFee => state
+            FeeChangeKind::InitBridgeAccountBaseFee => state
                 .put_init_bridge_account_base_fee(self.new_value)
                 .wrap_err("failed to put init bridge account base fee"),
-            FeeChange::BridgeLockByteCostMultiplier => state
+            FeeChangeKind::BridgeLockByteCostMultiplier => state
                 .put_bridge_lock_byte_cost_multiplier(self.new_value)
                 .wrap_err("failed to put bridge lock byte cost multiplier"),
-            FeeChange::BridgeSudoChangeBaseFee => state
+            FeeChangeKind::BridgeSudoChangeBaseFee => state
                 .put_bridge_sudo_change_base_fee(self.new_value)
                 .wrap_err("failed to put bridge sudo change base fee"),
-            FeeChange::Ics20WithdrawalBaseFee => state
+            FeeChangeKind::Ics20WithdrawalBaseFee => state
                 .put_ics20_withdrawal_base_fee(self.new_value)
                 .wrap_err("failed to put ics20 withdrawal base fee"),
         }
@@ -153,7 +153,7 @@ impl ActionHandler for FeeChangeAction {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for IbcSudoChangeAction {
+impl ActionHandler for IbcSudoChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -213,8 +213,8 @@ mod tests {
 
         state.put_transfer_base_fee(transfer_fee).unwrap();
 
-        let fee_change = FeeChangeAction {
-            fee_change: FeeChange::TransferBaseFee,
+        let fee_change = FeeChange {
+            fee_change: FeeChangeKind::TransferBaseFee,
             new_value: 10,
         };
 
@@ -226,8 +226,8 @@ mod tests {
             .put_sequence_action_base_fee(sequence_base_fee)
             .unwrap();
 
-        let fee_change = FeeChangeAction {
-            fee_change: FeeChange::SequenceBaseFee,
+        let fee_change = FeeChange {
+            fee_change: FeeChangeKind::SequenceBaseFee,
             new_value: 3,
         };
 
@@ -239,8 +239,8 @@ mod tests {
             .put_sequence_action_byte_cost_multiplier(sequence_byte_cost_multiplier)
             .unwrap();
 
-        let fee_change = FeeChangeAction {
-            fee_change: FeeChange::SequenceByteCostMultiplier,
+        let fee_change = FeeChange {
+            fee_change: FeeChangeKind::SequenceByteCostMultiplier,
             new_value: 4,
         };
 
@@ -258,8 +258,8 @@ mod tests {
             .put_init_bridge_account_base_fee(init_bridge_account_base_fee)
             .unwrap();
 
-        let fee_change = FeeChangeAction {
-            fee_change: FeeChange::InitBridgeAccountBaseFee,
+        let fee_change = FeeChange {
+            fee_change: FeeChangeKind::InitBridgeAccountBaseFee,
             new_value: 2,
         };
 
@@ -271,8 +271,8 @@ mod tests {
             .put_bridge_lock_byte_cost_multiplier(bridge_lock_byte_cost_multiplier)
             .unwrap();
 
-        let fee_change = FeeChangeAction {
-            fee_change: FeeChange::BridgeLockByteCostMultiplier,
+        let fee_change = FeeChange {
+            fee_change: FeeChangeKind::BridgeLockByteCostMultiplier,
             new_value: 2,
         };
 
@@ -287,8 +287,8 @@ mod tests {
             .put_ics20_withdrawal_base_fee(ics20_withdrawal_base_fee)
             .unwrap();
 
-        let fee_change = FeeChangeAction {
-            fee_change: FeeChange::Ics20WithdrawalBaseFee,
+        let fee_change = FeeChange {
+            fee_change: FeeChangeKind::Ics20WithdrawalBaseFee,
             new_value: 2,
         };
 

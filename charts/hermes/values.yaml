@@ -3,7 +3,7 @@ global:
   replicaCount: 1
   logLevel: debug
 
-image: ghcr.io/penumbra-zone/hermes:main
+image: ghcr.io/astriaorg/hermes:sha-450f848
 imagePullPolicy: IfNotPresent
 
 fullnameOverride: ""
@@ -33,6 +33,13 @@ telemetry:
     count: 10
 tracingServer:
   enabled: false
+
+# ServiceMonitor configuration
+serviceMonitor:
+  enabled: false
+  port: 26660
+  additionalLabels:
+    release: kube-prometheus-stack
 
 mode:
   clients:
@@ -188,3 +195,26 @@ ingress:
       #  - secretName: chart-example-tls
       #    hosts:
       #      - chart-example.local
+
+alerting:
+  enabled: false
+  interval: ""
+  additionalLabels:
+    release: kube-prometheus-stack
+  annotations: {}
+  # scrapeTimeout: 10s
+  # path: /metrics
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: kube-prometheus-stack
+    namespace: monitoring
+    rules:
+    - alert: Chain_Node_Down
+      expr: up{container="cometbft"} == 0  # Insert your query Expression
+      for: 1m  # Rough number but should be enough to init warn
+      labels:
+        severity: critical
+      annotations:
+        summary: Chain Node is Down (instance {{ $labels.instance }})
+        description: "chain node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

@@ -5,56 +5,30 @@ package astria.protocol.transactions.v1alpha1;
 import "astria/primitive/v1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
 import "astria_vendored/tendermint/abci/types.proto";
-import "google/protobuf/any.proto";
-
-// `SignedTransaction` is a transaction that has
-// been signed by the given public key.
-// It wraps an `UnsignedTransaction` with a
-// signature and public key.
-message SignedTransaction {
-  bytes signature = 1;
-  bytes public_key = 2;
-  google.protobuf.Any transaction = 3;
-}
-
-// `UnsignedTransaction` is a transaction that does
-// not have an attached signature.
-// Note: `value` must be set, it cannot be `None`.
-message UnsignedTransaction {
-  repeated Action actions = 1;
-  TransactionParams params = 2;
-}
-
-// `TransactionParams` contains parameters that define the
-// validity of the transaction.
-message TransactionParams {
-  uint32 nonce = 1;
-  string chain_id = 2;
-}
 
 message Action {
   oneof value {
     // Core protocol actions are defined on 1-10
-    TransferAction transfer_action = 1;
-    SequenceAction sequence_action = 2;
+    Transfer transfer = 1;
+    Sequence sequence = 2;
 
     // Bridge actions are defined on 11-20
-    InitBridgeAccountAction init_bridge_account_action = 11;
-    BridgeLockAction bridge_lock_action = 12;
-    BridgeUnlockAction bridge_unlock_action = 13;
-    BridgeSudoChangeAction bridge_sudo_change_action = 14;
+    InitBridgeAccount init_bridge_account = 11;
+    BridgeLock bridge_lock = 12;
+    BridgeUnlock bridge_unlock = 13;
+    BridgeSudoChange bridge_sudo_change = 14;
 
     // IBC user actions are defined on 21-30
-    astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc_action = 21;
+    astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc = 21;
     Ics20Withdrawal ics20_withdrawal = 22;
 
     // POA sudo actions are defined on 50-60
-    SudoAddressChangeAction sudo_address_change_action = 50;
-    astria_vendored.tendermint.abci.ValidatorUpdate validator_update_action = 51;
-    IbcRelayerChangeAction ibc_relayer_change_action = 52;
-    FeeAssetChangeAction fee_asset_change_action = 53;
-    FeeChangeAction fee_change_action = 55;
-    IbcSudoChangeAction ibc_sudo_change_action = 56;
+    SudoAddressChange sudo_address_change = 50;
+    astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51;
+    IbcRelayerChange ibc_relayer_change = 52;
+    FeeAssetChange fee_asset_change = 53;
+    FeeChange fee_change = 55;
+    IbcSudoChange ibc_sudo_change = 56;
   }
   reserved 3 to 10;
   reserved 15 to 20;
@@ -70,7 +44,7 @@ message Action {
 //
 // Note: all values must be set (ie. not `None`), otherwise it will
 // be considered invalid by the sequencer.
-message TransferAction {
+message Transfer {
   astria.primitive.v1.Address to = 1;
   astria.primitive.v1.Uint128 amount = 2;
   // the asset to be transferred
@@ -79,24 +53,24 @@ message TransferAction {
   string fee_asset = 4;
 }
 
-// `SequenceAction` represents a transaction destined for another
+// `Sequence` represents a transaction destined for another
 // chain, ordered by the sequencer.
 //
 // It contains the rollup ID of the destination chain, and the
 // opaque transaction data.
-message SequenceAction {
+message Sequence {
   astria.primitive.v1.RollupId rollup_id = 1;
   bytes data = 2;
   // the asset used to pay the transaction fee
   string fee_asset = 3;
 }
 
-/// `SudoAddressChangeAction` represents a transaction that changes
+/// `SudoAddressChange` represents a transaction that changes
 /// the sudo address of the chain, which is the address authorized to
 /// make validator update actions.
 ///
 /// It contains the new sudo address.
-message SudoAddressChangeAction {
+message SudoAddressChange {
   astria.primitive.v1.Address new_address = 1;
 }
 
@@ -143,32 +117,32 @@ message IbcHeight {
   uint64 revision_height = 2;
 }
 
-// `IbcRelayerChangeAction` represents a transaction that adds
+// `IbcRelayerChange` represents a transaction that adds
 // or removes an IBC relayer address.
 // The bytes contained in each variant are the address to add or remove.
-message IbcRelayerChangeAction {
+message IbcRelayerChange {
   oneof value {
     astria.primitive.v1.Address addition = 1;
     astria.primitive.v1.Address removal = 2;
   }
 }
 
-// `FeeAssetChangeAction` represents a transaction that adds
+// `FeeAssetChange` represents a transaction that adds
 // or removes an asset for fee payments.
-message FeeAssetChangeAction {
+message FeeAssetChange {
   oneof value {
     string addition = 1;
     string removal = 2;
   }
 }
 
-// `InitBridgeAccountAction` represents a transaction that initializes
+// `InitBridgeAccount` represents a transaction that initializes
 // a bridge account for the given rollup on the chain.
 //
 // The sender of the transaction is used as the owner of the bridge account
 // and is the only actor authorized to transfer out of this account via
-// a `TransferAction`.
-message InitBridgeAccountAction {
+// a `Transfer`.
+message InitBridgeAccount {
   // the rollup ID to register with the bridge account (the tx sender)
   astria.primitive.v1.RollupId rollup_id = 1;
   // the asset ID accepted as an incoming transfer by the bridge account
@@ -184,12 +158,12 @@ message InitBridgeAccountAction {
   astria.primitive.v1.Address withdrawer_address = 5;
 }
 
-// `BridgeLockAction` represents a transaction that transfers
+// `BridgeLock` represents a transaction that transfers
 // funds from a sequencer account to a bridge account.
 //
-// It's the same as a `TransferAction` but with the added
+// It's the same as a `Transfer` but with the added
 // `destination_chain_address` field.
-message BridgeLockAction {
+message BridgeLock {
   // the address of the bridge account to transfer to
   astria.primitive.v1.Address to = 1;
   // the amount to transfer
@@ -203,12 +177,12 @@ message BridgeLockAction {
   string destination_chain_address = 5;
 }
 
-// `BridgeUnlockAction` represents a transaction that transfers
+// `BridgeUnlock` represents a transaction that transfers
 // funds from a bridge account to a sequencer account.
 //
-// It's the same as a `TransferAction` but without the `asset` field
+// It's the same as a `Transfer` but without the `asset` field
 // and with the `memo` field.
-message BridgeUnlockAction {
+message BridgeUnlock {
   // the to withdraw funds to
   astria.primitive.v1.Address to = 1;
   // the amount to transfer
@@ -233,7 +207,7 @@ message BridgeUnlockAction {
   string rollup_withdrawal_event_id = 7;
 }
 
-message BridgeSudoChangeAction {
+message BridgeSudoChange {
   // the address of the bridge account to change the sudo or withdrawer addresses for
   astria.primitive.v1.Address bridge_address = 1;
   // the new sudo address; unchanged if unset
@@ -244,7 +218,7 @@ message BridgeSudoChangeAction {
   string fee_asset = 4;
 }
 
-message FeeChangeAction {
+message FeeChange {
   // note that the proto number ranges are doubled from that of `Action`.
   // this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
   oneof value {
@@ -263,7 +237,7 @@ message FeeChangeAction {
   }
 }
 
-message IbcSudoChangeAction {
+message IbcSudoChange {
   astria.primitive.v1.Address new_address = 1;
 }
 

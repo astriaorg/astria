@@ -5,17 +5,17 @@ use astria_core::{
     },
     protocol::transaction::v1alpha1::action::{
         self,
-        BridgeLockAction,
-        BridgeSudoChangeAction,
-        BridgeUnlockAction,
-        FeeAssetChangeAction,
-        FeeChangeAction,
-        IbcRelayerChangeAction,
-        IbcSudoChangeAction,
-        InitBridgeAccountAction,
-        SequenceAction,
-        SudoAddressChangeAction,
-        TransferAction,
+        BridgeLock,
+        BridgeSudoChange,
+        BridgeUnlock,
+        FeeAssetChange,
+        FeeChange,
+        IbcRelayerChange,
+        IbcSudoChange,
+        InitBridgeAccount,
+        Sequence,
+        SudoAddressChange,
+        Transfer,
         ValidatorUpdate,
     },
     sequencerblock::v1alpha1::block::Deposit,
@@ -86,7 +86,7 @@ impl Fee {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for TransferAction {
+impl FeeHandler for Transfer {
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let tx_context = state
@@ -122,7 +122,7 @@ impl FeeHandler for TransferAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for BridgeLockAction {
+impl FeeHandler for BridgeLock {
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let tx_context = state
@@ -188,7 +188,7 @@ impl FeeHandler for BridgeLockAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for BridgeSudoChangeAction {
+impl FeeHandler for BridgeSudoChange {
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let tx_context = state
@@ -226,7 +226,7 @@ impl FeeHandler for BridgeSudoChangeAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for BridgeUnlockAction {
+impl FeeHandler for BridgeUnlock {
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let tx_context = state
@@ -261,7 +261,7 @@ impl FeeHandler for BridgeUnlockAction {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for InitBridgeAccountAction {
+impl FeeHandler for InitBridgeAccount {
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let tx_context = state
@@ -333,7 +333,7 @@ impl FeeHandler for action::Ics20Withdrawal {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for SequenceAction {
+impl FeeHandler for Sequence {
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let tx_context = state
@@ -377,35 +377,35 @@ impl FeeHandler for ValidatorUpdate {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for SudoAddressChangeAction {
+impl FeeHandler for SudoAddressChange {
     async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for FeeChangeAction {
+impl FeeHandler for FeeChange {
     async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for IbcSudoChangeAction {
+impl FeeHandler for IbcSudoChange {
     async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for IbcRelayerChangeAction {
+impl FeeHandler for IbcRelayerChange {
     async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for FeeAssetChangeAction {
+impl FeeHandler for FeeAssetChange {
     async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
         Ok(())
     }
@@ -482,7 +482,7 @@ mod tests {
             ROLLUP_ID_LEN,
             TRANSACTION_ID_LEN,
         },
-        protocol::transaction::v1alpha1::action::BridgeLockAction,
+        protocol::transaction::v1alpha1::action::BridgeLock,
         sequencerblock::v1alpha1::block::Deposit,
     };
     use cnidarium::StateDelta;
@@ -534,7 +534,7 @@ mod tests {
 
         let bridge_address = astria_address(&[1; 20]);
         let asset = test_asset();
-        let bridge_lock = BridgeLockAction {
+        let bridge_lock = BridgeLock {
             to: bridge_address,
             asset: asset.clone(),
             amount: 100,

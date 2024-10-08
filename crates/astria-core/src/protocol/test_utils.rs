@@ -7,7 +7,7 @@ use prost::Message as _;
 
 use super::{
     group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-    transaction::v1alpha1::action::SequenceAction,
+    transaction::v1alpha1::action::Sequence,
 };
 use crate::{
     crypto::SigningKey,
@@ -93,7 +93,7 @@ impl ConfigureSequencerBlock {
         let actions: Vec<Action> = sequence_data
             .into_iter()
             .map(|(rollup_id, data)| {
-                SequenceAction {
+                Sequence {
                     rollup_id,
                     data: data.into(),
                     fee_asset: "nria".parse().unwrap(),

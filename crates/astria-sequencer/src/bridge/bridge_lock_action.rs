@@ -1,7 +1,7 @@
 use astria_core::{
     protocol::transaction::v1alpha1::action::{
-        BridgeLockAction,
-        TransferAction,
+        BridgeLock,
+        Transfer,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
@@ -28,7 +28,7 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-impl ActionHandler for BridgeLockAction {
+impl ActionHandler for BridgeLock {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -77,7 +77,7 @@ impl ActionHandler for BridgeLockAction {
             source_action_index,
         };
 
-        let transfer_action = TransferAction {
+        let transfer_action = Transfer {
             to: self.to,
             asset: self.asset.clone(),
             amount: self.amount,

@@ -16,7 +16,6 @@ use astria_sequencer_client::{
     HttpClient,
     SequencerClientExt as _,
 };
-use clap::Args;
 use color_eyre::eyre::{
     self,
     ensure,
@@ -29,8 +28,8 @@ use tracing::{
     warn,
 };
 
-#[derive(Args, Debug)]
-pub(crate) struct WithdrawalEvents {
+#[derive(clap::Args, Debug)]
+pub(crate) struct Command {
     #[arg(long, short)]
     input: PathBuf,
     #[arg(long)]
@@ -43,7 +42,7 @@ pub(crate) struct WithdrawalEvents {
     sequencer_url: String,
 }
 
-impl WithdrawalEvents {
+impl Command {
     pub(crate) async fn run(self) -> eyre::Result<()> {
         let signing_key = read_signing_key(&self.signing_key).wrap_err_with(|| {
             format!(
@@ -96,7 +95,7 @@ impl WithdrawalEvents {
     }
 }
 
-fn read_actions<P: AsRef<Path>>(path: P) -> eyre::Result<super::collect::ActionsByRollupHeight> {
+fn read_actions<P: AsRef<Path>>(path: P) -> eyre::Result<super::ActionsByRollupHeight> {
     let s = std::fs::read_to_string(path).wrap_err("failed buffering file contents as string")?;
     serde_json::from_str(&s)
         .wrap_err("failed deserializing file contents height-to-sequencer-actions serde object")
