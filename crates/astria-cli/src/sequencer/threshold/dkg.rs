@@ -100,22 +100,6 @@ impl Command {
             &round2_public_packages,
         )
         .wrap_err("failed to run dkg part3")?;
-        println!(
-            "Send our public key package to all other participants: {}",
-            hex::encode(pubkey_package.serialize()?)
-        );
-
-        let mut round3_public_packages: BTreeMap<Identifier, PublicKeyPackage> = BTreeMap::new();
-        for i in 1..=max_signers {
-            if i == index {
-                continue;
-            }
-
-            println!("Enter public key package for participant {}:", i);
-            let pubkey_package = read_line_raw().await?;
-            let pubkey_package = PublicKeyPackage::deserialize(&hex::decode(pubkey_package)?)?;
-            round3_public_packages.insert(i.try_into()?, pubkey_package);
-        }
 
         println!("Save the following information!");
         println!(
@@ -123,8 +107,8 @@ impl Command {
             hex::encode(key_package.serialize()?)
         );
         println!(
-            "Public key packages: {}",
-            serde_json::to_string_pretty(&round3_public_packages)
+            "Public key package: {}",
+            serde_json::to_string_pretty(&pubkey_package)
                 .wrap_err("failed to serialize public key packages")?
         );
         println!("DKG completed successfully!");
