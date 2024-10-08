@@ -438,6 +438,116 @@ impl<'de> serde::Deserialize<'de> for BridgeLockAction {
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeLockAction", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for BridgeLockFeeComponents {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.base_fee.is_some() {
+            len += 1;
+        }
+        if self.computed_cost_multiplier.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeLockFeeComponents", len)?;
+        if let Some(v) = self.base_fee.as_ref() {
+            struct_ser.serialize_field("baseFee", v)?;
+        }
+        if let Some(v) = self.computed_cost_multiplier.as_ref() {
+            struct_ser.serialize_field("computedCostMultiplier", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for BridgeLockFeeComponents {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "base_fee",
+            "baseFee",
+            "computed_cost_multiplier",
+            "computedCostMultiplier",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BaseFee,
+            ComputedCostMultiplier,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "baseFee" | "base_fee" => Ok(GeneratedField::BaseFee),
+                            "computedCostMultiplier" | "computed_cost_multiplier" => Ok(GeneratedField::ComputedCostMultiplier),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = BridgeLockFeeComponents;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeLockFeeComponents")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeLockFeeComponents, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut base_fee__ = None;
+                let mut computed_cost_multiplier__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BaseFee => {
+                            if base_fee__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseFee"));
+                            }
+                            base_fee__ = map_.next_value()?;
+                        }
+                        GeneratedField::ComputedCostMultiplier => {
+                            if computed_cost_multiplier__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("computedCostMultiplier"));
+                            }
+                            computed_cost_multiplier__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(BridgeLockFeeComponents {
+                    base_fee: base_fee__,
+                    computed_cost_multiplier: computed_cost_multiplier__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeLockFeeComponents", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for BridgeSudoChangeAction {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -582,6 +692,116 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChangeAction {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeSudoChangeAction", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for BridgeSudoChangeFeeComponents {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.base_fee.is_some() {
+            len += 1;
+        }
+        if self.computed_cost_multiplier.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeSudoChangeFeeComponents", len)?;
+        if let Some(v) = self.base_fee.as_ref() {
+            struct_ser.serialize_field("baseFee", v)?;
+        }
+        if let Some(v) = self.computed_cost_multiplier.as_ref() {
+            struct_ser.serialize_field("computedCostMultiplier", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for BridgeSudoChangeFeeComponents {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "base_fee",
+            "baseFee",
+            "computed_cost_multiplier",
+            "computedCostMultiplier",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BaseFee,
+            ComputedCostMultiplier,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "baseFee" | "base_fee" => Ok(GeneratedField::BaseFee),
+                            "computedCostMultiplier" | "computed_cost_multiplier" => Ok(GeneratedField::ComputedCostMultiplier),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = BridgeSudoChangeFeeComponents;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeSudoChangeFeeComponents")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeSudoChangeFeeComponents, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut base_fee__ = None;
+                let mut computed_cost_multiplier__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BaseFee => {
+                            if base_fee__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseFee"));
+                            }
+                            base_fee__ = map_.next_value()?;
+                        }
+                        GeneratedField::ComputedCostMultiplier => {
+                            if computed_cost_multiplier__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("computedCostMultiplier"));
+                            }
+                            computed_cost_multiplier__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(BridgeSudoChangeFeeComponents {
+                    base_fee: base_fee__,
+                    computed_cost_multiplier: computed_cost_multiplier__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeSudoChangeFeeComponents", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for BridgeUnlockAction {
@@ -784,6 +1004,116 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeUnlockAction", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for BridgeUnlockFeeComponents {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.base_fee.is_some() {
+            len += 1;
+        }
+        if self.computed_cost_multiplier.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeUnlockFeeComponents", len)?;
+        if let Some(v) = self.base_fee.as_ref() {
+            struct_ser.serialize_field("baseFee", v)?;
+        }
+        if let Some(v) = self.computed_cost_multiplier.as_ref() {
+            struct_ser.serialize_field("computedCostMultiplier", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for BridgeUnlockFeeComponents {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "base_fee",
+            "baseFee",
+            "computed_cost_multiplier",
+            "computedCostMultiplier",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BaseFee,
+            ComputedCostMultiplier,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "baseFee" | "base_fee" => Ok(GeneratedField::BaseFee),
+                            "computedCostMultiplier" | "computed_cost_multiplier" => Ok(GeneratedField::ComputedCostMultiplier),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = BridgeUnlockFeeComponents;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeUnlockFeeComponents")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeUnlockFeeComponents, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut base_fee__ = None;
+                let mut computed_cost_multiplier__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BaseFee => {
+                            if base_fee__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseFee"));
+                            }
+                            base_fee__ = map_.next_value()?;
+                        }
+                        GeneratedField::ComputedCostMultiplier => {
+                            if computed_cost_multiplier__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("computedCostMultiplier"));
+                            }
+                            computed_cost_multiplier__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(BridgeUnlockFeeComponents {
+                    base_fee: base_fee__,
+                    computed_cost_multiplier: computed_cost_multiplier__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeUnlockFeeComponents", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for FeeAssetChangeAction {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -899,32 +1229,32 @@ impl serde::Serialize for FeeChangeAction {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.value.is_some() {
+        if self.fee_components.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.FeeChangeAction", len)?;
-        if let Some(v) = self.value.as_ref() {
+        if let Some(v) = self.fee_components.as_ref() {
             match v {
-                fee_change_action::Value::TransferBaseFee(v) => {
-                    struct_ser.serialize_field("transferBaseFee", v)?;
+                fee_change_action::FeeComponents::TransferFees(v) => {
+                    struct_ser.serialize_field("transferFees", v)?;
                 }
-                fee_change_action::Value::SequenceBaseFee(v) => {
-                    struct_ser.serialize_field("sequenceBaseFee", v)?;
+                fee_change_action::FeeComponents::SequenceFees(v) => {
+                    struct_ser.serialize_field("sequenceFees", v)?;
                 }
-                fee_change_action::Value::SequenceByteCostMultiplier(v) => {
-                    struct_ser.serialize_field("sequenceByteCostMultiplier", v)?;
+                fee_change_action::FeeComponents::InitBridgeAccountFees(v) => {
+                    struct_ser.serialize_field("initBridgeAccountFees", v)?;
                 }
-                fee_change_action::Value::InitBridgeAccountBaseFee(v) => {
-                    struct_ser.serialize_field("initBridgeAccountBaseFee", v)?;
+                fee_change_action::FeeComponents::BridgeLockFees(v) => {
+                    struct_ser.serialize_field("bridgeLockFees", v)?;
                 }
-                fee_change_action::Value::BridgeLockByteCostMultiplier(v) => {
-                    struct_ser.serialize_field("bridgeLockByteCostMultiplier", v)?;
+                fee_change_action::FeeComponents::BridgeUnlockFees(v) => {
+                    struct_ser.serialize_field("bridgeUnlockFees", v)?;
                 }
-                fee_change_action::Value::BridgeSudoChangeBaseFee(v) => {
-                    struct_ser.serialize_field("bridgeSudoChangeBaseFee", v)?;
+                fee_change_action::FeeComponents::BridgeSudoChangeFees(v) => {
+                    struct_ser.serialize_field("bridgeSudoChangeFees", v)?;
                 }
-                fee_change_action::Value::Ics20WithdrawalBaseFee(v) => {
-                    struct_ser.serialize_field("ics20WithdrawalBaseFee", v)?;
+                fee_change_action::FeeComponents::Ics20WithdrawalFees(v) => {
+                    struct_ser.serialize_field("ics20WithdrawalFees", v)?;
                 }
             }
         }
@@ -938,31 +1268,31 @@ impl<'de> serde::Deserialize<'de> for FeeChangeAction {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "transfer_base_fee",
-            "transferBaseFee",
-            "sequence_base_fee",
-            "sequenceBaseFee",
-            "sequence_byte_cost_multiplier",
-            "sequenceByteCostMultiplier",
-            "init_bridge_account_base_fee",
-            "initBridgeAccountBaseFee",
-            "bridge_lock_byte_cost_multiplier",
-            "bridgeLockByteCostMultiplier",
-            "bridge_sudo_change_base_fee",
-            "bridgeSudoChangeBaseFee",
-            "ics20_withdrawal_base_fee",
-            "ics20WithdrawalBaseFee",
+            "transfer_fees",
+            "transferFees",
+            "sequence_fees",
+            "sequenceFees",
+            "init_bridge_account_fees",
+            "initBridgeAccountFees",
+            "bridge_lock_fees",
+            "bridgeLockFees",
+            "bridge_unlock_fees",
+            "bridgeUnlockFees",
+            "bridge_sudo_change_fees",
+            "bridgeSudoChangeFees",
+            "ics20_withdrawal_fees",
+            "ics20WithdrawalFees",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            TransferBaseFee,
-            SequenceBaseFee,
-            SequenceByteCostMultiplier,
-            InitBridgeAccountBaseFee,
-            BridgeLockByteCostMultiplier,
-            BridgeSudoChangeBaseFee,
-            Ics20WithdrawalBaseFee,
+            TransferFees,
+            SequenceFees,
+            InitBridgeAccountFees,
+            BridgeLockFees,
+            BridgeUnlockFees,
+            BridgeSudoChangeFees,
+            Ics20WithdrawalFees,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -984,13 +1314,13 @@ impl<'de> serde::Deserialize<'de> for FeeChangeAction {
                         E: serde::de::Error,
                     {
                         match value {
-                            "transferBaseFee" | "transfer_base_fee" => Ok(GeneratedField::TransferBaseFee),
-                            "sequenceBaseFee" | "sequence_base_fee" => Ok(GeneratedField::SequenceBaseFee),
-                            "sequenceByteCostMultiplier" | "sequence_byte_cost_multiplier" => Ok(GeneratedField::SequenceByteCostMultiplier),
-                            "initBridgeAccountBaseFee" | "init_bridge_account_base_fee" => Ok(GeneratedField::InitBridgeAccountBaseFee),
-                            "bridgeLockByteCostMultiplier" | "bridge_lock_byte_cost_multiplier" => Ok(GeneratedField::BridgeLockByteCostMultiplier),
-                            "bridgeSudoChangeBaseFee" | "bridge_sudo_change_base_fee" => Ok(GeneratedField::BridgeSudoChangeBaseFee),
-                            "ics20WithdrawalBaseFee" | "ics20_withdrawal_base_fee" => Ok(GeneratedField::Ics20WithdrawalBaseFee),
+                            "transferFees" | "transfer_fees" => Ok(GeneratedField::TransferFees),
+                            "sequenceFees" | "sequence_fees" => Ok(GeneratedField::SequenceFees),
+                            "initBridgeAccountFees" | "init_bridge_account_fees" => Ok(GeneratedField::InitBridgeAccountFees),
+                            "bridgeLockFees" | "bridge_lock_fees" => Ok(GeneratedField::BridgeLockFees),
+                            "bridgeUnlockFees" | "bridge_unlock_fees" => Ok(GeneratedField::BridgeUnlockFees),
+                            "bridgeSudoChangeFees" | "bridge_sudo_change_fees" => Ok(GeneratedField::BridgeSudoChangeFees),
+                            "ics20WithdrawalFees" | "ics20_withdrawal_fees" => Ok(GeneratedField::Ics20WithdrawalFees),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1010,62 +1340,62 @@ impl<'de> serde::Deserialize<'de> for FeeChangeAction {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut value__ = None;
+                let mut fee_components__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::TransferBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transferBaseFee"));
+                        GeneratedField::TransferFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("transferFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::TransferBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::FeeComponents::TransferFees)
 ;
                         }
-                        GeneratedField::SequenceBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequenceBaseFee"));
+                        GeneratedField::SequenceFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequenceFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::SequenceBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::FeeComponents::SequenceFees)
 ;
                         }
-                        GeneratedField::SequenceByteCostMultiplier => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequenceByteCostMultiplier"));
+                        GeneratedField::InitBridgeAccountFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("initBridgeAccountFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::SequenceByteCostMultiplier)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::FeeComponents::InitBridgeAccountFees)
 ;
                         }
-                        GeneratedField::InitBridgeAccountBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("initBridgeAccountBaseFee"));
+                        GeneratedField::BridgeLockFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeLockFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::InitBridgeAccountBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::FeeComponents::BridgeLockFees)
 ;
                         }
-                        GeneratedField::BridgeLockByteCostMultiplier => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeLockByteCostMultiplier"));
+                        GeneratedField::BridgeUnlockFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeUnlockFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::BridgeLockByteCostMultiplier)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::FeeComponents::BridgeUnlockFees)
 ;
                         }
-                        GeneratedField::BridgeSudoChangeBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeSudoChangeBaseFee"));
+                        GeneratedField::BridgeSudoChangeFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeSudoChangeFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::BridgeSudoChangeBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::FeeComponents::BridgeSudoChangeFees)
 ;
                         }
-                        GeneratedField::Ics20WithdrawalBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("ics20WithdrawalBaseFee"));
+                        GeneratedField::Ics20WithdrawalFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ics20WithdrawalFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::Ics20WithdrawalBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::FeeComponents::Ics20WithdrawalFees)
 ;
                         }
                     }
                 }
                 Ok(FeeChangeAction {
-                    value: value__,
+                    fee_components: fee_components__,
                 })
             }
         }
@@ -1661,6 +1991,116 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Ics20Withdrawal", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for Ics20WithdrawalFeeComponents {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.base_fee.is_some() {
+            len += 1;
+        }
+        if self.computed_cost_multiplier.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Ics20WithdrawalFeeComponents", len)?;
+        if let Some(v) = self.base_fee.as_ref() {
+            struct_ser.serialize_field("baseFee", v)?;
+        }
+        if let Some(v) = self.computed_cost_multiplier.as_ref() {
+            struct_ser.serialize_field("computedCostMultiplier", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for Ics20WithdrawalFeeComponents {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "base_fee",
+            "baseFee",
+            "computed_cost_multiplier",
+            "computedCostMultiplier",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BaseFee,
+            ComputedCostMultiplier,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "baseFee" | "base_fee" => Ok(GeneratedField::BaseFee),
+                            "computedCostMultiplier" | "computed_cost_multiplier" => Ok(GeneratedField::ComputedCostMultiplier),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = Ics20WithdrawalFeeComponents;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.Ics20WithdrawalFeeComponents")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Ics20WithdrawalFeeComponents, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut base_fee__ = None;
+                let mut computed_cost_multiplier__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BaseFee => {
+                            if base_fee__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseFee"));
+                            }
+                            base_fee__ = map_.next_value()?;
+                        }
+                        GeneratedField::ComputedCostMultiplier => {
+                            if computed_cost_multiplier__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("computedCostMultiplier"));
+                            }
+                            computed_cost_multiplier__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(Ics20WithdrawalFeeComponents {
+                    base_fee: base_fee__,
+                    computed_cost_multiplier: computed_cost_multiplier__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Ics20WithdrawalFeeComponents", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for InitBridgeAccountAction {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -1824,6 +2264,116 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccountAction {
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.InitBridgeAccountAction", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for InitBridgeAccountFeeComponents {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.base_fee.is_some() {
+            len += 1;
+        }
+        if self.computed_cost_multiplier.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.InitBridgeAccountFeeComponents", len)?;
+        if let Some(v) = self.base_fee.as_ref() {
+            struct_ser.serialize_field("baseFee", v)?;
+        }
+        if let Some(v) = self.computed_cost_multiplier.as_ref() {
+            struct_ser.serialize_field("computedCostMultiplier", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for InitBridgeAccountFeeComponents {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "base_fee",
+            "baseFee",
+            "computed_cost_multiplier",
+            "computedCostMultiplier",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BaseFee,
+            ComputedCostMultiplier,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "baseFee" | "base_fee" => Ok(GeneratedField::BaseFee),
+                            "computedCostMultiplier" | "computed_cost_multiplier" => Ok(GeneratedField::ComputedCostMultiplier),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = InitBridgeAccountFeeComponents;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.InitBridgeAccountFeeComponents")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<InitBridgeAccountFeeComponents, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut base_fee__ = None;
+                let mut computed_cost_multiplier__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BaseFee => {
+                            if base_fee__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseFee"));
+                            }
+                            base_fee__ = map_.next_value()?;
+                        }
+                        GeneratedField::ComputedCostMultiplier => {
+                            if computed_cost_multiplier__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("computedCostMultiplier"));
+                            }
+                            computed_cost_multiplier__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(InitBridgeAccountFeeComponents {
+                    base_fee: base_fee__,
+                    computed_cost_multiplier: computed_cost_multiplier__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.InitBridgeAccountFeeComponents", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for SequenceAction {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -1952,6 +2502,116 @@ impl<'de> serde::Deserialize<'de> for SequenceAction {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.SequenceAction", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for SequenceFeeComponents {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.base_fee.is_some() {
+            len += 1;
+        }
+        if self.computed_cost_multiplier.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.SequenceFeeComponents", len)?;
+        if let Some(v) = self.base_fee.as_ref() {
+            struct_ser.serialize_field("baseFee", v)?;
+        }
+        if let Some(v) = self.computed_cost_multiplier.as_ref() {
+            struct_ser.serialize_field("computedCostMultiplier", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for SequenceFeeComponents {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "base_fee",
+            "baseFee",
+            "computed_cost_multiplier",
+            "computedCostMultiplier",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BaseFee,
+            ComputedCostMultiplier,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "baseFee" | "base_fee" => Ok(GeneratedField::BaseFee),
+                            "computedCostMultiplier" | "computed_cost_multiplier" => Ok(GeneratedField::ComputedCostMultiplier),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = SequenceFeeComponents;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.SequenceFeeComponents")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SequenceFeeComponents, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut base_fee__ = None;
+                let mut computed_cost_multiplier__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BaseFee => {
+                            if base_fee__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseFee"));
+                            }
+                            base_fee__ = map_.next_value()?;
+                        }
+                        GeneratedField::ComputedCostMultiplier => {
+                            if computed_cost_multiplier__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("computedCostMultiplier"));
+                            }
+                            computed_cost_multiplier__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(SequenceFeeComponents {
+                    base_fee: base_fee__,
+                    computed_cost_multiplier: computed_cost_multiplier__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.SequenceFeeComponents", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for SignedTransaction {
@@ -2649,6 +3309,116 @@ impl<'de> serde::Deserialize<'de> for TransferAction {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.TransferAction", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for TransferFeeComponents {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.base_fee.is_some() {
+            len += 1;
+        }
+        if self.computed_cost_multiplier.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.TransferFeeComponents", len)?;
+        if let Some(v) = self.base_fee.as_ref() {
+            struct_ser.serialize_field("baseFee", v)?;
+        }
+        if let Some(v) = self.computed_cost_multiplier.as_ref() {
+            struct_ser.serialize_field("computedCostMultiplier", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for TransferFeeComponents {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "base_fee",
+            "baseFee",
+            "computed_cost_multiplier",
+            "computedCostMultiplier",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BaseFee,
+            ComputedCostMultiplier,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "baseFee" | "base_fee" => Ok(GeneratedField::BaseFee),
+                            "computedCostMultiplier" | "computed_cost_multiplier" => Ok(GeneratedField::ComputedCostMultiplier),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = TransferFeeComponents;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.TransferFeeComponents")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<TransferFeeComponents, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut base_fee__ = None;
+                let mut computed_cost_multiplier__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BaseFee => {
+                            if base_fee__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseFee"));
+                            }
+                            base_fee__ = map_.next_value()?;
+                        }
+                        GeneratedField::ComputedCostMultiplier => {
+                            if computed_cost_multiplier__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("computedCostMultiplier"));
+                            }
+                            computed_cost_multiplier__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(TransferFeeComponents {
+                    base_fee: base_fee__,
+                    computed_cost_multiplier: computed_cost_multiplier__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.TransferFeeComponents", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for UnsignedTransaction {

@@ -10,10 +10,21 @@ use astria_core::{
         IbcParameters,
     },
     primitive::v1::Address,
-    protocol::genesis::v1alpha1::{
-        Account,
-        Fees,
-        GenesisAppState,
+    protocol::{
+        genesis::v1alpha1::{
+            Account,
+            GenesisAppState,
+            GenesisFees,
+        },
+        transaction::v1alpha1::action::{
+            BridgeLockFeeComponents,
+            BridgeSudoChangeFeeComponents,
+            BridgeUnlockFeeComponents,
+            Ics20WithdrawalFeeComponents,
+            InitBridgeAccountFeeComponents,
+            SequenceFeeComponents,
+            TransferFeeComponents,
+        },
     },
     Protobuf,
 };
@@ -87,15 +98,36 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
             outbound_ics20_transfers_enabled: true,
         }),
         allowed_fee_assets: vec!["nria".parse().unwrap()],
-        fees: Some(
-            Fees {
-                transfer_base_fee: 12,
-                sequence_base_fee: 32,
-                sequence_byte_cost_multiplier: 1,
-                init_bridge_account_base_fee: 48,
-                bridge_lock_byte_cost_multiplier: 1,
-                bridge_sudo_change_fee: 24,
-                ics20_withdrawal_base_fee: 24,
+        genesis_fees: Some(
+            GenesisFees {
+                transfer_fees: TransferFeeComponents {
+                    base_fee: 12,
+                    computed_cost_multiplier: 0,
+                },
+                sequence_fees: SequenceFeeComponents {
+                    base_fee: 32,
+                    computed_cost_multiplier: 1,
+                },
+                init_bridge_account_fees: InitBridgeAccountFeeComponents {
+                    base_fee: 48,
+                    computed_cost_multiplier: 0,
+                },
+                bridge_lock_fees: BridgeLockFeeComponents {
+                    base_fee: 12,
+                    computed_cost_multiplier: 1,
+                },
+                bridge_sudo_change_fees: BridgeSudoChangeFeeComponents {
+                    base_fee: 24,
+                    computed_cost_multiplier: 0,
+                },
+                ics20_withdrawal_fees: Ics20WithdrawalFeeComponents {
+                    base_fee: 24,
+                    computed_cost_multiplier: 0,
+                },
+                bridge_unlock_fees: BridgeUnlockFeeComponents {
+                    base_fee: 12,
+                    computed_cost_multiplier: 0,
+                },
             }
             .into_raw(),
         ),

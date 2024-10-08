@@ -40,9 +40,6 @@ const BRIDGE_ACCOUNT_SUDO_PREFIX: &str = "bsudo";
 const BRIDGE_ACCOUNT_WITHDRAWER_PREFIX: &str = "bwithdrawer";
 const DEPOSITS_EPHEMERAL_KEY: &str = "deposits";
 const DEPOSIT_PREFIX: &[u8] = b"deposit/";
-const INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY: &str = "initbridgeaccfee";
-const BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "bridgelockmultiplier";
-const BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY: &str = "bridgesudofee";
 
 struct BridgeAccountKey<'a, T> {
     prefix: &'static str,
@@ -254,45 +251,6 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     #[instrument(skip_all)]
-    async fn get_init_bridge_account_base_fee(&self) -> Result<u128> {
-        let bytes = self
-            .get_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw init bridge account base fee from state")?
-            .ok_or_eyre("init bridge account base fee not found")?;
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-            .wrap_err("invalid fee bytes")
-    }
-
-    #[instrument(skip_all)]
-    async fn get_bridge_lock_byte_cost_multiplier(&self) -> Result<u128> {
-        let bytes = self
-            .get_raw(BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw bridge lock byte cost multiplier from state")?
-            .ok_or_eyre("bridge lock byte cost multiplier not found")?;
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-            .wrap_err("invalid bridge lock byte cost multiplier bytes")
-    }
-
-    #[instrument(skip_all)]
-    async fn get_bridge_sudo_change_base_fee(&self) -> Result<u128> {
-        let bytes = self
-            .get_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw bridge sudo change fee from state")?
-            .ok_or_eyre("bridge sudo change fee not found")?;
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-            .wrap_err("invalid bridge sudo change fee bytes")
-    }
-
-    #[instrument(skip_all)]
     async fn get_last_transaction_id_for_bridge_account<T: AddressBytes>(
         &self,
         address: &T,
@@ -444,36 +402,6 @@ pub(crate) trait StateWriteExt: StateWrite {
                 .context("failed to serialize bridge deposit")?;
             self.nonverifiable_put_raw(key, bytes);
         }
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    fn put_init_bridge_account_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::from(storage::Fee::from(fee))
-            .serialize()
-            .context("failed to serialize bridge account base fee")?;
-        self.put_raw(INIT_BRIDGE_ACCOUNT_BASE_FEE_STORAGE_KEY.to_string(), bytes);
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    fn put_bridge_lock_byte_cost_multiplier(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::from(storage::Fee::from(fee))
-            .serialize()
-            .context("failed to serialize bridge lock byte cost multiplier")?;
-        self.put_raw(
-            BRIDGE_LOCK_BYTE_COST_MULTIPLIER_STORAGE_KEY.to_string(),
-            bytes,
-        );
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    fn put_bridge_sudo_change_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::from(storage::Fee::from(fee))
-            .serialize()
-            .context("failed to serialize bridge sudo change base fee")?;
-        self.put_raw(BRIDGE_SUDO_CHANGE_FEE_STORAGE_KEY.to_string(), bytes);
         Ok(())
     }
 
@@ -824,39 +752,6 @@ mod tests {
             rollup_1_deposits,
             "stored deposits do not match what was expected"
         );
-    }
-
-    #[tokio::test]
-    async fn init_bridge_account_base_fee_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_init_bridge_account_base_fee(123).unwrap();
-        let retrieved_fee = state.get_init_bridge_account_base_fee().await.unwrap();
-        assert_eq!(retrieved_fee, 123);
-    }
-
-    #[tokio::test]
-    async fn bridge_lock_byte_cost_multiplier_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_bridge_lock_byte_cost_multiplier(123).unwrap();
-        let retrieved_fee = state.get_bridge_lock_byte_cost_multiplier().await.unwrap();
-        assert_eq!(retrieved_fee, 123);
-    }
-
-    #[tokio::test]
-    async fn bridge_sudo_change_base_fee_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_bridge_sudo_change_base_fee(123).unwrap();
-        let retrieved_fee = state.get_bridge_sudo_change_base_fee().await.unwrap();
-        assert_eq!(retrieved_fee, 123);
     }
 
     #[tokio::test]

@@ -108,7 +108,11 @@ mod tests {
             RollupId,
             TransactionId,
         },
-        protocol::transaction::v1alpha1::action::BridgeUnlockAction,
+        protocol::transaction::v1alpha1::action::{
+            BridgeUnlockAction,
+            BridgeUnlockFeeComponents,
+            FeeComponents,
+        },
     };
     use cnidarium::StateDelta;
 
@@ -118,6 +122,7 @@ mod tests {
         app::ActionHandler as _,
         assets::StateWriteExt as _,
         bridge::StateWriteExt as _,
+        fees::StateWriteExt as _,
         test_utils::{
             assert_eyre_error,
             astria_address,
@@ -232,7 +237,14 @@ mod tests {
         let asset = test_asset();
         let transfer_fee = 10;
         let transfer_amount = 100;
-        state.put_transfer_base_fee(transfer_fee).unwrap();
+        state
+            .put_bridge_unlock_fees(FeeComponents::BridgeUnlockFeeComponents(
+                BridgeUnlockFeeComponents {
+                    base_fee: transfer_fee,
+                    computed_cost_multiplier: 0,
+                },
+            ))
+            .unwrap();
 
         let to_address = astria_address(&[2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");

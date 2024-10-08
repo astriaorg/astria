@@ -26,7 +26,7 @@ pub struct GenesisAppState {
     #[prost(string, repeated, tag = "9")]
     pub allowed_fee_assets: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "10")]
-    pub fees: ::core::option::Option<Fees>,
+    pub genesis_fees: ::core::option::Option<GenesisFees>,
 }
 impl ::prost::Name for GenesisAppState {
     const NAME: &'static str = "GenesisAppState";
@@ -92,38 +92,38 @@ impl ::prost::Name for IbcParameters {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Fees {
+pub struct GenesisFees {
     #[prost(message, optional, tag = "1")]
-    pub transfer_base_fee: ::core::option::Option<
-        super::super::super::primitive::v1::Uint128,
+    pub transfer_fees: ::core::option::Option<
+        super::super::transactions::v1alpha1::TransferFeeComponents,
     >,
     #[prost(message, optional, tag = "2")]
-    pub sequence_base_fee: ::core::option::Option<
-        super::super::super::primitive::v1::Uint128,
+    pub sequence_fees: ::core::option::Option<
+        super::super::transactions::v1alpha1::SequenceFeeComponents,
     >,
     #[prost(message, optional, tag = "3")]
-    pub sequence_byte_cost_multiplier: ::core::option::Option<
-        super::super::super::primitive::v1::Uint128,
+    pub ics20_withdrawal_fees: ::core::option::Option<
+        super::super::transactions::v1alpha1::Ics20WithdrawalFeeComponents,
     >,
     #[prost(message, optional, tag = "4")]
-    pub init_bridge_account_base_fee: ::core::option::Option<
-        super::super::super::primitive::v1::Uint128,
+    pub init_bridge_account_fees: ::core::option::Option<
+        super::super::transactions::v1alpha1::InitBridgeAccountFeeComponents,
     >,
     #[prost(message, optional, tag = "5")]
-    pub bridge_lock_byte_cost_multiplier: ::core::option::Option<
-        super::super::super::primitive::v1::Uint128,
+    pub bridge_lock_fees: ::core::option::Option<
+        super::super::transactions::v1alpha1::BridgeLockFeeComponents,
     >,
     #[prost(message, optional, tag = "6")]
-    pub bridge_sudo_change_fee: ::core::option::Option<
-        super::super::super::primitive::v1::Uint128,
+    pub bridge_unlock_fees: ::core::option::Option<
+        super::super::transactions::v1alpha1::BridgeUnlockFeeComponents,
     >,
     #[prost(message, optional, tag = "7")]
-    pub ics20_withdrawal_base_fee: ::core::option::Option<
-        super::super::super::primitive::v1::Uint128,
+    pub bridge_sudo_change_fees: ::core::option::Option<
+        super::super::transactions::v1alpha1::BridgeSudoChangeFeeComponents,
     >,
 }
-impl ::prost::Name for Fees {
-    const NAME: &'static str = "Fees";
+impl ::prost::Name for GenesisFees {
+    const NAME: &'static str = "GenesisFees";
     const PACKAGE: &'static str = "astria.protocol.genesis.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.genesis.v1alpha1.{}", Self::NAME)

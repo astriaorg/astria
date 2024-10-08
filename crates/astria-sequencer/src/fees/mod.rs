@@ -2,6 +2,7 @@ use astria_core::{
     primitive::v1::{
         asset,
         TransactionId,
+        TRANSACTION_ID_LEN,
     },
     protocol::transaction::v1alpha1::action::{
         self,
@@ -10,6 +11,7 @@ use astria_core::{
         BridgeUnlockAction,
         FeeAssetChangeAction,
         FeeChangeAction,
+        FeeComponents,
         IbcRelayerChangeAction,
         IbcSudoChangeAction,
         InitBridgeAccountAction,
@@ -21,12 +23,16 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use astria_eyre::eyre::{
+    self,
+    bail,
     ensure,
     OptionExt as _,
-    Result,
     WrapErr as _,
 };
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 use tendermint::abci::{
     Event,
     EventAttributeIndexExt as _,
@@ -42,18 +48,22 @@ use crate::{
         StateWriteExt as _,
     },
     assets::StateReadExt as _,
-    bridge::StateReadExt as _,
-    ibc::StateReadExt as _,
-    sequence,
     transaction::StateReadExt as _,
-    utils::create_deposit_event,
 };
 
+pub(crate) mod component;
 mod state_ext;
+pub(crate) mod storage;
+
 pub(crate) use state_ext::{
     StateReadExt,
     StateWriteExt,
 };
+
+pub(crate) struct GenericFeeComponents {
+    pub(crate) base_fee: u128,
+    pub(crate) computed_cost_multiplier: u128,
+}
 
 /// The base byte length of a deposit, as determined by
 /// [`tests::get_base_deposit_fee()`].
@@ -61,10 +71,11 @@ const DEPOSIT_BASE_FEE: u128 = 16;
 
 #[async_trait::async_trait]
 pub(crate) trait FeeHandler {
-    async fn check_and_pay_fees<S: StateWrite>(
-        &self,
-        mut state: S,
-    ) -> astria_eyre::eyre::Result<()>;
+    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()>;
+
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>>;
+
+    fn computed_cost_base_component(&self) -> u128;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -87,328 +98,390 @@ impl Fee {
 
 #[async_trait::async_trait]
 impl FeeHandler for TransferAction {
-    #[instrument(skip_all, err(level = Level::WARN))]
-    async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let tx_context = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action");
-        let from = tx_context.address_bytes();
-        let fee = state
-            .get_transfer_base_fee()
-            .await
-            .wrap_err("failed to get transfer base fee")?;
+    #[instrument(skip_all, err)]
+    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+        let fee_components = Self::fee_components(&state).await?;
+        if fee_components.is_none() {
+            return Ok(());
+        }
+        let fee_components =
+            fee_components.expect("fee components should be present after checking for them");
+        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
+    }
 
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
+    #[instrument(skip_all, err)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        let (base_fee, computed_cost_multiplier) = match state.get_transfer_fees().await {
+            Ok(FeeComponents::TransferFeeComponents(fees)) => {
+                (fees.base_fee, fees.computed_cost_multiplier)
+            }
+            Ok(_) => bail!("incorrect type of fees stored in transfer fees storage"),
+            Err(e) => return Err(e),
+        };
+        Ok(Some(GenericFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        }))
+    }
 
-        state
-            .decrease_balance(&from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to decrease balance for fee payment")?;
-        state.add_fee_to_block_fees(
-            &self.fee_asset,
-            fee,
-            tx_context.transaction_id,
-            tx_context.source_action_index,
-        )?;
-
-        Ok(())
+    #[instrument(skip_all)]
+    fn computed_cost_base_component(&self) -> u128 {
+        0
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeLockAction {
-    #[instrument(skip_all, err(level = Level::WARN))]
-    async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let tx_context = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action");
-        let rollup_id = state
-            .get_bridge_account_rollup_id(&self.to)
-            .await
-            .wrap_err("failed to get bridge account rollup id")?
-            .ok_or_eyre("bridge lock must be sent to a bridge account")?;
-        let transfer_fee = state
-            .get_transfer_base_fee()
-            .await
-            .context("failed to get transfer base fee")?;
-        let from = tx_context.address_bytes();
-        let source_transaction_id = tx_context.transaction_id;
-        let source_action_index = tx_context.source_action_index;
+    #[instrument(skip_all, err)]
+    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+        let fee_components = Self::fee_components(&state).await?;
+        if fee_components.is_none() {
+            return Ok(());
+        }
+        let fee_components =
+            fee_components.expect("fee components should be present after checking for them");
+        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
+    }
 
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
+    #[instrument(skip_all, err)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        let (base_fee, computed_cost_multiplier) = match state.get_bridge_lock_fees().await {
+            Ok(FeeComponents::BridgeLockFeeComponents(fees)) => {
+                (fees.base_fee, fees.computed_cost_multiplier)
+            }
+            Ok(_) => bail!("incorrect type of fees stored in bridge lock fees storage"),
+            Err(e) => return Err(e),
+        };
+        Ok(Some(GenericFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        }))
+    }
 
-        let deposit = Deposit {
+    #[instrument(skip_all)]
+    fn computed_cost_base_component(&self) -> u128 {
+        calculate_base_deposit_fee(&Deposit {
             bridge_address: self.to,
-            rollup_id,
+            rollup_id: [0u8; 32].into(),
             amount: self.amount,
             asset: self.asset.clone(),
             destination_chain_address: self.destination_chain_address.clone(),
-            source_transaction_id,
-            source_action_index,
-        };
-        let deposit_abci_event = create_deposit_event(&deposit);
-
-        let byte_cost_multiplier = state
-            .get_bridge_lock_byte_cost_multiplier()
-            .await
-            .wrap_err("failed to get byte cost multiplier")?;
-
-        let fee = byte_cost_multiplier
-            .saturating_mul(calculate_base_deposit_fee(&deposit).unwrap_or(u128::MAX))
-            .saturating_add(transfer_fee);
-
-        state
-            .add_fee_to_block_fees(
-                &self.fee_asset,
-                fee,
-                tx_context.transaction_id,
-                source_action_index,
-            )
-            .wrap_err("failed to add to block fees")?;
-        state
-            .decrease_balance(&from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to deduct fee from account balance")?;
-
-        state.record(deposit_abci_event);
-        Ok(())
+            source_transaction_id: TransactionId::new([0; TRANSACTION_ID_LEN]),
+            source_action_index: 0,
+        })
+        .expect("deposit fee calculation should not fail")
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeSudoChangeAction {
-    #[instrument(skip_all, err(level = Level::WARN))]
-    async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let tx_context = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action");
-        let from = tx_context.address_bytes();
-        let fee = state
-            .get_bridge_sudo_change_base_fee()
-            .await
-            .wrap_err("failed to get bridge sudo change fee")?;
+    #[instrument(skip_all, err)]
+    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+        let fee_components = Self::fee_components(&state).await?;
+        if fee_components.is_none() {
+            return Ok(());
+        }
+        let fee_components =
+            fee_components.expect("fee components should be present after checking for them");
+        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
+    }
 
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
+    #[instrument(skip_all, err)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        let (base_fee, computed_cost_multiplier) = match state.get_bridge_sudo_change_fees().await {
+            Ok(FeeComponents::BridgeSudoChangeFeeComponents(fees)) => {
+                (fees.base_fee, fees.computed_cost_multiplier)
+            }
+            Ok(_) => bail!("incorrect type of fees stored in bridge sudo change fees storage"),
+            Err(e) => return Err(e),
+        };
+        Ok(Some(GenericFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        }))
+    }
 
-        state
-            .add_fee_to_block_fees(
-                &self.fee_asset,
-                fee,
-                tx_context.transaction_id,
-                tx_context.source_action_index,
-            )
-            .wrap_err("failed to add to block fees")?;
-        state
-            .decrease_balance(&from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to decrease balance for bridge sudo change fee")?;
-
-        Ok(())
+    #[instrument(skip_all)]
+    fn computed_cost_base_component(&self) -> u128 {
+        0
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeUnlockAction {
-    #[instrument(skip_all, err(level = Level::WARN))]
-    async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let tx_context = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action");
-        let from = tx_context.address_bytes();
-        let transfer_fee = state
-            .get_transfer_base_fee()
-            .await
-            .wrap_err("failed to get transfer base fee for bridge unlock action")?;
+    #[instrument(skip_all, err)]
+    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+        let fee_components = Self::fee_components(&state).await?;
+        if fee_components.is_none() {
+            return Ok(());
+        }
+        let fee_components =
+            fee_components.expect("fee components should be present after checking for them");
+        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
+    }
 
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
+    #[instrument(skip_all, err)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        let (base_fee, computed_cost_multiplier) = match state.get_bridge_unlock_fees().await {
+            Ok(FeeComponents::BridgeUnlockFeeComponents(fees)) => {
+                (fees.base_fee, fees.computed_cost_multiplier)
+            }
+            Ok(_) => bail!("incorrect type of fees stored in bridge unlock fees storage"),
+            Err(e) => return Err(e),
+        };
+        Ok(Some(GenericFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        }))
+    }
 
-        state
-            .decrease_balance(&from, &self.fee_asset, transfer_fee)
-            .await
-            .wrap_err("failed to decrease balance for fee payment")?;
-        state.add_fee_to_block_fees(
-            &self.fee_asset,
-            transfer_fee,
-            tx_context.transaction_id,
-            tx_context.source_action_index,
-        )?;
-        Ok(())
+    #[instrument(skip_all)]
+    fn computed_cost_base_component(&self) -> u128 {
+        0
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for InitBridgeAccountAction {
-    #[instrument(skip_all, err(level = Level::WARN))]
-    async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let tx_context = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action");
-        let from = tx_context.address_bytes();
-        let fee = state
-            .get_init_bridge_account_base_fee()
-            .await
-            .wrap_err("failed to get init bridge account base fee")?;
+    #[instrument(skip_all, err)]
+    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+        let fee_components = Self::fee_components(&state).await?;
+        if fee_components.is_none() {
+            return Ok(());
+        }
+        let fee_components =
+            fee_components.expect("fee components should be present after checking for them");
+        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
+    }
 
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
+    #[instrument(skip_all, err)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        let (base_fee, computed_cost_multiplier) = match state.get_init_bridge_account_fees().await
+        {
+            Ok(FeeComponents::InitBridgeAccountFeeComponents(fees)) => {
+                (fees.base_fee, fees.computed_cost_multiplier)
+            }
+            Ok(_) => bail!("incorrect type of fees stored in init bridge account fees storage"),
+            Err(e) => return Err(e),
+        };
+        Ok(Some(GenericFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        }))
+    }
 
-        state
-            .decrease_balance(&from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to decrease balance for fee payment")?;
-        state.add_fee_to_block_fees(
-            &self.fee_asset,
-            fee,
-            tx_context.transaction_id,
-            tx_context.source_action_index,
-        )?;
-
-        Ok(())
+    #[instrument(skip_all)]
+    fn computed_cost_base_component(&self) -> u128 {
+        0
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for action::Ics20Withdrawal {
-    #[instrument(skip_all, err(level = Level::WARN))]
-    async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let tx_context = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action");
-        let from = tx_context.address_bytes();
-        let fee = state
-            .get_ics20_withdrawal_base_fee()
-            .await
-            .wrap_err("failed to get ics20 withdrawal base fee")?;
+    #[instrument(skip_all, err)]
+    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+        let fee_components = Self::fee_components(&state).await?;
+        if fee_components.is_none() {
+            return Ok(());
+        }
+        let fee_components =
+            fee_components.expect("fee components should be present after checking for them");
+        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
+    }
 
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
+    #[instrument(skip_all, err)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        let (base_fee, computed_cost_multiplier) = match state.get_ics20_withdrawal_fees().await {
+            Ok(FeeComponents::Ics20WithdrawalFeeComponents(fees)) => {
+                (fees.base_fee, fees.computed_cost_multiplier)
+            }
+            Ok(_) => bail!("incorrect type of fees stored in ics20 withdrawal fees storage"),
+            Err(e) => return Err(e),
+        };
+        Ok(Some(GenericFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        }))
+    }
 
-        state
-            .decrease_balance(&from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to decrease balance for fee payment")?;
-        state.add_fee_to_block_fees(
-            &self.fee_asset,
-            fee,
-            tx_context.transaction_id,
-            tx_context.source_action_index,
-        )?;
-
-        Ok(())
+    #[instrument(skip_all)]
+    fn computed_cost_base_component(&self) -> u128 {
+        0
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for SequenceAction {
-    #[instrument(skip_all, err(level = Level::WARN))]
-    async fn check_and_pay_fees<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let tx_context = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action");
-        let from = tx_context.address_bytes();
+    #[instrument(skip_all, err)]
+    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+        let fee_components = Self::fee_components(&state).await?;
+        if fee_components.is_none() {
+            return Ok(());
+        }
+        let fee_components =
+            fee_components.expect("fee components should be present after checking for them");
+        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
+    }
 
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed accessing state to check if fee is allowed")?,
-            "invalid fee asset",
-        );
+    #[instrument(skip_all, err)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        let (base_fee, computed_cost_multiplier) = match state.get_sequence_fees().await {
+            Ok(FeeComponents::SequenceFeeComponents(fees)) => {
+                (fees.base_fee, fees.computed_cost_multiplier)
+            }
+            Ok(_) => bail!("incorrect type of fees stored in sequence fees storage"),
+            Err(e) => return Err(e),
+        };
+        Ok(Some(GenericFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        }))
+    }
 
-        let fee = calculate_sequence_action_fee_from_state(&self.data, &state)
-            .await
-            .wrap_err("calculated fee overflows u128")?;
-
-        state
-            .add_fee_to_block_fees(
-                &self.fee_asset,
-                fee,
-                tx_context.transaction_id,
-                tx_context.source_action_index,
-            )
-            .wrap_err("failed to add to block fees")?;
-        state
-            .decrease_balance(&from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed updating `from` account balance")?;
-        Ok(())
+    #[instrument(skip_all)]
+    fn computed_cost_base_component(&self) -> u128 {
+        self.data
+            .len()
+            .try_into()
+            .expect("a usize should always convert to a u128")
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for ValidatorUpdate {
-    async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
+    async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
+    }
+
+    async fn fee_components<S: StateRead>(_state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        Ok(None)
+    }
+
+    fn computed_cost_base_component(&self) -> u128 {
+        0
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for SudoAddressChangeAction {
-    async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
+    async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
+    }
+
+    async fn fee_components<S: StateRead>(_state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        Ok(None)
+    }
+
+    fn computed_cost_base_component(&self) -> u128 {
+        0
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for FeeChangeAction {
-    async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
+    async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
+    }
+
+    async fn fee_components<S: StateRead>(_state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        Ok(None)
+    }
+
+    fn computed_cost_base_component(&self) -> u128 {
+        0
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcSudoChangeAction {
-    async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
+    async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
+    }
+
+    async fn fee_components<S: StateRead>(_state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        Ok(None)
+    }
+
+    fn computed_cost_base_component(&self) -> u128 {
+        0
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelayerChangeAction {
-    async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
+    async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
+    }
+
+    async fn fee_components<S: StateRead>(_state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        Ok(None)
+    }
+
+    fn computed_cost_base_component(&self) -> u128 {
+        0
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for FeeAssetChangeAction {
-    async fn check_and_pay_fees<S: StateWrite>(&self, _state: S) -> Result<()> {
+    async fn handle_fees_if_present<S: StateWrite>(&self, _state: S) -> eyre::Result<()> {
         Ok(())
     }
+
+    async fn fee_components<S: StateRead>(_state: S) -> eyre::Result<Option<GenericFeeComponents>> {
+        Ok(None)
+    }
+
+    fn computed_cost_base_component(&self) -> u128 {
+        0
+    }
+}
+
+#[instrument(skip_all, err(level = Level::WARN))]
+async fn check_and_pay_fees<S: StateWrite>(
+    act: &impl FeeHandler,
+    fee_components: GenericFeeComponents,
+    mut state: S,
+    fee_asset: &asset::Denom,
+) -> astria_eyre::eyre::Result<()> {
+    let total_fees = fee_components
+        .base_fee
+        .checked_add(
+            act.computed_cost_base_component()
+                .checked_mul(fee_components.computed_cost_multiplier)
+                .ok_or_eyre("fee calculation overflow")?,
+        )
+        .ok_or_eyre("fee calculation overflow")?;
+    let transaction_context = state
+        .get_transaction_context()
+        .expect("transaction source must be present in state when executing an action");
+    let from = transaction_context.address_bytes();
+    let transaction_id = transaction_context.transaction_id;
+    let source_action_index = transaction_context.source_action_index;
+
+    ensure!(
+        state
+            .get_account_balance(&from, fee_asset)
+            .await
+            .wrap_err("failed to get account balance")?
+            >= total_fees,
+        "insufficient funds for transfer and fee payment",
+    );
+    ensure!(
+        state
+            .is_allowed_fee_asset(fee_asset)
+            .await
+            .wrap_err("failed to check allowed fee assets in state")?,
+        "invalid fee asset",
+    );
+    state
+        .add_fee_to_block_fees(fee_asset, total_fees, transaction_id, source_action_index)
+        .wrap_err("failed to add to block fees")?;
+    state
+        .decrease_balance(&from, fee_asset, total_fees)
+        .await
+        .wrap_err("failed to decrease balance for fee payment")?;
+    Ok(())
 }
 
 /// Returns a modified byte length of the deposit event. Length is calculated with reasonable values
@@ -426,35 +499,6 @@ pub(crate) fn calculate_base_deposit_fee(deposit: &Deposit) -> Option<u128> {
         })
 }
 
-/// Calculates the fee for a sequence `Action` based on the length of the `data`.
-pub(crate) async fn calculate_sequence_action_fee_from_state<S: sequence::StateReadExt>(
-    data: &[u8],
-    state: &S,
-) -> Result<u128> {
-    let base_fee = state
-        .get_sequence_action_base_fee()
-        .await
-        .wrap_err("failed to get base fee")?;
-    let fee_per_byte = state
-        .get_sequence_action_byte_cost_multiplier()
-        .await
-        .wrap_err("failed to get fee per byte")?;
-    calculate_sequence_action_fee(data, fee_per_byte, base_fee)
-        .ok_or_eyre("calculated fee overflows u128")
-}
-
-/// Calculates the fee for a sequence `Action` based on the length of the `data`.
-/// Returns `None` if the fee overflows `u128`.
-fn calculate_sequence_action_fee(data: &[u8], fee_per_byte: u128, base_fee: u128) -> Option<u128> {
-    base_fee.checked_add(
-        fee_per_byte.checked_mul(
-            data.len()
-                .try_into()
-                .expect("a usize should always convert to a u128"),
-        )?,
-    )
-}
-
 /// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
 pub(crate) fn construct_tx_fee_event(fee: &Fee) -> Event {
     Event::new(
@@ -466,6 +510,31 @@ pub(crate) fn construct_tx_fee_event(fee: &Fee) -> Event {
             ("sourceActionIndex", fee.source_action_index.to_string()).index(),
         ],
     )
+}
+
+/// Calculates the fee for a sequence `Action` based on the length of the `data`.
+pub(crate) async fn calculate_sequence_action_fee_from_state<S: crate::fees::StateReadExt>(
+    data: &[u8],
+    state: &S,
+) -> eyre::Result<u128> {
+    let Some(GenericFeeComponents {
+        base_fee,
+        computed_cost_multiplier,
+    }) = SequenceAction::fee_components(state).await?
+    else {
+        bail!("no fee components found for sequence action");
+    };
+    base_fee
+        .checked_add(
+            computed_cost_multiplier
+                .checked_mul(
+                    data.len()
+                        .try_into()
+                        .expect("a usize should always convert to a u128"),
+                )
+                .ok_or_eyre("fee multiplication component overflowed")?,
+        )
+        .ok_or_eyre("fee addition component overflowed")
 }
 
 #[cfg(test)]
@@ -482,7 +551,12 @@ mod tests {
             ROLLUP_ID_LEN,
             TRANSACTION_ID_LEN,
         },
-        protocol::transaction::v1alpha1::action::BridgeLockAction,
+        protocol::transaction::v1alpha1::action::{
+            BridgeLockAction,
+            BridgeLockFeeComponents,
+            FeeComponents,
+            TransferFeeComponents,
+        },
         sequencerblock::v1alpha1::block::Deposit,
     };
     use cnidarium::StateDelta;
@@ -495,7 +569,7 @@ mod tests {
         bridge::StateWriteExt as _,
         fees::{
             calculate_base_deposit_fee,
-            calculate_sequence_action_fee,
+            StateWriteExt as _,
             DEPOSIT_BASE_FEE,
         },
         test_utils::{
@@ -529,8 +603,17 @@ mod tests {
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
-        state.put_transfer_base_fee(transfer_fee).unwrap();
-        state.put_bridge_lock_byte_cost_multiplier(2).unwrap();
+        let transfer_fees = FeeComponents::TransferFeeComponents(TransferFeeComponents {
+            base_fee: transfer_fee,
+            computed_cost_multiplier: 0,
+        });
+        state.put_transfer_fees(transfer_fees).unwrap();
+
+        let bridge_lock_fees = FeeComponents::BridgeLockFeeComponents(BridgeLockFeeComponents {
+            base_fee: transfer_fee,
+            computed_cost_multiplier: 2,
+        });
+        state.put_bridge_lock_fees(bridge_lock_fees).unwrap();
 
         let bridge_address = astria_address(&[1; 20]);
         let asset = test_asset();
@@ -557,7 +640,7 @@ mod tests {
             .unwrap();
         assert_eyre_error(
             &bridge_lock.check_and_execute(&mut state).await.unwrap_err(),
-            "insufficient funds for transfer and fee payment",
+            "insufficient funds for transfer",
         );
 
         // enough balance; should pass
@@ -660,13 +743,5 @@ mod tests {
             source_transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         }
-    }
-
-    #[test]
-    fn calculate_sequence_action_fee_works_as_expected() {
-        assert_eq!(calculate_sequence_action_fee(&[], 1, 0), Some(0));
-        assert_eq!(calculate_sequence_action_fee(&[0], 1, 0), Some(1));
-        assert_eq!(calculate_sequence_action_fee(&[0u8; 10], 1, 0), Some(10));
-        assert_eq!(calculate_sequence_action_fee(&[0u8; 10], 1, 100), Some(110));
     }
 }

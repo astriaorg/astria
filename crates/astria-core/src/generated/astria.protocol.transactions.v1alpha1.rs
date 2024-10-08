@@ -455,35 +455,30 @@ impl ::prost::Name for BridgeSudoChangeAction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FeeChangeAction {
-    /// note that the proto number ranges are doubled from that of `Action`.
-    /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
-    #[prost(oneof = "fee_change_action::Value", tags = "1, 2, 3, 20, 21, 22, 40")]
-    pub value: ::core::option::Option<fee_change_action::Value>,
+    /// the new fee components values
+    #[prost(oneof = "fee_change_action::FeeComponents", tags = "1, 2, 3, 4, 5, 6, 7")]
+    pub fee_components: ::core::option::Option<fee_change_action::FeeComponents>,
 }
 /// Nested message and enum types in `FeeChangeAction`.
 pub mod fee_change_action {
-    /// note that the proto number ranges are doubled from that of `Action`.
-    /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
+    /// the new fee components values
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Value {
-        /// core protocol fees are defined on 1-20
+    pub enum FeeComponents {
         #[prost(message, tag = "1")]
-        TransferBaseFee(super::super::super::super::primitive::v1::Uint128),
+        TransferFees(super::TransferFeeComponents),
         #[prost(message, tag = "2")]
-        SequenceBaseFee(super::super::super::super::primitive::v1::Uint128),
+        SequenceFees(super::SequenceFeeComponents),
         #[prost(message, tag = "3")]
-        SequenceByteCostMultiplier(super::super::super::super::primitive::v1::Uint128),
-        /// bridge fees are defined on 20-39
-        #[prost(message, tag = "20")]
-        InitBridgeAccountBaseFee(super::super::super::super::primitive::v1::Uint128),
-        #[prost(message, tag = "21")]
-        BridgeLockByteCostMultiplier(super::super::super::super::primitive::v1::Uint128),
-        #[prost(message, tag = "22")]
-        BridgeSudoChangeBaseFee(super::super::super::super::primitive::v1::Uint128),
-        /// ibc fees are defined on 40-59
-        #[prost(message, tag = "40")]
-        Ics20WithdrawalBaseFee(super::super::super::super::primitive::v1::Uint128),
+        InitBridgeAccountFees(super::InitBridgeAccountFeeComponents),
+        #[prost(message, tag = "4")]
+        BridgeLockFees(super::BridgeLockFeeComponents),
+        #[prost(message, tag = "5")]
+        BridgeUnlockFees(super::BridgeUnlockFeeComponents),
+        #[prost(message, tag = "6")]
+        BridgeSudoChangeFees(super::BridgeSudoChangeFeeComponents),
+        #[prost(message, tag = "7")]
+        Ics20WithdrawalFees(super::Ics20WithdrawalFeeComponents),
     }
 }
 impl ::prost::Name for FeeChangeAction {
@@ -532,6 +527,125 @@ pub struct TransactionFee {
 }
 impl ::prost::Name for TransactionFee {
     const NAME: &'static str = "TransactionFee";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransferFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base_fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub computed_cost_multiplier: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+}
+impl ::prost::Name for TransferFeeComponents {
+    const NAME: &'static str = "TransferFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SequenceFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base_fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub computed_cost_multiplier: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+}
+impl ::prost::Name for SequenceFeeComponents {
+    const NAME: &'static str = "SequenceFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct InitBridgeAccountFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base_fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub computed_cost_multiplier: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+}
+impl ::prost::Name for InitBridgeAccountFeeComponents {
+    const NAME: &'static str = "InitBridgeAccountFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BridgeLockFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base_fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub computed_cost_multiplier: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+}
+impl ::prost::Name for BridgeLockFeeComponents {
+    const NAME: &'static str = "BridgeLockFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BridgeUnlockFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base_fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub computed_cost_multiplier: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+}
+impl ::prost::Name for BridgeUnlockFeeComponents {
+    const NAME: &'static str = "BridgeUnlockFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BridgeSudoChangeFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base_fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub computed_cost_multiplier: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+}
+impl ::prost::Name for BridgeSudoChangeFeeComponents {
+    const NAME: &'static str = "BridgeSudoChangeFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Ics20WithdrawalFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base_fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub computed_cost_multiplier: ::core::option::Option<
+        super::super::super::primitive::v1::Uint128,
+    >,
+}
+impl ::prost::Name for Ics20WithdrawalFeeComponents {
+    const NAME: &'static str = "Ics20WithdrawalFeeComponents";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)

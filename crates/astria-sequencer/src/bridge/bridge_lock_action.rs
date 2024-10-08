@@ -25,6 +25,7 @@ use crate::{
         StateWriteExt as _,
     },
     transaction::StateReadExt as _,
+    utils::create_deposit_event,
 };
 
 #[async_trait::async_trait]
@@ -76,6 +77,7 @@ impl ActionHandler for BridgeLockAction {
             source_transaction_id,
             source_action_index,
         };
+        let deposit_abci_event = create_deposit_event(&deposit);
 
         let transfer_action = TransferAction {
             to: self.to,
@@ -88,6 +90,7 @@ impl ActionHandler for BridgeLockAction {
         execute_transfer(&transfer_action, &from, &mut state).await?;
 
         state.cache_deposit_event(deposit);
+        state.record(deposit_abci_event);
         Ok(())
     }
 }

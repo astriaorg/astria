@@ -57,27 +57,52 @@ expression: genesis_state()
   "allowedFeeAssets": [
     "nria"
   ],
-  "fees": {
-    "transferBaseFee": {
-      "lo": "12"
+  "genesisFees": {
+    "transferFees": {
+      "baseFee": {
+        "lo": "12"
+      },
+      "computedCostMultiplier": {}
     },
-    "sequenceBaseFee": {
-      "lo": "32"
+    "sequenceFees": {
+      "baseFee": {
+        "lo": "32"
+      },
+      "computedCostMultiplier": {
+        "lo": "1"
+      }
     },
-    "sequenceByteCostMultiplier": {
-      "lo": "1"
+    "ics20WithdrawalFees": {
+      "baseFee": {
+        "lo": "24"
+      },
+      "computedCostMultiplier": {}
     },
-    "initBridgeAccountBaseFee": {
-      "lo": "48"
+    "initBridgeAccountFees": {
+      "baseFee": {
+        "lo": "48"
+      },
+      "computedCostMultiplier": {}
     },
-    "bridgeLockByteCostMultiplier": {
-      "lo": "1"
+    "bridgeLockFees": {
+      "baseFee": {
+        "lo": "12"
+      },
+      "computedCostMultiplier": {
+        "lo": "1"
+      }
     },
-    "bridgeSudoChangeFee": {
-      "lo": "24"
+    "bridgeUnlockFees": {
+      "baseFee": {
+        "lo": "12"
+      },
+      "computedCostMultiplier": {}
     },
-    "ics20WithdrawalBaseFee": {
-      "lo": "24"
+    "bridgeSudoChangeFees": {
+      "baseFee": {
+        "lo": "24"
+      },
+      "computedCostMultiplier": {}
     }
   }
 }

@@ -3,6 +3,7 @@ syntax = "proto3";
 package astria.protocol.genesis.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
+import "astria/protocol/transactions/v1alpha1/types.proto";
 
 message GenesisAppState {
   string chain_id = 1;
@@ -14,7 +15,7 @@ message GenesisAppState {
   string native_asset_base_denomination = 7;
   IbcParameters ibc_parameters = 8;
   repeated string allowed_fee_assets = 9;
-  Fees fees = 10;
+  GenesisFees genesis_fees = 10;
 }
 
 message Account {
@@ -40,12 +41,12 @@ message IbcParameters {
   bool outbound_ics20_transfers_enabled = 3;
 }
 
-message Fees {
-  astria.primitive.v1.Uint128 transfer_base_fee = 1;
-  astria.primitive.v1.Uint128 sequence_base_fee = 2;
-  astria.primitive.v1.Uint128 sequence_byte_cost_multiplier = 3;
-  astria.primitive.v1.Uint128 init_bridge_account_base_fee = 4;
-  astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 5;
-  astria.primitive.v1.Uint128 bridge_sudo_change_fee = 6;
-  astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 7;
+message GenesisFees {
+  astria.protocol.transactions.v1alpha1.TransferFeeComponents transfer_fees = 1;
+  astria.protocol.transactions.v1alpha1.SequenceFeeComponents sequence_fees = 2;
+  astria.protocol.transactions.v1alpha1.Ics20WithdrawalFeeComponents ics20_withdrawal_fees = 3;
+  astria.protocol.transactions.v1alpha1.InitBridgeAccountFeeComponents init_bridge_account_fees = 4;
+  astria.protocol.transactions.v1alpha1.BridgeLockFeeComponents bridge_lock_fees = 5;
+  astria.protocol.transactions.v1alpha1.BridgeUnlockFeeComponents bridge_unlock_fees = 6;
+  astria.protocol.transactions.v1alpha1.BridgeSudoChangeFeeComponents bridge_sudo_change_fees = 7;
 }

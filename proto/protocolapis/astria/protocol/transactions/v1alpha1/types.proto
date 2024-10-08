@@ -245,21 +245,15 @@ message BridgeSudoChangeAction {
 }
 
 message FeeChangeAction {
-  // note that the proto number ranges are doubled from that of `Action`.
-  // this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
-  oneof value {
-    // core protocol fees are defined on 1-20
-    astria.primitive.v1.Uint128 transfer_base_fee = 1;
-    astria.primitive.v1.Uint128 sequence_base_fee = 2;
-    astria.primitive.v1.Uint128 sequence_byte_cost_multiplier = 3;
-
-    // bridge fees are defined on 20-39
-    astria.primitive.v1.Uint128 init_bridge_account_base_fee = 20;
-    astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 21;
-    astria.primitive.v1.Uint128 bridge_sudo_change_base_fee = 22;
-
-    // ibc fees are defined on 40-59
-    astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 40;
+  // the new fee components values
+  oneof fee_components {
+    TransferFeeComponents transfer_fees = 1;
+    SequenceFeeComponents sequence_fees = 2;
+    InitBridgeAccountFeeComponents init_bridge_account_fees = 3;
+    BridgeLockFeeComponents bridge_lock_fees = 4;
+    BridgeUnlockFeeComponents bridge_unlock_fees = 5;
+    BridgeSudoChangeFeeComponents bridge_sudo_change_fees = 6;
+    Ics20WithdrawalFeeComponents ics20_withdrawal_fees = 7;
   }
 }
 
@@ -276,4 +270,39 @@ message TransactionFeeResponse {
 message TransactionFee {
   string asset = 1;
   astria.primitive.v1.Uint128 fee = 2;
+}
+
+message TransferFeeComponents {
+  astria.primitive.v1.Uint128 base_fee = 1;
+  astria.primitive.v1.Uint128 computed_cost_multiplier = 2;
+}
+
+message SequenceFeeComponents {
+  astria.primitive.v1.Uint128 base_fee = 1;
+  astria.primitive.v1.Uint128 computed_cost_multiplier = 2;
+}
+
+message InitBridgeAccountFeeComponents {
+  astria.primitive.v1.Uint128 base_fee = 1;
+  astria.primitive.v1.Uint128 computed_cost_multiplier = 2;
+}
+
+message BridgeLockFeeComponents {
+  astria.primitive.v1.Uint128 base_fee = 1;
+  astria.primitive.v1.Uint128 computed_cost_multiplier = 2;
+}
+
+message BridgeUnlockFeeComponents {
+  astria.primitive.v1.Uint128 base_fee = 1;
+  astria.primitive.v1.Uint128 computed_cost_multiplier = 2;
+}
+
+message BridgeSudoChangeFeeComponents {
+  astria.primitive.v1.Uint128 base_fee = 1;
+  astria.primitive.v1.Uint128 computed_cost_multiplier = 2;
+}
+
+message Ics20WithdrawalFeeComponents {
+  astria.primitive.v1.Uint128 base_fee = 1;
+  astria.primitive.v1.Uint128 computed_cost_multiplier = 2;
 }

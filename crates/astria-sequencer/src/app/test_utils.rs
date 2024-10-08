@@ -20,7 +20,15 @@ use astria_core::{
         },
         transaction::v1alpha1::{
             action::{
+                BridgeLockFeeComponents,
+                BridgeSudoChangeFeeComponents,
+                BridgeUnlockFeeComponents,
+                FeeComponents,
+                Ics20WithdrawalFeeComponents,
+                InitBridgeAccountFeeComponents,
                 SequenceAction,
+                SequenceFeeComponents,
+                TransferFeeComponents,
                 ValidatorUpdate,
             },
             SignedTransaction,
@@ -29,6 +37,7 @@ use astria_core::{
     },
     Protobuf,
 };
+use astria_eyre::eyre::WrapErr as _;
 use bytes::Bytes;
 use cnidarium::{
     Snapshot,
@@ -41,11 +50,9 @@ use crate::{
     accounts::StateWriteExt,
     app::App,
     assets::StateWriteExt as AssetStateWriteExt,
-    bridge::StateWriteExt as BridgeStateWriteExt,
-    ibc::StateWriteExt as IbcStateWriteExt,
+    fees::StateWriteExt as _,
     mempool::Mempool,
     metrics::Metrics,
-    sequence::StateWriteExt as SequenceStateWriteExt,
     test_utils::astria_address_from_hex_string,
 };
 
@@ -157,15 +164,36 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     reason = "allow is only necessary when benchmark isn't enabled"
 )]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
-pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::Fees {
-    astria_core::protocol::genesis::v1alpha1::Fees {
-        transfer_base_fee: 12,
-        sequence_base_fee: 32,
-        sequence_byte_cost_multiplier: 1,
-        init_bridge_account_base_fee: 48,
-        bridge_lock_byte_cost_multiplier: 1,
-        bridge_sudo_change_fee: 24,
-        ics20_withdrawal_base_fee: 24,
+pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::GenesisFees {
+    astria_core::protocol::genesis::v1alpha1::GenesisFees {
+        transfer_fees: TransferFeeComponents {
+            base_fee: 12,
+            computed_cost_multiplier: 0,
+        },
+        sequence_fees: SequenceFeeComponents {
+            base_fee: 32,
+            computed_cost_multiplier: 1,
+        },
+        init_bridge_account_fees: InitBridgeAccountFeeComponents {
+            base_fee: 48,
+            computed_cost_multiplier: 0,
+        },
+        bridge_lock_fees: BridgeLockFeeComponents {
+            base_fee: 12, // should reflect transfer fee
+            computed_cost_multiplier: 1,
+        },
+        bridge_sudo_change_fees: BridgeSudoChangeFeeComponents {
+            base_fee: 24,
+            computed_cost_multiplier: 0,
+        },
+        ics20_withdrawal_fees: Ics20WithdrawalFeeComponents {
+            base_fee: 24,
+            computed_cost_multiplier: 0,
+        },
+        bridge_unlock_fees: BridgeUnlockFeeComponents {
+            base_fee: 12, // should reflect transfer fee
+            computed_cost_multiplier: 0,
+        },
     }
 }
 
@@ -202,7 +230,7 @@ pub(crate) fn proto_genesis_state()
             outbound_ics20_transfers_enabled: true,
         }),
         allowed_fee_assets: vec![crate::test_utils::nria().to_string()],
-        fees: Some(default_fees().to_raw()),
+        genesis_fees: Some(default_fees().to_raw()),
     }
 }
 
@@ -448,15 +476,71 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     // setup tx fees
+    let transfer_fees = FeeComponents::TransferFeeComponents(TransferFeeComponents {
+        base_fee: 0,
+        computed_cost_multiplier: 0,
+    });
     state
-        .put_sequence_action_base_fee(MOCK_SEQUENCE_FEE)
+        .put_transfer_fees(transfer_fees)
+        .wrap_err("failed to initiate transfer fee components")
         .unwrap();
-    state.put_sequence_action_byte_cost_multiplier(0).unwrap();
-    state.put_transfer_base_fee(0).unwrap();
-    state.put_ics20_withdrawal_base_fee(0).unwrap();
-    state.put_init_bridge_account_base_fee(0).unwrap();
-    state.put_bridge_lock_byte_cost_multiplier(0).unwrap();
-    state.put_bridge_sudo_change_base_fee(0).unwrap();
+
+    let sequence_fees = FeeComponents::SequenceFeeComponents(SequenceFeeComponents {
+        base_fee: MOCK_SEQUENCE_FEE,
+        computed_cost_multiplier: 0,
+    });
+    state
+        .put_sequence_fees(sequence_fees)
+        .wrap_err("failed to initiate sequence action fee components")
+        .unwrap();
+
+    let ics20_withdrawal_fees =
+        FeeComponents::Ics20WithdrawalFeeComponents(Ics20WithdrawalFeeComponents {
+            base_fee: 0,
+            computed_cost_multiplier: 0,
+        });
+    state
+        .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
+        .wrap_err("failed to initiate ics20 withdrawal fee components")
+        .unwrap();
+
+    let init_bridge_account_fees =
+        FeeComponents::InitBridgeAccountFeeComponents(InitBridgeAccountFeeComponents {
+            base_fee: 0,
+            computed_cost_multiplier: 0,
+        });
+    state
+        .put_init_bridge_account_fees(init_bridge_account_fees)
+        .wrap_err("failed to initiate init bridge account fee components")
+        .unwrap();
+
+    let bridge_lock_fees = FeeComponents::BridgeLockFeeComponents(BridgeLockFeeComponents {
+        base_fee: 0,
+        computed_cost_multiplier: 0,
+    });
+    state
+        .put_bridge_lock_fees(bridge_lock_fees)
+        .wrap_err("failed to initiate bridge lock fee components")
+        .unwrap();
+
+    let bridge_unlock_fees = FeeComponents::BridgeUnlockFeeComponents(BridgeUnlockFeeComponents {
+        base_fee: 0,
+        computed_cost_multiplier: 0,
+    });
+    state
+        .put_bridge_unlock_fees(bridge_unlock_fees)
+        .wrap_err("failed to initiate bridge unlock fee components")
+        .unwrap();
+
+    let bridge_sudo_change_fees =
+        FeeComponents::BridgeSudoChangeFeeComponents(BridgeSudoChangeFeeComponents {
+            base_fee: 0,
+            computed_cost_multiplier: 0,
+        });
+    state
+        .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
+        .wrap_err("failed to initiate bridge sudo change fee components")
+        .unwrap();
 
     // put denoms as allowed fee asset
     state.put_allowed_fee_asset(&denom_0()).unwrap();

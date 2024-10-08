@@ -31,7 +31,6 @@ use crate::{
 };
 
 const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
-const ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY: &str = "ics20withdrawalfee";
 
 struct IbcRelayerKey<'a, T>(&'a T);
 
@@ -111,21 +110,6 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("failed to read ibc relayer key from state")?
             .is_some())
     }
-
-    #[instrument(skip_all)]
-    async fn get_ics20_withdrawal_base_fee(&self) -> Result<u128> {
-        let Some(bytes) = self
-            .get_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading ics20 withdrawal fee from state")?
-        else {
-            bail!("ics20 withdrawal fee not found");
-        };
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-            .wrap_err("invalid ics20 withdrawal base fee bytes")
-    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -195,15 +179,6 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn delete_ibc_relayer_address<T: AddressBytes>(&mut self, address: &T) {
         self.delete(ibc_relayer_key(address));
-    }
-
-    #[instrument(skip_all)]
-    fn put_ics20_withdrawal_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::from(storage::Fee::from(fee))
-            .serialize()
-            .wrap_err("failed to serialize ics20 withdrawal base fee")?;
-        self.put_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(), bytes);
-        Ok(())
     }
 }
 
@@ -505,17 +480,6 @@ mod tests {
             amount_1,
             "set balance for channel/asset pair not what was expected"
         );
-    }
-
-    #[tokio::test]
-    async fn ics20_withdrawal_base_fee_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_ics20_withdrawal_base_fee(123).unwrap();
-        let retrieved_fee = state.get_ics20_withdrawal_base_fee().await.unwrap();
-        assert_eq!(retrieved_fee, 123);
     }
 
     #[test]

@@ -1,3 +1,7 @@
+use borsh::{
+    BorshDeserialize,
+    BorshSerialize,
+};
 use bytes::Bytes;
 use ibc_types::{
     core::{
@@ -364,7 +368,7 @@ impl ActionError {
         Self(ActionErrorKind::BridgeSudoChange(inner))
     }
 
-    fn fee_change(inner: FeeChangeActionError) -> Self {
+    fn fee_change(inner: FeeComponentsError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
 }
@@ -400,7 +404,7 @@ enum ActionErrorKind {
     #[error("bridge sudo change action was not valid")]
     BridgeSudoChange(#[source] BridgeSudoChangeActionError),
     #[error("fee change action was not valid")]
-    FeeChange(#[source] FeeChangeActionError),
+    FeeChange(#[source] FeeComponentsError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1970,15 +1974,15 @@ enum BridgeSudoChangeActionErrorKind {
     InvalidFeeAsset(#[source] asset::ParseDenomError),
 }
 
-#[derive(Debug, Clone)]
-pub enum FeeChange {
-    TransferBaseFee,
-    SequenceBaseFee,
-    SequenceByteCostMultiplier,
-    InitBridgeAccountBaseFee,
-    BridgeLockByteCostMultiplier,
-    BridgeSudoChangeBaseFee,
-    Ics20WithdrawalBaseFee,
+#[derive(Debug, Clone, Copy, PartialEq, BorshSerialize, BorshDeserialize)]
+pub enum FeeComponents {
+    TransferFeeComponents(TransferFeeComponents),
+    SequenceFeeComponents(SequenceFeeComponents),
+    Ics20WithdrawalFeeComponents(Ics20WithdrawalFeeComponents),
+    InitBridgeAccountFeeComponents(InitBridgeAccountFeeComponents),
+    BridgeLockFeeComponents(BridgeLockFeeComponents),
+    BridgeUnlockFeeComponents(BridgeUnlockFeeComponents),
+    BridgeSudoChangeFeeComponents(BridgeSudoChangeFeeComponents),
 }
 
 #[expect(
@@ -1987,40 +1991,39 @@ pub enum FeeChange {
 )]
 #[derive(Debug, Clone)]
 pub struct FeeChangeAction {
-    pub fee_change: FeeChange,
-    pub new_value: u128,
+    pub fee_change: FeeComponents,
 }
 
 impl Protobuf for FeeChangeAction {
-    type Error = FeeChangeActionError;
+    type Error = FeeComponentsError;
     type Raw = raw::FeeChangeAction;
 
     #[must_use]
     fn to_raw(&self) -> raw::FeeChangeAction {
         raw::FeeChangeAction {
-            value: Some(match self.fee_change {
-                FeeChange::TransferBaseFee => {
-                    raw::fee_change_action::Value::TransferBaseFee(self.new_value.into())
+            fee_components: Some(match &self.fee_change {
+                FeeComponents::TransferFeeComponents(fee_change) => {
+                    raw::fee_change_action::FeeComponents::TransferFees(fee_change.to_raw())
                 }
-                FeeChange::SequenceBaseFee => {
-                    raw::fee_change_action::Value::SequenceBaseFee(self.new_value.into())
+                FeeComponents::SequenceFeeComponents(fee_change) => {
+                    raw::fee_change_action::FeeComponents::SequenceFees(fee_change.to_raw())
                 }
-                FeeChange::SequenceByteCostMultiplier => {
-                    raw::fee_change_action::Value::SequenceByteCostMultiplier(self.new_value.into())
+                FeeComponents::Ics20WithdrawalFeeComponents(fee_change) => {
+                    raw::fee_change_action::FeeComponents::Ics20WithdrawalFees(fee_change.to_raw())
                 }
-                FeeChange::InitBridgeAccountBaseFee => {
-                    raw::fee_change_action::Value::InitBridgeAccountBaseFee(self.new_value.into())
-                }
-                FeeChange::BridgeLockByteCostMultiplier => {
-                    raw::fee_change_action::Value::BridgeLockByteCostMultiplier(
-                        self.new_value.into(),
+                FeeComponents::InitBridgeAccountFeeComponents(fee_change) => {
+                    raw::fee_change_action::FeeComponents::InitBridgeAccountFees(
+                        fee_change.to_raw(),
                     )
                 }
-                FeeChange::BridgeSudoChangeBaseFee => {
-                    raw::fee_change_action::Value::BridgeSudoChangeBaseFee(self.new_value.into())
+                FeeComponents::BridgeLockFeeComponents(fee_change) => {
+                    raw::fee_change_action::FeeComponents::BridgeLockFees(fee_change.to_raw())
                 }
-                FeeChange::Ics20WithdrawalBaseFee => {
-                    raw::fee_change_action::Value::Ics20WithdrawalBaseFee(self.new_value.into())
+                FeeComponents::BridgeUnlockFeeComponents(fee_change) => {
+                    raw::fee_change_action::FeeComponents::BridgeUnlockFees(fee_change.to_raw())
+                }
+                FeeComponents::BridgeSudoChangeFeeComponents(fee_change) => {
+                    raw::fee_change_action::FeeComponents::BridgeSudoChangeFees(fee_change.to_raw())
                 }
             }),
         }
@@ -2032,51 +2035,331 @@ impl Protobuf for FeeChangeAction {
     ///
     /// - if the fee change `value` field is missing
     /// - if the `new_value` field is missing
-    fn try_from_raw_ref(proto: &raw::FeeChangeAction) -> Result<Self, FeeChangeActionError> {
-        let (fee_change, new_value) = match proto.value {
-            Some(raw::fee_change_action::Value::TransferBaseFee(new_value)) => {
-                (FeeChange::TransferBaseFee, new_value)
+    fn try_from_raw_ref(proto: &raw::FeeChangeAction) -> Result<Self, FeeComponentsError> {
+        let fee_change = match &proto.fee_components {
+            Some(raw::fee_change_action::FeeComponents::TransferFees(fee_change)) => {
+                FeeComponents::TransferFeeComponents(TransferFeeComponents::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
-            Some(raw::fee_change_action::Value::SequenceBaseFee(new_value)) => {
-                (FeeChange::SequenceBaseFee, new_value)
+            Some(raw::fee_change_action::FeeComponents::SequenceFees(fee_change)) => {
+                FeeComponents::SequenceFeeComponents(SequenceFeeComponents::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
-            Some(raw::fee_change_action::Value::SequenceByteCostMultiplier(new_value)) => {
-                (FeeChange::SequenceByteCostMultiplier, new_value)
+            Some(raw::fee_change_action::FeeComponents::Ics20WithdrawalFees(fee_change)) => {
+                FeeComponents::Ics20WithdrawalFeeComponents(
+                    Ics20WithdrawalFeeComponents::try_from_raw_ref(fee_change)?,
+                )
             }
-            Some(raw::fee_change_action::Value::InitBridgeAccountBaseFee(new_value)) => {
-                (FeeChange::InitBridgeAccountBaseFee, new_value)
+            Some(raw::fee_change_action::FeeComponents::InitBridgeAccountFees(fee_change)) => {
+                FeeComponents::InitBridgeAccountFeeComponents(
+                    InitBridgeAccountFeeComponents::try_from_raw_ref(fee_change)?,
+                )
             }
-            Some(raw::fee_change_action::Value::BridgeLockByteCostMultiplier(new_value)) => {
-                (FeeChange::BridgeLockByteCostMultiplier, new_value)
+            Some(raw::fee_change_action::FeeComponents::BridgeLockFees(fee_change)) => {
+                FeeComponents::BridgeLockFeeComponents(BridgeLockFeeComponents::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
-            Some(raw::fee_change_action::Value::BridgeSudoChangeBaseFee(new_value)) => {
-                (FeeChange::BridgeSudoChangeBaseFee, new_value)
+            Some(raw::fee_change_action::FeeComponents::BridgeUnlockFees(fee_change)) => {
+                FeeComponents::BridgeUnlockFeeComponents(
+                    BridgeUnlockFeeComponents::try_from_raw_ref(fee_change)?,
+                )
             }
-            Some(raw::fee_change_action::Value::Ics20WithdrawalBaseFee(new_value)) => {
-                (FeeChange::Ics20WithdrawalBaseFee, new_value)
+            Some(raw::fee_change_action::FeeComponents::BridgeSudoChangeFees(fee_change)) => {
+                FeeComponents::BridgeSudoChangeFeeComponents(
+                    BridgeSudoChangeFeeComponents::try_from_raw_ref(fee_change)?,
+                )
             }
-            None => return Err(FeeChangeActionError::missing_value_to_change()),
+            None => return Err(FeeComponentsError::missing_value_to_change()),
         };
 
         Ok(Self {
             fee_change,
-            new_value: new_value.into(),
         })
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct FeeChangeActionError(FeeChangeActionErrorKind);
+pub struct FeeComponentsError(FeeComponentsErrorKind);
 
-impl FeeChangeActionError {
+impl FeeComponentsError {
+    fn missing_field(field: &'static str) -> Self {
+        Self(FeeComponentsErrorKind::MissingField {
+            field,
+        })
+    }
+
     fn missing_value_to_change() -> Self {
-        Self(FeeChangeActionErrorKind::MissingValueToChange)
+        Self(FeeComponentsErrorKind::MissingFeeComponent)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum FeeChangeActionErrorKind {
-    #[error("the value which to change was missing")]
-    MissingValueToChange,
+enum FeeComponentsErrorKind {
+    #[error("the field `{field}` of the fee component was missing")]
+    MissingField { field: &'static str },
+    #[error("the fee component was missing")]
+    MissingFeeComponent,
+}
+
+#[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, PartialEq)]
+pub struct TransferFeeComponents {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
+
+impl Protobuf for TransferFeeComponents {
+    type Error = FeeComponentsError;
+    type Raw = raw::TransferFeeComponents;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            base_fee,
+            computed_cost_multiplier,
+        } = raw;
+        Ok(Self {
+            base_fee: base_fee
+                .ok_or_else(|| Self::Error::missing_field("base fee"))?
+                .into(),
+            computed_cost_multiplier: computed_cost_multiplier
+                .ok_or_else(|| Self::Error::missing_field("computed cost multiplier"))?
+                .into(),
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            base_fee,
+            computed_cost_multiplier,
+        } = self;
+        Self::Raw {
+            base_fee: Some(base_fee.into()),
+            computed_cost_multiplier: Some(computed_cost_multiplier.into()),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, PartialEq)]
+pub struct SequenceFeeComponents {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
+
+impl Protobuf for SequenceFeeComponents {
+    type Error = FeeComponentsError;
+    type Raw = raw::SequenceFeeComponents;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            base_fee,
+            computed_cost_multiplier,
+        } = raw;
+        Ok(Self {
+            base_fee: base_fee
+                .ok_or_else(|| Self::Error::missing_field("base fee"))?
+                .into(),
+            computed_cost_multiplier: computed_cost_multiplier
+                .ok_or_else(|| Self::Error::missing_field("computed cost multiplier"))?
+                .into(),
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            base_fee,
+            computed_cost_multiplier,
+        } = self;
+        Self::Raw {
+            base_fee: Some(base_fee.into()),
+            computed_cost_multiplier: Some(computed_cost_multiplier.into()),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, PartialEq)]
+pub struct InitBridgeAccountFeeComponents {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
+
+impl Protobuf for InitBridgeAccountFeeComponents {
+    type Error = FeeComponentsError;
+    type Raw = raw::InitBridgeAccountFeeComponents;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            base_fee,
+            computed_cost_multiplier,
+        } = raw;
+        Ok(Self {
+            base_fee: base_fee
+                .ok_or_else(|| Self::Error::missing_field("base fee"))?
+                .into(),
+            computed_cost_multiplier: computed_cost_multiplier
+                .ok_or_else(|| Self::Error::missing_field("computed cost multiplier"))?
+                .into(),
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            base_fee,
+            computed_cost_multiplier,
+        } = self;
+        Self::Raw {
+            base_fee: Some(base_fee.into()),
+            computed_cost_multiplier: Some(computed_cost_multiplier.into()),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, PartialEq)]
+pub struct Ics20WithdrawalFeeComponents {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
+
+impl Protobuf for Ics20WithdrawalFeeComponents {
+    type Error = FeeComponentsError;
+    type Raw = raw::Ics20WithdrawalFeeComponents;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            base_fee,
+            computed_cost_multiplier,
+        } = raw;
+        Ok(Self {
+            base_fee: base_fee
+                .ok_or_else(|| Self::Error::missing_field("base fee"))?
+                .into(),
+            computed_cost_multiplier: computed_cost_multiplier
+                .ok_or_else(|| Self::Error::missing_field("computed cost multiplier"))?
+                .into(),
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            base_fee,
+            computed_cost_multiplier,
+        } = self;
+        Self::Raw {
+            base_fee: Some(base_fee.into()),
+            computed_cost_multiplier: Some(computed_cost_multiplier.into()),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, PartialEq)]
+pub struct BridgeLockFeeComponents {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
+
+impl Protobuf for BridgeLockFeeComponents {
+    type Error = FeeComponentsError;
+    type Raw = raw::BridgeLockFeeComponents;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            base_fee,
+            computed_cost_multiplier,
+        } = raw;
+        Ok(Self {
+            base_fee: base_fee
+                .ok_or_else(|| Self::Error::missing_field("base fee"))?
+                .into(),
+            computed_cost_multiplier: computed_cost_multiplier
+                .ok_or_else(|| Self::Error::missing_field("computed cost multiplier"))?
+                .into(),
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            base_fee,
+            computed_cost_multiplier,
+        } = self;
+        Self::Raw {
+            base_fee: Some(base_fee.into()),
+            computed_cost_multiplier: Some(computed_cost_multiplier.into()),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, PartialEq)]
+pub struct BridgeUnlockFeeComponents {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
+
+impl Protobuf for BridgeUnlockFeeComponents {
+    type Error = FeeComponentsError;
+    type Raw = raw::BridgeUnlockFeeComponents;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            base_fee,
+            computed_cost_multiplier,
+        } = raw;
+        Ok(Self {
+            base_fee: base_fee
+                .ok_or_else(|| Self::Error::missing_field("base fee"))?
+                .into(),
+            computed_cost_multiplier: computed_cost_multiplier
+                .ok_or_else(|| Self::Error::missing_field("computed cost multiplier"))?
+                .into(),
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            base_fee,
+            computed_cost_multiplier,
+        } = self;
+        Self::Raw {
+            base_fee: Some(base_fee.into()),
+            computed_cost_multiplier: Some(computed_cost_multiplier.into()),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, PartialEq)]
+pub struct BridgeSudoChangeFeeComponents {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
+
+impl Protobuf for BridgeSudoChangeFeeComponents {
+    type Error = FeeComponentsError;
+    type Raw = raw::BridgeSudoChangeFeeComponents;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            base_fee,
+            computed_cost_multiplier,
+        } = raw;
+        Ok(Self {
+            base_fee: base_fee
+                .ok_or_else(|| Self::Error::missing_field("base fee"))?
+                .into(),
+            computed_cost_multiplier: computed_cost_multiplier
+                .ok_or_else(|| Self::Error::missing_field("computed cost multiplier"))?
+                .into(),
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            base_fee,
+            computed_cost_multiplier,
+        } = self;
+        Self::Raw {
+            base_fee: Some(base_fee.into()),
+            computed_cost_multiplier: Some(computed_cost_multiplier.into()),
+        }
+    }
 }

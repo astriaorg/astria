@@ -78,9 +78,15 @@ impl ActionHandler for BridgeSudoChangeAction {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::{
-        asset,
-        TransactionId,
+    use astria_core::{
+        primitive::v1::{
+            asset,
+            TransactionId,
+        },
+        protocol::transaction::v1alpha1::action::{
+            BridgeSudoChangeFeeComponents,
+            FeeComponents,
+        },
     };
     use cnidarium::StateDelta;
 
@@ -89,6 +95,7 @@ mod tests {
         accounts::StateWriteExt as _,
         address::StateWriteExt as _,
         assets::StateWriteExt as _,
+        fees::StateWriteExt as _,
         test_utils::{
             astria_address,
             ASTRIA_PREFIX,
@@ -155,7 +162,14 @@ mod tests {
             source_action_index: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state.put_bridge_sudo_change_base_fee(10).unwrap();
+        state
+            .put_bridge_sudo_change_fees(FeeComponents::BridgeSudoChangeFeeComponents(
+                BridgeSudoChangeFeeComponents {
+                    base_fee: 10,
+                    computed_cost_multiplier: 0,
+                },
+            ))
+            .unwrap();
 
         let fee_asset = test_asset();
         state.put_allowed_fee_asset(&fee_asset).unwrap();
