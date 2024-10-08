@@ -28,7 +28,7 @@ async fn future_nonces_are_accepted() {
     let snapshot = storage.latest_snapshot();
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mut mempool = Mempool::new(metrics);
+    let mut mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
@@ -58,7 +58,7 @@ async fn rechecks_pass() {
     let snapshot = storage.latest_snapshot();
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mut mempool = Mempool::new(metrics);
+    let mut mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
@@ -96,7 +96,7 @@ async fn can_reinsert_after_recheck_fail() {
     let snapshot = storage.latest_snapshot();
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mut mempool = Mempool::new(metrics);
+    let mut mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
@@ -144,7 +144,7 @@ async fn recheck_adds_non_tracked_tx() {
     let snapshot = storage.latest_snapshot();
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mut mempool = Mempool::new(metrics);
+    let mut mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 

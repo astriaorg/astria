@@ -33,6 +33,8 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
+    /// The maximum number of transactions that can be parked in the mempool.
+    pub mempool_parked_max_tx_count: usize,
 }
 
 impl config::Config for Config {

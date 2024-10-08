@@ -105,7 +105,7 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         .build()
         .unwrap();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mempool = Mempool::new(metrics);
+    let mempool = Mempool::new(metrics, T::size());
     let account_mock_balance = mock_balances(0, 0);
     let tx_mock_cost = mock_tx_cost(0, 0, 0);
     runtime.block_on(async {

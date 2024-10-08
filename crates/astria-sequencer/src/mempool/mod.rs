@@ -35,6 +35,7 @@ use transactions_container::{
     ParkedTransactions,
     PendingTransactions,
     TimemarkedTransaction,
+    TransactionsContainer as _,
 };
 
 use crate::{
@@ -170,10 +171,13 @@ pub(crate) struct Mempool {
 
 impl Mempool {
     #[must_use]
-    pub(crate) fn new(metrics: &'static Metrics) -> Self {
+    pub(crate) fn new(metrics: &'static Metrics, parked_max_tx_count: usize) -> Self {
         Self {
             pending: Arc::new(RwLock::new(PendingTransactions::new(TX_TTL))),
-            parked: Arc::new(RwLock::new(ParkedTransactions::new(TX_TTL))),
+            parked: Arc::new(RwLock::new(ParkedTransactions::new(
+                TX_TTL,
+                parked_max_tx_count,
+            ))),
             comet_bft_removal_cache: Arc::new(RwLock::new(RemovalCache::new(
                 NonZeroUsize::try_from(REMOVAL_CACHE_SIZE)
                     .expect("Removal cache cannot be zero sized"),
@@ -227,6 +231,10 @@ impl Mempool {
                     &current_account_balances,
                 ) {
                     Ok(()) => {
+                        // log current size of parked
+                        self.metrics
+                            .set_transactions_in_mempool_parked(parked.len());
+
                         // track in contained txs
                         self.lock_contained_txs().await.add(id);
                         Ok(())
@@ -238,7 +246,8 @@ impl Mempool {
                 InsertionError::AlreadyPresent
                 | InsertionError::NonceTooLow
                 | InsertionError::NonceTaken
-                | InsertionError::AccountSizeLimit,
+                | InsertionError::AccountSizeLimit
+                | InsertionError::ParkedSizeLimit,
             ) => error,
             Ok(()) => {
                 // check parked for txs able to be promoted
@@ -441,8 +450,8 @@ impl Mempool {
                     let tx_id = tx.id();
                     if let Err(error) = parked.add(tx, current_nonce, &current_balances) {
                         // NOTE: this shouldn't happen normally but could on the edge case of
-                        // the parked queue being full for the account. This also means
-                        // grabbing the lock inside the loop is more performant.
+                        // the parked queue being full for the account or globally.
+                        // Grabbing the lock inside the loop should be more performant.
                         self.lock_contained_txs().await.remove(tx_id);
                         self.metrics.increment_internal_logic_error();
                         error!(
@@ -514,7 +523,7 @@ mod tests {
     #[tokio::test]
     async fn insert() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
@@ -550,7 +559,7 @@ mod tests {
                     tx1_replacement.clone(),
                     0,
                     account_balances.clone(),
-                    tx_cost.clone()
+                    tx_cost.clone(),
                 )
                 .await
                 .unwrap_err(),
@@ -578,7 +587,7 @@ mod tests {
         // odder edge cases that can be hit if a node goes offline or fails to see
         // some transactions that other nodes include into their proposed blocks.
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
@@ -680,7 +689,7 @@ mod tests {
     #[tokio::test]
     async fn run_maintenance_promotion() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
 
         // create transaction setup to trigger promotions
         //
@@ -753,7 +762,7 @@ mod tests {
     #[tokio::test]
     async fn run_maintenance_demotion() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
 
         // create transaction setup to trigger demotions
         //
@@ -848,7 +857,7 @@ mod tests {
     #[tokio::test]
     async fn remove_invalid() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 10);
 
@@ -951,7 +960,7 @@ mod tests {
     #[tokio::test]
     async fn should_get_pending_nonce() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
 
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
@@ -985,7 +994,7 @@ mod tests {
                     tx100.clone(),
                     100,
                     account_balances.clone(),
-                    tx_cost.clone()
+                    tx_cost.clone(),
                 )
                 .await
                 .is_ok(),
@@ -1001,7 +1010,7 @@ mod tests {
                     tx101.clone(),
                     100,
                     account_balances.clone(),
-                    tx_cost.clone()
+                    tx_cost.clone(),
                 )
                 .await
                 .is_ok(),
@@ -1094,7 +1103,7 @@ mod tests {
     #[tokio::test]
     async fn tx_tracked_invalid_removal_removes_all() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
@@ -1128,7 +1137,7 @@ mod tests {
     #[tokio::test]
     async fn tx_tracked_maintenance_removes_all() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
@@ -1161,7 +1170,7 @@ mod tests {
     #[tokio::test]
     async fn tx_tracked_reinsertion_ok() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
         let account_balances = mock_balances(100, 100);
         let tx_cost = mock_tx_cost(10, 10, 0);
 
@@ -1199,5 +1208,31 @@ mod tests {
         // check that the transactions are in the tracked set on re-insertion
         assert!(mempool.is_tracked(tx0.id().get()).await);
         assert!(mempool.is_tracked(tx1.id().get()).await);
+    }
+
+    #[tokio::test]
+    async fn parked_limit_enforced() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 1);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+
+        let tx0 = MockTxBuilder::new().nonce(1).build();
+        let tx1 = MockTxBuilder::new().nonce(2).build();
+
+        mempool
+            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // size limit fails as expected
+        assert_eq!(
+            mempool
+                .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .await
+                .unwrap_err(),
+            InsertionError::ParkedSizeLimit,
+            "size limit should be enforced"
+        );
     }
 }
