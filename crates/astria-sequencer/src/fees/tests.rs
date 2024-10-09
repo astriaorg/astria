@@ -26,7 +26,7 @@ use astria_core::{
                 Sequence,
                 Transfer,
             },
-            UnsignedTransaction,
+            TransactionBody,
         },
     },
     sequencerblock::v1alpha1::block::Deposit,
@@ -95,12 +95,12 @@ async fn ensure_correct_block_fees_transfer() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(actions)
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     signed_tx.check_and_execute(&mut state).await.unwrap();
 
     let total_block_fees: u128 = state
@@ -135,12 +135,12 @@ async fn ensure_correct_block_fees_sequence() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(actions)
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     signed_tx.check_and_execute(&mut state).await.unwrap();
     let total_block_fees: u128 = state
         .get_block_fees()
@@ -177,12 +177,12 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(actions)
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     signed_tx.check_and_execute(&mut state).await.unwrap();
 
     let total_block_fees: u128 = state
@@ -238,12 +238,12 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(actions)
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     signed_tx.check_and_execute(&mut state).await.unwrap();
 
     let test_deposit = Deposit {
@@ -303,12 +303,12 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
         .into(),
     ];
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(actions)
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     signed_tx.check_and_execute(&mut state).await.unwrap();
 
     let total_block_fees: u128 = state

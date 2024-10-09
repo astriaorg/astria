@@ -474,13 +474,11 @@ impl ::prost::Name for IbcSudoChange {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
-/// `SignedTransaction` is a transaction that has
-/// been signed by the given public key.
-/// It wraps an `UnsignedTransaction` with a
-/// signature and public key.
+/// `Transaction` is a transaction `TransactionBody` together with a public
+/// ket and a signature.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SignedTransaction {
+pub struct Transaction {
     #[prost(bytes = "bytes", tag = "1")]
     pub signature: ::prost::bytes::Bytes,
     #[prost(bytes = "bytes", tag = "2")]
@@ -488,33 +486,32 @@ pub struct SignedTransaction {
     #[prost(message, optional, tag = "3")]
     pub transaction: ::core::option::Option<::pbjson_types::Any>,
 }
-impl ::prost::Name for SignedTransaction {
-    const NAME: &'static str = "SignedTransaction";
+impl ::prost::Name for Transaction {
+    const NAME: &'static str = "Transaction";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
-/// `UnsignedTransaction` is a transaction that does
-/// not have an attached signature.
-/// Note: `value` must be set, it cannot be `None`.
+/// The `TransactionBody` of the `Transaction` that is being signed over.
+/// It contains transaction `TransactionParams` and `Actions`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UnsignedTransaction {
+pub struct TransactionBody {
     #[prost(message, repeated, tag = "1")]
     pub actions: ::prost::alloc::vec::Vec<Action>,
     #[prost(message, optional, tag = "2")]
     pub params: ::core::option::Option<TransactionParams>,
 }
-impl ::prost::Name for UnsignedTransaction {
-    const NAME: &'static str = "UnsignedTransaction";
+impl ::prost::Name for TransactionBody {
+    const NAME: &'static str = "TransactionBody";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
     }
 }
-/// `TransactionParams` contains parameters that define the
-/// validity of the transaction.
+/// The `TransactionParams` of the transaction that define the
+/// validity of the `Transaction`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TransactionParams {

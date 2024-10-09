@@ -2047,138 +2047,6 @@ impl<'de> serde::Deserialize<'de> for Sequence {
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Sequence", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for SignedTransaction {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.signature.is_empty() {
-            len += 1;
-        }
-        if !self.public_key.is_empty() {
-            len += 1;
-        }
-        if self.transaction.is_some() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.SignedTransaction", len)?;
-        if !self.signature.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("signature", pbjson::private::base64::encode(&self.signature).as_str())?;
-        }
-        if !self.public_key.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("publicKey", pbjson::private::base64::encode(&self.public_key).as_str())?;
-        }
-        if let Some(v) = self.transaction.as_ref() {
-            struct_ser.serialize_field("transaction", v)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for SignedTransaction {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "signature",
-            "public_key",
-            "publicKey",
-            "transaction",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Signature,
-            PublicKey,
-            Transaction,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "signature" => Ok(GeneratedField::Signature),
-                            "publicKey" | "public_key" => Ok(GeneratedField::PublicKey),
-                            "transaction" => Ok(GeneratedField::Transaction),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = SignedTransaction;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.SignedTransaction")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SignedTransaction, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut signature__ = None;
-                let mut public_key__ = None;
-                let mut transaction__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Signature => {
-                            if signature__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("signature"));
-                            }
-                            signature__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::PublicKey => {
-                            if public_key__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("publicKey"));
-                            }
-                            public_key__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::Transaction => {
-                            if transaction__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transaction"));
-                            }
-                            transaction__ = map_.next_value()?;
-                        }
-                    }
-                }
-                Ok(SignedTransaction {
-                    signature: signature__.unwrap_or_default(),
-                    public_key: public_key__.unwrap_or_default(),
-                    transaction: transaction__,
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.SignedTransaction", FIELDS, GeneratedVisitor)
-    }
-}
 impl serde::Serialize for SudoAddressChange {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -2269,6 +2137,246 @@ impl<'de> serde::Deserialize<'de> for SudoAddressChange {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.SudoAddressChange", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for Transaction {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.signature.is_empty() {
+            len += 1;
+        }
+        if !self.public_key.is_empty() {
+            len += 1;
+        }
+        if self.transaction.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Transaction", len)?;
+        if !self.signature.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("signature", pbjson::private::base64::encode(&self.signature).as_str())?;
+        }
+        if !self.public_key.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("publicKey", pbjson::private::base64::encode(&self.public_key).as_str())?;
+        }
+        if let Some(v) = self.transaction.as_ref() {
+            struct_ser.serialize_field("transaction", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for Transaction {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "signature",
+            "public_key",
+            "publicKey",
+            "transaction",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Signature,
+            PublicKey,
+            Transaction,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "signature" => Ok(GeneratedField::Signature),
+                            "publicKey" | "public_key" => Ok(GeneratedField::PublicKey),
+                            "transaction" => Ok(GeneratedField::Transaction),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = Transaction;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.Transaction")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Transaction, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut signature__ = None;
+                let mut public_key__ = None;
+                let mut transaction__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Signature => {
+                            if signature__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("signature"));
+                            }
+                            signature__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::PublicKey => {
+                            if public_key__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("publicKey"));
+                            }
+                            public_key__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::Transaction => {
+                            if transaction__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("transaction"));
+                            }
+                            transaction__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(Transaction {
+                    signature: signature__.unwrap_or_default(),
+                    public_key: public_key__.unwrap_or_default(),
+                    transaction: transaction__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Transaction", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for TransactionBody {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.actions.is_empty() {
+            len += 1;
+        }
+        if self.params.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.TransactionBody", len)?;
+        if !self.actions.is_empty() {
+            struct_ser.serialize_field("actions", &self.actions)?;
+        }
+        if let Some(v) = self.params.as_ref() {
+            struct_ser.serialize_field("params", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for TransactionBody {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "actions",
+            "params",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Actions,
+            Params,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "actions" => Ok(GeneratedField::Actions),
+                            "params" => Ok(GeneratedField::Params),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = TransactionBody;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.TransactionBody")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<TransactionBody, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut actions__ = None;
+                let mut params__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Actions => {
+                            if actions__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("actions"));
+                            }
+                            actions__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Params => {
+                            if params__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("params"));
+                            }
+                            params__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(TransactionBody {
+                    actions: actions__.unwrap_or_default(),
+                    params: params__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.TransactionBody", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for TransactionParams {
@@ -2523,113 +2631,5 @@ impl<'de> serde::Deserialize<'de> for Transfer {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Transfer", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for UnsignedTransaction {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.actions.is_empty() {
-            len += 1;
-        }
-        if self.params.is_some() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.UnsignedTransaction", len)?;
-        if !self.actions.is_empty() {
-            struct_ser.serialize_field("actions", &self.actions)?;
-        }
-        if let Some(v) = self.params.as_ref() {
-            struct_ser.serialize_field("params", v)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for UnsignedTransaction {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "actions",
-            "params",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Actions,
-            Params,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "actions" => Ok(GeneratedField::Actions),
-                            "params" => Ok(GeneratedField::Params),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = UnsignedTransaction;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.UnsignedTransaction")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<UnsignedTransaction, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut actions__ = None;
-                let mut params__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Actions => {
-                            if actions__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("actions"));
-                            }
-                            actions__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::Params => {
-                            if params__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("params"));
-                            }
-                            params__ = map_.next_value()?;
-                        }
-                    }
-                }
-                Ok(UnsignedTransaction {
-                    actions: actions__.unwrap_or_default(),
-                    params: params__,
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.UnsignedTransaction", FIELDS, GeneratedVisitor)
     }
 }

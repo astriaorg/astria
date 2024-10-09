@@ -13,7 +13,7 @@ use astria_core::{
     },
     protocol::transaction::v1alpha1::{
         Action,
-        UnsignedTransaction,
+        TransactionBody,
     },
 };
 use astria_eyre::eyre::{
@@ -31,7 +31,7 @@ use sequencer_client::{
     },
     Address,
     SequencerClientExt,
-    SignedTransaction,
+    Transaction,
 };
 use signer::SequencerKey;
 use state::State;
@@ -153,7 +153,7 @@ impl Submitter {
         .wrap_err("failed to get nonce from sequencer")?;
         debug!(nonce, "fetched latest nonce");
 
-        let unsigned = UnsignedTransaction::builder()
+        let unsigned = TransactionBody::builder()
             .actions(actions)
             .nonce(nonce)
             .chain_id(sequencer_chain_id)
@@ -161,7 +161,7 @@ impl Submitter {
             .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        let signed = unsigned.into_signed(signer.signing_key());
+        let signed = unsigned.sign(signer.signing_key());
         debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response
@@ -213,7 +213,7 @@ fn report_exit(reason: eyre::Result<&str>) {
     }
 }
 
-/// Submits a `SignedTransaction` to the sequencer with an exponential backoff
+/// Submits a transaction to the sequencer with exponential backoff.
 #[instrument(
     name = "submit_tx",
     skip_all,
@@ -225,7 +225,7 @@ fn report_exit(reason: eyre::Result<&str>) {
 )]
 async fn submit_tx(
     client: sequencer_client::HttpClient,
-    tx: SignedTransaction,
+    tx: Transaction,
     state: Arc<State>,
     metrics: &'static Metrics,
 ) -> eyre::Result<(tx_sync::Response, tx::Response)> {

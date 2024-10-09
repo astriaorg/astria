@@ -1,0 +1,7 @@
+---
+source: crates/astria-core/src/protocol/transaction/v1alpha1/mod.rs
+expression: tx.id().to_raw()
+---
+{
+  "inner": "84445f777b940abae3b22333bd8b9198dcc37ac368ae14719e11ec154ab50627"
+}

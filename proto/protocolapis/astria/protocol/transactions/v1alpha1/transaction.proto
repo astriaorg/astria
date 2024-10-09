@@ -5,26 +5,23 @@ package astria.protocol.transactions.v1alpha1;
 import "astria/protocol/transactions/v1alpha1/action.proto";
 import "google/protobuf/any.proto";
 
-// `SignedTransaction` is a transaction that has
-// been signed by the given public key.
-// It wraps an `UnsignedTransaction` with a
-// signature and public key.
-message SignedTransaction {
+// `Transaction` is a transaction `TransactionBody` together with a public
+// ket and a signature.
+message Transaction {
   bytes signature = 1;
   bytes public_key = 2;
   google.protobuf.Any transaction = 3;
 }
 
-// `UnsignedTransaction` is a transaction that does
-// not have an attached signature.
-// Note: `value` must be set, it cannot be `None`.
-message UnsignedTransaction {
+// The `TransactionBody` of the `Transaction` that is being signed over.
+// It contains transaction `TransactionParams` and `Actions`.
+message TransactionBody {
   repeated Action actions = 1;
   TransactionParams params = 2;
 }
 
-// `TransactionParams` contains parameters that define the
-// validity of the transaction.
+// The `TransactionParams` of the transaction that define the
+// validity of the `Transaction`.
 message TransactionParams {
   uint32 nonce = 1;
   string chain_id = 2;

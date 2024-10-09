@@ -44,8 +44,8 @@ use astria_core::{
                 ValidatorUpdate,
             },
             Action,
-            SignedTransaction,
-            UnsignedTransaction,
+            Transaction,
+            TransactionBody,
         },
     },
     Protobuf,
@@ -380,7 +380,7 @@ impl MockTxBuilder {
         }
     }
 
-    pub(crate) fn build(self) -> Arc<SignedTransaction> {
+    pub(crate) fn build(self) -> Arc<Transaction> {
         let action: Action = match self.group {
             Group::BundleableGeneral => Sequence {
                 rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
@@ -410,14 +410,14 @@ impl MockTxBuilder {
             action.group()
         );
 
-        let tx = UnsignedTransaction::builder()
+        let tx = TransactionBody::builder()
             .actions(vec![action])
             .chain_id(self.chain_id)
             .nonce(self.nonce)
             .try_build()
             .unwrap();
 
-        Arc::new(tx.into_signed(&self.signer))
+        Arc::new(tx.sign(&self.signer))
     }
 }
 
