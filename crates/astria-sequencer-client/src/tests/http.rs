@@ -6,8 +6,8 @@ use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::{
         action::Transfer,
-        Transaction,
         Body,
+        Transaction,
     },
 };
 use hex_literal::hex;

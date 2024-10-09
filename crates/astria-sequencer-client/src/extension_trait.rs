@@ -615,10 +615,7 @@ pub trait SequencerClientExt: Client {
         Ok(native)
     }
 
-    async fn get_transaction_fee(
-        &self,
-        tx: Body,
-    ) -> Result<TransactionFeeResponse, Error> {
+    async fn get_transaction_fee(&self, tx: Body) -> Result<TransactionFeeResponse, Error> {
         let path = "transaction/fee".to_string();
         let data = tx.into_raw().encode_to_vec();
 

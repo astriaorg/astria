@@ -627,10 +627,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     ///
     /// If `signed_tx` existed, returns `Ok` with the hashes of the removed transactions. If
     /// `signed_tx` was not in the collection, it is returned via `Err`.
-    fn remove(
-        &mut self,
-        signed_tx: Arc<Transaction>,
-    ) -> Result<Vec<[u8; 32]>, Arc<Transaction>> {
+    fn remove(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<[u8; 32]>, Arc<Transaction>> {
         let address = signed_tx.verification_key().address_bytes();
 
         // Take the collection for this account out of `self` temporarily.

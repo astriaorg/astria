@@ -275,9 +275,10 @@ impl Startup {
             )
             .wrap_err_with(|| {
                 format!(
-                "failed to decode data in Sequencer CometBFT transaction as `{}`",
-                astria_core::generated::protocol::transaction::v1alpha1::Transaction::full_name(),
-                        )
+                    "failed to decode data in Sequencer CometBFT transaction as `{}`",
+                    astria_core::generated::protocol::transaction::v1alpha1::Transaction::full_name(
+                    ),
+                )
             })?;
 
         let tx = Transaction::try_from_raw(proto_tx).wrap_err_with(|| {

@@ -11,8 +11,8 @@ use astria_core::{
             Action,
             BridgeLock,
         },
-        Transaction,
         Body,
+        Transaction,
     },
 };
 use astria_eyre::eyre::{
