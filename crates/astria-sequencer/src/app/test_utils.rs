@@ -23,8 +23,8 @@ use astria_core::{
                 Sequence,
                 ValidatorUpdate,
             },
-            SignedTransaction,
-            UnsignedTransaction,
+            Body,
+            Transaction,
         },
     },
     Protobuf,
@@ -299,8 +299,8 @@ impl MockTxBuilder {
         }
     }
 
-    pub(crate) fn build(self) -> Arc<SignedTransaction> {
-        let tx = UnsignedTransaction::builder()
+    pub(crate) fn build(self) -> Arc<Transaction> {
+        let tx = Body::builder()
             .actions(vec![
                 Sequence {
                     rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
@@ -314,7 +314,7 @@ impl MockTxBuilder {
             .try_build()
             .unwrap();
 
-        Arc::new(tx.into_signed(&self.signer))
+        Arc::new(tx.sign(&self.signer))
     }
 }
 

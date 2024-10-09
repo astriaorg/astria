@@ -16,7 +16,7 @@ use astria_core::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
             action::Sequence,
-            SignedTransaction,
+            Transaction,
         },
     },
 };
@@ -518,7 +518,7 @@ async fn get_latest_nonce(
 )]
 async fn submit_tx(
     client: sequencer_client::HttpClient,
-    tx: SignedTransaction,
+    tx: Transaction,
     metrics: &Metrics,
 ) -> eyre::Result<tx_sync::Response> {
     let nonce = tx.nonce();
@@ -678,7 +678,7 @@ impl Future for SubmitFut {
                     let tx = this
                         .bundle
                         .to_unsigned_transaction(*this.nonce, &*this.chain_id)
-                        .into_signed(this.signing_key);
+                        .sign(this.signing_key);
                     info!(
                         nonce.actual = *this.nonce,
                         bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),
@@ -751,7 +751,7 @@ impl Future for SubmitFut {
                         let tx = this
                             .bundle
                             .to_unsigned_transaction(*this.nonce, &*this.chain_id)
-                            .into_signed(this.signing_key);
+                            .sign(this.signing_key);
                         info!(
                             nonce.resubmission = *this.nonce,
                             bundle = %telemetry::display::json(&SizedBundleReport(this.bundle)),

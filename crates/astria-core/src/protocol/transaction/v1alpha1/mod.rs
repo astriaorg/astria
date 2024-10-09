@@ -12,7 +12,7 @@ use crate::{
         SigningKey,
         VerificationKey,
     },
-    generated::protocol::transactions::v1alpha1 as raw,
+    generated::protocol::transaction::v1alpha1 as raw,
     primitive::v1::{
         asset,
         TransactionId,
@@ -27,57 +27,57 @@ pub use action::Action;
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct SignedTransactionError(SignedTransactionErrorKind);
+pub struct TransactionError(TransactionErrorKind);
 
-impl SignedTransactionError {
+impl TransactionError {
     fn signature(inner: crypto::Error) -> Self {
-        Self(SignedTransactionErrorKind::Signature(inner))
+        Self(TransactionErrorKind::Signature(inner))
     }
 
-    fn transaction(inner: UnsignedTransactionError) -> Self {
-        Self(SignedTransactionErrorKind::Transaction(inner))
+    fn body(inner: BodyError) -> Self {
+        Self(TransactionErrorKind::Transaction(inner))
     }
 
     fn verification(inner: crypto::Error) -> Self {
-        Self(SignedTransactionErrorKind::Verification(inner))
+        Self(TransactionErrorKind::Verification(inner))
     }
 
     fn verification_key(inner: crypto::Error) -> Self {
-        Self(SignedTransactionErrorKind::VerificationKey(inner))
+        Self(TransactionErrorKind::VerificationKey(inner))
     }
 
     fn unset_transaction() -> Self {
-        Self(SignedTransactionErrorKind::UnsetTransaction)
+        Self(TransactionErrorKind::UnsetTransaction)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum SignedTransactionErrorKind {
+enum TransactionErrorKind {
     #[error("`transaction` field not set")]
     UnsetTransaction,
     #[error("`signature` field invalid")]
     Signature(#[source] crypto::Error),
     #[error("`transaction` field invalid")]
-    Transaction(#[source] UnsignedTransactionError),
+    Transaction(#[source] BodyError),
     #[error("`public_key` field invalid")]
     VerificationKey(#[source] crypto::Error),
     #[error("transaction could not be verified given the signature and verification key")]
     Verification(crypto::Error),
 }
 
-/// A signed transaction.
+/// An Astria transaction.
 ///
-/// [`SignedTransaction`] contains an [`UnsignedTransaction`] together
+/// [`Transaction`] contains an [`Body`] together
 /// with its signature and public key.
 #[derive(Clone, Debug)]
-pub struct SignedTransaction {
+pub struct Transaction {
     signature: Signature,
     verification_key: VerificationKey,
-    transaction: UnsignedTransaction,
+    transaction: Body,
     transaction_bytes: bytes::Bytes,
 }
 
-impl SignedTransaction {
+impl Transaction {
     pub fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
         self.verification_key.address_bytes()
     }
@@ -97,69 +97,67 @@ impl SignedTransaction {
     }
 
     #[must_use]
-    pub fn into_raw(self) -> raw::SignedTransaction {
+    pub fn into_raw(self) -> raw::Transaction {
         let Self {
             signature,
             verification_key,
             transaction_bytes,
             ..
         } = self;
-        raw::SignedTransaction {
+        raw::Transaction {
             signature: Bytes::copy_from_slice(&signature.to_bytes()),
             public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
             transaction: Some(pbjson_types::Any {
-                type_url: raw::UnsignedTransaction::type_url(),
+                type_url: raw::Body::type_url(),
                 value: transaction_bytes,
             }),
         }
     }
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::SignedTransaction {
+    pub fn to_raw(&self) -> raw::Transaction {
         let Self {
             signature,
             verification_key,
             transaction_bytes,
             ..
         } = self;
-        raw::SignedTransaction {
+        raw::Transaction {
             signature: Bytes::copy_from_slice(&signature.to_bytes()),
             public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
             transaction: Some(pbjson_types::Any {
-                type_url: raw::UnsignedTransaction::type_url(),
+                type_url: raw::Body::type_url(),
                 value: transaction_bytes.clone(),
             }),
         }
     }
 
-    /// Attempt to convert from a raw, unchecked protobuf [`raw::SignedTransaction`].
+    /// Attempt to convert from a raw, unchecked protobuf [`raw::Transaction`].
     ///
     /// # Errors
     ///
     /// Will return an error if signature or verification key cannot be reconstructed from the bytes
     /// contained in the raw input, if the transaction field was empty (meaning it was mapped to
     /// `None`), if the inner transaction could not be verified given the key and signature, or
-    /// if the native [`UnsignedTransaction`] could not be created from the inner raw
-    /// [`raw::UnsignedTransaction`].
-    pub fn try_from_raw(proto: raw::SignedTransaction) -> Result<Self, SignedTransactionError> {
-        let raw::SignedTransaction {
+    /// if the native [`Body`] could not be created from the inner raw
+    /// [`raw::Body`].
+    pub fn try_from_raw(proto: raw::Transaction) -> Result<Self, TransactionError> {
+        let raw::Transaction {
             signature,
             public_key,
             transaction,
         } = proto;
-        let signature =
-            Signature::try_from(&*signature).map_err(SignedTransactionError::signature)?;
-        let verification_key = VerificationKey::try_from(&*public_key)
-            .map_err(SignedTransactionError::verification_key)?;
+        let signature = Signature::try_from(&*signature).map_err(TransactionError::signature)?;
+        let verification_key =
+            VerificationKey::try_from(&*public_key).map_err(TransactionError::verification_key)?;
         let Some(transaction) = transaction else {
-            return Err(SignedTransactionError::unset_transaction());
+            return Err(TransactionError::unset_transaction());
         };
         let bytes = transaction.value.clone();
         verification_key
             .verify(&signature, &bytes)
-            .map_err(SignedTransactionError::verification)?;
-        let transaction = UnsignedTransaction::try_from_any(transaction)
-            .map_err(SignedTransactionError::transaction)?;
+            .map_err(TransactionError::verification)?;
+        let transaction = Body::try_from_any(transaction).map_err(TransactionError::body)?;
         Ok(Self {
             signature,
             verification_key,
@@ -169,7 +167,7 @@ impl SignedTransaction {
     }
 
     #[must_use]
-    pub fn into_unsigned(self) -> UnsignedTransaction {
+    pub fn into_unsigned(self) -> Body {
         self.transaction
     }
 
@@ -194,7 +192,7 @@ impl SignedTransaction {
     }
 
     #[must_use]
-    pub fn unsigned_transaction(&self) -> &UnsignedTransaction {
+    pub fn unsigned_transaction(&self) -> &Body {
         &self.transaction
     }
 
@@ -209,15 +207,15 @@ impl SignedTransaction {
 }
 
 #[derive(Clone, Debug)]
-pub struct UnsignedTransaction {
+pub struct Body {
     actions: Actions,
-    params: TransactionParams,
+    params: Params,
 }
 
-impl UnsignedTransaction {
+impl Body {
     #[must_use]
-    pub fn builder() -> UnsignedTransactionBuilder {
-        UnsignedTransactionBuilder::new()
+    pub fn builder() -> BodyBuilder {
+        BodyBuilder::new()
     }
 
     #[must_use]
@@ -241,11 +239,11 @@ impl UnsignedTransaction {
     }
 
     #[must_use]
-    pub fn into_signed(self, signing_key: &SigningKey) -> SignedTransaction {
+    pub fn sign(self, signing_key: &SigningKey) -> Transaction {
         let bytes = self.to_raw().encode_to_vec();
         let signature = signing_key.sign(&bytes);
         let verification_key = signing_key.verification_key();
-        SignedTransaction {
+        Transaction {
             signature,
             verification_key,
             transaction: self,
@@ -253,7 +251,7 @@ impl UnsignedTransaction {
         }
     }
 
-    pub fn into_raw(self) -> raw::UnsignedTransaction {
+    pub fn into_raw(self) -> raw::Body {
         let Self {
             actions,
             params,
@@ -263,7 +261,7 @@ impl UnsignedTransaction {
             .into_iter()
             .map(Action::into_raw)
             .collect();
-        raw::UnsignedTransaction {
+        raw::Body {
             actions,
             params: Some(params.into_raw()),
         }
@@ -273,19 +271,19 @@ impl UnsignedTransaction {
     pub fn into_any(self) -> pbjson_types::Any {
         let raw = self.into_raw();
         pbjson_types::Any {
-            type_url: raw::UnsignedTransaction::type_url(),
+            type_url: raw::Body::type_url(),
             value: raw.encode_to_vec().into(),
         }
     }
 
-    pub fn to_raw(&self) -> raw::UnsignedTransaction {
+    pub fn to_raw(&self) -> raw::Body {
         let Self {
             actions,
             params,
         } = self;
         let actions = actions.actions().iter().map(Action::to_raw).collect();
         let params = params.clone().into_raw();
-        raw::UnsignedTransaction {
+        raw::Body {
             actions,
             params: Some(params),
         }
@@ -296,33 +294,33 @@ impl UnsignedTransaction {
         self.clone().into_any()
     }
 
-    /// Attempt to convert from a raw, unchecked protobuf [`raw::UnsignedTransaction`].
+    /// Attempt to convert from a raw, unchecked protobuf [`raw::Body`].
     ///
     /// # Errors
     ///
     /// Returns an error if one of the inner raw actions could not be converted to a native
     /// [`Action`].
-    pub fn try_from_raw(proto: raw::UnsignedTransaction) -> Result<Self, UnsignedTransactionError> {
-        let raw::UnsignedTransaction {
+    pub fn try_from_raw(proto: raw::Body) -> Result<Self, BodyError> {
+        let raw::Body {
             actions,
             params,
         } = proto;
         let Some(params) = params else {
-            return Err(UnsignedTransactionError::unset_params());
+            return Err(BodyError::unset_params());
         };
-        let params = TransactionParams::from_raw(params);
+        let params = Params::from_raw(params);
         let actions: Vec<_> = actions
             .into_iter()
             .map(Action::try_from_raw)
             .collect::<Result<_, _>>()
-            .map_err(UnsignedTransactionError::action)?;
+            .map_err(BodyError::action)?;
 
-        UnsignedTransaction::builder()
+        Body::builder()
             .actions(actions)
             .chain_id(params.chain_id)
             .nonce(params.nonce)
             .try_build()
-            .map_err(UnsignedTransactionError::action_group)
+            .map_err(BodyError::action_group)
     }
 
     /// Attempt to convert from a protobuf [`pbjson_types::Any`].
@@ -330,48 +328,47 @@ impl UnsignedTransaction {
     /// # Errors
     ///
     /// - if the type URL is not the expected type URL
-    /// - if the bytes in the [`Any`] do not decode to an [`UnsignedTransaction`]
-    pub fn try_from_any(any: pbjson_types::Any) -> Result<Self, UnsignedTransactionError> {
-        if any.type_url != raw::UnsignedTransaction::type_url() {
-            return Err(UnsignedTransactionError::invalid_type_url(any.type_url));
+    /// - if the bytes in the [`Any`] do not decode to an [`Body`]
+    pub fn try_from_any(any: pbjson_types::Any) -> Result<Self, BodyError> {
+        if any.type_url != raw::Body::type_url() {
+            return Err(BodyError::invalid_type_url(any.type_url));
         }
 
-        let raw = raw::UnsignedTransaction::decode(any.value)
-            .map_err(UnsignedTransactionError::decode_any)?;
+        let raw = raw::Body::decode(any.value).map_err(BodyError::decode_any)?;
         Self::try_from_raw(raw)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct UnsignedTransactionError(UnsignedTransactionErrorKind);
+pub struct BodyError(BodyErrorKind);
 
-impl UnsignedTransactionError {
+impl BodyError {
     fn action(inner: action::Error) -> Self {
-        Self(UnsignedTransactionErrorKind::Action(inner))
+        Self(BodyErrorKind::Action(inner))
     }
 
     fn unset_params() -> Self {
-        Self(UnsignedTransactionErrorKind::UnsetParams())
+        Self(BodyErrorKind::UnsetParams())
     }
 
     fn invalid_type_url(got: String) -> Self {
-        Self(UnsignedTransactionErrorKind::InvalidTypeUrl {
+        Self(BodyErrorKind::InvalidTypeUrl {
             got,
         })
     }
 
     fn decode_any(inner: prost::DecodeError) -> Self {
-        Self(UnsignedTransactionErrorKind::DecodeAny(inner))
+        Self(BodyErrorKind::DecodeAny(inner))
     }
 
     fn action_group(inner: action_group::Error) -> Self {
-        Self(UnsignedTransactionErrorKind::ActionGroup(inner))
+        Self(BodyErrorKind::ActionGroup(inner))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum UnsignedTransactionErrorKind {
+enum BodyErrorKind {
     #[error("`actions` field is invalid")]
     Action(#[source] action::Error),
     #[error("`params` field is unset")]
@@ -379,12 +376,12 @@ enum UnsignedTransactionErrorKind {
     #[error(
         "encountered invalid type URL when converting from `google.protobuf.Any`; got `{got}`, \
          expected `{}`",
-        raw::UnsignedTransaction::type_url()
+        raw::Body::type_url()
     )]
     InvalidTypeUrl { got: String },
     #[error(
         "failed to decode `google.protobuf.Any` to `{}`",
-        raw::UnsignedTransaction::type_url()
+        raw::Body::type_url()
     )]
     DecodeAny(#[source] prost::DecodeError),
     #[error("`actions` field does not form a valid group of actions")]
@@ -392,13 +389,13 @@ enum UnsignedTransactionErrorKind {
 }
 
 #[derive(Default)]
-pub struct UnsignedTransactionBuilder {
+pub struct BodyBuilder {
     nonce: u32,
     chain_id: String,
     actions: Vec<Action>,
 }
 
-impl UnsignedTransactionBuilder {
+impl BodyBuilder {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -413,8 +410,8 @@ impl UnsignedTransactionBuilder {
     }
 
     #[must_use]
-    pub fn chain_id<T: Into<String>>(self, chain_id: T) -> UnsignedTransactionBuilder {
-        UnsignedTransactionBuilder {
+    pub fn chain_id<T: Into<String>>(self, chain_id: T) -> BodyBuilder {
+        BodyBuilder {
             chain_id: chain_id.into(),
             nonce: self.nonce,
             actions: self.actions,
@@ -429,23 +426,23 @@ impl UnsignedTransactionBuilder {
         }
     }
 
-    /// Constructs a [`UnsignedTransaction`] from the configured builder.
+    /// Constructs a [`Body`] from the configured builder.
     ///
     /// # Errors
     /// Returns an error if the actions do not make a valid `ActionGroup`.
     ///
     /// Returns an error if the set chain ID does not contain a chain name that can be turned into
     /// a bech32 human readable prefix (everything before the first dash i.e. `<name>-<rest>`).
-    pub fn try_build(self) -> Result<UnsignedTransaction, action_group::Error> {
+    pub fn try_build(self) -> Result<Body, action_group::Error> {
         let Self {
             nonce,
             chain_id,
             actions,
         } = self;
         let actions = Actions::try_from_list_of_actions(actions)?;
-        Ok(UnsignedTransaction {
+        Ok(Body {
             actions,
-            params: TransactionParams {
+            params: Params {
                 nonce,
                 chain_id,
             },
@@ -454,29 +451,29 @@ impl UnsignedTransactionBuilder {
 }
 
 #[derive(Clone, Debug)]
-pub struct TransactionParams {
+pub struct Params {
     nonce: u32,
     chain_id: String,
 }
 
-impl TransactionParams {
+impl Params {
     #[must_use]
-    pub fn into_raw(self) -> raw::TransactionParams {
+    pub fn into_raw(self) -> raw::Params {
         let Self {
             nonce,
             chain_id,
             ..
         } = self;
-        raw::TransactionParams {
+        raw::Params {
             nonce,
             chain_id,
         }
     }
 
-    /// Convert from a raw protobuf [`raw::UnsignedTransaction`].
+    /// Convert from a raw protobuf [`raw::Body`].
     #[must_use]
-    pub fn from_raw(proto: raw::TransactionParams) -> Self {
-        let raw::TransactionParams {
+    pub fn from_raw(proto: raw::Params) -> Self {
+        let raw::Params {
             nonce,
             chain_id,
         } = proto;
@@ -603,18 +600,18 @@ mod tests {
             fee_asset: asset(),
         };
 
-        let unsigned = UnsignedTransaction::builder()
+        let body = Body::builder()
             .actions(vec![transfer.into()])
             .chain_id("test-1".to_string())
             .nonce(1)
             .try_build()
             .unwrap();
 
-        let tx = SignedTransaction {
+        let tx = Transaction {
             signature,
             verification_key,
-            transaction: unsigned.clone(),
-            transaction_bytes: unsigned.to_raw().encode_to_vec().into(),
+            transaction: body.clone(),
+            transaction_bytes: body.to_raw().encode_to_vec().into(),
         };
 
         insta::assert_json_snapshot!(tx.id().to_raw());
@@ -638,17 +635,17 @@ mod tests {
             fee_asset: asset(),
         };
 
-        let unsigned_tx = UnsignedTransaction::builder()
+        let body = Body::builder()
             .actions(vec![transfer.into()])
             .chain_id("test-1".to_string())
             .nonce(1)
             .try_build()
             .unwrap();
 
-        let signed_tx = unsigned_tx.into_signed(&signing_key);
+        let signed_tx = body.sign(&signing_key);
         let raw = signed_tx.to_raw();
 
         // `try_from_raw` verifies the signature
-        SignedTransaction::try_from_raw(raw).unwrap();
+        Transaction::try_from_raw(raw).unwrap();
     }
 }

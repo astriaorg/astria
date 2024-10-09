@@ -31,7 +31,7 @@ use sequencer_client::{
     tendermint_rpc,
     Address,
     SequencerClientExt as _,
-    SignedTransaction,
+    Transaction,
 };
 use tendermint_rpc::{
     endpoint::tx,
@@ -234,23 +234,9 @@ impl Startup {
         Ok(())
     }
 
-    /// Gets the last transaction by the bridge account on the sequencer. This is used to
-    /// determine the starting rollup height for syncing to the latest on-chain state.
-    ///
-    /// # Returns
-    /// The last transaction by the bridge account on the sequencer, if it exists.
-    ///
-    /// # Errors
-    ///
-    /// 1. Failing to fetch the last transaction hash by the bridge account.
-    /// 2. Failing to convert the last transaction hash to a tendermint hash.
-    /// 3. Failing to fetch the last transaction by the bridge account.
-    /// 4. The last transaction by the bridge account failed to execute (this should not happen
-    ///   in the sequencer logic).
-    /// 5. Failing to convert the transaction data from bytes to proto.
-    /// 6. Failing to convert the transaction data from proto to `SignedTransaction`.
+    /// Gets the last transaction by the bridge account on the sequencer.
     #[instrument(skip_all, err)]
-    async fn get_last_transaction(&self) -> eyre::Result<Option<SignedTransaction>> {
+    async fn get_last_transaction(&self) -> eyre::Result<Option<Transaction>> {
         // get last transaction hash by the bridge account, if it exists
         let last_transaction_hash_resp = get_bridge_account_last_transaction_hash(
             self.sequencer_cometbft_client.clone(),
@@ -284,16 +270,23 @@ impl Startup {
         );
 
         let proto_tx =
-            astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::decode(
+            astria_core::generated::protocol::transaction::v1alpha1::Transaction::decode(
                 &*last_transaction.tx,
             )
-            .wrap_err_with(|| format!(
-                "failed to decode data in Sequencer CometBFT transaction as `{}`",
-                astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::full_name(),
-                        ))?;
+            .wrap_err_with(|| {
+                format!(
+                    "failed to decode data in Sequencer CometBFT transaction as `{}`",
+                    astria_core::generated::protocol::transaction::v1alpha1::Transaction::full_name(
+                    ),
+                )
+            })?;
 
-        let tx = SignedTransaction::try_from_raw(proto_tx)
-            .wrap_err_with(|| format!("failed to verify {}", astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::full_name()))?;
+        let tx = Transaction::try_from_raw(proto_tx).wrap_err_with(|| {
+            format!(
+                "failed to verify {}",
+                astria_core::generated::protocol::transaction::v1alpha1::Transaction::full_name()
+            )
+        })?;
 
         info!(
             last_bridge_account_tx.hash = %telemetry::display::hex(&tx_hash),
@@ -448,9 +441,7 @@ async fn wait_for_empty_mempool(
 /// 2. The memo of the last transaction by the bridge account could not be parsed.
 /// 3. The block number in the memo of the last transaction by the bridge account could not be
 ///    converted to a u64.
-fn rollup_height_from_signed_transaction(
-    signed_transaction: &SignedTransaction,
-) -> eyre::Result<u64> {
+fn rollup_height_from_signed_transaction(signed_transaction: &Transaction) -> eyre::Result<u64> {
     // find the last batch's rollup block height
     let withdrawal_action = signed_transaction
         .actions()

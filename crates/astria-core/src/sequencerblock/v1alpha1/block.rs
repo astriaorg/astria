@@ -34,8 +34,8 @@ use crate::{
     },
     protocol::transaction::v1alpha1::{
         action,
-        SignedTransaction,
-        SignedTransactionError,
+        Transaction,
+        TransactionError,
     },
     Protobuf as _,
 };
@@ -245,16 +245,12 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::RollupIdsNotInSequencerBlock)
     }
 
-    fn signed_transaction_protobuf_decode(source: prost::DecodeError) -> Self {
-        Self(SequencerBlockErrorKind::SignedTransactionProtobufDecode(
-            source,
-        ))
+    fn transaction_protobuf_decode(source: prost::DecodeError) -> Self {
+        Self(SequencerBlockErrorKind::TransactionProtobufDecode(source))
     }
 
-    fn raw_signed_transaction_conversion(source: SignedTransactionError) -> Self {
-        Self(SequencerBlockErrorKind::RawSignedTransactionConversion(
-            source,
-        ))
+    fn raw_signed_transaction_conversion(source: TransactionError) -> Self {
+        Self(SequencerBlockErrorKind::RawTransactionConversion(source))
     }
 
     fn rollup_transactions_root_does_not_match_reconstructed() -> Self {
@@ -319,15 +315,15 @@ enum SequencerBlockErrorKind {
     )]
     RollupIdsNotInSequencerBlock,
     #[error(
-        "failed decoding an entry in the cometbft block.data field as a protobuf signed astria \
+        "failed decoding an entry in the cometbft block.data field as a protobuf astria \
          transaction"
     )]
-    SignedTransactionProtobufDecode(#[source] prost::DecodeError),
+    TransactionProtobufDecode(#[source] prost::DecodeError),
     #[error(
-        "failed converting a raw protobuf signed transaction decoded from the cometbft block.data
-        field to a native astria signed transaction"
+        "failed converting a raw protobuf transaction decoded from the cometbft block.data
+        field to a native astria transaction"
     )]
-    RawSignedTransactionConversion(#[source] SignedTransactionError),
+    RawTransactionConversion(#[source] TransactionError),
     #[error(
         "the root derived from the rollup transactions in the cometbft block.data field did not \
          match the root stored in the same block.data field"
@@ -789,13 +785,11 @@ impl SequencerBlock {
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
             let raw_tx =
-                crate::generated::protocol::transactions::v1alpha1::SignedTransaction::decode(
-                    &*elem,
-                )
-                .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
-            let signed_tx = SignedTransaction::try_from_raw(raw_tx)
+                crate::generated::protocol::transaction::v1alpha1::Transaction::decode(&*elem)
+                    .map_err(SequencerBlockError::transaction_protobuf_decode)?;
+            let tx = Transaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
-            for action in signed_tx.into_unsigned().into_actions() {
+            for action in tx.into_unsigned().into_actions() {
                 // XXX: The fee asset is dropped. We shjould explain why that's ok.
                 if let action::Action::Sequence(action::Sequence {
                     rollup_id,

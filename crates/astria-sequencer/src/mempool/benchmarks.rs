@@ -11,7 +11,7 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
-    protocol::transaction::v1alpha1::SignedTransaction,
+    protocol::transaction::v1alpha1::Transaction,
 };
 use sha2::{
     Digest as _,
@@ -93,7 +93,7 @@ impl MempoolSize for mempool_with_100000_txs {
     }
 }
 
-fn transactions() -> &'static Vec<Arc<SignedTransaction>> {
+fn transactions() -> &'static Vec<Arc<Transaction>> {
     crate::benchmark_utils::transactions(crate::benchmark_utils::TxTypes::AllSequenceActions)
 }
 
@@ -134,7 +134,7 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
 
 /// Returns the first transaction from the static `transactions()` not included in the initialized
 /// mempool, i.e. the one at index `T::size()`.
-fn get_unused_tx<T: MempoolSize>() -> Arc<SignedTransaction> {
+fn get_unused_tx<T: MempoolSize>() -> Arc<Transaction> {
     transactions().get(T::checked_size()).unwrap().clone()
 }
 

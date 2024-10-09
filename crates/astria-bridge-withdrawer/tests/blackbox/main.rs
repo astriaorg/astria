@@ -11,7 +11,7 @@ use helpers::{
     make_erc20_ics20_withdrawal_action,
     make_native_bridge_unlock_action,
     make_native_ics20_withdrawal_action,
-    signed_tx_from_request,
+    tx_from_request,
     TestBridgeWithdrawerConfig,
 };
 
@@ -220,7 +220,7 @@ fn assert_contract_receipt_action_matches_broadcast_action<
     received_broadcasts: &[wiremock::Request],
     receipt: &ethers::types::TransactionReceipt,
 ) {
-    let tx = signed_tx_from_request(received_broadcasts.first().expect(
+    let tx = tx_from_request(received_broadcasts.first().expect(
         "at least one request should have been received if the broadcast guard is satisfied",
     ));
     let actual = tx

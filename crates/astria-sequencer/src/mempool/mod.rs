@@ -15,7 +15,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::asset::IbcPrefixed,
-    protocol::transaction::v1alpha1::SignedTransaction,
+    protocol::transaction::v1alpha1::Transaction,
 };
 use astria_eyre::eyre::Result;
 pub(crate) use mempool_state::get_account_balances;
@@ -206,7 +206,7 @@ impl Mempool {
     #[instrument(skip_all)]
     pub(crate) async fn insert(
         &self,
-        tx: Arc<SignedTransaction>,
+        tx: Arc<Transaction>,
         current_account_nonce: u32,
         current_account_balances: HashMap<IbcPrefixed, u128>,
         transaction_cost: HashMap<IbcPrefixed, u128>,
@@ -294,7 +294,7 @@ impl Mempool {
     pub(crate) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
         state: &S,
-    ) -> Result<Vec<([u8; 32], Arc<SignedTransaction>)>> {
+    ) -> Result<Vec<([u8; 32], Arc<Transaction>)>> {
         self.pending.read().await.builder_queue(state).await
     }
 
@@ -305,7 +305,7 @@ impl Mempool {
     /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
     pub(crate) async fn remove_tx_invalid(
         &self,
-        signed_tx: Arc<SignedTransaction>,
+        signed_tx: Arc<Transaction>,
         reason: RemovalReason,
     ) {
         let tx_hash = signed_tx.id().get();
