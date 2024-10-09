@@ -28,15 +28,14 @@ use crate::{
         initialize_app,
         BOB_ADDRESS,
     },
-    assets::StateReadExt as _,
-    bridge::{
+    authority::StateReadExt as _,
+    bridge::StateWriteExt as _,
+    fees::{
         calculate_base_deposit_fee,
-        StateWriteExt as _,
+        calculate_sequence_action_fee_from_state,
+        StateReadExt as _,
     },
-    sequence::{
-        calculate_fee_from_state,
-        StateWriteExt as _,
-    },
+    sequence::StateWriteExt as _,
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -66,14 +65,21 @@ async fn transaction_execution_records_fee_event() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
+    let tx_id = signed_tx.id();
+    app.execute_transaction(signed_tx).await.unwrap();
 
-    let events = app.execute_transaction(signed_tx).await.unwrap();
+    let sudo_address = app.state.get_sudo_address().await.unwrap();
+    let end_block = app.end_block(1, &sudo_address).await.unwrap();
+
+    let events = end_block.events;
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
     let event = events.first().unwrap();
     assert_eq!(event.kind, "tx.fees");
     assert_eq!(
         event.attributes[0],
-        ("asset", nria().to_string()).index().into()
+        ("asset", nria().to_ibc_prefixed().to_string())
+            .index()
+            .into()
     );
     assert_eq!(
         event.attributes[1],
@@ -81,12 +87,11 @@ async fn transaction_execution_records_fee_event() {
     );
     assert_eq!(
         event.attributes[2],
-        (
-            "actionType",
-            "astria.protocol.transactions.v1alpha1.Transfer"
-        )
-            .index()
-            .into()
+        ("sourceTransactionId", tx_id.to_string(),).index().into()
+    );
+    assert_eq!(
+        event.attributes[3],
+        ("sourceActionIndex", "0",).index().into()
     );
 }
 
@@ -121,10 +126,9 @@ async fn ensure_correct_block_fees_transfer() {
     let total_block_fees: u128 = app
         .state
         .get_block_fees()
-        .await
         .unwrap()
         .into_iter()
-        .map(|(_, fee)| fee)
+        .map(|fee| fee.amount())
         .sum();
     assert_eq!(total_block_fees, transfer_base_fee);
 }
@@ -162,12 +166,13 @@ async fn ensure_correct_block_fees_sequence() {
     let total_block_fees: u128 = app
         .state
         .get_block_fees()
-        .await
         .unwrap()
         .into_iter()
-        .map(|(_, fee)| fee)
+        .map(|fee| fee.amount())
         .sum();
-    let expected_fees = calculate_fee_from_state(&data, &app.state).await.unwrap();
+    let expected_fees = calculate_sequence_action_fee_from_state(&data, &app.state)
+        .await
+        .unwrap();
     assert_eq!(total_block_fees, expected_fees);
 }
 
@@ -205,10 +210,9 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
     let total_block_fees: u128 = app
         .state
         .get_block_fees()
-        .await
         .unwrap()
         .into_iter()
-        .map(|(_, fee)| fee)
+        .map(|fee| fee.amount())
         .sum();
     assert_eq!(total_block_fees, init_bridge_account_base_fee);
 }
@@ -271,10 +275,9 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let total_block_fees: u128 = app
         .state
         .get_block_fees()
-        .await
         .unwrap()
         .into_iter()
-        .map(|(_, fee)| fee)
+        .map(|fee| fee.amount())
         .sum();
     let expected_fees = transfer_base_fee
         + (calculate_base_deposit_fee(&test_deposit).unwrap() * bridge_lock_byte_cost_multiplier);
@@ -325,10 +328,9 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
     let total_block_fees: u128 = app
         .state
         .get_block_fees()
-        .await
         .unwrap()
         .into_iter()
-        .map(|(_, fee)| fee)
+        .map(|fee| fee.amount())
         .sum();
     assert_eq!(total_block_fees, sudo_change_base_fee);
 }

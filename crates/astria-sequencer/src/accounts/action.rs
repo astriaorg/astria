@@ -18,10 +18,7 @@ use crate::{
     },
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets::StateReadExt as _,
     bridge::StateReadExt as _,
     transaction::StateReadExt as _,
 };
@@ -63,50 +60,16 @@ where
     S: StateWrite,
     TAddress: AddressBytes,
 {
-    let fee = state
-        .get_transfer_base_fee()
-        .await
-        .wrap_err("failed to get transfer base fee")?;
+    let from = from.address_bytes();
     state
-        .get_and_increase_block_fees::<Transfer, _>(&action.fee_asset, fee)
+        .decrease_balance(from, &action.asset, action.amount)
         .await
-        .wrap_err("failed to add to block fees")?;
+        .wrap_err("failed decreasing `from` account balance")?;
+    state
+        .increase_balance(&action.to, &action.asset, action.amount)
+        .await
+        .wrap_err("failed increasing `to` account balance")?;
 
-    // if fee payment asset is same asset as transfer asset, deduct fee
-    // from same balance as asset transferred
-    if action.asset.to_ibc_prefixed() == action.fee_asset.to_ibc_prefixed() {
-        // check_stateful should have already checked this arithmetic
-        let payment_amount = action
-            .amount
-            .checked_add(fee)
-            .expect("transfer amount plus fee should not overflow");
-
-        state
-            .decrease_balance(from, &action.asset, payment_amount)
-            .await
-            .wrap_err("failed decreasing `from` account balance")?;
-        state
-            .increase_balance(&action.to, &action.asset, action.amount)
-            .await
-            .wrap_err("failed increasing `to` account balance")?;
-    } else {
-        // otherwise, just transfer the transfer asset and deduct fee from fee asset balance
-        // later
-        state
-            .decrease_balance(from, &action.asset, action.amount)
-            .await
-            .wrap_err("failed decreasing `from` account balance")?;
-        state
-            .increase_balance(&action.to, &action.asset, action.amount)
-            .await
-            .wrap_err("failed increasing `to` account balance")?;
-
-        // deduct fee from fee asset balance
-        state
-            .decrease_balance(from, &action.fee_asset, fee)
-            .await
-            .wrap_err("failed decreasing `from` account balance for fee payment")?;
-    }
     Ok(())
 }
 

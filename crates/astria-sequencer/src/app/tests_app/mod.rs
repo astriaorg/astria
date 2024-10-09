@@ -55,6 +55,7 @@ use crate::{
         ValidatorSet,
     },
     bridge::StateWriteExt as _,
+    fees::StateReadExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
         astria_address,
@@ -277,7 +278,7 @@ async fn app_transfer_block_fees_to_sudo() {
             .unwrap(),
         transfer_fee,
     );
-    assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
+    assert_eq!(app.state.get_block_fees().unwrap().len(), 0);
 }
 
 #[tokio::test]

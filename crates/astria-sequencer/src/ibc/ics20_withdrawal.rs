@@ -45,7 +45,6 @@ use crate::{
         ActionHandler,
         StateReadExt as _,
     },
-    assets::StateWriteExt as _,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -214,11 +213,6 @@ impl ActionHandler for action::Ics20Withdrawal {
             .await
             .wrap_err("failed establishing which account to withdraw funds from")?;
 
-        let fee = state
-            .get_ics20_withdrawal_base_fee()
-            .await
-            .wrap_err("failed to get ics20 withdrawal base fee")?;
-
         let current_timestamp = state
             .get_block_timestamp()
             .await
@@ -235,19 +229,9 @@ impl ActionHandler for action::Ics20Withdrawal {
         };
 
         state
-            .get_and_increase_block_fees::<Self, _>(self.fee_asset(), fee)
-            .await
-            .wrap_err("failed to get and increase block fees")?;
-
-        state
             .decrease_balance(withdrawal_target, self.denom(), self.amount())
             .await
             .wrap_err("failed to decrease sender or bridge balance")?;
-
-        state
-            .decrease_balance(&from, self.fee_asset(), fee)
-            .await
-            .wrap_err("failed to subtract fee from sender balance")?;
 
         // if we're the source, move tokens to the escrow account,
         // otherwise the tokens are just burned

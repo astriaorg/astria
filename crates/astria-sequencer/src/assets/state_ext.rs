@@ -1,17 +1,10 @@
-use std::{
-    borrow::Cow,
-    fmt::Display,
-};
+use std::borrow::Cow;
 
-use astria_core::{
-    primitive::v1::asset,
-    Protobuf,
-};
+use astria_core::primitive::v1::asset;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         bail,
-        OptionExt as _,
         Result,
         WrapErr as _,
     },
@@ -22,33 +15,16 @@ use cnidarium::{
     StateWrite,
 };
 use futures::StreamExt as _;
-use tendermint::abci::{
-    Event,
-    EventAttributeIndexExt as _,
-};
 use tracing::instrument;
 
 use super::storage::{
     self,
     keys::{
         self,
-        extract_asset_from_block_fees_key,
         extract_asset_from_fee_asset_key,
     },
 };
 use crate::storage::StoredValue;
-
-/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
-fn construct_tx_fee_event<P: Protobuf, T: Display>(asset: &T, fee_amount: u128) -> Event {
-    Event::new(
-        "tx.fees",
-        [
-            ("asset", asset.to_string()).index(),
-            ("feeAmount", fee_amount.to_string()).index(),
-            ("actionType", P::full_name()).index(),
-        ],
-    )
-}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -105,26 +81,6 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_block_fees(&self) -> Result<Vec<(asset::IbcPrefixed, u128)>> {
-        let mut fees = Vec::new();
-
-        let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(keys::BLOCK_FEES_PREFIX.as_bytes()));
-        while let Some(Ok((key, bytes))) = stream.next().await {
-            let asset =
-                extract_asset_from_block_fees_key(&key).wrap_err("failed to extract asset")?;
-
-            let fee = StoredValue::deserialize(&bytes)
-                .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-                .context("invalid block fees bytes")?;
-
-            fees.push((asset, fee));
-        }
-
-        Ok(fees)
-    }
-
-    #[instrument(skip_all)]
     async fn is_allowed_fee_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
         TAsset: Sync,
@@ -177,56 +133,6 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    /// Adds `amount` to the block fees for `asset`.
-    #[instrument(skip_all)]
-    async fn get_and_increase_block_fees<'a, P, TAsset>(
-        &mut self,
-        asset: &'a TAsset,
-        amount: u128,
-    ) -> Result<()>
-    where
-        TAsset: Sync + Display,
-        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
-        P: Protobuf,
-    {
-        let tx_fee_event = construct_tx_fee_event::<P, _>(asset, amount);
-        let block_fees_key = keys::block_fees(asset);
-
-        let current_amount = self
-            .nonverifiable_get_raw(block_fees_key.as_bytes())
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed to read raw block fees from state")?
-            .map(|bytes| {
-                StoredValue::deserialize(&bytes)
-                    .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-                    .context("invalid block fees bytes")
-            })
-            .transpose()?
-            .unwrap_or_default();
-
-        let new_amount = current_amount
-            .checked_add(amount)
-            .ok_or_eyre("block fees overflowed u128")?;
-        let bytes = StoredValue::from(storage::Fee::from(new_amount))
-            .serialize()
-            .wrap_err("failed to serialize block fees")?;
-        self.nonverifiable_put_raw(block_fees_key.into_bytes(), bytes);
-
-        self.record(tx_fee_event);
-
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    async fn clear_block_fees(&mut self) {
-        let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(keys::BLOCK_FEES_PREFIX.as_bytes()));
-        while let Some(Ok((key, _))) = stream.next().await {
-            self.nonverifiable_delete(key);
-        }
-    }
-
     #[instrument(skip_all)]
     fn delete_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset)
     where
@@ -254,7 +160,6 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use std::collections::HashSet;
 
-    use astria_core::protocol::transaction::v1alpha1::action::Transfer;
     use cnidarium::StateDelta;
 
     use super::*;
@@ -305,74 +210,6 @@ mod tests {
             ),
             denom_update,
             "updated native asset denomination was not what was expected"
-        );
-    }
-
-    #[tokio::test]
-    async fn block_fee_read_and_increase() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // doesn't exist at first
-        let fee_balances_orig = state.get_block_fees().await.unwrap();
-        assert!(fee_balances_orig.is_empty());
-
-        // can write
-        let asset = asset_0();
-        let amount = 100u128;
-        state
-            .get_and_increase_block_fees::<Transfer, _>(&asset, amount)
-            .await
-            .unwrap();
-
-        // holds expected
-        let fee_balances_updated = state.get_block_fees().await.unwrap();
-        assert_eq!(
-            fee_balances_updated[0],
-            (asset.to_ibc_prefixed(), amount),
-            "fee balances are not what they were expected to be"
-        );
-    }
-
-    #[tokio::test]
-    async fn block_fee_read_and_increase_can_delete() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // can write
-        let asset_first = asset_0();
-        let asset_second = asset_1();
-        let amount_first = 100u128;
-        let amount_second = 200u128;
-
-        state
-            .get_and_increase_block_fees::<Transfer, _>(&asset_first, amount_first)
-            .await
-            .unwrap();
-        state
-            .get_and_increase_block_fees::<Transfer, _>(&asset_second, amount_second)
-            .await
-            .unwrap();
-        // holds expected
-        let fee_balances = HashSet::<_>::from_iter(state.get_block_fees().await.unwrap());
-        assert_eq!(
-            fee_balances,
-            HashSet::from_iter(vec![
-                (asset_first.to_ibc_prefixed(), amount_first),
-                (asset_second.to_ibc_prefixed(), amount_second)
-            ]),
-            "returned fee balance vector not what was expected"
-        );
-
-        // can delete
-        state.clear_block_fees().await;
-
-        let fee_balances_updated = state.get_block_fees().await.unwrap();
-        assert!(
-            fee_balances_updated.is_empty(),
-            "fee balances were expected to be deleted but were not"
         );
     }
 

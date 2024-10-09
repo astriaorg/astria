@@ -89,10 +89,7 @@ use crate::{
         StateWriteExt as _,
     },
     address::StateWriteExt as _,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets::StateWriteExt as _,
     authority::{
         component::{
             AuthorityComponent,
@@ -107,6 +104,10 @@ use crate::{
         StateWriteExt as _,
     },
     component::Component as _,
+    fees::{
+        construct_tx_fee_event,
+        StateReadExt as _,
+    },
     grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
     mempool::{
@@ -1169,18 +1170,16 @@ impl App {
         let fees = self
             .state
             .get_block_fees()
-            .await
             .wrap_err("failed to get block fees")?;
 
-        for (asset, amount) in fees {
+        for fee in fees {
             state_tx
-                .increase_balance(fee_recipient, &asset, amount)
+                .increase_balance(fee_recipient, fee.asset(), fee.amount())
                 .await
                 .wrap_err("failed to increase fee recipient balance")?;
+            let fee_event = construct_tx_fee_event(&fee);
+            state_tx.record(fee_event);
         }
-
-        // clear block fees
-        state_tx.clear_block_fees().await;
 
         let events = self.apply(state_tx);
         Ok(abci::response::EndBlock {

@@ -10,7 +10,6 @@ use astria_eyre::eyre::{
 use crate::storage::keys::Asset;
 
 pub(in crate::assets) const NATIVE_ASSET: &str = "assets/native_asset";
-pub(in crate::assets) const BLOCK_FEES_PREFIX: &str = "assets/block_fees/";
 pub(in crate::assets) const FEE_ASSET_PREFIX: &str = "assets/fee_asset/";
 
 /// Example: `assets/ibc/0101....0101`.
@@ -29,20 +28,8 @@ where
     format!("{FEE_ASSET_PREFIX}{}", Asset::from(asset))
 }
 
-pub(in crate::assets) fn block_fees<'a, TAsset>(asset: &'a TAsset) -> String
-where
-    &'a TAsset: Into<Cow<'a, IbcPrefixed>>,
-{
-    format!("{BLOCK_FEES_PREFIX}{}", Asset::from(asset))
-}
-
 pub(in crate::assets) fn extract_asset_from_fee_asset_key(key: &[u8]) -> Result<IbcPrefixed> {
     extract_asset_from_key(key, FEE_ASSET_PREFIX)
-        .wrap_err("failed to extract asset from fee asset key")
-}
-
-pub(in crate::assets) fn extract_asset_from_block_fees_key(key: &[u8]) -> Result<IbcPrefixed> {
-    extract_asset_from_key(key, BLOCK_FEES_PREFIX)
         .wrap_err("failed to extract asset from fee asset key")
 }
 
@@ -74,7 +61,6 @@ mod tests {
         insta::assert_snapshot!(NATIVE_ASSET);
         insta::assert_snapshot!(asset(&test_asset()));
         insta::assert_snapshot!(fee_asset(&test_asset()));
-        insta::assert_snapshot!(block_fees(&test_asset()));
     }
 
     #[test]
@@ -82,13 +68,11 @@ mod tests {
         assert!(NATIVE_ASSET.starts_with(COMPONENT_PREFIX));
         assert!(asset(&test_asset()).starts_with(COMPONENT_PREFIX));
         assert!(fee_asset(&test_asset()).starts_with(COMPONENT_PREFIX));
-        assert!(block_fees(&test_asset()).starts_with(COMPONENT_PREFIX));
     }
 
     #[test]
     fn prefixes_should_be_prefixes_of_relevant_keys() {
         assert!(fee_asset(&test_asset()).starts_with(FEE_ASSET_PREFIX));
-        assert!(block_fees(&test_asset()).starts_with(BLOCK_FEES_PREFIX));
     }
 
     #[test]
@@ -97,10 +81,6 @@ mod tests {
 
         let key = fee_asset(&asset);
         let recovered_asset = extract_asset_from_fee_asset_key(key.as_bytes()).unwrap();
-        assert_eq!(asset, recovered_asset);
-
-        let key = block_fees(&asset);
-        let recovered_asset = extract_asset_from_block_fees_key(key.as_bytes()).unwrap();
         assert_eq!(asset, recovered_asset);
     }
 }
