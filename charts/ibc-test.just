@@ -5,6 +5,7 @@ defaultTag := ""
 
 delete:
   -just delete celestia-local
+  -just delete noble-local
   -just delete sequencer
   -just delete hermes-local
   -just delete rollup
@@ -13,6 +14,7 @@ delete:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
   echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  echo "Deploying local noble instance..." && just deploy noble-local > /dev/null
   helm dependency update ./sequencer > /dev/null
   helm dependency update ./evm-stack > /dev/null
   echo "Setting up single astria sequencer..." && helm install \
@@ -42,8 +44,10 @@ run tag=defaultTag:
   initial_balance=$(just evm-get-balance {{evm_destination_address}})
   initial_celestia_balance=$(just ibc-test get-celestia-balance)
 
-  # Create a bridge account on the sequencer
-  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria {{tag}}
+  # Create a bridge account on the sequencer for Noble
+  just init-ibc-bridge {{sequencer_noble_bridge_pkey}} transfer/channel-0/uusdc nria {{tag}}
+  # Create a bridge account on the sequencer for Celestia
+  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-1/utia nria {{tag}}
 
   # Execute the transfer from Celestia to the Rollup
   just ibc-test _do-ibc-transfer
@@ -146,7 +150,10 @@ bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
 celestia_dev_account_address := "celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96"
 celestia_chain_id := "celestia-local-0"
 celestia_node_url := "http://rpc.app.celestia.localdev.me:80"
+# address astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr
 sequencer_tia_bridge_pkey := "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
+# address astria14wyh2u6efndllr8gup29295krc98rqas8d0ans
+sequencer_noble_bridge_pkey := "690e87c2572f99ce604e42d493cae750e81947513e3e5e8d92ccfdf0c593e4f9"
 keyring_backend := "test"
 celestia_desitnation_address := "0x4a58639fb5458e65e4fa917ff951c390292c24a1"
 
@@ -191,8 +198,8 @@ _do-ibc-transfer namespace=defaultNamespace:
 
 get-celestia-balance address=celestia_dev_account_address namespace=defaultNamespace:
   #!/usr/bin/env bash
-  balance=$(kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
-  'celestia-appd query bank balances --denom utia --output json {{address}}' | jq '.amount')
+  balance=$(kubectl exec -n {{namespace}} pods/celestia-local-0 -c celestia-app -- /bin/bash -c \
+    'celestia-appd query bank balances --denom utia --output json {{address}}' | jq '.amount')
   # remove quotes
   balance=${balance//\"/}
   echo $balance
@@ -220,8 +227,17 @@ _forge-ibc-withdraw:
 # FIXME - delete after development
 cb address=celestia_dev_account_address namespace=defaultNamespace:
   kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
-  'celestia-appd query bank balances {{address}}'
+    'celestia-appd query bank balances {{address}}'
 
 # init sequencer bridge account
 init-bridge-acct tag=defaultTag:
   just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria {{tag}}
+
+defaultNobleTag := "local"
+# build custom noble image
+build-noble tag=defaultNobleTag:
+  docker buildx build \
+    -f ./noble-local/containerfiles/noble.Dockerfile \
+    -t noble-dev:{{tag}} \
+    ./noble-local
+  kind load docker-image noble-dev:{{tag}} --name astria-dev-cluster
