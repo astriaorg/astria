@@ -14,6 +14,7 @@ use astria_core::{
             action::{
                 BridgeLock,
                 Sequence,
+                SudoAddressChange,
                 Transfer,
             },
             UnsignedTransaction,
@@ -29,7 +30,10 @@ use prost::{
 use tendermint::{
     abci::{
         self,
-        request::PrepareProposal,
+        request::{
+            PrepareProposal,
+            ProcessProposal,
+        },
         types::CommitInfo,
     },
     account,
@@ -733,6 +737,122 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         app.mempool.len().await,
         1,
         "mempool should have re-added the tx that was too large"
+    );
+}
+
+#[tokio::test]
+async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
+    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    app.prepare_commit(storage.clone()).await.unwrap();
+    app.commit(storage.clone()).await;
+
+    // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
+    let alice = get_alice_signing_key();
+    let tx_pass = UnsignedTransaction::builder()
+        .actions(vec![
+            Sequence {
+                rollup_id: RollupId::from([1u8; 32]),
+                data: Bytes::copy_from_slice(&[1u8; 200_000]),
+                fee_asset: nria().into(),
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+    let tx_overflow = UnsignedTransaction::builder()
+        .actions(vec![
+            Sequence {
+                rollup_id: RollupId::from([1u8; 32]),
+                data: Bytes::copy_from_slice(&[1u8; 100_000]),
+                fee_asset: nria().into(),
+            }
+            .into(),
+        ])
+        .nonce(1)
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+
+    let txs: Vec<SignedTransaction> = vec![tx_pass, tx_overflow];
+    let generated_commitment = generate_rollup_datas_commitment(&txs, HashMap::new());
+    let txs = generated_commitment.into_transactions(
+        txs.into_iter()
+            .map(|tx| tx.to_raw().encode_to_vec().into())
+            .collect(),
+    );
+
+    let process_proposal = ProcessProposal {
+        hash: Hash::default(),
+        height: 1u32.into(),
+        time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        txs,
+        proposed_last_commit: None,
+        misbehavior: vec![],
+    };
+
+    let result = app
+        .process_proposal(process_proposal.clone(), storage.clone())
+        .await
+        .expect_err("expected max sequenced data limit error");
+
+    assert!(
+        format!("{result:?}").contains("max block sequenced data limit passed"),
+        "process proposal should fail due to max sequenced data limit"
+    );
+}
+
+#[tokio::test]
+async fn app_process_proposal_transaction_fails_to_execute_fails() {
+    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    app.prepare_commit(storage.clone()).await.unwrap();
+    app.commit(storage.clone()).await;
+
+    // create txs which will cause transaction execution failure
+    let alice = get_alice_signing_key();
+    let tx_fail = UnsignedTransaction::builder()
+        .actions(vec![
+            SudoAddressChange {
+                new_address: astria_address_from_hex_string(BOB_ADDRESS),
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+
+    let txs: Vec<SignedTransaction> = vec![tx_fail];
+    let generated_commitment = generate_rollup_datas_commitment(&txs, HashMap::new());
+    let txs = generated_commitment.into_transactions(
+        txs.into_iter()
+            .map(|tx| tx.to_raw().encode_to_vec().into())
+            .collect(),
+    );
+
+    let process_proposal = ProcessProposal {
+        hash: Hash::default(),
+        height: 1u32.into(),
+        time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        txs,
+        proposed_last_commit: None,
+        misbehavior: vec![],
+    };
+
+    let result = app
+        .process_proposal(process_proposal.clone(), storage.clone())
+        .await
+        .expect_err("expected transaction execution failure");
+
+    assert!(
+        format!("{result:?}").contains("transaction failed to execute"),
+        "process proposal should fail due transaction execution failure"
     );
 }
 

@@ -7,29 +7,27 @@ use crate::{
         Address,
         RollupId,
     },
-    protocol::transaction::v1alpha1::{
-        action::{
-            Action,
-            BridgeLock,
-            BridgeSudoChange,
-            BridgeUnlock,
-            FeeAssetChange,
-            FeeChange,
-            FeeChangeKind,
-            IbcRelayerChange,
-            IbcSudoChange,
-            Ics20Withdrawal,
-            InitBridgeAccount,
-            Sequence,
-            SudoAddressChange,
-            Transfer,
-            ValidatorUpdate,
-        },
-        action_group::{
-            ActionGroup,
+    protocol::transaction::v1alpha1::action::{
+        group::{
             Actions,
             ErrorKind,
+            Group,
         },
+        Action,
+        BridgeLock,
+        BridgeSudoChange,
+        BridgeUnlock,
+        FeeAssetChange,
+        FeeChange,
+        FeeChangeKind,
+        IbcRelayerChange,
+        IbcSudoChange,
+        Ics20Withdrawal,
+        InitBridgeAccount,
+        Sequence,
+        SudoAddressChange,
+        Transfer,
+        ValidatorUpdate,
     },
 };
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
@@ -92,7 +90,7 @@ fn try_from_list_of_actions_bundleable_general() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        ActionGroup::BundleableGeneral
+        Group::BundleableGeneral
     ));
 }
 
@@ -116,7 +114,7 @@ fn from_list_of_actions_bundleable_sudo() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        ActionGroup::BundleableSudo
+        Group::BundleableSudo
     ));
 }
 
@@ -134,7 +132,7 @@ fn from_list_of_actions_unbundleable_sudo() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        ActionGroup::UnbundleableSudo
+        Group::UnbundleableSudo
     ));
 
     let actions = vec![Action::IbcSudoChange(IbcSudoChange {
@@ -143,7 +141,7 @@ fn from_list_of_actions_unbundleable_sudo() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        ActionGroup::UnbundleableSudo
+        Group::UnbundleableSudo
     ));
 
     let actions = vec![
@@ -191,14 +189,14 @@ fn from_list_of_actions_unbundleable_general() {
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        ActionGroup::UnbundleableGeneral
+        Group::UnbundleableGeneral
     ));
 
     let actions = vec![sudo_bridge_address_change_action.clone().into()];
 
     assert!(matches!(
         Actions::try_from_list_of_actions(actions).unwrap().group(),
-        ActionGroup::UnbundleableGeneral
+        Group::UnbundleableGeneral
     ));
 
     let actions = vec![
@@ -247,4 +245,11 @@ fn from_list_of_actions_empty() {
         matches!(error_kind, ErrorKind::Empty { .. }),
         "expected ErrorKind::Empty, got {error_kind:?}"
     );
+}
+
+#[test]
+fn should_be_in_expected_order() {
+    assert!(Group::UnbundleableSudo < Group::BundleableSudo);
+    assert!(Group::BundleableSudo < Group::UnbundleableGeneral);
+    assert!(Group::UnbundleableGeneral < Group::BundleableGeneral);
 }
