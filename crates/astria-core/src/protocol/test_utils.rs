@@ -15,7 +15,7 @@ use crate::{
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
-    protocol::transaction::v1alpha1::UnsignedTransaction,
+    protocol::transaction::v1alpha1::Body,
     sequencerblock::v1alpha1::{
         block::Deposit,
         SequencerBlock,
@@ -104,7 +104,7 @@ impl ConfigureSequencerBlock {
         let txs = if actions.is_empty() {
             vec![]
         } else {
-            let unsigned_transaction = UnsignedTransaction::builder()
+            let unsigned_transaction = Body::builder()
                 .actions(actions)
                 .chain_id(chain_id.clone())
                 .nonce(1)

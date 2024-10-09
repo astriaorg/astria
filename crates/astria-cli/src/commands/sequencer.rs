@@ -16,7 +16,7 @@ use astria_core::{
             TransferAction,
             ValidatorUpdate,
         },
-        UnsignedTransaction,
+        Body,
     },
 };
 use astria_sequencer_client::{
@@ -474,7 +474,7 @@ async fn submit_transaction(
         .await
         .wrap_err("failed to get nonce")?;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = Body::builder()
         .actions(vec![action])
         .nonce(nonce_res.nonce)
         .chain_id(chain_id)

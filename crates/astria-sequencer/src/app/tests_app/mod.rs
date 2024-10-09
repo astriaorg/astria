@@ -16,7 +16,7 @@ use astria_core::{
                 Sequence,
                 Transfer,
             },
-            UnsignedTransaction,
+            Body,
         },
     },
     sequencerblock::v1alpha1::block::Deposit,
@@ -230,7 +230,7 @@ async fn app_transfer_block_fees_to_sudo() {
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let amount = 333_333;
-    let tx = UnsignedTransaction::builder()
+    let tx = Body::builder()
         .actions(vec![
             Transfer {
                 to: bob_address,
@@ -338,7 +338,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         fee_asset: nria().into(),
     };
 
-    let tx = UnsignedTransaction::builder()
+    let tx = Body::builder()
         .actions(vec![lock_action.into(), sequence_action.into()])
         .chain_id("test")
         .try_build()
@@ -430,7 +430,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         fee_asset: nria().into(),
     };
 
-    let tx = UnsignedTransaction::builder()
+    let tx = Body::builder()
         .actions(vec![lock_action.into(), sequence_action.into()])
         .chain_id("test")
         .try_build()
@@ -565,7 +565,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     // create txs which will cause cometBFT overflow
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction::builder()
+    let tx_pass = Body::builder()
         .actions(vec![
             Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -579,7 +579,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .unwrap()
         .into_signed(&alice);
 
-    let tx_overflow = UnsignedTransaction::builder()
+    let tx_overflow = Body::builder()
         .actions(vec![
             Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -655,7 +655,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction::builder()
+    let tx_pass = Body::builder()
         .actions(vec![
             Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -668,7 +668,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .try_build()
         .unwrap()
         .into_signed(&alice);
-    let tx_overflow = UnsignedTransaction::builder()
+    let tx_overflow = Body::builder()
         .actions(vec![
             Sequence {
                 rollup_id: RollupId::from([1u8; 32]),

@@ -16,7 +16,7 @@ use astria_core::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
             action::Sequence,
-            SignedTransaction,
+            Transaction,
         },
     },
 };
@@ -518,7 +518,7 @@ async fn get_latest_nonce(
 )]
 async fn submit_tx(
     client: sequencer_client::HttpClient,
-    tx: SignedTransaction,
+    tx: Transaction,
     metrics: &Metrics,
 ) -> eyre::Result<tx_sync::Response> {
     let nonce = tx.nonce();

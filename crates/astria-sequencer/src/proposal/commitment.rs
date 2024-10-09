@@ -4,7 +4,7 @@ use astria_core::{
     primitive::v1::RollupId,
     protocol::{
         group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-        transaction::v1alpha1::SignedTransaction,
+        transaction::v1alpha1::Transaction,
     },
     sequencerblock::v1alpha1::block::{
         Deposit,
@@ -55,7 +55,7 @@ impl GeneratedCommitments {
 /// This is somewhat arbitrary, but could be useful for proof of an action within the rollup datas
 /// tree.
 pub(crate) fn generate_rollup_datas_commitment(
-    signed_txs: &[SignedTransaction],
+    signed_txs: &[Transaction],
     deposits: HashMap<RollupId, Vec<Deposit>>,
 ) -> GeneratedCommitments {
     use prost::Message as _;
@@ -98,7 +98,7 @@ mod tests {
                 Sequence,
                 Transfer,
             },
-            UnsignedTransaction,
+            Body,
         },
     };
     use rand::rngs::OsRng;
@@ -121,7 +121,7 @@ mod tests {
 
         let signing_key = SigningKey::new(OsRng);
 
-        let tx = UnsignedTransaction::builder()
+        let tx = Body::builder()
             .actions(vec![sequence_action.clone().into(), transfer_action.into()])
             .chain_id("test-chain-1")
             .try_build()
@@ -135,7 +135,7 @@ mod tests {
         } = generate_rollup_datas_commitment(&txs, HashMap::new());
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = UnsignedTransaction::builder()
+        let tx = Body::builder()
             .actions(vec![sequence_action.into()])
             .chain_id("test-chain-1")
             .try_build()
@@ -171,7 +171,7 @@ mod tests {
         };
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = UnsignedTransaction::builder()
+        let tx = Body::builder()
             .actions(vec![sequence_action.clone().into(), transfer_action.into()])
             .chain_id("test-chain-1")
             .try_build()

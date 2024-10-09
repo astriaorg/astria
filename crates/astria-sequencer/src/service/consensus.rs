@@ -211,7 +211,7 @@ mod tests {
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
             action::Sequence,
-            UnsignedTransaction,
+            Body,
         },
     };
     use bytes::Bytes;
@@ -235,8 +235,8 @@ mod tests {
         proposal::commitment::generate_rollup_datas_commitment,
     };
 
-    fn make_unsigned_tx() -> UnsignedTransaction {
-        UnsignedTransaction::builder()
+    fn make_unsigned_tx() -> Body {
+        Body::builder()
             .actions(vec![
                 Sequence {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),

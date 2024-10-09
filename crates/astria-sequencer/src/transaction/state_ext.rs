@@ -3,7 +3,7 @@ use astria_core::{
         TransactionId,
         ADDRESS_LEN,
     },
-    protocol::transaction::v1alpha1::SignedTransaction,
+    protocol::transaction::v1alpha1::Transaction,
 };
 use cnidarium::{
     StateRead,
@@ -27,8 +27,8 @@ impl TransactionContext {
     }
 }
 
-impl From<&SignedTransaction> for TransactionContext {
-    fn from(value: &SignedTransaction) -> Self {
+impl From<&Transaction> for TransactionContext {
+    fn from(value: &Transaction) -> Self {
         Self {
             address_bytes: *value.address_bytes(),
             transaction_id: value.id(),
