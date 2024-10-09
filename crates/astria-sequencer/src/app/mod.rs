@@ -147,7 +147,7 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 /// impacts sentry nodes does not halt the network and is cheaper computationally
 /// than an exhaustive comparison.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-struct ProposalFingerprint {
+pub(crate) struct ProposalFingerprint {
     validator_address: account::Id,
     timestamp: tendermint::Time,
 }
