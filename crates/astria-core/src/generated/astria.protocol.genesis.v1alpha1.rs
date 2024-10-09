@@ -26,7 +26,7 @@ pub struct GenesisAppState {
     #[prost(string, repeated, tag = "9")]
     pub allowed_fee_assets: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "10")]
-    pub genesis_fees: ::core::option::Option<GenesisFees>,
+    pub fees: ::core::option::Option<GenesisFees>,
 }
 impl ::prost::Name for GenesisAppState {
     const NAME: &'static str = "GenesisAppState";
@@ -93,33 +93,63 @@ impl ::prost::Name for IbcParameters {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenesisFees {
+    /// Fee-bearing actions are defined on 1-19
     #[prost(message, optional, tag = "1")]
-    pub transfer_fees: ::core::option::Option<
-        super::super::transactions::v1alpha1::TransferFeeComponents,
+    pub transfer: ::core::option::Option<
+        super::super::fees::v1alpha1::TransferFeeComponents,
     >,
     #[prost(message, optional, tag = "2")]
-    pub sequence_fees: ::core::option::Option<
-        super::super::transactions::v1alpha1::SequenceFeeComponents,
+    pub sequence: ::core::option::Option<
+        super::super::fees::v1alpha1::SequenceFeeComponents,
     >,
     #[prost(message, optional, tag = "3")]
-    pub ics20_withdrawal_fees: ::core::option::Option<
-        super::super::transactions::v1alpha1::Ics20WithdrawalFeeComponents,
+    pub ics20_withdrawal: ::core::option::Option<
+        super::super::fees::v1alpha1::Ics20WithdrawalFeeComponents,
     >,
     #[prost(message, optional, tag = "4")]
-    pub init_bridge_account_fees: ::core::option::Option<
-        super::super::transactions::v1alpha1::InitBridgeAccountFeeComponents,
+    pub init_bridge_account: ::core::option::Option<
+        super::super::fees::v1alpha1::InitBridgeAccountFeeComponents,
     >,
     #[prost(message, optional, tag = "5")]
-    pub bridge_lock_fees: ::core::option::Option<
-        super::super::transactions::v1alpha1::BridgeLockFeeComponents,
+    pub bridge_lock: ::core::option::Option<
+        super::super::fees::v1alpha1::BridgeLockFeeComponents,
     >,
     #[prost(message, optional, tag = "6")]
-    pub bridge_unlock_fees: ::core::option::Option<
-        super::super::transactions::v1alpha1::BridgeUnlockFeeComponents,
+    pub bridge_unlock: ::core::option::Option<
+        super::super::fees::v1alpha1::BridgeUnlockFeeComponents,
     >,
     #[prost(message, optional, tag = "7")]
-    pub bridge_sudo_change_fees: ::core::option::Option<
-        super::super::transactions::v1alpha1::BridgeSudoChangeFeeComponents,
+    pub bridge_sudo_change: ::core::option::Option<
+        super::super::fees::v1alpha1::BridgeSudoChangeFeeComponents,
+    >,
+    /// Non fee-bearing actions are defined on 20-39
+    #[prost(message, optional, tag = "20")]
+    pub ibc_relay: ::core::option::Option<
+        super::super::fees::v1alpha1::IbcRelayFeeComponents,
+    >,
+    #[prost(message, optional, tag = "21")]
+    pub validator_update: ::core::option::Option<
+        super::super::fees::v1alpha1::ValidatorUpdateFeeComponents,
+    >,
+    #[prost(message, optional, tag = "22")]
+    pub fee_asset_change: ::core::option::Option<
+        super::super::fees::v1alpha1::FeeAssetChangeFeeComponents,
+    >,
+    #[prost(message, optional, tag = "23")]
+    pub fee_change: ::core::option::Option<
+        super::super::fees::v1alpha1::FeeChangeFeeComponents,
+    >,
+    #[prost(message, optional, tag = "24")]
+    pub ibc_relayer_change: ::core::option::Option<
+        super::super::fees::v1alpha1::IbcRelayerChangeFeeComponents,
+    >,
+    #[prost(message, optional, tag = "25")]
+    pub sudo_address_change: ::core::option::Option<
+        super::super::fees::v1alpha1::SudoAddressChangeFeeComponents,
+    >,
+    #[prost(message, optional, tag = "26")]
+    pub ibc_sudo_change: ::core::option::Option<
+        super::super::fees::v1alpha1::IbcSudoChangeFeeComponents,
     >,
 }
 impl ::prost::Name for GenesisFees {

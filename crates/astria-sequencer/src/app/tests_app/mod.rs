@@ -273,11 +273,7 @@ async fn app_transfer_block_fees_to_sudo() {
     app.commit(storage).await;
 
     // assert that transaction fees were transferred to the block proposer
-    let transfer_base_fee = Transfer::fee_components(&app.state)
-        .await
-        .unwrap()
-        .unwrap()
-        .base_fee;
+    let transfer_base_fee = Transfer::fee_components(&app.state).await.unwrap().base_fee;
     assert_eq!(
         app.state
             .get_account_balance(&astria_address_from_hex_string(JUDY_ADDRESS), &nria())

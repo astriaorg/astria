@@ -502,10 +502,12 @@ impl TransactionFeeResponse {
             fees: self
                 .fees
                 .into_iter()
-                .map(|(asset, fee)| raw::TransactionFee {
-                    asset: asset.to_string(),
-                    fee: Some(fee.into()),
-                })
+                .map(
+                    |(asset, fee)| crate::generated::protocol::fees::v1alpha1::TransactionFee {
+                        asset: asset.to_string(),
+                        fee: Some(fee.into()),
+                    },
+                )
                 .collect(),
         }
     }
@@ -526,7 +528,7 @@ impl TransactionFeeResponse {
         let fees = fees
             .into_iter()
             .map(
-                |raw::TransactionFee {
+                |crate::generated::protocol::fees::v1alpha1::TransactionFee {
                      asset,
                      fee,
                  }| {

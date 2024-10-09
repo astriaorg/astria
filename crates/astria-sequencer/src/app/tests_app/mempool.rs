@@ -2,13 +2,16 @@ use std::collections::HashMap;
 
 use astria_core::{
     protocol::{
+        fees::v1alpha1::{
+            FeeComponentsInner,
+            TransferFeeComponents,
+        },
         genesis::v1alpha1::Account,
         transaction::v1alpha1::{
             action::{
                 FeeChange,
                 FeeComponents,
                 Transfer,
-                TransferFeeComponents,
             },
             UnsignedTransaction,
         },
@@ -52,10 +55,12 @@ async fn trigger_cleaning() {
     let tx_trigger = UnsignedTransaction::builder()
         .actions(vec![
             FeeChange {
-                fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents {
-                    base_fee: 10,
-                    computed_cost_multiplier: 0,
-                }),
+                fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents(
+                    FeeComponentsInner {
+                        base_fee: 10,
+                        computed_cost_multiplier: 0,
+                    },
+                )),
             }
             .into(),
         ])
@@ -150,10 +155,12 @@ async fn do_not_trigger_cleaning() {
     let tx_fail = UnsignedTransaction::builder()
         .actions(vec![
             FeeChange {
-                fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents {
-                    base_fee: 10,
-                    computed_cost_multiplier: 0,
-                }),
+                fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents(
+                    FeeComponentsInner {
+                        base_fee: 10,
+                        computed_cost_multiplier: 0,
+                    },
+                )),
             }
             .into(),
         ])
@@ -253,10 +260,12 @@ async fn maintenance_recosting_promotes() {
     let tx_recost = UnsignedTransaction::builder()
         .actions(vec![
             FeeChange {
-                fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents {
-                    base_fee: 10,
-                    computed_cost_multiplier: 0,
-                }),
+                fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents(
+                    FeeComponentsInner {
+                        base_fee: 10,
+                        computed_cost_multiplier: 0,
+                    },
+                )),
             }
             .into(),
         ])

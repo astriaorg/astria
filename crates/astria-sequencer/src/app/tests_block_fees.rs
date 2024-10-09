@@ -2,20 +2,25 @@ use std::sync::Arc;
 
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::transaction::v1alpha1::{
-        action::{
-            BridgeLock,
+    protocol::{
+        fees::v1alpha1::{
             BridgeLockFeeComponents,
-            BridgeSudoChange,
             BridgeSudoChangeFeeComponents,
-            InitBridgeAccount,
+            FeeComponentsInner,
             InitBridgeAccountFeeComponents,
-            Sequence,
             SequenceFeeComponents,
-            Transfer,
             TransferFeeComponents,
         },
-        UnsignedTransaction,
+        transaction::v1alpha1::{
+            action::{
+                BridgeLock,
+                BridgeSudoChange,
+                InitBridgeAccount,
+                Sequence,
+                Transfer,
+            },
+            UnsignedTransaction,
+        },
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
@@ -75,11 +80,7 @@ async fn transaction_execution_records_fee_event() {
     let end_block = app.end_block(1, &sudo_address).await.unwrap();
 
     let events = end_block.events;
-    let transfer_base_fee = Transfer::fee_components(&app.state)
-        .await
-        .unwrap()
-        .unwrap()
-        .base_fee;
+    let transfer_base_fee = Transfer::fee_components(&app.state).await.unwrap().base_fee;
     let event = events.first().unwrap();
     assert_eq!(event.kind, "tx.fees");
     assert_eq!(
@@ -108,10 +109,10 @@ async fn ensure_correct_block_fees_transfer() {
     let mut state_tx = StateDelta::new(app.state.clone());
     let transfer_base_fee = 1;
     state_tx
-        .put_transfer_fees(TransferFeeComponents {
+        .put_transfer_fees(TransferFeeComponents(FeeComponentsInner {
             base_fee: transfer_base_fee,
             computed_cost_multiplier: 0,
-        })
+        }))
         .unwrap();
     app.apply(state_tx);
 
@@ -150,10 +151,10 @@ async fn ensure_correct_block_fees_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_sequence_fees(SequenceFeeComponents {
+        .put_sequence_fees(SequenceFeeComponents(FeeComponentsInner {
             base_fee: 1,
             computed_cost_multiplier: 1,
-        })
+        }))
         .unwrap();
     app.apply(state_tx);
 
@@ -196,10 +197,10 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
     let mut state_tx = StateDelta::new(app.state.clone());
     let init_bridge_account_base_fee = 1;
     state_tx
-        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
+        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents(FeeComponentsInner {
             base_fee: init_bridge_account_base_fee,
             computed_cost_multiplier: 0,
-        })
+        }))
         .unwrap();
     app.apply(state_tx);
 
@@ -249,16 +250,16 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let bridge_lock_byte_cost_multiplier = 1;
 
     state_tx
-        .put_transfer_fees(TransferFeeComponents {
+        .put_transfer_fees(TransferFeeComponents(FeeComponentsInner {
             base_fee: transfer_base_fee,
             computed_cost_multiplier: 0,
-        })
+        }))
         .unwrap();
     state_tx
-        .put_bridge_lock_fees(BridgeLockFeeComponents {
+        .put_bridge_lock_fees(BridgeLockFeeComponents(FeeComponentsInner {
             base_fee: transfer_base_fee,
             computed_cost_multiplier: bridge_lock_byte_cost_multiplier,
-        })
+        }))
         .unwrap();
     state_tx
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
@@ -321,10 +322,10 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
 
     let sudo_change_base_fee = 1;
     state_tx
-        .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
+        .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents(FeeComponentsInner {
             base_fee: sudo_change_base_fee,
             computed_cost_multiplier: 0,
-        })
+        }))
         .unwrap();
     state_tx
         .put_bridge_account_sudo_address(&bridge_address, alice_address)

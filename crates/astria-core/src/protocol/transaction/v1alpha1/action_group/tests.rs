@@ -7,29 +7,34 @@ use crate::{
         Address,
         RollupId,
     },
-    protocol::transaction::v1alpha1::{
-        action::{
-            Action,
-            BridgeLock,
-            BridgeSudoChange,
-            BridgeUnlock,
-            FeeAssetChange,
-            FeeChange,
-            FeeComponents,
-            IbcRelayerChange,
-            IbcSudoChange,
-            Ics20Withdrawal,
-            InitBridgeAccount,
-            Sequence,
-            SudoAddressChange,
-            Transfer,
+    protocol::{
+        fees::v1alpha1::{
+            FeeComponentsInner,
             TransferFeeComponents,
-            ValidatorUpdate,
         },
-        action_group::{
-            ActionGroup,
-            Actions,
-            ErrorKind,
+        transaction::v1alpha1::{
+            action::{
+                Action,
+                BridgeLock,
+                BridgeSudoChange,
+                BridgeUnlock,
+                FeeAssetChange,
+                FeeChange,
+                FeeComponents,
+                IbcRelayerChange,
+                IbcSudoChange,
+                Ics20Withdrawal,
+                InitBridgeAccount,
+                Sequence,
+                SudoAddressChange,
+                Transfer,
+                ValidatorUpdate,
+            },
+            action_group::{
+                ActionGroup,
+                Actions,
+                ErrorKind,
+            },
         },
     },
 };
@@ -108,10 +113,12 @@ fn from_list_of_actions_bundleable_sudo() {
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
         Action::FeeChange(FeeChange {
-            fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents {
-                base_fee: 12,
-                computed_cost_multiplier: 0,
-            }),
+            fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents(
+                FeeComponentsInner {
+                    base_fee: 12,
+                    computed_cost_multiplier: 0,
+                },
+            )),
         }),
         Action::FeeAssetChange(FeeAssetChange::Addition(asset)),
         Action::IbcRelayerChange(IbcRelayerChange::Addition(address)),

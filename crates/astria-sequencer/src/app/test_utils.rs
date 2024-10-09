@@ -13,6 +13,23 @@ use astria_core::{
         RollupId,
     },
     protocol::{
+        fees::v1alpha1::{
+            BridgeLockFeeComponents,
+            BridgeSudoChangeFeeComponents,
+            BridgeUnlockFeeComponents,
+            FeeAssetChangeFeeComponents,
+            FeeChangeFeeComponents,
+            FeeComponentsInner,
+            IbcRelayFeeComponents,
+            IbcRelayerChangeFeeComponents,
+            IbcSudoChangeFeeComponents,
+            Ics20WithdrawalFeeComponents,
+            InitBridgeAccountFeeComponents,
+            SequenceFeeComponents,
+            SudoAddressChangeFeeComponents,
+            TransferFeeComponents,
+            ValidatorUpdateFeeComponents,
+        },
         genesis::v1alpha1::{
             Account,
             AddressPrefixes,
@@ -20,14 +37,7 @@ use astria_core::{
         },
         transaction::v1alpha1::{
             action::{
-                BridgeLockFeeComponents,
-                BridgeSudoChangeFeeComponents,
-                BridgeUnlockFeeComponents,
-                Ics20WithdrawalFeeComponents,
-                InitBridgeAccountFeeComponents,
                 Sequence,
-                SequenceFeeComponents,
-                TransferFeeComponents,
                 ValidatorUpdate,
             },
             SignedTransaction,
@@ -164,35 +174,46 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
 )]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::GenesisFees {
+    let zero_inner_fees = FeeComponentsInner {
+        base_fee: 0,
+        computed_cost_multiplier: 0,
+    };
     astria_core::protocol::genesis::v1alpha1::GenesisFees {
-        transfer_fees: TransferFeeComponents {
+        transfer: TransferFeeComponents(FeeComponentsInner {
             base_fee: 12,
             computed_cost_multiplier: 0,
-        },
-        sequence_fees: SequenceFeeComponents {
+        }),
+        sequence: SequenceFeeComponents(FeeComponentsInner {
             base_fee: 32,
             computed_cost_multiplier: 1,
-        },
-        init_bridge_account_fees: InitBridgeAccountFeeComponents {
+        }),
+        init_bridge_account: InitBridgeAccountFeeComponents(FeeComponentsInner {
             base_fee: 48,
             computed_cost_multiplier: 0,
-        },
-        bridge_lock_fees: BridgeLockFeeComponents {
+        }),
+        bridge_lock: BridgeLockFeeComponents(FeeComponentsInner {
             base_fee: 12, // should reflect transfer fee
             computed_cost_multiplier: 1,
-        },
-        bridge_sudo_change_fees: BridgeSudoChangeFeeComponents {
+        }),
+        bridge_sudo_change: BridgeSudoChangeFeeComponents(FeeComponentsInner {
             base_fee: 24,
             computed_cost_multiplier: 0,
-        },
-        ics20_withdrawal_fees: Ics20WithdrawalFeeComponents {
+        }),
+        ics20_withdrawal: Ics20WithdrawalFeeComponents(FeeComponentsInner {
             base_fee: 24,
             computed_cost_multiplier: 0,
-        },
-        bridge_unlock_fees: BridgeUnlockFeeComponents {
+        }),
+        bridge_unlock: BridgeUnlockFeeComponents(FeeComponentsInner {
             base_fee: 12, // should reflect transfer fee
             computed_cost_multiplier: 0,
-        },
+        }),
+        ibc_relay: IbcRelayFeeComponents(zero_inner_fees.clone()),
+        validator_update: ValidatorUpdateFeeComponents(zero_inner_fees.clone()),
+        fee_asset_change: FeeAssetChangeFeeComponents(zero_inner_fees.clone()),
+        fee_change: FeeChangeFeeComponents(zero_inner_fees.clone()),
+        ibc_relayer_change: IbcRelayerChangeFeeComponents(zero_inner_fees.clone()),
+        sudo_address_change: SudoAddressChangeFeeComponents(zero_inner_fees.clone()),
+        ibc_sudo_change: IbcSudoChangeFeeComponents(zero_inner_fees.clone()),
     }
 }
 
@@ -229,7 +250,7 @@ pub(crate) fn proto_genesis_state()
             outbound_ics20_transfers_enabled: true,
         }),
         allowed_fee_assets: vec![crate::test_utils::nria().to_string()],
-        genesis_fees: Some(default_fees().to_raw()),
+        fees: Some(default_fees().to_raw()),
     }
 }
 
@@ -475,67 +496,96 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     // setup tx fees
-    let transfer_fees = TransferFeeComponents {
+    let zero_inner_fees = FeeComponentsInner {
         base_fee: 0,
         computed_cost_multiplier: 0,
     };
+
+    let transfer_fees = TransferFeeComponents(zero_inner_fees.clone());
     state
         .put_transfer_fees(transfer_fees)
         .wrap_err("failed to initiate transfer fee components")
         .unwrap();
 
-    let sequence_fees = SequenceFeeComponents {
+    let sequence_fees = SequenceFeeComponents(FeeComponentsInner {
         base_fee: MOCK_SEQUENCE_FEE,
         computed_cost_multiplier: 0,
-    };
+    });
     state
         .put_sequence_fees(sequence_fees)
         .wrap_err("failed to initiate sequence action fee components")
         .unwrap();
 
-    let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
-    };
+    let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents(zero_inner_fees.clone());
     state
         .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
         .wrap_err("failed to initiate ics20 withdrawal fee components")
         .unwrap();
 
-    let init_bridge_account_fees = InitBridgeAccountFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
-    };
+    let init_bridge_account_fees = InitBridgeAccountFeeComponents(zero_inner_fees.clone());
     state
         .put_init_bridge_account_fees(init_bridge_account_fees)
         .wrap_err("failed to initiate init bridge account fee components")
         .unwrap();
 
-    let bridge_lock_fees = BridgeLockFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
-    };
+    let bridge_lock_fees = BridgeLockFeeComponents(zero_inner_fees.clone());
     state
         .put_bridge_lock_fees(bridge_lock_fees)
         .wrap_err("failed to initiate bridge lock fee components")
         .unwrap();
 
-    let bridge_unlock_fees = BridgeUnlockFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
-    };
+    let bridge_unlock_fees = BridgeUnlockFeeComponents(zero_inner_fees.clone());
     state
         .put_bridge_unlock_fees(bridge_unlock_fees)
         .wrap_err("failed to initiate bridge unlock fee components")
         .unwrap();
 
-    let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
-    };
+    let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents(zero_inner_fees.clone());
     state
         .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
         .wrap_err("failed to initiate bridge sudo change fee components")
+        .unwrap();
+
+    let ibc_relay_fees = IbcRelayFeeComponents(zero_inner_fees.clone());
+    state
+        .put_ibc_relay_fees(ibc_relay_fees)
+        .wrap_err("failed to initiate ibc relay fee components")
+        .unwrap();
+
+    let validator_update_fees = ValidatorUpdateFeeComponents(zero_inner_fees.clone());
+    state
+        .put_validator_update_fees(validator_update_fees)
+        .wrap_err("failed to initiate validator update fee components")
+        .unwrap();
+
+    let fee_asset_change_fees = FeeAssetChangeFeeComponents(zero_inner_fees.clone());
+    state
+        .put_fee_asset_change_fees(fee_asset_change_fees)
+        .wrap_err("failed to initiate fee asset change fee components")
+        .unwrap();
+
+    let fee_change_fees = FeeChangeFeeComponents(zero_inner_fees.clone());
+    state
+        .put_fee_change_fees(fee_change_fees)
+        .wrap_err("failed to initiate fee change fees fee components")
+        .unwrap();
+
+    let ibc_relayer_change_fees = IbcRelayerChangeFeeComponents(zero_inner_fees.clone());
+    state
+        .put_ibc_relayer_change_fees(ibc_relayer_change_fees)
+        .wrap_err("failed to initiate ibc relayer change fee components")
+        .unwrap();
+
+    let sudo_address_change_fees = SudoAddressChangeFeeComponents(zero_inner_fees.clone());
+    state
+        .put_sudo_address_change_fees(sudo_address_change_fees)
+        .wrap_err("failed to initiate sudo address change fee components")
+        .unwrap();
+
+    let ibc_sudo_change_fees = IbcSudoChangeFeeComponents(zero_inner_fees.clone());
+    state
+        .put_ibc_sudo_change_fees(ibc_sudo_change_fees)
+        .wrap_err("failed to initiate ibc sudo change fee components")
         .unwrap();
 
     // put denoms as allowed fee asset

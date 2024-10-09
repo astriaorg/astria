@@ -7,23 +7,31 @@ use std::{
 use astria_core::{
     generated::protocol::genesis::v1alpha1::{
         AddressPrefixes,
+        GenesisFees,
         IbcParameters,
     },
     primitive::v1::Address,
     protocol::{
-        genesis::v1alpha1::{
-            Account,
-            GenesisAppState,
-            GenesisFees,
-        },
-        transaction::v1alpha1::action::{
+        fees::v1alpha1::{
             BridgeLockFeeComponents,
             BridgeSudoChangeFeeComponents,
             BridgeUnlockFeeComponents,
+            FeeAssetChangeFeeComponents,
+            FeeChangeFeeComponents,
+            FeeComponentsInner,
+            IbcRelayFeeComponents,
+            IbcRelayerChangeFeeComponents,
+            IbcSudoChangeFeeComponents,
             Ics20WithdrawalFeeComponents,
             InitBridgeAccountFeeComponents,
             SequenceFeeComponents,
+            SudoAddressChangeFeeComponents,
             TransferFeeComponents,
+            ValidatorUpdateFeeComponents,
+        },
+        genesis::v1alpha1::{
+            Account,
+            GenesisAppState,
         },
     },
     Protobuf,
@@ -84,6 +92,11 @@ fn address_prefixes() -> AddressPrefixes {
 }
 
 fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+    let zero_inner_fees = FeeComponentsInner {
+        base_fee: 0,
+        computed_cost_multiplier: 0,
+    };
+
     astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
         accounts: accounts().into_iter().map(Protobuf::into_raw).collect(),
         address_prefixes: Some(address_prefixes()),
@@ -98,39 +111,68 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
             outbound_ics20_transfers_enabled: true,
         }),
         allowed_fee_assets: vec!["nria".parse().unwrap()],
-        genesis_fees: Some(
-            GenesisFees {
-                transfer_fees: TransferFeeComponents {
+        fees: Some(GenesisFees {
+            transfer: Some(
+                TransferFeeComponents(FeeComponentsInner {
                     base_fee: 12,
                     computed_cost_multiplier: 0,
-                },
-                sequence_fees: SequenceFeeComponents {
+                })
+                .to_raw(),
+            ),
+            sequence: Some(
+                SequenceFeeComponents(FeeComponentsInner {
                     base_fee: 32,
                     computed_cost_multiplier: 1,
-                },
-                init_bridge_account_fees: InitBridgeAccountFeeComponents {
+                })
+                .to_raw(),
+            ),
+            init_bridge_account: Some(
+                InitBridgeAccountFeeComponents(FeeComponentsInner {
                     base_fee: 48,
                     computed_cost_multiplier: 0,
-                },
-                bridge_lock_fees: BridgeLockFeeComponents {
+                })
+                .to_raw(),
+            ),
+            bridge_lock: Some(
+                BridgeLockFeeComponents(FeeComponentsInner {
                     base_fee: 12,
                     computed_cost_multiplier: 1,
-                },
-                bridge_sudo_change_fees: BridgeSudoChangeFeeComponents {
-                    base_fee: 24,
-                    computed_cost_multiplier: 0,
-                },
-                ics20_withdrawal_fees: Ics20WithdrawalFeeComponents {
-                    base_fee: 24,
-                    computed_cost_multiplier: 0,
-                },
-                bridge_unlock_fees: BridgeUnlockFeeComponents {
+                })
+                .to_raw(),
+            ),
+            bridge_unlock: Some(
+                BridgeUnlockFeeComponents(FeeComponentsInner {
                     base_fee: 12,
                     computed_cost_multiplier: 0,
-                },
-            }
-            .into_raw(),
-        ),
+                })
+                .to_raw(),
+            ),
+            bridge_sudo_change: Some(
+                BridgeSudoChangeFeeComponents(FeeComponentsInner {
+                    base_fee: 24,
+                    computed_cost_multiplier: 0,
+                })
+                .to_raw(),
+            ),
+            ics20_withdrawal: Some(
+                Ics20WithdrawalFeeComponents(FeeComponentsInner {
+                    base_fee: 24,
+                    computed_cost_multiplier: 0,
+                })
+                .to_raw(),
+            ),
+            ibc_relay: Some(IbcRelayFeeComponents(zero_inner_fees.clone()).to_raw()),
+            validator_update: Some(ValidatorUpdateFeeComponents(zero_inner_fees.clone()).to_raw()),
+            fee_asset_change: Some(FeeAssetChangeFeeComponents(zero_inner_fees.clone()).to_raw()),
+            fee_change: Some(FeeChangeFeeComponents(zero_inner_fees.clone()).to_raw()),
+            ibc_relayer_change: Some(
+                IbcRelayerChangeFeeComponents(zero_inner_fees.clone()).to_raw(),
+            ),
+            sudo_address_change: Some(
+                SudoAddressChangeFeeComponents(zero_inner_fees.clone()).to_raw(),
+            ),
+            ibc_sudo_change: Some(IbcSudoChangeFeeComponents(zero_inner_fees.clone()).to_raw()),
+        }),
     }
 }
 

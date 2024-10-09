@@ -7,6 +7,11 @@ use astria_core::{
         RollupId,
     },
     protocol::{
+        fees::v1alpha1::{
+            FeeComponentsInner,
+            InitBridgeAccountFeeComponents,
+            SequenceFeeComponents,
+        },
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
             action::{
@@ -14,9 +19,7 @@ use astria_core::{
                 BridgeUnlock,
                 IbcRelayerChange,
                 IbcSudoChange,
-                InitBridgeAccountFeeComponents,
                 Sequence,
-                SequenceFeeComponents,
                 SudoAddressChange,
                 Transfer,
                 ValidatorUpdate,
@@ -133,11 +136,7 @@ async fn app_execute_transaction_transfer() {
             .unwrap(),
         value + 10u128.pow(19)
     );
-    let transfer_base_fee = Transfer::fee_components(&app.state)
-        .await
-        .unwrap()
-        .unwrap()
-        .base_fee;
+    let transfer_base_fee = Transfer::fee_components(&app.state).await.unwrap().base_fee;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -203,11 +202,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
         value, // transferred amount
     );
 
-    let transfer_base_fee = Transfer::fee_components(&app.state)
-        .await
-        .unwrap()
-        .unwrap()
-        .base_fee;
+    let transfer_base_fee = Transfer::fee_components(&app.state).await.unwrap().base_fee;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -270,10 +265,10 @@ async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_sequence_fees(SequenceFeeComponents {
+        .put_sequence_fees(SequenceFeeComponents(FeeComponentsInner {
             base_fee: 0,
             computed_cost_multiplier: 1,
-        })
+        }))
         .unwrap();
     app.apply(state_tx);
 
@@ -610,10 +605,10 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let mut state_tx = StateDelta::new(app.state.clone());
     let fee = 12; // arbitrary
     state_tx
-        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
+        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents(FeeComponentsInner {
             base_fee: fee,
             computed_cost_multiplier: 0,
-        })
+        }))
         .unwrap();
     app.apply(state_tx);
 
@@ -761,11 +756,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         app.state.get_account_nonce(&alice_address).await.unwrap(),
         1
     );
-    let transfer_base_fee = Transfer::fee_components(&app.state)
-        .await
-        .unwrap()
-        .unwrap()
-        .base_fee;
+    let transfer_base_fee = Transfer::fee_components(&app.state).await.unwrap().base_fee;
     let expected_deposit = Deposit {
         bridge_address,
         rollup_id,
@@ -779,7 +770,6 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     let fee = transfer_base_fee
         + BridgeLock::fee_components(&app.state)
             .await
-            .unwrap()
             .unwrap()
             .computed_cost_multiplier
             * crate::fees::calculate_base_deposit_fee(&expected_deposit).unwrap();
@@ -1030,11 +1020,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
 
     // give bridge eoa funds so it can pay for the
     // unlock transfer action
-    let transfer_base_fee = Transfer::fee_components(&app.state)
-        .await
-        .unwrap()
-        .unwrap()
-        .base_fee;
+    let transfer_base_fee = Transfer::fee_components(&app.state).await.unwrap().base_fee;
     state_tx
         .put_account_balance(&bridge_address, &nria(), transfer_base_fee)
         .unwrap();

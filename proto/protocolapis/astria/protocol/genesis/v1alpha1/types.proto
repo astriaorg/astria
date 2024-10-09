@@ -3,7 +3,7 @@ syntax = "proto3";
 package astria.protocol.genesis.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
-import "astria/protocol/transactions/v1alpha1/action.proto";
+import "astria/protocol/fees/v1alpha1/types.proto";
 
 message GenesisAppState {
   string chain_id = 1;
@@ -15,7 +15,7 @@ message GenesisAppState {
   string native_asset_base_denomination = 7;
   IbcParameters ibc_parameters = 8;
   repeated string allowed_fee_assets = 9;
-  GenesisFees genesis_fees = 10;
+  GenesisFees fees = 10;
 }
 
 message Account {
@@ -42,11 +42,21 @@ message IbcParameters {
 }
 
 message GenesisFees {
-  astria.protocol.transactions.v1alpha1.TransferFeeComponents transfer_fees = 1;
-  astria.protocol.transactions.v1alpha1.SequenceFeeComponents sequence_fees = 2;
-  astria.protocol.transactions.v1alpha1.Ics20WithdrawalFeeComponents ics20_withdrawal_fees = 3;
-  astria.protocol.transactions.v1alpha1.InitBridgeAccountFeeComponents init_bridge_account_fees = 4;
-  astria.protocol.transactions.v1alpha1.BridgeLockFeeComponents bridge_lock_fees = 5;
-  astria.protocol.transactions.v1alpha1.BridgeUnlockFeeComponents bridge_unlock_fees = 6;
-  astria.protocol.transactions.v1alpha1.BridgeSudoChangeFeeComponents bridge_sudo_change_fees = 7;
+  // Fee-bearing actions are defined on 1-19
+  astria.protocol.fees.v1alpha1.TransferFeeComponents transfer = 1;
+  astria.protocol.fees.v1alpha1.SequenceFeeComponents sequence = 2;
+  astria.protocol.fees.v1alpha1.Ics20WithdrawalFeeComponents ics20_withdrawal = 3;
+  astria.protocol.fees.v1alpha1.InitBridgeAccountFeeComponents init_bridge_account = 4;
+  astria.protocol.fees.v1alpha1.BridgeLockFeeComponents bridge_lock = 5;
+  astria.protocol.fees.v1alpha1.BridgeUnlockFeeComponents bridge_unlock = 6;
+  astria.protocol.fees.v1alpha1.BridgeSudoChangeFeeComponents bridge_sudo_change = 7;
+
+  // Non fee-bearing actions are defined on 20-39
+  astria.protocol.fees.v1alpha1.IbcRelayFeeComponents ibc_relay = 20;
+  astria.protocol.fees.v1alpha1.ValidatorUpdateFeeComponents validator_update = 21;
+  astria.protocol.fees.v1alpha1.FeeAssetChangeFeeComponents fee_asset_change = 22;
+  astria.protocol.fees.v1alpha1.FeeChangeFeeComponents fee_change = 23;
+  astria.protocol.fees.v1alpha1.IbcRelayerChangeFeeComponents ibc_relayer_change = 24;
+  astria.protocol.fees.v1alpha1.SudoAddressChangeFeeComponents sudo_address_change = 25;
+  astria.protocol.fees.v1alpha1.IbcSudoChangeFeeComponents ibc_sudo_change = 26;
 }

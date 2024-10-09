@@ -250,7 +250,7 @@ impl serde::Serialize for GenesisAppState {
         if !self.allowed_fee_assets.is_empty() {
             len += 1;
         }
-        if self.genesis_fees.is_some() {
+        if self.fees.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1alpha1.GenesisAppState", len)?;
@@ -281,8 +281,8 @@ impl serde::Serialize for GenesisAppState {
         if !self.allowed_fee_assets.is_empty() {
             struct_ser.serialize_field("allowedFeeAssets", &self.allowed_fee_assets)?;
         }
-        if let Some(v) = self.genesis_fees.as_ref() {
-            struct_ser.serialize_field("genesisFees", v)?;
+        if let Some(v) = self.fees.as_ref() {
+            struct_ser.serialize_field("fees", v)?;
         }
         struct_ser.end()
     }
@@ -311,8 +311,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
             "ibcParameters",
             "allowed_fee_assets",
             "allowedFeeAssets",
-            "genesis_fees",
-            "genesisFees",
+            "fees",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -326,7 +325,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
             NativeAssetBaseDenomination,
             IbcParameters,
             AllowedFeeAssets,
-            GenesisFees,
+            Fees,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -357,7 +356,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                             "nativeAssetBaseDenomination" | "native_asset_base_denomination" => Ok(GeneratedField::NativeAssetBaseDenomination),
                             "ibcParameters" | "ibc_parameters" => Ok(GeneratedField::IbcParameters),
                             "allowedFeeAssets" | "allowed_fee_assets" => Ok(GeneratedField::AllowedFeeAssets),
-                            "genesisFees" | "genesis_fees" => Ok(GeneratedField::GenesisFees),
+                            "fees" => Ok(GeneratedField::Fees),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -386,7 +385,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                 let mut native_asset_base_denomination__ = None;
                 let mut ibc_parameters__ = None;
                 let mut allowed_fee_assets__ = None;
-                let mut genesis_fees__ = None;
+                let mut fees__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::ChainId => {
@@ -443,11 +442,11 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                             }
                             allowed_fee_assets__ = Some(map_.next_value()?);
                         }
-                        GeneratedField::GenesisFees => {
-                            if genesis_fees__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("genesisFees"));
+                        GeneratedField::Fees => {
+                            if fees__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("fees"));
                             }
-                            genesis_fees__ = map_.next_value()?;
+                            fees__ = map_.next_value()?;
                         }
                     }
                 }
@@ -461,7 +460,7 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                     native_asset_base_denomination: native_asset_base_denomination__.unwrap_or_default(),
                     ibc_parameters: ibc_parameters__,
                     allowed_fee_assets: allowed_fee_assets__.unwrap_or_default(),
-                    genesis_fees: genesis_fees__,
+                    fees: fees__,
                 })
             }
         }
@@ -476,48 +475,90 @@ impl serde::Serialize for GenesisFees {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.transfer_fees.is_some() {
+        if self.transfer.is_some() {
             len += 1;
         }
-        if self.sequence_fees.is_some() {
+        if self.sequence.is_some() {
             len += 1;
         }
-        if self.ics20_withdrawal_fees.is_some() {
+        if self.ics20_withdrawal.is_some() {
             len += 1;
         }
-        if self.init_bridge_account_fees.is_some() {
+        if self.init_bridge_account.is_some() {
             len += 1;
         }
-        if self.bridge_lock_fees.is_some() {
+        if self.bridge_lock.is_some() {
             len += 1;
         }
-        if self.bridge_unlock_fees.is_some() {
+        if self.bridge_unlock.is_some() {
             len += 1;
         }
-        if self.bridge_sudo_change_fees.is_some() {
+        if self.bridge_sudo_change.is_some() {
+            len += 1;
+        }
+        if self.ibc_relay.is_some() {
+            len += 1;
+        }
+        if self.validator_update.is_some() {
+            len += 1;
+        }
+        if self.fee_asset_change.is_some() {
+            len += 1;
+        }
+        if self.fee_change.is_some() {
+            len += 1;
+        }
+        if self.ibc_relayer_change.is_some() {
+            len += 1;
+        }
+        if self.sudo_address_change.is_some() {
+            len += 1;
+        }
+        if self.ibc_sudo_change.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1alpha1.GenesisFees", len)?;
-        if let Some(v) = self.transfer_fees.as_ref() {
-            struct_ser.serialize_field("transferFees", v)?;
+        if let Some(v) = self.transfer.as_ref() {
+            struct_ser.serialize_field("transfer", v)?;
         }
-        if let Some(v) = self.sequence_fees.as_ref() {
-            struct_ser.serialize_field("sequenceFees", v)?;
+        if let Some(v) = self.sequence.as_ref() {
+            struct_ser.serialize_field("sequence", v)?;
         }
-        if let Some(v) = self.ics20_withdrawal_fees.as_ref() {
-            struct_ser.serialize_field("ics20WithdrawalFees", v)?;
+        if let Some(v) = self.ics20_withdrawal.as_ref() {
+            struct_ser.serialize_field("ics20Withdrawal", v)?;
         }
-        if let Some(v) = self.init_bridge_account_fees.as_ref() {
-            struct_ser.serialize_field("initBridgeAccountFees", v)?;
+        if let Some(v) = self.init_bridge_account.as_ref() {
+            struct_ser.serialize_field("initBridgeAccount", v)?;
         }
-        if let Some(v) = self.bridge_lock_fees.as_ref() {
-            struct_ser.serialize_field("bridgeLockFees", v)?;
+        if let Some(v) = self.bridge_lock.as_ref() {
+            struct_ser.serialize_field("bridgeLock", v)?;
         }
-        if let Some(v) = self.bridge_unlock_fees.as_ref() {
-            struct_ser.serialize_field("bridgeUnlockFees", v)?;
+        if let Some(v) = self.bridge_unlock.as_ref() {
+            struct_ser.serialize_field("bridgeUnlock", v)?;
         }
-        if let Some(v) = self.bridge_sudo_change_fees.as_ref() {
-            struct_ser.serialize_field("bridgeSudoChangeFees", v)?;
+        if let Some(v) = self.bridge_sudo_change.as_ref() {
+            struct_ser.serialize_field("bridgeSudoChange", v)?;
+        }
+        if let Some(v) = self.ibc_relay.as_ref() {
+            struct_ser.serialize_field("ibcRelay", v)?;
+        }
+        if let Some(v) = self.validator_update.as_ref() {
+            struct_ser.serialize_field("validatorUpdate", v)?;
+        }
+        if let Some(v) = self.fee_asset_change.as_ref() {
+            struct_ser.serialize_field("feeAssetChange", v)?;
+        }
+        if let Some(v) = self.fee_change.as_ref() {
+            struct_ser.serialize_field("feeChange", v)?;
+        }
+        if let Some(v) = self.ibc_relayer_change.as_ref() {
+            struct_ser.serialize_field("ibcRelayerChange", v)?;
+        }
+        if let Some(v) = self.sudo_address_change.as_ref() {
+            struct_ser.serialize_field("sudoAddressChange", v)?;
+        }
+        if let Some(v) = self.ibc_sudo_change.as_ref() {
+            struct_ser.serialize_field("ibcSudoChange", v)?;
         }
         struct_ser.end()
     }
@@ -529,31 +570,50 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "transfer_fees",
-            "transferFees",
-            "sequence_fees",
-            "sequenceFees",
-            "ics20_withdrawal_fees",
-            "ics20WithdrawalFees",
-            "init_bridge_account_fees",
-            "initBridgeAccountFees",
-            "bridge_lock_fees",
-            "bridgeLockFees",
-            "bridge_unlock_fees",
-            "bridgeUnlockFees",
-            "bridge_sudo_change_fees",
-            "bridgeSudoChangeFees",
+            "transfer",
+            "sequence",
+            "ics20_withdrawal",
+            "ics20Withdrawal",
+            "init_bridge_account",
+            "initBridgeAccount",
+            "bridge_lock",
+            "bridgeLock",
+            "bridge_unlock",
+            "bridgeUnlock",
+            "bridge_sudo_change",
+            "bridgeSudoChange",
+            "ibc_relay",
+            "ibcRelay",
+            "validator_update",
+            "validatorUpdate",
+            "fee_asset_change",
+            "feeAssetChange",
+            "fee_change",
+            "feeChange",
+            "ibc_relayer_change",
+            "ibcRelayerChange",
+            "sudo_address_change",
+            "sudoAddressChange",
+            "ibc_sudo_change",
+            "ibcSudoChange",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            TransferFees,
-            SequenceFees,
-            Ics20WithdrawalFees,
-            InitBridgeAccountFees,
-            BridgeLockFees,
-            BridgeUnlockFees,
-            BridgeSudoChangeFees,
+            Transfer,
+            Sequence,
+            Ics20Withdrawal,
+            InitBridgeAccount,
+            BridgeLock,
+            BridgeUnlock,
+            BridgeSudoChange,
+            IbcRelay,
+            ValidatorUpdate,
+            FeeAssetChange,
+            FeeChange,
+            IbcRelayerChange,
+            SudoAddressChange,
+            IbcSudoChange,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -575,13 +635,20 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                         E: serde::de::Error,
                     {
                         match value {
-                            "transferFees" | "transfer_fees" => Ok(GeneratedField::TransferFees),
-                            "sequenceFees" | "sequence_fees" => Ok(GeneratedField::SequenceFees),
-                            "ics20WithdrawalFees" | "ics20_withdrawal_fees" => Ok(GeneratedField::Ics20WithdrawalFees),
-                            "initBridgeAccountFees" | "init_bridge_account_fees" => Ok(GeneratedField::InitBridgeAccountFees),
-                            "bridgeLockFees" | "bridge_lock_fees" => Ok(GeneratedField::BridgeLockFees),
-                            "bridgeUnlockFees" | "bridge_unlock_fees" => Ok(GeneratedField::BridgeUnlockFees),
-                            "bridgeSudoChangeFees" | "bridge_sudo_change_fees" => Ok(GeneratedField::BridgeSudoChangeFees),
+                            "transfer" => Ok(GeneratedField::Transfer),
+                            "sequence" => Ok(GeneratedField::Sequence),
+                            "ics20Withdrawal" | "ics20_withdrawal" => Ok(GeneratedField::Ics20Withdrawal),
+                            "initBridgeAccount" | "init_bridge_account" => Ok(GeneratedField::InitBridgeAccount),
+                            "bridgeLock" | "bridge_lock" => Ok(GeneratedField::BridgeLock),
+                            "bridgeUnlock" | "bridge_unlock" => Ok(GeneratedField::BridgeUnlock),
+                            "bridgeSudoChange" | "bridge_sudo_change" => Ok(GeneratedField::BridgeSudoChange),
+                            "ibcRelay" | "ibc_relay" => Ok(GeneratedField::IbcRelay),
+                            "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
+                            "feeAssetChange" | "fee_asset_change" => Ok(GeneratedField::FeeAssetChange),
+                            "feeChange" | "fee_change" => Ok(GeneratedField::FeeChange),
+                            "ibcRelayerChange" | "ibc_relayer_change" => Ok(GeneratedField::IbcRelayerChange),
+                            "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
+                            "ibcSudoChange" | "ibc_sudo_change" => Ok(GeneratedField::IbcSudoChange),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -601,67 +668,123 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut transfer_fees__ = None;
-                let mut sequence_fees__ = None;
-                let mut ics20_withdrawal_fees__ = None;
-                let mut init_bridge_account_fees__ = None;
-                let mut bridge_lock_fees__ = None;
-                let mut bridge_unlock_fees__ = None;
-                let mut bridge_sudo_change_fees__ = None;
+                let mut transfer__ = None;
+                let mut sequence__ = None;
+                let mut ics20_withdrawal__ = None;
+                let mut init_bridge_account__ = None;
+                let mut bridge_lock__ = None;
+                let mut bridge_unlock__ = None;
+                let mut bridge_sudo_change__ = None;
+                let mut ibc_relay__ = None;
+                let mut validator_update__ = None;
+                let mut fee_asset_change__ = None;
+                let mut fee_change__ = None;
+                let mut ibc_relayer_change__ = None;
+                let mut sudo_address_change__ = None;
+                let mut ibc_sudo_change__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::TransferFees => {
-                            if transfer_fees__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transferFees"));
+                        GeneratedField::Transfer => {
+                            if transfer__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("transfer"));
                             }
-                            transfer_fees__ = map_.next_value()?;
+                            transfer__ = map_.next_value()?;
                         }
-                        GeneratedField::SequenceFees => {
-                            if sequence_fees__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequenceFees"));
+                        GeneratedField::Sequence => {
+                            if sequence__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequence"));
                             }
-                            sequence_fees__ = map_.next_value()?;
+                            sequence__ = map_.next_value()?;
                         }
-                        GeneratedField::Ics20WithdrawalFees => {
-                            if ics20_withdrawal_fees__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("ics20WithdrawalFees"));
+                        GeneratedField::Ics20Withdrawal => {
+                            if ics20_withdrawal__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ics20Withdrawal"));
                             }
-                            ics20_withdrawal_fees__ = map_.next_value()?;
+                            ics20_withdrawal__ = map_.next_value()?;
                         }
-                        GeneratedField::InitBridgeAccountFees => {
-                            if init_bridge_account_fees__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("initBridgeAccountFees"));
+                        GeneratedField::InitBridgeAccount => {
+                            if init_bridge_account__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("initBridgeAccount"));
                             }
-                            init_bridge_account_fees__ = map_.next_value()?;
+                            init_bridge_account__ = map_.next_value()?;
                         }
-                        GeneratedField::BridgeLockFees => {
-                            if bridge_lock_fees__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeLockFees"));
+                        GeneratedField::BridgeLock => {
+                            if bridge_lock__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeLock"));
                             }
-                            bridge_lock_fees__ = map_.next_value()?;
+                            bridge_lock__ = map_.next_value()?;
                         }
-                        GeneratedField::BridgeUnlockFees => {
-                            if bridge_unlock_fees__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeUnlockFees"));
+                        GeneratedField::BridgeUnlock => {
+                            if bridge_unlock__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeUnlock"));
                             }
-                            bridge_unlock_fees__ = map_.next_value()?;
+                            bridge_unlock__ = map_.next_value()?;
                         }
-                        GeneratedField::BridgeSudoChangeFees => {
-                            if bridge_sudo_change_fees__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeSudoChangeFees"));
+                        GeneratedField::BridgeSudoChange => {
+                            if bridge_sudo_change__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeSudoChange"));
                             }
-                            bridge_sudo_change_fees__ = map_.next_value()?;
+                            bridge_sudo_change__ = map_.next_value()?;
+                        }
+                        GeneratedField::IbcRelay => {
+                            if ibc_relay__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ibcRelay"));
+                            }
+                            ibc_relay__ = map_.next_value()?;
+                        }
+                        GeneratedField::ValidatorUpdate => {
+                            if validator_update__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("validatorUpdate"));
+                            }
+                            validator_update__ = map_.next_value()?;
+                        }
+                        GeneratedField::FeeAssetChange => {
+                            if fee_asset_change__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeAssetChange"));
+                            }
+                            fee_asset_change__ = map_.next_value()?;
+                        }
+                        GeneratedField::FeeChange => {
+                            if fee_change__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeChange"));
+                            }
+                            fee_change__ = map_.next_value()?;
+                        }
+                        GeneratedField::IbcRelayerChange => {
+                            if ibc_relayer_change__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ibcRelayerChange"));
+                            }
+                            ibc_relayer_change__ = map_.next_value()?;
+                        }
+                        GeneratedField::SudoAddressChange => {
+                            if sudo_address_change__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sudoAddressChange"));
+                            }
+                            sudo_address_change__ = map_.next_value()?;
+                        }
+                        GeneratedField::IbcSudoChange => {
+                            if ibc_sudo_change__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ibcSudoChange"));
+                            }
+                            ibc_sudo_change__ = map_.next_value()?;
                         }
                     }
                 }
                 Ok(GenesisFees {
-                    transfer_fees: transfer_fees__,
-                    sequence_fees: sequence_fees__,
-                    ics20_withdrawal_fees: ics20_withdrawal_fees__,
-                    init_bridge_account_fees: init_bridge_account_fees__,
-                    bridge_lock_fees: bridge_lock_fees__,
-                    bridge_unlock_fees: bridge_unlock_fees__,
-                    bridge_sudo_change_fees: bridge_sudo_change_fees__,
+                    transfer: transfer__,
+                    sequence: sequence__,
+                    ics20_withdrawal: ics20_withdrawal__,
+                    init_bridge_account: init_bridge_account__,
+                    bridge_lock: bridge_lock__,
+                    bridge_unlock: bridge_unlock__,
+                    bridge_sudo_change: bridge_sudo_change__,
+                    ibc_relay: ibc_relay__,
+                    validator_update: validator_update__,
+                    fee_asset_change: fee_asset_change__,
+                    fee_change: fee_change__,
+                    ibc_relayer_change: ibc_relayer_change__,
+                    sudo_address_change: sudo_address_change__,
+                    ibc_sudo_change: ibc_sudo_change__,
                 })
             }
         }

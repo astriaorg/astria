@@ -1,17 +1,6 @@
 use std::sync::Arc;
 
-use astria_core::protocol::{
-    genesis::v1alpha1::GenesisAppState,
-    transaction::v1alpha1::action::{
-        BridgeLockFeeComponents,
-        BridgeSudoChangeFeeComponents,
-        BridgeUnlockFeeComponents,
-        Ics20WithdrawalFeeComponents,
-        InitBridgeAccountFeeComponents,
-        SequenceFeeComponents,
-        TransferFeeComponents,
-    },
-};
+use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
 use astria_eyre::eyre::{
     Result,
     WrapErr as _,
@@ -39,82 +28,75 @@ impl Component for FeesComponent {
     where
         S: fees::StateWriteExt + fees::StateReadExt,
     {
-        let transfer_fees = TransferFeeComponents {
-            base_fee: app_state.genesis_fees().transfer_fees.base_fee,
-            computed_cost_multiplier: app_state
-                .genesis_fees()
-                .transfer_fees
-                .computed_cost_multiplier,
-        };
+        let transfer_fees = app_state.fees().transfer;
         state
             .put_transfer_fees(transfer_fees)
             .wrap_err("failed to initiate transfer fee components")?;
 
-        let sequence_fees = SequenceFeeComponents {
-            base_fee: app_state.genesis_fees().sequence_fees.base_fee,
-            computed_cost_multiplier: app_state
-                .genesis_fees()
-                .sequence_fees
-                .computed_cost_multiplier,
-        };
+        let sequence_fees = app_state.fees().sequence;
         state
             .put_sequence_fees(sequence_fees)
             .wrap_err("failed to initiate sequence action fee components")?;
 
-        let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
-            base_fee: app_state.genesis_fees().ics20_withdrawal_fees.base_fee,
-            computed_cost_multiplier: app_state
-                .genesis_fees()
-                .ics20_withdrawal_fees
-                .computed_cost_multiplier,
-        };
+        let ics20_withdrawal_fees = app_state.fees().ics20_withdrawal;
         state
             .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
             .wrap_err("failed to initiate ics20 withdrawal fee components")?;
 
-        let init_bridge_account_fees = InitBridgeAccountFeeComponents {
-            base_fee: app_state.genesis_fees().init_bridge_account_fees.base_fee,
-            computed_cost_multiplier: app_state
-                .genesis_fees()
-                .init_bridge_account_fees
-                .computed_cost_multiplier,
-        };
+        let init_bridge_account_fees = app_state.fees().init_bridge_account;
         state
             .put_init_bridge_account_fees(init_bridge_account_fees)
             .wrap_err("failed to initiate init bridge account fee components")?;
 
-        let bridge_lock_fees = BridgeLockFeeComponents {
-            base_fee: app_state.genesis_fees().bridge_lock_fees.base_fee,
-            computed_cost_multiplier: app_state
-                .genesis_fees()
-                .bridge_lock_fees
-                .computed_cost_multiplier,
-        };
+        let bridge_lock_fees = app_state.fees().bridge_lock;
         state
             .put_bridge_lock_fees(bridge_lock_fees)
             .wrap_err("failed to initiate bridge lock fee components")?;
 
-        let bridge_unlock_fees = BridgeUnlockFeeComponents {
-            base_fee: app_state.genesis_fees().bridge_unlock_fees.base_fee,
-            computed_cost_multiplier: app_state
-                .genesis_fees()
-                .bridge_unlock_fees
-                .computed_cost_multiplier,
-        };
+        let bridge_unlock_fees = app_state.fees().bridge_unlock;
         state
             .put_bridge_unlock_fees(bridge_unlock_fees)
             .wrap_err("failed to initiate bridge unlock fee components")?;
 
-        let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
-            base_fee: app_state.genesis_fees().bridge_sudo_change_fees.base_fee,
-            computed_cost_multiplier: app_state
-                .genesis_fees()
-                .bridge_sudo_change_fees
-                .computed_cost_multiplier,
-        };
+        let bridge_sudo_change_fees = app_state.fees().bridge_sudo_change;
         state
             .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
             .wrap_err("failed to initiate bridge sudo change fee components")?;
+
+        let ibc_relay_fees = app_state.fees().ibc_relay;
+        state
+            .put_ibc_relay_fees(ibc_relay_fees)
+            .wrap_err("failed to initiate ibc relay fee components")?;
+
+        let validator_update_fees = app_state.fees().validator_update;
+        state
+            .put_validator_update_fees(validator_update_fees)
+            .wrap_err("failed to initiate validator update fee components")?;
+
+        let fee_asset_change_fees = app_state.fees().fee_asset_change;
+        state
+            .put_fee_asset_change_fees(fee_asset_change_fees)
+            .wrap_err("failed to initiate fee asset change fee components")?;
+
+        let fee_change_fees = app_state.fees().fee_change;
+        state
+            .put_fee_change_fees(fee_change_fees)
+            .wrap_err("failed to initiate fee change fee components")?;
+
+        let ibc_relayer_change_fees = app_state.fees().ibc_relayer_change;
+        state
+            .put_ibc_relayer_change_fees(ibc_relayer_change_fees)
+            .wrap_err("failed to initiate ibc relayer change fee components")?;
+
+        let sudo_address_change_fees = app_state.fees().sudo_address_change;
+        state
+            .put_sudo_address_change_fees(sudo_address_change_fees)
+            .wrap_err("failed to initiate sudo address change fee components")?;
+
+        let ibc_sudo_change_fees = app_state.fees().ibc_sudo_change;
+        state
+            .put_ibc_sudo_change_fees(ibc_sudo_change_fees)
+            .wrap_err("failed to initiate ibc sudo change fee components")?;
 
         Ok(())
     }
