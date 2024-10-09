@@ -93,7 +93,7 @@ fn sequence_actions() -> Vec<Arc<Transaction>> {
                 .chain_id(chain_id.as_str())
                 .try_build()
                 .expect("failed to build transaction from actions")
-                .into_signed(signing_key);
+                .sign(signing_key);
             Arc::new(tx)
         })
         .take(SEQUENCE_ACTION_TX_COUNT)
@@ -122,7 +122,7 @@ fn transfers() -> Vec<Arc<Transaction>> {
                 .chain_id("test")
                 .try_build()
                 .expect("failed to build transaction from actions")
-                .into_signed(sender);
+                .sign(sender);
             Arc::new(tx)
         })
         .collect()

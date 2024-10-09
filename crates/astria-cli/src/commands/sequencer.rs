@@ -480,7 +480,7 @@ async fn submit_transaction(
         .chain_id(chain_id)
         .try_build()
         .wrap_err("failed to build transaction from actions")?
-        .into_signed(&sequencer_key);
+        .sign(&sequencer_key);
     let res = sequencer_client
         .submit_transaction_sync(tx)
         .await
