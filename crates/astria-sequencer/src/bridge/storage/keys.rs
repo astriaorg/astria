@@ -66,9 +66,8 @@ pub(in crate::bridge) fn bridge_account_withdrawal_event<T: AddressBytes>(
 
 pub(in crate::bridge) fn deposit(block_hash: &[u8; 32], rollup_id: &RollupId) -> String {
     format!(
-        "{DEPOSIT_PREFIX}{}/{}",
+        "{DEPOSIT_PREFIX}{}/{rollup_id}",
         Base64Display::new(block_hash, &URL_SAFE),
-        Base64Display::new(rollup_id.as_ref(), &URL_SAFE)
     )
 }
 

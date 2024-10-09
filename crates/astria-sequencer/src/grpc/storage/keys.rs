@@ -17,9 +17,8 @@ pub(in crate::grpc) fn rollup_data_by_hash_and_rollup_id(
     rollup_id: &RollupId,
 ) -> String {
     format!(
-        "grpc/rollup_data/{}/{}",
+        "grpc/rollup_data/{}/{rollup_id}",
         Base64Display::new(hash, &URL_SAFE),
-        Base64Display::new(rollup_id.as_ref(), &URL_SAFE)
     )
 }
 
