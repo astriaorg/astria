@@ -698,7 +698,6 @@ dependencies = [
  "base64 0.21.7",
  "base64-serde",
  "bech32 0.11.0",
- "borsh",
  "brotli",
  "bytes",
  "celestia-tendermint",

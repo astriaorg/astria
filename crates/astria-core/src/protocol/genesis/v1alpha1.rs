@@ -1,9 +1,5 @@
 use std::convert::Infallible;
 
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
 pub use penumbra_ibc::params::IBCParameters;
 
 use crate::{
@@ -26,7 +22,7 @@ use crate::{
         BridgeUnlockFeeComponents,
         FeeAssetChangeFeeComponents,
         FeeChangeFeeComponents,
-        FeeComponentsError,
+        FeeComponentError,
         IbcRelayFeeComponents,
         IbcRelayerChangeFeeComponents,
         IbcSudoChangeFeeComponents,
@@ -562,7 +558,7 @@ impl From<raw::IbcParameters> for IBCParameters {
     }
 }
 
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Debug)]
 pub struct GenesisFees {
     pub sequence: SequenceFeeComponents,
     pub transfer: TransferFeeComponents,
@@ -751,7 +747,7 @@ impl FeesError {
         })
     }
 
-    fn fee_components_converion(err: FeeComponentsError) -> Self {
+    fn fee_components_converion(err: FeeComponentError) -> Self {
         Self(FeesErrorKind::FeeComponentsConversion(err))
     }
 }
@@ -762,7 +758,7 @@ enum FeesErrorKind {
     #[error("field was not set: `{name}`")]
     FieldNotSet { name: &'static str },
     #[error("conversion of fee components failed")]
-    FeeComponentsConversion(#[source] FeeComponentsError),
+    FeeComponentsConversion(#[source] FeeComponentError),
 }
 #[cfg(test)]
 mod tests {

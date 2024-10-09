@@ -1,7 +1,3 @@
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
 use bytes::Bytes;
 use ibc_types::{
     core::{
@@ -11,6 +7,7 @@ use ibc_types::{
     IdentifierError,
 };
 use penumbra_ibc::IbcRelay;
+use prost::Name as _;
 
 use super::raw;
 use crate::{
@@ -30,7 +27,7 @@ use crate::{
         BridgeUnlockFeeComponents,
         FeeAssetChangeFeeComponents,
         FeeChangeFeeComponents,
-        FeeComponentsError,
+        FeeComponentError,
         IbcRelayFeeComponents,
         IbcRelayerChangeFeeComponents,
         IbcSudoChangeFeeComponents,
@@ -374,7 +371,7 @@ impl Error {
         Self(ActionErrorKind::BridgeSudoChange(inner))
     }
 
-    fn fee_change(inner: FeeComponentsError) -> Self {
+    fn fee_change(inner: FeeChangeError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
 }
@@ -410,7 +407,7 @@ enum ActionErrorKind {
     #[error("bridge sudo change action was not valid")]
     BridgeSudoChange(#[source] BridgeSudoChangeError),
     #[error("fee change action was not valid")]
-    FeeChange(#[source] FeeComponentsError),
+    FeeChange(#[source] FeeChangeError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1910,77 +1907,105 @@ enum BridgeSudoChangeErrorKind {
     InvalidFeeAsset(#[source] asset::ParseDenomError),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, BorshSerialize, BorshDeserialize)]
-pub enum FeeComponents {
-    TransferFeeComponents(TransferFeeComponents),
-    SequenceFeeComponents(SequenceFeeComponents),
-    Ics20WithdrawalFeeComponents(Ics20WithdrawalFeeComponents),
-    InitBridgeAccountFeeComponents(InitBridgeAccountFeeComponents),
-    BridgeLockFeeComponents(BridgeLockFeeComponents),
-    BridgeUnlockFeeComponents(BridgeUnlockFeeComponents),
-    BridgeSudoChangeFeeComponents(BridgeSudoChangeFeeComponents),
-    IbcRelayFeeComponents(IbcRelayFeeComponents),
-    ValidatorUpdateFeeComponents(ValidatorUpdateFeeComponents),
-    FeeAssetChangeFeeComponents(FeeAssetChangeFeeComponents),
-    FeeChangeFeeComponents(FeeChangeFeeComponents),
-    IbcRelayerChangeFeeComponents(IbcRelayerChangeFeeComponents),
-    SudoAddressChangeFeeComponents(SudoAddressChangeFeeComponents),
-    IbcSudoChangeFeeComponents(IbcSudoChangeFeeComponents),
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct FeeChangeError(FeeChangeErrorKind);
+
+impl FeeChangeError {
+    fn field_unset(name: &'static str) -> Self {
+        Self(FeeChangeErrorKind::FieldUnset {
+            name,
+        })
+    }
+}
+
+impl From<FeeComponentError> for FeeChangeError {
+    fn from(source: FeeComponentError) -> Self {
+        Self(FeeChangeErrorKind::FeeComponent {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed to validate on-wire type `{}`", raw::FeeChange::full_name())]
+enum FeeChangeErrorKind {
+    FeeComponent {
+        // NOTE: the name of the fee change variant is not specified because it is included in
+        // the source FeeComponentError.
+        #[from]
+        source: FeeComponentError,
+    },
+    #[error("field {name} was not set")]
+    FieldUnset { name: &'static str },
 }
 
 #[derive(Debug, Clone)]
-pub struct FeeChange {
-    pub fee_change: FeeComponents,
+pub enum FeeChange {
+    TransferFee(TransferFeeComponents),
+    SequenceFee(SequenceFeeComponents),
+    Ics20WithdrawalFee(Ics20WithdrawalFeeComponents),
+    InitBridgeAccountFee(InitBridgeAccountFeeComponents),
+    BridgeLockFee(BridgeLockFeeComponents),
+    BridgeUnlockFee(BridgeUnlockFeeComponents),
+    BridgeSudoChangeFee(BridgeSudoChangeFeeComponents),
+    IbcRelayFee(IbcRelayFeeComponents),
+    ValidatorUpdateFee(ValidatorUpdateFeeComponents),
+    FeeAssetChangeFee(FeeAssetChangeFeeComponents),
+    FeeChangeFee(FeeChangeFeeComponents),
+    IbcRelayerChangeFee(IbcRelayerChangeFeeComponents),
+    SudoAddressChangeFee(SudoAddressChangeFeeComponents),
+    IbcSudoChangeFee(IbcSudoChangeFeeComponents),
 }
 
 impl Protobuf for FeeChange {
-    type Error = FeeComponentsError;
+    type Error = FeeChangeError;
     type Raw = raw::FeeChange;
 
     #[must_use]
     fn to_raw(&self) -> raw::FeeChange {
         raw::FeeChange {
-            fee_components: Some(match &self.fee_change {
-                FeeComponents::TransferFeeComponents(fee_change) => {
+            fee_components: Some(match &self {
+                Self::TransferFee(fee_change) => {
                     raw::fee_change::FeeComponents::TransferFees(fee_change.to_raw())
                 }
-                FeeComponents::SequenceFeeComponents(fee_change) => {
+                Self::SequenceFee(fee_change) => {
                     raw::fee_change::FeeComponents::SequenceFees(fee_change.to_raw())
                 }
-                FeeComponents::Ics20WithdrawalFeeComponents(fee_change) => {
+                Self::Ics20WithdrawalFee(fee_change) => {
                     raw::fee_change::FeeComponents::Ics20WithdrawalFees(fee_change.to_raw())
                 }
-                FeeComponents::InitBridgeAccountFeeComponents(fee_change) => {
+                Self::InitBridgeAccountFee(fee_change) => {
                     raw::fee_change::FeeComponents::InitBridgeAccountFees(fee_change.to_raw())
                 }
-                FeeComponents::BridgeLockFeeComponents(fee_change) => {
+                Self::BridgeLockFee(fee_change) => {
                     raw::fee_change::FeeComponents::BridgeLockFees(fee_change.to_raw())
                 }
-                FeeComponents::BridgeUnlockFeeComponents(fee_change) => {
+                Self::BridgeUnlockFee(fee_change) => {
                     raw::fee_change::FeeComponents::BridgeUnlockFees(fee_change.to_raw())
                 }
-                FeeComponents::BridgeSudoChangeFeeComponents(fee_change) => {
+                Self::BridgeSudoChangeFee(fee_change) => {
                     raw::fee_change::FeeComponents::BridgeSudoChangeFees(fee_change.to_raw())
                 }
-                FeeComponents::IbcRelayFeeComponents(fee_change) => {
+                Self::IbcRelayFee(fee_change) => {
                     raw::fee_change::FeeComponents::IbcRelayFees(fee_change.to_raw())
                 }
-                FeeComponents::ValidatorUpdateFeeComponents(fee_change) => {
+                Self::ValidatorUpdateFee(fee_change) => {
                     raw::fee_change::FeeComponents::ValidatorUpdateFees(fee_change.to_raw())
                 }
-                FeeComponents::FeeAssetChangeFeeComponents(fee_change) => {
+                Self::FeeAssetChangeFee(fee_change) => {
                     raw::fee_change::FeeComponents::FeeAssetChangeFees(fee_change.to_raw())
                 }
-                FeeComponents::FeeChangeFeeComponents(fee_change) => {
+                Self::FeeChangeFee(fee_change) => {
                     raw::fee_change::FeeComponents::FeeChangeFees(fee_change.to_raw())
                 }
-                FeeComponents::IbcRelayerChangeFeeComponents(fee_change) => {
+                Self::IbcRelayerChangeFee(fee_change) => {
                     raw::fee_change::FeeComponents::IbcRelayerChangeFees(fee_change.to_raw())
                 }
-                FeeComponents::SudoAddressChangeFeeComponents(fee_change) => {
+                Self::SudoAddressChangeFee(fee_change) => {
                     raw::fee_change::FeeComponents::SudoAddressChangeFees(fee_change.to_raw())
                 }
-                FeeComponents::IbcSudoChangeFeeComponents(fee_change) => {
+                Self::IbcSudoChangeFee(fee_change) => {
                     raw::fee_change::FeeComponents::IbcSudoChangeFees(fee_change.to_raw())
                 }
             }),
@@ -1993,83 +2018,63 @@ impl Protobuf for FeeChange {
     ///
     /// - if the fee change `value` field is missing
     /// - if the `new_value` field is missing
-    fn try_from_raw_ref(proto: &raw::FeeChange) -> Result<Self, FeeComponentsError> {
-        let fee_change = match &proto.fee_components {
+    fn try_from_raw_ref(proto: &raw::FeeChange) -> Result<Self, Self::Error> {
+        Ok(match &proto.fee_components {
             Some(raw::fee_change::FeeComponents::TransferFees(fee_change)) => {
-                FeeComponents::TransferFeeComponents(TransferFeeComponents::try_from_raw_ref(
-                    fee_change,
-                )?)
+                Self::TransferFee(TransferFeeComponents::try_from_raw_ref(fee_change)?)
             }
             Some(raw::fee_change::FeeComponents::SequenceFees(fee_change)) => {
-                FeeComponents::SequenceFeeComponents(SequenceFeeComponents::try_from_raw_ref(
-                    fee_change,
-                )?)
+                Self::SequenceFee(SequenceFeeComponents::try_from_raw_ref(fee_change)?)
             }
             Some(raw::fee_change::FeeComponents::Ics20WithdrawalFees(fee_change)) => {
-                FeeComponents::Ics20WithdrawalFeeComponents(
-                    Ics20WithdrawalFeeComponents::try_from_raw_ref(fee_change)?,
-                )
+                Self::Ics20WithdrawalFee(Ics20WithdrawalFeeComponents::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
             Some(raw::fee_change::FeeComponents::InitBridgeAccountFees(fee_change)) => {
-                FeeComponents::InitBridgeAccountFeeComponents(
-                    InitBridgeAccountFeeComponents::try_from_raw_ref(fee_change)?,
-                )
+                Self::InitBridgeAccountFee(InitBridgeAccountFeeComponents::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
             Some(raw::fee_change::FeeComponents::BridgeLockFees(fee_change)) => {
-                FeeComponents::BridgeLockFeeComponents(BridgeLockFeeComponents::try_from_raw_ref(
-                    fee_change,
-                )?)
+                Self::BridgeLockFee(BridgeLockFeeComponents::try_from_raw_ref(fee_change)?)
             }
             Some(raw::fee_change::FeeComponents::BridgeUnlockFees(fee_change)) => {
-                FeeComponents::BridgeUnlockFeeComponents(
-                    BridgeUnlockFeeComponents::try_from_raw_ref(fee_change)?,
-                )
+                Self::BridgeUnlockFee(BridgeUnlockFeeComponents::try_from_raw_ref(fee_change)?)
             }
             Some(raw::fee_change::FeeComponents::BridgeSudoChangeFees(fee_change)) => {
-                FeeComponents::BridgeSudoChangeFeeComponents(
-                    BridgeSudoChangeFeeComponents::try_from_raw_ref(fee_change)?,
-                )
+                Self::BridgeSudoChangeFee(BridgeSudoChangeFeeComponents::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
             Some(raw::fee_change::FeeComponents::IbcRelayFees(fee_change)) => {
-                FeeComponents::IbcRelayFeeComponents(IbcRelayFeeComponents::try_from_raw_ref(
-                    fee_change,
-                )?)
+                Self::IbcRelayFee(IbcRelayFeeComponents::try_from_raw_ref(fee_change)?)
             }
             Some(raw::fee_change::FeeComponents::ValidatorUpdateFees(fee_change)) => {
-                FeeComponents::ValidatorUpdateFeeComponents(
-                    ValidatorUpdateFeeComponents::try_from_raw_ref(fee_change)?,
-                )
-            }
-            Some(raw::fee_change::FeeComponents::FeeAssetChangeFees(fee_change)) => {
-                FeeComponents::FeeAssetChangeFeeComponents(
-                    FeeAssetChangeFeeComponents::try_from_raw_ref(fee_change)?,
-                )
-            }
-            Some(raw::fee_change::FeeComponents::FeeChangeFees(fee_change)) => {
-                FeeComponents::FeeChangeFeeComponents(FeeChangeFeeComponents::try_from_raw_ref(
+                Self::ValidatorUpdateFee(ValidatorUpdateFeeComponents::try_from_raw_ref(
                     fee_change,
                 )?)
             }
+            Some(raw::fee_change::FeeComponents::FeeAssetChangeFees(fee_change)) => {
+                Self::FeeAssetChangeFee(FeeAssetChangeFeeComponents::try_from_raw_ref(fee_change)?)
+            }
+            Some(raw::fee_change::FeeComponents::FeeChangeFees(fee_change)) => {
+                Self::FeeChangeFee(FeeChangeFeeComponents::try_from_raw_ref(fee_change)?)
+            }
             Some(raw::fee_change::FeeComponents::IbcRelayerChangeFees(fee_change)) => {
-                FeeComponents::IbcRelayerChangeFeeComponents(
-                    IbcRelayerChangeFeeComponents::try_from_raw_ref(fee_change)?,
-                )
+                Self::IbcRelayerChangeFee(IbcRelayerChangeFeeComponents::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
             Some(raw::fee_change::FeeComponents::SudoAddressChangeFees(fee_change)) => {
-                FeeComponents::SudoAddressChangeFeeComponents(
-                    SudoAddressChangeFeeComponents::try_from_raw_ref(fee_change)?,
-                )
+                Self::SudoAddressChangeFee(SudoAddressChangeFeeComponents::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
             Some(raw::fee_change::FeeComponents::IbcSudoChangeFees(fee_change)) => {
-                FeeComponents::IbcSudoChangeFeeComponents(
-                    IbcSudoChangeFeeComponents::try_from_raw_ref(fee_change)?,
-                )
+                Self::IbcSudoChangeFee(IbcSudoChangeFeeComponents::try_from_raw_ref(fee_change)?)
             }
-            None => return Err(FeeComponentsError::missing_value_to_change()),
-        };
-
-        Ok(Self {
-            fee_change,
+            None => return Err(FeeChangeError::field_unset("fee_components")),
         })
     }
 }
