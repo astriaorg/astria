@@ -12,9 +12,9 @@ use astria_core::{
         genesis::v1alpha1::Account,
         transaction::v1alpha1::{
             action::{
-                SudoAddressChange,
                 BridgeLock,
                 Sequence,
+                SudoAddressChange,
                 Transfer,
             },
             UnsignedTransaction,
@@ -750,7 +750,7 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
     let alice = get_alice_signing_key();
     let tx_pass = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 200_000]),
                 fee_asset: nria().into(),
@@ -763,7 +763,7 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
         .into_signed(&alice);
     let tx_overflow = UnsignedTransaction::builder()
         .actions(vec![
-            SequenceAction {
+            Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
@@ -816,7 +816,7 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
     let alice = get_alice_signing_key();
     let tx_fail = UnsignedTransaction::builder()
         .actions(vec![
-            SudoAddressChangeAction {
+            SudoAddressChange {
                 new_address: astria_address_from_hex_string(BOB_ADDRESS),
             }
             .into(),

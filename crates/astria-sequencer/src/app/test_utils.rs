@@ -20,10 +20,10 @@ use astria_core::{
         },
         transaction::v1alpha1::{
             action::{
-                FeeAssetChangeAction,
-                InitBridgeAccountAction,
-                SudoAddressChangeAction,
+                FeeAssetChange,
+                InitBridgeAccount,
                 Sequence,
+                SudoAddressChange,
                 ValidatorUpdate,
             },
             action_group::ActionGroup,
@@ -318,13 +318,13 @@ impl MockTxBuilder {
 
     pub(crate) fn build(self) -> Arc<SignedTransaction> {
         let action: Action = match self.group {
-            ActionGroup::BundleableGeneral => SequenceAction {
+            ActionGroup::BundleableGeneral => Sequence {
                 rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
                 data: Bytes::from_static(&[0x99]),
                 fee_asset: denom_0(),
             }
             .into(),
-            ActionGroup::UnbundleableGeneral => InitBridgeAccountAction {
+            ActionGroup::UnbundleableGeneral => InitBridgeAccount {
                 rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
                 asset: denom_0(),
                 fee_asset: denom_0(),
@@ -332,8 +332,8 @@ impl MockTxBuilder {
                 withdrawer_address: None,
             }
             .into(),
-            ActionGroup::BundleableSudo => FeeAssetChangeAction::Addition(denom_0()).into(),
-            ActionGroup::UnbundleableSudo => SudoAddressChangeAction {
+            ActionGroup::BundleableSudo => FeeAssetChange::Addition(denom_0()).into(),
+            ActionGroup::UnbundleableSudo => SudoAddressChange {
                 new_address: astria_address_from_hex_string(JUDY_ADDRESS),
             }
             .into(),
