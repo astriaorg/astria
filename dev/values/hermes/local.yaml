@@ -60,7 +60,7 @@ chains:
         address_type: Cosmos
         account: noble1ps8xfz0yjndk7vsk39jufsf7l0dz2phwugrt6z
       secret:
-        resourceName: projects/$PROJECT_ID/secrets/celestia-ibc-relay-key/versions/latest
+        resourceName: projects/$PROJECT_ID/secrets/noble-ibc-relay-key/versions/latest
         filename: noble.json
         key: token
     eventSource:
