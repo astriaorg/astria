@@ -8,7 +8,7 @@ use std::{
 
 use base64::{
     display::Base64Display,
-    prelude::BASE64_STANDARD,
+    prelude::BASE64_URL_SAFE,
 };
 use bytes::Bytes;
 use sha2::{
@@ -231,7 +231,7 @@ impl From<&RollupId> for RollupId {
 
 impl std::fmt::Display for RollupId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Base64Display::new(self.as_ref(), &BASE64_STANDARD).fmt(f)
+        Base64Display::new(self.as_ref(), &BASE64_URL_SAFE).fmt(f)
     }
 }
 

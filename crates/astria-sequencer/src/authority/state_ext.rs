@@ -17,7 +17,10 @@ use cnidarium::{
 use tracing::instrument;
 
 use super::{
-    storage,
+    storage::{
+        self,
+        keys,
+    },
     ValidatorSet,
 };
 use crate::{
@@ -25,16 +28,12 @@ use crate::{
     storage::StoredValue,
 };
 
-const SUDO_STORAGE_KEY: &str = "sudo";
-const VALIDATOR_SET_STORAGE_KEY: &str = "valset";
-const VALIDATOR_UPDATES_KEY: &[u8] = b"valupdates";
-
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
-            .get_raw(SUDO_STORAGE_KEY)
+            .get_raw(keys::SUDO)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sudo key from state")?
@@ -50,7 +49,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_validator_set(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
-            .get_raw(VALIDATOR_SET_STORAGE_KEY)
+            .get_raw(keys::VALIDATOR_SET)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator set from state")?
@@ -66,7 +65,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_validator_updates(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(VALIDATOR_UPDATES_KEY)
+            .nonverifiable_get_raw(keys::VALIDATOR_UPDATES.as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator updates from state")?
@@ -89,7 +88,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::AddressBytes::from(&address))
             .serialize()
             .wrap_err("failed to serialize sudo address")?;
-        self.put_raw(SUDO_STORAGE_KEY.to_string(), bytes);
+        self.put_raw(keys::SUDO.to_string(), bytes);
         Ok(())
     }
 
@@ -98,7 +97,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_set))
             .serialize()
             .wrap_err("failed to serialize validator set")?;
-        self.put_raw(VALIDATOR_SET_STORAGE_KEY.to_string(), bytes);
+        self.put_raw(keys::VALIDATOR_SET.to_string(), bytes);
         Ok(())
     }
 
@@ -107,13 +106,13 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_updates))
             .serialize()
             .wrap_err("failed to serialize validator updates")?;
-        self.nonverifiable_put_raw(VALIDATOR_UPDATES_KEY.to_vec(), bytes);
+        self.nonverifiable_put_raw(keys::VALIDATOR_UPDATES.into(), bytes);
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn clear_validator_updates(&mut self) {
-        self.nonverifiable_delete(VALIDATOR_UPDATES_KEY.to_vec());
+        self.nonverifiable_delete(keys::VALIDATOR_UPDATES.into());
     }
 }
 
@@ -121,19 +120,12 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use astria_core::{
-        primitive::v1::ADDRESS_LEN,
-        protocol::transaction::v1alpha1::action::ValidatorUpdate,
-    };
+    use astria_core::protocol::transaction::v1alpha1::action::ValidatorUpdate;
     use cnidarium::StateDelta;
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
     use crate::{
         address::StateWriteExt as _,
-        authority::ValidatorSet,
         test_utils::{
             verification_key,
             ASTRIA_PREFIX,

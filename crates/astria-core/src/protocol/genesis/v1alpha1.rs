@@ -580,7 +580,10 @@ impl Protobuf for GenesisFees {
     type Error = FeesError;
     type Raw = raw::GenesisFees;
 
-    #[expect(clippy::too_many_lines, reason = "barring use of a macro, all lines are necessary")]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "barring use of a macro, all lines are necessary"
+    )]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
             sequence,
