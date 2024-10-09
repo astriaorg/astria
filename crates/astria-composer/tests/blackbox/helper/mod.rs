@@ -29,6 +29,7 @@ use astria_core::{
 };
 use astria_eyre::eyre;
 use ethers::prelude::Transaction;
+use mock_grpc_sequencer::MockGrpcSequencer;
 use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tendermint_rpc::{
@@ -48,7 +49,8 @@ use wiremock::{
     ResponseTemplate,
 };
 
-pub mod mock_sequencer;
+pub mod mock_grpc_sequencer;
+pub mod mock_http_sequencer;
 
 static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
@@ -56,7 +58,8 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     let config = Config {
         log: String::new(),
         api_listen_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
-        sequencer_url: String::new(),
+        sequencer_http_url: String::new(),
+        sequencer_grpc_url: String::new(),
         sequencer_chain_id: String::new(),
         rollups: String::new(),
         private_key_file: String::new(),
@@ -96,7 +99,7 @@ pub struct TestComposer {
     pub composer: JoinHandle<eyre::Result<()>>,
     pub rollup_nodes: HashMap<String, Geth>,
     pub sequencer: wiremock::MockServer,
-    pub setup_guard: MockGuard,
+    pub sequencer_mock: MockGrpcSequencer,
     pub grpc_collector_addr: SocketAddr,
     pub metrics_handle: metrics::Handle,
 }
@@ -117,7 +120,8 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
     }
-    let (sequencer, sequencer_setup_guard) = mock_sequencer::start().await;
+    let sequencer = mock_http_sequencer::start().await;
+    let grpc_server = mock_grpc_sequencer::MockGrpcSequencer::spawn().await;
     let sequencer_url = sequencer.uri();
     let keyfile = NamedTempFile::new().unwrap();
     (&keyfile)
@@ -128,7 +132,8 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
         sequencer_chain_id: "test-chain-1".to_string(),
         rollups,
-        sequencer_url,
+        sequencer_http_url: sequencer_url.to_string(),
+        sequencer_grpc_url: format!("http://{}", grpc_server.local_addr),
         private_key_file: keyfile.path().to_string_lossy().to_string(),
         sequencer_address_prefix: "astria".into(),
         block_time_ms: 2000,
@@ -149,6 +154,11 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         .unwrap();
     let metrics = Box::leak(Box::new(metrics));
 
+    // prepare get nonce response
+    grpc_server
+        .mount_pending_nonce_response(0, "startup::wait_for_mempool()")
+        .await;
+
     let (composer_addr, grpc_collector_addr, composer_handle) = {
         let composer = Composer::from_config(&config, metrics).await.unwrap();
         let composer_addr = composer.local_addr();
@@ -163,7 +173,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         composer: composer_handle,
         rollup_nodes,
         sequencer,
-        setup_guard: sequencer_setup_guard,
+        sequencer_mock: grpc_server,
         grpc_collector_addr,
         metrics_handle,
     }

@@ -12,6 +12,13 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
+    generated::sequencerblock::v1alpha1::{
+        sequencer_service_client::{
+            self,
+            SequencerServiceClient,
+        },
+        GetPendingNonceRequest,
+    },
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
@@ -64,6 +71,7 @@ use tokio::{
     },
 };
 use tokio_util::sync::CancellationToken;
+use tonic::transport::Channel;
 use tracing::{
     debug,
     error,
@@ -122,8 +130,10 @@ pub(super) struct Executor {
     // Channel for receiving `SequenceAction`s to be bundled.
     serialized_rollup_transactions: mpsc::Receiver<Sequence>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
-    // sequencer.
-    sequencer_client: sequencer_client::HttpClient,
+    // sequencer via the cometbft client.
+    sequencer_http_client: sequencer_client::HttpClient,
+    // The grpc client for grabbing the latest nonce from.
+    sequencer_grpc_client: sequencer_service_client::SequencerServiceClient<Channel>,
     // The chain id used for submission of transactions to the sequencer.
     sequencer_chain_id: String,
     // Private key used to sign sequencer transactions
@@ -197,7 +207,8 @@ impl Executor {
         metrics: &'static Metrics,
     ) -> Fuse<Instrumented<SubmitFut>> {
         SubmitFut {
-            client: self.sequencer_client.clone(),
+            sequencer_http_client: self.sequencer_http_client.clone(),
+            sequencer_grpc_client: self.sequencer_grpc_client.clone(),
             address: self.address,
             nonce,
             chain_id: self.sequencer_chain_id.clone(),
@@ -332,9 +343,13 @@ impl Executor {
         self.ensure_chain_id_is_correct()
             .await
             .wrap_err("failed to validate chain id")?;
-        let nonce = get_latest_nonce(self.sequencer_client.clone(), self.address, self.metrics)
-            .await
-            .wrap_err("failed getting initial nonce from sequencer")?;
+        let nonce = get_pending_nonce(
+            self.sequencer_grpc_client.clone(),
+            self.address,
+            self.metrics,
+        )
+        .await
+        .wrap_err("failed getting initial nonce from sequencer")?;
         Ok(nonce)
     }
 
@@ -379,7 +394,7 @@ impl Executor {
                 },
             );
         let client_genesis: tendermint::Genesis =
-            tryhard::retry_fn(|| self.sequencer_client.genesis())
+            tryhard::retry_fn(|| self.sequencer_http_client.genesis())
                 .with_config(retry_config)
                 .await?;
         Ok(client_genesis.chain_id)
@@ -460,23 +475,21 @@ impl Executor {
     }
 }
 
-/// Queries the sequencer for the latest nonce with an exponential backoff
-#[instrument(name = "get latest nonce", skip_all, fields(%address), err)]
-async fn get_latest_nonce(
-    client: sequencer_client::HttpClient,
+/// Queries the sequencer for the latest pending nonce with an exponential backoff
+#[instrument(name = "get pending nonce", skip_all, fields(%address), err)]
+async fn get_pending_nonce(
+    client: sequencer_service_client::SequencerServiceClient<Channel>,
     address: Address,
     metrics: &Metrics,
 ) -> eyre::Result<u32> {
-    debug!("fetching latest nonce from sequencer");
+    debug!("fetching pending nonce from sequencing");
     let span = Span::current();
     let start = Instant::now();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
         .exponential_backoff(Duration::from_millis(200))
         .max_delay(Duration::from_secs(60))
         .on_retry(
-            |attempt,
-             next_delay: Option<Duration>,
-             err: &sequencer_client::extension_trait::Error| {
+            |attempt, next_delay: Option<Duration>, err: &tonic::Status| {
                 metrics.increment_nonce_fetch_failure_count();
 
                 let wait_duration = next_delay
@@ -493,14 +506,22 @@ async fn get_latest_nonce(
             },
         );
     let res = tryhard::retry_fn(|| {
-        let client = client.clone();
-        let span = info_span!(parent: span.clone(), "attempt get nonce");
+        let mut client = client.clone();
+        let span = info_span!(parent: span.clone(), "attempt get pending nonce");
         metrics.increment_nonce_fetch_count();
-        async move { client.get_latest_nonce(address).await.map(|rsp| rsp.nonce) }.instrument(span)
+        async move {
+            client
+                .get_pending_nonce(GetPendingNonceRequest {
+                    address: Some(address.into_raw()),
+                })
+                .await
+                .map(|rsp| rsp.into_inner().inner)
+        }
+        .instrument(span)
     })
     .with_config(retry_config)
     .await
-    .wrap_err("failed getting latest nonce from sequencer after 1024 attempts");
+    .wrap_err("failed getting pending nonce from sequencing after 1024 attempts");
 
     metrics.record_nonce_fetch_latency(start.elapsed());
 
@@ -517,7 +538,7 @@ async fn get_latest_nonce(
     err,
 )]
 async fn submit_tx(
-    client: sequencer_client::HttpClient,
+    sequencer_http_client: sequencer_client::HttpClient,
     tx: SignedTransaction,
     metrics: &Metrics,
 ) -> eyre::Result<tx_sync::Response> {
@@ -552,7 +573,7 @@ async fn submit_tx(
             },
         );
     let res = tryhard::retry_fn(|| {
-        let client = client.clone();
+        let client = sequencer_http_client.clone();
         let tx = tx.clone();
         let span = info_span!(parent: span.clone(), "attempt send");
         async move { client.submit_transaction_sync(tx).await }.instrument(span)
@@ -637,7 +658,8 @@ pin_project! {
     /// If the sequencer returned a non-zero abci code (albeit not `INVALID_NONCE`), this future will return with
     /// that nonce it used to submit the non-zero abci code request.
     struct SubmitFut {
-        client: sequencer_client::HttpClient,
+        sequencer_http_client: sequencer_client::HttpClient,
+        sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
         address: Address,
         chain_id: String,
         nonce: u32,
@@ -688,7 +710,8 @@ impl Future for SubmitFut {
                         "submitting transaction to sequencer",
                     );
                     SubmitState::WaitingForSend {
-                        fut: submit_tx(this.client.clone(), tx, self.metrics).boxed(),
+                        fut: submit_tx(this.sequencer_http_client.clone(), tx, self.metrics)
+                            .boxed(),
                     }
                 }
 
@@ -716,8 +739,8 @@ impl Future for SubmitFut {
                                  new nonce"
                             );
                             SubmitState::WaitingForNonce {
-                                fut: get_latest_nonce(
-                                    this.client.clone(),
+                                fut: get_pending_nonce(
+                                    this.sequencer_grpc_client.clone(),
                                     *this.address,
                                     self.metrics,
                                 )
@@ -761,7 +784,8 @@ impl Future for SubmitFut {
                             "resubmitting transaction to sequencer with new nonce",
                         );
                         SubmitState::WaitingForSend {
-                            fut: submit_tx(this.client.clone(), tx, self.metrics).boxed(),
+                            fut: submit_tx(this.sequencer_http_client.clone(), tx, self.metrics)
+                                .boxed(),
                         }
                     }
                     Err(error) => {

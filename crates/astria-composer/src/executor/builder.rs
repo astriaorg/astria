@@ -6,6 +6,7 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
+    generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient,
     primitive::v1::Address,
     protocol::transaction::v1alpha1::action::Sequence,
 };
@@ -14,6 +15,7 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
+use http::Uri;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
@@ -24,7 +26,8 @@ use crate::{
 };
 
 pub(crate) struct Builder {
-    pub(crate) sequencer_url: String,
+    pub(crate) sequencer_http_url: String,
+    pub(crate) sequencer_grpc_url: String,
     pub(crate) sequencer_chain_id: String,
     pub(crate) private_key_file: String,
     pub(crate) sequencer_address_prefix: String,
@@ -38,7 +41,8 @@ pub(crate) struct Builder {
 impl Builder {
     pub(crate) fn build(self) -> eyre::Result<(super::Executor, executor::Handle)> {
         let Self {
-            sequencer_url,
+            sequencer_http_url,
+            sequencer_grpc_url,
             sequencer_chain_id,
             private_key_file,
             sequencer_address_prefix,
@@ -48,8 +52,14 @@ impl Builder {
             shutdown_token,
             metrics,
         } = self;
-        let sequencer_client = sequencer_client::HttpClient::new(sequencer_url.as_str())
-            .wrap_err("failed constructing sequencer client")?;
+        let sequencer_http_client = sequencer_client::HttpClient::new(sequencer_http_url.as_str())
+            .wrap_err("failed constructing sequencer http client")?;
+
+        let sequencer_grpc_client = connect_sequencer_grpc(sequencer_grpc_url.as_str())
+            .wrap_err_with(|| {
+                format!("failed to connect to sequencer over gRPC at `{sequencer_grpc_url}`")
+            })?;
+
         let (status, _) = watch::channel(Status::new());
 
         let sequencer_key = read_signing_key_from_file(&private_key_file).wrap_err_with(|| {
@@ -69,7 +79,8 @@ impl Builder {
             super::Executor {
                 status,
                 serialized_rollup_transactions: serialized_rollup_transaction_rx,
-                sequencer_client,
+                sequencer_http_client,
+                sequencer_grpc_client,
                 sequencer_chain_id,
                 sequencer_key,
                 address: sequencer_address,
@@ -90,4 +101,15 @@ fn read_signing_key_from_file<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKe
         .try_into()
         .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
     Ok(SigningKey::from(private_key_bytes))
+}
+
+fn connect_sequencer_grpc(
+    sequencer_grpc_endpoint: &str,
+) -> eyre::Result<SequencerServiceClient<tonic::transport::Channel>> {
+    let uri: Uri = sequencer_grpc_endpoint
+        .parse()
+        .wrap_err("failed to parse endpoint as URI")?;
+    Ok(SequencerServiceClient::new(
+        tonic::transport::Endpoint::from(uri).connect_lazy(),
+    ))
 }

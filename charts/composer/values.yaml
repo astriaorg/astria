@@ -7,10 +7,10 @@ global:
 
 images:
   composer:
-    repo: ghcr.io/astriaorg/composer
+    repo: ghcr.io/astriaorg/astria-composer
     pullPolicy: IfNotPresent
-    tag: "0.8.3"
-    devTag: latest
+    tag: "0.8.4"
+    devTag: local
 
 config:
   logLevel: "debug"
@@ -20,6 +20,7 @@ config:
   sequencerAddressPrefix: astria
   sequencerNativeAssetBaseDenomination: "nria"
   sequencerRpc: ""
+  sequencerGrpc: ""
   sequencerChainId: ""
   privateKey:
     devContent: ""

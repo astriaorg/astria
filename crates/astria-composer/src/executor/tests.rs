@@ -78,7 +78,8 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     let config = Config {
         log: String::new(),
         api_listen_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
-        sequencer_url: String::new(),
+        sequencer_http_url: String::new(),
+        sequencer_grpc_url: String::new(),
         sequencer_chain_id: String::new(),
         rollups: String::new(),
         private_key_file: String::new(),
@@ -133,7 +134,8 @@ async fn setup() -> (MockServer, Config, NamedTempFile) {
         log: String::new(),
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
         rollups: String::new(),
-        sequencer_url: server.uri(),
+        sequencer_http_url: server.uri(),
+        sequencer_grpc_url: server.uri(),
         sequencer_chain_id: "test-chain-1".to_string(),
         private_key_file: keyfile.path().to_string_lossy().to_string(),
         sequencer_address_prefix: "astria".into(),
@@ -327,7 +329,8 @@ async fn full_bundle() {
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
-        sequencer_url: cfg.sequencer_url.clone(),
+        sequencer_http_url: cfg.sequencer_http_url.clone(),
+        sequencer_grpc_url: cfg.sequencer_grpc_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key_file: cfg.private_key_file.clone(),
         sequencer_address_prefix: "astria".into(),
@@ -418,7 +421,8 @@ async fn bundle_triggered_by_block_timer() {
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
-        sequencer_url: cfg.sequencer_url.clone(),
+        sequencer_http_url: cfg.sequencer_http_url.clone(),
+        sequencer_grpc_url: cfg.sequencer_grpc_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key_file: cfg.private_key_file.clone(),
         sequencer_address_prefix: "astria".into(),
@@ -506,7 +510,8 @@ async fn two_seq_actions_single_bundle() {
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&cfg).unwrap()));
     mount_genesis(&sequencer, &cfg.sequencer_chain_id).await;
     let (executor, executor_handle) = executor::Builder {
-        sequencer_url: cfg.sequencer_url.clone(),
+        sequencer_http_url: cfg.sequencer_http_url.clone(),
+        sequencer_grpc_url: cfg.sequencer_grpc_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key_file: cfg.private_key_file.clone(),
         sequencer_address_prefix: "astria".into(),
@@ -609,7 +614,8 @@ async fn chain_id_mismatch_returns_error() {
 
     // build the executor with the correct chain_id
     let (executor, _executor_handle) = executor::Builder {
-        sequencer_url: cfg.sequencer_url.clone(),
+        sequencer_http_url: cfg.sequencer_http_url.clone(),
+        sequencer_grpc_url: cfg.sequencer_grpc_url.clone(),
         sequencer_chain_id: cfg.sequencer_chain_id.clone(),
         private_key_file: cfg.private_key_file.clone(),
         sequencer_address_prefix: cfg.sequencer_address_prefix.clone(),
