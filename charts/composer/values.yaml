@@ -19,8 +19,8 @@ config:
   maxSubmitInterval: 2000
   sequencerAddressPrefix: astria
   sequencerNativeAssetBaseDenomination: "nria"
-  cometbftEndpoint: ""
-  sequencerGrpcEndpoint: ""
+  cometbftEndpoint: "http://127.0.0.1:26657"
+  sequencerGrpcEndpoint: "http://127.0.0.1:8080"
   sequencerChainId: ""
   privateKey:
     devContent: ""
