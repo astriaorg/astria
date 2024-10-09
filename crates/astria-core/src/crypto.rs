@@ -13,11 +13,7 @@ use std::{
     sync::OnceLock,
 };
 
-use base64::{
-    display::Base64Display,
-    prelude::BASE64_STANDARD,
-    Engine,
-};
+use core_utils::base64;
 use ed25519_consensus::{
     Error as Ed25519Error,
     Signature as Ed25519Signature,
@@ -188,9 +184,9 @@ impl VerificationKey {
 impl Debug for VerificationKey {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut debug_struct = formatter.debug_struct("VerificationKey");
-        debug_struct.field("key", &BASE64_STANDARD.encode(self.key.as_ref()));
+        debug_struct.field("key", &base64::display(self.key.as_ref()));
         if let Some(address_bytes) = self.address_bytes.get() {
-            debug_struct.field("address_bytes", &BASE64_STANDARD.encode(address_bytes));
+            debug_struct.field("address_bytes", &base64::display(address_bytes));
         } else {
             debug_struct.field("address_bytes", &"unset");
         }
@@ -200,7 +196,7 @@ impl Debug for VerificationKey {
 
 impl Display for VerificationKey {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        Base64Display::new(self.key.as_ref(), &BASE64_STANDARD).fmt(formatter)
+        Display::fmt(&base64::display(self.key.as_ref()), formatter)
     }
 }
 
@@ -280,7 +276,7 @@ impl Debug for Signature {
 
 impl Display for Signature {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        Base64Display::new(&self.0.to_bytes(), &BASE64_STANDARD).fmt(formatter)
+        Display::fmt(&base64::display(&self.0.to_bytes()), formatter)
     }
 }
 

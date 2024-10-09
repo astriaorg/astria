@@ -635,13 +635,13 @@ dependencies = [
  "astria-build-info",
  "astria-config",
  "astria-core",
+ "astria-core-utils",
  "astria-eyre",
  "astria-grpc-mock",
  "astria-merkle",
  "astria-sequencer-client",
  "astria-telemetry",
  "async-trait",
- "base64 0.21.7",
  "bytes",
  "celestia-rpc",
  "celestia-tendermint",
@@ -694,9 +694,8 @@ name = "astria-core"
 version = "0.1.0"
 dependencies = [
  "astria-core",
+ "astria-core-utils",
  "astria-merkle",
- "base64 0.21.7",
- "base64-serde",
  "bech32 0.11.0",
  "brotli",
  "bytes",
@@ -722,6 +721,15 @@ dependencies = [
  "tonic 0.10.2",
  "tracing",
  "zeroize",
+]
+
+[[package]]
+name = "astria-core-utils"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -791,11 +799,11 @@ dependencies = [
  "astria-build-info",
  "astria-config",
  "astria-core",
+ "astria-core-utils",
  "astria-eyre",
  "astria-merkle",
  "astria-telemetry",
  "async-trait",
- "base64 0.21.7",
  "borsh",
  "bytes",
  "cnidarium",
@@ -865,14 +873,13 @@ dependencies = [
  "astria-build-info",
  "astria-config",
  "astria-core",
+ "astria-core-utils",
  "astria-eyre",
  "astria-grpc-mock",
  "astria-sequencer-client",
  "astria-telemetry",
  "async-trait",
  "axum",
- "base64 0.21.7",
- "base64-serde",
  "bech32 0.11.0",
  "celestia-tendermint",
  "celestia-types",
@@ -918,9 +925,10 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "astria-core",
+ "astria-core-utils",
  "astria-eyre",
  "astria-merkle",
- "base64 0.21.7",
+ "base64 0.22.1",
  "clap",
  "colour",
  "ethers-core",
@@ -938,8 +946,7 @@ dependencies = [
 name = "astria-telemetry"
 version = "0.1.0"
 dependencies = [
- "base64 0.21.7",
- "base64-serde",
+ "astria-core-utils",
  "const_format",
  "itertools 0.12.1",
  "metrics 0.23.0",
@@ -1188,16 +1195,6 @@ name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
-
-[[package]]
-name = "base64-serde"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba368df5de76a5bea49aaf0cf1b39ccfbbef176924d1ba5db3e4135216cbe3c7"
-dependencies = [
- "base64 0.21.7",
- "serde",
-]
 
 [[package]]
 name = "base64ct"
@@ -6916,9 +6913,9 @@ checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
 name = "serde"
-version = "1.0.208"
+version = "1.0.210"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cff085d2cb684faa248efb494c39b68e522822ac0de72ccf08109abde717cfb2"
+checksum = "c8e3592472072e6e22e0a54d5904d9febf8508f65fb8552499a1abc7d1078c3a"
 dependencies = [
  "serde_derive",
 ]
@@ -6934,9 +6931,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.208"
+version = "1.0.210"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24008e81ff7613ed8e5ba0cfaf24e2c2f1e5b8a0495711e44fcd4882fca62bcf"
+checksum = "243902eda00fad750862fc144cea25caca5e20d615af0a81bee94ca738f1df1f"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote",
@@ -6945,9 +6942,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.125"
+version = "1.0.128"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83c8e735a073ccf5be70aa8066aa984eaf2fa000db6c8d0100ae605b366d31ed"
+checksum = "6ff5456707a1de34e7e37f2a6fd3d3f808c318259cbd01ab6377795054b483d8"
 dependencies = [
  "itoa",
  "memchr",

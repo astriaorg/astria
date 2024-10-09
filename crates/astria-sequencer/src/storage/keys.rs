@@ -32,12 +32,8 @@ impl<'a, T> AccountPrefixer<'a, T> {
 
 impl<'a, T: AddressBytes> Display for AccountPrefixer<'a, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use base64::{
-            display::Base64Display,
-            engine::general_purpose::URL_SAFE,
-        };
         f.write_str(self.prefix)?;
-        Base64Display::new(self.address.address_bytes(), &URL_SAFE).fmt(f)
+        core_utils::base64::display(self.address.address_bytes()).fmt(f)
     }
 }
 

@@ -28,6 +28,7 @@ use celestia_types::{
     nmt::Namespace,
     Blob,
 };
+use core_utils::base64;
 use prost::Message;
 use sequencer_client::{
     tendermint,
@@ -200,7 +201,6 @@ impl TestConductor {
         blobs: Vec<Blob>,
         delay: Option<Duration>,
     ) {
-        use base64::prelude::*;
         use wiremock::{
             matchers::{
                 body_partial_json,
@@ -211,7 +211,7 @@ impl TestConductor {
             ResponseTemplate,
         };
         let delay = delay.unwrap_or(Duration::from_millis(0));
-        let namespace_params = BASE64_STANDARD.encode(namespace.as_bytes());
+        let namespace_params = base64::encode(namespace.as_bytes());
         Mock::given(body_partial_json(json!({
             "jsonrpc": "2.0",
             "method": "blob.GetAll",

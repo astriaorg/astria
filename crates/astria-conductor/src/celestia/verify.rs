@@ -553,12 +553,11 @@ fn ensure_chain_ids_match(in_commit: &str, in_header: &str) -> eyre::Result<()> 
 }
 
 fn ensure_block_hashes_match(in_commit: &[u8], in_header: &[u8]) -> eyre::Result<()> {
-    use base64::prelude::*;
     ensure!(
         in_commit == in_header,
         "expected block hash `{}` (from commit), but found `{}` in retrieved metadata",
-        BASE64_STANDARD.encode(in_commit),
-        BASE64_STANDARD.encode(in_header),
+        core_utils::base64::encode(in_commit),
+        core_utils::base64::encode(in_header),
     );
     Ok(())
 }

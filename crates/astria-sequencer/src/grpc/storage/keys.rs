@@ -1,43 +1,31 @@
 use astria_core::primitive::v1::RollupId;
-use base64::{
-    display::Base64Display,
-    engine::general_purpose::URL_SAFE,
-};
+use core_utils::base64;
 
 pub(in crate::grpc) fn block_hash_by_height(height: u64) -> String {
     format!("grpc/block_hash/{height}")
 }
 
 pub(in crate::grpc) fn sequencer_block_header_by_hash(hash: &[u8; 32]) -> String {
-    format!("grpc/block_header/{}", Base64Display::new(hash, &URL_SAFE))
+    format!("grpc/block_header/{}", base64::display(hash))
 }
 
 pub(in crate::grpc) fn rollup_data_by_hash_and_rollup_id(
     hash: &[u8; 32],
     rollup_id: &RollupId,
 ) -> String {
-    format!(
-        "grpc/rollup_data/{}/{rollup_id}",
-        Base64Display::new(hash, &URL_SAFE),
-    )
+    format!("grpc/rollup_data/{}/{rollup_id}", base64::display(hash),)
 }
 
 pub(in crate::grpc) fn rollup_ids_by_hash(hash: &[u8; 32]) -> String {
-    format!("grpc/rollup_ids/{}", Base64Display::new(hash, &URL_SAFE))
+    format!("grpc/rollup_ids/{}", base64::display(hash))
 }
 
 pub(in crate::grpc) fn rollup_transactions_proof_by_hash(hash: &[u8; 32]) -> String {
-    format!(
-        "grpc/rollup_txs_proof/{}",
-        Base64Display::new(hash, &URL_SAFE)
-    )
+    format!("grpc/rollup_txs_proof/{}", base64::display(hash))
 }
 
 pub(in crate::grpc) fn rollup_ids_proof_by_hash(hash: &[u8; 32]) -> String {
-    format!(
-        "grpc/rollup_ids_proof/{}",
-        Base64Display::new(hash, &URL_SAFE)
-    )
+    format!("grpc/rollup_ids_proof/{}", base64::display(hash))
 }
 
 #[cfg(test)]

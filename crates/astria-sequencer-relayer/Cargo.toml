@@ -18,8 +18,6 @@ k256 = "0.13.3"
 serde_path_to_error = "0.1.13"
 
 axum = { workspace = true }
-base64 = { workspace = true }
-base64-serde = { workspace = true }
 celestia-types = { workspace = true }
 const_format = { workspace = true }
 futures = { workspace = true }
@@ -58,6 +56,7 @@ astria-core = { path = "../astria-core", features = [
 ] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
+core-utils = { package = "astria-core-utils", path = "../astria-core-utils" }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
   "http",
 ] }

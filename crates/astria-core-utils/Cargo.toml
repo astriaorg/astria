@@ -1,0 +1,22 @@
+[package]
+name = "astria-core-utils"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.81.0"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
+description = "General purpose utilities for consumption by other Astria crates."
+
+[dependencies]
+base64 = "0.22.1"
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

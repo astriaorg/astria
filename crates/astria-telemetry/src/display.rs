@@ -10,42 +10,11 @@ use std::{
     str,
 };
 
-use base64_serde::base64_serde_type;
 use serde_with::SerializeDisplay;
 
-/// Format `bytes` using standard base64 formatting.
-///
-/// See the [`base64::engine::general_purpose::STANDARD`] for the formatting definition.
-pub fn base64<T: AsRef<[u8]>>(bytes: T) -> Base64<T> {
-    Base64(bytes)
-}
-
-pub struct Base64<T>(T);
-
-impl<T> Display for Base64<T>
-where
-    T: AsRef<[u8]>,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        use base64::{
-            display::Base64Display,
-            engine::general_purpose::STANDARD,
-        };
-        Base64Display::new(self.0.as_ref(), &STANDARD).fmt(f)
-    }
-}
-
-impl<T> serde::Serialize for Base64<T>
-where
-    T: AsRef<[u8]>,
-{
-    fn serialize<S>(&self, serializer: S) -> std::prelude::v1::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
-        Base64Standard::serialize(self.0.as_ref(), serializer)
-    }
+/// Format `bytes` using URL-safe base64 formatting.
+pub fn base64<T: AsRef<[u8]>>(bytes: T) -> core_utils::base64::DisplayFmt<T> {
+    core_utils::base64::display(bytes)
 }
 
 /// Format `bytes` as lower-cased hex.

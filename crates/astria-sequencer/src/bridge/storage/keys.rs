@@ -1,8 +1,5 @@
 use astria_core::primitive::v1::RollupId;
-use base64::{
-    display::Base64Display,
-    engine::general_purpose::URL_SAFE,
-};
+use core_utils::base64;
 
 use crate::{
     accounts::AddressBytes,
@@ -67,7 +64,7 @@ pub(in crate::bridge) fn bridge_account_withdrawal_event<T: AddressBytes>(
 pub(in crate::bridge) fn deposit(block_hash: &[u8; 32], rollup_id: &RollupId) -> String {
     format!(
         "{DEPOSIT_PREFIX}{}/{rollup_id}",
-        Base64Display::new(block_hash, &URL_SAFE),
+        base64::display(block_hash),
     )
 }
 
@@ -76,7 +73,7 @@ pub(in crate::bridge) fn last_transaction_id_for_bridge_account<T: AddressBytes>
 ) -> String {
     format!(
         "{BRIDGE_ACCOUNT_PREFIX}{}/last_tx",
-        Base64Display::new(address.address_bytes(), &URL_SAFE)
+        base64::display(address.address_bytes())
     )
 }
 

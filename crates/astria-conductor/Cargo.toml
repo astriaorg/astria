@@ -21,6 +21,7 @@ astria-core = { path = "../astria-core", features = [
 ] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
+core-utils = { package = "astria-core-utils", path = "../astria-core-utils" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
   "websocket",
@@ -29,7 +30,6 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
   "display",
 ] }
 
-base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }

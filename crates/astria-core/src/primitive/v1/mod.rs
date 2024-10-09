@@ -6,11 +6,8 @@ use std::{
     str::FromStr,
 };
 
-use base64::{
-    display::Base64Display,
-    prelude::BASE64_URL_SAFE,
-};
 use bytes::Bytes;
+use core_utils::base64;
 use sha2::{
     Digest as _,
     Sha256,
@@ -90,7 +87,7 @@ impl Protobuf for merkle::Proof {
 pub struct RollupId {
     #[cfg_attr(
         feature = "serde",
-        serde(serialize_with = "crate::serde::base64_serialize")
+        serde(serialize_with = "core_utils::base64::serde::serialize")
     )]
     inner: [u8; 32],
 }
@@ -231,7 +228,7 @@ impl From<&RollupId> for RollupId {
 
 impl std::fmt::Display for RollupId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Base64Display::new(self.as_ref(), &BASE64_URL_SAFE).fmt(f)
+        base64::display(self.as_ref()).fmt(f)
     }
 }
 

@@ -11,10 +11,11 @@ homepage = "https://astria.org"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-base64 = { workspace = true, optional = true }
-base64-serde = { workspace = true, optional = true }
 const_format = { workspace = true }
 itertools = { workspace = true }
+core-utils = { package = "astria-core-utils", path = "../astria-core-utils", optional = true, features = [
+  "serde",
+] }
 
 metrics = "0.23.0"
 metrics-exporter-prometheus = { version = "0.15.0", default-features = false, features = [
@@ -43,10 +44,4 @@ tracing-subscriber = { version = "0.3.17", features = [
 tracing = { workspace = true }
 
 [features]
-display = [
-  "dep:base64",
-  "dep:serde",
-  "dep:serde_json",
-  "dep:base64-serde",
-  "dep:serde_with",
-]
+display = ["dep:core-utils", "dep:serde", "dep:serde_json", "dep:serde_with"]

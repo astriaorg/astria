@@ -36,6 +36,7 @@ use astria_core::{
         },
     },
 };
+use astria_core_utils::base64 as url_safe_base64;
 use astria_eyre::eyre::{
     bail,
     Result,
@@ -44,7 +45,7 @@ use astria_eyre::eyre::{
 use astria_merkle::audit::Proof;
 use base64::{
     prelude::BASE64_STANDARD,
-    Engine,
+    Engine as _,
 };
 use clap::ValueEnum;
 use colour::write_blue;
@@ -132,7 +133,7 @@ fn parse(input: &str, verbose: bool) -> Result<ParsedBlob> {
 fn get_decoded_blob_data(input: &str) -> Result<Vec<u8>> {
     if input == "-" {
         let encoded = io::read_to_string(io::stdin().lock()).wrap_err("failed to read stdin")?;
-        return BASE64_STANDARD
+        return base64::engine::general_purpose::STANDARD
             .decode(encoded.trim())
             .wrap_err("failed to decode stdin data as base64");
     }
@@ -242,9 +243,9 @@ impl From<&SequencerBlockHeader> for PrintableSequencerBlockHeader {
             chain_id: header.chain_id().to_string(),
             height: header.height().value(),
             time: header.time().to_string(),
-            rollup_transactions_root: BASE64_STANDARD.encode(header.rollup_transactions_root()),
-            data_hash: BASE64_STANDARD.encode(header.data_hash()),
-            proposer_address: BASE64_STANDARD.encode(header.proposer_address()),
+            rollup_transactions_root: url_safe_base64::encode(header.rollup_transactions_root()),
+            data_hash: url_safe_base64::encode(header.data_hash()),
+            proposer_address: url_safe_base64::encode(header.proposer_address()),
         }
     }
 }
@@ -274,7 +275,7 @@ struct PrintableMerkleProof {
 impl From<&Proof> for PrintableMerkleProof {
     fn from(proof: &Proof) -> Self {
         Self {
-            audit_path: BASE64_STANDARD.encode(proof.audit_path()),
+            audit_path: url_safe_base64::encode(proof.audit_path()),
             leaf_index: proof.leaf_index(),
             tree_size: proof.tree_size(),
         }
@@ -304,7 +305,7 @@ impl BriefSequencerBlockMetadata {
             .map(RollupId::to_string)
             .collect();
         BriefSequencerBlockMetadata {
-            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash),
+            sequencer_block_hash: url_safe_base64::encode(metadata.block_hash),
             sequencer_block_header: PrintableSequencerBlockHeader::from(&metadata.header),
             rollup_ids,
         }
@@ -343,7 +344,7 @@ impl VerboseSequencerBlockMetadata {
             .map(RollupId::to_string)
             .collect();
         VerboseSequencerBlockMetadata {
-            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash),
+            sequencer_block_hash: url_safe_base64::encode(metadata.block_hash),
             sequencer_block_header: PrintableSequencerBlockHeader::from(&metadata.header),
             rollup_ids,
             rollup_transactions_proof: PrintableMerkleProof::from(
@@ -380,7 +381,7 @@ struct BriefRollupData {
 impl BriefRollupData {
     fn new(rollup_data: &UncheckedSubmittedRollupData) -> Self {
         BriefRollupData {
-            sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
+            sequencer_block_hash: url_safe_base64::encode(rollup_data.sequencer_block_hash),
             rollup_id: rollup_data.rollup_id.to_string(),
             transaction_count: rollup_data.transactions.len(),
         }
@@ -468,7 +469,7 @@ impl From<Transaction> for RollupTransaction {
             value: tx.value.to_string(),
             gas_price: tx.gas_price.map(|v| v.to_string()),
             gas: tx.gas.to_string(),
-            input: BASE64_STANDARD.encode(&tx.input),
+            input: url_safe_base64::encode(&tx.input),
             v: tx.v.as_u64(),
             r: tx.r.to_string(),
             s: tx.s.to_string(),
@@ -590,13 +591,15 @@ enum RollupDataDetails {
 impl From<&Vec<u8>> for RollupDataDetails {
     fn from(value: &Vec<u8>) -> Self {
         let Ok(raw_rollup_data) = RawRollupData::decode(Bytes::from(value.clone())) else {
-            return RollupDataDetails::NotTxOrDeposit(BASE64_STANDARD.encode(value));
+            return RollupDataDetails::NotTxOrDeposit(url_safe_base64::encode(value));
         };
         match raw_rollup_data.value {
             None => RollupDataDetails::EmptyBytes,
             Some(RawRollupDataValue::SequencedData(tx_data)) => {
                 let Ok(tx) = rlp::decode::<Transaction>(&tx_data) else {
-                    return RollupDataDetails::UnknownTransaction(BASE64_STANDARD.encode(&tx_data));
+                    return RollupDataDetails::UnknownTransaction(url_safe_base64::encode(
+                        &tx_data,
+                    ));
                 };
                 RollupDataDetails::Transaction(RollupTransaction::from(tx))
             }
@@ -655,7 +658,7 @@ impl VerboseRollupData {
             .collect();
         let item_count = transactions_and_deposits.len();
         VerboseRollupData {
-            sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
+            sequencer_block_hash: url_safe_base64::encode(rollup_data.sequencer_block_hash),
             rollup_id: rollup_data.rollup_id.to_string(),
             transactions_and_deposits,
             item_count,
