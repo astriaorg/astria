@@ -26,8 +26,8 @@ use crate::{
 };
 
 pub(crate) struct Builder {
-    pub(crate) cometbft_url: String,
-    pub(crate) sequencer_grpc_url: String,
+    pub(crate) cometbft_endpoint: String,
+    pub(crate) sequencer_grpc_endpoint: String,
     pub(crate) sequencer_chain_id: String,
     pub(crate) private_key_file: String,
     pub(crate) sequencer_address_prefix: String,
@@ -41,8 +41,8 @@ pub(crate) struct Builder {
 impl Builder {
     pub(crate) fn build(self) -> eyre::Result<(super::Executor, executor::Handle)> {
         let Self {
-            cometbft_url,
-            sequencer_grpc_url,
+            cometbft_endpoint,
+            sequencer_grpc_endpoint,
             sequencer_chain_id,
             private_key_file,
             sequencer_address_prefix,
@@ -52,12 +52,12 @@ impl Builder {
             shutdown_token,
             metrics,
         } = self;
-        let cometbft_client = sequencer_client::HttpClient::new(cometbft_url.as_str())
+        let cometbft_client = sequencer_client::HttpClient::new(cometbft_endpoint.as_str())
             .wrap_err("failed constructing sequencer http client")?;
 
-        let sequencer_grpc_client = connect_sequencer_grpc(sequencer_grpc_url.as_str())
+        let sequencer_grpc_client = connect_sequencer_grpc(sequencer_grpc_endpoint.as_str())
             .wrap_err_with(|| {
-                format!("failed to connect to sequencer over gRPC at `{sequencer_grpc_url}`")
+                format!("failed to connect to sequencer over gRPC at `{sequencer_grpc_endpoint}`")
             })?;
 
         let (status, _) = watch::channel(Status::new());
