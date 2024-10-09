@@ -40,19 +40,24 @@ enum SubCommand {
 }
 
 #[derive(Debug, clap::Args)]
-struct Create;
+struct Create {
+    #[command(flatten)]
+    inner: ArgsCreate,
+}
 
 impl Create {
-    #[expect(
-        clippy::unused_self,
-        clippy::unnecessary_wraps,
-        reason = "for consistency with all the other commands"
-    )]
     fn run(self) -> eyre::Result<()> {
         let signing_key = SigningKey::new(OsRng);
         let pretty_signing_key = hex::encode(signing_key.as_bytes());
         let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
-        let pretty_address = hex::encode(signing_key.address_bytes());
+        let pretty_address = Address::<astria_core::primitive::v1::Bech32m>::builder()
+            .array(signing_key.address_bytes())
+            .prefix(self.inner.prefix)
+            .try_build()
+            .wrap_err(
+                "failed constructing a valid bech32m address from the provided hex bytes and \
+                 prefix",
+            )?;
         println!("Create Sequencer Account");
         println!();
         // TODO: don't print private keys to CLI, prefer writing to file:
@@ -125,4 +130,11 @@ struct ArgsInner {
     sequencer_url: String,
     /// The address of the Sequencer account
     address: Address,
+}
+
+#[derive(clap::Args, Debug)]
+struct ArgsCreate {
+    /// The address prefix
+    #[arg(long, default_value = "astria")]
+    prefix: String,
 }
