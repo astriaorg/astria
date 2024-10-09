@@ -239,7 +239,7 @@ impl Body {
     }
 
     #[must_use]
-    pub fn into_signed(self, signing_key: &SigningKey) -> Transaction {
+    pub fn sign(self, signing_key: &SigningKey) -> Transaction {
         let bytes = self.to_raw().encode_to_vec();
         let signature = signing_key.sign(&bytes);
         let verification_key = signing_key.verification_key();
@@ -642,7 +642,7 @@ mod tests {
             .try_build()
             .unwrap();
 
-        let signed_tx = body.into_signed(&signing_key);
+        let signed_tx = body.sign(&signing_key);
         let raw = signed_tx.to_raw();
 
         // `try_from_raw` verifies the signature

@@ -244,7 +244,7 @@ async fn app_transfer_block_fees_to_sudo() {
         .try_build()
         .unwrap();
 
-    let signed_tx = tx.into_signed(&alice);
+    let signed_tx = tx.sign(&alice);
 
     let proposer_address: tendermint::account::Id = [99u8; 20].to_vec().try_into().unwrap();
 
@@ -344,7 +344,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         .try_build()
         .unwrap();
 
-    let signed_tx = tx.into_signed(&alice);
+    let signed_tx = tx.sign(&alice);
 
     let expected_deposit = Deposit {
         bridge_address,
@@ -436,7 +436,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .try_build()
         .unwrap();
 
-    let signed_tx = tx.into_signed(&alice);
+    let signed_tx = tx.sign(&alice);
 
     let expected_deposit = Deposit {
         bridge_address,
@@ -577,7 +577,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&alice);
+        .sign(&alice);
 
     let tx_overflow = Body::builder()
         .actions(vec![
@@ -592,7 +592,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .nonce(1)
         .try_build()
         .unwrap()
-        .into_signed(&alice);
+        .sign(&alice);
 
     app.mempool
         .insert(
@@ -667,7 +667,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&alice);
+        .sign(&alice);
     let tx_overflow = Body::builder()
         .actions(vec![
             Sequence {
@@ -681,7 +681,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&alice);
+        .sign(&alice);
 
     app.mempool
         .insert(

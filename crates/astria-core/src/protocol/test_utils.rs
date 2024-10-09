@@ -113,7 +113,7 @@ impl ConfigureSequencerBlock {
                     "should be able to build unsigned transaction since only sequence actions are \
                      contained",
                 );
-            vec![unsigned_transaction.into_signed(&signing_key)]
+            vec![unsigned_transaction.sign(&signing_key)]
         };
         let mut deposits_map: HashMap<RollupId, Vec<Deposit>> = HashMap::new();
         for deposit in deposits {

@@ -282,7 +282,7 @@ mod tests {
         let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
-        let signed_tx = Arc::new(tx.into_signed(&signing_key));
+        let signed_tx = Arc::new(tx.sign(&signing_key));
         let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         mempool
@@ -324,7 +324,7 @@ mod tests {
         let (mut consensus_service, _) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
-        let signed_tx = tx.into_signed(&signing_key);
+        let signed_tx = tx.sign(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
@@ -491,7 +491,7 @@ mod tests {
             new_consensus_service(Some(signing_key.verification_key())).await;
 
         let tx = make_unsigned_tx();
-        let signed_tx = Arc::new(tx.into_signed(&signing_key));
+        let signed_tx = Arc::new(tx.sign(&signing_key));
         let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
         let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());

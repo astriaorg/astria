@@ -162,7 +162,7 @@ fn create_signed_transaction() -> Transaction {
         .nonce(1)
         .try_build()
         .unwrap()
-        .into_signed(&alice_key)
+        .sign(&alice_key)
 }
 
 #[tokio::test]

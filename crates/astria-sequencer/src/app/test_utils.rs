@@ -314,7 +314,7 @@ impl MockTxBuilder {
             .try_build()
             .unwrap();
 
-        Arc::new(tx.into_signed(&self.signer))
+        Arc::new(tx.sign(&self.signer))
     }
 }
 

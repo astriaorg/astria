@@ -127,7 +127,7 @@ mod tests {
             .try_build()
             .unwrap();
 
-        let signed_tx = tx.into_signed(&signing_key);
+        let signed_tx = tx.sign(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
             rollup_datas_root: commitment_0,
@@ -141,7 +141,7 @@ mod tests {
             .try_build()
             .unwrap();
 
-        let signed_tx = tx.into_signed(&signing_key);
+        let signed_tx = tx.sign(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
             rollup_datas_root: commitment_1,
@@ -177,7 +177,7 @@ mod tests {
             .try_build()
             .unwrap();
 
-        let signed_tx = tx.into_signed(&signing_key);
+        let signed_tx = tx.sign(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
             rollup_datas_root: actual,

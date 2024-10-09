@@ -59,7 +59,7 @@ async fn trigger_cleaning() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_judy_signing_key());
+        .sign(&get_judy_signing_key());
 
     app.mempool
         .insert(
@@ -155,7 +155,7 @@ async fn do_not_trigger_cleaning() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_alice_signing_key());
+        .sign(&get_alice_signing_key());
 
     app.mempool
         .insert(
@@ -228,7 +228,7 @@ async fn maintenance_recosting_promotes() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_bob_signing_key());
+        .sign(&get_bob_signing_key());
 
     let mut bob_funds = HashMap::new();
     bob_funds.insert(nria().into(), 11);
@@ -256,7 +256,7 @@ async fn maintenance_recosting_promotes() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_judy_signing_key());
+        .sign(&get_judy_signing_key());
 
     let mut judy_funds = HashMap::new();
     judy_funds.insert(nria().into(), 0);
@@ -408,7 +408,7 @@ async fn maintenance_funds_added_promotes() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_carol_signing_key());
+        .sign(&get_carol_signing_key());
 
     let mut carol_funds = HashMap::new();
     carol_funds.insert(nria().into(), 0);
@@ -438,7 +438,7 @@ async fn maintenance_funds_added_promotes() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_alice_signing_key());
+        .sign(&get_alice_signing_key());
 
     let mut alice_funds = HashMap::new();
     alice_funds.insert(nria().into(), 100);

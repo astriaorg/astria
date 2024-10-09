@@ -52,7 +52,7 @@ pub(crate) async fn submit_transaction(
         .actions(vec![action])
         .try_build()
         .wrap_err("failed to construct a transaction")?
-        .into_signed(&sequencer_key);
+        .sign(&sequencer_key);
     let res = sequencer_client
         .submit_transaction_sync(tx)
         .await

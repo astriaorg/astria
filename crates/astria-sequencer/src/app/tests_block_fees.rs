@@ -65,7 +65,7 @@ async fn transaction_execution_records_fee_event() {
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
 
     let events = app.execute_transaction(signed_tx).await.unwrap();
     let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
@@ -83,7 +83,7 @@ async fn transaction_execution_records_fee_event() {
         event.attributes[2],
         (
             "actionType",
-            "astria.protocol.transactions.v1alpha1.Transfer"
+            "astria.protocol.transaction.v1alpha1.Transfer"
         )
             .index()
             .into()
@@ -115,7 +115,7 @@ async fn ensure_correct_block_fees_transfer() {
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let total_block_fees: u128 = app
@@ -156,7 +156,7 @@ async fn ensure_correct_block_fees_sequence() {
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let total_block_fees: u128 = app
@@ -199,7 +199,7 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let total_block_fees: u128 = app
@@ -255,7 +255,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx.clone()).await.unwrap();
 
     let test_deposit = Deposit {
@@ -319,7 +319,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let total_block_fees: u128 = app

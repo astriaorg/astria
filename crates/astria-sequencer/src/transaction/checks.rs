@@ -390,7 +390,7 @@ mod tests {
             .try_build()
             .unwrap();
 
-        let signed_tx = tx.into_signed(&alice);
+        let signed_tx = tx.sign(&alice);
         check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
             .await
             .expect("sufficient balance for all actions");
@@ -457,7 +457,7 @@ mod tests {
             .try_build()
             .unwrap();
 
-        let signed_tx = tx.into_signed(&alice);
+        let signed_tx = tx.sign(&alice);
         let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
             .await
             .err()

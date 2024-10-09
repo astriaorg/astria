@@ -133,7 +133,7 @@ async fn submit_transaction(
         .chain_id(chain_id)
         .try_build()
         .wrap_err("failed to build transaction from actions")?
-        .into_signed(signing_key);
+        .sign(signing_key);
     let res = client
         .submit_transaction_sync(tx)
         .await

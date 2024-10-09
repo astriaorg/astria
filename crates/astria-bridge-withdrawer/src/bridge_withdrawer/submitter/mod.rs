@@ -161,7 +161,7 @@ impl Submitter {
             .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        let signed = unsigned.into_signed(signer.signing_key());
+        let signed = unsigned.sign(signer.signing_key());
         debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response

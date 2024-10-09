@@ -120,7 +120,7 @@ async fn app_finalize_block_snapshot() {
         .try_build()
         .unwrap();
 
-    let signed_tx = tx.into_signed(&alice);
+    let signed_tx = tx.sign(&alice);
 
     let expected_deposit = Deposit {
         bridge_address,
@@ -261,20 +261,20 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let signed_tx_general_bundleable = Arc::new(tx_bundleable_general.into_signed(&alice));
+    let signed_tx_general_bundleable = Arc::new(tx_bundleable_general.sign(&alice));
     app.execute_transaction(signed_tx_general_bundleable)
         .await
         .unwrap();
 
-    let signed_tx_sudo_bundleable = Arc::new(tx_bundleable_sudo.into_signed(&alice));
+    let signed_tx_sudo_bundleable = Arc::new(tx_bundleable_sudo.sign(&alice));
     app.execute_transaction(signed_tx_sudo_bundleable)
         .await
         .unwrap();
 
-    let signed_tx_sudo_ibc = Arc::new(tx_sudo_ibc.into_signed(&alice));
+    let signed_tx_sudo_ibc = Arc::new(tx_sudo_ibc.sign(&alice));
     app.execute_transaction(signed_tx_sudo_ibc).await.unwrap();
 
-    let signed_tx_sudo = Arc::new(tx_sudo.into_signed(&alice));
+    let signed_tx_sudo = Arc::new(tx_sudo.sign(&alice));
     app.execute_transaction(signed_tx_sudo).await.unwrap();
 
     let tx = Body::builder()
@@ -291,7 +291,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&bridge));
+    let signed_tx = Arc::new(tx.sign(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let tx_bridge_bundleable = Body::builder()
@@ -320,7 +320,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx_bridge_bundleable.into_signed(&bridge));
+    let signed_tx = Arc::new(tx_bridge_bundleable.sign(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let tx_bridge = Body::builder()
@@ -338,7 +338,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx_bridge.into_signed(&bridge));
+    let signed_tx = Arc::new(tx_bridge.sign(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();
