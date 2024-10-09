@@ -27,8 +27,10 @@ use astria_core::{
         abci::AbciErrorCode,
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
-            action::ValidatorUpdate,
-            action_group::ActionGroup,
+            action::{
+                group::Group,
+                ValidatorUpdate,
+            },
             Action,
             SignedTransaction,
         },
@@ -546,7 +548,7 @@ impl App {
         let mut failed_tx_count: usize = 0;
         let mut execution_results = Vec::new();
         let mut excluded_txs: usize = 0;
-        let mut current_tx_group = ActionGroup::BundleableGeneral;
+        let mut current_tx_group = Group::BundleableGeneral;
 
         // get copy of transactions to execute from mempool
         let pending_txs = self
@@ -720,7 +722,7 @@ impl App {
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> Result<Vec<ExecTxResult>> {
         let mut execution_results = Vec::new();
-        let mut current_tx_group = ActionGroup::BundleableGeneral;
+        let mut current_tx_group = Group::BundleableGeneral;
 
         for tx in txs {
             let bytes = tx.to_raw().encode_to_vec();

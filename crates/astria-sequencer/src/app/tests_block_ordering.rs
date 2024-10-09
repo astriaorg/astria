@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::protocol::transaction::v1alpha1::{
-    action_group::ActionGroup,
+    action::group::Group,
     SignedTransaction,
 };
 use bytes::Bytes;
@@ -39,25 +39,25 @@ async fn app_process_proposal_ordering_ok() {
     // create transactions that should pass with expected ordering
     let txs: Vec<SignedTransaction> = vec![
         MockTxBuilder::new()
-            .group(ActionGroup::BundleableGeneral)
+            .group(Group::BundleableGeneral)
             .signer(get_alice_signing_key())
             .build()
             .deref()
             .clone(),
         MockTxBuilder::new()
-            .group(ActionGroup::UnbundleableGeneral)
+            .group(Group::UnbundleableGeneral)
             .signer(get_bob_signing_key())
             .build()
             .deref()
             .clone(),
         MockTxBuilder::new()
-            .group(ActionGroup::BundleableSudo)
+            .group(Group::BundleableSudo)
             .signer(get_judy_signing_key())
             .build()
             .deref()
             .clone(),
         MockTxBuilder::new()
-            .group(ActionGroup::UnbundleableSudo)
+            .group(Group::UnbundleableSudo)
             .nonce(1)
             .signer(get_judy_signing_key())
             .build()
@@ -100,13 +100,13 @@ async fn app_process_proposal_ordering_fail() {
     // create transactions that should fail due to incorrect ordering
     let txs: Vec<SignedTransaction> = vec![
         MockTxBuilder::new()
-            .group(ActionGroup::UnbundleableGeneral)
+            .group(Group::UnbundleableGeneral)
             .signer(get_bob_signing_key())
             .build()
             .deref()
             .clone(),
         MockTxBuilder::new()
-            .group(ActionGroup::BundleableGeneral)
+            .group(Group::BundleableGeneral)
             .signer(get_alice_signing_key())
             .build()
             .deref()
@@ -161,11 +161,11 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     // create transactions that should fail due to incorrect ordering if both are included in the
     // same block
     let tx_0 = MockTxBuilder::new()
-        .group(ActionGroup::UnbundleableGeneral)
+        .group(Group::UnbundleableGeneral)
         .signer(get_alice_signing_key())
         .build();
     let tx_1 = MockTxBuilder::new()
-        .group(ActionGroup::BundleableGeneral)
+        .group(Group::BundleableGeneral)
         .nonce(1)
         .signer(get_alice_signing_key())
         .build();

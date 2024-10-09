@@ -13,7 +13,7 @@ use std::{
 use astria_core::{
     primitive::v1::asset::IbcPrefixed,
     protocol::transaction::v1alpha1::{
-        action_group::ActionGroup,
+        action::group::Group,
         SignedTransaction,
     },
 };
@@ -134,7 +134,7 @@ impl fmt::Display for TimemarkedTransaction {
 struct TransactionPriority {
     nonce_diff: u32,
     time_first_seen: Instant,
-    group: ActionGroup,
+    group: Group,
 }
 
 impl PartialEq for TransactionPriority {
@@ -901,7 +901,7 @@ mod tests {
         signer: SigningKey,
         chain_id: String,
         cost_map: HashMap<IbcPrefixed, u128>,
-        group: ActionGroup,
+        group: Group,
     }
 
     impl MockTTXBuilder {
@@ -928,7 +928,7 @@ mod tests {
                 nonce: 0,
                 signer: get_alice_signing_key(),
                 chain_id: "test".to_string(),
-                group: ActionGroup::BundleableGeneral,
+                group: Group::BundleableGeneral,
                 cost_map: mock_tx_cost(0, 0, 0),
             }
         }
@@ -947,7 +947,7 @@ mod tests {
             }
         }
 
-        fn group(self, group: ActionGroup) -> Self {
+        fn group(self, group: Group) -> Self {
             Self {
                 group,
                 ..self
@@ -981,22 +981,22 @@ mod tests {
         let instant = Instant::now();
 
         let bundleable_general = TransactionPriority {
-            group: ActionGroup::BundleableGeneral,
+            group: Group::BundleableGeneral,
             nonce_diff: 0,
             time_first_seen: instant,
         };
         let unbundleable_general = TransactionPriority {
-            group: ActionGroup::UnbundleableGeneral,
+            group: Group::UnbundleableGeneral,
             nonce_diff: 0,
             time_first_seen: instant,
         };
         let bundleable_sudo = TransactionPriority {
-            group: ActionGroup::BundleableSudo,
+            group: Group::BundleableSudo,
             nonce_diff: 0,
             time_first_seen: instant,
         };
         let unbundleable_sudo = TransactionPriority {
-            group: ActionGroup::UnbundleableSudo,
+            group: Group::UnbundleableSudo,
             nonce_diff: 0,
             time_first_seen: instant,
         };
@@ -1092,12 +1092,12 @@ mod tests {
         let instant = Instant::now();
 
         let high = TransactionPriority {
-            group: ActionGroup::BundleableGeneral,
+            group: Group::BundleableGeneral,
             nonce_diff: 0,
             time_first_seen: instant,
         };
         let low = TransactionPriority {
-            group: ActionGroup::BundleableGeneral,
+            group: Group::BundleableGeneral,
             nonce_diff: 1,
             time_first_seen: instant,
         };
@@ -1141,12 +1141,12 @@ mod tests {
     #[test]
     fn transaction_priority_comparisons_should_be_consistent_time_gap() {
         let high = TransactionPriority {
-            group: ActionGroup::BundleableGeneral,
+            group: Group::BundleableGeneral,
             nonce_diff: 0,
             time_first_seen: Instant::now(),
         };
         let low = TransactionPriority {
-            group: ActionGroup::BundleableGeneral,
+            group: Group::BundleableGeneral,
             nonce_diff: 0,
             time_first_seen: Instant::now() + Duration::from_micros(10),
         };
@@ -2266,21 +2266,21 @@ mod tests {
         let ttx_unbundleable_sudo = MockTTXBuilder::new()
             .nonce(0)
             .signer(get_judy_signing_key())
-            .group(ActionGroup::UnbundleableSudo)
+            .group(Group::UnbundleableSudo)
             .build();
         let ttx_bundleable_sudo = MockTTXBuilder::new()
             .nonce(0)
             .signer(get_carol_signing_key())
-            .group(ActionGroup::BundleableSudo)
+            .group(Group::BundleableSudo)
             .build();
         let ttx_unbundleable_general = MockTTXBuilder::new()
             .nonce(0)
             .signer(get_bob_signing_key())
-            .group(ActionGroup::UnbundleableGeneral)
+            .group(Group::UnbundleableGeneral)
             .build();
         let ttx_bundleable_general = MockTTXBuilder::new()
             .nonce(0)
-            .group(ActionGroup::BundleableGeneral)
+            .group(Group::BundleableGeneral)
             .build();
         let account_balances_full = mock_balances(100, 100);
 
