@@ -83,10 +83,7 @@ mod tests {
             asset,
             TransactionId,
         },
-        protocol::fees::v1alpha1::{
-            BridgeSudoChangeFeeComponents,
-            FeeComponentsInner,
-        },
+        protocol::fees::v1alpha1::BridgeSudoChangeFeeComponents,
     };
     use cnidarium::StateDelta;
 
@@ -163,10 +160,10 @@ mod tests {
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         state
-            .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents(FeeComponentsInner {
+            .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
                 base_fee: 10,
                 computed_cost_multiplier: 0,
-            }))
+            })
             .unwrap();
 
         let fee_asset = test_asset();

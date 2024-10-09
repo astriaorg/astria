@@ -8,10 +8,7 @@ use crate::{
         RollupId,
     },
     protocol::{
-        fees::v1alpha1::{
-            FeeComponentsInner,
-            TransferFeeComponents,
-        },
+        fees::v1alpha1::TransferFeeComponents,
         transaction::v1alpha1::{
             action::{
                 Action,
@@ -20,7 +17,6 @@ use crate::{
                 BridgeUnlock,
                 FeeAssetChange,
                 FeeChange,
-                FeeComponents,
                 IbcRelayerChange,
                 IbcSudoChange,
                 Ics20Withdrawal,
@@ -112,14 +108,10 @@ fn from_list_of_actions_bundleable_sudo() {
 
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
-        Action::FeeChange(FeeChange {
-            fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents(
-                FeeComponentsInner {
-                    base_fee: 12,
-                    computed_cost_multiplier: 0,
-                },
-            )),
-        }),
+        Action::FeeChange(FeeChange::TransferFee(TransferFeeComponents {
+            base_fee: 12,
+            computed_cost_multiplier: 0,
+        })),
         Action::FeeAssetChange(FeeAssetChange::Addition(asset)),
         Action::IbcRelayerChange(IbcRelayerChange::Addition(address)),
     ];

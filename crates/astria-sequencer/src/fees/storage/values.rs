@@ -4,7 +4,6 @@ use astria_core::protocol::fees::v1alpha1::{
     BridgeUnlockFeeComponents,
     FeeAssetChangeFeeComponents,
     FeeChangeFeeComponents,
-    FeeComponentsInner,
     IbcRelayFeeComponents,
     IbcRelayerChangeFeeComponents,
     IbcSudoChangeFeeComponents,
@@ -51,12 +50,12 @@ macro_rules! impl_from_for_fee_component{
         $(
             impl From<$domain_ty> for $storage_ty {
                 fn from(val: $domain_ty) -> Self {
-                    Self(val.0)
+                    Self{base_fee: val.base_fee, computed_cost_multiplier: val.computed_cost_multiplier}
                 }
             }
             impl From<$storage_ty> for $domain_ty {
                 fn from(val: $storage_ty) -> Self {
-                    Self(val.0)
+                    Self{base_fee: val.base_fee, computed_cost_multiplier: val.computed_cost_multiplier}
                 }
             }
         )*
@@ -89,46 +88,88 @@ macro_rules! impl_from_for_fee_storage {
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct TransferFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct TransferFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct SequenceFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct SequenceFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct Ics20WithdrawalFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct Ics20WithdrawalFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct InitBridgeAccountFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct InitBridgeAccountFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct BridgeLockFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct BridgeLockFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct BridgeUnlockFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct BridgeUnlockFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct BridgeSudoChangeFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct BridgeSudoChangeFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct IbcRelayFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct IbcRelayFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct ValidatorUpdateFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct ValidatorUpdateFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct FeeAssetChangeFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct FeeAssetChangeFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct FeeChangeFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct FeeChangeFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct IbcRelayerChangeFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct IbcRelayerChangeFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct IbcSudoChangeFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct IbcSudoChangeFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct SudoAddressChangeFeeComponentsStorage(FeeComponentsInner);
+pub(in crate::fees) struct SudoAddressChangeFeeComponentsStorage {
+    pub base_fee: u128,
+    pub computed_cost_multiplier: u128,
+}
 
 impl_from_for_fee_component!(
     TransferFeeComponents => TransferFeeComponentsStorage,

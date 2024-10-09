@@ -580,6 +580,7 @@ impl Protobuf for GenesisFees {
     type Error = FeesError;
     type Raw = raw::GenesisFees;
 
+    #[expect(clippy::too_many_lines, reason = "barring use of a macro, all lines are necessary")]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
             sequence,
@@ -763,10 +764,7 @@ enum FeesErrorKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        primitive::v1::Address,
-        protocol::fees::v1alpha1::FeeComponentsInner,
-    };
+    use crate::primitive::v1::Address;
 
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
@@ -802,11 +800,8 @@ mod tests {
             .unwrap()
     }
 
+    #[expect(clippy::too_many_lines, reason = "for testing purposes")]
     fn proto_genesis_state() -> raw::GenesisAppState {
-        let zero_inner_fees = FeeComponentsInner {
-            base_fee: 0,
-            computed_cost_multiplier: 0,
-        };
         raw::GenesisAppState {
             accounts: vec![
                 raw::Account {
@@ -839,69 +834,103 @@ mod tests {
             allowed_fee_assets: vec!["nria".into()],
             fees: Some(raw::GenesisFees {
                 transfer: Some(
-                    TransferFeeComponents(FeeComponentsInner {
+                    TransferFeeComponents {
                         base_fee: 12,
                         computed_cost_multiplier: 0,
-                    })
+                    }
                     .to_raw(),
                 ),
                 sequence: Some(
-                    SequenceFeeComponents(FeeComponentsInner {
+                    SequenceFeeComponents {
                         base_fee: 32,
                         computed_cost_multiplier: 1,
-                    })
+                    }
                     .to_raw(),
                 ),
                 init_bridge_account: Some(
-                    InitBridgeAccountFeeComponents(FeeComponentsInner {
+                    InitBridgeAccountFeeComponents {
                         base_fee: 48,
                         computed_cost_multiplier: 0,
-                    })
+                    }
                     .to_raw(),
                 ),
                 bridge_lock: Some(
-                    BridgeLockFeeComponents(FeeComponentsInner {
+                    BridgeLockFeeComponents {
                         base_fee: 12,
                         computed_cost_multiplier: 1,
-                    })
+                    }
                     .to_raw(),
                 ),
                 bridge_unlock: Some(
-                    BridgeUnlockFeeComponents(FeeComponentsInner {
+                    BridgeUnlockFeeComponents {
                         base_fee: 12,
                         computed_cost_multiplier: 0,
-                    })
+                    }
                     .to_raw(),
                 ),
                 bridge_sudo_change: Some(
-                    BridgeSudoChangeFeeComponents(FeeComponentsInner {
+                    BridgeSudoChangeFeeComponents {
                         base_fee: 24,
                         computed_cost_multiplier: 0,
-                    })
+                    }
                     .to_raw(),
                 ),
                 ics20_withdrawal: Some(
-                    Ics20WithdrawalFeeComponents(FeeComponentsInner {
+                    Ics20WithdrawalFeeComponents {
                         base_fee: 24,
                         computed_cost_multiplier: 0,
-                    })
+                    }
                     .to_raw(),
                 ),
-                ibc_relay: Some(IbcRelayFeeComponents(zero_inner_fees.clone()).to_raw()),
+                ibc_relay: Some(
+                    IbcRelayFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
                 validator_update: Some(
-                    ValidatorUpdateFeeComponents(zero_inner_fees.clone()).to_raw(),
+                    ValidatorUpdateFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
                 ),
                 fee_asset_change: Some(
-                    FeeAssetChangeFeeComponents(zero_inner_fees.clone()).to_raw(),
+                    FeeAssetChangeFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
                 ),
-                fee_change: Some(FeeChangeFeeComponents(zero_inner_fees.clone()).to_raw()),
+                fee_change: Some(
+                    FeeChangeFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
                 ibc_relayer_change: Some(
-                    IbcRelayerChangeFeeComponents(zero_inner_fees.clone()).to_raw(),
+                    IbcRelayerChangeFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
                 ),
                 sudo_address_change: Some(
-                    SudoAddressChangeFeeComponents(zero_inner_fees.clone()).to_raw(),
+                    SudoAddressChangeFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
                 ),
-                ibc_sudo_change: Some(IbcSudoChangeFeeComponents(zero_inner_fees.clone()).to_raw()),
+                ibc_sudo_change: Some(
+                    IbcSudoChangeFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
             }),
         }
     }

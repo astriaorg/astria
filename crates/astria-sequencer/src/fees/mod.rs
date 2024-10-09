@@ -5,23 +5,7 @@ use astria_core::{
         TRANSACTION_ID_LEN,
     },
     protocol::{
-        fees::v1alpha1::{
-            BridgeLockFeeComponents,
-            BridgeSudoChangeFeeComponents,
-            BridgeUnlockFeeComponents,
-            FeeAssetChangeFeeComponents,
-            FeeChangeFeeComponents,
-            FeeComponentsInner,
-            IbcRelayFeeComponents,
-            IbcRelayerChangeFeeComponents,
-            IbcSudoChangeFeeComponents,
-            Ics20WithdrawalFeeComponents,
-            InitBridgeAccountFeeComponents,
-            SequenceFeeComponents,
-            SudoAddressChangeFeeComponents,
-            TransferFeeComponents,
-            ValidatorUpdateFeeComponents,
-        },
+        fees::v1alpha1::SequenceFeeComponents,
         transaction::v1alpha1::action::{
             self,
             BridgeLock,
@@ -46,10 +30,7 @@ use astria_eyre::eyre::{
     OptionExt as _,
     WrapErr as _,
 };
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
+use cnidarium::StateWrite;
 use penumbra_ibc::IbcRelay;
 use tendermint::abci::{
     Event,
@@ -86,8 +67,6 @@ const DEPOSIT_BASE_FEE: u128 = 16;
 pub(crate) trait FeeHandler {
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()>;
 
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner>;
-
     fn computed_cost_base_component(&self) -> u128;
 }
 
@@ -113,20 +92,18 @@ impl Fee {
 impl FeeHandler for Transfer {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fee_components = Self::fee_components(&state).await?;
-        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
-    }
-
-    #[instrument(skip_all, err)]
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let TransferFeeComponents(inner_fees) = state
+        let fees = state
             .get_transfer_fees()
             .await
             .wrap_err("transfer fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        check_and_pay_fees(
+            self,
+            fees.base_fee,
+            fees.computed_cost_multiplier,
+            state,
+            &self.fee_asset,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -139,20 +116,18 @@ impl FeeHandler for Transfer {
 impl FeeHandler for BridgeLock {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fee_components = Self::fee_components(&state).await?;
-        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
-    }
-
-    #[instrument(skip_all, err)]
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let BridgeLockFeeComponents(inner_fees) = state
+        let fees = state
             .get_bridge_lock_fees()
             .await
             .wrap_err("bridge lock fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        check_and_pay_fees(
+            self,
+            fees.base_fee,
+            fees.computed_cost_multiplier,
+            state,
+            &self.fee_asset,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -174,21 +149,18 @@ impl FeeHandler for BridgeLock {
 impl FeeHandler for BridgeSudoChange {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fee_components = Self::fee_components(&state).await?;
-        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
-    }
-
-    #[instrument(skip_all, err)]
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let BridgeSudoChangeFeeComponents(inner_fees) =
-            state
-                .get_bridge_sudo_change_fees()
-                .await
-                .wrap_err("bridge sudo change fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        let fees = state
+            .get_bridge_sudo_change_fees()
+            .await
+            .wrap_err("bridge sudo chane fees not found, so this action is disabled")?;
+        check_and_pay_fees(
+            self,
+            fees.base_fee,
+            fees.computed_cost_multiplier,
+            state,
+            &self.fee_asset,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -201,20 +173,18 @@ impl FeeHandler for BridgeSudoChange {
 impl FeeHandler for BridgeUnlock {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fee_components = Self::fee_components(&state).await?;
-        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
-    }
-
-    #[instrument(skip_all, err)]
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let BridgeUnlockFeeComponents(inner_fees) = state
+        let fees = state
             .get_bridge_unlock_fees()
             .await
             .wrap_err("bridge unlock fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        check_and_pay_fees(
+            self,
+            fees.base_fee,
+            fees.computed_cost_multiplier,
+            state,
+            &self.fee_asset,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -227,20 +197,18 @@ impl FeeHandler for BridgeUnlock {
 impl FeeHandler for InitBridgeAccount {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fee_components = Self::fee_components(&state).await?;
-        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
-    }
-
-    #[instrument(skip_all, err)]
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let InitBridgeAccountFeeComponents(inner_fees) = state
+        let fees = state
             .get_init_bridge_account_fees()
             .await
             .wrap_err("init bridge account fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        check_and_pay_fees(
+            self,
+            fees.base_fee,
+            fees.computed_cost_multiplier,
+            state,
+            &self.fee_asset,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -253,20 +221,18 @@ impl FeeHandler for InitBridgeAccount {
 impl FeeHandler for action::Ics20Withdrawal {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fee_components = Self::fee_components(&state).await?;
-        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
-    }
-
-    #[instrument(skip_all, err)]
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let Ics20WithdrawalFeeComponents(inner_fees) = state
+        let fees = state
             .get_ics20_withdrawal_fees()
             .await
             .wrap_err("ics20 withdrawal fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        check_and_pay_fees(
+            self,
+            fees.base_fee,
+            fees.computed_cost_multiplier,
+            state,
+            &self.fee_asset,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -279,20 +245,18 @@ impl FeeHandler for action::Ics20Withdrawal {
 impl FeeHandler for Sequence {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fee_components = Self::fee_components(&state).await?;
-        check_and_pay_fees(self, fee_components, state, &self.fee_asset).await
-    }
-
-    #[instrument(skip_all, err)]
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let SequenceFeeComponents(inner_fees) = state
+        let fees = state
             .get_sequence_fees()
             .await
             .wrap_err("sequence fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        check_and_pay_fees(
+            self,
+            fees.base_fee,
+            fees.computed_cost_multiplier,
+            state,
+            &self.fee_asset,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -306,20 +270,13 @@ impl FeeHandler for Sequence {
 
 #[async_trait::async_trait]
 impl FeeHandler for ValidatorUpdate {
+    #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        Self::fee_components(state).await?;
-        Ok(())
-    }
-
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let ValidatorUpdateFeeComponents(inner_fees) = state
-            .get_validator_update_fees()
+        state
+            .get_transfer_fees()
             .await
             .wrap_err("validator update fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        Ok(())
     }
 
     fn computed_cost_base_component(&self) -> u128 {
@@ -329,20 +286,13 @@ impl FeeHandler for ValidatorUpdate {
 
 #[async_trait::async_trait]
 impl FeeHandler for SudoAddressChange {
+    #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        Self::fee_components(state).await?;
-        Ok(())
-    }
-
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let SudoAddressChangeFeeComponents(inner_fees) = state
-            .get_sudo_address_change_fees()
+        state
+            .get_transfer_fees()
             .await
-            .wrap_err("sudo address change fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+            .wrap_err("sudo address fees not found, so this action is disabled")?;
+        Ok(())
     }
 
     fn computed_cost_base_component(&self) -> u128 {
@@ -352,20 +302,13 @@ impl FeeHandler for SudoAddressChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for FeeChange {
+    #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        Self::fee_components(state).await?;
-        Ok(())
-    }
-
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let FeeChangeFeeComponents(inner_fees) = state
-            .get_fee_change_fees()
+        state
+            .get_transfer_fees()
             .await
             .wrap_err("fee change fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        Ok(())
     }
 
     fn computed_cost_base_component(&self) -> u128 {
@@ -375,20 +318,13 @@ impl FeeHandler for FeeChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcSudoChange {
+    #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        Self::fee_components(state).await?;
-        Ok(())
-    }
-
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let IbcSudoChangeFeeComponents(inner_fees) = state
-            .get_ibc_sudo_change_fees()
+        state
+            .get_transfer_fees()
             .await
             .wrap_err("ibc sudo change fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        Ok(())
     }
 
     fn computed_cost_base_component(&self) -> u128 {
@@ -398,21 +334,13 @@ impl FeeHandler for IbcSudoChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelayerChange {
+    #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        Self::fee_components(state).await?;
+        state
+            .get_transfer_fees()
+            .await
+            .wrap_err("ibc relayer change fees not found, so this action is disabled")?;
         Ok(())
-    }
-
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let IbcRelayerChangeFeeComponents(inner_fees) =
-            state
-                .get_ibc_relayer_change_fees()
-                .await
-                .wrap_err("transfer fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
     }
 
     fn computed_cost_base_component(&self) -> u128 {
@@ -422,20 +350,13 @@ impl FeeHandler for IbcRelayerChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for FeeAssetChange {
+    #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        Self::fee_components(state).await?;
-        Ok(())
-    }
-
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let FeeAssetChangeFeeComponents(inner_fees) = state
-            .get_fee_asset_change_fees()
+        state
+            .get_transfer_fees()
             .await
             .wrap_err("fee asset change fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+        Ok(())
     }
 
     fn computed_cost_base_component(&self) -> u128 {
@@ -445,20 +366,13 @@ impl FeeHandler for FeeAssetChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelay {
+    #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        Self::fee_components(state).await?;
-        Ok(())
-    }
-
-    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<FeeComponentsInner> {
-        let IbcRelayFeeComponents(inner_fees) = state
-            .get_ibc_relay_fees()
+        state
+            .get_transfer_fees()
             .await
-            .wrap_err("ibc relay fees not found, so this action is disabled")?;
-        Ok(FeeComponentsInner {
-            base_fee: inner_fees.base_fee,
-            computed_cost_multiplier: inner_fees.computed_cost_multiplier,
-        })
+            .wrap_err("validator update fees not found, so this action is disabled")?;
+        Ok(())
     }
 
     fn computed_cost_base_component(&self) -> u128 {
@@ -469,15 +383,15 @@ impl FeeHandler for IbcRelay {
 #[instrument(skip_all, err(level = Level::WARN))]
 async fn check_and_pay_fees<S: StateWrite>(
     act: &impl FeeHandler,
-    fee_components: FeeComponentsInner,
+    base_fee: u128,
+    multiplier: u128,
     mut state: S,
     fee_asset: &asset::Denom,
 ) -> astria_eyre::eyre::Result<()> {
-    let total_fees = fee_components
-        .base_fee
+    let total_fees = base_fee
         .checked_add(
             act.computed_cost_base_component()
-                .checked_mul(fee_components.computed_cost_multiplier)
+                .checked_mul(multiplier)
                 .ok_or_eyre("fee calculation overflow")?,
         )
         .ok_or_eyre("fee calculation overflow")?;
@@ -546,10 +460,10 @@ pub(crate) async fn calculate_sequence_action_fee_from_state<S: crate::fees::Sta
     data: &[u8],
     state: &S,
 ) -> eyre::Result<u128> {
-    let FeeComponentsInner {
+    let SequenceFeeComponents {
         base_fee,
         computed_cost_multiplier,
-    } = Sequence::fee_components(state).await?;
+    } = state.get_sequence_fees().await?;
     base_fee
         .checked_add(
             computed_cost_multiplier
@@ -580,7 +494,6 @@ mod tests {
         protocol::{
             fees::v1alpha1::{
                 BridgeLockFeeComponents,
-                FeeComponentsInner,
                 TransferFeeComponents,
             },
             transaction::v1alpha1::action::BridgeLock,
@@ -631,16 +544,16 @@ mod tests {
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
-        let transfer_fees = TransferFeeComponents(FeeComponentsInner {
+        let transfer_fees = TransferFeeComponents {
             base_fee: transfer_fee,
             computed_cost_multiplier: 0,
-        });
+        };
         state.put_transfer_fees(transfer_fees).unwrap();
 
-        let bridge_lock_fees = BridgeLockFeeComponents(FeeComponentsInner {
+        let bridge_lock_fees = BridgeLockFeeComponents {
             base_fee: transfer_fee,
             computed_cost_multiplier: 2,
-        });
+        };
         state.put_bridge_lock_fees(bridge_lock_fees).unwrap();
 
         let bridge_address = astria_address(&[1; 20]);

@@ -109,10 +109,7 @@ mod tests {
             TransactionId,
         },
         protocol::{
-            fees::v1alpha1::{
-                BridgeUnlockFeeComponents,
-                FeeComponentsInner,
-            },
+            fees::v1alpha1::BridgeUnlockFeeComponents,
             transaction::v1alpha1::action::BridgeUnlock,
         },
     };
@@ -240,10 +237,10 @@ mod tests {
         let transfer_fee = 10;
         let transfer_amount = 100;
         state
-            .put_bridge_unlock_fees(BridgeUnlockFeeComponents(FeeComponentsInner {
+            .put_bridge_unlock_fees(BridgeUnlockFeeComponents {
                 base_fee: transfer_fee,
                 computed_cost_multiplier: 0,
-            }))
+            })
             .unwrap();
 
         let to_address = astria_address(&[2; 20]);

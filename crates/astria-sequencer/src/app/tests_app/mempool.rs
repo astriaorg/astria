@@ -2,15 +2,11 @@ use std::collections::HashMap;
 
 use astria_core::{
     protocol::{
-        fees::v1alpha1::{
-            FeeComponentsInner,
-            TransferFeeComponents,
-        },
+        fees::v1alpha1::TransferFeeComponents,
         genesis::v1alpha1::Account,
         transaction::v1alpha1::{
             action::{
                 FeeChange,
-                FeeComponents,
                 Transfer,
             },
             UnsignedTransaction,
@@ -54,14 +50,10 @@ async fn trigger_cleaning() {
     // create tx which will cause mempool cleaning flag to be set
     let tx_trigger = UnsignedTransaction::builder()
         .actions(vec![
-            FeeChange {
-                fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents(
-                    FeeComponentsInner {
-                        base_fee: 10,
-                        computed_cost_multiplier: 0,
-                    },
-                )),
-            }
+            FeeChange::TransferFee(TransferFeeComponents {
+                base_fee: 10,
+                computed_cost_multiplier: 0,
+            })
             .into(),
         ])
         .chain_id("test")
@@ -154,14 +146,10 @@ async fn do_not_trigger_cleaning() {
     // (wrong sudo signer)
     let tx_fail = UnsignedTransaction::builder()
         .actions(vec![
-            FeeChange {
-                fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents(
-                    FeeComponentsInner {
-                        base_fee: 10,
-                        computed_cost_multiplier: 0,
-                    },
-                )),
-            }
+            FeeChange::TransferFee(TransferFeeComponents {
+                base_fee: 10,
+                computed_cost_multiplier: 0,
+            })
             .into(),
         ])
         .chain_id("test")
@@ -259,14 +247,10 @@ async fn maintenance_recosting_promotes() {
     // create tx which will enable recost tx to pass
     let tx_recost = UnsignedTransaction::builder()
         .actions(vec![
-            FeeChange {
-                fee_change: FeeComponents::TransferFeeComponents(TransferFeeComponents(
-                    FeeComponentsInner {
-                        base_fee: 10,
-                        computed_cost_multiplier: 0,
-                    },
-                )),
-            }
+            FeeChange::TransferFee(TransferFeeComponents {
+                base_fee: 10,
+                computed_cost_multiplier: 0,
+            })
             .into(),
         ])
         .chain_id("test")

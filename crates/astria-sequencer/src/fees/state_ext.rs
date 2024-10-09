@@ -44,7 +44,7 @@ use crate::storage::StoredValue;
 const BLOCK_FEES_PREFIX: &str = "block_fees";
 
 fn fees_key(base: &str) -> String {
-    format!("{}fees", base)
+    format!("{base}fees")
 }
 
 #[async_trait]
@@ -489,7 +489,6 @@ mod tests {
             BridgeLockFeeComponents,
             BridgeSudoChangeFeeComponents,
             BridgeUnlockFeeComponents,
-            FeeComponentsInner,
             Ics20WithdrawalFeeComponents,
             InitBridgeAccountFeeComponents,
             SequenceFeeComponents,
@@ -589,10 +588,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = TransferFeeComponents(FeeComponentsInner {
+        let fee_components = TransferFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_transfer_fees(fee_components).unwrap();
         let retrieved_fee = state.get_transfer_fees().await.unwrap();
@@ -605,10 +604,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = SequenceFeeComponents(FeeComponentsInner {
+        let fee_components = SequenceFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_sequence_fees(fee_components).unwrap();
         let retrieved_fee = state.get_sequence_fees().await.unwrap();
@@ -621,10 +620,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = InitBridgeAccountFeeComponents(FeeComponentsInner {
+        let fee_components = InitBridgeAccountFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_init_bridge_account_fees(fee_components).unwrap();
         let retrieved_fee = state.get_init_bridge_account_fees().await.unwrap();
@@ -637,10 +636,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = Ics20WithdrawalFeeComponents(FeeComponentsInner {
+        let fee_components = Ics20WithdrawalFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_ics20_withdrawal_fees(fee_components).unwrap();
         let retrieved_fee = state.get_ics20_withdrawal_fees().await.unwrap();
@@ -653,10 +652,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = BridgeLockFeeComponents(FeeComponentsInner {
+        let fee_components = BridgeLockFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_bridge_lock_fees(fee_components).unwrap();
         let retrieved_fee = state.get_bridge_lock_fees().await.unwrap();
@@ -669,10 +668,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = BridgeUnlockFeeComponents(FeeComponentsInner {
+        let fee_components = BridgeUnlockFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_bridge_unlock_fees(fee_components).unwrap();
         let retrieved_fee = state.get_bridge_unlock_fees().await.unwrap();
@@ -685,10 +684,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = BridgeSudoChangeFeeComponents(FeeComponentsInner {
+        let fee_components = BridgeSudoChangeFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_bridge_sudo_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_bridge_sudo_change_fees().await.unwrap();

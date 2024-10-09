@@ -55,10 +55,7 @@ use crate::{
         ValidatorSet,
     },
     bridge::StateWriteExt as _,
-    fees::{
-        FeeHandler as _,
-        StateReadExt as _,
-    },
+    fees::StateReadExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
         astria_address,
@@ -273,7 +270,7 @@ async fn app_transfer_block_fees_to_sudo() {
     app.commit(storage).await;
 
     // assert that transaction fees were transferred to the block proposer
-    let transfer_base_fee = Transfer::fee_components(&app.state).await.unwrap().base_fee;
+    let transfer_base_fee = app.state.get_transfer_fees().await.unwrap().base_fee;
     assert_eq!(
         app.state
             .get_account_balance(&astria_address_from_hex_string(JUDY_ADDRESS), &nria())

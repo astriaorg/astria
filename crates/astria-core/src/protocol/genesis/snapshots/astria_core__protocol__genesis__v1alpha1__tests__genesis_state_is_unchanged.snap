@@ -57,14 +57,14 @@ expression: genesis_state()
   "allowedFeeAssets": [
     "nria"
   ],
-  "genesisFees": {
-    "transferFees": {
+  "fees": {
+    "transfer": {
       "baseFee": {
         "lo": "12"
       },
       "computedCostMultiplier": {}
     },
-    "sequenceFees": {
+    "sequence": {
       "baseFee": {
         "lo": "32"
       },
@@ -72,19 +72,19 @@ expression: genesis_state()
         "lo": "1"
       }
     },
-    "ics20WithdrawalFees": {
+    "ics20Withdrawal": {
       "baseFee": {
         "lo": "24"
       },
       "computedCostMultiplier": {}
     },
-    "initBridgeAccountFees": {
+    "initBridgeAccount": {
       "baseFee": {
         "lo": "48"
       },
       "computedCostMultiplier": {}
     },
-    "bridgeLockFees": {
+    "bridgeLock": {
       "baseFee": {
         "lo": "12"
       },
@@ -92,16 +92,44 @@ expression: genesis_state()
         "lo": "1"
       }
     },
-    "bridgeUnlockFees": {
+    "bridgeUnlock": {
       "baseFee": {
         "lo": "12"
       },
       "computedCostMultiplier": {}
     },
-    "bridgeSudoChangeFees": {
+    "bridgeSudoChange": {
       "baseFee": {
         "lo": "24"
       },
+      "computedCostMultiplier": {}
+    },
+    "ibcRelay": {
+      "baseFee": {},
+      "computedCostMultiplier": {}
+    },
+    "validatorUpdate": {
+      "baseFee": {},
+      "computedCostMultiplier": {}
+    },
+    "feeAssetChange": {
+      "baseFee": {},
+      "computedCostMultiplier": {}
+    },
+    "feeChange": {
+      "baseFee": {},
+      "computedCostMultiplier": {}
+    },
+    "ibcRelayerChange": {
+      "baseFee": {},
+      "computedCostMultiplier": {}
+    },
+    "sudoAddressChange": {
+      "baseFee": {},
+      "computedCostMultiplier": {}
+    },
+    "ibcSudoChange": {
+      "baseFee": {},
       "computedCostMultiplier": {}
     }
   }
