@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::VecDeque,
     str::FromStr,
 };
@@ -137,6 +138,27 @@ impl<'a> From<&'a Denom> for IbcPrefixed {
 impl<'a> From<&'a IbcPrefixed> for IbcPrefixed {
     fn from(value: &IbcPrefixed) -> Self {
         *value
+    }
+}
+
+impl<'a> From<&'a IbcPrefixed> for Cow<'a, IbcPrefixed> {
+    fn from(ibc_prefixed: &'a IbcPrefixed) -> Self {
+        Cow::Borrowed(ibc_prefixed)
+    }
+}
+
+impl<'a> From<&'a TracePrefixed> for Cow<'a, IbcPrefixed> {
+    fn from(trace_prefixed: &'a TracePrefixed) -> Self {
+        Cow::Owned(trace_prefixed.to_ibc_prefixed())
+    }
+}
+
+impl<'a> From<&'a Denom> for Cow<'a, IbcPrefixed> {
+    fn from(value: &'a Denom) -> Self {
+        match value {
+            Denom::TracePrefixed(trace_prefixed) => Cow::from(trace_prefixed),
+            Denom::IbcPrefixed(ibc_prefixed) => Cow::from(ibc_prefixed),
+        }
     }
 }
 
@@ -543,20 +565,22 @@ pub struct IbcPrefixed {
 }
 
 impl IbcPrefixed {
+    pub const ENCODED_HASH_LEN: usize = 32;
+
     #[must_use]
-    pub fn new(id: [u8; 32]) -> Self {
+    pub const fn new(id: [u8; Self::ENCODED_HASH_LEN]) -> Self {
         Self {
             id,
         }
     }
 
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8; 32] {
+    pub const fn as_bytes(&self) -> &[u8; Self::ENCODED_HASH_LEN] {
         &self.id
     }
 
     #[must_use]
-    pub fn display_len(&self) -> usize {
+    pub const fn display_len(&self) -> usize {
         68 // "ibc/" + 64 hex characters
     }
 }
@@ -586,7 +610,7 @@ impl FromStr for IbcPrefixed {
         if segments.next().is_some() {
             return Err(ParseIbcPrefixedError::too_many_segments());
         }
-        let id = <[u8; 32]>::from_hex(hex).map_err(Self::Err::hex)?;
+        let id = <[u8; Self::ENCODED_HASH_LEN]>::from_hex(hex).map_err(Self::Err::hex)?;
         Ok(Self {
             id,
         })

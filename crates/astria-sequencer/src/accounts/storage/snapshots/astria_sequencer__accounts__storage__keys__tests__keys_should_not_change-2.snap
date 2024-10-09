@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/accounts/storage/keys.rs
+assertion_line: 90
+expression: "balance(&address(), &asset())"
+---
+accounts/HAxJDxtVKNgXPF3kbRMRYOSywMM=/balance/ibc/be429a02d00837245167a2616674a979a2ac6f9806468b48a975b156ad711320

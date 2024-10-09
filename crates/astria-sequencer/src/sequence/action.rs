@@ -1,7 +1,4 @@
-use astria_core::{
-    protocol::transaction::v1alpha1::action::Sequence,
-    Protobuf as _,
-};
+use astria_core::protocol::transaction::v1alpha1::action::Sequence;
 use astria_eyre::eyre::{
     ensure,
     OptionExt as _,
@@ -60,7 +57,7 @@ impl ActionHandler for Sequence {
         ensure!(curr_balance >= fee, "insufficient funds");
 
         state
-            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
+            .get_and_increase_block_fees::<Self, _>(&self.fee_asset, fee)
             .await
             .wrap_err("failed to add to block fees")?;
         state
