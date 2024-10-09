@@ -315,7 +315,6 @@ mod tests {
         BridgeLockFeeComponents,
         BridgeSudoChangeFeeComponents,
         BridgeUnlockFeeComponents,
-        FeeComponents,
         Ics20WithdrawalFeeComponents,
         InitBridgeAccountFeeComponents,
         SequenceFeeComponents,
@@ -362,68 +361,64 @@ mod tests {
         state_tx
             .put_native_asset(crate::test_utils::nria())
             .unwrap();
-        let transfer_fees = FeeComponents::TransferFeeComponents(TransferFeeComponents {
+        let transfer_fees = TransferFeeComponents {
             base_fee: 12,
             computed_cost_multiplier: 0,
-        });
+        };
         state_tx
             .put_transfer_fees(transfer_fees)
             .wrap_err("failed to initiate transfer fee components")
             .unwrap();
 
-        let sequence_fees = FeeComponents::SequenceFeeComponents(SequenceFeeComponents {
+        let sequence_fees = SequenceFeeComponents {
             base_fee: 0,
             computed_cost_multiplier: 1,
-        });
+        };
         state_tx
             .put_sequence_fees(sequence_fees)
             .wrap_err("failed to initiate sequence action fee components")
             .unwrap();
 
-        let ics20_withdrawal_fees =
-            FeeComponents::Ics20WithdrawalFeeComponents(Ics20WithdrawalFeeComponents {
-                base_fee: 1,
-                computed_cost_multiplier: 0,
-            });
+        let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
+            base_fee: 1,
+            computed_cost_multiplier: 0,
+        };
         state_tx
             .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
             .wrap_err("failed to initiate ics20 withdrawal fee components")
             .unwrap();
 
-        let init_bridge_account_fees =
-            FeeComponents::InitBridgeAccountFeeComponents(InitBridgeAccountFeeComponents {
-                base_fee: 12,
-                computed_cost_multiplier: 0,
-            });
+        let init_bridge_account_fees = InitBridgeAccountFeeComponents {
+            base_fee: 12,
+            computed_cost_multiplier: 0,
+        };
         state_tx
             .put_init_bridge_account_fees(init_bridge_account_fees)
             .wrap_err("failed to initiate init bridge account fee components")
             .unwrap();
 
-        let bridge_lock_fees = FeeComponents::BridgeLockFeeComponents(BridgeLockFeeComponents {
+        let bridge_lock_fees = BridgeLockFeeComponents {
             base_fee: 0,
             computed_cost_multiplier: 1,
-        });
+        };
         state_tx
             .put_bridge_lock_fees(bridge_lock_fees)
             .wrap_err("failed to initiate bridge lock fee components")
             .unwrap();
 
-        let bridge_unlock_fees =
-            FeeComponents::BridgeUnlockFeeComponents(BridgeUnlockFeeComponents {
-                base_fee: 0,
-                computed_cost_multiplier: 0,
-            });
+        let bridge_unlock_fees = BridgeUnlockFeeComponents {
+            base_fee: 0,
+            computed_cost_multiplier: 0,
+        };
         state_tx
             .put_bridge_unlock_fees(bridge_unlock_fees)
             .wrap_err("failed to initiate bridge unlock fee components")
             .unwrap();
 
-        let bridge_sudo_change_fees =
-            FeeComponents::BridgeSudoChangeFeeComponents(BridgeSudoChangeFeeComponents {
-                base_fee: 24,
-                computed_cost_multiplier: 0,
-            });
+        let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
+            base_fee: 24,
+            computed_cost_multiplier: 0,
+        };
         state_tx
             .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
             .wrap_err("failed to initiate bridge sudo change fee components")
@@ -502,68 +497,64 @@ mod tests {
         state_tx
             .put_native_asset(crate::test_utils::nria())
             .unwrap();
-        let transfer_fees = FeeComponents::TransferFeeComponents(TransferFeeComponents {
+        let transfer_fees = TransferFeeComponents {
             base_fee: 12,
             computed_cost_multiplier: 0,
-        });
+        };
         state_tx
             .put_transfer_fees(transfer_fees)
             .wrap_err("failed to initiate transfer fee components")
             .unwrap();
 
-        let sequence_fees = FeeComponents::SequenceFeeComponents(SequenceFeeComponents {
+        let sequence_fees = SequenceFeeComponents {
             base_fee: 0,
             computed_cost_multiplier: 1,
-        });
+        };
         state_tx
             .put_sequence_fees(sequence_fees)
             .wrap_err("failed to initiate sequence action fee components")
             .unwrap();
 
-        let ics20_withdrawal_fees =
-            FeeComponents::Ics20WithdrawalFeeComponents(Ics20WithdrawalFeeComponents {
-                base_fee: 1,
-                computed_cost_multiplier: 0,
-            });
+        let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
+            base_fee: 1,
+            computed_cost_multiplier: 0,
+        };
         state_tx
             .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
             .wrap_err("failed to initiate ics20 withdrawal fee components")
             .unwrap();
 
-        let init_bridge_account_fees =
-            FeeComponents::InitBridgeAccountFeeComponents(InitBridgeAccountFeeComponents {
-                base_fee: 12,
-                computed_cost_multiplier: 0,
-            });
+        let init_bridge_account_fees = InitBridgeAccountFeeComponents {
+            base_fee: 12,
+            computed_cost_multiplier: 0,
+        };
         state_tx
             .put_init_bridge_account_fees(init_bridge_account_fees)
             .wrap_err("failed to initiate init bridge account fee components")
             .unwrap();
 
-        let bridge_lock_fees = FeeComponents::BridgeLockFeeComponents(BridgeLockFeeComponents {
+        let bridge_lock_fees = BridgeLockFeeComponents {
             base_fee: 0,
             computed_cost_multiplier: 1,
-        });
+        };
         state_tx
             .put_bridge_lock_fees(bridge_lock_fees)
             .wrap_err("failed to initiate bridge lock fee components")
             .unwrap();
 
-        let bridge_unlock_fees =
-            FeeComponents::BridgeUnlockFeeComponents(BridgeUnlockFeeComponents {
-                base_fee: 0,
-                computed_cost_multiplier: 0,
-            });
+        let bridge_unlock_fees = BridgeUnlockFeeComponents {
+            base_fee: 0,
+            computed_cost_multiplier: 0,
+        };
         state_tx
             .put_bridge_unlock_fees(bridge_unlock_fees)
             .wrap_err("failed to initiate bridge unlock fee components")
             .unwrap();
 
-        let bridge_sudo_change_fees =
-            FeeComponents::BridgeSudoChangeFeeComponents(BridgeSudoChangeFeeComponents {
-                base_fee: 24,
-                computed_cost_multiplier: 0,
-            });
+        let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
+            base_fee: 24,
+            computed_cost_multiplier: 0,
+        };
         state_tx
             .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
             .wrap_err("failed to initiate bridge sudo change fee components")

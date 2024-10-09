@@ -8,7 +8,6 @@ use astria_core::{
             BridgeLockFeeComponents,
             BridgeSudoChange,
             BridgeSudoChangeFeeComponents,
-            FeeComponents,
             InitBridgeAccount,
             InitBridgeAccountFeeComponents,
             Sequence,
@@ -109,12 +108,10 @@ async fn ensure_correct_block_fees_transfer() {
     let mut state_tx = StateDelta::new(app.state.clone());
     let transfer_base_fee = 1;
     state_tx
-        .put_transfer_fees(FeeComponents::TransferFeeComponents(
-            TransferFeeComponents {
-                base_fee: transfer_base_fee,
-                computed_cost_multiplier: 0,
-            },
-        ))
+        .put_transfer_fees(TransferFeeComponents {
+            base_fee: transfer_base_fee,
+            computed_cost_multiplier: 0,
+        })
         .unwrap();
     app.apply(state_tx);
 
@@ -153,12 +150,10 @@ async fn ensure_correct_block_fees_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_sequence_fees(FeeComponents::SequenceFeeComponents(
-            SequenceFeeComponents {
-                base_fee: 1,
-                computed_cost_multiplier: 1,
-            },
-        ))
+        .put_sequence_fees(SequenceFeeComponents {
+            base_fee: 1,
+            computed_cost_multiplier: 1,
+        })
         .unwrap();
     app.apply(state_tx);
 
@@ -201,12 +196,10 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
     let mut state_tx = StateDelta::new(app.state.clone());
     let init_bridge_account_base_fee = 1;
     state_tx
-        .put_init_bridge_account_fees(FeeComponents::InitBridgeAccountFeeComponents(
-            InitBridgeAccountFeeComponents {
-                base_fee: init_bridge_account_base_fee,
-                computed_cost_multiplier: 0,
-            },
-        ))
+        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
+            base_fee: init_bridge_account_base_fee,
+            computed_cost_multiplier: 0,
+        })
         .unwrap();
     app.apply(state_tx);
 
@@ -256,20 +249,16 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let bridge_lock_byte_cost_multiplier = 1;
 
     state_tx
-        .put_transfer_fees(FeeComponents::TransferFeeComponents(
-            TransferFeeComponents {
-                base_fee: transfer_base_fee,
-                computed_cost_multiplier: 0,
-            },
-        ))
+        .put_transfer_fees(TransferFeeComponents {
+            base_fee: transfer_base_fee,
+            computed_cost_multiplier: 0,
+        })
         .unwrap();
     state_tx
-        .put_bridge_lock_fees(FeeComponents::BridgeLockFeeComponents(
-            BridgeLockFeeComponents {
-                base_fee: transfer_base_fee,
-                computed_cost_multiplier: bridge_lock_byte_cost_multiplier,
-            },
-        ))
+        .put_bridge_lock_fees(BridgeLockFeeComponents {
+            base_fee: transfer_base_fee,
+            computed_cost_multiplier: bridge_lock_byte_cost_multiplier,
+        })
         .unwrap();
     state_tx
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
@@ -332,12 +321,10 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
 
     let sudo_change_base_fee = 1;
     state_tx
-        .put_bridge_sudo_change_fees(FeeComponents::BridgeSudoChangeFeeComponents(
-            BridgeSudoChangeFeeComponents {
-                base_fee: sudo_change_base_fee,
-                computed_cost_multiplier: 0,
-            },
-        ))
+        .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
+            base_fee: sudo_change_base_fee,
+            computed_cost_multiplier: 0,
+        })
         .unwrap();
     state_tx
         .put_bridge_account_sudo_address(&bridge_address, alice_address)

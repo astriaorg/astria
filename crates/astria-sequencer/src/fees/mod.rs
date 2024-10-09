@@ -7,17 +7,23 @@ use astria_core::{
     protocol::transaction::v1alpha1::action::{
         self,
         BridgeLock,
+        BridgeLockFeeComponents,
         BridgeSudoChange,
+        BridgeSudoChangeFeeComponents,
         BridgeUnlock,
+        BridgeUnlockFeeComponents,
         FeeAssetChange,
         FeeChange,
-        FeeComponents,
         IbcRelayerChange,
         IbcSudoChange,
+        Ics20WithdrawalFeeComponents,
         InitBridgeAccount,
+        InitBridgeAccountFeeComponents,
         Sequence,
+        SequenceFeeComponents,
         SudoAddressChange,
         Transfer,
+        TransferFeeComponents,
         ValidatorUpdate,
     },
     sequencerblock::v1alpha1::block::Deposit,
@@ -111,13 +117,13 @@ impl FeeHandler for Transfer {
 
     #[instrument(skip_all, err)]
     async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
-        let (base_fee, computed_cost_multiplier) = match state.get_transfer_fees().await {
-            Ok(FeeComponents::TransferFeeComponents(fees)) => {
-                (fees.base_fee, fees.computed_cost_multiplier)
-            }
-            Ok(_) => bail!("incorrect type of fees stored in transfer fees storage"),
-            Err(e) => return Err(e),
-        };
+        let TransferFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        } = state
+            .get_transfer_fees()
+            .await
+            .wrap_err("failed to get transfer fees")?;
         Ok(Some(GenericFeeComponents {
             base_fee,
             computed_cost_multiplier,
@@ -145,13 +151,13 @@ impl FeeHandler for BridgeLock {
 
     #[instrument(skip_all, err)]
     async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
-        let (base_fee, computed_cost_multiplier) = match state.get_bridge_lock_fees().await {
-            Ok(FeeComponents::BridgeLockFeeComponents(fees)) => {
-                (fees.base_fee, fees.computed_cost_multiplier)
-            }
-            Ok(_) => bail!("incorrect type of fees stored in bridge lock fees storage"),
-            Err(e) => return Err(e),
-        };
+        let BridgeLockFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        } = state
+            .get_bridge_lock_fees()
+            .await
+            .wrap_err("failed to get bridge lock fees")?;
         Ok(Some(GenericFeeComponents {
             base_fee,
             computed_cost_multiplier,
@@ -188,13 +194,13 @@ impl FeeHandler for BridgeSudoChange {
 
     #[instrument(skip_all, err)]
     async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
-        let (base_fee, computed_cost_multiplier) = match state.get_bridge_sudo_change_fees().await {
-            Ok(FeeComponents::BridgeSudoChangeFeeComponents(fees)) => {
-                (fees.base_fee, fees.computed_cost_multiplier)
-            }
-            Ok(_) => bail!("incorrect type of fees stored in bridge sudo change fees storage"),
-            Err(e) => return Err(e),
-        };
+        let BridgeSudoChangeFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        } = state
+            .get_bridge_sudo_change_fees()
+            .await
+            .wrap_err("failed to get bridge sudo fees")?;
         Ok(Some(GenericFeeComponents {
             base_fee,
             computed_cost_multiplier,
@@ -222,13 +228,13 @@ impl FeeHandler for BridgeUnlock {
 
     #[instrument(skip_all, err)]
     async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
-        let (base_fee, computed_cost_multiplier) = match state.get_bridge_unlock_fees().await {
-            Ok(FeeComponents::BridgeUnlockFeeComponents(fees)) => {
-                (fees.base_fee, fees.computed_cost_multiplier)
-            }
-            Ok(_) => bail!("incorrect type of fees stored in bridge unlock fees storage"),
-            Err(e) => return Err(e),
-        };
+        let BridgeUnlockFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        } = state
+            .get_bridge_unlock_fees()
+            .await
+            .wrap_err("failed to get bridge unlock fees")?;
         Ok(Some(GenericFeeComponents {
             base_fee,
             computed_cost_multiplier,
@@ -256,14 +262,13 @@ impl FeeHandler for InitBridgeAccount {
 
     #[instrument(skip_all, err)]
     async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
-        let (base_fee, computed_cost_multiplier) = match state.get_init_bridge_account_fees().await
-        {
-            Ok(FeeComponents::InitBridgeAccountFeeComponents(fees)) => {
-                (fees.base_fee, fees.computed_cost_multiplier)
-            }
-            Ok(_) => bail!("incorrect type of fees stored in init bridge account fees storage"),
-            Err(e) => return Err(e),
-        };
+        let InitBridgeAccountFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        } = state
+            .get_init_bridge_account_fees()
+            .await
+            .wrap_err("failed to get init bridge account fees")?;
         Ok(Some(GenericFeeComponents {
             base_fee,
             computed_cost_multiplier,
@@ -291,13 +296,13 @@ impl FeeHandler for action::Ics20Withdrawal {
 
     #[instrument(skip_all, err)]
     async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
-        let (base_fee, computed_cost_multiplier) = match state.get_ics20_withdrawal_fees().await {
-            Ok(FeeComponents::Ics20WithdrawalFeeComponents(fees)) => {
-                (fees.base_fee, fees.computed_cost_multiplier)
-            }
-            Ok(_) => bail!("incorrect type of fees stored in ics20 withdrawal fees storage"),
-            Err(e) => return Err(e),
-        };
+        let Ics20WithdrawalFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        } = state
+            .get_ics20_withdrawal_fees()
+            .await
+            .wrap_err("failed to get ics20 withdrawal fees")?;
         Ok(Some(GenericFeeComponents {
             base_fee,
             computed_cost_multiplier,
@@ -325,13 +330,13 @@ impl FeeHandler for Sequence {
 
     #[instrument(skip_all, err)]
     async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<GenericFeeComponents>> {
-        let (base_fee, computed_cost_multiplier) = match state.get_sequence_fees().await {
-            Ok(FeeComponents::SequenceFeeComponents(fees)) => {
-                (fees.base_fee, fees.computed_cost_multiplier)
-            }
-            Ok(_) => bail!("incorrect type of fees stored in sequence fees storage"),
-            Err(e) => return Err(e),
-        };
+        let SequenceFeeComponents {
+            base_fee,
+            computed_cost_multiplier,
+        } = state
+            .get_sequence_fees()
+            .await
+            .wrap_err("failed to get sequence fees")?;
         Ok(Some(GenericFeeComponents {
             base_fee,
             computed_cost_multiplier,
@@ -554,7 +559,6 @@ mod tests {
         protocol::transaction::v1alpha1::action::{
             BridgeLock,
             BridgeLockFeeComponents,
-            FeeComponents,
             TransferFeeComponents,
         },
         sequencerblock::v1alpha1::block::Deposit,
@@ -603,16 +607,16 @@ mod tests {
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
-        let transfer_fees = FeeComponents::TransferFeeComponents(TransferFeeComponents {
+        let transfer_fees = TransferFeeComponents {
             base_fee: transfer_fee,
             computed_cost_multiplier: 0,
-        });
+        };
         state.put_transfer_fees(transfer_fees).unwrap();
 
-        let bridge_lock_fees = FeeComponents::BridgeLockFeeComponents(BridgeLockFeeComponents {
+        let bridge_lock_fees = BridgeLockFeeComponents {
             base_fee: transfer_fee,
             computed_cost_multiplier: 2,
-        });
+        };
         state.put_bridge_lock_fees(bridge_lock_fees).unwrap();
 
         let bridge_address = astria_address(&[1; 20]);

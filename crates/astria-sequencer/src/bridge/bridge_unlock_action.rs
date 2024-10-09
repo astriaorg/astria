@@ -111,7 +111,6 @@ mod tests {
         protocol::transaction::v1alpha1::action::{
             BridgeUnlock,
             BridgeUnlockFeeComponents,
-            FeeComponents,
         },
     };
     use cnidarium::StateDelta;
@@ -238,12 +237,10 @@ mod tests {
         let transfer_fee = 10;
         let transfer_amount = 100;
         state
-            .put_bridge_unlock_fees(FeeComponents::BridgeUnlockFeeComponents(
-                BridgeUnlockFeeComponents {
-                    base_fee: transfer_fee,
-                    computed_cost_multiplier: 0,
-                },
-            ))
+            .put_bridge_unlock_fees(BridgeUnlockFeeComponents {
+                base_fee: transfer_fee,
+                computed_cost_multiplier: 0,
+            })
             .unwrap();
 
         let to_address = astria_address(&[2; 20]);

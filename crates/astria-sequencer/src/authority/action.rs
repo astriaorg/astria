@@ -125,26 +125,26 @@ impl ActionHandler for FeeChange {
         ensure!(sudo_address == from, "signer is not the sudo key");
 
         match self.fee_change {
-            FeeComponents::TransferFeeComponents(_) => state
-                .put_transfer_fees(self.fee_change)
+            FeeComponents::TransferFeeComponents(fees) => state
+                .put_transfer_fees(fees)
                 .wrap_err("failed to put transfer fees"),
-            FeeComponents::SequenceFeeComponents(_) => state
-                .put_sequence_fees(self.fee_change)
+            FeeComponents::SequenceFeeComponents(fees) => state
+                .put_sequence_fees(fees)
                 .wrap_err("failed to put sequence fees"),
-            FeeComponents::Ics20WithdrawalFeeComponents(_) => state
-                .put_ics20_withdrawal_fees(self.fee_change)
+            FeeComponents::Ics20WithdrawalFeeComponents(fees) => state
+                .put_ics20_withdrawal_fees(fees)
                 .wrap_err("failed to put ics20 withdrawal fees"),
-            FeeComponents::InitBridgeAccountFeeComponents(_) => state
-                .put_init_bridge_account_fees(self.fee_change)
+            FeeComponents::InitBridgeAccountFeeComponents(fees) => state
+                .put_init_bridge_account_fees(fees)
                 .wrap_err("failed to put init bridge account fees"),
-            FeeComponents::BridgeLockFeeComponents(_) => state
-                .put_bridge_lock_fees(self.fee_change)
+            FeeComponents::BridgeLockFeeComponents(fees) => state
+                .put_bridge_lock_fees(fees)
                 .wrap_err("failed to put bridge lock fees"),
-            FeeComponents::BridgeUnlockFeeComponents(_) => state
-                .put_bridge_unlock_fees(self.fee_change)
+            FeeComponents::BridgeUnlockFeeComponents(fees) => state
+                .put_bridge_unlock_fees(fees)
                 .wrap_err("failed to put bridge unlock fees"),
-            FeeComponents::BridgeSudoChangeFeeComponents(_) => state
-                .put_bridge_sudo_change_fees(self.fee_change)
+            FeeComponents::BridgeSudoChangeFeeComponents(fees) => state
+                .put_bridge_sudo_change_fees(fees)
                 .wrap_err("failed to put bridge sudo change base fees"),
         }
     }
@@ -223,12 +223,10 @@ mod tests {
         state.put_sudo_address([1; 20]).unwrap();
 
         state
-            .put_transfer_fees(FeeComponents::TransferFeeComponents(
-                TransferFeeComponents {
-                    base_fee: transfer_fee,
-                    computed_cost_multiplier: 0,
-                },
-            ))
+            .put_transfer_fees(TransferFeeComponents {
+                base_fee: transfer_fee,
+                computed_cost_multiplier: 0,
+            })
             .unwrap();
 
         let fee_change = FeeChange {
@@ -251,12 +249,10 @@ mod tests {
         let sequence_base_fee = 5;
         let sequence_cost_multiplier = 2;
         state
-            .put_sequence_fees(FeeComponents::SequenceFeeComponents(
-                SequenceFeeComponents {
-                    base_fee: sequence_base_fee,
-                    computed_cost_multiplier: sequence_cost_multiplier,
-                },
-            ))
+            .put_sequence_fees(SequenceFeeComponents {
+                base_fee: sequence_base_fee,
+                computed_cost_multiplier: sequence_cost_multiplier,
+            })
             .unwrap();
 
         let fee_change = FeeChange {
@@ -286,12 +282,10 @@ mod tests {
 
         let init_bridge_account_base_fee = 1;
         state
-            .put_init_bridge_account_fees(FeeComponents::InitBridgeAccountFeeComponents(
-                InitBridgeAccountFeeComponents {
-                    base_fee: init_bridge_account_base_fee,
-                    computed_cost_multiplier: 0,
-                },
-            ))
+            .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
+                base_fee: init_bridge_account_base_fee,
+                computed_cost_multiplier: 0,
+            })
             .unwrap();
 
         let fee_change = FeeChange {
@@ -315,12 +309,10 @@ mod tests {
 
         let bridge_lock_cost_multiplier = 1;
         state
-            .put_bridge_lock_fees(FeeComponents::BridgeLockFeeComponents(
-                BridgeLockFeeComponents {
-                    base_fee: 0,
-                    computed_cost_multiplier: bridge_lock_cost_multiplier,
-                },
-            ))
+            .put_bridge_lock_fees(BridgeLockFeeComponents {
+                base_fee: 0,
+                computed_cost_multiplier: bridge_lock_cost_multiplier,
+            })
             .unwrap();
 
         let fee_change = FeeChange {
@@ -342,12 +334,10 @@ mod tests {
 
         let ics20_withdrawal_base_fee = 1;
         state
-            .put_ics20_withdrawal_fees(FeeComponents::Ics20WithdrawalFeeComponents(
-                Ics20WithdrawalFeeComponents {
-                    base_fee: ics20_withdrawal_base_fee,
-                    computed_cost_multiplier: 0,
-                },
-            ))
+            .put_ics20_withdrawal_fees(Ics20WithdrawalFeeComponents {
+                base_fee: ics20_withdrawal_base_fee,
+                computed_cost_multiplier: 0,
+            })
             .unwrap();
 
         let fee_change = FeeChange {

@@ -12,7 +12,6 @@ use astria_core::{
             action::{
                 BridgeLock,
                 BridgeUnlock,
-                FeeComponents,
                 IbcRelayerChange,
                 IbcSudoChange,
                 InitBridgeAccountFeeComponents,
@@ -271,12 +270,10 @@ async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_sequence_fees(FeeComponents::SequenceFeeComponents(
-            SequenceFeeComponents {
-                base_fee: 0,
-                computed_cost_multiplier: 1,
-            },
-        ))
+        .put_sequence_fees(SequenceFeeComponents {
+            base_fee: 0,
+            computed_cost_multiplier: 1,
+        })
         .unwrap();
     app.apply(state_tx);
 
@@ -613,12 +610,10 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let mut state_tx = StateDelta::new(app.state.clone());
     let fee = 12; // arbitrary
     state_tx
-        .put_init_bridge_account_fees(FeeComponents::InitBridgeAccountFeeComponents(
-            InitBridgeAccountFeeComponents {
-                base_fee: fee,
-                computed_cost_multiplier: 0,
-            },
-        ))
+        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
+            base_fee: fee,
+            computed_cost_multiplier: 0,
+        })
         .unwrap();
     app.apply(state_tx);
 

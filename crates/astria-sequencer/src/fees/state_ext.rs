@@ -3,7 +3,15 @@ use astria_core::{
         asset,
         TransactionId,
     },
-    protocol::transaction::v1alpha1::action::FeeComponents,
+    protocol::transaction::v1alpha1::action::{
+        BridgeLockFeeComponents,
+        BridgeSudoChangeFeeComponents,
+        BridgeUnlockFeeComponents,
+        Ics20WithdrawalFeeComponents,
+        InitBridgeAccountFeeComponents,
+        SequenceFeeComponents,
+        TransferFeeComponents,
+    },
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -50,7 +58,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_transfer_fees(&self) -> Result<FeeComponents> {
+    async fn get_transfer_fees(&self) -> Result<TransferFeeComponents> {
         let bytes = self
             .get_raw(TRANSFER_FEES_STORAGE_KEY)
             .await
@@ -60,12 +68,15 @@ pub(crate) trait StateReadExt: StateRead {
             return Err(eyre!("transfer fee components not set"));
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::FeeComponents::try_from(value).map(FeeComponents::from))
+            .and_then(|value| {
+                storage::TransferFeeComponentsStorage::try_from(value)
+                    .map(TransferFeeComponents::from)
+            })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_sequence_fees(&self) -> Result<FeeComponents> {
+    async fn get_sequence_fees(&self) -> Result<SequenceFeeComponents> {
         let bytes = self
             .get_raw(SEQUENCE_FEES_STORAGE_KEY)
             .await
@@ -75,12 +86,15 @@ pub(crate) trait StateReadExt: StateRead {
             return Err(eyre!("sequence fee components not set"));
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::FeeComponents::try_from(value).map(FeeComponents::from))
+            .and_then(|value| {
+                storage::SequenceFeeComponentsStorage::try_from(value)
+                    .map(SequenceFeeComponents::from)
+            })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_ics20_withdrawal_fees(&self) -> Result<FeeComponents> {
+    async fn get_ics20_withdrawal_fees(&self) -> Result<Ics20WithdrawalFeeComponents> {
         let bytes = self
             .get_raw(ICS20_WITHDRAWAL_FEES_STORAGE_KEY)
             .await
@@ -90,12 +104,15 @@ pub(crate) trait StateReadExt: StateRead {
             return Err(eyre!("ics20 withdrawal fee components not set"));
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::FeeComponents::try_from(value).map(FeeComponents::from))
+            .and_then(|value| {
+                storage::Ics20WithdrawalFeeComponentsStorage::try_from(value)
+                    .map(Ics20WithdrawalFeeComponents::from)
+            })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_init_bridge_account_fees(&self) -> Result<FeeComponents> {
+    async fn get_init_bridge_account_fees(&self) -> Result<InitBridgeAccountFeeComponents> {
         let bytes = self
             .get_raw(INIT_BRIDGE_ACCOUNT_FEES_STORAGE_KEY)
             .await
@@ -105,12 +122,15 @@ pub(crate) trait StateReadExt: StateRead {
             return Err(eyre!("init bridge account fee components not set"));
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::FeeComponents::try_from(value).map(FeeComponents::from))
+            .and_then(|value| {
+                storage::InitBridgeAccountFeeComponentsStorage::try_from(value)
+                    .map(InitBridgeAccountFeeComponents::from)
+            })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_bridge_lock_fees(&self) -> Result<FeeComponents> {
+    async fn get_bridge_lock_fees(&self) -> Result<BridgeLockFeeComponents> {
         let bytes = self
             .get_raw(BRIDGE_LOCK_FEES_STORAGE_KEY)
             .await
@@ -120,12 +140,15 @@ pub(crate) trait StateReadExt: StateRead {
             return Err(eyre!("bridge lock fee components not set"));
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::FeeComponents::try_from(value).map(FeeComponents::from))
+            .and_then(|value| {
+                storage::BridgeLockFeeComponentsStorage::try_from(value)
+                    .map(BridgeLockFeeComponents::from)
+            })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_bridge_unlock_fees(&self) -> Result<FeeComponents> {
+    async fn get_bridge_unlock_fees(&self) -> Result<BridgeUnlockFeeComponents> {
         let bytes = self
             .get_raw(BRIDGE_UNLOCK_FEES_STORAGE_KEY)
             .await
@@ -135,12 +158,15 @@ pub(crate) trait StateReadExt: StateRead {
             return Err(eyre!("bridge unlock fee components not set"));
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::FeeComponents::try_from(value).map(FeeComponents::from))
+            .and_then(|value| {
+                storage::BridgeUnlockFeeComponentsStorage::try_from(value)
+                    .map(BridgeUnlockFeeComponents::from)
+            })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_bridge_sudo_change_fees(&self) -> Result<FeeComponents> {
+    async fn get_bridge_sudo_change_fees(&self) -> Result<BridgeSudoChangeFeeComponents> {
         let bytes = self
             .get_raw(BRIDGE_SUDO_CHANGE_FEES_STORAGE_KEY)
             .await
@@ -150,7 +176,10 @@ pub(crate) trait StateReadExt: StateRead {
             return Err(eyre!("bridge sudo change fee components not set"));
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::FeeComponents::try_from(value).map(FeeComponents::from))
+            .and_then(|value| {
+                storage::BridgeSudoChangeFeeComponentsStorage::try_from(value)
+                    .map(BridgeSudoChangeFeeComponents::from)
+            })
             .wrap_err("invalid fees bytes")
     }
 }
@@ -192,8 +221,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_transfer_fees(&mut self, fees: FeeComponents) -> Result<()> {
-        let bytes = StoredValue::from(storage::FeeComponents::from(fees))
+    fn put_transfer_fees(&mut self, fees: TransferFeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::TransferFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
         self.put_raw(TRANSFER_FEES_STORAGE_KEY.to_string(), bytes);
@@ -201,8 +230,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_sequence_fees(&mut self, fees: FeeComponents) -> Result<()> {
-        let bytes = StoredValue::from(storage::FeeComponents::from(fees))
+    fn put_sequence_fees(&mut self, fees: SequenceFeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::SequenceFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
         self.put_raw(SEQUENCE_FEES_STORAGE_KEY.to_string(), bytes);
@@ -210,8 +239,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_ics20_withdrawal_fees(&mut self, fees: FeeComponents) -> Result<()> {
-        let bytes = StoredValue::from(storage::FeeComponents::from(fees))
+    fn put_ics20_withdrawal_fees(&mut self, fees: Ics20WithdrawalFeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::Ics20WithdrawalFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
         self.put_raw(ICS20_WITHDRAWAL_FEES_STORAGE_KEY.to_string(), bytes);
@@ -219,8 +248,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_init_bridge_account_fees(&mut self, fees: FeeComponents) -> Result<()> {
-        let bytes = StoredValue::from(storage::FeeComponents::from(fees))
+    fn put_init_bridge_account_fees(&mut self, fees: InitBridgeAccountFeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::InitBridgeAccountFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
         self.put_raw(INIT_BRIDGE_ACCOUNT_FEES_STORAGE_KEY.to_string(), bytes);
@@ -228,8 +257,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_bridge_lock_fees(&mut self, fees: FeeComponents) -> Result<()> {
-        let bytes = StoredValue::from(storage::FeeComponents::from(fees))
+    fn put_bridge_lock_fees(&mut self, fees: BridgeLockFeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::BridgeLockFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
         self.put_raw(BRIDGE_LOCK_FEES_STORAGE_KEY.to_string(), bytes);
@@ -237,8 +266,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_bridge_unlock_fees(&mut self, fees: FeeComponents) -> Result<()> {
-        let bytes = StoredValue::from(storage::FeeComponents::from(fees))
+    fn put_bridge_unlock_fees(&mut self, fees: BridgeUnlockFeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::BridgeUnlockFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
         self.put_raw(BRIDGE_UNLOCK_FEES_STORAGE_KEY.to_string(), bytes);
@@ -246,8 +275,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_bridge_sudo_change_fees(&mut self, fees: FeeComponents) -> Result<()> {
-        let bytes = StoredValue::from(storage::FeeComponents::from(fees))
+    fn put_bridge_sudo_change_fees(&mut self, fees: BridgeSudoChangeFeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::BridgeSudoChangeFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
         self.put_raw(BRIDGE_SUDO_CHANGE_FEES_STORAGE_KEY.to_string(), bytes);
@@ -267,7 +296,6 @@ mod tests {
             BridgeLockFeeComponents,
             BridgeSudoChangeFeeComponents,
             BridgeUnlockFeeComponents,
-            FeeComponents,
             Ics20WithdrawalFeeComponents,
             InitBridgeAccountFeeComponents,
             SequenceFeeComponents,
@@ -367,10 +395,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = FeeComponents::TransferFeeComponents(TransferFeeComponents {
+        let fee_components = TransferFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_transfer_fees(fee_components).unwrap();
         let retrieved_fee = state.get_transfer_fees().await.unwrap();
@@ -383,10 +411,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = FeeComponents::SequenceFeeComponents(SequenceFeeComponents {
+        let fee_components = SequenceFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_sequence_fees(fee_components).unwrap();
         let retrieved_fee = state.get_sequence_fees().await.unwrap();
@@ -399,11 +427,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components =
-            FeeComponents::InitBridgeAccountFeeComponents(InitBridgeAccountFeeComponents {
-                base_fee: 123,
-                computed_cost_multiplier: 1,
-            });
+        let fee_components = InitBridgeAccountFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
 
         state.put_init_bridge_account_fees(fee_components).unwrap();
         let retrieved_fee = state.get_init_bridge_account_fees().await.unwrap();
@@ -416,11 +443,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components =
-            FeeComponents::Ics20WithdrawalFeeComponents(Ics20WithdrawalFeeComponents {
-                base_fee: 123,
-                computed_cost_multiplier: 1,
-            });
+        let fee_components = Ics20WithdrawalFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
 
         state.put_ics20_withdrawal_fees(fee_components).unwrap();
         let retrieved_fee = state.get_ics20_withdrawal_fees().await.unwrap();
@@ -433,10 +459,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = FeeComponents::BridgeLockFeeComponents(BridgeLockFeeComponents {
+        let fee_components = BridgeLockFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_bridge_lock_fees(fee_components).unwrap();
         let retrieved_fee = state.get_bridge_lock_fees().await.unwrap();
@@ -449,10 +475,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = FeeComponents::BridgeUnlockFeeComponents(BridgeUnlockFeeComponents {
+        let fee_components = BridgeUnlockFeeComponents {
             base_fee: 123,
             computed_cost_multiplier: 1,
-        });
+        };
 
         state.put_bridge_unlock_fees(fee_components).unwrap();
         let retrieved_fee = state.get_bridge_unlock_fees().await.unwrap();
@@ -465,11 +491,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components =
-            FeeComponents::BridgeSudoChangeFeeComponents(BridgeSudoChangeFeeComponents {
-                base_fee: 123,
-                computed_cost_multiplier: 1,
-            });
+        let fee_components = BridgeSudoChangeFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
 
         state.put_bridge_sudo_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_bridge_sudo_change_fees().await.unwrap();
