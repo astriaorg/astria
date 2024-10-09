@@ -58,9 +58,9 @@ pub(crate) async fn submit_transaction(
         .await
         .wrap_err("failed to submit transaction")?;
 
-    let tx_response = sequencer_client.wait_for_tx_inclusion(res.hash).await;
-
     ensure!(res.code.is_ok(), "failed to check tx: {}", res.log);
+
+    let tx_response = sequencer_client.wait_for_tx_inclusion(res.hash).await;
 
     ensure!(
         tx_response.tx_result.code.is_ok(),
