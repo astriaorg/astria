@@ -8,7 +8,6 @@ use astria_core::{
         Action,
     },
 };
-use clap::ArgAction;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -17,6 +16,7 @@ use ibc_types::core::{
     channel::ChannelId,
     client::Height,
 };
+use tracing::info;
 
 use crate::utils::submit_transaction;
 
@@ -32,58 +32,61 @@ fn now_plus_5_minutes() -> u64 {
 
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
+    /// The transfer amount to send
     #[arg(long)]
-    pub(crate) amount: u128,
+    amount: u128,
+    /// The address on the destination chain
     #[arg(long)]
-    pub(crate) destination_chain_address: String,
+    destination_chain_address: String,
     /// The source channel used for withdrawal
     #[arg(long)]
-    pub(crate) source_channel: String,
+    source_channel: String,
     /// The address to refund on timeout, if unset refunds the signer
     #[arg(long)]
-    pub(crate) return_address: Address,
-    /// A memo to send with transaction
-    #[arg(long, default_value = "")]
-    pub(crate) memo: String,
+    return_address: Address,
+    /// An optional memo to send with transaction
+    #[arg(long)]
+    memo: Option<String>,
     /// The bridge account to transfer from
     #[arg(long, default_value = None)]
-    pub(crate) bridge_address: Option<Address>,
-    #[arg(long, action(ArgAction::SetTrue))]
-    pub(crate) use_compact: bool,
+    bridge_address: Option<Address>,
+    /// Informs Sequencner to use its compatatibility address format (for
+    /// example: when sending USDC to Noble).
+    #[arg(long)]
+    compat: bool,
     /// The prefix to construct a bech32m address given the private key.
     #[arg(long, default_value = "astria")]
-    pub(crate) prefix: String,
+    prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
     // that overwrite the key on drop and don't reveal it when printing.
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    pub(crate) private_key: String,
+    private_key: String,
     /// The url of the Sequencer node
     #[arg(
          long,
          env = "SEQUENCER_URL",
          default_value = crate::DEFAULT_SEQUENCER_RPC
      )]
-    pub(crate) sequencer_url: String,
+    sequencer_url: String,
     /// The chain id of the sequencing chain being used
     #[arg(
          long = "sequencer.chain-id",
          env = "ROLLUP_SEQUENCER_CHAIN_ID",
          default_value = crate::DEFAULT_SEQUENCER_CHAIN_ID
      )]
-    pub(crate) sequencer_chain_id: String,
+    sequencer_chain_id: String,
     /// The asset to lock.
     #[arg(long, default_value = "nria")]
-    pub(crate) asset: asset::Denom,
+    asset: asset::Denom,
     /// The asset to pay the transfer fees with.
     #[arg(long, default_value = "nria")]
-    pub(crate) fee_asset: asset::Denom,
+    fee_asset: asset::Denom,
 }
 
 impl Command {
-    pub(super) async fn run(self) -> eyre::Result<()> {
-        println!("compact is: {}", self.use_compact);
+    pub(crate) async fn run(self) -> eyre::Result<()> {
         let res = submit_transaction(
             self.sequencer_url.as_str(),
             self.sequencer_chain_id.clone(),
@@ -101,16 +104,16 @@ impl Command {
                 timeout_time: now_plus_5_minutes(),
                 source_channel: ChannelId(self.source_channel),
                 fee_asset: self.fee_asset,
-                memo: self.memo,
+                memo: self.memo.unwrap_or_default(),
                 bridge_address: self.bridge_address,
-                use_compat_address: self.use_compact,
+                use_compat_address: self.compat,
             }),
         )
         .await
         .wrap_err("failed to submit BridgeLock transaction")?;
 
-        println!("BridgeLock completed!");
-        println!("Included in block: {}", res.height);
+        info!(hash = % res.hash, at_height = %res.height, "BridgeLock completed!");
+
         Ok(())
     }
 }
