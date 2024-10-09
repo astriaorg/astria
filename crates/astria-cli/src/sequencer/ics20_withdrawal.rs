@@ -110,9 +110,9 @@ impl Command {
             }),
         )
         .await
-        .wrap_err("failed to submit BridgeLock transaction")?;
+        .wrap_err("failed to perform ics20 withdrawal")?;
 
-        info!(hash = % res.hash, at_height = %res.height, "BridgeLock completed!");
+        info!(hash = % res.hash, at_height = %res.height, "ics20 withdrawal completed");
 
         Ok(())
     }
