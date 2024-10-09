@@ -58,7 +58,7 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     let config = Config {
         log: String::new(),
         api_listen_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
-        sequencer_http_url: String::new(),
+        cometbft_url: String::new(),
         sequencer_grpc_url: String::new(),
         sequencer_chain_id: String::new(),
         rollups: String::new(),
@@ -121,7 +121,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollups.push_str(&format!("{id}::{execution_url},"));
     }
     let sequencer = mock_http_sequencer::start().await;
-    let grpc_server = mock_grpc_sequencer::MockGrpcSequencer::spawn().await;
+    let grpc_server = MockGrpcSequencer::spawn().await;
     let sequencer_url = sequencer.uri();
     let keyfile = NamedTempFile::new().unwrap();
     (&keyfile)
@@ -132,7 +132,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
         sequencer_chain_id: "test-chain-1".to_string(),
         rollups,
-        sequencer_http_url: sequencer_url.to_string(),
+        cometbft_url: sequencer_url.to_string(),
         sequencer_grpc_url: format!("http://{}", grpc_server.local_addr),
         private_key_file: keyfile.path().to_string_lossy().to_string(),
         sequencer_address_prefix: "astria".into(),

@@ -7,10 +7,10 @@ global:
 
 images:
   composer:
-    repo: ghcr.io/astriaorg/astria-composer
+    repo: ghcr.io/astriaorg/composer
     pullPolicy: IfNotPresent
-    tag: "0.8.4"
-    devTag: local
+    tag: "0.8.3"
+    devTag: latest
 
 config:
   logLevel: "debug"

@@ -99,7 +99,7 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
 
     // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
-        Duration::from_millis(test_composer.cfg.block_time_ms + 1000),
+        Duration::from_millis(test_composer.cfg.block_time_ms),
         invalid_nonce_guard.wait_until_satisfied(),
     )
     .await

@@ -27,7 +27,7 @@ pub struct Config {
     pub api_listen_addr: SocketAddr,
 
     /// Address of the RPC server for the sequencer chain
-    pub sequencer_http_url: String,
+    pub cometbft_url: String,
 
     /// Address of the GRPC server for the sequencer chain
     pub sequencer_grpc_url: String,

@@ -26,7 +26,7 @@ use crate::{
 };
 
 pub(crate) struct Builder {
-    pub(crate) sequencer_http_url: String,
+    pub(crate) cometbft_url: String,
     pub(crate) sequencer_grpc_url: String,
     pub(crate) sequencer_chain_id: String,
     pub(crate) private_key_file: String,
@@ -41,7 +41,7 @@ pub(crate) struct Builder {
 impl Builder {
     pub(crate) fn build(self) -> eyre::Result<(super::Executor, executor::Handle)> {
         let Self {
-            sequencer_http_url,
+            cometbft_url,
             sequencer_grpc_url,
             sequencer_chain_id,
             private_key_file,
@@ -52,7 +52,7 @@ impl Builder {
             shutdown_token,
             metrics,
         } = self;
-        let sequencer_http_client = sequencer_client::HttpClient::new(sequencer_http_url.as_str())
+        let cometbft_client = sequencer_client::HttpClient::new(cometbft_url.as_str())
             .wrap_err("failed constructing sequencer http client")?;
 
         let sequencer_grpc_client = connect_sequencer_grpc(sequencer_grpc_url.as_str())
@@ -79,7 +79,7 @@ impl Builder {
             super::Executor {
                 status,
                 serialized_rollup_transactions: serialized_rollup_transaction_rx,
-                sequencer_http_client,
+                cometbft_client,
                 sequencer_grpc_client,
                 sequencer_chain_id,
                 sequencer_key,

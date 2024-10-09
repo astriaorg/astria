@@ -124,7 +124,7 @@ impl Composer {
         let shutdown_token = CancellationToken::new();
 
         let (executor, executor_handle) = executor::Builder {
-            sequencer_http_url: cfg.sequencer_http_url.clone(),
+            cometbft_url: cfg.cometbft_url.clone(),
             sequencer_grpc_url: cfg.sequencer_grpc_url.clone(),
             sequencer_chain_id: cfg.sequencer_chain_id.clone(),
             private_key_file: cfg.private_key_file.clone(),

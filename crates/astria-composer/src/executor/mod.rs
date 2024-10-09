@@ -97,8 +97,6 @@ use crate::{
 mod bundle_factory;
 
 pub(crate) mod builder;
-#[cfg(test)]
-mod tests;
 
 pub(crate) use builder::Builder;
 
@@ -131,7 +129,7 @@ pub(super) struct Executor {
     serialized_rollup_transactions: mpsc::Receiver<Sequence>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer via the cometbft client.
-    sequencer_http_client: sequencer_client::HttpClient,
+    cometbft_client: sequencer_client::HttpClient,
     // The grpc client for grabbing the latest nonce from.
     sequencer_grpc_client: sequencer_service_client::SequencerServiceClient<Channel>,
     // The chain id used for submission of transactions to the sequencer.
@@ -207,7 +205,7 @@ impl Executor {
         metrics: &'static Metrics,
     ) -> Fuse<Instrumented<SubmitFut>> {
         SubmitFut {
-            sequencer_http_client: self.sequencer_http_client.clone(),
+            cometbft_client: self.cometbft_client.clone(),
             sequencer_grpc_client: self.sequencer_grpc_client.clone(),
             address: self.address,
             nonce,
@@ -394,7 +392,7 @@ impl Executor {
                 },
             );
         let client_genesis: tendermint::Genesis =
-            tryhard::retry_fn(|| self.sequencer_http_client.genesis())
+            tryhard::retry_fn(|| self.cometbft_client.genesis())
                 .with_config(retry_config)
                 .await?;
         Ok(client_genesis.chain_id)
@@ -521,7 +519,7 @@ async fn get_pending_nonce(
     })
     .with_config(retry_config)
     .await
-    .wrap_err("failed getting pending nonce from sequencing after 1024 attempts");
+    .wrap_err("failed getting pending nonce from sequencer after 1024 attempts");
 
     metrics.record_nonce_fetch_latency(start.elapsed());
 
@@ -538,7 +536,7 @@ async fn get_pending_nonce(
     err,
 )]
 async fn submit_tx(
-    sequencer_http_client: sequencer_client::HttpClient,
+    cometbft_client: sequencer_client::HttpClient,
     tx: SignedTransaction,
     metrics: &Metrics,
 ) -> eyre::Result<tx_sync::Response> {
@@ -573,7 +571,7 @@ async fn submit_tx(
             },
         );
     let res = tryhard::retry_fn(|| {
-        let client = sequencer_http_client.clone();
+        let client = cometbft_client.clone();
         let tx = tx.clone();
         let span = info_span!(parent: span.clone(), "attempt send");
         async move { client.submit_transaction_sync(tx).await }.instrument(span)
@@ -658,7 +656,7 @@ pin_project! {
     /// If the sequencer returned a non-zero abci code (albeit not `INVALID_NONCE`), this future will return with
     /// that nonce it used to submit the non-zero abci code request.
     struct SubmitFut {
-        sequencer_http_client: sequencer_client::HttpClient,
+        cometbft_client: sequencer_client::HttpClient,
         sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
         address: Address,
         chain_id: String,
@@ -710,8 +708,7 @@ impl Future for SubmitFut {
                         "submitting transaction to sequencer",
                     );
                     SubmitState::WaitingForSend {
-                        fut: submit_tx(this.sequencer_http_client.clone(), tx, self.metrics)
-                            .boxed(),
+                        fut: submit_tx(this.cometbft_client.clone(), tx, self.metrics).boxed(),
                     }
                 }
 
@@ -784,8 +781,7 @@ impl Future for SubmitFut {
                             "resubmitting transaction to sequencer with new nonce",
                         );
                         SubmitState::WaitingForSend {
-                            fut: submit_tx(this.sequencer_http_client.clone(), tx, self.metrics)
-                                .boxed(),
+                            fut: submit_tx(this.cometbft_client.clone(), tx, self.metrics).boxed(),
                         }
                     }
                     Err(error) => {
