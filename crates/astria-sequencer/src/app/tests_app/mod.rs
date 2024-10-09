@@ -505,7 +505,10 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .unwrap();
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
     assert_eq!(app.executed_proposal_hash, Hash::default());
-    assert_eq!(app.executed_proposal_fingerprint, Some(proposal_fingerprint));
+    assert_eq!(
+        app.executed_proposal_fingerprint,
+        Some(proposal_fingerprint)
+    );
 
     app.mempool.run_maintenance(&app.state, false).await;
 

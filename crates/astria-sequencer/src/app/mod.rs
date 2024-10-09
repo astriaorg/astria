@@ -363,8 +363,9 @@ impl App {
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
     ) -> Result<abci::response::PrepareProposal> {
-        self.executed_proposal_fingerprint =
-            Some(ProposalFingerprint::from_prepare_proposal(&prepare_proposal));
+        self.executed_proposal_fingerprint = Some(ProposalFingerprint::from_prepare_proposal(
+            &prepare_proposal,
+        ));
         self.update_state_for_new_round(&storage);
 
         let mut block_size_constraints = BlockSizeConstraints::new(
