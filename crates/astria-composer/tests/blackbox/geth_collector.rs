@@ -114,6 +114,52 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
 }
 
 #[tokio::test]
+async fn nonce_taken_causes_resubmission_under_different_nonce() {
+    // Spawn a composer with a mock sequencer and a mock rollup node
+    // Initial nonce is 0
+    let test_composer = spawn_composer(&["test1"]).await;
+
+    // Reject the first transaction for taken nonce
+    let invalid_nonce_guard = mount_broadcast_tx_sync_invalid_nonce_mock(
+        &test_composer.sequencer,
+        RollupId::from_unhashed_bytes("test1"),
+    )
+    .await;
+
+    let expected_rollup_ids = vec![RollupId::from_unhashed_bytes("test1")];
+    // Expect nonce 1 again so that the resubmitted tx is accepted
+    let valid_nonce_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_rollup_ids, vec![1]).await;
+
+    // Mount a response of 1 to a nonce query
+    test_composer
+        .sequencer_mock
+        .mount_pending_nonce_response(1, "setup correct nonce")
+        .await;
+
+    // Push a tx to the rollup node so that it is picked up by the composer and submitted with the
+    // stored nonce of 0, triggering the nonce refetch process
+    test_composer.rollup_nodes["test1"]
+        .push_tx(Transaction::default())
+        .unwrap();
+
+    // wait for 1 sequencer block time to make sure the bundle is preempted
+    tokio::time::timeout(
+        Duration::from_millis(test_composer.cfg.block_time_ms + 1000),
+        invalid_nonce_guard.wait_until_satisfied(),
+    )
+    .await
+    .expect("sequencer tx should have been rejected due to invalid nonce");
+
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        valid_nonce_guard.wait_until_satisfied(),
+    )
+    .await
+    .expect("sequencer tx should have been accepted after nonce refetch");
+}
+
+#[tokio::test]
 async fn single_rollup_tx_payload_integrity() {
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
