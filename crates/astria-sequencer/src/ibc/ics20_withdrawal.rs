@@ -1,23 +1,23 @@
 use astria_core::{
+    Protobuf as _,
     primitive::v1::{
-        asset::Denom,
         Address,
         Bech32,
+        asset::Denom,
     },
     protocol::{
         memos::v1alpha1::Ics20WithdrawalFromRollup,
         transaction::v1alpha1::action,
     },
-    Protobuf as _,
 };
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
-        ensure,
         OptionExt as _,
         Result,
         WrapErr as _,
+        bail,
+        ensure,
     },
 };
 use cnidarium::{
@@ -292,9 +292,9 @@ mod tests {
     use crate::{
         address::StateWriteExt as _,
         test_utils::{
+            ASTRIA_PREFIX,
             assert_eyre_error,
             astria_address,
-            ASTRIA_PREFIX,
         },
     };
 

@@ -1,8 +1,8 @@
 use std::any::TypeId;
 
 use assert_json_diff::{
-    assert_json_matches_no_panic,
     CompareMode,
+    assert_json_matches_no_panic,
 };
 use serde_json::Value;
 

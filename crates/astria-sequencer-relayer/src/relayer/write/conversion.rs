@@ -19,8 +19,8 @@ use astria_core::{
     primitive::v1::RollupId,
 };
 use celestia_types::{
-    nmt::Namespace,
     Blob,
+    nmt::Namespace,
 };
 use futures::Future;
 use pin_project_lite::pin_project;
@@ -33,8 +33,8 @@ use tracing::{
 };
 
 use crate::{
-    metrics::Metrics,
     IncludeRollup,
+    metrics::Metrics,
 };
 
 /// The maximum permitted payload size in bytes that relayer will send to Celestia.
@@ -276,12 +276,9 @@ impl Input {
             .sequencer_namespace
             .ok_or(TryIntoPayloadError::NoSequencerNamespacePresent)?;
         payload
-            .try_add(
-                sequencer_namespace,
-                &SubmittedMetadataList {
-                    entries: self.metadata,
-                },
-            )
+            .try_add(sequencer_namespace, &SubmittedMetadataList {
+                entries: self.metadata,
+            })
             .map_err(|source| TryIntoPayloadError::AddToPayload {
                 source,
                 type_url: SubmittedMetadataList::type_url(),
@@ -289,12 +286,9 @@ impl Input {
 
         for (namespace, entries) in self.rollup_data_for_namespace {
             payload
-                .try_add(
-                    namespace,
-                    &SubmittedRollupDataList {
-                        entries,
-                    },
-                )
+                .try_add(namespace, &SubmittedRollupDataList {
+                    entries,
+                })
                 .map_err(|source| TryIntoPayloadError::AddToPayload {
                     source,
                     type_url: SubmittedRollupDataList::full_name(),
@@ -482,11 +476,11 @@ mod tests {
         protocol::test_utils::ConfigureSequencerBlock,
     };
     use rand_chacha::{
+        ChaChaRng,
         rand_core::{
             RngCore as _,
             SeedableRng as _,
         },
-        ChaChaRng,
     };
     use sequencer_client::SequencerBlock;
     use telemetry::Metrics as _;
@@ -496,12 +490,12 @@ mod tests {
         NextSubmission,
     };
     use crate::{
+        IncludeRollup,
         metrics::Metrics,
         relayer::write::conversion::{
-            TryAddError,
             MAX_PAYLOAD_SIZE_BYTES,
+            TryAddError,
         },
-        IncludeRollup,
     };
 
     fn include_all_rollups() -> IncludeRollup {

@@ -9,8 +9,8 @@ use borsh::{
     BorshSerialize,
 };
 use merkle::{
-    audit::UncheckedProof,
     Proof as DomainProof,
+    audit::UncheckedProof,
 };
 
 use super::{

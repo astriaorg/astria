@@ -31,17 +31,17 @@ use prost::Message as _;
 use tendermint::{
     abci::Code,
     v0_38::abci::{
-        request,
-        response,
         MempoolRequest,
         MempoolResponse,
+        request,
+        response,
     },
 };
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
-    instrument,
     Instrument as _,
+    instrument,
 };
 
 use crate::{
@@ -49,10 +49,10 @@ use crate::{
     address::StateReadExt as _,
     app::ActionHandler as _,
     mempool::{
-        get_account_balances,
         InsertionError,
         Mempool as AppMempool,
         RemovalReason,
+        get_account_balances,
     },
     metrics::Metrics,
     transaction,

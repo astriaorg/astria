@@ -233,11 +233,11 @@ mod tests {
     use sequencer_client::{
         tendermint::{
             self,
+            Hash,
             account,
             block::Commit,
             validator,
             validator::Info as Validator,
-            Hash,
         },
         tendermint_proto,
         tendermint_rpc::endpoint::validators,
@@ -483,8 +483,8 @@ mod tests {
     #[test]
     fn ensure_commit_has_quorum_not_ok() {
         use base64::engine::{
-            general_purpose::STANDARD,
             Engine as _,
+            general_purpose::STANDARD,
         };
         let validator_set = validators::Response::new(
             78u32.into(),

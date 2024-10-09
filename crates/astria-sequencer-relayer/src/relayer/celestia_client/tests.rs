@@ -11,10 +11,10 @@ use super::*;
 fn new_msg_pay_for_blobs_should_succeed() {
     let blobs: Vec<_> = (0..5)
         .map(|index| {
-            Blob::new(
-                Namespace::const_v0([index; 10]),
-                vec![index; index as usize],
-            )
+            Blob::new(Namespace::const_v0([index; 10]), vec![
+                index;
+                index as usize
+            ])
             .unwrap()
         })
         .collect();

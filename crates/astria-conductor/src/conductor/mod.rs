@@ -26,8 +26,8 @@ use tracing::{
 };
 
 use crate::{
-    metrics::Metrics,
     Config,
+    metrics::Metrics,
 };
 
 pin_project! {

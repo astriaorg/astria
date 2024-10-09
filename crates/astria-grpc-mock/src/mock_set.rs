@@ -4,8 +4,8 @@ use std::{
         IndexMut,
     },
     sync::{
-        atomic::AtomicBool,
         Arc,
+        atomic::AtomicBool,
     },
 };
 
@@ -100,12 +100,9 @@ impl MockSet {
         let mounted_mock = MountedMock::new(mock, n_registered_rollups);
         let notify = mounted_mock.notify();
         self.mocks.push((mounted_mock, MountedMockState::InScope));
-        (
-            notify,
-            MockId {
-                index: self.mocks.len() - 1,
-            },
-        )
+        (notify, MockId {
+            index: self.mocks.len() - 1,
+        })
     }
 
     /// Verify that expectations have been met for the [`MountedMock`] corresponding to the

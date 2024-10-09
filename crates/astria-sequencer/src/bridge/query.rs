@@ -6,15 +6,15 @@ use astria_core::{
     },
 };
 use astria_eyre::eyre::{
-    eyre,
     WrapErr as _,
+    eyre,
 };
 use cnidarium::Storage;
 use prost::Message as _;
 use tendermint::abci::{
+    Code,
     request,
     response,
-    Code,
 };
 
 use crate::{
@@ -306,8 +306,8 @@ mod tests {
         assets::StateWriteExt as _,
         bridge::StateWriteExt as _,
         test_utils::{
-            astria_address,
             ASTRIA_PREFIX,
+            astria_address,
         },
     };
 

@@ -1,6 +1,6 @@
 use astria_eyre::{
-    eyre::WrapErr as _,
     Result,
+    eyre::WrapErr as _,
 };
 use borsh::{
     BorshDeserialize,

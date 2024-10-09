@@ -4,13 +4,13 @@ use std::sync::Arc;
 
 use astria_core::{
     generated::composer::v1alpha1::{
-        grpc_collector_service_server::GrpcCollectorService,
         SubmitRollupTransactionRequest,
         SubmitRollupTransactionResponse,
+        grpc_collector_service_server::GrpcCollectorService,
     },
     primitive::v1::{
-        asset,
         RollupId,
+        asset,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
 };

@@ -10,9 +10,9 @@ use cnidarium::Storage;
 use hex::FromHex as _;
 use prost::Message as _;
 use tendermint::abci::{
+    Code,
     request,
     response,
-    Code,
 };
 
 use crate::{

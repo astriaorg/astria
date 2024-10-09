@@ -10,15 +10,15 @@ use std::sync::{
 };
 
 use tokio::sync::{
-    mpsc::{
-        error::SendError as TokioSendError,
-        unbounded_channel,
-        UnboundedReceiver,
-        UnboundedSender,
-    },
     AcquireError,
     Semaphore,
     TryAcquireError,
+    mpsc::{
+        UnboundedReceiver,
+        UnboundedSender,
+        error::SendError as TokioSendError,
+        unbounded_channel,
+    },
 };
 use tracing::instrument;
 
@@ -158,9 +158,9 @@ impl<T> Receiver<T> {
 #[cfg(test)]
 mod tests {
     use super::{
-        soft_block_channel,
         SendError,
         TrySendError,
+        soft_block_channel,
     };
 
     #[test]

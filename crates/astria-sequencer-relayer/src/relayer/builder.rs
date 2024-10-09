@@ -16,13 +16,13 @@ use tonic::transport::{
 };
 
 use super::{
-    state::State,
     CelestiaClientBuilder,
     CelestiaKeys,
+    state::State,
 };
 use crate::{
-    metrics::Metrics,
     IncludeRollup,
+    metrics::Metrics,
 };
 
 pub(crate) struct Builder {

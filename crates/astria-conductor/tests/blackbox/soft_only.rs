@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use astria_conductor::{
-    config::CommitLevel,
     Conductor,
     Config,
+    config::CommitLevel,
 };
 use astria_core::generated::execution::v1alpha2::{
     GetCommitmentStateRequest,
@@ -17,13 +17,14 @@ use telemetry::metrics;
 use tokio::time::timeout;
 
 use crate::{
+    SEQUENCER_CHAIN_ID,
     commitment_state,
     genesis_info,
     helpers::{
+        MockGrpc,
         make_config,
         mount_genesis,
         spawn_conductor,
-        MockGrpc,
     },
     mount_abci_info,
     mount_executed_block,
@@ -32,7 +33,6 @@ use crate::{
     mount_get_genesis_info,
     mount_sequencer_genesis,
     mount_update_commitment_state,
-    SEQUENCER_CHAIN_ID,
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -363,9 +363,9 @@ async fn requests_from_later_genesis_height() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn exits_on_sequencer_chain_id_mismatch() {
     use astria_grpc_mock::{
+        Mock as GrpcMock,
         matcher,
         response as GrpcResponse,
-        Mock as GrpcMock,
     };
 
     // FIXME (https://github.com/astriaorg/astria/issues/1602)

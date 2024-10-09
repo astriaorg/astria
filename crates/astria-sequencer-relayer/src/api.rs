@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 
 use axum::{
+    Json,
+    Router,
     extract::{
         FromRef,
         State,
@@ -10,11 +12,9 @@ use axum::{
         Response,
     },
     routing::{
-        get,
         IntoMakeService,
+        get,
     },
-    Json,
-    Router,
 };
 use http::status::StatusCode;
 use hyper::server::conn::AddrIncoming;

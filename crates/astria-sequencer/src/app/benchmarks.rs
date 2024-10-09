@@ -6,27 +6,27 @@
 use std::time::Duration;
 
 use astria_core::{
+    Protobuf,
     protocol::genesis::v1alpha1::{
         Account,
         GenesisAppState,
     },
-    Protobuf,
 };
 use cnidarium::Storage;
 
 use crate::{
     app::{
+        App,
         test_utils,
         test_utils::{
             mock_balances,
             mock_tx_cost,
         },
-        App,
     },
     benchmark_utils::{
         self,
-        TxTypes,
         SIGNER_COUNT,
+        TxTypes,
     },
     proposal::block_size_constraints::BlockSizeConstraints,
     test_utils::astria_address,

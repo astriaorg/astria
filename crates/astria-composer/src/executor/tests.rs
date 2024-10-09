@@ -11,40 +11,40 @@ use std::{
 use astria_core::{
     generated::protocol::accounts::v1alpha1::NonceResponse,
     primitive::v1::{
+        ROLLUP_ID_LEN,
+        RollupId,
         asset::{
             Denom,
             IbcPrefixed,
         },
-        RollupId,
-        ROLLUP_ID_LEN,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::eyre;
 use prost::{
-    bytes::Bytes,
     Message as _,
+    bytes::Bytes,
 };
 use sequencer_client::SignedTransaction;
 use serde_json::json;
 use telemetry::Metrics as _;
 use tempfile::NamedTempFile;
 use tendermint::{
+    Genesis,
+    Time,
     consensus::{
+        Params,
         params::{
             AbciParams,
             ValidatorParams,
         },
-        Params,
     },
-    Genesis,
-    Time,
 };
 use tendermint_rpc::{
+    Id,
     endpoint::broadcast::tx_sync,
     request,
     response,
-    Id,
 };
 use tokio::{
     sync::watch,
@@ -53,23 +53,23 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use wiremock::{
-    matchers::{
-        body_partial_json,
-        body_string_contains,
-    },
     Mock,
     MockGuard,
     MockServer,
     Request,
     ResponseTemplate,
+    matchers::{
+        body_partial_json,
+        body_string_contains,
+    },
 };
 
 use crate::{
+    Config,
     executor,
     executor::EnsureChainIdError,
     metrics::Metrics,
     test_utils::sequence_action_of_max_size,
-    Config,
 };
 
 static TELEMETRY: LazyLock<()> = LazyLock::new(|| {

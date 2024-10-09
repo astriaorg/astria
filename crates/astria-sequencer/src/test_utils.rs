@@ -1,7 +1,7 @@
 use astria_core::primitive::v1::{
-    asset::TracePrefixed,
     Address,
     Bech32,
+    asset::TracePrefixed,
 };
 
 pub(crate) const ASTRIA_PREFIX: &str = "astria";

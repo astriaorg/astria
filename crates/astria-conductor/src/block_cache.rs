@@ -5,8 +5,8 @@ use std::{
 };
 
 use astria_core::sequencerblock::v1alpha1::{
-    block::FilteredSequencerBlock,
     SubmittedMetadata,
+    block::FilteredSequencerBlock,
 };
 use pin_project_lite::pin_project;
 use sequencer_client::tendermint::block::Height;

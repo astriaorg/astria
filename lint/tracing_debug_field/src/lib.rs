@@ -18,11 +18,11 @@ use rustc_lint::{
     LateLintPass,
 };
 use rustc_span::{
+    Span,
     hygiene::{
         ExpnKind,
         MacroKind,
     },
-    Span,
 };
 
 const TRACING_FIELD_DEBUG: [&str; 3] = ["tracing_core", "field", "debug"];

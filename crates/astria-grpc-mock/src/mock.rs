@@ -10,9 +10,9 @@ use std::ops::{
 
 use super::AnyMessage;
 use crate::{
+    MockServer,
     mock_server::MockGuard,
     response::ResponseTemplate,
-    MockServer,
 };
 
 pub trait Match: Send + Sync {

@@ -5,14 +5,14 @@ use std::{
 
 use astria_bridge_contracts::{
     astria_bridgeable_erc20::{
-        AstriaBridgeableERC20,
         ASTRIABRIDGEABLEERC20_ABI,
         ASTRIABRIDGEABLEERC20_BYTECODE,
+        AstriaBridgeableERC20,
     },
     astria_withdrawer::{
-        AstriaWithdrawer,
         ASTRIAWITHDRAWER_ABI,
         ASTRIAWITHDRAWER_BYTECODE,
+        AstriaWithdrawer,
     },
 };
 use astria_core::primitive::v1::Address as AstriaAddress;

@@ -1,26 +1,26 @@
 use bytes::Bytes;
 use ibc_types::{
+    IdentifierError,
     core::{
         channel::ChannelId,
         client::Height as IbcHeight,
     },
-    IdentifierError,
 };
 use penumbra_ibc::IbcRelay;
 
 use super::raw;
 use crate::{
+    Protobuf,
     primitive::v1::{
-        asset::{
-            self,
-            Denom,
-        },
         Address,
         AddressError,
         IncorrectRollupIdLength,
         RollupId,
+        asset::{
+            self,
+            Denom,
+        },
     },
-    Protobuf,
 };
 
 #[derive(Clone, Debug)]
@@ -651,8 +651,8 @@ impl Protobuf for ValidatorUpdate {
         value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
     ) -> Result<Self, ValidatorUpdateError> {
         use crate::generated::astria_vendored::tendermint::crypto::{
-            public_key,
             PublicKey,
+            public_key,
         };
         let crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
             pub_key,
@@ -696,8 +696,8 @@ impl Protobuf for ValidatorUpdate {
     #[must_use]
     fn to_raw(&self) -> crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
         use crate::generated::astria_vendored::tendermint::crypto::{
-            public_key,
             PublicKey,
+            public_key,
         };
         let Self {
             power,

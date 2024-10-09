@@ -1,6 +1,6 @@
 use astria_core::protocol::transaction::v1alpha1::{
-    action::ValidatorUpdate,
     Action,
+    action::ValidatorUpdate,
 };
 use color_eyre::eyre::{
     self,

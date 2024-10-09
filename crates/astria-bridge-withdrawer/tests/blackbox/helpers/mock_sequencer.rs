@@ -6,16 +6,16 @@ use std::{
 use astria_core::{
     self,
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_server::{
-            SequencerService,
-            SequencerServiceServer,
-        },
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
         GetPendingNonceRequest,
         GetPendingNonceResponse,
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
+        sequencer_service_server::{
+            SequencerService,
+            SequencerServiceServer,
+        },
     },
 };
 use astria_eyre::eyre::{
@@ -23,17 +23,17 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use astria_grpc_mock::{
-    matcher::message_type,
-    response::constant_response,
     Mock,
     MockServer,
+    matcher::message_type,
+    response::constant_response,
 };
 use tokio::task::JoinHandle;
 use tonic::{
-    transport::Server,
     Request,
     Response,
     Status,
+    transport::Server,
 };
 
 const GET_PENDING_NONCE_GRPC_NAME: &str = "get_pending_nonce";

@@ -10,27 +10,27 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    WrapErr as _,
     bail,
     ensure,
-    WrapErr as _,
 };
 use bytes::Bytes;
 use celestia_rpc::HeaderClient as _;
 use celestia_types::nmt::Namespace;
 use futures::{
+    FutureExt as _,
     future::{
         BoxFuture,
         Fuse,
         FusedFuture as _,
     },
-    FutureExt as _,
 };
 use jsonrpsee::http_client::HttpClient as CelestiaClient;
 use sequencer_client::{
+    HttpClient as SequencerClient,
     tendermint,
     tendermint::block::Height as SequencerHeight,
     tendermint_rpc,
-    HttpClient as SequencerClient,
 };
 use telemetry::display::{
     base64,
@@ -88,8 +88,8 @@ use self::{
     latest_height_stream::stream_latest_heights,
     reconstruct::reconstruct_blocks_from_verified_blobs,
     verify::{
-        verify_metadata,
         BlobVerifier,
+        verify_metadata,
     },
 };
 use crate::{
@@ -228,7 +228,7 @@ async fn get_celestia_chain_id(
         .exponential_backoff(Duration::from_millis(100))
         .max_delay(Duration::from_secs(20))
         .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::Error| {
+            |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::ClientError| {
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);

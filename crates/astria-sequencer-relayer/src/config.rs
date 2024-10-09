@@ -10,8 +10,8 @@ use astria_eyre::eyre::{
     WrapErr,
 };
 use base64::{
-    prelude::BASE64_STANDARD,
     Engine as _,
+    prelude::BASE64_STANDARD,
 };
 use serde::{
     Deserialize,

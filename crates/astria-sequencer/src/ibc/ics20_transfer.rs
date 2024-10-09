@@ -12,13 +12,13 @@
 
 use astria_core::{
     primitive::v1::{
-        asset::{
-            denom,
-            Denom,
-        },
         Address,
         Bech32,
         Bech32m,
+        asset::{
+            Denom,
+            denom,
+        },
     },
     protocol::memos::v1alpha1::{
         Ics20TransferDeposit,
@@ -32,11 +32,11 @@ use astria_eyre::{
         Context as _,
     },
     eyre::{
-        bail,
-        ensure,
         OptionExt as _,
         Result,
         WrapErr as _,
+        bail,
+        ensure,
     },
     eyre_to_anyhow,
 };
@@ -46,6 +46,9 @@ use cnidarium::{
 };
 use ibc_types::{
     core::channel::{
+        ChannelId,
+        Packet,
+        PortId,
         channel,
         msgs::{
             MsgAcknowledgement,
@@ -58,9 +61,6 @@ use ibc_types::{
             MsgRecvPacket,
             MsgTimeout,
         },
-        ChannelId,
-        Packet,
-        PortId,
     },
     transfer::acknowledgement::TokenTransferAcknowledgement,
 };
@@ -741,9 +741,9 @@ async fn emit_deposit<S: StateWrite>(
 mod tests {
     use astria_core::{
         primitive::v1::{
-            asset::Denom,
             RollupId,
             TransactionId,
+            asset::Denom,
         },
         protocol::memos::v1alpha1::{
             Ics20TransferDeposit,
@@ -754,11 +754,11 @@ mod tests {
     use cnidarium::StateDelta;
     use ibc_types::{
         core::channel::{
-            packet::Sequence,
             ChannelId,
             Packet,
             PortId,
             TimeoutHeight,
+            packet::Sequence,
         },
         timestamp::Timestamp,
     };
@@ -781,11 +781,11 @@ mod tests {
             StateWriteExt,
         },
         test_utils::{
+            ASTRIA_COMPAT_PREFIX,
+            ASTRIA_PREFIX,
             astria_address,
             astria_compat_address,
             nria,
-            ASTRIA_COMPAT_PREFIX,
-            ASTRIA_PREFIX,
         },
         transaction::{
             StateWriteExt as _,
@@ -840,13 +840,10 @@ mod tests {
             memo: String::new(),
         };
 
-        receive_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
+        receive_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_data).unwrap(),
+            ..packet()
+        })
         .await
         .unwrap();
 
@@ -881,13 +878,10 @@ mod tests {
             memo: String::new(),
         };
 
-        receive_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
+        receive_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_data).unwrap(),
+            ..packet()
+        })
         .await
         .unwrap();
 
@@ -942,13 +936,10 @@ mod tests {
             })
             .unwrap(),
         };
-        receive_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
+        receive_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_data).unwrap(),
+            ..packet()
+        })
         .await
         .unwrap();
 
@@ -1025,13 +1016,10 @@ mod tests {
             })
             .unwrap(),
         };
-        receive_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
+        receive_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_data).unwrap(),
+            ..packet()
+        })
         .await
         .unwrap();
 
@@ -1082,13 +1070,10 @@ mod tests {
         };
         // FIXME(janis): assert that the failure is actually due to the malformed memo
         // and not becase of some other input.
-        let _ = receive_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
+        let _ = receive_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_data).unwrap(),
+            ..packet()
+        })
         .await
         .expect_err("malformed packet memo field during transfer to bridge account should fail");
     }
@@ -1121,13 +1106,10 @@ mod tests {
         };
         // FIXME(janis): assert that the failure is actually due to the not permitted asset
         // and not because of some other input.
-        let _ = receive_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
+        let _ = receive_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_data).unwrap(),
+            ..packet()
+        })
         .await
         .expect_err("unknown asset during transfer to bridge account should fail");
     }
@@ -1157,13 +1139,10 @@ mod tests {
             memo: String::new(),
         };
 
-        refund_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
+        refund_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_data).unwrap(),
+            ..packet()
+        })
         .await
         .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
 
@@ -1204,13 +1183,10 @@ mod tests {
             memo: String::new(),
         };
 
-        refund_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
+        refund_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_data).unwrap(),
+            ..packet()
+        })
         .await
         .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
 
@@ -1275,13 +1251,10 @@ mod tests {
             })
             .unwrap(),
         };
-        refund_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
+        refund_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_data).unwrap(),
+            ..packet()
+        })
         .await
         .expect("valid rollup withdrawal refund");
 
@@ -1352,13 +1325,10 @@ mod tests {
             .unwrap(),
         };
 
-        refund_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_denom).unwrap(),
-                ..packet()
-            },
-        )
+        refund_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_denom).unwrap(),
+            ..packet()
+        })
         .await
         .unwrap();
 
@@ -1437,13 +1407,10 @@ mod tests {
         };
         state_tx.put_transaction_context(transaction_context);
 
-        refund_tokens(
-            &mut state_tx,
-            &Packet {
-                data: serde_json::to_vec(&packet_data).unwrap(),
-                ..packet()
-            },
-        )
+        refund_tokens(&mut state_tx, &Packet {
+            data: serde_json::to_vec(&packet_data).unwrap(),
+            ..packet()
+        })
         .await
         .unwrap();
 

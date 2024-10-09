@@ -11,8 +11,8 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     WrapErr as _,
+    eyre,
 };
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;

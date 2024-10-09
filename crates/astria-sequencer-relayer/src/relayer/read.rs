@@ -9,31 +9,31 @@ use std::{
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_client::SequencerServiceClient,
         GetSequencerBlockRequest,
+        sequencer_service_client::SequencerServiceClient,
     },
     sequencerblock::v1alpha1::SequencerBlock,
 };
 use astria_eyre::eyre::{
     self,
-    ensure,
     Report,
     WrapErr as _,
+    ensure,
 };
 use futures::{
+    FutureExt as _,
     future::BoxFuture,
     ready,
-    FutureExt as _,
 };
 use pin_project_lite::pin_project;
 use sequencer_client::tendermint::block::Height;
 use tokio_stream::Stream;
 use tracing::{
+    Instrument as _,
+    Span,
     info,
     instrument,
     warn,
-    Instrument as _,
-    Span,
 };
 
 use crate::metrics::Metrics;

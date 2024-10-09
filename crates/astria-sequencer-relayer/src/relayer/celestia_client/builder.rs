@@ -5,8 +5,8 @@ use std::{
 
 use astria_core::generated::cosmos::{
     base::tendermint::v1beta1::{
-        service_client::ServiceClient as NodeInfoClient,
         GetNodeInfoRequest,
+        service_client::ServiceClient as NodeInfoClient,
     },
     tx::v1beta1::service_client::ServiceClient as TxClient,
 };

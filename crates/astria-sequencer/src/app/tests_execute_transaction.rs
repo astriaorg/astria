@@ -1,14 +1,17 @@
 use std::sync::Arc;
 
 use astria_core::{
+    Protobuf as _,
     crypto::SigningKey,
     primitive::v1::{
-        asset,
         RollupId,
+        asset,
     },
     protocol::{
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
+            Action,
+            UnsignedTransaction,
             action::{
                 BridgeLockAction,
                 BridgeUnlockAction,
@@ -19,12 +22,9 @@ use astria_core::{
                 TransferAction,
                 ValidatorUpdate,
             },
-            Action,
-            UnsignedTransaction,
         },
     },
     sequencerblock::v1alpha1::block::Deposit,
-    Protobuf as _,
 };
 use bytes::Bytes;
 use cnidarium::{
@@ -36,13 +36,13 @@ use super::test_utils::get_alice_signing_key;
 use crate::{
     accounts::StateReadExt as _,
     app::{
+        ActionHandler as _,
         test_utils::{
-            get_bridge_signing_key,
-            initialize_app,
             BOB_ADDRESS,
             CAROL_ADDRESS,
+            get_bridge_signing_key,
+            initialize_app,
         },
-        ActionHandler as _,
     },
     assets::{
         StateReadExt as _,
@@ -56,10 +56,10 @@ use crate::{
     ibc::StateReadExt as _,
     sequence::calculate_fee_from_state,
     test_utils::{
+        ASTRIA_PREFIX,
         astria_address,
         astria_address_from_hex_string,
         nria,
-        ASTRIA_PREFIX,
     },
     transaction::{
         InvalidChainId,

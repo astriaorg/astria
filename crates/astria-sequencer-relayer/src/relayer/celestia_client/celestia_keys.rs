@@ -9,8 +9,8 @@ use std::{
 };
 
 use k256::ecdsa::{
-    signature::Signer,
     Signature,
+    signature::Signer,
 };
 use tendermint::{
     account::Id as AccountId,

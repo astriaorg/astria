@@ -4,29 +4,32 @@ use std::collections::HashMap;
 
 use astria_core::{
     primitive::v1::{
-        asset::TracePrefixed,
         RollupId,
         TransactionId,
+        asset::TracePrefixed,
     },
     protocol::{
         genesis::v1alpha1::Account,
         transaction::v1alpha1::{
+            UnsignedTransaction,
             action::{
                 BridgeLockAction,
                 SequenceAction,
                 TransferAction,
             },
-            UnsignedTransaction,
         },
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
 use prost::{
-    bytes::Bytes,
     Message as _,
+    bytes::Bytes,
 };
 use tendermint::{
+    AppHash,
+    Hash,
+    Time,
     abci::{
         self,
         request::PrepareProposal,
@@ -34,14 +37,11 @@ use tendermint::{
     },
     account,
     block::{
-        header::Version,
         Header,
         Height,
         Round,
+        header::Version,
     },
-    AppHash,
-    Hash,
-    Time,
 };
 
 use super::*;

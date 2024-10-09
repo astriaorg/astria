@@ -1,22 +1,22 @@
 use astria_core::{
     self,
+    Protobuf as _,
     execution::v1alpha2::{
         Block,
         CommitmentState,
         GenesisInfo,
     },
     generated::execution::v1alpha2 as raw,
-    Protobuf as _,
 };
 use bytes::Bytes;
 
 use super::{
+    RollupId,
     should_execute_firm_block,
     state::{
         StateReceiver,
         StateSender,
     },
-    RollupId,
 };
 use crate::config::CommitLevel;
 

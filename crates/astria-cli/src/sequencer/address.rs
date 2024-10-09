@@ -1,6 +1,6 @@
 use astria_core::primitive::v1::{
-    Address,
     ADDRESS_LEN,
+    Address,
 };
 use color_eyre::eyre::{
     self,

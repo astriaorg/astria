@@ -5,6 +5,8 @@ use sha2::{
 };
 
 use super::{
+    IncorrectRollupIdLength,
+    RollupId,
     block::{
         RollupTransactionsParts,
         SequencerBlock,
@@ -12,8 +14,6 @@ use super::{
         SequencerBlockHeaderError,
     },
     raw,
-    IncorrectRollupIdLength,
-    RollupId,
 };
 use crate::Protobuf;
 

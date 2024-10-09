@@ -54,8 +54,8 @@ pub use astria_core::{
         transaction::v1alpha1::SignedTransaction,
     },
     sequencerblock::v1alpha1::{
-        block::SequencerBlockError,
         SequencerBlock,
+        block::SequencerBlockError,
     },
 };
 use async_trait::async_trait;
@@ -70,10 +70,10 @@ use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
 use tendermint_rpc::WebSocketClient;
 use tendermint_rpc::{
-    endpoint::broadcast::tx_sync,
-    event::EventData,
     Client,
     SubscriptionClient,
+    endpoint::broadcast::tx_sync,
+    event::EventData,
 };
 use tracing::{
     instrument,

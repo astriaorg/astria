@@ -5,15 +5,16 @@ use astria_core::{
     generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse,
     primitive::v1::Address,
     protocol::transaction::v1alpha1::{
-        action::TransferAction,
         SignedTransaction,
         UnsignedTransaction,
+        action::TransferAction,
     },
 };
 use hex_literal::hex;
 use prost::bytes::Bytes;
 use serde_json::json;
 use tendermint::{
+    Hash,
     abci::{
         self,
         Code,
@@ -21,29 +22,28 @@ use tendermint::{
     block::Height,
     merkle,
     tx::Proof,
-    Hash,
 };
 use tendermint_rpc::{
+    Id,
     endpoint::tx,
     response::Wrapper,
-    Id,
 };
 use tokio::time::timeout;
 use wiremock::{
-    matchers::{
-        body_partial_json,
-        body_string_contains,
-    },
     Mock,
     MockGuard,
     MockServer,
     ResponseTemplate,
+    matchers::{
+        body_partial_json,
+        body_string_contains,
+    },
 };
 
 use crate::{
-    tendermint_rpc::endpoint::broadcast::tx_sync,
     HttpClient,
     SequencerClientExt as _,
+    tendermint_rpc::endpoint::broadcast::tx_sync,
 };
 
 const ALICE_ADDRESS_BYTES: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");

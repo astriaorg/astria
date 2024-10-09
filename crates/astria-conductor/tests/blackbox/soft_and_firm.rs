@@ -8,6 +8,7 @@ use futures::future::{
 use tokio::time::timeout;
 
 use crate::{
+    SEQUENCER_CHAIN_ID,
     helpers::spawn_conductor,
     mount_abci_info,
     mount_celestia_blobs,
@@ -22,7 +23,6 @@ use crate::{
     mount_sequencer_genesis,
     mount_sequencer_validator_set,
     mount_update_commitment_state,
-    SEQUENCER_CHAIN_ID,
 };
 
 /// Tests if a single block is executed and the rollup's state updated (first soft, then firm).

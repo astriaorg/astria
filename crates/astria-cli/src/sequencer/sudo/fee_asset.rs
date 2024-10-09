@@ -1,8 +1,8 @@
 use astria_core::{
     primitive::v1::asset,
     protocol::transaction::v1alpha1::{
-        action::FeeAssetChangeAction,
         Action,
+        action::FeeAssetChangeAction,
     },
 };
 use clap::Subcommand;

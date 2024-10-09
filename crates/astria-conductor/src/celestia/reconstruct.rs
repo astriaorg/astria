@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use astria_core::{
     primitive::v1::RollupId,
     sequencerblock::v1alpha1::{
-        celestia::UncheckedSubmittedMetadata,
         SubmittedMetadata,
         SubmittedRollupData,
+        celestia::UncheckedSubmittedMetadata,
     },
 };
 use telemetry::display::base64;
@@ -15,8 +15,8 @@ use tracing::{
 };
 
 use super::{
-    verify::VerifiedBlobs,
     ReconstructedBlock,
+    verify::VerifiedBlobs,
 };
 
 /// Reconstructs block information from verified blocks.

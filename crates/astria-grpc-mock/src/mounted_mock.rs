@@ -1,18 +1,18 @@
 use std::sync::{
-    atomic::AtomicBool,
     Arc,
+    atomic::AtomicBool,
 };
 
 use tokio::sync::Notify;
 use tonic::Request;
 
 use super::{
+    AnyMessage,
     mock::{
         Match as _,
         Mock,
     },
     response::MockResponse,
-    AnyMessage,
 };
 use crate::{
     clone_request,

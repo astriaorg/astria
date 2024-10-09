@@ -11,40 +11,40 @@ use astria_core::sequencerblock::v1alpha1::{
 use astria_eyre::{
     eyre,
     eyre::{
-        ensure,
         WrapErr as _,
+        ensure,
     },
 };
 use moka::future::Cache;
 use sequencer_client::{
-    tendermint::block::{
-        signed_header::SignedHeader,
-        Height as SequencerHeight,
-    },
-    tendermint_rpc,
     Client as _,
     HttpClient as SequencerClient,
+    tendermint::block::{
+        Height as SequencerHeight,
+        signed_header::SignedHeader,
+    },
+    tendermint_rpc,
 };
 use telemetry::display::base64;
 use tokio_util::task::JoinMap;
 use tower::{
-    util::BoxService,
     BoxError,
     Service as _,
     ServiceExt as _,
+    util::BoxService,
 };
 use tracing::{
+    Instrument,
+    Level,
     info,
     instrument,
     warn,
-    Instrument,
-    Level,
 };
 use tryhard::{
-    backoff_strategies::BackoffStrategy,
-    retry_fn,
     RetryFutureConfig,
     RetryPolicy,
+    backoff_strategies::BackoffStrategy,
+    retry_fn,
 };
 
 use super::{

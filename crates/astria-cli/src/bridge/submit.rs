@@ -11,15 +11,15 @@ use astria_core::{
     },
 };
 use astria_sequencer_client::{
-    tendermint_rpc::endpoint::tx::Response,
     Address,
     HttpClient,
     SequencerClientExt as _,
+    tendermint_rpc::endpoint::tx::Response,
 };
 use color_eyre::eyre::{
     self,
-    ensure,
     WrapErr as _,
+    ensure,
 };
 use tracing::{
     error,

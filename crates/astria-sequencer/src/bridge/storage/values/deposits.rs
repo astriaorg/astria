@@ -2,11 +2,11 @@ use std::borrow::Cow;
 
 use astria_core::{
     primitive::v1::{
+        Address as DomainAddress,
         asset::{
             Denom as DomainDenom,
             TracePrefixed as DomainTracePrefixed,
         },
-        Address as DomainAddress,
     },
     sequencerblock::v1alpha1::block::Deposit as DomainDeposit,
 };

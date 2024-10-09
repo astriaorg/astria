@@ -3,8 +3,8 @@ use std::time::Duration;
 use astria_core::{
     generated::{
         composer::v1alpha1::{
-            grpc_collector_service_client::GrpcCollectorServiceClient,
             SubmitRollupTransactionRequest,
+            grpc_collector_service_client::GrpcCollectorServiceClient,
         },
         protocol::accounts::v1alpha1::NonceResponse,
     },
@@ -14,11 +14,11 @@ use ethers::prelude::Transaction;
 use prost::bytes::Bytes;
 
 use crate::helper::{
+    TEST_ETH_TX_JSON,
     mount_broadcast_tx_sync_invalid_nonce_mock,
     mount_broadcast_tx_sync_mock,
     mount_matcher_verifying_tx_integrity,
     spawn_composer,
-    TEST_ETH_TX_JSON,
 };
 
 #[tokio::test]
@@ -81,15 +81,12 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
         mount_broadcast_tx_sync_invalid_nonce_mock(&test_composer.sequencer, rollup_id).await;
 
     // Mount a response of 0 to a nonce query
-    let nonce_refetch_guard = mount_abci_query_mock(
-        &test_composer.sequencer,
-        "accounts/nonce",
-        NonceResponse {
+    let nonce_refetch_guard =
+        mount_abci_query_mock(&test_composer.sequencer, "accounts/nonce", NonceResponse {
             height: 0,
             nonce: 1,
-        },
-    )
-    .await;
+        })
+        .await;
 
     let expected_chain_ids = vec![rollup_id];
     // Expect nonce 1 again so that the resubmitted tx is accepted

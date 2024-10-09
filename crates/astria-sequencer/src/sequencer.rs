@@ -2,10 +2,10 @@ use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_server::
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        eyre,
         OptionExt as _,
         Result,
         WrapErr as _,
+        eyre,
     },
 };
 use penumbra_tower_trace::{
@@ -17,8 +17,8 @@ use tendermint::v0_38::abci::ConsensusRequest;
 use tokio::{
     select,
     signal::unix::{
-        signal,
         SignalKind,
+        signal,
     },
     sync::{
         oneshot,

@@ -1,7 +1,7 @@
 use astria_core::{
     primitive::v1::{
-        asset,
         Address,
+        asset,
     },
     protocol::{
         abci::AbciErrorCode,
@@ -22,9 +22,9 @@ use futures::TryStreamExt as _;
 use prost::Message as _;
 use tendermint::{
     abci::{
+        Code,
         request,
         response,
-        Code,
     },
     block::Height,
 };

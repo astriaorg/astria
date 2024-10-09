@@ -8,9 +8,9 @@ use astria_core::{
 use cnidarium::Storage;
 use prost::Message as _;
 use tendermint::abci::{
+    Code,
     request,
     response,
-    Code,
 };
 
 use crate::{

@@ -21,10 +21,10 @@ use astria_core::{
 };
 use astria_grpc_mock::MockGuard as GrpcMockGuard;
 use astria_sequencer_relayer::{
-    config::Config,
     Metrics,
     SequencerRelayer,
     ShutdownHandle,
+    config::Config,
 };
 use http::StatusCode;
 use isahc::AsyncReadResponseExt;
@@ -35,8 +35,8 @@ use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tendermint_config::PrivValidatorKey;
 use tendermint_rpc::{
-    response::Wrapper,
     Id,
+    response::Wrapper,
 };
 use tokio::{
     runtime::{
@@ -44,8 +44,8 @@ use tokio::{
         RuntimeFlavor,
     },
     task::{
-        yield_now,
         JoinHandle,
+        yield_now,
     },
 };
 use tracing::{
@@ -53,9 +53,9 @@ use tracing::{
     info,
 };
 use wiremock::{
-    matchers::body_partial_json,
     MockServer as WireMockServer,
     ResponseTemplate,
+    matchers::body_partial_json,
 };
 
 use super::{

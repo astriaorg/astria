@@ -1,9 +1,9 @@
 use std::process::ExitCode;
 
 use astria_composer::{
+    BUILD_INFO,
     Composer,
     Config,
-    BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
 use tracing::{

@@ -13,14 +13,14 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    WrapErr as _,
     bail,
     ensure,
-    WrapErr as _,
 };
 use bytes::Bytes;
 use sequencer_client::tendermint::{
-    block::Height as SequencerHeight,
     Time as TendermintTime,
+    block::Height as SequencerHeight,
 };
 use tokio::{
     select,

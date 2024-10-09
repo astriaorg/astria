@@ -5,17 +5,17 @@ use astria_core::{
         SubmittedRollupDataList,
     },
     sequencerblock::v1alpha1::{
+        SubmittedMetadata,
+        SubmittedRollupData,
         celestia::{
             SubmittedMetadataError,
             SubmittedRollupDataError,
         },
-        SubmittedMetadata,
-        SubmittedRollupData,
     },
 };
 use celestia_types::{
-    nmt::Namespace,
     Blob,
+    nmt::Namespace,
 };
 use prost::{
     Message as _,

@@ -2,9 +2,9 @@
 // hidden because they shouldn't be imported.
 #[doc(hidden)]
 pub use const_format::{
+    Case as __Case,
     concatcp as __concatcp,
     map_ascii_case as __map_ascii_case,
-    Case as __Case,
 };
 
 /// Declare a collection of `const` string slices, using the declaring crate's name as a
@@ -77,10 +77,11 @@ mod tests {
             assert_eq!("astria_telemetry_example_counter", EXAMPLE_COUNTER);
             assert_eq!("astria_telemetry_example_gauge", EXAMPLE_GAUGE);
             assert_eq!("astria_telemetry_example_histogram", EXAMPLE_HISTOGRAM);
-            assert_eq!(
-                PRIVATE_METRICS,
-                [EXAMPLE_COUNTER, EXAMPLE_GAUGE, EXAMPLE_HISTOGRAM]
-            );
+            assert_eq!(PRIVATE_METRICS, [
+                EXAMPLE_COUNTER,
+                EXAMPLE_GAUGE,
+                EXAMPLE_HISTOGRAM
+            ]);
         }
     }
 
@@ -89,10 +90,11 @@ mod tests {
         assert_eq!("astria_telemetry_pub_counter", inner::PUB_COUNTER);
         assert_eq!("astria_telemetry_pub_gauge", inner::PUB_GAUGE);
         assert_eq!("astria_telemetry_pub_histogram", inner::PUB_HISTOGRAM);
-        assert_eq!(
-            inner::PUBLIC_METRICS,
-            [inner::PUB_COUNTER, inner::PUB_GAUGE, inner::PUB_HISTOGRAM]
-        );
+        assert_eq!(inner::PUBLIC_METRICS, [
+            inner::PUB_COUNTER,
+            inner::PUB_GAUGE,
+            inner::PUB_HISTOGRAM
+        ]);
     }
 
     #[test]

@@ -12,13 +12,13 @@ use super::{
 use crate::{
     crypto::SigningKey,
     primitive::v1::{
-        derive_merkle_tree_from_rollup_txs,
         RollupId,
+        derive_merkle_tree_from_rollup_txs,
     },
     protocol::transaction::v1alpha1::UnsignedTransaction,
     sequencerblock::v1alpha1::{
-        block::Deposit,
         SequencerBlock,
+        block::Deposit,
     },
 };
 

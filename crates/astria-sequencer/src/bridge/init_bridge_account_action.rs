@@ -1,13 +1,13 @@
 use astria_core::{
+    Protobuf as _,
     primitive::v1::Address,
     protocol::transaction::v1alpha1::action::InitBridgeAccountAction,
-    Protobuf as _,
 };
 use astria_eyre::eyre::{
-    bail,
-    ensure,
     Result,
     WrapErr as _,
+    bail,
+    ensure,
 };
 use cnidarium::StateWrite;
 

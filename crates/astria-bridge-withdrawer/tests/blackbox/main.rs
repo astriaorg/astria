@@ -5,6 +5,7 @@
 
 use astria_core::protocol::transaction::v1alpha1::Action;
 use helpers::{
+    TestBridgeWithdrawerConfig,
     assert_actions_eq,
     default_sequencer_address,
     make_erc20_bridge_unlock_action,
@@ -12,7 +13,6 @@ use helpers::{
     make_native_bridge_unlock_action,
     make_native_ics20_withdrawal_action,
     signed_tx_from_request,
-    TestBridgeWithdrawerConfig,
 };
 
 pub mod helpers;

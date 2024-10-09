@@ -16,12 +16,12 @@ use astria_core::{
 };
 use astria_eyre::eyre::bail;
 use borsh::{
+    BorshDeserialize,
+    BorshSerialize,
     io::{
         Read,
         Write,
     },
-    BorshDeserialize,
-    BorshSerialize,
 };
 use telemetry::display::base64;
 

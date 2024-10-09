@@ -5,16 +5,16 @@ mod state_ext;
 use std::fmt;
 
 use astria_core::protocol::transaction::v1alpha1::{
-    action::Action,
     SignedTransaction,
+    action::Action,
 };
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        ensure,
         OptionExt as _,
         Result,
         WrapErr as _,
+        ensure,
     },
 };
 pub(crate) use checks::{
@@ -46,8 +46,8 @@ use crate::{
         StateWriteExt as _,
     },
     ibc::{
-        host_interface::AstriaHost,
         StateReadExt as _,
+        host_interface::AstriaHost,
     },
 };
 

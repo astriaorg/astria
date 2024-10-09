@@ -36,15 +36,15 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 ] }
 
 borsh = { version = "1.5.1", features = ["bytes", "derive"] }
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6", features = [
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.5", features = [
   "metrics",
 ] }
-ibc-proto = { version = "0.41.0", features = ["server"] }
+ibc-proto = { version = "0.47.0", features = ["server"] }
 matchit = "0.7.2"
 tower = "0.4"
-tower-abci = "0.12.0"
+tower-abci = "0.15.0"
 tower-actor = "0.1.0"
-tower-http = { version = "0.4", features = ["cors"] }
+tower-http = { version = "0.5", features = ["cors"] }
 
 async-trait = { workspace = true }
 bytes = { workspace = true }

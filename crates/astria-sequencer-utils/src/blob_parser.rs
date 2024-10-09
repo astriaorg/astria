@@ -14,13 +14,13 @@ use std::{
 use astria_core::{
     brotli::decompress_bytes,
     generated::sequencerblock::v1alpha1::{
-        rollup_data::Value as RawRollupDataValue,
         Deposit as RawDeposit,
         RollupData as RawRollupData,
         SubmittedMetadata as RawSubmittedMetadata,
         SubmittedMetadataList as RawSubmittedMetadataList,
         SubmittedRollupData as RawSubmittedRollupData,
         SubmittedRollupDataList as RawSubmittedRollupDataList,
+        rollup_data::Value as RawRollupDataValue,
     },
     primitive::v1::RollupId,
     sequencerblock::v1alpha1::{
@@ -37,26 +37,26 @@ use astria_core::{
     },
 };
 use astria_eyre::eyre::{
-    bail,
     Result,
     WrapErr,
+    bail,
 };
 use astria_merkle::audit::Proof;
 use base64::{
-    prelude::BASE64_STANDARD,
     Engine,
+    prelude::BASE64_STANDARD,
 };
 use clap::ValueEnum;
 use colour::write_blue;
 use ethers_core::types::{
-    transaction::eip2930::AccessListItem,
     Transaction,
+    transaction::eip2930::AccessListItem,
 };
 use indenter::indented;
 use itertools::Itertools;
 use prost::{
-    bytes::Bytes,
     Message,
+    bytes::Bytes,
 };
 use serde::Serialize;
 

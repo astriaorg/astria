@@ -1,16 +1,16 @@
 use std::fmt::Display;
 
 use astria_core::primitive::v1::{
-    asset,
     ADDRESS_LEN,
+    asset,
 };
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
         OptionExt as _,
         Result,
         WrapErr as _,
+        bail,
     },
 };
 use async_trait::async_trait;
@@ -212,8 +212,8 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod tests {
     use astria_core::primitive::v1::{
-        asset,
         Address,
+        asset,
     };
     use cnidarium::StateDelta;
     use ibc_types::core::channel::ChannelId;
@@ -227,8 +227,8 @@ mod tests {
         address::StateWriteExt,
         ibc::state_ext::channel_balance_storage_key,
         test_utils::{
-            astria_address,
             ASTRIA_PREFIX,
+            astria_address,
         },
     };
 

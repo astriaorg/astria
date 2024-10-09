@@ -9,6 +9,7 @@ use std::fmt::{
 use penumbra_ibc::IbcRelay;
 
 use super::{
+    Action,
     action::{
         ActionName,
         BridgeLockAction,
@@ -25,7 +26,6 @@ use super::{
         TransferAction,
         ValidatorUpdate,
     },
-    Action,
 };
 
 trait BelongsToGroup {

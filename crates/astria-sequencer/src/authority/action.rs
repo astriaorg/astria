@@ -6,10 +6,10 @@ use astria_core::protocol::transaction::v1alpha1::action::{
     ValidatorUpdate,
 };
 use astria_eyre::eyre::{
-    bail,
-    ensure,
     Result,
     WrapErr as _,
+    bail,
+    ensure,
 };
 use cnidarium::StateWrite;
 

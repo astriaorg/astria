@@ -3,20 +3,20 @@ use std::convert::Infallible;
 pub use penumbra_ibc::params::IBCParameters;
 
 use crate::{
+    Protobuf,
     generated::protocol::genesis::v1alpha1 as raw,
     primitive::v1::{
-        asset::{
-            self,
-            denom::ParseTracePrefixedError,
-            ParseDenomError,
-        },
-        try_construct_dummy_address_from_prefix,
         Address,
         AddressError,
         Bech32,
         Bech32m,
+        asset::{
+            self,
+            ParseDenomError,
+            denom::ParseTracePrefixedError,
+        },
+        try_construct_dummy_address_from_prefix,
     },
-    Protobuf,
 };
 
 /// The genesis state of Astria's Sequencer.

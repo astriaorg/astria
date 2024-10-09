@@ -39,8 +39,8 @@ use transactions_container::{
 };
 
 use crate::{
-    accounts,
     Metrics,
+    accounts,
 };
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -506,16 +506,16 @@ mod tests {
     use super::*;
     use crate::{
         app::test_utils::{
+            ALICE_ADDRESS,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+            MockTxBuilder,
             get_bob_signing_key,
             mock_balances,
             mock_state_getter,
             mock_state_put_account_balances,
             mock_state_put_account_nonce,
             mock_tx_cost,
-            MockTxBuilder,
-            ALICE_ADDRESS,
-            BOB_ADDRESS,
-            CAROL_ADDRESS,
         },
         test_utils::astria_address_from_hex_string,
     };

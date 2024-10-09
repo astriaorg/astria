@@ -8,8 +8,8 @@ use std::{
 };
 
 use astria_core::primitive::v1::{
-    TransactionId as DomainTransactionId,
     TRANSACTION_ID_LEN,
+    TransactionId as DomainTransactionId,
 };
 use astria_eyre::eyre::bail;
 use borsh::{

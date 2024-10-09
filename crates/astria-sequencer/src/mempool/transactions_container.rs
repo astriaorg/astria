@@ -1,9 +1,9 @@
 use std::{
     cmp::Ordering,
     collections::{
-        hash_map,
         BTreeMap,
         HashMap,
+        hash_map,
     },
     fmt,
     mem,
@@ -15,9 +15,9 @@ use astria_core::{
     protocol::transaction::v1alpha1::SignedTransaction,
 };
 use astria_eyre::eyre::{
-    eyre,
     Result,
     WrapErr as _,
+    eyre,
 };
 use tokio::time::{
     Duration,
@@ -861,6 +861,11 @@ mod tests {
     use super::*;
     use crate::{
         app::test_utils::{
+            ALICE_ADDRESS,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+            MOCK_SEQUENCE_FEE,
+            MockTxBuilder,
             denom_0,
             denom_1,
             denom_3,
@@ -871,11 +876,6 @@ mod tests {
             mock_state_getter,
             mock_state_put_account_nonce,
             mock_tx_cost,
-            MockTxBuilder,
-            ALICE_ADDRESS,
-            BOB_ADDRESS,
-            CAROL_ADDRESS,
-            MOCK_SEQUENCE_FEE,
         },
         test_utils::astria_address_from_hex_string,
     };

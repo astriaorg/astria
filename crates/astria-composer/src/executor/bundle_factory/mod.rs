@@ -9,13 +9,13 @@ use std::{
 };
 
 use astria_core::{
+    Protobuf as _,
     primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
-        action::SequenceAction,
         Action,
         UnsignedTransaction,
+        action::SequenceAction,
     },
-    Protobuf as _,
 };
 use serde::ser::{
     Serialize,

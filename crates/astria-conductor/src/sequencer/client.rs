@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_client::SequencerServiceClient,
         GetFilteredSequencerBlockRequest,
+        sequencer_service_client::SequencerServiceClient,
     },
     primitive::v1::RollupId,
     sequencerblock::v1alpha1::block::FilteredSequencerBlock,
@@ -20,10 +20,10 @@ use tonic::transport::{
     Uri,
 };
 use tracing::{
+    Instrument,
     debug,
     instrument,
     warn,
-    Instrument,
 };
 
 #[derive(Clone)]

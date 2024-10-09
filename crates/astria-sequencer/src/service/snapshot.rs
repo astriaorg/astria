@@ -12,14 +12,14 @@ use futures::{
 };
 use penumbra_tower_trace::v038::RequestExt as _;
 use tendermint::v0_38::abci::{
+    SnapshotRequest,
+    SnapshotResponse,
     response::{
         ApplySnapshotChunk,
         ListSnapshots,
         LoadSnapshotChunk,
         OfferSnapshot,
     },
-    SnapshotRequest,
-    SnapshotResponse,
 };
 use tower::Service;
 use tower_abci::BoxError;

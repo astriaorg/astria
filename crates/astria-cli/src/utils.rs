@@ -7,15 +7,15 @@ use astria_core::{
     },
 };
 use astria_sequencer_client::{
-    tendermint_rpc::endpoint::tx::Response,
     HttpClient,
     SequencerClientExt as _,
+    tendermint_rpc::endpoint::tx::Response,
 };
 use color_eyre::eyre::{
     self,
+    WrapErr as _,
     ensure,
     eyre,
-    WrapErr as _,
 };
 
 pub(crate) async fn submit_transaction(

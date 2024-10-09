@@ -1,12 +1,12 @@
 use astria_core::{
-    protocol::transaction::v1alpha1::action::TransferAction,
     Protobuf as _,
+    protocol::transaction::v1alpha1::action::TransferAction,
 };
 use astria_eyre::eyre::{
-    ensure,
     OptionExt as _,
     Result,
     WrapErr as _,
+    ensure,
 };
 use cnidarium::{
     StateRead,

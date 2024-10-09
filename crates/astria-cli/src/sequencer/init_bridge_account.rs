@@ -1,8 +1,8 @@
 use astria_core::{
     primitive::v1::asset,
     protocol::transaction::v1alpha1::{
-        action::InitBridgeAccountAction,
         Action,
+        action::InitBridgeAccountAction,
     },
 };
 use color_eyre::eyre::{

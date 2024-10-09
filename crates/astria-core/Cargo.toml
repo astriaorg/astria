@@ -18,8 +18,8 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 [dependencies]
 bech32 = "0.11.0"
 brotli = { version = "5.0.0", optional = true }
-celestia-types = { version = "0.1.1", optional = true }
-pbjson = { version = "0.6.0", optional = true }
+celestia-types = { git = "https://github.com/eigerco/lumina.git", rev = "520b6788d9f24f87c725a0f18b238c69a77bf36e", optional = true }
+pbjson = { version = "0.7", optional = true }
 
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 

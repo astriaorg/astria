@@ -634,8 +634,8 @@ mod serde_impl {
     mod tests {
         use super::super::IbcPrefixed;
         use crate::primitive::v1::asset::{
-            denom::TracePrefixed,
             Denom,
+            denom::TracePrefixed,
         };
 
         fn trace_prefixed() -> TracePrefixed {

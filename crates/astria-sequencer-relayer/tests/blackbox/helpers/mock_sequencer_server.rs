@@ -5,16 +5,16 @@ use std::{
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_server::{
-            SequencerService,
-            SequencerServiceServer,
-        },
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
         GetPendingNonceRequest,
         GetPendingNonceResponse,
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
+        sequencer_service_server::{
+            SequencerService,
+            SequencerServiceServer,
+        },
     },
     primitive::v1::RollupId,
     protocol::test_utils::ConfigureSequencerBlock,
@@ -25,19 +25,19 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use astria_grpc_mock::{
-    matcher::message_type,
-    response::constant_response,
     Mock,
     MockGuard,
     MockServer,
+    matcher::message_type,
+    response::constant_response,
 };
 use tendermint::account::Id as AccountId;
 use tokio::task::JoinHandle;
 use tonic::{
-    transport::Server,
     Request,
     Response,
     Status,
+    transport::Server,
 };
 
 const GET_SEQUENCER_BLOCK_GRPC_NAME: &str = "get_sequencer_block";
@@ -145,10 +145,10 @@ fn prepare_sequencer_block_response(
             block_hash: Some([99u8; 32]),
             height,
             proposer_address: Some(proposer),
-            sequence_data: vec![(
-                RollupId::from_unhashed_bytes(b"some_rollup_id"),
-                vec![99u8; 32],
-            )],
+            sequence_data: vec![(RollupId::from_unhashed_bytes(b"some_rollup_id"), vec![
+                99u8;
+                32
+            ])],
             ..Default::default()
         }
         .make(),

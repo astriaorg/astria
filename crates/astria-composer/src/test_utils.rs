@@ -1,11 +1,11 @@
 use astria_core::{
+    Protobuf as _,
     primitive::v1::{
-        asset,
-        RollupId,
         ROLLUP_ID_LEN,
+        RollupId,
+        asset,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
-    Protobuf as _,
 };
 
 fn encoded_len(action: &SequenceAction) -> usize {

@@ -69,21 +69,21 @@ use std::net::SocketAddr;
 pub use __rpc_traits::GethServer;
 use ethers::types::Transaction;
 use jsonrpsee::{
+    PendingSubscriptionSink,
     core::{
-        async_trait,
         SubscriptionResult,
+        async_trait,
     },
     server::IdProvider,
     types::{
         ErrorObjectOwned,
         SubscriptionId,
     },
-    PendingSubscriptionSink,
 };
 use tokio::sync::broadcast::{
+    Sender,
     channel,
     error::SendError,
-    Sender,
 };
 
 #[derive(Debug)]

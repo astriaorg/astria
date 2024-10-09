@@ -35,8 +35,8 @@ use figment::Jail;
 use regex::Regex;
 
 use crate::{
-    Config,
     _internal,
+    Config,
 };
 
 static TEST_PREFIX: LazyLock<String> = LazyLock::new(|| {

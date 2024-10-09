@@ -9,20 +9,20 @@ use astria_bridge_contracts::{
 };
 use astria_core::{
     primitive::v1::{
-        asset,
         Address,
+        asset,
     },
     protocol::transaction::v1alpha1::Action,
 };
 use astria_eyre::{
+    Result,
     eyre::{
         self,
-        bail,
-        eyre,
         OptionExt as _,
         WrapErr as _,
+        bail,
+        eyre,
     },
-    Result,
 };
 use ethers::{
     core::types::Block,

@@ -15,19 +15,19 @@ use futures::{
 };
 use penumbra_tower_trace::v038::RequestExt as _;
 use tendermint::v0_38::abci::{
+    InfoRequest,
+    InfoResponse,
     request,
     response::{
         self,
         Echo,
     },
-    InfoRequest,
-    InfoResponse,
 };
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
-    instrument,
     Instrument as _,
+    instrument,
 };
 
 mod abci_query_router;
@@ -188,9 +188,9 @@ mod tests {
     use cnidarium::StateDelta;
     use prost::Message as _;
     use tendermint::v0_38::abci::{
-        request,
         InfoRequest,
         InfoResponse,
+        request,
     };
 
     use super::Info;

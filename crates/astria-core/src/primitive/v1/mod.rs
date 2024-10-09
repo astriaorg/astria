@@ -17,8 +17,8 @@ use sha2::{
 };
 
 use crate::{
-    generated::primitive::v1 as raw,
     Protobuf,
+    generated::primitive::v1 as raw,
 };
 
 pub const ADDRESS_LEN: usize = 20;
@@ -785,11 +785,11 @@ enum TransactionIdErrorKind {
 #[cfg(test)]
 mod tests {
     use super::{
+        ADDRESS_LEN,
         Address,
         AddressError,
         AddressErrorKind,
         Bech32m,
-        ADDRESS_LEN,
     };
     use crate::primitive::v1::Bech32;
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";

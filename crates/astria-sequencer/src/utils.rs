@@ -1,8 +1,8 @@
 use astria_core::{
+    Protobuf as _,
     generated::astria_vendored::tendermint::abci as raw,
     protocol::transaction::v1alpha1::action::ValidatorUpdate,
     sequencerblock::v1alpha1::block::Deposit,
-    Protobuf as _,
 };
 use astria_eyre::eyre::{
     Result,
@@ -28,26 +28,23 @@ pub(crate) fn cometbft_to_sequencer_validator(
 }
 
 pub(crate) fn create_deposit_event(deposit: &Deposit) -> abci::Event {
-    abci::Event::new(
-        "tx.deposit",
-        [
-            ("bridgeAddress", deposit.bridge_address.to_string()).index(),
-            ("rollupId", deposit.rollup_id.to_string()).index(),
-            ("amount", deposit.amount.to_string()).index(),
-            ("asset", deposit.asset.to_string()).index(),
-            (
-                "destinationChainAddress",
-                deposit.destination_chain_address.to_string(),
-            )
-                .index(),
-            (
-                "sourceTransactionId",
-                deposit.source_transaction_id.to_string(),
-            )
-                .index(),
-            ("sourceActionIndex", deposit.source_action_index.to_string()).index(),
-        ],
-    )
+    abci::Event::new("tx.deposit", [
+        ("bridgeAddress", deposit.bridge_address.to_string()).index(),
+        ("rollupId", deposit.rollup_id.to_string()).index(),
+        ("amount", deposit.amount.to_string()).index(),
+        ("asset", deposit.asset.to_string()).index(),
+        (
+            "destinationChainAddress",
+            deposit.destination_chain_address.to_string(),
+        )
+            .index(),
+        (
+            "sourceTransactionId",
+            deposit.source_transaction_id.to_string(),
+        )
+            .index(),
+        ("sourceActionIndex", deposit.source_action_index.to_string()).index(),
+    ])
 }
 
 pub(crate) fn sequencer_to_cometbft_validator(
@@ -67,12 +64,12 @@ pub(crate) fn sequencer_to_cometbft_validator(
 
 mod pubkey {
     use astria_core::generated::astria_vendored::tendermint::crypto::{
-        public_key::Sum as AstriaSum,
         PublicKey as AstriaKey,
+        public_key::Sum as AstriaSum,
     };
     use tendermint_proto::crypto::{
-        public_key::Sum as CometbftSum,
         PublicKey as CometbftKey,
+        public_key::Sum as CometbftSum,
     };
 
     pub(super) fn astria_to_cometbft(key: AstriaKey) -> CometbftKey {

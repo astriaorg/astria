@@ -5,10 +5,10 @@ use astria_core::primitive::v1::{
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
-        ensure,
         Result,
         WrapErr as _,
+        bail,
+        ensure,
     },
 };
 use async_trait::async_trait;

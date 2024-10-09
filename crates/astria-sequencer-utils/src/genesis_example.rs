@@ -5,6 +5,7 @@ use std::{
 };
 
 use astria_core::{
+    Protobuf,
     generated::protocol::genesis::v1alpha1::{
         AddressPrefixes,
         IbcParameters,
@@ -15,7 +16,6 @@ use astria_core::{
         Fees,
         GenesisAppState,
     },
-    Protobuf,
 };
 use astria_eyre::eyre::{
     Result,

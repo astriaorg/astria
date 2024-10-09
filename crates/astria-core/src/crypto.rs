@@ -14,9 +14,9 @@ use std::{
 };
 
 use base64::{
+    Engine,
     display::Base64Display,
     prelude::BASE64_STANDARD,
-    Engine,
 };
 use ed25519_consensus::{
     Error as Ed25519Error,
@@ -38,9 +38,9 @@ use zeroize::{
 };
 
 use crate::primitive::v1::{
+    ADDRESS_LEN,
     Address,
     AddressError,
-    ADDRESS_LEN,
 };
 
 /// An Ed25519 signing key.

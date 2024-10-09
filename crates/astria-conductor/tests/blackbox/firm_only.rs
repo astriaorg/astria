@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use astria_conductor::{
-    config::CommitLevel,
     Conductor,
     Config,
+    config::CommitLevel,
 };
 use astria_core::generated::execution::v1alpha2::{
     GetCommitmentStateRequest,
@@ -17,12 +17,12 @@ use serde_json::json;
 use telemetry::metrics;
 use tokio::time::timeout;
 use wiremock::{
+    Mock,
+    ResponseTemplate,
     matchers::{
         body_partial_json,
         header,
     },
-    Mock,
-    ResponseTemplate,
 };
 
 use crate::{
@@ -30,12 +30,12 @@ use crate::{
     commitment_state,
     genesis_info,
     helpers::{
-        make_config,
-        spawn_conductor,
-        MockGrpc,
         CELESTIA_BEARER_TOKEN,
         CELESTIA_CHAIN_ID,
+        MockGrpc,
         SEQUENCER_CHAIN_ID,
+        make_config,
+        spawn_conductor,
     },
     mount_celestia_blobs,
     mount_celestia_header_network_head,
@@ -409,9 +409,9 @@ async fn fetch_from_later_celestia_height() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn exits_on_celestia_chain_id_mismatch() {
     use astria_grpc_mock::{
+        Mock as GrpcMock,
         matcher,
         response as GrpcResponse,
-        Mock as GrpcMock,
     };
 
     // FIXME (https://github.com/astriaorg/astria/issues/1602)

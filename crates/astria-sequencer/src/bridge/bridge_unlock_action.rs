@@ -3,10 +3,10 @@ use astria_core::protocol::transaction::v1alpha1::action::{
     TransferAction,
 };
 use astria_eyre::eyre::{
-    bail,
-    ensure,
     Result,
     WrapErr as _,
+    bail,
+    ensure,
 };
 use cnidarium::StateWrite;
 
@@ -104,9 +104,9 @@ impl ActionHandler for BridgeUnlockAction {
 mod tests {
     use astria_core::{
         primitive::v1::{
-            asset,
             RollupId,
             TransactionId,
+            asset,
         },
         protocol::transaction::v1alpha1::action::BridgeUnlockAction,
     };
@@ -119,9 +119,9 @@ mod tests {
         assets::StateWriteExt as _,
         bridge::StateWriteExt as _,
         test_utils::{
+            ASTRIA_PREFIX,
             assert_eyre_error,
             astria_address,
-            ASTRIA_PREFIX,
         },
         transaction::{
             StateWriteExt as _,

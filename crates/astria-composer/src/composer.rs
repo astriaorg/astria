@@ -13,8 +13,8 @@ use itertools::Itertools as _;
 use tokio::{
     io,
     signal::unix::{
-        signal,
         SignalKind,
+        signal,
     },
     sync::watch,
     task::{
@@ -35,6 +35,7 @@ use tracing::{
 };
 
 use crate::{
+    Config,
     api::{
         self,
         ApiServer,
@@ -47,7 +48,6 @@ use crate::{
     grpc,
     grpc::GrpcServer,
     metrics::Metrics,
-    Config,
 };
 
 const API_SERVER_SHUTDOWN_DURATION: Duration = Duration::from_secs(2);

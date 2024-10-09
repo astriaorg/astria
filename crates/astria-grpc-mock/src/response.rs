@@ -4,8 +4,8 @@ use std::{
 };
 
 use super::{
-    clone_response,
     AnyMessage,
+    clone_response,
 };
 use crate::erase_response;
 

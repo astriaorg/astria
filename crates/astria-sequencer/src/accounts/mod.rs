@@ -7,8 +7,8 @@ pub(crate) mod storage;
 use astria_core::{
     crypto::VerificationKey,
     primitive::v1::{
-        Address,
         ADDRESS_LEN,
+        Address,
     },
     protocol::transaction::v1alpha1::SignedTransaction,
 };

@@ -10,8 +10,8 @@ pub mod soft_and_firm;
 pub mod soft_only;
 
 use helpers::{
-    rollup_namespace,
-    sequencer_namespace,
     ROLLUP_ID,
     SEQUENCER_CHAIN_ID,
+    rollup_namespace,
+    sequencer_namespace,
 };

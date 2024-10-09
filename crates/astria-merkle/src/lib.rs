@@ -380,9 +380,9 @@ impl Tree {
     /// # Examples
     /// ```
     /// use astria_merkle::{
+    ///     Tree,
     ///     combine,
     ///     hash_leaf,
-    ///     Tree,
     /// };
     /// let mut tree = Tree::new();
     /// tree.push(&[1; 32]);

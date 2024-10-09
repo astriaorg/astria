@@ -8,55 +8,55 @@ use std::{
 
 use astria_core::generated::{
     celestia::v1::{
+        Params as BlobParams,
+        QueryParamsRequest as QueryBlobParamsRequest,
+        QueryParamsResponse as QueryBlobParamsResponse,
         query_server::{
             Query as BlobQueryService,
             QueryServer as BlobQueryServer,
         },
-        Params as BlobParams,
-        QueryParamsRequest as QueryBlobParamsRequest,
-        QueryParamsResponse as QueryBlobParamsResponse,
     },
     cosmos::{
         auth::v1beta1::{
-            query_server::{
-                Query as AuthQueryService,
-                QueryServer as AuthQueryServer,
-            },
             BaseAccount,
             Params as AuthParams,
             QueryAccountRequest,
             QueryAccountResponse,
             QueryParamsRequest as QueryAuthParamsRequest,
             QueryParamsResponse as QueryAuthParamsResponse,
+            query_server::{
+                Query as AuthQueryService,
+                QueryServer as AuthQueryServer,
+            },
         },
         base::{
             abci::v1beta1::TxResponse,
             node::v1beta1::{
+                ConfigRequest as MinGasPriceRequest,
+                ConfigResponse as MinGasPriceResponse,
                 service_server::{
                     Service as MinGasPriceService,
                     ServiceServer as MinGasPriceServer,
                 },
-                ConfigRequest as MinGasPriceRequest,
-                ConfigResponse as MinGasPriceResponse,
             },
             tendermint::v1beta1::{
+                GetNodeInfoRequest,
+                GetNodeInfoResponse,
                 service_server::{
                     Service as NodeInfoService,
                     ServiceServer as NodeInfoServer,
                 },
-                GetNodeInfoRequest,
-                GetNodeInfoResponse,
             },
         },
         tx::v1beta1::{
-            service_server::{
-                Service as TxService,
-                ServiceServer as TxServer,
-            },
             BroadcastTxRequest,
             BroadcastTxResponse,
             GetTxRequest,
             GetTxResponse,
+            service_server::{
+                Service as TxService,
+                ServiceServer as TxServer,
+            },
         },
     },
     tendermint::{
@@ -69,14 +69,14 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use astria_grpc_mock::{
+    Mock,
+    MockGuard,
+    MockServer,
     matcher::message_type,
     response::{
         constant_response,
         dynamic_response,
     },
-    Mock,
-    MockGuard,
-    MockServer,
 };
 use celestia_types::nmt::Namespace;
 use prost::{
@@ -85,10 +85,10 @@ use prost::{
 };
 use tokio::task::JoinHandle;
 use tonic::{
-    transport::Server,
     Request,
     Response,
     Status,
+    transport::Server,
 };
 
 const GET_NODE_INFO_GRPC_NAME: &str = "get_node_info";

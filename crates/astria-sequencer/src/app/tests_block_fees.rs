@@ -3,6 +3,7 @@ use std::sync::Arc;
 use astria_core::{
     primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
+        UnsignedTransaction,
         action::{
             BridgeLockAction,
             BridgeSudoChangeAction,
@@ -10,7 +11,6 @@ use astria_core::{
             SequenceAction,
             TransferAction,
         },
-        UnsignedTransaction,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
@@ -23,19 +23,19 @@ use crate::{
         StateWriteExt as _,
     },
     app::test_utils::{
+        BOB_ADDRESS,
         get_alice_signing_key,
         get_bridge_signing_key,
         initialize_app,
-        BOB_ADDRESS,
     },
     assets::StateReadExt as _,
     bridge::{
-        calculate_base_deposit_fee,
         StateWriteExt as _,
+        calculate_base_deposit_fee,
     },
     sequence::{
-        calculate_fee_from_state,
         StateWriteExt as _,
+        calculate_fee_from_state,
     },
     test_utils::{
         astria_address,

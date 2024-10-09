@@ -1,9 +1,9 @@
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
         Result,
         WrapErr as _,
+        bail,
     },
 };
 use async_trait::async_trait;
@@ -183,9 +183,9 @@ mod tests {
     use tendermint::Time;
 
     use super::{
-        revision_number_from_chain_id,
         StateReadExt as _,
         StateWriteExt as _,
+        revision_number_from_chain_id,
     };
 
     #[test]

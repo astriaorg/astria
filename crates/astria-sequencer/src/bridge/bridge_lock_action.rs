@@ -1,27 +1,27 @@
 use astria_core::{
+    Protobuf as _,
     protocol::transaction::v1alpha1::action::{
         BridgeLockAction,
         TransferAction,
     },
     sequencerblock::v1alpha1::block::Deposit,
-    Protobuf as _,
 };
 use astria_eyre::eyre::{
-    ensure,
     OptionExt as _,
     Result,
     WrapErr as _,
+    ensure,
 };
 use cnidarium::StateWrite;
 
 use crate::{
     accounts::{
+        StateReadExt as _,
+        StateWriteExt as _,
         action::{
             check_transfer,
             execute_transfer,
         },
-        StateReadExt as _,
-        StateWriteExt as _,
     },
     address::StateReadExt as _,
     app::ActionHandler,
@@ -164,15 +164,15 @@ pub(crate) fn calculate_base_deposit_fee(deposit: &Deposit) -> Option<u128> {
 #[cfg(test)]
 mod tests {
     use astria_core::primitive::v1::{
+        ADDRESS_LEN,
+        Address,
+        ROLLUP_ID_LEN,
+        RollupId,
+        TRANSACTION_ID_LEN,
+        TransactionId,
         asset::{
             self,
         },
-        Address,
-        RollupId,
-        TransactionId,
-        ADDRESS_LEN,
-        ROLLUP_ID_LEN,
-        TRANSACTION_ID_LEN,
     };
     use cnidarium::StateDelta;
 
@@ -180,9 +180,9 @@ mod tests {
     use crate::{
         address::StateWriteExt as _,
         test_utils::{
+            ASTRIA_PREFIX,
             assert_eyre_error,
             astria_address,
-            ASTRIA_PREFIX,
         },
         transaction::{
             StateWriteExt as _,

@@ -1,14 +1,14 @@
 use std::process::ExitCode;
 
 use astria_bridge_withdrawer::{
+    BUILD_INFO,
     BridgeWithdrawer,
     Config,
-    BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
 use tokio::signal::unix::{
-    signal,
     SignalKind,
+    signal,
 };
 use tracing::{
     error,

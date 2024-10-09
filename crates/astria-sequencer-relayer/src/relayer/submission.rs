@@ -18,8 +18,8 @@ use std::{
 
 use astria_eyre::eyre::{
     self,
-    ensure,
     WrapErr as _,
+    ensure,
 };
 use serde::{
     Deserialize,

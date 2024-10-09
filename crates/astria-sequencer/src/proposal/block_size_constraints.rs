@@ -1,8 +1,8 @@
 use astria_eyre::eyre::{
-    ensure,
-    eyre,
     OptionExt as _,
     Result,
+    ensure,
+    eyre,
 };
 
 use super::commitment::GeneratedCommitments;

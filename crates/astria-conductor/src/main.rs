@@ -1,16 +1,16 @@
 use std::process::ExitCode;
 
 use astria_conductor::{
+    BUILD_INFO,
     Conductor,
     Config,
-    BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
 use tokio::{
     select,
     signal::unix::{
-        signal,
         SignalKind,
+        signal,
     },
 };
 use tracing::{

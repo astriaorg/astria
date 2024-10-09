@@ -8,10 +8,10 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    state,
     Executor,
     Handle,
     StateNotInit,
+    state,
 };
 use crate::{
     config::CommitLevel,

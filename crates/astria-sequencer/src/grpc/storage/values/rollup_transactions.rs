@@ -8,8 +8,8 @@ use std::{
 };
 
 use astria_core::sequencerblock::v1alpha1::{
-    block::RollupTransactionsParts,
     RollupTransactions as DomainRollupTransactions,
+    block::RollupTransactionsParts,
 };
 use astria_eyre::eyre::bail;
 use borsh::{
@@ -19,10 +19,10 @@ use borsh::{
 use bytes::Bytes;
 
 use super::{
-    proof::Proof,
-    rollup_ids::RollupId,
     Value,
     ValueImpl,
+    proof::Proof,
+    rollup_ids::RollupId,
 };
 
 #[derive(BorshSerialize, BorshDeserialize)]

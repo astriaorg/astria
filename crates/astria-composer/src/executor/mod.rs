@@ -15,8 +15,8 @@ use astria_core::{
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
-            action::SequenceAction,
             SignedTransaction,
+            action::SequenceAction,
         },
     },
 };
@@ -25,6 +25,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use futures::{
+    Future,
     future::{
         self,
         Fuse,
@@ -32,17 +33,16 @@ use futures::{
         FutureExt as _,
     },
     ready,
-    Future,
 };
 use pin_project_lite::pin_project;
 use prost::Message as _;
 use sequencer_client::{
-    tendermint_rpc::{
-        endpoint::broadcast::tx_sync,
-        Client as _,
-    },
     Address,
     SequencerClientExt as _,
+    tendermint_rpc::{
+        Client as _,
+        endpoint::broadcast::tx_sync,
+    },
 };
 use tendermint::{
     abci::Code,
@@ -65,6 +65,8 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
+    Instrument,
+    Span,
     debug,
     error,
     info,
@@ -72,8 +74,6 @@ use tracing::{
     instrument,
     instrument::Instrumented,
     warn,
-    Instrument,
-    Span,
 };
 
 use self::bundle_factory::SizedBundle;

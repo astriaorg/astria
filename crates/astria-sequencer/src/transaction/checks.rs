@@ -2,23 +2,23 @@ use std::collections::HashMap;
 
 use astria_core::{
     primitive::v1::{
-        asset,
         RollupId,
         TransactionId,
+        asset,
     },
     protocol::transaction::v1alpha1::{
+        SignedTransaction,
+        UnsignedTransaction,
         action::{
             Action,
             BridgeLockAction,
         },
-        SignedTransaction,
-        UnsignedTransaction,
     },
 };
 use astria_eyre::eyre::{
-    ensure,
     Result,
     WrapErr as _,
+    ensure,
 };
 use cnidarium::StateRead;
 use tracing::instrument;
@@ -291,9 +291,9 @@ fn bridge_unlock_update_fees(
 mod tests {
     use astria_core::{
         primitive::v1::{
-            asset::Denom,
-            RollupId,
             ADDRESS_LEN,
+            RollupId,
+            asset::Denom,
         },
         protocol::transaction::v1alpha1::action::{
             SequenceAction,

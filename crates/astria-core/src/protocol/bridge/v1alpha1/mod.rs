@@ -2,12 +2,12 @@ use bytes::Bytes;
 
 use super::raw;
 use crate::primitive::v1::{
-    asset,
-    asset::denom::ParseDenomError,
     Address,
     AddressError,
     IncorrectRollupIdLength,
     RollupId,
+    asset,
+    asset::denom::ParseDenomError,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

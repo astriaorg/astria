@@ -1,7 +1,7 @@
 use astria_core::{
     primitive::v1::{
-        TransactionId,
         ADDRESS_LEN,
+        TransactionId,
     },
     protocol::transaction::v1alpha1::SignedTransaction,
 };

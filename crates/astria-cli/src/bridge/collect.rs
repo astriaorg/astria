@@ -9,17 +9,17 @@ use astria_bridge_contracts::{
     GetWithdrawalActionsBuilder,
 };
 use astria_core::primitive::v1::{
+    Address,
     asset::{
         self,
     },
-    Address,
 };
 use color_eyre::eyre::{
     self,
-    bail,
-    eyre,
     OptionExt as _,
     WrapErr as _,
+    bail,
+    eyre,
 };
 use ethers::{
     core::types::Block,

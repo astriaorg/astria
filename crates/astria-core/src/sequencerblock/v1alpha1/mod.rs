@@ -18,9 +18,9 @@ use sha2::{
 use crate::{
     generated::sequencerblock::v1alpha1 as raw,
     primitive::v1::{
-        derive_merkle_tree_from_rollup_txs,
         IncorrectRollupIdLength,
         RollupId,
+        derive_merkle_tree_from_rollup_txs,
     },
 };
 

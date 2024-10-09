@@ -4,9 +4,9 @@ use astria_core::primitive::v1::ADDRESS_LEN;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
         Result,
         WrapErr as _,
+        bail,
     },
 };
 use async_trait::async_trait;
@@ -17,8 +17,8 @@ use cnidarium::{
 use tracing::instrument;
 
 use super::{
-    storage,
     ValidatorSet,
+    storage,
 };
 use crate::{
     accounts::AddressBytes,
@@ -135,8 +135,8 @@ mod tests {
         address::StateWriteExt as _,
         authority::ValidatorSet,
         test_utils::{
-            verification_key,
             ASTRIA_PREFIX,
+            verification_key,
         },
     };
 

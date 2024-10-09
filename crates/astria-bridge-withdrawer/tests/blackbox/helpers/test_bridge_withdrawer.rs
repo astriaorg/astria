@@ -7,10 +7,10 @@ use std::{
 };
 
 use astria_bridge_withdrawer::{
-    bridge_withdrawer::ShutdownHandle,
     BridgeWithdrawer,
     Config,
     Metrics,
+    bridge_withdrawer::ShutdownHandle,
 };
 use astria_core::{
     primitive::v1::asset::{
@@ -21,11 +21,11 @@ use astria_core::{
         bridge::v1alpha1::BridgeAccountLastTxHashResponse,
         memos::v1alpha1::Ics20WithdrawalFromRollup,
         transaction::v1alpha1::{
+            Action,
             action::{
                 BridgeUnlockAction,
                 Ics20Withdrawal,
             },
-            Action,
         },
     },
 };
@@ -52,6 +52,7 @@ use tracing::{
 };
 
 use super::{
+    MockSequencerServer,
     ethereum::AstriaBridgeableERC20DeployerConfig,
     make_tx_sync_success_response,
     mock_cometbft::{
@@ -62,7 +63,6 @@ use super::{
     mount_broadcast_tx_sync_response_as_scoped,
     mount_ibc_fee_asset,
     mount_last_bridge_tx_hash_response,
-    MockSequencerServer,
 };
 use crate::helpers::ethereum::{
     AstriaWithdrawerDeployerConfig,
@@ -179,13 +179,10 @@ impl TestBridgeWithdrawer {
 
     async fn mount_last_bridge_tx_responses(&mut self) {
         // TODO: add config to allow testing sync
-        mount_last_bridge_tx_hash_response(
-            &self.cometbft_mock,
-            BridgeAccountLastTxHashResponse {
-                height: 0,
-                tx_hash: None,
-            },
-        )
+        mount_last_bridge_tx_hash_response(&self.cometbft_mock, BridgeAccountLastTxHashResponse {
+            height: 0,
+            tx_hash: None,
+        })
         .await;
     }
 

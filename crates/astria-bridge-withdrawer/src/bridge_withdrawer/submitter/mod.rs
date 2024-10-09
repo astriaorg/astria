@@ -5,11 +5,11 @@ use std::{
 
 use astria_core::{
     generated::sequencerblock::v1alpha1::{
+        GetPendingNonceRequest,
         sequencer_service_client::{
             self,
             SequencerServiceClient,
         },
-        GetPendingNonceRequest,
     },
     protocol::transaction::v1alpha1::{
         Action,
@@ -18,20 +18,20 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    Context,
     ensure,
     eyre,
-    Context,
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
 use sequencer_client::{
+    Address,
+    SequencerClientExt,
+    SignedTransaction,
     tendermint_rpc::endpoint::{
         broadcast::tx_sync,
         tx,
     },
-    Address,
-    SequencerClientExt,
-    SignedTransaction,
 };
 use signer::SequencerKey;
 use state::State;
@@ -42,14 +42,14 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{
+    Instrument as _,
+    Span,
     debug,
     error,
     info,
     info_span,
     instrument,
     warn,
-    Instrument as _,
-    Span,
 };
 
 use super::{

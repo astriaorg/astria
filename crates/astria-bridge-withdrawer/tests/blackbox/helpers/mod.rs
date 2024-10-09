@@ -8,12 +8,12 @@ pub use self::{
     mock_cometbft::*,
     mock_sequencer::MockSequencerServer,
     test_bridge_withdrawer::{
+        TestBridgeWithdrawerConfig,
         assert_actions_eq,
         default_sequencer_address,
         make_erc20_bridge_unlock_action,
         make_erc20_ics20_withdrawal_action,
         make_native_bridge_unlock_action,
         make_native_ics20_withdrawal_action,
-        TestBridgeWithdrawerConfig,
     },
 };

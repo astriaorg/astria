@@ -57,7 +57,7 @@ base64 = "0.21"
 base64-serde = "0.7.0"
 bytes = "1"
 celestia-tendermint = "0.32.1"
-celestia-types = "0.1.1"
+celestia-types = { git = "https://github.com/eigerco/lumina.git", rev = "520b6788d9f24f87c725a0f18b238c69a77bf36e" }
 clap = "4.5.4"
 const_format = "0.2.32"
 divan = "0.1.14"
@@ -66,21 +66,22 @@ futures = "0.3"
 hex = "0.4"
 hex-literal = "0.4.1"
 humantime = "2.1.0"
+http = "1.1"
 hyper = "0.14"
-ibc-types = "0.12"
+ibc-types = "0.14"
 indexmap = "2.1.0"
 insta = "1.36.1"
 itertools = "0.12.1"
 itoa = "1.0.10"
-jsonrpsee = { version = "0.20" }
-pbjson-types = "0.6"
+jsonrpsee = { version = "0.24" }
+pbjson-types = "0.7"
 # Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
 # can update to a tagged release when https://github.com/penumbra-zone/penumbra/pull/4822 is included
-penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6", default-features = false }
-penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6" }
+penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.5", default-features = false }
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.5" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.5" }
 pin-project-lite = "0.2.13"
-prost = "0.12"
+prost = "0.13"
 rand = "0.8.5"
 regex = "1.9"
 # disable default features and explicitly enable rustls-tls to ensure openssl is disabled
@@ -101,8 +102,20 @@ tokio = "1.28"
 tokio-stream = { version = "0.1.14" }
 tokio-test = "0.4.2"
 tokio-util = "0.7.9"
-tonic = "0.10"
+tonic = "0.12"
 tracing = "0.1"
 tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
+
+[patch.'https://github.com/penumbra-zone/penumbra.git']
+penumbra-ibc = { git = "https://github.com/noot/penumbra.git", rev = "93fe7fd0771a958e3888c158d9d1fb94322724f1" }
+penumbra-proto = { git = "https://github.com/noot/penumbra.git", rev = "93fe7fd0771a958e3888c158d9d1fb94322724f1" }
+penumbra-tower-trace = { git = "https://github.com/noot/penumbra.git", rev = "93fe7fd0771a958e3888c158d9d1fb94322724f1" }
+cnidarium = { git = "https://github.com/noot/penumbra.git", rev = "93fe7fd0771a958e3888c158d9d1fb94322724f1" }
+cnidarium-component = { git = "https://github.com/noot/penumbra.git", rev = "93fe7fd0771a958e3888c158d9d1fb94322724f1" }
+
+[patch.crates-io]
+ibc-types                        = { git = "https://github.com/noot/ibc-types.git", rev = "b1c17a074980216a8f8d620937c77357b1797bac" }
+jmt                              = { git = "https://github.com/noot/jmt.git", rev = "9a41b264c9db8afb07c337274691e3127411ac47" }
+tower-abci                       = { git = "https://github.com/noot/tower-abci.git", rev = "9f723402b56e2bc2368f2a6155bd1b6dbbc2fa19" }

@@ -10,32 +10,32 @@ use std::{
 };
 
 use astria_grpc_mock::{
+    Mock,
     matcher,
     response,
-    Mock,
 };
 use astria_grpc_mock_test::health::{
+    HealthCheckRequest,
+    HealthCheckResponse,
     health_client::HealthClient,
     health_server::{
         Health,
         HealthServer,
     },
-    HealthCheckRequest,
-    HealthCheckResponse,
 };
 use tokio::{
     join,
     task::JoinHandle,
 };
 use tokio_stream::{
-    wrappers::TcpListenerStream,
     Stream,
+    wrappers::TcpListenerStream,
 };
 use tonic::{
-    transport::Server,
     Request,
     Response,
     Status,
+    transport::Server,
 };
 
 struct MockServer {

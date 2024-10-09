@@ -3,9 +3,9 @@ use ibc_types::core::client::Height;
 use crate::{
     crypto::VerificationKey,
     primitive::v1::{
-        asset::Denom,
         Address,
         RollupId,
+        asset::Denom,
     },
     protocol::transaction::v1alpha1::{
         action::{

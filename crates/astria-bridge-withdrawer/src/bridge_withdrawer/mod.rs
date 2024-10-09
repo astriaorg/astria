@@ -10,9 +10,9 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use axum::{
-    routing::IntoMakeService,
     Router,
     Server,
+    routing::IntoMakeService,
 };
 use ethereum::watcher::Watcher;
 use http::Uri;

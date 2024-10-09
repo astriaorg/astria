@@ -1,12 +1,12 @@
 use astria_core::{
-    protocol::transaction::v1alpha1::action::BridgeSudoChangeAction,
     Protobuf as _,
+    protocol::transaction::v1alpha1::action::BridgeSudoChangeAction,
 };
 use astria_eyre::eyre::{
-    bail,
-    ensure,
     Result,
     WrapErr as _,
+    bail,
+    ensure,
 };
 use cnidarium::StateWrite;
 
@@ -108,8 +108,8 @@ impl ActionHandler for BridgeSudoChangeAction {
 #[cfg(test)]
 mod tests {
     use astria_core::primitive::v1::{
-        asset,
         TransactionId,
+        asset,
     };
     use cnidarium::StateDelta;
 
@@ -117,8 +117,8 @@ mod tests {
     use crate::{
         address::StateWriteExt as _,
         test_utils::{
-            astria_address,
             ASTRIA_PREFIX,
+            astria_address,
         },
         transaction::{
             StateWriteExt as _,

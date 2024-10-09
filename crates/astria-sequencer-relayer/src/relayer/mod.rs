@@ -10,26 +10,26 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    WrapErr as _,
     bail,
     ensure,
     eyre,
-    WrapErr as _,
 };
 use futures::{
+    FutureExt as _,
     future::{
         BoxFuture,
         Fuse,
         FusedFuture as _,
     },
-    FutureExt as _,
 };
 use sequencer_client::{
+    HttpClient as SequencerClient,
     tendermint::block::Height as SequencerHeight,
     tendermint_rpc::{
         self,
         Error,
     },
-    HttpClient as SequencerClient,
 };
 use tokio::{
     select,
@@ -43,6 +43,9 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{
+    Instrument,
+    Level,
+    Span,
     debug,
     debug_span,
     error,
@@ -50,9 +53,6 @@ use tracing::{
     instrument,
     trace,
     warn,
-    Instrument,
-    Level,
-    Span,
 };
 
 mod builder;
@@ -79,8 +79,8 @@ use submission::{
 };
 
 use crate::{
-    metrics::Metrics,
     IncludeRollup,
+    metrics::Metrics,
 };
 
 pub(crate) struct Relayer {

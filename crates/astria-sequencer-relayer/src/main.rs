@@ -2,13 +2,13 @@ use std::process::ExitCode;
 
 use astria_eyre::eyre::WrapErr as _;
 use astria_sequencer_relayer::{
+    BUILD_INFO,
     Config,
     SequencerRelayer,
-    BUILD_INFO,
 };
 use tokio::signal::unix::{
-    signal,
     SignalKind,
+    signal,
 };
 use tracing::{
     error,

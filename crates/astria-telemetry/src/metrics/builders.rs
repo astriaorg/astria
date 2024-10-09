@@ -1,8 +1,8 @@
 use std::{
     collections::{
-        hash_map::Entry,
         HashMap,
         HashSet,
+        hash_map::Entry,
     },
     mem,
     net::SocketAddr,

@@ -5,25 +5,25 @@ use std::time::Duration;
 use astria_core::sequencerblock::v1alpha1::block::FilteredSequencerBlock;
 use astria_eyre::eyre::{
     self,
-    bail,
-    ensure,
     Report,
     WrapErr as _,
+    bail,
+    ensure,
 };
 use futures::{
+    FutureExt as _,
+    StreamExt as _,
     future::{
         self,
         BoxFuture,
         Fuse,
     },
-    FutureExt as _,
-    StreamExt as _,
 };
 use sequencer_client::{
-    tendermint::block::Height,
     HttpClient,
     LatestHeightStream,
     StreamLatestHeight as _,
+    tendermint::block::Height,
 };
 use tokio::select;
 use tokio_util::sync::CancellationToken;

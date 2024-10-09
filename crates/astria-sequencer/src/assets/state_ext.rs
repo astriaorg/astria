@@ -2,10 +2,10 @@ use astria_core::primitive::v1::asset;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
         OptionExt as _,
         Result,
         WrapErr as _,
+        bail,
     },
 };
 use async_trait::async_trait;
@@ -60,14 +60,11 @@ fn construct_tx_fee_event<T: std::fmt::Display>(
     fee_amount: u128,
     action_type: String,
 ) -> Event {
-    Event::new(
-        "tx.fees",
-        [
-            ("asset", asset.to_string()).index(),
-            ("feeAmount", fee_amount.to_string()).index(),
-            ("actionType", action_type).index(),
-        ],
-    )
+    Event::new("tx.fees", [
+        ("asset", asset.to_string()).index(),
+        ("feeAmount", fee_amount.to_string()).index(),
+        ("actionType", action_type).index(),
+    ])
 }
 
 #[async_trait]
@@ -293,11 +290,11 @@ mod tests {
     use cnidarium::StateDelta;
 
     use super::{
+        StateReadExt as _,
+        StateWriteExt as _,
         asset_storage_key,
         block_fees_key,
         fee_asset_key,
-        StateReadExt as _,
-        StateWriteExt as _,
     };
 
     fn asset() -> asset::Denom {

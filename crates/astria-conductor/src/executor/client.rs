@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use astria_core::{
+    Protobuf as _,
     execution::v1alpha2::{
         Block,
         CommitmentState,
@@ -13,12 +14,11 @@ use astria_core::{
         },
         sequencerblock::v1alpha1::RollupData,
     },
-    Protobuf as _,
 };
 use astria_eyre::eyre::{
     self,
-    ensure,
     WrapErr as _,
+    ensure,
 };
 use bytes::Bytes;
 use pbjson_types::Timestamp;
@@ -28,14 +28,14 @@ use tonic::transport::{
     Uri,
 };
 use tracing::{
-    instrument,
-    warn,
     Instrument,
     Span,
+    instrument,
+    warn,
 };
 use tryhard::{
-    backoff_strategies::BackoffStrategy,
     RetryPolicy,
+    backoff_strategies::BackoffStrategy,
 };
 
 /// A newtype wrapper around [`ExecutionServiceClient`] to work with

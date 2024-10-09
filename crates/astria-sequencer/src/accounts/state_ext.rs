@@ -2,9 +2,9 @@ use std::{
     fmt::Display,
     pin::Pin,
     task::{
-        ready,
         Context,
         Poll,
+        ready,
     },
 };
 
@@ -12,10 +12,10 @@ use astria_core::primitive::v1::asset;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        eyre,
         OptionExt as _,
         Result,
         WrapErr as _,
+        eyre,
     },
 };
 use async_trait::async_trait;
@@ -336,10 +336,10 @@ mod tests {
     use insta::assert_snapshot;
 
     use super::{
-        balance_storage_key,
-        nonce_storage_key,
         StateReadExt as _,
         StateWriteExt as _,
+        balance_storage_key,
+        nonce_storage_key,
     };
     use crate::{
         assets::{

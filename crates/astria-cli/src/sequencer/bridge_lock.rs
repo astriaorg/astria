@@ -1,11 +1,11 @@
 use astria_core::{
     primitive::v1::{
-        asset,
         Address,
+        asset,
     },
     protocol::transaction::v1alpha1::{
-        action::BridgeLockAction,
         Action,
+        action::BridgeLockAction,
     },
 };
 use color_eyre::eyre::{

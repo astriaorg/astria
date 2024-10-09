@@ -8,8 +8,8 @@ use astria_eyre::eyre::{
     WrapErr,
 };
 use serde_json::{
-    to_writer_pretty,
     Value,
+    to_writer_pretty,
 };
 
 #[derive(clap::Args, Debug)]

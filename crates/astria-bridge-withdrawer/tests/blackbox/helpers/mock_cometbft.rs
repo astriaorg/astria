@@ -23,20 +23,20 @@ use tendermint_rpc::{
 };
 use tracing::debug;
 use wiremock::{
-    matchers::{
-        body_partial_json,
-        body_string_contains,
-    },
     Mock,
     MockGuard,
     MockServer,
     ResponseTemplate,
+    matchers::{
+        body_partial_json,
+        body_string_contains,
+    },
 };
 
 use super::test_bridge_withdrawer::{
-    default_native_asset,
     DEFAULT_IBC_DENOM,
     SEQUENCER_CHAIN_ID,
+    default_native_asset,
 };
 
 #[must_use]
@@ -120,11 +120,11 @@ pub async fn mount_genesis_chain_id_response_as_scoped(
 fn prepare_genesis_chain_id_response(chain_id: &str) -> Mock {
     use tendermint::{
         consensus::{
+            Params,
             params::{
                 AbciParams,
                 ValidatorParams,
             },
-            Params,
         },
         genesis::Genesis,
         time::Time,

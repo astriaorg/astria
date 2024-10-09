@@ -7,6 +7,7 @@ use prost::{
 
 use super::raw;
 use crate::{
+    Protobuf as _,
     crypto::{
         self,
         Signature,
@@ -14,11 +15,10 @@ use crate::{
         VerificationKey,
     },
     primitive::v1::{
-        asset,
-        TransactionId,
         ADDRESS_LEN,
+        TransactionId,
+        asset,
     },
-    Protobuf as _,
 };
 
 pub mod action;

@@ -12,9 +12,9 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    Context,
     bail,
     eyre,
-    Context,
 };
 
 pub(crate) struct SequencerKey {

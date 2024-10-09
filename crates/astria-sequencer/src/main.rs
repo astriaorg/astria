@@ -2,9 +2,9 @@ use std::process::ExitCode;
 
 use astria_eyre::eyre::WrapErr as _;
 use astria_sequencer::{
+    BUILD_INFO,
     Config,
     Sequencer,
-    BUILD_INFO,
 };
 use tracing::info;
 

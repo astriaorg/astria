@@ -1,9 +1,9 @@
 use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChangeAction;
 use astria_eyre::eyre::{
-    bail,
-    ensure,
     Result,
     WrapErr as _,
+    bail,
+    ensure,
 };
 use async_trait::async_trait;
 use cnidarium::StateWrite;

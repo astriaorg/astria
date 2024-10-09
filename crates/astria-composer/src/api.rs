@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use axum::{
+    Router,
     extract::{
         FromRef,
         State,
@@ -10,10 +11,9 @@ use axum::{
         Response,
     },
     routing::{
-        get,
         IntoMakeService,
+        get,
     },
-    Router,
 };
 use hyper::server::conn::AddrIncoming;
 use serde::Serialize;

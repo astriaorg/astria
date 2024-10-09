@@ -8,9 +8,9 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use axum::{
-    routing::IntoMakeService,
     Router,
     Server,
+    routing::IntoMakeService,
 };
 use hyper::server::conn::AddrIncoming;
 use tokio::{

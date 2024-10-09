@@ -5,10 +5,6 @@ use std::{
 
 use astria_core::generated::{
     execution::v1alpha2::{
-        execution_service_server::{
-            ExecutionService,
-            ExecutionServiceServer,
-        },
         BatchGetBlocksRequest,
         BatchGetBlocksResponse,
         Block,
@@ -19,18 +15,22 @@ use astria_core::generated::{
         GetCommitmentStateRequest,
         GetGenesisInfoRequest,
         UpdateCommitmentStateRequest,
+        execution_service_server::{
+            ExecutionService,
+            ExecutionServiceServer,
+        },
     },
     sequencerblock::v1alpha1::{
-        sequencer_service_server::{
-            SequencerService,
-            SequencerServiceServer,
-        },
         FilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
         GetPendingNonceRequest,
         GetPendingNonceResponse,
         GetSequencerBlockRequest,
         SequencerBlock,
+        sequencer_service_server::{
+            SequencerService,
+            SequencerServiceServer,
+        },
     },
 };
 use astria_eyre::eyre::{
@@ -40,9 +40,9 @@ use astria_eyre::eyre::{
 use astria_grpc_mock::MockServer;
 use tokio::task::JoinHandle;
 use tonic::{
-    transport::Server,
     Request,
     Response,
+    transport::Server,
 };
 
 pub struct MockGrpc {

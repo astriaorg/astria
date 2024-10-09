@@ -3,42 +3,38 @@ use std::time::Duration;
 use prost::Message;
 use serde_json::json;
 use tendermint::{
+    Genesis,
+    Time,
     consensus::{
+        Params,
         params::{
             AbciParams,
             ValidatorParams,
         },
-        Params,
     },
-    Genesis,
-    Time,
 };
 use tendermint_rpc::{
-    response,
     Id,
+    response,
 };
 use wiremock::{
-    matchers::{
-        body_partial_json,
-        body_string_contains,
-    },
     Mock,
     MockGuard,
     MockServer,
     ResponseTemplate,
+    matchers::{
+        body_partial_json,
+        body_string_contains,
+    },
 };
 
 pub async fn start() -> (MockServer, MockGuard) {
     use astria_core::generated::protocol::accounts::v1alpha1::NonceResponse;
     let server = MockServer::start().await;
-    let startup_guard = mount_abci_query_mock(
-        &server,
-        "accounts/nonce",
-        NonceResponse {
-            height: 0,
-            nonce: 0,
-        },
-    )
+    let startup_guard = mount_abci_query_mock(&server, "accounts/nonce", NonceResponse {
+        height: 0,
+        nonce: 0,
+    })
     .await;
     mount_genesis(&server, "test-chain-1").await;
     (server, startup_guard)

@@ -18,37 +18,37 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    bail,
-    ensure,
     OptionExt as _,
     WrapErr as _,
+    bail,
+    ensure,
 };
 use prost::{
     Message as _,
     Name as _,
 };
 use sequencer_client::{
-    tendermint_rpc,
     Address,
     SequencerClientExt as _,
     SignedTransaction,
+    tendermint_rpc,
 };
 use tendermint_rpc::{
-    endpoint::tx,
     Client as _,
+    endpoint::tx,
 };
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{
+    Instrument as _,
+    Level,
+    Span,
     debug,
     info,
     info_span,
     instrument,
     warn,
-    Instrument as _,
-    Level,
-    Span,
 };
 use tryhard::backoff_strategies::ExponentialBackoff;
 

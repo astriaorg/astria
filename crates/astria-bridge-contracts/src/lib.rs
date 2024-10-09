@@ -8,15 +8,15 @@ use std::{
 
 use astria_core::{
     primitive::v1::{
-        asset,
         Address,
         AddressError,
+        asset,
     },
     protocol::{
         memos,
         transaction::v1alpha1::{
-            action::Ics20Withdrawal,
             Action,
+            action::Ics20Withdrawal,
         },
     },
 };
@@ -31,8 +31,8 @@ use ethers::{
     providers::Middleware,
     types::{
         Filter,
-        Log,
         H256,
+        Log,
     },
 };
 pub use generated::*;

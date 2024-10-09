@@ -30,6 +30,7 @@ use opentelemetry_sdk::{
 };
 use opentelemetry_stdout::SpanExporter;
 use tracing_subscriber::{
+    EnvFilter,
     filter::{
         LevelFilter,
         ParseError,
@@ -39,7 +40,6 @@ use tracing_subscriber::{
         SubscriberInitExt as _,
         TryInitError,
     },
-    EnvFilter,
 };
 
 #[cfg(feature = "display")]

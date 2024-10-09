@@ -129,8 +129,8 @@ pub trait Config: ::core::fmt::Debug + DeserializeOwned {
         _internal: _internal::Internal,
     ) -> Result<Self, figment::Error> {
         use figment::{
-            providers::Env as FigmentEnv,
             Figment,
+            providers::Env as FigmentEnv,
         };
         Figment::new()
             .merge(FigmentEnv::prefixed("RUST_").split("_").only(&["log"]))

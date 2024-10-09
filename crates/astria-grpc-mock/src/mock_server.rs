@@ -2,8 +2,8 @@ use std::{
     fmt::Write as _,
     pin::pin,
     sync::{
-        atomic::AtomicBool,
         Arc,
+        atomic::AtomicBool,
     },
 };
 
@@ -15,6 +15,7 @@ use tracing::debug;
 
 use super::clone_request;
 use crate::{
+    AnyRequest,
     erase_request,
     mock::Mock,
     mock_set::{
@@ -22,7 +23,6 @@ use crate::{
         MockSet,
     },
     verification::VerificationOutcome,
-    AnyRequest,
 };
 
 #[derive(Clone, Default)]

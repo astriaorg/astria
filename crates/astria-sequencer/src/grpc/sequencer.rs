@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
 use astria_core::{
+    Protobuf,
     generated::sequencerblock::v1alpha1::{
-        sequencer_service_server::SequencerService,
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
         GetPendingNonceRequest,
         GetPendingNonceResponse,
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
+        sequencer_service_server::SequencerService,
     },
     primitive::v1::RollupId,
-    Protobuf,
 };
 use bytes::Bytes;
 use cnidarium::Storage;
@@ -234,12 +234,12 @@ mod tests {
     use super::*;
     use crate::{
         app::{
+            StateWriteExt as _,
             test_utils::{
                 get_alice_signing_key,
                 mock_balances,
                 mock_tx_cost,
             },
-            StateWriteExt as _,
         },
         grpc::StateWriteExt as _,
         test_utils::astria_address,

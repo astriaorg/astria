@@ -2,12 +2,12 @@ use bytes::Bytes;
 use pbjson_types::Timestamp;
 
 use crate::{
+    Protobuf,
     generated::execution::v1alpha2 as raw,
     primitive::v1::{
         IncorrectRollupIdLength,
         RollupId,
     },
-    Protobuf,
 };
 
 // An error when transforming a [`raw::GenesisInfo`] into a [`GenesisInfo`].

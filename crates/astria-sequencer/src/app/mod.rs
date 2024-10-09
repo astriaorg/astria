@@ -25,9 +25,9 @@ use astria_core::{
         abci::AbciErrorCode,
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
-            action::ValidatorUpdate,
             Action,
             SignedTransaction,
+            action::ValidatorUpdate,
         },
     },
     sequencerblock::v1alpha1::block::SequencerBlock,
@@ -35,12 +35,12 @@ use astria_core::{
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
-        ensure,
-        eyre,
         OptionExt as _,
         Result,
         WrapErr as _,
+        bail,
+        ensure,
+        eyre,
     },
 };
 use cnidarium::{
@@ -59,16 +59,16 @@ use sha2::{
 };
 use telemetry::display::json;
 use tendermint::{
+    AppHash,
+    Hash,
     abci::{
         self,
-        types::ExecTxResult,
         Code,
         Event,
+        types::ExecTxResult,
     },
     account,
     block::Header,
-    AppHash,
-    Hash,
 };
 use tracing::{
     debug,
@@ -85,8 +85,8 @@ pub(crate) use self::{
 };
 use crate::{
     accounts::{
-        component::AccountsComponent,
         StateWriteExt as _,
+        component::AccountsComponent,
     },
     address::StateWriteExt as _,
     assets::{
@@ -94,17 +94,17 @@ use crate::{
         StateWriteExt as _,
     },
     authority::{
+        StateReadExt as _,
+        StateWriteExt as _,
         component::{
             AuthorityComponent,
             AuthorityComponentAppState,
         },
-        StateReadExt as _,
-        StateWriteExt as _,
     },
     bridge::{
-        component::BridgeComponent,
         StateReadExt as _,
         StateWriteExt as _,
+        component::BridgeComponent,
     },
     component::Component as _,
     grpc::StateWriteExt as _,
@@ -117,8 +117,8 @@ use crate::{
     proposal::{
         block_size_constraints::BlockSizeConstraints,
         commitment::{
-            generate_rollup_datas_commitment,
             GeneratedCommitments,
+            generate_rollup_datas_commitment,
         },
     },
     sequence::component::SequenceComponent,
@@ -271,13 +271,10 @@ impl App {
         AccountsComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on AccountsComponent")?;
-        AuthorityComponent::init_chain(
-            &mut state_tx,
-            &AuthorityComponentAppState {
-                authority_sudo_address: *genesis_state.authority_sudo_address(),
-                genesis_validators,
-            },
-        )
+        AuthorityComponent::init_chain(&mut state_tx, &AuthorityComponentAppState {
+            authority_sudo_address: *genesis_state.authority_sudo_address(),
+            genesis_validators,
+        })
         .await
         .wrap_err("init_chain failed on AuthorityComponent")?;
         BridgeComponent::init_chain(&mut state_tx, &genesis_state)

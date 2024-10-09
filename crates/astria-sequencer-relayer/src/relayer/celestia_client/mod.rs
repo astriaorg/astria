@@ -23,35 +23,30 @@ use std::{
 
 use astria_core::generated::{
     celestia::v1::{
-        query_client::QueryClient as BlobQueryClient,
         MsgPayForBlobs,
         Params as BlobParams,
         QueryParamsRequest as QueryBlobParamsRequest,
+        query_client::QueryClient as BlobQueryClient,
     },
     cosmos::{
         auth::v1beta1::{
-            query_client::QueryClient as AuthQueryClient,
             BaseAccount,
             Params as AuthParams,
             QueryAccountRequest,
             QueryAccountResponse,
             QueryParamsRequest as QueryAuthParamsRequest,
+            query_client::QueryClient as AuthQueryClient,
         },
         base::{
             node::v1beta1::{
-                service_client::ServiceClient as MinGasPriceClient,
                 ConfigRequest as MinGasPriceRequest,
                 ConfigResponse as MinGasPriceResponse,
+                service_client::ServiceClient as MinGasPriceClient,
             },
             v1beta1::Coin,
         },
         crypto::secp256k1,
         tx::v1beta1::{
-            mode_info::{
-                Single,
-                Sum,
-            },
-            service_client::ServiceClient as TxClient,
             AuthInfo,
             BroadcastMode,
             BroadcastTxRequest,
@@ -64,6 +59,11 @@ use astria_core::generated::{
             SignerInfo,
             Tx,
             TxBody,
+            mode_info::{
+                Single,
+                Sum,
+            },
+            service_client::ServiceClient as TxClient,
         },
     },
     tendermint::types::{
@@ -89,9 +89,9 @@ use hex::{
     FromHexError,
 };
 use prost::{
-    bytes::Bytes,
     Message as _,
     Name as _,
+    bytes::Bytes,
 };
 use serde::{
     Deserialize,
@@ -106,18 +106,18 @@ use sha2::{
 use telemetry::display::hex;
 use thiserror::Error;
 use tonic::{
-    transport::Channel,
     Response,
     Status,
+    transport::Channel,
 };
 use tracing::{
+    Level,
     debug,
     error,
     info,
     instrument,
     trace,
     warn,
-    Level,
 };
 
 // From https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/types/errors/errors.go#L75

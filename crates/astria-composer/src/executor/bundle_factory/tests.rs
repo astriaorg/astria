@@ -1,7 +1,7 @@
 use astria_core::{
     primitive::v1::{
-        RollupId,
         ROLLUP_ID_LEN,
+        RollupId,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
 };

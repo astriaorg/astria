@@ -94,11 +94,11 @@ mod tests {
     use astria_core::{
         crypto::SigningKey,
         protocol::transaction::v1alpha1::{
+            UnsignedTransaction,
             action::{
                 SequenceAction,
                 TransferAction,
             },
-            UnsignedTransaction,
         },
     };
     use rand::rngs::OsRng;

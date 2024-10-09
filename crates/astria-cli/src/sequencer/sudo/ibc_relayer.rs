@@ -1,8 +1,8 @@
 use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::{
-        action::IbcRelayerChangeAction,
         Action,
+        action::IbcRelayerChangeAction,
     },
 };
 use color_eyre::{

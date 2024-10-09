@@ -4,13 +4,14 @@ use std::{
 };
 
 use astria_core::{
+    Protobuf,
     crypto::SigningKey,
     primitive::v1::{
+        RollupId,
         asset::{
             Denom,
             IbcPrefixed,
         },
-        RollupId,
     },
     protocol::{
         genesis::v1alpha1::{
@@ -19,15 +20,14 @@ use astria_core::{
             GenesisAppState,
         },
         transaction::v1alpha1::{
+            SignedTransaction,
+            UnsignedTransaction,
             action::{
                 SequenceAction,
                 ValidatorUpdate,
             },
-            SignedTransaction,
-            UnsignedTransaction,
         },
     },
-    Protobuf,
 };
 use bytes::Bytes;
 use cnidarium::{

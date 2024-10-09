@@ -5,9 +5,9 @@ use std::{
 
 use astria_eyre::eyre::{
     self,
-    eyre,
     Result,
     WrapErr as _,
+    eyre,
 };
 use itertools::Itertools as _;
 use pin_project_lite::pin_project;
@@ -29,12 +29,12 @@ use tracing::{
 };
 
 use crate::{
+    Config,
+    Metrics,
     celestia,
     executor,
     sequencer,
     utils::flatten,
-    Config,
-    Metrics,
 };
 
 /// Exit value of the inner conductor impl to signal to the outer task whether to restart or

@@ -2,20 +2,20 @@ use std::collections::HashMap;
 
 use astria_core::{
     primitive::v1::{
-        asset,
+        ADDRESS_LEN,
         RollupId,
         TransactionId,
-        ADDRESS_LEN,
+        asset,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
         OptionExt as _,
         Result,
         WrapErr as _,
+        bail,
     },
 };
 use async_trait::async_trait;
@@ -64,23 +64,17 @@ where
 }
 
 fn rollup_id_storage_key<T: AddressBytes>(address: &T) -> String {
-    format!(
-        "{}/rollupid",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_PREFIX,
-            address
-        }
-    )
+    format!("{}/rollupid", BridgeAccountKey {
+        prefix: BRIDGE_ACCOUNT_PREFIX,
+        address
+    })
 }
 
 fn asset_id_storage_key<T: AddressBytes>(address: &T) -> String {
-    format!(
-        "{}/assetid",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_PREFIX,
-            address
-        }
-    )
+    format!("{}/assetid", BridgeAccountKey {
+        prefix: BRIDGE_ACCOUNT_PREFIX,
+        address
+    })
 }
 
 fn deposit_storage_key(block_hash: &[u8; 32], rollup_id: &RollupId) -> Vec<u8> {
@@ -88,23 +82,17 @@ fn deposit_storage_key(block_hash: &[u8; 32], rollup_id: &RollupId) -> Vec<u8> {
 }
 
 fn bridge_account_sudo_address_storage_key<T: AddressBytes>(address: &T) -> String {
-    format!(
-        "{}",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_SUDO_PREFIX,
-            address
-        }
-    )
+    format!("{}", BridgeAccountKey {
+        prefix: BRIDGE_ACCOUNT_SUDO_PREFIX,
+        address
+    })
 }
 
 fn bridge_account_withdrawer_address_storage_key<T: AddressBytes>(address: &T) -> String {
-    format!(
-        "{}",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_WITHDRAWER_PREFIX,
-            address
-        }
-    )
+    format!("{}", BridgeAccountKey {
+        prefix: BRIDGE_ACCOUNT_WITHDRAWER_PREFIX,
+        address
+    })
 }
 
 fn bridge_account_withdrawal_event_storage_key<T: AddressBytes>(
@@ -122,13 +110,10 @@ fn bridge_account_withdrawal_event_storage_key<T: AddressBytes>(
 }
 
 fn last_transaction_id_for_bridge_account_storage_key<T: AddressBytes>(address: &T) -> Vec<u8> {
-    format!(
-        "{}/lasttx",
-        BridgeAccountKey {
-            prefix: BRIDGE_ACCOUNT_PREFIX,
-            address
-        }
-    )
+    format!("{}/lasttx", BridgeAccountKey {
+        prefix: BRIDGE_ACCOUNT_PREFIX,
+        address
+    })
     .as_bytes()
     .to_vec()
 }
@@ -500,10 +485,10 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use astria_core::{
         primitive::v1::{
-            asset,
             Address,
             RollupId,
             TransactionId,
+            asset,
         },
         sequencerblock::v1alpha1::block::Deposit,
     };

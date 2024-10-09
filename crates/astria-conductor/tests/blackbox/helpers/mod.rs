@@ -4,11 +4,11 @@ use std::{
 };
 
 use astria_conductor::{
-    conductor,
-    config::CommitLevel,
     Conductor,
     Config,
     Metrics,
+    conductor,
+    config::CommitLevel,
 };
 use astria_core::{
     brotli::compress_bytes,
@@ -25,8 +25,8 @@ use astria_core::{
 use astria_grpc_mock::response::error_response;
 use bytes::Bytes;
 use celestia_types::{
-    nmt::Namespace,
     Blob,
+    nmt::Namespace,
 };
 use prost::Message;
 use sequencer_client::{
@@ -152,9 +152,9 @@ impl Drop for TestConductor {
 impl TestConductor {
     pub async fn mount_abci_info(&self, latest_block_height: u32) {
         use wiremock::{
-            matchers::body_partial_json,
             Mock,
             ResponseTemplate,
+            matchers::body_partial_json,
         };
         Mock::given(body_partial_json(
             json!({"jsonrpc": "2.0", "method": "abci_info", "params": null}),
@@ -182,9 +182,9 @@ impl TestConductor {
         block: astria_core::generated::execution::v1alpha2::Block,
     ) {
         use astria_grpc_mock::{
+            Mock,
             matcher::message_partial_pbjson,
             response::constant_response,
-            Mock,
         };
         Mock::for_rpc_given("get_block", message_partial_pbjson(&expected_pbjson))
             .respond_with(constant_response(block))
@@ -202,13 +202,13 @@ impl TestConductor {
     ) {
         use base64::prelude::*;
         use wiremock::{
+            Mock,
+            Request,
+            ResponseTemplate,
             matchers::{
                 body_partial_json,
                 header,
             },
-            Mock,
-            Request,
-            ResponseTemplate,
         };
         let delay = delay.unwrap_or(Duration::from_millis(0));
         let namespace_params = BASE64_STANDARD.encode(namespace.as_bytes());
@@ -242,13 +242,13 @@ impl TestConductor {
         extended_header: celestia_types::ExtendedHeader,
     ) {
         use wiremock::{
+            Mock,
+            Request,
+            ResponseTemplate,
             matchers::{
                 body_partial_json,
                 header,
             },
-            Mock,
-            Request,
-            ResponseTemplate,
         };
         Mock::given(body_partial_json(
             json!({"jsonrpc": "2.0", "method": "header.NetworkHead"}),
@@ -276,9 +276,9 @@ impl TestConductor {
         signed_header: tendermint::block::signed_header::SignedHeader,
     ) {
         use wiremock::{
-            matchers::body_partial_json,
             Mock,
             ResponseTemplate,
+            matchers::body_partial_json,
         };
         Mock::given(body_partial_json(json!({
             "jsonrpc": "2.0",
@@ -339,9 +339,9 @@ impl TestConductor {
         response: Block,
     ) -> astria_grpc_mock::MockGuard {
         use astria_grpc_mock::{
+            Mock,
             matcher::message_partial_pbjson,
             response::constant_response,
-            Mock,
         };
         let mut mock =
             Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
@@ -361,9 +361,9 @@ impl TestConductor {
         delay: Duration,
     ) {
         use astria_grpc_mock::{
+            Mock,
             matcher::message_partial_pbjson,
             response::constant_response,
-            Mock,
         };
         Mock::for_rpc_given(
             "get_filtered_sequencer_block",
@@ -383,9 +383,9 @@ impl TestConductor {
     ) -> astria_grpc_mock::MockGuard {
         use astria_core::generated::execution::v1alpha2::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
+            Mock,
             matcher::message_partial_pbjson,
             response::constant_response,
-            Mock,
         };
         let mut mock = Mock::for_rpc_given(
             "update_commitment_state",
@@ -407,9 +407,9 @@ impl TestConductor {
         validator_set: tendermint_rpc::endpoint::validators::Response,
     ) {
         use wiremock::{
-            matchers::body_partial_json,
             Mock,
             ResponseTemplate,
+            matchers::body_partial_json,
         };
         Mock::given(body_partial_json(json!({
             "jsonrpc": "2.0",
@@ -437,8 +437,8 @@ impl TestConductor {
         code: tonic::Code,
     ) -> astria_grpc_mock::MockGuard {
         use astria_grpc_mock::{
-            matcher::message_partial_pbjson,
             Mock,
+            matcher::message_partial_pbjson,
         };
 
         let mock = Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
@@ -453,19 +453,19 @@ impl TestConductor {
 pub async fn mount_genesis(mock_http: &MockServer, chain_id: &str) {
     use tendermint::{
         consensus::{
+            Params,
             params::{
                 AbciParams,
                 ValidatorParams,
             },
-            Params,
         },
         genesis::Genesis,
         time::Time,
     };
     use wiremock::{
-        matchers::body_partial_json,
         Mock,
         ResponseTemplate,
+        matchers::body_partial_json,
     };
     Mock::given(body_partial_json(
         json!({"jsonrpc": "2.0", "method": "genesis", "params": null}),
@@ -606,8 +606,8 @@ pub fn make_blobs(heights: &[u32]) -> Blobs {
 
 fn signing_key() -> astria_core::crypto::SigningKey {
     use rand_chacha::{
-        rand_core::SeedableRng as _,
         ChaChaRng,
+        rand_core::SeedableRng as _,
     };
     astria_core::crypto::SigningKey::new(ChaChaRng::seed_from_u64(0))
 }

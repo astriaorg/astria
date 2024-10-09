@@ -7,8 +7,8 @@ use bytes::Bytes;
 use indexmap::IndexMap;
 use sha2::Sha256;
 use tendermint::{
-    account,
     Time,
+    account,
 };
 
 use super::{
@@ -22,22 +22,22 @@ use super::{
     raw,
 };
 use crate::{
+    Protobuf as _,
     primitive::v1::{
-        asset,
-        derive_merkle_tree_from_rollup_txs,
         Address,
         AddressError,
         IncorrectRollupIdLength,
         RollupId,
         TransactionId,
         TransactionIdError,
+        asset,
+        derive_merkle_tree_from_rollup_txs,
     },
     protocol::transaction::v1alpha1::{
-        action,
         SignedTransaction,
         SignedTransactionError,
+        action,
     },
-    Protobuf as _,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -846,14 +846,11 @@ impl SequencerBlock {
             let proof = rollup_transaction_tree
                 .construct_proof(i)
                 .expect("the proof must exist because the tree was derived with the same leaf");
-            rollup_transactions.insert(
+            rollup_transactions.insert(rollup_id, RollupTransactions {
                 rollup_id,
-                RollupTransactions {
-                    rollup_id,
-                    transactions: data, // TODO: rename this field?
-                    proof,
-                },
-            );
+                transactions: data, // TODO: rename this field?
+                proof,
+            });
         }
         rollup_transactions.sort_unstable_keys();
 

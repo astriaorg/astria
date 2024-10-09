@@ -8,8 +8,8 @@ use std::{
 
 use assert_cmd::Command;
 use astria_eyre::{
-    eyre::WrapErr,
     Result,
+    eyre::WrapErr,
 };
 use predicates::prelude::*;
 

@@ -10,17 +10,17 @@ use std::{
 };
 
 use astria_composer::{
-    config::Config,
     Composer,
     Metrics,
+    config::Config,
 };
 use astria_core::{
     primitive::v1::{
+        RollupId,
         asset::{
             Denom,
             IbcPrefixed,
         },
-        RollupId,
     },
     protocol::{
         abci::AbciErrorCode,
@@ -32,10 +32,10 @@ use ethers::prelude::Transaction;
 use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tendermint_rpc::{
+    Id,
     endpoint::broadcast::tx_sync,
     request,
     response,
-    Id,
 };
 use test_utils::mock::Geth;
 use tokio::task::JoinHandle;

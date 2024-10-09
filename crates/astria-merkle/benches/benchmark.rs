@@ -1,9 +1,9 @@
 use astria_merkle::Tree;
 use ct_merkle::CtMerkleTree;
 use divan::{
+    Bencher,
     black_box,
     black_box_drop,
-    Bencher,
 };
 use sha2::Sha256;
 

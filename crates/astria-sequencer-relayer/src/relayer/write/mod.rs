@@ -17,18 +17,18 @@ use std::{
 
 use astria_eyre::eyre::{
     self,
-    bail,
-    eyre,
     Report,
     WrapErr as _,
+    bail,
+    eyre,
 };
 use celestia_types::Blob;
 use futures::{
+    FutureExt as _,
     future::{
         Fuse,
         FusedFuture as _,
     },
-    FutureExt as _,
 };
 use sequencer_client::SequencerBlock;
 use tendermint::block::Height as SequencerHeight;
@@ -48,19 +48,18 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
+    Instrument,
+    Level,
+    Span,
     debug,
     error,
     info,
     info_span,
     instrument,
     warn,
-    Instrument,
-    Level,
-    Span,
 };
 
 use super::{
-    celestia_client::CelestiaClient,
     BlobTxHash,
     BuilderError,
     CelestiaClientBuilder,
@@ -68,10 +67,11 @@ use super::{
     StartedSubmission,
     SubmissionStateAtStartup,
     TrySubmitError,
+    celestia_client::CelestiaClient,
 };
 use crate::{
-    metrics::Metrics,
     IncludeRollup,
+    metrics::Metrics,
 };
 
 mod conversion;

@@ -1,8 +1,8 @@
 use astria_core::protocol::transaction::v1alpha1::action::IbcRelayerChangeAction;
 use astria_eyre::eyre::{
-    ensure,
     Result,
     WrapErr as _,
+    ensure,
 };
 use async_trait::async_trait;
 use cnidarium::StateWrite;

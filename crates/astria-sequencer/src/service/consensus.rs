@@ -1,23 +1,23 @@
 use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
 use astria_eyre::eyre::{
-    bail,
     Result,
     WrapErr as _,
+    bail,
 };
 use cnidarium::Storage;
 use tendermint::v0_38::abci::{
-    request,
-    response,
     ConsensusRequest,
     ConsensusResponse,
+    request,
+    response,
 };
 use tokio::sync::mpsc;
 use tower_abci::BoxError;
 use tower_actor::Message;
 use tracing::{
+    Instrument,
     instrument,
     warn,
-    Instrument,
 };
 
 use crate::app::App;
@@ -210,8 +210,8 @@ mod tests {
         },
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
-            action::SequenceAction,
             UnsignedTransaction,
+            action::SequenceAction,
         },
     };
     use bytes::Bytes;
@@ -219,9 +219,9 @@ mod tests {
     use rand::rngs::OsRng;
     use telemetry::Metrics as _;
     use tendermint::{
-        account::Id,
         Hash,
         Time,
+        account::Id,
     };
 
     use super::*;
@@ -302,12 +302,9 @@ mod tests {
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
-        assert_eq!(
-            prepare_proposal_response,
-            response::PrepareProposal {
-                txs: res.into_transactions(txs)
-            }
-        );
+        assert_eq!(prepare_proposal_response, response::PrepareProposal {
+            txs: res.into_transactions(txs)
+        });
 
         let (mut consensus_service, _) =
             new_consensus_service(Some(signing_key.verification_key())).await;
@@ -394,12 +391,9 @@ mod tests {
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
-        assert_eq!(
-            prepare_proposal_response,
-            response::PrepareProposal {
-                txs: res.into_transactions(vec![]),
-            }
-        );
+        assert_eq!(prepare_proposal_response, response::PrepareProposal {
+            txs: res.into_transactions(vec![]),
+        });
     }
 
     #[tokio::test]
@@ -419,8 +413,8 @@ mod tests {
         use tendermint::{
             account,
             block::{
-                header::Version,
                 Height,
+                header::Version,
             },
             chain,
             hash::AppHash,

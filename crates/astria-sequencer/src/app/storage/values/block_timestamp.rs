@@ -1,11 +1,11 @@
 use astria_eyre::eyre::bail;
 use borsh::{
+    BorshDeserialize,
+    BorshSerialize,
     io::{
         Read,
         Write,
     },
-    BorshDeserialize,
-    BorshSerialize,
 };
 
 use super::{

@@ -15,10 +15,13 @@ use std::{
 };
 
 use astria_core::{
+    Protobuf,
     primitive::v1::RollupId,
     protocol::{
         genesis::v1alpha1::Account,
         transaction::v1alpha1::{
+            Action,
+            UnsignedTransaction,
             action::{
                 BridgeLockAction,
                 BridgeSudoChangeAction,
@@ -29,45 +32,42 @@ use astria_core::{
                 TransferAction,
                 ValidatorUpdate,
             },
-            Action,
-            UnsignedTransaction,
         },
     },
     sequencerblock::v1alpha1::block::Deposit,
-    Protobuf,
 };
 use cnidarium::StateDelta;
 use prost::{
-    bytes::Bytes,
     Message as _,
+    bytes::Bytes,
 };
 use tendermint::{
+    Hash,
+    Time,
     abci,
     abci::types::CommitInfo,
     block::Round,
-    Hash,
-    Time,
 };
 
 use crate::{
     app::test_utils::{
+        BOB_ADDRESS,
+        CAROL_ADDRESS,
         default_genesis_accounts,
         get_alice_signing_key,
         get_bridge_signing_key,
         initialize_app,
         initialize_app_with_storage,
         proto_genesis_state,
-        BOB_ADDRESS,
-        CAROL_ADDRESS,
     },
     authority::StateReadExt as _,
     bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
+        ASTRIA_PREFIX,
         astria_address,
         astria_address_from_hex_string,
         nria,
-        ASTRIA_PREFIX,
     },
 };
 

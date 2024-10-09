@@ -4,16 +4,16 @@ use prost::Message as _;
 use telemetry::Metrics;
 use tendermint::{
     abci::{
-        request::CheckTxKind,
         Code,
+        request::CheckTxKind,
     },
     v0_38::abci::request::CheckTx,
 };
 
 use crate::{
     app::{
-        test_utils::MockTxBuilder,
         App,
+        test_utils::MockTxBuilder,
     },
     mempool::{
         Mempool,

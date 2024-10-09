@@ -17,16 +17,16 @@ use std::time::Duration;
 
 use astria_core::{
     primitive::v1::{
-        asset,
         RollupId,
+        asset,
     },
     protocol::transaction::v1alpha1::action::SequenceAction,
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     Report,
     WrapErr as _,
+    eyre,
 };
 use ethers::{
     providers::{
