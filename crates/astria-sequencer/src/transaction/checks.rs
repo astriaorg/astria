@@ -9,7 +9,7 @@ use astria_core::{
     protocol::transaction::v1alpha1::{
         action::{
             Action,
-            BridgeLockAction,
+            BridgeLock,
         },
         SignedTransaction,
         UnsignedTransaction,
@@ -247,7 +247,7 @@ fn ics20_withdrawal_updates_fees(
 }
 
 fn bridge_lock_update_fees(
-    act: &BridgeLockAction,
+    act: &BridgeLock,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     transfer_fee: u128,
     bridge_lock_byte_cost_multiplier: u128,
@@ -296,8 +296,8 @@ mod tests {
             ADDRESS_LEN,
         },
         protocol::transaction::v1alpha1::action::{
-            SequenceAction,
-            TransferAction,
+            Sequence,
+            Transfer,
         },
     };
     use bytes::Bytes;
@@ -371,13 +371,13 @@ mod tests {
             .unwrap();
 
         let actions = vec![
-            Action::Transfer(TransferAction {
+            Action::Transfer(Transfer {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: crate::test_utils::nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
-            Action::Sequence(SequenceAction {
+            Action::Sequence(Sequence {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
                 fee_asset: crate::test_utils::nria().into(),
@@ -438,13 +438,13 @@ mod tests {
             .unwrap();
 
         let actions = vec![
-            Action::Transfer(TransferAction {
+            Action::Transfer(Transfer {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: crate::test_utils::nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
-            Action::Sequence(SequenceAction {
+            Action::Sequence(Sequence {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
                 fee_asset: crate::test_utils::nria().into(),

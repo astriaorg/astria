@@ -258,7 +258,7 @@ mod tests {
         let block = make_test_sequencer_block(1);
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
         state_tx.put_block_height(1).unwrap();
         state_tx.put_sequencer_block(block).unwrap();
@@ -277,7 +277,7 @@ mod tests {
     async fn get_pending_nonce_in_mempool() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
 
         let alice = get_alice_signing_key();
         let alice_address = astria_address(&alice.address_bytes());
@@ -328,7 +328,7 @@ mod tests {
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
         let alice = get_alice_signing_key();
         let alice_address = astria_address(&alice.address_bytes());

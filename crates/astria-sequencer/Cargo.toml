@@ -47,6 +47,7 @@ tower-actor = "0.1.0"
 tower-http = { version = "0.4", features = ["cors"] }
 
 async-trait = { workspace = true }
+base64 = { workspace = true }
 bytes = { workspace = true }
 divan = { workspace = true, optional = true }
 futures = { workspace = true }

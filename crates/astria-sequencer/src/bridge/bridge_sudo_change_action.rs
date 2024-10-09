@@ -1,7 +1,4 @@
-use astria_core::{
-    protocol::transaction::v1alpha1::action::BridgeSudoChangeAction,
-    Protobuf as _,
-};
+use astria_core::protocol::transaction::v1alpha1::action::BridgeSudoChange;
 use astria_eyre::eyre::{
     bail,
     ensure,
@@ -25,7 +22,7 @@ use crate::{
     transaction::StateReadExt as _,
 };
 #[async_trait::async_trait]
-impl ActionHandler for BridgeSudoChangeAction {
+impl ActionHandler for BridgeSudoChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -81,7 +78,7 @@ impl ActionHandler for BridgeSudoChangeAction {
             .await
             .wrap_err("failed to get bridge sudo change fee")?;
         state
-            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
+            .get_and_increase_block_fees::<Self, _>(&self.fee_asset, fee)
             .await
             .wrap_err("failed to add to block fees")?;
         state
@@ -152,7 +149,7 @@ mod tests {
             .put_bridge_account_sudo_address(&bridge_address, sudo_address)
             .unwrap();
 
-        let action = BridgeSudoChangeAction {
+        let action = BridgeSudoChange {
             bridge_address,
             new_sudo_address: None,
             new_withdrawer_address: None,
@@ -199,7 +196,7 @@ mod tests {
             .put_account_balance(&bridge_address, &fee_asset, 10)
             .unwrap();
 
-        let action = BridgeSudoChangeAction {
+        let action = BridgeSudoChange {
             bridge_address,
             new_sudo_address: Some(new_sudo_address),
             new_withdrawer_address: Some(new_withdrawer_address),

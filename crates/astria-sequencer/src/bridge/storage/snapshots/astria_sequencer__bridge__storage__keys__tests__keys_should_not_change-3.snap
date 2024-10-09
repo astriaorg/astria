@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/keys.rs
+assertion_line: 97
+expression: BRIDGE_SUDO_CHANGE_FEE_KEY
+---
+bridge/sudo_change_fee

@@ -1,4 +1,12 @@
-use astria_core::primitive::v1::asset;
+use std::{
+    borrow::Cow,
+    fmt::Display,
+};
+
+use astria_core::{
+    primitive::v1::asset,
+    Protobuf,
+};
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -20,52 +28,24 @@ use tendermint::abci::{
 };
 use tracing::instrument;
 
-use super::storage;
+use super::storage::{
+    self,
+    keys::{
+        self,
+        extract_asset_from_block_fees_key,
+        extract_asset_from_fee_asset_key,
+    },
+};
 use crate::storage::StoredValue;
 
-const BLOCK_FEES_PREFIX: &str = "block_fees/";
-const FEE_ASSET_PREFIX: &str = "fee_asset/";
-const NATIVE_ASSET_KEY: &str = "nativeasset";
-
-fn asset_storage_key<'a, TAsset>(asset: &'a TAsset) -> String
-where
-    asset::IbcPrefixed: From<&'a TAsset>,
-{
-    format!("asset/{}", crate::storage_keys::hunks::Asset::from(asset))
-}
-
-fn block_fees_key<'a, TAsset>(asset: &'a TAsset) -> String
-where
-    asset::IbcPrefixed: From<&'a TAsset>,
-{
-    format!(
-        "{BLOCK_FEES_PREFIX}{}",
-        crate::storage_keys::hunks::Asset::from(asset)
-    )
-}
-
-fn fee_asset_key<'a, TAsset>(asset: &'a TAsset) -> String
-where
-    asset::IbcPrefixed: From<&'a TAsset>,
-{
-    format!(
-        "{FEE_ASSET_PREFIX}{}",
-        crate::storage_keys::hunks::Asset::from(asset)
-    )
-}
-
 /// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
-fn construct_tx_fee_event<T: std::fmt::Display>(
-    asset: &T,
-    fee_amount: u128,
-    action_type: String,
-) -> Event {
+fn construct_tx_fee_event<P: Protobuf, T: Display>(asset: &T, fee_amount: u128) -> Event {
     Event::new(
         "tx.fees",
         [
             ("asset", asset.to_string()).index(),
             ("feeAmount", fee_amount.to_string()).index(),
-            ("actionType", action_type).index(),
+            ("actionType", P::full_name()).index(),
         ],
     )
 }
@@ -75,7 +55,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_native_asset(&self) -> Result<asset::TracePrefixed> {
         let Some(bytes) = self
-            .get_raw(NATIVE_ASSET_KEY)
+            .get_raw(keys::NATIVE_ASSET)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw native asset from state")?
@@ -93,10 +73,10 @@ pub(crate) trait StateReadExt: StateRead {
     async fn has_ibc_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
         TAsset: Sync,
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         Ok(self
-            .get_raw(&asset_storage_key(asset))
+            .get_raw(&keys::asset(asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw asset from state")?
@@ -109,7 +89,7 @@ pub(crate) trait StateReadExt: StateRead {
         asset: &asset::IbcPrefixed,
     ) -> Result<Option<asset::TracePrefixed>> {
         let Some(bytes) = self
-            .get_raw(&asset_storage_key(asset))
+            .get_raw(&keys::asset(asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw asset from state")?
@@ -129,18 +109,10 @@ pub(crate) trait StateReadExt: StateRead {
         let mut fees = Vec::new();
 
         let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(BLOCK_FEES_PREFIX.as_bytes()));
+            std::pin::pin!(self.nonverifiable_prefix_raw(keys::BLOCK_FEES_PREFIX.as_bytes()));
         while let Some(Ok((key, bytes))) = stream.next().await {
-            // if the key isn't of the form `block_fees/{asset_id}`, then we have a bug
-            // in `put_block_fees`
-            let suffix = key
-                .strip_prefix(BLOCK_FEES_PREFIX.as_bytes())
-                .expect("prefix must always be present");
-            let asset = std::str::from_utf8(suffix)
-                .wrap_err("key suffix was not utf8 encoded; this should not happen")?
-                .parse::<crate::storage_keys::hunks::Asset>()
-                .wrap_err("failed to parse storage key suffix as address hunk")?
-                .get();
+            let asset =
+                extract_asset_from_block_fees_key(&key).wrap_err("failed to extract asset")?;
 
             let fee = StoredValue::deserialize(&bytes)
                 .and_then(|value| storage::Fee::try_from(value).map(u128::from))
@@ -156,10 +128,10 @@ pub(crate) trait StateReadExt: StateRead {
     async fn is_allowed_fee_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
         TAsset: Sync,
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         Ok(self
-            .nonverifiable_get_raw(fee_asset_key(asset).as_bytes())
+            .nonverifiable_get_raw(keys::fee_asset(asset).as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw fee asset from state")?
@@ -170,18 +142,11 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_allowed_fee_assets(&self) -> Result<Vec<asset::IbcPrefixed>> {
         let mut assets = Vec::new();
 
-        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(FEE_ASSET_PREFIX.as_bytes()));
+        let mut stream =
+            std::pin::pin!(self.nonverifiable_prefix_raw(keys::FEE_ASSET_PREFIX.as_bytes()));
         while let Some(Ok((key, _))) = stream.next().await {
-            // if the key isn't of the form `fee_asset/{asset_id}`, then we have a bug
-            // in `put_allowed_fee_asset`
-            let suffix = key
-                .strip_prefix(FEE_ASSET_PREFIX.as_bytes())
-                .expect("prefix must always be present");
-            let asset = std::str::from_utf8(suffix)
-                .wrap_err("key suffix was not utf8 encoded; this should not happen")?
-                .parse::<crate::storage_keys::hunks::Asset>()
-                .wrap_err("failed to parse storage key suffix as address hunk")?
-                .get();
+            let asset =
+                extract_asset_from_fee_asset_key(&key).wrap_err("failed to extract asset")?;
             assets.push(asset);
         }
 
@@ -198,13 +163,13 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::TracePrefixedDenom::from(&asset))
             .serialize()
             .context("failed to serialize native asset")?;
-        self.put_raw(NATIVE_ASSET_KEY.to_string(), bytes);
+        self.put_raw(keys::NATIVE_ASSET.to_string(), bytes);
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn put_ibc_asset(&mut self, asset: asset::TracePrefixed) -> Result<()> {
-        let key = asset_storage_key(&asset);
+        let key = keys::asset(&asset);
         let bytes = StoredValue::from(storage::TracePrefixedDenom::from(&asset))
             .serialize()
             .wrap_err("failed to serialize ibc asset")?;
@@ -214,18 +179,18 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     /// Adds `amount` to the block fees for `asset`.
     #[instrument(skip_all)]
-    async fn get_and_increase_block_fees<'a, TAsset>(
+    async fn get_and_increase_block_fees<'a, P, TAsset>(
         &mut self,
         asset: &'a TAsset,
         amount: u128,
-        action_type: String,
     ) -> Result<()>
     where
-        TAsset: Sync + std::fmt::Display,
-        asset::IbcPrefixed: From<&'a TAsset>,
+        TAsset: Sync + Display,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
+        P: Protobuf,
     {
-        let tx_fee_event = construct_tx_fee_event(asset, amount, action_type);
-        let block_fees_key = block_fees_key(asset);
+        let tx_fee_event = construct_tx_fee_event::<P, _>(asset, amount);
+        let block_fees_key = keys::block_fees(asset);
 
         let current_amount = self
             .nonverifiable_get_raw(block_fees_key.as_bytes())
@@ -246,7 +211,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Fee::from(new_amount))
             .serialize()
             .wrap_err("failed to serialize block fees")?;
-        self.nonverifiable_put_raw(block_fees_key.into(), bytes);
+        self.nonverifiable_put_raw(block_fees_key.into_bytes(), bytes);
 
         self.record(tx_fee_event);
 
@@ -256,7 +221,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     async fn clear_block_fees(&mut self) {
         let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(BLOCK_FEES_PREFIX.as_bytes()));
+            std::pin::pin!(self.nonverifiable_prefix_raw(keys::BLOCK_FEES_PREFIX.as_bytes()));
         while let Some(Ok((key, _))) = stream.next().await {
             self.nonverifiable_delete(key);
         }
@@ -265,20 +230,20 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn delete_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset)
     where
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
-        self.nonverifiable_delete(fee_asset_key(asset).into());
+        self.nonverifiable_delete(keys::fee_asset(asset).into_bytes());
     }
 
     #[instrument(skip_all)]
     fn put_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset) -> Result<()>
     where
-        asset::IbcPrefixed: From<&'a TAsset>,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let bytes = StoredValue::Unit
             .serialize()
             .context("failed to serialize unit for allowed fee asset")?;
-        self.nonverifiable_put_raw(fee_asset_key(asset).into(), bytes);
+        self.nonverifiable_put_raw(keys::fee_asset(asset).into_bytes(), bytes);
         Ok(())
     }
 }
@@ -289,16 +254,10 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use std::collections::HashSet;
 
-    use astria_core::primitive::v1::asset;
+    use astria_core::protocol::transaction::v1alpha1::action::Transfer;
     use cnidarium::StateDelta;
 
-    use super::{
-        asset_storage_key,
-        block_fees_key,
-        fee_asset_key,
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
 
     fn asset() -> asset::Denom {
         "asset".parse().unwrap()
@@ -363,7 +322,7 @@ mod tests {
         let asset = asset_0();
         let amount = 100u128;
         state
-            .get_and_increase_block_fees(&asset, amount, "test".into())
+            .get_and_increase_block_fees::<Transfer, _>(&asset, amount)
             .await
             .unwrap();
 
@@ -389,11 +348,11 @@ mod tests {
         let amount_second = 200u128;
 
         state
-            .get_and_increase_block_fees(&asset_first, amount_first, "test".into())
+            .get_and_increase_block_fees::<Transfer, _>(&asset_first, amount_first)
             .await
             .unwrap();
         state
-            .get_and_increase_block_fees(&asset_second, amount_second, "test".into())
+            .get_and_increase_block_fees::<Transfer, _>(&asset_second, amount_second)
             .await
             .unwrap();
         // holds expected
@@ -642,32 +601,5 @@ mod tests {
             ]),
             "delete for allowed fee asset did not behave as expected"
         );
-    }
-
-    #[test]
-    fn storage_keys_are_unchanged() {
-        let asset = "an/asset/with/a/prefix"
-            .parse::<astria_core::primitive::v1::asset::Denom>()
-            .unwrap();
-        assert_eq!(
-            asset_storage_key(&asset),
-            asset_storage_key(&asset.to_ibc_prefixed()),
-        );
-        insta::assert_snapshot!(asset_storage_key(&asset));
-
-        let trace_prefixed = "a/denom/with/a/prefix"
-            .parse::<astria_core::primitive::v1::asset::Denom>()
-            .unwrap();
-        assert_eq!(
-            block_fees_key(&trace_prefixed),
-            block_fees_key(&trace_prefixed.to_ibc_prefixed()),
-        );
-        insta::assert_snapshot!(block_fees_key(&trace_prefixed));
-
-        assert_eq!(
-            fee_asset_key(&trace_prefixed),
-            fee_asset_key(&trace_prefixed.to_ibc_prefixed()),
-        );
-        insta::assert_snapshot!(fee_asset_key(&trace_prefixed));
     }
 }

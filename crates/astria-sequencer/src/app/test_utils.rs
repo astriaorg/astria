@@ -22,8 +22,8 @@ use astria_core::{
             action::{
                 FeeAssetChangeAction,
                 InitBridgeAccountAction,
-                SequenceAction,
                 SudoAddressChangeAction,
+                Sequence,
                 ValidatorUpdate,
             },
             action_group::ActionGroup,
@@ -227,7 +227,7 @@ pub(crate) async fn initialize_app_with_storage(
         .expect("failed to create temp storage backing chain state");
     let snapshot = storage.latest_snapshot();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mempool = Mempool::new(metrics);
+    let mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
@@ -348,6 +348,14 @@ impl MockTxBuilder {
 
         let tx = UnsignedTransaction::builder()
             .actions(vec![action])
+            .actions(vec![
+                Sequence {
+                    rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
+                    data: Bytes::from_static(&[0x99]),
+                    fee_asset: denom_0(),
+                }
+                .into(),
+            ])
             .chain_id(self.chain_id)
             .nonce(self.nonce)
             .try_build()

@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/ibc/state_ext.rs
-expression: "channel_balance_storage_key(&channel, &asset)"
----
-ibc-data/channel-5/balance/be429a02d00837245167a2616674a979a2ac6f9806468b48a975b156ad711320

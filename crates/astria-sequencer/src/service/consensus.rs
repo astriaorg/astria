@@ -210,7 +210,7 @@ mod tests {
         },
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
-            action::SequenceAction,
+            action::Sequence,
             UnsignedTransaction,
         },
     };
@@ -238,7 +238,7 @@ mod tests {
     fn make_unsigned_tx() -> UnsignedTransaction {
         UnsignedTransaction::builder()
             .actions(vec![
-                SequenceAction {
+                Sequence {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: Bytes::from_static(b"hello world"),
                     fee_asset: crate::test_utils::nria().into(),
@@ -471,7 +471,7 @@ mod tests {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
         let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await

@@ -4,11 +4,11 @@ use astria_core::{
     primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
         action::{
-            BridgeLockAction,
-            BridgeSudoChangeAction,
-            InitBridgeAccountAction,
-            SequenceAction,
-            TransferAction,
+            BridgeLock,
+            BridgeSudoChange,
+            InitBridgeAccount,
+            Sequence,
+            Transfer,
         },
         UnsignedTransaction,
     },
@@ -54,7 +54,7 @@ async fn transaction_execution_records_fee_event() {
     let value = 333_333;
     let tx = UnsignedTransaction::builder()
         .actions(vec![
-            TransferAction {
+            Transfer {
                 to: bob_address,
                 amount: value,
                 asset: nria().into(),
@@ -83,7 +83,7 @@ async fn transaction_execution_records_fee_event() {
         event.attributes[2],
         (
             "actionType",
-            "astria.protocol.transactions.v1alpha1.TransferAction"
+            "astria.protocol.transactions.v1alpha1.Transfer"
         )
             .index()
             .into()
@@ -101,7 +101,7 @@ async fn ensure_correct_block_fees_transfer() {
     let alice = get_alice_signing_key();
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let actions = vec![
-        TransferAction {
+        Transfer {
             to: bob_address,
             amount: 1000,
             asset: nria().into(),
@@ -143,7 +143,7 @@ async fn ensure_correct_block_fees_sequence() {
     let data = b"hello world".to_vec();
 
     let actions = vec![
-        SequenceAction {
+        Sequence {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: data.clone().into(),
             fee_asset: nria().into(),
@@ -184,7 +184,7 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
     let alice = get_alice_signing_key();
 
     let actions = vec![
-        InitBridgeAccountAction {
+        InitBridgeAccount {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             asset: nria().into(),
             fee_asset: nria().into(),
@@ -240,7 +240,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
     app.apply(state_tx);
 
     let actions = vec![
-        BridgeLockAction {
+        BridgeLock {
             to: bridge_address,
             amount: 1,
             asset: nria().into(),
@@ -305,7 +305,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
     app.apply(state_tx);
 
     let actions = vec![
-        BridgeSudoChangeAction {
+        BridgeSudoChange {
             bridge_address,
             new_sudo_address: None,
             new_withdrawer_address: None,
