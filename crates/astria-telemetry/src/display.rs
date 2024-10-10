@@ -12,11 +12,6 @@ use std::{
 
 use serde_with::SerializeDisplay;
 
-/// Format `bytes` using URL-safe base64 formatting.
-pub fn base64<T: AsRef<[u8]>>(bytes: T) -> core_utils::base64::DisplayFmt<T> {
-    core_utils::base64::display(bytes)
-}
-
 /// Format `bytes` as lower-cased hex.
 ///
 /// # Example

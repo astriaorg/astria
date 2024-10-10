@@ -120,8 +120,8 @@ impl fmt::Display for TimemarkedTransaction {
         write!(
             f,
             "tx_hash: {}, address: {}, signer: {}, nonce: {}, chain ID: {}, group: {}",
-            telemetry::display::base64(&self.tx_hash),
-            telemetry::display::base64(&self.address),
+            core_utils::base64::display(&self.tx_hash),
+            core_utils::base64::display(&self.address),
             self.signed_tx.verification_key(),
             self.signed_tx.nonce(),
             self.signed_tx.chain_id(),
@@ -585,7 +585,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
                 Ok(res) => res,
                 Err(error) => {
                     error!(
-                        address = %telemetry::display::base64(address),
+                        address = %core_utils::base64::display(address),
                         "failed to calculate new transaction cost when cleaning accounts: {error:#}"
                     );
                     continue;
@@ -797,7 +797,7 @@ impl PendingTransactions {
                     Err(error) => {
                         // mempool could be off due to node connectivity issues
                         error!(
-                            tx_hash = %telemetry::display::base64(&ttx.tx_hash),
+                            tx_hash = %core_utils::base64::display(&ttx.tx_hash),
                             "failed to add pending tx to builder queue: {error:#}"
                         );
                         continue;

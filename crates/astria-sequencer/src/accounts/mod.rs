@@ -22,7 +22,7 @@ pub(crate) trait AddressBytes: Send + Sync {
     fn address_bytes(&self) -> &[u8; ADDRESS_LEN];
 
     fn display_address(&self) -> impl std::fmt::Display {
-        telemetry::display::base64(self.address_bytes())
+        core_utils::base64::display(self.address_bytes())
     }
 }
 

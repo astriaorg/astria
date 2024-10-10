@@ -8,7 +8,7 @@ use astria_core::{
         SubmittedRollupData,
     },
 };
-use telemetry::display::base64;
+use core_utils::base64;
 use tracing::{
     info,
     warn,
@@ -72,7 +72,7 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
                 "no sequencer header blob matching the rollup blob's block hash found"
             };
             info!(
-                block_hash = %base64(&rollup.sequencer_block_hash()),
+                block_hash = %base64::display(&rollup.sequencer_block_hash()),
                 reason,
                 "dropping rollup blob",
             );
@@ -83,7 +83,7 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
     for header_blob in header_blobs.into_values() {
         if header_blob.contains_rollup_id(rollup_id) {
             warn!(
-                block_hash = %base64(header_blob.block_hash()),
+                block_hash = %base64::display(header_blob.block_hash()),
                 "sequencer header blob contains the target rollup ID, but no matching rollup blob was found; dropping it",
             );
         } else {

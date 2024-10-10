@@ -15,6 +15,7 @@ use astria_eyre::{
         WrapErr as _,
     },
 };
+use core_utils::base64;
 use moka::future::Cache;
 use sequencer_client::{
     tendermint::block::{
@@ -25,7 +26,6 @@ use sequencer_client::{
     Client as _,
     HttpClient as SequencerClient,
 };
-use telemetry::display::base64;
 use tokio_util::task::JoinMap;
 use tower::{
     util::BoxService,
@@ -142,7 +142,7 @@ pub(super) async fn verify_metadata(
                         .get(dropped_entry.block_hash())
                         .expect("must exist; just inserted an item under the same key");
                     info!(
-                        block_hash = %base64(&dropped_entry.block_hash()),
+                        block_hash = %base64::display(&dropped_entry.block_hash()),
                         dropped_blob.sequencer_height = dropped_entry.height().value(),
                         accepted_blob.sequencer_height = accepted_entry.height().value(),
                         "two Sequencer header blobs were well formed and validated against \
@@ -154,7 +154,7 @@ pub(super) async fn verify_metadata(
             Ok(None) => {}
             Err(error) => {
                 info!(
-                    block_hash = %base64(&key.block_hash),
+                    block_hash = %base64::display(&key.block_hash),
                     sequencer_height = %key.sequencer_height,
                     %error,
                     "verification of sequencer blob was cancelled abruptly; dropping it"

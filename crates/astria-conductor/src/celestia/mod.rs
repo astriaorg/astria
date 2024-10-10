@@ -17,6 +17,7 @@ use astria_eyre::eyre::{
 use bytes::Bytes;
 use celestia_rpc::HeaderClient as _;
 use celestia_types::nmt::Namespace;
+use core_utils::base64;
 use futures::{
     future::{
         BoxFuture,
@@ -32,10 +33,7 @@ use sequencer_client::{
     tendermint_rpc,
     HttpClient as SequencerClient,
 };
-use telemetry::display::{
-    base64,
-    json,
-};
+use telemetry::display::json;
 use tokio::{
     select,
     sync::mpsc,
@@ -373,10 +371,10 @@ impl RunningReader {
                 initial_celestia_height = self.celestia_next_height,
                 initial_max_celestia_height = self.max_permitted_celestia_height(),
                 celestia_variance = self.celestia_variance,
-                rollup_namespace = %base64(&self.rollup_namespace.as_bytes()),
+                rollup_namespace = %base64::display(&self.rollup_namespace.as_bytes()),
                 rollup_id = %self.rollup_id,
                 sequencer_chain_id = %self.sequencer_chain_id,
-                sequencer_namespace = %base64(&self.sequencer_namespace.as_bytes()),
+                sequencer_namespace = %base64::display(&self.sequencer_namespace.as_bytes()),
                 "starting firm block read loop",
             );
         });
@@ -458,7 +456,7 @@ impl RunningReader {
                     error = %eyre::Report::new(e),
                     source_celestia_height = celestia_height,
                     sequencer_height,
-                    block_hash = %base64(&block_hash),
+                    block_hash = %base64::display(&block_hash),
                     "failed pushing reconstructed block into sequential cache; dropping it",
                 );
             }
@@ -571,8 +569,8 @@ struct FetchConvertVerifyAndReconstruct {
 impl FetchConvertVerifyAndReconstruct {
     #[instrument(skip_all, fields(
         celestia_height = self.celestia_height,
-        rollup_namespace = %base64(self.rollup_namespace.as_bytes()),
-        sequencer_namespace = %base64(self.sequencer_namespace.as_bytes()),
+        rollup_namespace = %base64::display(self.rollup_namespace.as_bytes()),
+        sequencer_namespace = %base64::display(self.sequencer_namespace.as_bytes()),
         err,
     ))]
     async fn execute(self) -> eyre::Result<ReconstructedBlocks> {

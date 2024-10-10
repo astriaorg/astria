@@ -946,7 +946,6 @@ dependencies = [
 name = "astria-telemetry"
 version = "0.1.0"
 dependencies = [
- "astria-core-utils",
  "const_format",
  "itertools 0.12.1",
  "metrics 0.23.0",

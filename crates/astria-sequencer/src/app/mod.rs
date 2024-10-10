@@ -301,7 +301,7 @@ impl App {
             .prepare_commit(storage)
             .await
             .wrap_err("failed to prepare commit")?;
-        debug!(app_hash = %telemetry::display::base64(&app_hash), "init_chain completed");
+        debug!(app_hash = %core_utils::base64::display(&app_hash), "init_chain completed");
         Ok(app_hash)
     }
 
@@ -560,7 +560,7 @@ impl App {
         let mut unused_count = pending_txs.len();
         for (tx_hash, tx) in pending_txs {
             unused_count = unused_count.saturating_sub(1);
-            let tx_hash_base64 = telemetry::display::base64(&tx_hash).to_string();
+            let tx_hash_base64 = core_utils::base64::display(&tx_hash).to_string();
             let bytes = tx.to_raw().encode_to_vec();
             let tx_len = bytes.len();
             info!(transaction_hash = %tx_hash_base64, "executing transaction");
@@ -739,7 +739,7 @@ impl App {
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
                 debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    transaction_hash = %core_utils::base64::display(&tx_hash),
                     block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx_sequence_data_bytes,
                     "transaction error: max block sequenced data limit passed"
@@ -751,7 +751,7 @@ impl App {
             let tx_group = tx.group();
             if tx_group > current_tx_group {
                 debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    transaction_hash = %core_utils::base64::display(&tx_hash),
                     "transaction error: block has incorrect transaction group ordering"
                 );
                 bail!("transactions have incorrect transaction group ordering");
@@ -773,7 +773,7 @@ impl App {
                 }
                 Err(e) => {
                     debug!(
-                        transaction_hash = %telemetry::display::base64(&tx_hash),
+                        transaction_hash = %core_utils::base64::display(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "transaction error: failed to execute transaction"
                     );

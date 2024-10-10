@@ -23,7 +23,7 @@ use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
-use telemetry::display::base64;
+use core_utils::base64;
 
 use super::{
     Value,
@@ -114,12 +114,12 @@ impl<'a> Debug for SequencerBlockHeader<'a> {
             .field("time", &self.time)
             .field(
                 "rollup_transactions_root",
-                &base64(self.rollup_transactions_root.as_slice()).to_string(),
+                &base64::display(self.rollup_transactions_root.as_slice()),
             )
-            .field("data_hash", &base64(self.data_hash.as_slice()).to_string())
+            .field("data_hash", &base64::display(self.data_hash.as_slice()))
             .field(
                 "proposer_address",
-                &base64(self.proposer_address.as_slice()).to_string(),
+                &base64::display(self.proposer_address.as_slice()),
             )
             .finish()
     }

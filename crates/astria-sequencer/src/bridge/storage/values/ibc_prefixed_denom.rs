@@ -13,7 +13,7 @@ use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
-use telemetry::display::base64;
+use core_utils::base64;
 
 use super::{
     Value,
@@ -25,7 +25,7 @@ pub(in crate::bridge) struct IbcPrefixedDenom<'a>(Cow<'a, [u8; 32]>);
 
 impl<'a> Debug for IbcPrefixedDenom<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", base64(self.0.as_slice()))
+        write!(f, "{}", base64::display(self.0.as_slice()))
     }
 }
 

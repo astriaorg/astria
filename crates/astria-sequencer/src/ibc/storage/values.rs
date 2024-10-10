@@ -13,7 +13,7 @@ use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
-use telemetry::display::base64;
+use core_utils::base64;
 
 use crate::accounts::AddressBytes as DomainAddressBytes;
 
@@ -64,7 +64,7 @@ pub(in crate::ibc) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
 
 impl<'a> Debug for AddressBytes<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", base64(self.0.as_slice()))
+        write!(f, "{}", base64::display(self.0.as_slice()))
     }
 }
 
