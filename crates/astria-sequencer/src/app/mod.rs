@@ -99,7 +99,6 @@ use crate::{
         StateWriteExt as _,
     },
     bridge::{
-        component::BridgeComponent,
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -284,9 +283,6 @@ impl App {
         )
         .await
         .wrap_err("init_chain failed on AuthorityComponent")?;
-        BridgeComponent::init_chain(&mut state_tx, &genesis_state)
-            .await
-            .wrap_err("init_chain failed on BridgeComponent")?;
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
@@ -1073,9 +1069,6 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on AuthorityComponent")?;
-        BridgeComponent::begin_block(&mut arc_state_tx, begin_block)
-            .await
-            .wrap_err("begin_block failed on BridgeComponent")?;
         IbcComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on IbcComponent")?;
@@ -1143,9 +1136,6 @@ impl App {
         AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on AuthorityComponent")?;
-        BridgeComponent::end_block(&mut arc_state_tx, &end_block)
-            .await
-            .wrap_err("end_block failed on BridgeComponent")?;
         FeesComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on FeesComponent")?;

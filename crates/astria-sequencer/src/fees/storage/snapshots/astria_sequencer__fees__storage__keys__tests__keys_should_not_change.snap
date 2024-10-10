@@ -1,0 +1,19 @@
+---
+source: crates/astria-sequencer/src/fees/storage/keys.rs
+assertion_line: 48
+expression: Helper
+---
+fees/transfer
+fees/sequence
+fees/ics20_withdrawal
+fees/init_bridge_account
+fees/bridge_lock
+fees/bridge_unlock
+fees/bridge_sudo_change
+fees/ibc_relay
+fees/validator_update
+fees/fee_asset_change
+fees/fee_change
+fees/ibc_relayer_change
+fees/sudo_address_change
+fees/ibc_sudo_change

@@ -105,6 +105,7 @@ pub struct InitBridgeAccountFeeComponents {
     pub base_fee: u128,
     pub computed_cost_multiplier: u128,
 }
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BridgeLockFeeComponents {
     pub base_fee: u128,

@@ -36,22 +36,19 @@ use cnidarium::{
 use tracing::instrument;
 
 use super::{
-    storage,
+    storage::{
+        self,
+        keys,
+    },
     Fee,
 };
 use crate::storage::StoredValue;
-
-const BLOCK_FEES_PREFIX: &str = "block_fees";
-
-fn fees_key(base: &str) -> String {
-    format!("{base}fees")
-}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     fn get_block_fees(&self) -> Result<Vec<Fee>> {
-        let mut block_fees = self.object_get(BLOCK_FEES_PREFIX);
+        let mut block_fees = self.object_get(keys::BLOCK);
         match block_fees {
             Some(_) => {}
             None => {
@@ -64,7 +61,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_transfer_fees(&self) -> Result<TransferFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("transfer").as_str())
+            .get_raw(keys::TRANSFER)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw transfer fee components from state")?;
@@ -82,7 +79,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_sequence_fees(&self) -> Result<SequenceFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("sequence").as_str())
+            .get_raw(keys::SEQUENCE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sequence fee components from state")?;
@@ -100,7 +97,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ics20_withdrawal_fees(&self) -> Result<Ics20WithdrawalFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("ics20withdrawal").as_str())
+            .get_raw(keys::ICS20_WITHDRAWAL)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw ics20 withdrawal fee components from state")?;
@@ -118,7 +115,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_init_bridge_account_fees(&self) -> Result<InitBridgeAccountFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("initbridgeaccount").as_str())
+            .get_raw(keys::INIT_BRIDGE_ACCOUNT)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw init bridge account fee components from state")?;
@@ -136,7 +133,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_bridge_lock_fees(&self) -> Result<BridgeLockFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("bridgelock").as_str())
+            .get_raw(keys::BRIDGE_LOCK)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge lock fee components from state")?;
@@ -154,7 +151,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_bridge_unlock_fees(&self) -> Result<BridgeUnlockFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("bridgeunlock").as_str())
+            .get_raw(keys::BRIDGE_UNLOCK)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge unlock fee components from state")?;
@@ -172,7 +169,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_bridge_sudo_change_fees(&self) -> Result<BridgeSudoChangeFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("bridgesudochange").as_str())
+            .get_raw(keys::BRIDGE_SUDO_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge sudo change fee components from state")?;
@@ -190,7 +187,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ibc_relay_fees(&self) -> Result<IbcRelayFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("ibcrelay").as_str())
+            .get_raw(keys::IBC_RELAY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw ibc relay fee components from state")?;
@@ -208,7 +205,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_validator_update_fees(&self) -> Result<ValidatorUpdateFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("validatorupdate").as_str())
+            .get_raw(keys::VALIDATOR_UPDATE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator update fee components from state")?;
@@ -226,7 +223,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_fee_asset_change_fees(&self) -> Result<FeeAssetChangeFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("feeassetchange").as_str())
+            .get_raw(keys::FEE_ASSET_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw fee asset change fee components from state")?;
@@ -244,7 +241,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_fee_change_fees(&self) -> Result<FeeChangeFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("feechange").as_str())
+            .get_raw(keys::FEE_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw fee change fee components from state")?;
@@ -262,7 +259,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ibc_relayer_change_fees(&self) -> Result<IbcRelayerChangeFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("ibcrelayerchange").as_str())
+            .get_raw(keys::IBC_RELAYER_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw ibc relayer change fee components from state")?;
@@ -280,7 +277,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_sudo_address_change_fees(&self) -> Result<SudoAddressChangeFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("sudoaddresschange").as_str())
+            .get_raw(keys::SUDO_ADDRESS_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sudo address change fee components from state")?;
@@ -298,10 +295,10 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_ibc_sudo_change_fees(&self) -> Result<IbcSudoChangeFeeComponents> {
         let bytes = self
-            .get_raw(fees_key("ibcsudochange").as_str())
+            .get_raw(keys::IBC_SUDO_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw ibc sudo chagne fee components from state")?;
+            .wrap_err("failed reading raw ibc sudo change fee components from state")?;
         let Some(bytes) = bytes else {
             return Err(eyre!("ibc sudo change fee components not set"));
         };
@@ -331,7 +328,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         TAsset: Sync + std::fmt::Display,
         asset::IbcPrefixed: From<&'a TAsset>,
     {
-        let current_fees: Option<Vec<Fee>> = self.object_get(BLOCK_FEES_PREFIX);
+        let current_fees: Option<Vec<Fee>> = self.object_get(keys::BLOCK);
 
         let fee = Fee {
             asset: asset::IbcPrefixed::from(asset).into(),
@@ -346,7 +343,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             vec![fee]
         };
 
-        self.object_put(BLOCK_FEES_PREFIX, new_fees);
+        self.object_put(keys::BLOCK, new_fees);
         Ok(())
     }
 
@@ -355,7 +352,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::TransferFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("transfer").to_string(), bytes);
+        self.put_raw(keys::TRANSFER.to_string(), bytes);
         Ok(())
     }
 
@@ -364,7 +361,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::SequenceFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("sequence").to_string(), bytes);
+        self.put_raw(keys::SEQUENCE.to_string(), bytes);
         Ok(())
     }
 
@@ -373,7 +370,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Ics20WithdrawalFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("ics20withdrawal").to_string(), bytes);
+        self.put_raw(keys::ICS20_WITHDRAWAL.to_string(), bytes);
         Ok(())
     }
 
@@ -382,7 +379,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::InitBridgeAccountFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("initbridgeaccount").to_string(), bytes);
+        self.put_raw(keys::INIT_BRIDGE_ACCOUNT.to_string(), bytes);
         Ok(())
     }
 
@@ -391,7 +388,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::BridgeLockFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("bridgelock").to_string(), bytes);
+        self.put_raw(keys::BRIDGE_LOCK.to_string(), bytes);
         Ok(())
     }
 
@@ -400,7 +397,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::BridgeUnlockFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("bridgeunlock").to_string(), bytes);
+        self.put_raw(keys::BRIDGE_UNLOCK.to_string(), bytes);
         Ok(())
     }
 
@@ -409,7 +406,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::BridgeSudoChangeFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("bridgesudochange").to_string(), bytes);
+        self.put_raw(keys::BRIDGE_SUDO_CHANGE.to_string(), bytes);
         Ok(())
     }
 
@@ -418,7 +415,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::IbcRelayFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("ibcrelay").to_string(), bytes);
+        self.put_raw(keys::IBC_RELAY.to_string(), bytes);
         Ok(())
     }
 
@@ -427,7 +424,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::ValidatorUpdateFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("validatorupdate").to_string(), bytes);
+        self.put_raw(keys::VALIDATOR_UPDATE.to_string(), bytes);
         Ok(())
     }
 
@@ -436,7 +433,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::FeeAssetChangeFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("feeassetchange").to_string(), bytes);
+        self.put_raw(keys::FEE_ASSET_CHANGE.to_string(), bytes);
         Ok(())
     }
 
@@ -445,7 +442,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::FeeChangeFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("feechange").to_string(), bytes);
+        self.put_raw(keys::FEE_CHANGE.to_string(), bytes);
         Ok(())
     }
 
@@ -454,7 +451,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::IbcRelayerChangeFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("ibcrelayerchange").to_string(), bytes);
+        self.put_raw(keys::IBC_RELAYER_CHANGE.to_string(), bytes);
         Ok(())
     }
 
@@ -463,7 +460,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::SudoAddressChangeFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("sudoaddresschange").to_string(), bytes);
+        self.put_raw(keys::SUDO_ADDRESS_CHANGE.to_string(), bytes);
         Ok(())
     }
 
@@ -472,7 +469,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::IbcSudoChangeFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(fees_key("ibcsudochange").to_string(), bytes);
+        self.put_raw(keys::IBC_SUDO_CHANGE.to_string(), bytes);
         Ok(())
     }
 }
@@ -483,31 +480,15 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use std::collections::HashSet;
 
-    use astria_core::{
-        primitive::v1::TransactionId,
-        protocol::fees::v1alpha1::{
-            BridgeLockFeeComponents,
-            BridgeSudoChangeFeeComponents,
-            BridgeUnlockFeeComponents,
-            Ics20WithdrawalFeeComponents,
-            InitBridgeAccountFeeComponents,
-            SequenceFeeComponents,
-            TransferFeeComponents,
-        },
-    };
     use cnidarium::StateDelta;
 
-    use crate::fees::{
-        Fee,
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
 
-    fn asset_0() -> astria_core::primitive::v1::asset::Denom {
+    fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
     }
 
-    fn asset_1() -> astria_core::primitive::v1::asset::Denom {
+    fn asset_1() -> asset::Denom {
         "asset_1".parse().unwrap()
     }
 
@@ -615,22 +596,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn init_bridge_account_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = InitBridgeAccountFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
-        };
-
-        state.put_init_bridge_account_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_init_bridge_account_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
-    }
-
-    #[tokio::test]
     async fn ics20_withdrawal_fees_round_trip() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
@@ -643,6 +608,22 @@ mod tests {
 
         state.put_ics20_withdrawal_fees(fee_components).unwrap();
         let retrieved_fee = state.get_ics20_withdrawal_fees().await.unwrap();
+        assert_eq!(retrieved_fee, fee_components);
+    }
+
+    #[tokio::test]
+    async fn init_bridge_account_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = InitBridgeAccountFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
+
+        state.put_init_bridge_account_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_init_bridge_account_fees().await.unwrap();
         assert_eq!(retrieved_fee, fee_components);
     }
 
@@ -691,6 +672,118 @@ mod tests {
 
         state.put_bridge_sudo_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_bridge_sudo_change_fees().await.unwrap();
+        assert_eq!(retrieved_fee, fee_components);
+    }
+
+    #[tokio::test]
+    async fn ibc_relay_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = IbcRelayFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
+
+        state.put_ibc_relay_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_ibc_relay_fees().await.unwrap();
+        assert_eq!(retrieved_fee, fee_components);
+    }
+
+    #[tokio::test]
+    async fn validator_update_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = ValidatorUpdateFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
+
+        state.put_validator_update_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_validator_update_fees().await.unwrap();
+        assert_eq!(retrieved_fee, fee_components);
+    }
+
+    #[tokio::test]
+    async fn fee_asset_change_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = FeeAssetChangeFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
+
+        state.put_fee_asset_change_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_fee_asset_change_fees().await.unwrap();
+        assert_eq!(retrieved_fee, fee_components);
+    }
+
+    #[tokio::test]
+    async fn fee_change_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = FeeChangeFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
+
+        state.put_fee_change_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_fee_change_fees().await.unwrap();
+        assert_eq!(retrieved_fee, fee_components);
+    }
+
+    #[tokio::test]
+    async fn ibc_relayer_change_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = IbcRelayerChangeFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
+
+        state.put_ibc_relayer_change_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_ibc_relayer_change_fees().await.unwrap();
+        assert_eq!(retrieved_fee, fee_components);
+    }
+
+    #[tokio::test]
+    async fn sudo_address_change_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = SudoAddressChangeFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
+
+        state.put_sudo_address_change_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_sudo_address_change_fees().await.unwrap();
+        assert_eq!(retrieved_fee, fee_components);
+    }
+
+    #[tokio::test]
+    async fn ibc_sudo_change_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = IbcSudoChangeFeeComponents {
+            base_fee: 123,
+            computed_cost_multiplier: 1,
+        };
+
+        state.put_ibc_sudo_change_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_ibc_sudo_change_fees().await.unwrap();
         assert_eq!(retrieved_fee, fee_components);
     }
 }

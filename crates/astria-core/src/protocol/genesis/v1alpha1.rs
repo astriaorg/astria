@@ -606,85 +606,85 @@ impl Protobuf for GenesisFees {
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("sequence"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let transfer = TransferFeeComponents::try_from_raw(
             transfer
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("transfer"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let ics20_withdrawal = Ics20WithdrawalFeeComponents::try_from_raw(
             ics20_withdrawal
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("ics20_withdrawal"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let init_bridge_account = InitBridgeAccountFeeComponents::try_from_raw(
             init_bridge_account
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("init_bridge_account"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let bridge_lock = BridgeLockFeeComponents::try_from_raw(
             bridge_lock
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("bridge_lock"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let bridge_unlock = BridgeUnlockFeeComponents::try_from_raw(
             bridge_unlock
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("bridge_unlock"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let bridge_sudo_change = BridgeSudoChangeFeeComponents::try_from_raw(
             bridge_sudo_change
                 .clone()
-                .ok_or_else(|| Self::Error::field_not_set("bridge_sudo_chnage"))?,
+                .ok_or_else(|| Self::Error::field_not_set("bridge_sudo_change"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let ibc_relay = IbcRelayFeeComponents::try_from_raw(
             ibc_relay
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("ibc_relay"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let validator_update = ValidatorUpdateFeeComponents::try_from_raw(
             validator_update
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("validator_update"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let fee_asset_change = FeeAssetChangeFeeComponents::try_from_raw(
             fee_asset_change
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("fee_asset_change"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let fee_change = FeeChangeFeeComponents::try_from_raw(
             fee_change
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("fee_change"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let ibc_relayer_change = IbcRelayerChangeFeeComponents::try_from_raw(
             ibc_relayer_change
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("ibc_relayer_change"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let sudo_address_change = SudoAddressChangeFeeComponents::try_from_raw(
             sudo_address_change
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("sudo_address_change"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
         let ibc_sudo_change = IbcSudoChangeFeeComponents::try_from_raw(
             ibc_sudo_change
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("ibc_sudo_change"))?,
         )
-        .map_err(FeesError::fee_components_converion)?;
+        .map_err(FeesError::fee_components_conversion)?;
 
         Ok(Self {
             sequence,
@@ -751,7 +751,7 @@ impl FeesError {
         })
     }
 
-    fn fee_components_converion(err: FeeComponentError) -> Self {
+    fn fee_components_conversion(err: FeeComponentError) -> Self {
         Self(FeesErrorKind::FeeComponentsConversion(err))
     }
 }

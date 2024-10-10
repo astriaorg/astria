@@ -4,23 +4,20 @@ use astria_core::{
         TransactionId,
         TRANSACTION_ID_LEN,
     },
-    protocol::{
-        fees::v1alpha1::SequenceFeeComponents,
-        transaction::v1alpha1::action::{
-            self,
-            BridgeLock,
-            BridgeSudoChange,
-            BridgeUnlock,
-            FeeAssetChange,
-            FeeChange,
-            IbcRelayerChange,
-            IbcSudoChange,
-            InitBridgeAccount,
-            Sequence,
-            SudoAddressChange,
-            Transfer,
-            ValidatorUpdate,
-        },
+    protocol::transaction::v1alpha1::action::{
+        self,
+        BridgeLock,
+        BridgeSudoChange,
+        BridgeUnlock,
+        FeeAssetChange,
+        FeeChange,
+        IbcRelayerChange,
+        IbcSudoChange,
+        InitBridgeAccount,
+        Sequence,
+        SudoAddressChange,
+        Transfer,
+        ValidatorUpdate,
     },
     sequencerblock::v1alpha1::block::Deposit,
 };
@@ -152,7 +149,7 @@ impl FeeHandler for BridgeSudoChange {
         let fees = state
             .get_bridge_sudo_change_fees()
             .await
-            .wrap_err("bridge sudo chane fees not found, so this action is disabled")?;
+            .wrap_err("bridge sudo change fees not found, so this action is disabled")?;
         check_and_pay_fees(
             self,
             fees.base_fee,
@@ -273,7 +270,7 @@ impl FeeHandler for ValidatorUpdate {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
-            .get_transfer_fees()
+            .get_validator_update_fees()
             .await
             .wrap_err("validator update fees not found, so this action is disabled")?;
         Ok(())
@@ -289,9 +286,9 @@ impl FeeHandler for SudoAddressChange {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
-            .get_transfer_fees()
+            .get_sudo_address_change_fees()
             .await
-            .wrap_err("sudo address fees not found, so this action is disabled")?;
+            .wrap_err("sudo address change fees not found, so this action is disabled")?;
         Ok(())
     }
 
@@ -305,7 +302,7 @@ impl FeeHandler for FeeChange {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
-            .get_transfer_fees()
+            .get_fee_change_fees()
             .await
             .wrap_err("fee change fees not found, so this action is disabled")?;
         Ok(())
@@ -321,7 +318,7 @@ impl FeeHandler for IbcSudoChange {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
-            .get_transfer_fees()
+            .get_ibc_sudo_change_fees()
             .await
             .wrap_err("ibc sudo change fees not found, so this action is disabled")?;
         Ok(())
@@ -337,7 +334,7 @@ impl FeeHandler for IbcRelayerChange {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
-            .get_transfer_fees()
+            .get_ibc_relayer_change_fees()
             .await
             .wrap_err("ibc relayer change fees not found, so this action is disabled")?;
         Ok(())
@@ -353,7 +350,7 @@ impl FeeHandler for FeeAssetChange {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
-            .get_transfer_fees()
+            .get_fee_asset_change_fees()
             .await
             .wrap_err("fee asset change fees not found, so this action is disabled")?;
         Ok(())
@@ -369,9 +366,9 @@ impl FeeHandler for IbcRelay {
     #[instrument(skip_all, err)]
     async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
-            .get_transfer_fees()
+            .get_ibc_relay_fees()
             .await
-            .wrap_err("validator update fees not found, so this action is disabled")?;
+            .wrap_err("ibc relay fees not found, so this action is disabled")?;
         Ok(())
     }
 
@@ -387,14 +384,14 @@ async fn check_and_pay_fees<S: StateWrite>(
     multiplier: u128,
     mut state: S,
     fee_asset: &asset::Denom,
-) -> astria_eyre::eyre::Result<()> {
+) -> eyre::Result<()> {
     let total_fees = base_fee
         .checked_add(
             act.computed_cost_base_component()
                 .checked_mul(multiplier)
-                .ok_or_eyre("fee calculation overflow")?,
+                .ok_or_eyre("fee calculation overflow in multiplication")?,
         )
-        .ok_or_eyre("fee calculation overflow")?;
+        .ok_or_eyre("fee calculation overflow in sum")?;
     let transaction_context = state
         .get_transaction_context()
         .expect("transaction source must be present in state when executing an action");
@@ -453,28 +450,6 @@ pub(crate) fn construct_tx_fee_event(fee: &Fee) -> Event {
             ("sourceActionIndex", fee.source_action_index.to_string()).index(),
         ],
     )
-}
-
-/// Calculates the fee for a sequence `Action` based on the length of the `data`.
-pub(crate) async fn calculate_sequence_action_fee_from_state<S: crate::fees::StateReadExt>(
-    data: &[u8],
-    state: &S,
-) -> eyre::Result<u128> {
-    let SequenceFeeComponents {
-        base_fee,
-        computed_cost_multiplier,
-    } = state.get_sequence_fees().await?;
-    base_fee
-        .checked_add(
-            computed_cost_multiplier
-                .checked_mul(
-                    data.len()
-                        .try_into()
-                        .expect("a usize should always convert to a u128"),
-                )
-                .ok_or_eyre("fee multiplication component overflowed")?,
-        )
-        .ok_or_eyre("fee addition component overflowed")
 }
 
 #[cfg(test)]

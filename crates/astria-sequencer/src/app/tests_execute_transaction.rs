@@ -58,7 +58,6 @@ use crate::{
         StateWriteExt as _,
     },
     fees::{
-        calculate_sequence_action_fee_from_state,
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -66,6 +65,7 @@ use crate::{
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
+        calculate_sequence_action_fee_from_state,
         nria,
         ASTRIA_PREFIX,
     },
@@ -274,9 +274,7 @@ async fn app_execute_transaction_sequence() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_sequence_action_fee_from_state(&data, &app.state)
-        .await
-        .unwrap();
+    let fee = calculate_sequence_action_fee_from_state(&data, &app.state).await;
 
     let tx = UnsignedTransaction::builder()
         .actions(vec![
@@ -934,9 +932,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // figure out needed fee for a single transfer
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_sequence_action_fee_from_state(&data, &app.state.clone())
-        .await
-        .unwrap();
+    let fee = calculate_sequence_action_fee_from_state(&data, &app.state.clone()).await;
 
     // transfer just enough to cover single sequence fee with data
     let signed_tx = UnsignedTransaction::builder()

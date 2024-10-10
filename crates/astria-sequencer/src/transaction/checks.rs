@@ -9,12 +9,19 @@ use astria_core::{
             BridgeUnlockFeeComponents,
             Ics20WithdrawalFeeComponents,
             InitBridgeAccountFeeComponents,
+            SequenceFeeComponents,
             TransferFeeComponents,
         },
         transaction::v1alpha1::{
             action::{
                 Action,
                 BridgeLock,
+                BridgeSudoChange,
+                BridgeUnlock,
+                Ics20Withdrawal,
+                InitBridgeAccount,
+                Sequence,
+                Transfer,
             },
             SignedTransaction,
             UnsignedTransaction,
@@ -61,6 +68,10 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .get_transfer_fees()
         .await
         .wrap_err("failed to get transfer fees")?;
+    let sequence_fees = state
+        .get_sequence_fees()
+        .await
+        .wrap_err("failed to get sequence fees")?;
     let ics20_withdrawal_fees = state
         .get_ics20_withdrawal_fees()
         .await
@@ -86,35 +97,25 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     for action in tx.actions() {
         match action {
             Action::Transfer(act) => {
-                transfer_update_fees(&act.fee_asset, &mut fees_by_asset, &transfer_fees);
+                transfer_update_fees(act, &mut fees_by_asset, &transfer_fees);
             }
             Action::Sequence(act) => {
-                sequence_update_fees(state, &act.fee_asset, &mut fees_by_asset, &act.data).await?;
+                sequence_update_fees(act, &mut fees_by_asset, &sequence_fees);
             }
-            Action::Ics20Withdrawal(act) => ics20_withdrawal_updates_fees(
-                &act.fee_asset,
-                &mut fees_by_asset,
-                &ics20_withdrawal_fees,
-            ),
+            Action::Ics20Withdrawal(act) => {
+                ics20_withdrawal_updates_fees(act, &mut fees_by_asset, &ics20_withdrawal_fees);
+            }
             Action::InitBridgeAccount(act) => {
-                init_bridge_account_update_fees(
-                    &act.fee_asset,
-                    &mut fees_by_asset,
-                    &init_bridge_account_fees,
-                );
+                init_bridge_account_update_fees(act, &mut fees_by_asset, &init_bridge_account_fees);
             }
             Action::BridgeLock(act) => {
                 bridge_lock_update_fees(act, &mut fees_by_asset, &bridge_lock_fees);
             }
             Action::BridgeUnlock(act) => {
-                bridge_unlock_update_fees(&act.fee_asset, &mut fees_by_asset, &bridge_unlock_fees);
+                bridge_unlock_update_fees(act, &mut fees_by_asset, &bridge_unlock_fees);
             }
             Action::BridgeSudoChange(act) => {
-                bridge_sudo_change_update_fees(
-                    &act.fee_asset,
-                    &mut fees_by_asset,
-                    &bridge_sudo_change_fees,
-                );
+                bridge_sudo_change_update_fees(act, &mut fees_by_asset, &bridge_sudo_change_fees);
             }
             Action::ValidatorUpdate(_)
             | Action::SudoAddressChange(_)
@@ -218,49 +219,49 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
 }
 
 fn transfer_update_fees(
-    fee_asset: &asset::Denom,
+    act: &Transfer,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     transfer_fees: &TransferFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
         transfer_fees.base_fee,
         transfer_fees.computed_cost_multiplier,
-        0,
+        act.computed_cost_base_component(),
     );
     fees_by_asset
-        .entry(fee_asset.to_ibc_prefixed())
+        .entry(act.fee_asset.to_ibc_prefixed())
         .and_modify(|amt| *amt = amt.saturating_add(total_fees))
         .or_insert(total_fees);
 }
 
-async fn sequence_update_fees<S: StateRead>(
-    state: &S,
-    fee_asset: &asset::Denom,
+fn sequence_update_fees(
+    act: &Sequence,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    data: &[u8],
-) -> Result<()> {
-    let fee = crate::fees::calculate_sequence_action_fee_from_state(data, state)
-        .await
-        .wrap_err("fee for sequence action overflowed; data too large")?;
+    sequence_fees: &SequenceFeeComponents,
+) {
+    let total_fees = calculate_total_fees(
+        sequence_fees.base_fee,
+        sequence_fees.computed_cost_multiplier,
+        act.computed_cost_base_component(), // data length
+    );
     fees_by_asset
-        .entry(fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(fee))
-        .or_insert(fee);
-    Ok(())
+        .entry(act.fee_asset.to_ibc_prefixed())
+        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
+        .or_insert(total_fees);
 }
 
 fn ics20_withdrawal_updates_fees(
-    fee_asset: &asset::Denom,
+    act: &Ics20Withdrawal,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     ics20_withdrawal_fees: &Ics20WithdrawalFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
         ics20_withdrawal_fees.base_fee,
         ics20_withdrawal_fees.computed_cost_multiplier,
-        0,
+        act.computed_cost_base_component(),
     );
     fees_by_asset
-        .entry(fee_asset.to_ibc_prefixed())
+        .entry(act.fee_asset.to_ibc_prefixed())
         .and_modify(|amt| *amt = amt.saturating_add(total_fees))
         .or_insert(total_fees);
 }
@@ -283,52 +284,52 @@ fn bridge_lock_update_fees(
 }
 
 fn init_bridge_account_update_fees(
-    fee_asset: &asset::Denom,
+    act: &InitBridgeAccount,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     init_bridge_account_fees: &InitBridgeAccountFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
         init_bridge_account_fees.base_fee,
         init_bridge_account_fees.computed_cost_multiplier,
-        0,
+        act.computed_cost_base_component(),
     );
 
     fees_by_asset
-        .entry(fee_asset.to_ibc_prefixed())
+        .entry(act.fee_asset.to_ibc_prefixed())
         .and_modify(|amt| *amt = amt.saturating_add(total_fees))
         .or_insert(total_fees);
 }
 
 fn bridge_unlock_update_fees(
-    fee_asset: &asset::Denom,
+    act: &BridgeUnlock,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     bridge_lock_fees: &BridgeUnlockFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
         bridge_lock_fees.base_fee,
         bridge_lock_fees.computed_cost_multiplier,
-        0,
+        act.computed_cost_base_component(),
     );
 
     fees_by_asset
-        .entry(fee_asset.to_ibc_prefixed())
+        .entry(act.fee_asset.to_ibc_prefixed())
         .and_modify(|amt| *amt = amt.saturating_add(total_fees))
         .or_insert(total_fees);
 }
 
 fn bridge_sudo_change_update_fees(
-    fee_asset: &asset::Denom,
+    act: &BridgeSudoChange,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     bridge_sudo_change_fees: &BridgeSudoChangeFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
         bridge_sudo_change_fees.base_fee,
         bridge_sudo_change_fees.computed_cost_multiplier,
-        0,
+        act.computed_cost_base_component(),
     );
 
     fees_by_asset
-        .entry(fee_asset.to_ibc_prefixed())
+        .entry(act.fee_asset.to_ibc_prefixed())
         .and_modify(|amt| *amt = amt.saturating_add(total_fees))
         .or_insert(total_fees);
 }
@@ -378,7 +379,10 @@ mod tests {
         app::test_utils::*,
         assets::StateWriteExt as _,
         fees::StateWriteExt as _,
-        test_utils::ASTRIA_PREFIX,
+        test_utils::{
+            calculate_sequence_action_fee_from_state,
+            ASTRIA_PREFIX,
+        },
     };
 
     #[tokio::test]
@@ -468,10 +472,7 @@ mod tests {
                     .await
                     .unwrap(),
                 &crate::test_utils::nria(),
-                transfer_fee
-                    + crate::fees::calculate_sequence_action_fee_from_state(&data, &state_tx)
-                        .await
-                        .unwrap(),
+                transfer_fee + calculate_sequence_action_fee_from_state(&data, &state_tx).await,
             )
             .await
             .unwrap();
@@ -600,10 +601,7 @@ mod tests {
                     .await
                     .unwrap(),
                 &crate::test_utils::nria(),
-                transfer_fee
-                    + crate::fees::calculate_sequence_action_fee_from_state(&data, &state_tx)
-                        .await
-                        .unwrap(),
+                transfer_fee + calculate_sequence_action_fee_from_state(&data, &state_tx).await,
             )
             .await
             .unwrap();

@@ -144,7 +144,7 @@ impl ActionHandler for FeeChange {
                 .wrap_err("failed to put bridge unlock fees"),
             Self::BridgeSudoChangeFee(fees) => state
                 .put_bridge_sudo_change_fees(*fees)
-                .wrap_err("failed to put bridge sudo change base fees"),
+                .wrap_err("failed to put bridge sudo change fees"),
             Self::IbcRelayFee(fees) => state
                 .put_ibc_relay_fees(*fees)
                 .wrap_err("failed to put ibc relay fees"),
