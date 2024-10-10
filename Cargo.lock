@@ -706,13 +706,14 @@ dependencies = [
  "ibc-types",
  "indexmap 2.4.0",
  "insta",
- "pbjson",
+ "pbjson 0.6.0 (git+https://github.com/astriaorg/pbjson.git?branch=url-safe)",
  "pbjson-types",
  "penumbra-ibc",
  "penumbra-proto",
  "prost",
  "rand 0.8.5",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
  "tempfile",
  "tendermint",
@@ -5390,6 +5391,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pbjson"
+version = "0.6.0"
+source = "git+https://github.com/astriaorg/pbjson.git?branch=url-safe#91fffd74719f836bb810c55899fed4654fc6a7f8"
+dependencies = [
+ "base64 0.21.7",
+ "serde",
+]
+
+[[package]]
 name = "pbjson-build"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5409,7 +5419,7 @@ checksum = "18f596653ba4ac51bdecbb4ef6773bc7f56042dc13927910de1684ad3d32aa12"
 dependencies = [
  "bytes",
  "chrono",
- "pbjson",
+ "pbjson 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pbjson-build",
  "prost",
  "prost-build",
@@ -5672,7 +5682,7 @@ dependencies = [
  "ibc-proto",
  "ibc-types",
  "ics23",
- "pbjson",
+ "pbjson 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pbjson-types",
  "pin-project",
  "prost",

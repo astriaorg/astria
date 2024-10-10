@@ -786,6 +786,7 @@ mod tests {
         AddressError,
         AddressErrorKind,
         Bech32m,
+        RollupId,
         ADDRESS_LEN,
     };
     use crate::primitive::v1::Bech32;
@@ -918,6 +919,18 @@ mod tests {
             .try_build()
             .unwrap();
         let _ = address.into_raw();
+    }
+
+    #[test]
+    fn pbjson_base64_should_be_url_safe() {
+        // With standard encoding this is "/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v4=", and with
+        // URL-safe "_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v4=".
+        let rollup_id = RollupId::new([254; 32]);
+        let encoded = serde_json::to_string(&rollup_id.into_raw()).unwrap();
+        assert!(!encoded.contains('/'));
+        assert!(!encoded.contains('+'));
+        assert!(encoded.contains('_'));
+        assert!(encoded.contains('-'));
     }
 
     #[cfg(feature = "unchecked-constructors")]
