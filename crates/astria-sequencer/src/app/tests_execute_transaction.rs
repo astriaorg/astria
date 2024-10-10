@@ -7,6 +7,10 @@ use astria_core::{
         RollupId,
     },
     protocol::{
+        fees::v1alpha1::{
+            InitBridgeAccountFeeComponents,
+            SequenceFeeComponents,
+        },
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
             action::{
@@ -53,11 +57,15 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    fees::calculate_sequence_action_fee_from_state,
+    fees::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     ibc::StateReadExt as _,
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
+        calculate_sequence_action_fee_from_state,
         nria,
         ASTRIA_PREFIX,
     },
@@ -127,13 +135,13 @@ async fn app_execute_transaction_transfer() {
             .unwrap(),
         value + 10u128.pow(19)
     );
-    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    let transfer_base_fee = app.state.get_transfer_fees().await.unwrap().base_fee;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
             .await
             .unwrap(),
-        10u128.pow(19) - (value + transfer_fee),
+        10u128.pow(19) - (value + transfer_base_fee),
     );
     assert_eq!(app.state.get_account_nonce(&bob_address).await.unwrap(), 0);
     assert_eq!(
@@ -193,13 +201,13 @@ async fn app_execute_transaction_transfer_not_native_token() {
         value, // transferred amount
     );
 
-    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    let transfer_base_fee = app.state.get_transfer_fees().await.unwrap().base_fee;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
             .await
             .unwrap(),
-        10u128.pow(19) - transfer_fee, // genesis balance - fee
+        10u128.pow(19) - transfer_base_fee, // genesis balance - fee
     );
     assert_eq!(
         app.state
@@ -253,22 +261,20 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
 
 #[tokio::test]
 async fn app_execute_transaction_sequence() {
-    use crate::sequence::StateWriteExt as _;
-
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_sequence_action_base_fee(0).unwrap();
     state_tx
-        .put_sequence_action_byte_cost_multiplier(1)
+        .put_sequence_fees(SequenceFeeComponents {
+            base_fee: 0,
+            computed_cost_multiplier: 1,
+        })
         .unwrap();
     app.apply(state_tx);
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_sequence_action_fee_from_state(&data, &app.state)
-        .await
-        .unwrap();
+    let fee = calculate_sequence_action_fee_from_state(&data, &app.state).await;
 
     let tx = UnsignedTransaction::builder()
         .actions(vec![
@@ -595,7 +601,12 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     let fee = 12; // arbitrary
-    state_tx.put_init_bridge_account_base_fee(fee).unwrap();
+    state_tx
+        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
+            base_fee: fee,
+            computed_cost_multiplier: 0,
+        })
+        .unwrap();
     app.apply(state_tx);
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -742,7 +753,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         app.state.get_account_nonce(&alice_address).await.unwrap(),
         1
     );
-    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    let transfer_base_fee = app.state.get_transfer_fees().await.unwrap().base_fee;
     let expected_deposit = Deposit {
         bridge_address,
         rollup_id,
@@ -753,13 +764,18 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         source_action_index: starting_index_of_action,
     };
 
-    let fee = transfer_fee
+    let fee = transfer_base_fee
         + app
             .state
-            .get_bridge_lock_byte_cost_multiplier()
+            .get_bridge_lock_fees()
             .await
             .unwrap()
-            * crate::fees::calculate_base_deposit_fee(&expected_deposit).unwrap();
+            .computed_cost_multiplier
+            * crate::fees::calculate_base_deposit_fee(
+                &expected_deposit.asset,
+                &expected_deposit.destination_chain_address,
+            )
+            .unwrap();
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -920,9 +936,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // figure out needed fee for a single transfer
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_sequence_action_fee_from_state(&data, &app.state.clone())
-        .await
-        .unwrap();
+    let fee = calculate_sequence_action_fee_from_state(&data, &app.state.clone()).await;
 
     // transfer just enough to cover single sequence fee with data
     let signed_tx = UnsignedTransaction::builder()
@@ -1007,9 +1021,9 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
 
     // give bridge eoa funds so it can pay for the
     // unlock transfer action
-    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    let transfer_base_fee = app.state.get_transfer_fees().await.unwrap().base_fee;
     state_tx
-        .put_account_balance(&bridge_address, &nria(), transfer_fee)
+        .put_account_balance(&bridge_address, &nria(), transfer_base_fee)
         .unwrap();
 
     // create bridge account

@@ -399,35 +399,63 @@ impl ::prost::Name for BridgeSudoChange {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FeeChange {
-    /// note that the proto number ranges are doubled from that of `Action`.
-    /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
-    #[prost(oneof = "fee_change::Value", tags = "1, 2, 3, 20, 21, 22, 40")]
-    pub value: ::core::option::Option<fee_change::Value>,
+    /// the new fee components values
+    #[prost(
+        oneof = "fee_change::FeeComponents",
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14"
+    )]
+    pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
 /// Nested message and enum types in `FeeChange`.
 pub mod fee_change {
-    /// note that the proto number ranges are doubled from that of `Action`.
-    /// this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
+    /// the new fee components values
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Value {
-        /// core protocol fees are defined on 1-20
+    pub enum FeeComponents {
         #[prost(message, tag = "1")]
-        TransferBaseFee(super::super::super::super::primitive::v1::Uint128),
+        TransferFees(super::super::super::fees::v1alpha1::TransferFeeComponents),
         #[prost(message, tag = "2")]
-        SequenceBaseFee(super::super::super::super::primitive::v1::Uint128),
+        SequenceFees(super::super::super::fees::v1alpha1::SequenceFeeComponents),
         #[prost(message, tag = "3")]
-        SequenceByteCostMultiplier(super::super::super::super::primitive::v1::Uint128),
-        /// bridge fees are defined on 20-39
-        #[prost(message, tag = "20")]
-        InitBridgeAccountBaseFee(super::super::super::super::primitive::v1::Uint128),
-        #[prost(message, tag = "21")]
-        BridgeLockByteCostMultiplier(super::super::super::super::primitive::v1::Uint128),
-        #[prost(message, tag = "22")]
-        BridgeSudoChangeBaseFee(super::super::super::super::primitive::v1::Uint128),
-        /// ibc fees are defined on 40-59
-        #[prost(message, tag = "40")]
-        Ics20WithdrawalBaseFee(super::super::super::super::primitive::v1::Uint128),
+        InitBridgeAccountFees(
+            super::super::super::fees::v1alpha1::InitBridgeAccountFeeComponents,
+        ),
+        #[prost(message, tag = "4")]
+        BridgeLockFees(super::super::super::fees::v1alpha1::BridgeLockFeeComponents),
+        #[prost(message, tag = "5")]
+        BridgeUnlockFees(super::super::super::fees::v1alpha1::BridgeUnlockFeeComponents),
+        #[prost(message, tag = "6")]
+        BridgeSudoChangeFees(
+            super::super::super::fees::v1alpha1::BridgeSudoChangeFeeComponents,
+        ),
+        #[prost(message, tag = "7")]
+        Ics20WithdrawalFees(
+            super::super::super::fees::v1alpha1::Ics20WithdrawalFeeComponents,
+        ),
+        #[prost(message, tag = "8")]
+        IbcRelayFees(super::super::super::fees::v1alpha1::IbcRelayFeeComponents),
+        #[prost(message, tag = "9")]
+        ValidatorUpdateFees(
+            super::super::super::fees::v1alpha1::ValidatorUpdateFeeComponents,
+        ),
+        #[prost(message, tag = "10")]
+        FeeAssetChangeFees(
+            super::super::super::fees::v1alpha1::FeeAssetChangeFeeComponents,
+        ),
+        #[prost(message, tag = "11")]
+        FeeChangeFees(super::super::super::fees::v1alpha1::FeeChangeFeeComponents),
+        #[prost(message, tag = "12")]
+        IbcRelayerChangeFees(
+            super::super::super::fees::v1alpha1::IbcRelayerChangeFeeComponents,
+        ),
+        #[prost(message, tag = "13")]
+        SudoAddressChangeFees(
+            super::super::super::fees::v1alpha1::SudoAddressChangeFeeComponents,
+        ),
+        #[prost(message, tag = "14")]
+        IbcSudoChangeFees(
+            super::super::super::fees::v1alpha1::IbcSudoChangeFeeComponents,
+        ),
     }
 }
 impl ::prost::Name for FeeChange {
@@ -457,25 +485,10 @@ pub struct TransactionFeeResponse {
     #[prost(uint64, tag = "2")]
     pub height: u64,
     #[prost(message, repeated, tag = "3")]
-    pub fees: ::prost::alloc::vec::Vec<TransactionFee>,
+    pub fees: ::prost::alloc::vec::Vec<super::super::fees::v1alpha1::TransactionFee>,
 }
 impl ::prost::Name for TransactionFeeResponse {
     const NAME: &'static str = "TransactionFeeResponse";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TransactionFee {
-    #[prost(string, tag = "1")]
-    pub asset: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "2")]
-    pub fee: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-}
-impl ::prost::Name for TransactionFee {
-    const NAME: &'static str = "TransactionFee";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)

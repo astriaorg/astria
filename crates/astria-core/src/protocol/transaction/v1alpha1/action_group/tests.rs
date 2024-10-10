@@ -7,28 +7,30 @@ use crate::{
         Address,
         RollupId,
     },
-    protocol::transaction::v1alpha1::{
-        action::{
-            Action,
-            BridgeLock,
-            BridgeSudoChange,
-            BridgeUnlock,
-            FeeAssetChange,
-            FeeChange,
-            FeeChangeKind,
-            IbcRelayerChange,
-            IbcSudoChange,
-            Ics20Withdrawal,
-            InitBridgeAccount,
-            Sequence,
-            SudoAddressChange,
-            Transfer,
-            ValidatorUpdate,
-        },
-        action_group::{
-            ActionGroup,
-            Actions,
-            ErrorKind,
+    protocol::{
+        fees::v1alpha1::TransferFeeComponents,
+        transaction::v1alpha1::{
+            action::{
+                Action,
+                BridgeLock,
+                BridgeSudoChange,
+                BridgeUnlock,
+                FeeAssetChange,
+                FeeChange,
+                IbcRelayerChange,
+                IbcSudoChange,
+                Ics20Withdrawal,
+                InitBridgeAccount,
+                Sequence,
+                SudoAddressChange,
+                Transfer,
+                ValidatorUpdate,
+            },
+            action_group::{
+                ActionGroup,
+                Actions,
+                ErrorKind,
+            },
         },
     },
 };
@@ -106,10 +108,10 @@ fn from_list_of_actions_bundleable_sudo() {
 
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
-        Action::FeeChange(FeeChange {
-            fee_change: FeeChangeKind::TransferBaseFee,
-            new_value: 100,
-        }),
+        Action::FeeChange(FeeChange::TransferFee(TransferFeeComponents {
+            base_fee: 12,
+            computed_cost_multiplier: 0,
+        })),
         Action::FeeAssetChange(FeeAssetChange::Addition(asset)),
         Action::IbcRelayerChange(IbcRelayerChange::Addition(address)),
     ];

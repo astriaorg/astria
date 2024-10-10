@@ -97,6 +97,19 @@ pub mod protocol {
         pub mod v1alpha1;
     }
     #[path = ""]
+    pub mod fees {
+        #[path = "astria.protocol.fees.v1alpha1.rs"]
+        pub mod v1alpha1 {
+            include!("astria.protocol.fees.v1alpha1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impls {
+                use super::*;
+                include!("astria.protocol.fees.v1alpha1.serde.rs");
+            }
+        }
+    }
+    #[path = ""]
     pub mod genesis {
         pub mod v1alpha1 {
             include!("astria.protocol.genesis.v1alpha1.rs");

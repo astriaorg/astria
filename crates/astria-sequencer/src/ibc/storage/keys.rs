@@ -12,7 +12,6 @@ use crate::{
 };
 
 pub(in crate::ibc) const IBC_SUDO: &str = "ibc/sudo";
-pub(in crate::ibc) const ICS20_WITHDRAWAL_BASE_FEE: &str = "ibc/ics20_withdrawal_base_fee";
 const IBC_RELAYER_PREFIX: &str = "ibc/relayer/";
 
 /// Example: `ibc/channel-xxx/balance/ibc/0101....0101`.
@@ -58,7 +57,6 @@ mod tests {
     #[test]
     fn keys_should_not_change() {
         insta::assert_snapshot!(IBC_SUDO);
-        insta::assert_snapshot!(ICS20_WITHDRAWAL_BASE_FEE);
         insta::assert_snapshot!(channel_balance(&channel_id(), &asset()));
         insta::assert_snapshot!(ibc_relayer(&address()));
     }
@@ -66,7 +64,6 @@ mod tests {
     #[test]
     fn keys_should_have_component_prefix() {
         assert!(IBC_SUDO.starts_with(COMPONENT_PREFIX));
-        assert!(ICS20_WITHDRAWAL_BASE_FEE.starts_with(COMPONENT_PREFIX));
         assert!(channel_balance(&channel_id(), &asset()).starts_with(COMPONENT_PREFIX));
         assert!(ibc_relayer(&address()).starts_with(COMPONENT_PREFIX));
     }

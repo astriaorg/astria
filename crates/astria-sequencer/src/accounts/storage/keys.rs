@@ -15,7 +15,6 @@ use crate::{
     },
 };
 
-pub(in crate::accounts) const TRANSFER_BASE_FEE: &str = "accounts/transfer_base_fee";
 const COMPONENT_PREFIX: &str = "accounts/";
 const BALANCE_PREFIX: &str = "balance/";
 const NONCE: &str = "nonce";
@@ -86,14 +85,12 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(TRANSFER_BASE_FEE);
         insta::assert_snapshot!(balance(&address(), &asset()));
         insta::assert_snapshot!(nonce(&address()));
     }
 
     #[test]
     fn keys_should_have_component_prefix() {
-        assert!(TRANSFER_BASE_FEE.starts_with(COMPONENT_PREFIX));
         assert!(balance(&address(), &asset()).starts_with(COMPONENT_PREFIX));
         assert!(nonce(&address()).starts_with(COMPONENT_PREFIX));
     }

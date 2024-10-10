@@ -16,6 +16,23 @@ use crate::{
         Bech32,
         Bech32m,
     },
+    protocol::fees::v1alpha1::{
+        BridgeLockFeeComponents,
+        BridgeSudoChangeFeeComponents,
+        BridgeUnlockFeeComponents,
+        FeeAssetChangeFeeComponents,
+        FeeChangeFeeComponents,
+        FeeComponentError,
+        IbcRelayFeeComponents,
+        IbcRelayerChangeFeeComponents,
+        IbcSudoChangeFeeComponents,
+        Ics20WithdrawalFeeComponents,
+        InitBridgeAccountFeeComponents,
+        SequenceFeeComponents,
+        SudoAddressChangeFeeComponents,
+        TransferFeeComponents,
+        ValidatorUpdateFeeComponents,
+    },
     Protobuf,
 };
 
@@ -39,7 +56,7 @@ pub struct GenesisAppState {
     native_asset_base_denomination: asset::TracePrefixed,
     ibc_parameters: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
-    fees: Fees,
+    fees: GenesisFees,
 }
 
 impl GenesisAppState {
@@ -89,7 +106,7 @@ impl GenesisAppState {
     }
 
     #[must_use]
-    pub fn fees(&self) -> &Fees {
+    pub fn fees(&self) -> &GenesisFees {
         &self.fees
     }
 
@@ -199,7 +216,7 @@ impl Protobuf for GenesisAppState {
         let fees = fees
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("fees"))
-            .and_then(|fees| Fees::try_from_raw_ref(fees).map_err(Self::Error::fees))?;
+            .and_then(|fees| GenesisFees::try_from_raw_ref(fees).map_err(Self::Error::fees))?;
 
         let this = Self {
             address_prefixes,
@@ -542,80 +559,183 @@ impl From<raw::IbcParameters> for IBCParameters {
 }
 
 #[derive(Clone, Debug)]
-pub struct Fees {
-    pub transfer_base_fee: u128,
-    pub sequence_base_fee: u128,
-    pub sequence_byte_cost_multiplier: u128,
-    pub init_bridge_account_base_fee: u128,
-    pub bridge_lock_byte_cost_multiplier: u128,
-    pub bridge_sudo_change_fee: u128,
-    pub ics20_withdrawal_base_fee: u128,
+pub struct GenesisFees {
+    pub sequence: SequenceFeeComponents,
+    pub transfer: TransferFeeComponents,
+    pub ics20_withdrawal: Ics20WithdrawalFeeComponents,
+    pub init_bridge_account: InitBridgeAccountFeeComponents,
+    pub bridge_lock: BridgeLockFeeComponents,
+    pub bridge_unlock: BridgeUnlockFeeComponents,
+    pub bridge_sudo_change: BridgeSudoChangeFeeComponents,
+    pub ibc_relay: IbcRelayFeeComponents,
+    pub validator_update: ValidatorUpdateFeeComponents,
+    pub fee_asset_change: FeeAssetChangeFeeComponents,
+    pub fee_change: FeeChangeFeeComponents,
+    pub ibc_relayer_change: IbcRelayerChangeFeeComponents,
+    pub sudo_address_change: SudoAddressChangeFeeComponents,
+    pub ibc_sudo_change: IbcSudoChangeFeeComponents,
 }
 
-impl Protobuf for Fees {
+impl Protobuf for GenesisFees {
     type Error = FeesError;
-    type Raw = raw::Fees;
+    type Raw = raw::GenesisFees;
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "barring use of a macro, all lines are necessary"
+    )]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
-            transfer_base_fee,
-            sequence_base_fee,
-            sequence_byte_cost_multiplier,
-            init_bridge_account_base_fee,
-            bridge_lock_byte_cost_multiplier,
-            bridge_sudo_change_fee,
-            ics20_withdrawal_base_fee,
+            sequence,
+            transfer,
+            ics20_withdrawal,
+            init_bridge_account,
+            bridge_lock,
+            bridge_unlock,
+            bridge_sudo_change,
+            ibc_relay,
+            validator_update,
+            fee_asset_change,
+            fee_change,
+            ibc_relayer_change,
+            sudo_address_change,
+            ibc_sudo_change,
         } = raw;
-        let transfer_base_fee = transfer_base_fee
-            .ok_or_else(|| Self::Error::field_not_set("transfer_base_fee"))?
-            .into();
-        let sequence_base_fee = sequence_base_fee
-            .ok_or_else(|| Self::Error::field_not_set("sequence_base_fee"))?
-            .into();
-        let sequence_byte_cost_multiplier = sequence_byte_cost_multiplier
-            .ok_or_else(|| Self::Error::field_not_set("sequence_byte_cost_multiplier"))?
-            .into();
-        let init_bridge_account_base_fee = init_bridge_account_base_fee
-            .ok_or_else(|| Self::Error::field_not_set("init_bridge_account_base_fee"))?
-            .into();
-        let bridge_lock_byte_cost_multiplier = bridge_lock_byte_cost_multiplier
-            .ok_or_else(|| Self::Error::field_not_set("bridge_lock_byte_cost_multiplier"))?
-            .into();
-        let bridge_sudo_change_fee = bridge_sudo_change_fee
-            .ok_or_else(|| Self::Error::field_not_set("bridge_sudo_change_fee"))?
-            .into();
-        let ics20_withdrawal_base_fee = ics20_withdrawal_base_fee
-            .ok_or_else(|| Self::Error::field_not_set("ics20_withdrawal_base_fee"))?
-            .into();
+        let sequence = SequenceFeeComponents::try_from_raw(
+            sequence
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("sequence"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let transfer = TransferFeeComponents::try_from_raw(
+            transfer
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("transfer"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let ics20_withdrawal = Ics20WithdrawalFeeComponents::try_from_raw(
+            ics20_withdrawal
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("ics20_withdrawal"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let init_bridge_account = InitBridgeAccountFeeComponents::try_from_raw(
+            init_bridge_account
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("init_bridge_account"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let bridge_lock = BridgeLockFeeComponents::try_from_raw(
+            bridge_lock
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("bridge_lock"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let bridge_unlock = BridgeUnlockFeeComponents::try_from_raw(
+            bridge_unlock
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("bridge_unlock"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let bridge_sudo_change = BridgeSudoChangeFeeComponents::try_from_raw(
+            bridge_sudo_change
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("bridge_sudo_change"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let ibc_relay = IbcRelayFeeComponents::try_from_raw(
+            ibc_relay
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("ibc_relay"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let validator_update = ValidatorUpdateFeeComponents::try_from_raw(
+            validator_update
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("validator_update"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let fee_asset_change = FeeAssetChangeFeeComponents::try_from_raw(
+            fee_asset_change
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("fee_asset_change"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let fee_change = FeeChangeFeeComponents::try_from_raw(
+            fee_change
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("fee_change"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let ibc_relayer_change = IbcRelayerChangeFeeComponents::try_from_raw(
+            ibc_relayer_change
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("ibc_relayer_change"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let sudo_address_change = SudoAddressChangeFeeComponents::try_from_raw(
+            sudo_address_change
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("sudo_address_change"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+        let ibc_sudo_change = IbcSudoChangeFeeComponents::try_from_raw(
+            ibc_sudo_change
+                .clone()
+                .ok_or_else(|| Self::Error::field_not_set("ibc_sudo_change"))?,
+        )
+        .map_err(FeesError::fee_components_conversion)?;
+
         Ok(Self {
-            transfer_base_fee,
-            sequence_base_fee,
-            sequence_byte_cost_multiplier,
-            init_bridge_account_base_fee,
-            bridge_lock_byte_cost_multiplier,
-            bridge_sudo_change_fee,
-            ics20_withdrawal_base_fee,
+            sequence,
+            transfer,
+            ics20_withdrawal,
+            init_bridge_account,
+            bridge_lock,
+            bridge_unlock,
+            bridge_sudo_change,
+            ibc_relay,
+            validator_update,
+            fee_asset_change,
+            fee_change,
+            ibc_relayer_change,
+            sudo_address_change,
+            ibc_sudo_change,
         })
     }
 
     fn to_raw(&self) -> Self::Raw {
         let Self {
-            transfer_base_fee,
-            sequence_base_fee,
-            sequence_byte_cost_multiplier,
-            init_bridge_account_base_fee,
-            bridge_lock_byte_cost_multiplier,
-            bridge_sudo_change_fee,
-            ics20_withdrawal_base_fee,
+            sequence,
+            transfer,
+            ics20_withdrawal,
+            init_bridge_account,
+            bridge_lock,
+            bridge_unlock,
+            bridge_sudo_change,
+            ibc_relay,
+            validator_update,
+            fee_asset_change,
+            fee_change,
+            ibc_relayer_change,
+            sudo_address_change,
+            ibc_sudo_change,
         } = self;
         Self::Raw {
-            transfer_base_fee: Some(transfer_base_fee.into()),
-            sequence_base_fee: Some(sequence_base_fee.into()),
-            sequence_byte_cost_multiplier: Some(sequence_byte_cost_multiplier.into()),
-            init_bridge_account_base_fee: Some(init_bridge_account_base_fee.into()),
-            bridge_lock_byte_cost_multiplier: Some(bridge_lock_byte_cost_multiplier.into()),
-            bridge_sudo_change_fee: Some(bridge_sudo_change_fee.into()),
-            ics20_withdrawal_base_fee: Some(ics20_withdrawal_base_fee.into()),
+            transfer: Some(transfer.to_raw()),
+            sequence: Some(sequence.to_raw()),
+            ics20_withdrawal: Some(ics20_withdrawal.to_raw()),
+            init_bridge_account: Some(init_bridge_account.to_raw()),
+            bridge_lock: Some(bridge_lock.to_raw()),
+            bridge_unlock: Some(bridge_unlock.to_raw()),
+            bridge_sudo_change: Some(bridge_sudo_change.to_raw()),
+            ibc_relay: Some(ibc_relay.to_raw()),
+            validator_update: Some(validator_update.to_raw()),
+            fee_asset_change: Some(fee_asset_change.to_raw()),
+            fee_change: Some(fee_change.to_raw()),
+            ibc_relayer_change: Some(ibc_relayer_change.to_raw()),
+            sudo_address_change: Some(sudo_address_change.to_raw()),
+            ibc_sudo_change: Some(ibc_sudo_change.to_raw()),
         }
     }
 }
@@ -630,6 +750,10 @@ impl FeesError {
             name,
         })
     }
+
+    fn fee_components_conversion(err: FeeComponentError) -> Self {
+        Self(FeesErrorKind::FeeComponentsConversion(err))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -637,8 +761,9 @@ impl FeesError {
 enum FeesErrorKind {
     #[error("field was not set: `{name}`")]
     FieldNotSet { name: &'static str },
+    #[error("conversion of fee components failed")]
+    FeeComponentsConversion(#[source] FeeComponentError),
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -678,6 +803,7 @@ mod tests {
             .unwrap()
     }
 
+    #[expect(clippy::too_many_lines, reason = "for testing purposes")]
     fn proto_genesis_state() -> raw::GenesisAppState {
         raw::GenesisAppState {
             accounts: vec![
@@ -709,14 +835,105 @@ mod tests {
                 outbound_ics20_transfers_enabled: true,
             }),
             allowed_fee_assets: vec!["nria".into()],
-            fees: Some(raw::Fees {
-                transfer_base_fee: Some(12.into()),
-                sequence_base_fee: Some(32.into()),
-                sequence_byte_cost_multiplier: Some(1.into()),
-                init_bridge_account_base_fee: Some(48.into()),
-                bridge_lock_byte_cost_multiplier: Some(1.into()),
-                bridge_sudo_change_fee: Some(24.into()),
-                ics20_withdrawal_base_fee: Some(24.into()),
+            fees: Some(raw::GenesisFees {
+                transfer: Some(
+                    TransferFeeComponents {
+                        base_fee: 12,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                sequence: Some(
+                    SequenceFeeComponents {
+                        base_fee: 32,
+                        computed_cost_multiplier: 1,
+                    }
+                    .to_raw(),
+                ),
+                init_bridge_account: Some(
+                    InitBridgeAccountFeeComponents {
+                        base_fee: 48,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                bridge_lock: Some(
+                    BridgeLockFeeComponents {
+                        base_fee: 12,
+                        computed_cost_multiplier: 1,
+                    }
+                    .to_raw(),
+                ),
+                bridge_unlock: Some(
+                    BridgeUnlockFeeComponents {
+                        base_fee: 12,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                bridge_sudo_change: Some(
+                    BridgeSudoChangeFeeComponents {
+                        base_fee: 24,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                ics20_withdrawal: Some(
+                    Ics20WithdrawalFeeComponents {
+                        base_fee: 24,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                ibc_relay: Some(
+                    IbcRelayFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                validator_update: Some(
+                    ValidatorUpdateFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                fee_asset_change: Some(
+                    FeeAssetChangeFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                fee_change: Some(
+                    FeeChangeFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                ibc_relayer_change: Some(
+                    IbcRelayerChangeFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                sudo_address_change: Some(
+                    SudoAddressChangeFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
+                ibc_sudo_change: Some(
+                    IbcSudoChangeFeeComponents {
+                        base_fee: 0,
+                        computed_cost_multiplier: 0,
+                    }
+                    .to_raw(),
+                ),
             }),
         }
     }

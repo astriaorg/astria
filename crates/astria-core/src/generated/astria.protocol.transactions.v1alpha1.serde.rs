@@ -896,32 +896,53 @@ impl serde::Serialize for FeeChange {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.value.is_some() {
+        if self.fee_components.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.FeeChange", len)?;
-        if let Some(v) = self.value.as_ref() {
+        if let Some(v) = self.fee_components.as_ref() {
             match v {
-                fee_change::Value::TransferBaseFee(v) => {
-                    struct_ser.serialize_field("transferBaseFee", v)?;
+                fee_change::FeeComponents::TransferFees(v) => {
+                    struct_ser.serialize_field("transferFees", v)?;
                 }
-                fee_change::Value::SequenceBaseFee(v) => {
-                    struct_ser.serialize_field("sequenceBaseFee", v)?;
+                fee_change::FeeComponents::SequenceFees(v) => {
+                    struct_ser.serialize_field("sequenceFees", v)?;
                 }
-                fee_change::Value::SequenceByteCostMultiplier(v) => {
-                    struct_ser.serialize_field("sequenceByteCostMultiplier", v)?;
+                fee_change::FeeComponents::InitBridgeAccountFees(v) => {
+                    struct_ser.serialize_field("initBridgeAccountFees", v)?;
                 }
-                fee_change::Value::InitBridgeAccountBaseFee(v) => {
-                    struct_ser.serialize_field("initBridgeAccountBaseFee", v)?;
+                fee_change::FeeComponents::BridgeLockFees(v) => {
+                    struct_ser.serialize_field("bridgeLockFees", v)?;
                 }
-                fee_change::Value::BridgeLockByteCostMultiplier(v) => {
-                    struct_ser.serialize_field("bridgeLockByteCostMultiplier", v)?;
+                fee_change::FeeComponents::BridgeUnlockFees(v) => {
+                    struct_ser.serialize_field("bridgeUnlockFees", v)?;
                 }
-                fee_change::Value::BridgeSudoChangeBaseFee(v) => {
-                    struct_ser.serialize_field("bridgeSudoChangeBaseFee", v)?;
+                fee_change::FeeComponents::BridgeSudoChangeFees(v) => {
+                    struct_ser.serialize_field("bridgeSudoChangeFees", v)?;
                 }
-                fee_change::Value::Ics20WithdrawalBaseFee(v) => {
-                    struct_ser.serialize_field("ics20WithdrawalBaseFee", v)?;
+                fee_change::FeeComponents::Ics20WithdrawalFees(v) => {
+                    struct_ser.serialize_field("ics20WithdrawalFees", v)?;
+                }
+                fee_change::FeeComponents::IbcRelayFees(v) => {
+                    struct_ser.serialize_field("ibcRelayFees", v)?;
+                }
+                fee_change::FeeComponents::ValidatorUpdateFees(v) => {
+                    struct_ser.serialize_field("validatorUpdateFees", v)?;
+                }
+                fee_change::FeeComponents::FeeAssetChangeFees(v) => {
+                    struct_ser.serialize_field("feeAssetChangeFees", v)?;
+                }
+                fee_change::FeeComponents::FeeChangeFees(v) => {
+                    struct_ser.serialize_field("feeChangeFees", v)?;
+                }
+                fee_change::FeeComponents::IbcRelayerChangeFees(v) => {
+                    struct_ser.serialize_field("ibcRelayerChangeFees", v)?;
+                }
+                fee_change::FeeComponents::SudoAddressChangeFees(v) => {
+                    struct_ser.serialize_field("sudoAddressChangeFees", v)?;
+                }
+                fee_change::FeeComponents::IbcSudoChangeFees(v) => {
+                    struct_ser.serialize_field("ibcSudoChangeFees", v)?;
                 }
             }
         }
@@ -935,31 +956,52 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "transfer_base_fee",
-            "transferBaseFee",
-            "sequence_base_fee",
-            "sequenceBaseFee",
-            "sequence_byte_cost_multiplier",
-            "sequenceByteCostMultiplier",
-            "init_bridge_account_base_fee",
-            "initBridgeAccountBaseFee",
-            "bridge_lock_byte_cost_multiplier",
-            "bridgeLockByteCostMultiplier",
-            "bridge_sudo_change_base_fee",
-            "bridgeSudoChangeBaseFee",
-            "ics20_withdrawal_base_fee",
-            "ics20WithdrawalBaseFee",
+            "transfer_fees",
+            "transferFees",
+            "sequence_fees",
+            "sequenceFees",
+            "init_bridge_account_fees",
+            "initBridgeAccountFees",
+            "bridge_lock_fees",
+            "bridgeLockFees",
+            "bridge_unlock_fees",
+            "bridgeUnlockFees",
+            "bridge_sudo_change_fees",
+            "bridgeSudoChangeFees",
+            "ics20_withdrawal_fees",
+            "ics20WithdrawalFees",
+            "ibc_relay_fees",
+            "ibcRelayFees",
+            "validator_update_fees",
+            "validatorUpdateFees",
+            "fee_asset_change_fees",
+            "feeAssetChangeFees",
+            "fee_change_fees",
+            "feeChangeFees",
+            "ibc_relayer_change_fees",
+            "ibcRelayerChangeFees",
+            "sudo_address_change_fees",
+            "sudoAddressChangeFees",
+            "ibc_sudo_change_fees",
+            "ibcSudoChangeFees",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            TransferBaseFee,
-            SequenceBaseFee,
-            SequenceByteCostMultiplier,
-            InitBridgeAccountBaseFee,
-            BridgeLockByteCostMultiplier,
-            BridgeSudoChangeBaseFee,
-            Ics20WithdrawalBaseFee,
+            TransferFees,
+            SequenceFees,
+            InitBridgeAccountFees,
+            BridgeLockFees,
+            BridgeUnlockFees,
+            BridgeSudoChangeFees,
+            Ics20WithdrawalFees,
+            IbcRelayFees,
+            ValidatorUpdateFees,
+            FeeAssetChangeFees,
+            FeeChangeFees,
+            IbcRelayerChangeFees,
+            SudoAddressChangeFees,
+            IbcSudoChangeFees,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -981,13 +1023,20 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                         E: serde::de::Error,
                     {
                         match value {
-                            "transferBaseFee" | "transfer_base_fee" => Ok(GeneratedField::TransferBaseFee),
-                            "sequenceBaseFee" | "sequence_base_fee" => Ok(GeneratedField::SequenceBaseFee),
-                            "sequenceByteCostMultiplier" | "sequence_byte_cost_multiplier" => Ok(GeneratedField::SequenceByteCostMultiplier),
-                            "initBridgeAccountBaseFee" | "init_bridge_account_base_fee" => Ok(GeneratedField::InitBridgeAccountBaseFee),
-                            "bridgeLockByteCostMultiplier" | "bridge_lock_byte_cost_multiplier" => Ok(GeneratedField::BridgeLockByteCostMultiplier),
-                            "bridgeSudoChangeBaseFee" | "bridge_sudo_change_base_fee" => Ok(GeneratedField::BridgeSudoChangeBaseFee),
-                            "ics20WithdrawalBaseFee" | "ics20_withdrawal_base_fee" => Ok(GeneratedField::Ics20WithdrawalBaseFee),
+                            "transferFees" | "transfer_fees" => Ok(GeneratedField::TransferFees),
+                            "sequenceFees" | "sequence_fees" => Ok(GeneratedField::SequenceFees),
+                            "initBridgeAccountFees" | "init_bridge_account_fees" => Ok(GeneratedField::InitBridgeAccountFees),
+                            "bridgeLockFees" | "bridge_lock_fees" => Ok(GeneratedField::BridgeLockFees),
+                            "bridgeUnlockFees" | "bridge_unlock_fees" => Ok(GeneratedField::BridgeUnlockFees),
+                            "bridgeSudoChangeFees" | "bridge_sudo_change_fees" => Ok(GeneratedField::BridgeSudoChangeFees),
+                            "ics20WithdrawalFees" | "ics20_withdrawal_fees" => Ok(GeneratedField::Ics20WithdrawalFees),
+                            "ibcRelayFees" | "ibc_relay_fees" => Ok(GeneratedField::IbcRelayFees),
+                            "validatorUpdateFees" | "validator_update_fees" => Ok(GeneratedField::ValidatorUpdateFees),
+                            "feeAssetChangeFees" | "fee_asset_change_fees" => Ok(GeneratedField::FeeAssetChangeFees),
+                            "feeChangeFees" | "fee_change_fees" => Ok(GeneratedField::FeeChangeFees),
+                            "ibcRelayerChangeFees" | "ibc_relayer_change_fees" => Ok(GeneratedField::IbcRelayerChangeFees),
+                            "sudoAddressChangeFees" | "sudo_address_change_fees" => Ok(GeneratedField::SudoAddressChangeFees),
+                            "ibcSudoChangeFees" | "ibc_sudo_change_fees" => Ok(GeneratedField::IbcSudoChangeFees),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1007,62 +1056,111 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut value__ = None;
+                let mut fee_components__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::TransferBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transferBaseFee"));
+                        GeneratedField::TransferFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("transferFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::Value::TransferBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::TransferFees)
 ;
                         }
-                        GeneratedField::SequenceBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequenceBaseFee"));
+                        GeneratedField::SequenceFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequenceFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::Value::SequenceBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::SequenceFees)
 ;
                         }
-                        GeneratedField::SequenceByteCostMultiplier => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequenceByteCostMultiplier"));
+                        GeneratedField::InitBridgeAccountFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("initBridgeAccountFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::Value::SequenceByteCostMultiplier)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::InitBridgeAccountFees)
 ;
                         }
-                        GeneratedField::InitBridgeAccountBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("initBridgeAccountBaseFee"));
+                        GeneratedField::BridgeLockFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeLockFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::Value::InitBridgeAccountBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::BridgeLockFees)
 ;
                         }
-                        GeneratedField::BridgeLockByteCostMultiplier => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeLockByteCostMultiplier"));
+                        GeneratedField::BridgeUnlockFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeUnlockFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::Value::BridgeLockByteCostMultiplier)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::BridgeUnlockFees)
 ;
                         }
-                        GeneratedField::BridgeSudoChangeBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeSudoChangeBaseFee"));
+                        GeneratedField::BridgeSudoChangeFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeSudoChangeFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::Value::BridgeSudoChangeBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::BridgeSudoChangeFees)
 ;
                         }
-                        GeneratedField::Ics20WithdrawalBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("ics20WithdrawalBaseFee"));
+                        GeneratedField::Ics20WithdrawalFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ics20WithdrawalFees"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::Value::Ics20WithdrawalBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::Ics20WithdrawalFees)
+;
+                        }
+                        GeneratedField::IbcRelayFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ibcRelayFees"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::IbcRelayFees)
+;
+                        }
+                        GeneratedField::ValidatorUpdateFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("validatorUpdateFees"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::ValidatorUpdateFees)
+;
+                        }
+                        GeneratedField::FeeAssetChangeFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeAssetChangeFees"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::FeeAssetChangeFees)
+;
+                        }
+                        GeneratedField::FeeChangeFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeChangeFees"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::FeeChangeFees)
+;
+                        }
+                        GeneratedField::IbcRelayerChangeFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ibcRelayerChangeFees"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::IbcRelayerChangeFees)
+;
+                        }
+                        GeneratedField::SudoAddressChangeFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sudoAddressChangeFees"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::SudoAddressChangeFees)
+;
+                        }
+                        GeneratedField::IbcSudoChangeFees => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ibcSudoChangeFees"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::IbcSudoChangeFees)
 ;
                         }
                     }
                 }
                 Ok(FeeChange {
-                    value: value__,
+                    fee_components: fee_components__,
                 })
             }
         }
@@ -2173,114 +2271,6 @@ impl<'de> serde::Deserialize<'de> for SudoAddressChange {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.SudoAddressChange", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for TransactionFee {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.asset.is_empty() {
-            len += 1;
-        }
-        if self.fee.is_some() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.TransactionFee", len)?;
-        if !self.asset.is_empty() {
-            struct_ser.serialize_field("asset", &self.asset)?;
-        }
-        if let Some(v) = self.fee.as_ref() {
-            struct_ser.serialize_field("fee", v)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for TransactionFee {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "asset",
-            "fee",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Asset,
-            Fee,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "asset" => Ok(GeneratedField::Asset),
-                            "fee" => Ok(GeneratedField::Fee),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = TransactionFee;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.TransactionFee")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<TransactionFee, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut asset__ = None;
-                let mut fee__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Asset => {
-                            if asset__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("asset"));
-                            }
-                            asset__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::Fee => {
-                            if fee__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("fee"));
-                            }
-                            fee__ = map_.next_value()?;
-                        }
-                    }
-                }
-                Ok(TransactionFee {
-                    asset: asset__.unwrap_or_default(),
-                    fee: fee__,
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.TransactionFee", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for TransactionFeeResponse {

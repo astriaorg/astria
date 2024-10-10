@@ -15,7 +15,6 @@ use super::{
         BridgeSudoChange,
         BridgeUnlock,
         FeeAssetChange,
-        FeeChangeKind,
         IbcRelayerChange,
         IbcSudoChange,
         Ics20Withdrawal,
@@ -27,6 +26,7 @@ use super::{
     },
     Action,
 };
+use crate::generated::protocol::transactions::v1alpha1::FeeChange;
 
 trait BelongsToGroup {
     const GROUP: ActionGroup;
@@ -53,7 +53,7 @@ impl_belong_to_group!(
     (BridgeLock, ActionGroup::BundleableGeneral),
     (BridgeUnlock, ActionGroup::BundleableGeneral),
     (BridgeSudoChange, ActionGroup::UnbundleableGeneral),
-    (FeeChangeKind, ActionGroup::BundleableSudo),
+    (FeeChange, ActionGroup::BundleableSudo),
     (FeeAssetChange, ActionGroup::BundleableSudo),
     (IbcRelay, ActionGroup::BundleableGeneral),
     (IbcSudoChange, ActionGroup::UnbundleableSudo),
@@ -72,7 +72,7 @@ impl Action {
             Action::BridgeLock(_) => BridgeLock::GROUP,
             Action::BridgeUnlock(_) => BridgeUnlock::GROUP,
             Action::BridgeSudoChange(_) => BridgeSudoChange::GROUP,
-            Action::FeeChange(_) => FeeChangeKind::GROUP,
+            Action::FeeChange(_) => FeeChange::GROUP,
             Action::FeeAssetChange(_) => FeeAssetChange::GROUP,
             Action::Ibc(_) => IbcRelay::GROUP,
             Action::IbcSudoChange(_) => IbcSudoChange::GROUP,

@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/bridge/storage/keys.rs
-assertion_line: 101
-expression: bridge_account_sudo_address(&address())
+expression: "deposit(&[1; 32], &RollupId::new([2; 32]))"
 ---
-bridge/sudo/HAxJDxtVKNgXPF3kbRMRYOSywMM=
+bridge/deposit/AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=/AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=

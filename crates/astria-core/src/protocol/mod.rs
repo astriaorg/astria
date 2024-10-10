@@ -8,6 +8,7 @@ pub mod abci;
 pub mod account;
 pub mod asset;
 pub mod bridge;
+pub mod fees;
 pub mod genesis;
 pub mod memos;
 pub mod transaction;

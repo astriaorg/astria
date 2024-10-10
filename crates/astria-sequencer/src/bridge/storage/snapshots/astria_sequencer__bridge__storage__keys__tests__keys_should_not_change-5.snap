@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/bridge/storage/keys.rs
-assertion_line: 99
-expression: rollup_id(&address())
+expression: bridge_account_withdrawer_address(&address())
 ---
-bridge/account/HAxJDxtVKNgXPF3kbRMRYOSywMM=/rollup_id
+bridge/withdrawer/HAxJDxtVKNgXPF3kbRMRYOSywMM=
