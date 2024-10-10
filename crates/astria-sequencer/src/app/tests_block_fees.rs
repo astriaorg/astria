@@ -302,7 +302,12 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .map(|fee| fee.amount())
         .sum();
     let expected_fees = transfer_base_fee
-        + (calculate_base_deposit_fee(&test_deposit).unwrap() * bridge_lock_byte_cost_multiplier);
+        + (calculate_base_deposit_fee(
+            &test_deposit.asset,
+            &test_deposit.destination_chain_address,
+        )
+        .unwrap()
+            * bridge_lock_byte_cost_multiplier);
     assert_eq!(total_block_fees, expected_fees);
 }
 

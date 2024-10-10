@@ -2,7 +2,6 @@ use astria_core::{
     primitive::v1::{
         asset,
         TransactionId,
-        TRANSACTION_ID_LEN,
     },
     protocol::transaction::v1alpha1::action::{
         self,
@@ -19,7 +18,6 @@ use astria_core::{
         Transfer,
         ValidatorUpdate,
     },
-    sequencerblock::v1alpha1::block::Deposit,
 };
 use astria_eyre::eyre::{
     self,
@@ -129,16 +127,8 @@ impl FeeHandler for BridgeLock {
 
     #[instrument(skip_all)]
     fn computed_cost_base_component(&self) -> u128 {
-        calculate_base_deposit_fee(&Deposit {
-            bridge_address: self.to,
-            rollup_id: [0u8; 32].into(),
-            amount: self.amount,
-            asset: self.asset.clone(),
-            destination_chain_address: self.destination_chain_address.clone(),
-            source_transaction_id: TransactionId::new([0; TRANSACTION_ID_LEN]),
-            source_action_index: 0,
-        })
-        .expect("deposit fee calculation should not fail")
+        base_deposit_fee(&self.asset, &self.destination_chain_address)
+            .expect("deposit fee calculation should not fail")
     }
 }
 
@@ -427,11 +417,18 @@ async fn check_and_pay_fees<S: StateWrite>(
 /// Returns a modified byte length of the deposit event. Length is calculated with reasonable values
 /// for all fields except `asset` and `destination_chain_address`, ergo it may not be representative
 /// of on-wire length.
-pub(crate) fn calculate_base_deposit_fee(deposit: &Deposit) -> Option<u128> {
-    deposit
-        .asset
+#[cfg(test)]
+pub(crate) fn calculate_base_deposit_fee(
+    asset: &asset::Denom,
+    destination_chain_address: &str,
+) -> Option<u128> {
+    base_deposit_fee(asset, destination_chain_address)
+}
+
+fn base_deposit_fee(asset: &asset::Denom, destination_chain_address: &str) -> Option<u128> {
+    asset
         .display_len()
-        .checked_add(deposit.destination_chain_address.len())
+        .checked_add(destination_chain_address.len())
         .and_then(|var_len| {
             DEPOSIT_BASE_FEE.checked_add(u128::try_from(var_len).expect(
                 "converting a usize to a u128 should work on any currently existing machine",
@@ -560,18 +557,8 @@ mod tests {
         );
 
         // enough balance; should pass
-        let expected_deposit_fee = transfer_fee
-            + calculate_base_deposit_fee(&Deposit {
-                bridge_address,
-                rollup_id,
-                amount: 100,
-                asset: asset.clone(),
-                destination_chain_address: "someaddress".to_string(),
-                source_transaction_id: transaction_id,
-                source_action_index: 0,
-            })
-            .unwrap()
-                * 2;
+        let expected_deposit_fee =
+            transfer_fee + calculate_base_deposit_fee(&asset, "someaddress").unwrap() * 2;
         state
             .put_account_balance(&from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
@@ -613,7 +600,8 @@ mod tests {
         reason = "adding length of strings will never overflow u128 on currently existing machines"
     )]
     fn assert_correct_base_deposit_fee(deposit: &Deposit) {
-        let calculated_len = calculate_base_deposit_fee(deposit).unwrap();
+        let calculated_len =
+            calculate_base_deposit_fee(&deposit.asset, &deposit.destination_chain_address).unwrap();
         let expected_len = DEPOSIT_BASE_FEE
             + deposit.asset.to_string().len() as u128
             + deposit.destination_chain_address.len() as u128;

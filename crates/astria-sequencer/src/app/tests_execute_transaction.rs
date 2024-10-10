@@ -771,7 +771,11 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
             .await
             .unwrap()
             .computed_cost_multiplier
-            * crate::fees::calculate_base_deposit_fee(&expected_deposit).unwrap();
+            * crate::fees::calculate_base_deposit_fee(
+                &expected_deposit.asset,
+                &expected_deposit.destination_chain_address,
+            )
+            .unwrap();
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
