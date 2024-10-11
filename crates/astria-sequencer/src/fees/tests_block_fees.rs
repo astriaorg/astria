@@ -36,7 +36,6 @@ use crate::{
             BOB_ADDRESS,
         },
         ActionHandler,
-        StateWriteExt,
     },
     bridge::StateWriteExt as _,
     fees::{
@@ -64,9 +63,6 @@ async fn ensure_correct_block_fees_transfer() {
         })
         .unwrap();
 
-    state
-        .put_chain_id_and_revision_number("ethanwashere".try_into().unwrap())
-        .unwrap();
     let alice = get_alice_signing_key();
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let actions = vec![
@@ -81,7 +77,7 @@ async fn ensure_correct_block_fees_transfer() {
 
     let tx = UnsignedTransaction::builder()
         .actions(actions)
-        .chain_id("ethanwashere")
+        .chain_id("test")
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -107,9 +103,6 @@ async fn ensure_correct_block_fees_sequence() {
             multiplier: 1,
         })
         .unwrap();
-    state
-        .put_chain_id_and_revision_number("ethanwashere".try_into().unwrap())
-        .unwrap();
 
     let alice = get_alice_signing_key();
     let data = b"hello world".to_vec();
@@ -125,7 +118,7 @@ async fn ensure_correct_block_fees_sequence() {
 
     let tx = UnsignedTransaction::builder()
         .actions(actions)
-        .chain_id("ethanwashere")
+        .chain_id("test")
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -152,9 +145,6 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
             multiplier: 0,
         })
         .unwrap();
-    state
-        .put_chain_id_and_revision_number("ethanwashere".try_into().unwrap())
-        .unwrap();
 
     let alice = get_alice_signing_key();
 
@@ -171,7 +161,7 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
 
     let tx = UnsignedTransaction::builder()
         .actions(actions)
-        .chain_id("ethanwashere")
+        .chain_id("test")
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -198,9 +188,6 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
 
-    state
-        .put_chain_id_and_revision_number("ethanwashere".try_into().unwrap())
-        .unwrap();
     let transfer_base = 1;
     let bridge_lock_byte_cost_multiplier = 1;
 
@@ -236,7 +223,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
 
     let tx = UnsignedTransaction::builder()
         .actions(actions)
-        .chain_id("ethanwashere")
+        .chain_id("test")
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
@@ -275,9 +262,6 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
 
-    state
-        .put_chain_id_and_revision_number("ethanwashere".try_into().unwrap())
-        .unwrap();
     let sudo_change_base = 1;
     state
         .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
@@ -305,7 +289,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
 
     let tx = UnsignedTransaction::builder()
         .actions(actions)
-        .chain_id("ethanwashere")
+        .chain_id("test")
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
