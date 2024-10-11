@@ -158,14 +158,15 @@ mod tests {
         // No entries: "".
         assert!(IncludeRollup::parse("").unwrap().0.is_empty());
     }
-}
-#[test]
-fn should_fail_to_create_filter_from_bad_input() {
-    // Invalid base64 encoding.
-    let input = "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg!";
-    let _ = IncludeRollup::parse(input).unwrap_err();
 
-    // Invalid decoded length (31 bytes).
-    let input = base64::encode([0; 31]);
-    let _ = IncludeRollup::parse(&input).unwrap_err();
+    #[test]
+    fn should_fail_to_create_filter_from_bad_input() {
+        // Invalid base64 encoding.
+        let input = "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg!";
+        let _ = IncludeRollup::parse(input).unwrap_err();
+
+        // Invalid decoded length (31 bytes).
+        let input = base64::encode([0; 31]);
+        let _ = IncludeRollup::parse(&input).unwrap_err();
+    }
 }
