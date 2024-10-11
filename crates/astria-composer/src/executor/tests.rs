@@ -18,7 +18,7 @@ use astria_core::{
         RollupId,
         ROLLUP_ID_LEN,
     },
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transaction::v1alpha1::action::Sequence,
 };
 use astria_eyre::eyre;
 use prost::{
@@ -111,8 +111,8 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     }
 });
 
-fn sequence_action() -> SequenceAction {
-    SequenceAction {
+fn sequence_action() -> Sequence {
+    Sequence {
         rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
         data: Bytes::new(),
         fee_asset: "nria".parse().unwrap(),
@@ -354,7 +354,7 @@ async fn full_bundle() {
     // order to make space for the second
     let seq0 = sequence_action_of_max_size(cfg.max_bytes_per_bundle);
 
-    let seq1 = SequenceAction {
+    let seq1 = Sequence {
         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
         ..sequence_action_of_max_size(cfg.max_bytes_per_bundle)
     };
@@ -443,7 +443,7 @@ async fn bundle_triggered_by_block_timer() {
 
     // send two sequence actions to the executor, both small enough to fit in a single bundle
     // without filling it
-    let seq0 = SequenceAction {
+    let seq0 = Sequence {
         data: vec![0u8; cfg.max_bytes_per_bundle / 4].into(),
         ..sequence_action()
     };
@@ -530,12 +530,12 @@ async fn two_seq_actions_single_bundle() {
 
     // send two sequence actions to the executor, both small enough to fit in a single bundle
     // without filling it
-    let seq0 = SequenceAction {
+    let seq0 = Sequence {
         data: vec![0u8; cfg.max_bytes_per_bundle / 4].into(),
         ..sequence_action()
     };
 
-    let seq1 = SequenceAction {
+    let seq1 = Sequence {
         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
         data: vec![1u8; cfg.max_bytes_per_bundle / 4].into(),
         ..sequence_action()

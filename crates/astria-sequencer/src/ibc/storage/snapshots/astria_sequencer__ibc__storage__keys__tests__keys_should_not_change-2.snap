@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/ibc/storage/keys.rs
+assertion_line: 64
+expression: ICS20_WITHDRAWAL_BASE_FEE_KEY
+---
+ibc/ics20_withdrawal_base_fee

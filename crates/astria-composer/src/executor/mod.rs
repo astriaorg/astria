@@ -15,7 +15,7 @@ use astria_core::{
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::{
-            action::SequenceAction,
+            action::Sequence,
             SignedTransaction,
         },
     },
@@ -120,7 +120,7 @@ pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receiving `SequenceAction`s to be bundled.
-    serialized_rollup_transactions: mpsc::Receiver<SequenceAction>,
+    serialized_rollup_transactions: mpsc::Receiver<Sequence>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: sequencer_client::HttpClient,
@@ -143,11 +143,11 @@ pub(super) struct Executor {
 
 #[derive(Clone)]
 pub(super) struct Handle {
-    serialized_rollup_transactions_tx: mpsc::Sender<SequenceAction>,
+    serialized_rollup_transactions_tx: mpsc::Sender<Sequence>,
 }
 
 impl Handle {
-    fn new(serialized_rollup_transactions_tx: mpsc::Sender<SequenceAction>) -> Self {
+    fn new(serialized_rollup_transactions_tx: mpsc::Sender<Sequence>) -> Self {
         Self {
             serialized_rollup_transactions_tx,
         }
@@ -156,9 +156,9 @@ impl Handle {
     #[instrument(skip_all, err)]
     pub(super) async fn send_timeout(
         &self,
-        sequence_action: SequenceAction,
+        sequence_action: Sequence,
         timeout: Duration,
-    ) -> Result<(), SendTimeoutError<SequenceAction>> {
+    ) -> Result<(), SendTimeoutError<Sequence>> {
         self.serialized_rollup_transactions_tx
             .send_timeout(sequence_action, timeout)
             .await
@@ -446,7 +446,7 @@ impl Executor {
 
     /// Pushes sequence action into current bundle, warning and dropping on failure.
     #[instrument(skip_all)]
-    fn bundle_seq_action(&self, seq_action: SequenceAction, bundle_factory: &mut BundleFactory) {
+    fn bundle_seq_action(&self, seq_action: Sequence, bundle_factory: &mut BundleFactory) {
         let rollup_id = seq_action.rollup_id;
 
         if let Err(e) = bundle_factory.try_push(seq_action) {

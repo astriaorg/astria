@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/accounts/storage/keys.rs
+assertion_line: 79
+expression: TRANSFER_BASE_FEE_KEY
+---
+accounts/transfer_base_fee

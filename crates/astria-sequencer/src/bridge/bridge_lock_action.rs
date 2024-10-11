@@ -1,10 +1,9 @@
 use astria_core::{
     protocol::transaction::v1alpha1::action::{
-        BridgeLockAction,
-        TransferAction,
+        BridgeLock,
+        Transfer,
     },
     sequencerblock::v1alpha1::block::Deposit,
-    Protobuf as _,
 };
 use astria_eyre::eyre::{
     ensure,
@@ -39,7 +38,7 @@ use crate::{
 const DEPOSIT_BASE_FEE: u128 = 16;
 
 #[async_trait::async_trait]
-impl ActionHandler for BridgeLockAction {
+impl ActionHandler for BridgeLock {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
@@ -107,7 +106,7 @@ impl ActionHandler for BridgeLockAction {
             .saturating_add(transfer_fee);
         ensure!(from_balance >= fee, "insufficient funds for fee payment");
 
-        let transfer_action = TransferAction {
+        let transfer_action = Transfer {
             to: self.to,
             asset: self.asset.clone(),
             amount: self.amount,
@@ -132,7 +131,7 @@ impl ActionHandler for BridgeLockAction {
         let fee = byte_cost_multiplier
             .saturating_mul(calculate_base_deposit_fee(&deposit).unwrap_or(u128::MAX));
         state
-            .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
+            .get_and_increase_block_fees::<Self, _>(&self.fee_asset, fee)
             .await
             .wrap_err("failed to add to block fees")?;
         state
@@ -215,7 +214,7 @@ mod tests {
 
         let bridge_address = astria_address(&[1; 20]);
         let asset = test_asset();
-        let bridge_lock = BridgeLockAction {
+        let bridge_lock = BridgeLock {
             to: bridge_address,
             asset: asset.clone(),
             amount: 100,

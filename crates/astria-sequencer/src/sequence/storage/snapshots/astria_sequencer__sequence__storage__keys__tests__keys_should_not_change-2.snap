@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/sequence/storage/keys.rs
+assertion_line: 14
+expression: SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_KEY
+---
+sequence/byte_cost_multiplier
