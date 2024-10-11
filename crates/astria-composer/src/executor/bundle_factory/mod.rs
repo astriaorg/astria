@@ -78,7 +78,7 @@ impl SizedBundle {
     /// Constructs an [`UnsignedTransaction`] from the actions contained in the bundle and `params`.
     /// # Panics
     /// Method is expected to never panic because only `SequenceActions` are added to the bundle,
-    /// which should produce a valid variant of the `ActionGroup` type.
+    /// which should produce a valid variant of the [`action::Group`] type.
     pub(super) fn to_unsigned_transaction(
         &self,
         nonce: u32,
@@ -91,8 +91,8 @@ impl SizedBundle {
             .try_build()
             .expect(
                 "method is expected to never panic because only `SequenceActions` are added to \
-                 the bundle, which should produce a valid variant of the `ActionGroup` type; this \
-                 is checked by `tests::transaction_construction_should_not_panic",
+                 the bundle, which should produce a valid variant of the `action::Group` type; \
+                 this is checked by `tests::transaction_construction_should_not_panic",
             )
     }
 

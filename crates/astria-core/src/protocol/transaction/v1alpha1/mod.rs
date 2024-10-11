@@ -1,4 +1,3 @@
-use action_group::Actions;
 use bytes::Bytes;
 use prost::{
     Message as _,
@@ -22,8 +21,14 @@ use crate::{
 };
 
 pub mod action;
-pub mod action_group;
-pub use action::Action;
+use action::group::Actions;
+pub use action::{
+    group::{
+        Error,
+        Group,
+    },
+    Action,
+};
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -179,6 +184,11 @@ impl SignedTransaction {
     }
 
     #[must_use]
+    pub fn group(&self) -> Group {
+        self.transaction.actions.group()
+    }
+
+    #[must_use]
     pub fn is_bundleable_sudo_action_group(&self) -> bool {
         self.transaction.actions.group().is_bundleable_sudo()
     }
@@ -322,7 +332,7 @@ impl UnsignedTransaction {
             .chain_id(params.chain_id)
             .nonce(params.nonce)
             .try_build()
-            .map_err(UnsignedTransactionError::action_group)
+            .map_err(UnsignedTransactionError::group)
     }
 
     /// Attempt to convert from a protobuf [`pbjson_types::Any`].
@@ -365,8 +375,8 @@ impl UnsignedTransactionError {
         Self(UnsignedTransactionErrorKind::DecodeAny(inner))
     }
 
-    fn action_group(inner: action_group::Error) -> Self {
-        Self(UnsignedTransactionErrorKind::ActionGroup(inner))
+    fn group(inner: action::group::Error) -> Self {
+        Self(UnsignedTransactionErrorKind::Group(inner))
     }
 }
 
@@ -388,7 +398,7 @@ enum UnsignedTransactionErrorKind {
     )]
     DecodeAny(#[source] prost::DecodeError),
     #[error("`actions` field does not form a valid group of actions")]
-    ActionGroup(#[source] action_group::Error),
+    Group(#[source] action::group::Error),
 }
 
 #[derive(Default)]
@@ -432,11 +442,11 @@ impl UnsignedTransactionBuilder {
     /// Constructs a [`UnsignedTransaction`] from the configured builder.
     ///
     /// # Errors
-    /// Returns an error if the actions do not make a valid `ActionGroup`.
+    /// Returns an error if the actions do not make a valid [`action::Group`].
     ///
     /// Returns an error if the set chain ID does not contain a chain name that can be turned into
     /// a bech32 human readable prefix (everything before the first dash i.e. `<name>-<rest>`).
-    pub fn try_build(self) -> Result<UnsignedTransaction, action_group::Error> {
+    pub fn try_build(self) -> Result<UnsignedTransaction, action::group::Error> {
         let Self {
             nonce,
             chain_id,
