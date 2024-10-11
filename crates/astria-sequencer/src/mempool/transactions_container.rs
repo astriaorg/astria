@@ -130,22 +130,12 @@ impl fmt::Display for TimemarkedTransaction {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct TransactionPriority {
     nonce_diff: u32,
     time_first_seen: Instant,
     group: Group,
 }
-
-impl PartialEq for TransactionPriority {
-    fn eq(&self, other: &Self) -> bool {
-        self.nonce_diff == other.nonce_diff
-            && self.time_first_seen == other.time_first_seen
-            && self.group == other.group
-    }
-}
-
-impl Eq for TransactionPriority {}
 
 impl Ord for TransactionPriority {
     fn cmp(&self, other: &Self) -> Ordering {
