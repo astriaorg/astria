@@ -16,11 +16,8 @@ use astria_core::{
         RollupId,
     },
     protocol::transaction::v1alpha1::{
-        action::{
-            Action,
-            SequenceAction,
-            TransferAction,
-        },
+        action,
+        action::Action,
         SignedTransaction,
         UnsignedTransaction,
     },
@@ -85,7 +82,7 @@ fn sequence_actions() -> Vec<Arc<SignedTransaction>> {
             let (nonce, chain_id) = nonces_and_chain_ids
                 .entry(verification_key)
                 .or_insert_with(|| (0_u32, format!("chain-{}", signing_key.verification_key())));
-            let sequence_action = SequenceAction {
+            let sequence_action = action::Sequence {
                 rollup_id: RollupId::new([1; 32]),
                 data: vec![2; 1000].into(),
                 fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
@@ -107,7 +104,7 @@ fn transfers() -> Vec<Arc<SignedTransaction>> {
     let sender = signing_keys().next().unwrap();
     let receiver = signing_keys().nth(1).unwrap();
     let to = astria_address(&receiver.address_bytes());
-    let action = Action::from(TransferAction {
+    let action = Action::from(action::Transfer {
         to,
         amount: 1,
         asset: nria().into(),

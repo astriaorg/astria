@@ -14,24 +14,18 @@ use cnidarium::{
 use tendermint::Time;
 use tracing::instrument;
 
-use super::storage;
+use super::storage::{
+    self,
+    keys,
+};
 use crate::storage::StoredValue;
-
-const CHAIN_ID_KEY: &str = "chain_id";
-const REVISION_NUMBER_KEY: &str = "revision_number";
-const BLOCK_HEIGHT_KEY: &str = "block_height";
-const BLOCK_TIMESTAMP_KEY: &str = "block_timestamp";
-
-fn storage_version_by_height_key(height: u64) -> Vec<u8> {
-    format!("storage_version/{height}").into()
-}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_chain_id(&self) -> Result<tendermint::chain::Id> {
         let Some(bytes) = self
-            .get_raw(CHAIN_ID_KEY)
+            .get_raw(keys::CHAIN_ID)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw chain_id from state")?
@@ -46,7 +40,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_revision_number(&self) -> Result<u64> {
         let Some(bytes) = self
-            .get_raw(REVISION_NUMBER_KEY)
+            .get_raw(keys::REVISION_NUMBER)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw revision number from state")?
@@ -61,7 +55,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_block_height(&self) -> Result<u64> {
         let Some(bytes) = self
-            .get_raw(BLOCK_HEIGHT_KEY)
+            .get_raw(keys::BLOCK_HEIGHT)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw block_height from state")?
@@ -76,7 +70,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_block_timestamp(&self) -> Result<Time> {
         let Some(bytes) = self
-            .get_raw(BLOCK_TIMESTAMP_KEY)
+            .get_raw(keys::BLOCK_TIMESTAMP)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw block_timestamp from state")?
@@ -92,9 +86,9 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_storage_version_by_height(&self, height: u64) -> Result<u64> {
         use astria_eyre::eyre::WrapErr as _;
 
-        let key = storage_version_by_height_key(height);
+        let key = keys::storage_version_by_height(height);
         let Some(bytes) = self
-            .nonverifiable_get_raw(&key)
+            .nonverifiable_get_raw(key.as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw storage_version from state")?
@@ -117,7 +111,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::ChainId::from(&chain_id))
             .serialize()
             .context("failed to serialize chain id")?;
-        self.put_raw(CHAIN_ID_KEY.into(), bytes);
+        self.put_raw(keys::CHAIN_ID.into(), bytes);
         self.put_revision_number(revision_number)
     }
 
@@ -126,7 +120,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::RevisionNumber::from(revision_number))
             .serialize()
             .context("failed to serialize revision number")?;
-        self.put_raw(REVISION_NUMBER_KEY.into(), bytes);
+        self.put_raw(keys::REVISION_NUMBER.into(), bytes);
         Ok(())
     }
 
@@ -135,7 +129,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::BlockHeight::from(height))
             .serialize()
             .context("failed to serialize block height")?;
-        self.put_raw(BLOCK_HEIGHT_KEY.into(), bytes);
+        self.put_raw(keys::BLOCK_HEIGHT.into(), bytes);
         Ok(())
     }
 
@@ -144,7 +138,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::BlockTimestamp::from(timestamp))
             .serialize()
             .context("failed to serialize block timestamp")?;
-        self.put_raw(BLOCK_TIMESTAMP_KEY.into(), bytes);
+        self.put_raw(keys::BLOCK_TIMESTAMP.into(), bytes);
         Ok(())
     }
 
@@ -153,7 +147,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::StorageVersion::from(version))
             .serialize()
             .context("failed to serialize storage version")?;
-        self.nonverifiable_put_raw(storage_version_by_height_key(height), bytes);
+        self.nonverifiable_put_raw(keys::storage_version_by_height(height).into_bytes(), bytes);
         Ok(())
     }
 }
@@ -180,13 +174,8 @@ fn revision_number_from_chain_id(chain_id: &str) -> u64 {
 #[cfg(test)]
 mod tests {
     use cnidarium::StateDelta;
-    use tendermint::Time;
 
-    use super::{
-        revision_number_from_chain_id,
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
 
     #[test]
     fn revision_number_from_chain_id_regex() {

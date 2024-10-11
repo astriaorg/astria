@@ -6,8 +6,8 @@ use astria_core::{
         transaction::v1alpha1::{
             action::{
                 FeeChange,
-                FeeChangeAction,
-                TransferAction,
+                FeeChangeKind,
+                Transfer,
             },
             UnsignedTransaction,
         },
@@ -50,8 +50,8 @@ async fn trigger_cleaning() {
     // create tx which will cause mempool cleaning flag to be set
     let tx_trigger = UnsignedTransaction::builder()
         .actions(vec![
-            FeeChangeAction {
-                fee_change: FeeChange::TransferBaseFee,
+            FeeChange {
+                fee_change: FeeChangeKind::TransferBaseFee,
                 new_value: 10,
             }
             .into(),
@@ -146,8 +146,8 @@ async fn do_not_trigger_cleaning() {
     // (wrong sudo signer)
     let tx_fail = UnsignedTransaction::builder()
         .actions(vec![
-            FeeChangeAction {
-                fee_change: FeeChange::TransferBaseFee,
+            FeeChange {
+                fee_change: FeeChangeKind::TransferBaseFee,
                 new_value: 10,
             }
             .into(),
@@ -217,7 +217,7 @@ async fn maintenance_recosting_promotes() {
     // having insufficient funds (transaction will be recosted to enable)
     let tx_fail_recost_funds = UnsignedTransaction::builder()
         .actions(vec![
-            TransferAction {
+            Transfer {
                 to: astria_address_from_hex_string(CAROL_ADDRESS),
                 amount: 1u128,
                 asset: nria().into(),
@@ -247,8 +247,8 @@ async fn maintenance_recosting_promotes() {
     // create tx which will enable recost tx to pass
     let tx_recost = UnsignedTransaction::builder()
         .actions(vec![
-            FeeChangeAction {
-                fee_change: FeeChange::TransferBaseFee,
+            FeeChange {
+                fee_change: FeeChangeKind::TransferBaseFee,
                 new_value: 10, // originally 12
             }
             .into(),
@@ -397,7 +397,7 @@ async fn maintenance_funds_added_promotes() {
     // having no funds (will be sent transfer to then enable)
     let tx_fail_transfer_funds = UnsignedTransaction::builder()
         .actions(vec![
-            TransferAction {
+            Transfer {
                 to: astria_address_from_hex_string(BOB_ADDRESS),
                 amount: 10u128,
                 asset: nria().into(),
@@ -427,7 +427,7 @@ async fn maintenance_funds_added_promotes() {
     // create tx which will enable no funds to pass
     let tx_fund = UnsignedTransaction::builder()
         .actions(vec![
-            TransferAction {
+            Transfer {
                 to: astria_address_from_hex_string(CAROL_ADDRESS),
                 amount: 22u128,
                 asset: nria().into(),

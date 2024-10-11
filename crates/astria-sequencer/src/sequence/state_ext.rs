@@ -13,18 +13,18 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-use super::storage;
+use super::storage::{
+    self,
+    keys,
+};
 use crate::storage::StoredValue;
-
-const SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY: &str = "seqbasefee";
-const SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY: &str = "seqmultiplier";
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_sequence_action_base_fee(&self) -> Result<u128> {
         let bytes = self
-            .get_raw(SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY)
+            .get_raw(keys::SEQUENCE_ACTION_BASE_FEE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sequence action base fee from state")?
@@ -37,7 +37,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
     async fn get_sequence_action_byte_cost_multiplier(&self) -> Result<u128> {
         let bytes = self
-            .get_raw(SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY)
+            .get_raw(keys::SEQUENCE_ACTION_BYTE_COST_MULTIPLIER)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sequence action byte cost multiplier from state")?
@@ -57,7 +57,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Fee::from(fee))
             .serialize()
             .context("failed to serialize sequence action base fee")?;
-        self.put_raw(SEQUENCE_ACTION_BASE_FEE_STORAGE_KEY.to_string(), bytes);
+        self.put_raw(keys::SEQUENCE_ACTION_BASE_FEE.to_string(), bytes);
         Ok(())
     }
 
@@ -67,7 +67,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .context("failed to serialize sequence action byte cost multiplier")?;
         self.put_raw(
-            SEQUENCE_ACTION_BYTE_COST_MULTIPLIER_STORAGE_KEY.to_string(),
+            keys::SEQUENCE_ACTION_BYTE_COST_MULTIPLIER.to_string(),
             bytes,
         );
         Ok(())
@@ -80,10 +80,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use cnidarium::StateDelta;
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
 
     #[tokio::test]
     async fn sequence_action_base_fee() {
