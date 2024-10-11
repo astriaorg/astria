@@ -321,7 +321,6 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn add_fee_to_block_fees<'a, TAsset, T: FeeHandler + Protobuf>(
         &mut self,
-        _act: &T,
         asset: &'a TAsset,
         amount: u128,
         source_transaction_id: TransactionId,
@@ -488,13 +487,7 @@ mod tests {
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::{
-        app::test_utils::{
-            get_alice_signing_key,
-            initialize_app_with_storage,
-        },
-        test_utils::ASTRIA_PREFIX,
-    };
+    use crate::app::test_utils::initialize_app_with_storage;
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
@@ -517,20 +510,8 @@ mod tests {
         // can write
         let asset = asset_0();
         let amount = 100u128;
-        let transfer_action = Transfer {
-            to: get_alice_signing_key().try_address(ASTRIA_PREFIX).unwrap(),
-            amount: 100,
-            asset: asset.clone(),
-            fee_asset: asset.clone(),
-        };
         state
-            .add_fee_to_block_fees(
-                &transfer_action,
-                &asset,
-                amount,
-                TransactionId::new([0; 32]),
-                0,
-            )
+            .add_fee_to_block_fees::<_, Transfer>(&asset, amount, TransactionId::new([0; 32]), 0)
             .unwrap();
 
         // holds expected
@@ -560,22 +541,8 @@ mod tests {
         let amount_first = 100u128;
         let amount_second = 200u128;
 
-        let transfer_action_first = Transfer {
-            to: get_alice_signing_key().try_address(ASTRIA_PREFIX).unwrap(),
-            amount: amount_first,
-            asset: asset_first.clone(),
-            fee_asset: asset_first.clone(),
-        };
-        let transfer_action_second = Transfer {
-            to: get_alice_signing_key().try_address(ASTRIA_PREFIX).unwrap(),
-            amount: amount_second,
-            asset: asset_second.clone(),
-            fee_asset: asset_second.clone(),
-        };
-
         state
-            .add_fee_to_block_fees(
-                &transfer_action_first,
+            .add_fee_to_block_fees::<_, Transfer>(
                 &asset_first,
                 amount_first,
                 TransactionId::new([0; 32]),
@@ -583,8 +550,7 @@ mod tests {
             )
             .unwrap();
         state
-            .add_fee_to_block_fees(
-                &transfer_action_second,
+            .add_fee_to_block_fees::<_, Transfer>(
                 &asset_second,
                 amount_second,
                 TransactionId::new([0; 32]),
