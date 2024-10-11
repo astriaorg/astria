@@ -78,7 +78,7 @@ impl Action {
     }
 }
 
-/// `Action::Group`
+/// `action::Group`
 ///
 /// Used to constrain the types of actions that can be included in a single
 /// transaction and the order which transactions are ran in a block.

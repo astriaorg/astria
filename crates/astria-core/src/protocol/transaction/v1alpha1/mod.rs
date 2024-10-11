@@ -442,7 +442,7 @@ impl UnsignedTransactionBuilder {
     /// Constructs a [`UnsignedTransaction`] from the configured builder.
     ///
     /// # Errors
-    /// Returns an error if the actions do not make a valid `Action::Group`.
+    /// Returns an error if the actions do not make a valid [`action::Group`].
     ///
     /// Returns an error if the set chain ID does not contain a chain name that can be turned into
     /// a bech32 human readable prefix (everything before the first dash i.e. `<name>-<rest>`).
