@@ -19,4 +19,4 @@ uninstall:
 
 # port forward the kubetail service so we can connect on our local machine
 port-forward:
-  kubectl port-forward -n kubetail svc/kubetail 4000:80
+  kubectl port-forward -n kubetail svc/kubetail-server 4000:80
