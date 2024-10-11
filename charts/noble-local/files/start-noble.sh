@@ -4,6 +4,9 @@ set -o errexit -o nounset
 
 KEYRING="--keyring-backend=$keyring_backend"
 
+TF1_MINTING_DENOM="steeze"
+TF1_MINTING_BASEDENOM="u$TF1_MINTING_DENOM"
+
 {
   # create keys
   sleep 2
@@ -66,4 +69,4 @@ exec nobled start --home "${home_dir}" \
   --grpc.address "0.0.0.0:$noble_grpc_port" \
   --grpc-web.enable \
   --grpc-web.address "0.0.0.0:$noble_grpc_web_port" \
-  --log_level debug
+  --log_level debug --trace
