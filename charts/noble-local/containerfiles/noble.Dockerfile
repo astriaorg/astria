@@ -3,7 +3,8 @@ FROM alpine:3.14 AS base
 
 RUN apk add --no-cache sed
 
-FROM ghcr.io/noble-assets/noble:v6.0.0 AS noble
+FROM ghcr.io/noble-assets/noble:export-patch-v7.0.0 AS noble
+#FROM ghcr.io/astriaorg/noble:astria AS noble
 
 FROM base
 

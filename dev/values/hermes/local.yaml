@@ -1,4 +1,4 @@
-image: "ghcr.io/astriaorg/hermes:0.2.0"
+#image: astria-hermes:local
 
 createChannels:
   - enabled: true
@@ -54,7 +54,7 @@ chains:
       name: noble
       # ibc account key
       devContent:
-        private_key: efd82c7605e915439493f35ee67f425209654194b45c2ca0953df500e95ec894
+        private_key: 938c1180d390714f767e73ac43b6c8871bc1cd0b0b4a23848c11cef20e9dbf05
         public_key: 02f36bef15dbb5179aadea8dc5a4a177dd09d65dc5c9e60324382e7a1711311357
         address: [12, 14, 100, 137, 228, 148, 219, 111, 50, 22, 137, 101, 196, 193, 62, 251, 218, 37, 6, 238]
         address_type: Cosmos
@@ -68,7 +68,7 @@ chains:
       url: ws://noble-local-service.astria-dev-cluster.svc.cluster.local:26657/websocket
       batchDelay: 200ms
     gasDenom: "uusdc"
-    gasPrice: 0.0026
+    gasPrice: 0.14260
     gasMultiplier: 1.2
     defaultGas: "1000000"
     maxGas: "10000000"
@@ -78,6 +78,45 @@ chains:
     maxBlockTime: 30s
     trustThreshold: 2/3
     trustingPeriod: 14days
+
+  # noble mainnet
+#  noble-1:
+#    type: CosmosSdk
+#    compatMode: "0.34"
+#    rpcAddr: https://noble-rpc.polkachu.com:443
+#    grpcAddr: http://noble-grpc.polkachu.com:21590
+#    rpcTimeout: 15s
+#    ccvConsumerChain: false
+#    accountPrefix: noble
+#    storePrefix: ibc
+#    key:
+#      name: noble
+#      # ibc account key
+#      devContent:
+#        private_key: efd82c7605e915439493f35ee67f425209654194b45c2ca0953df500e95ec894
+#        public_key: 02f36bef15dbb5179aadea8dc5a4a177dd09d65dc5c9e60324382e7a1711311357
+#        address: [12, 14, 100, 137, 228, 148, 219, 111, 50, 22, 137, 101, 196, 193, 62, 251, 218, 37, 6, 238]
+#        address_type: Cosmos
+#        account: noble1ps8xfz0yjndk7vsk39jufsf7l0dz2phwugrt6z
+#      secret:
+#        resourceName: projects/$PROJECT_ID/secrets/noble-ibc-relay-key/versions/latest
+#        filename: noble.json
+#        key: token
+#    eventSource:
+#      mode: push
+#      url: ws://noble-local-service.astria-dev-cluster.svc.cluster.local:26657/websocket
+#      batchDelay: 200ms
+#    gasDenom: "uusdc"
+#    gasPrice: 0.14260
+#    gasMultiplier: 1.2
+#    defaultGas: "1000000"
+#    maxGas: "10000000"
+#    maxMsgNum: 30
+#    maxTxSize: "2097152"
+#    clockDrift: 5s
+#    maxBlockTime: 30s
+#    trustThreshold: 2/3
+#    trustingPeriod: 14days
 
   celestia-local-0:
     type: CosmosSdk
