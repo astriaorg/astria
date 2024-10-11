@@ -22,7 +22,7 @@ config:
   sequencerRpc: ""
   sequencerGrpc: ""
   sequencerChainId: ""
-  privateKey: 
+  privateKey:
     devContent: ""
     secret:
       filename: "key.hex"
