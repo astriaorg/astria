@@ -68,6 +68,7 @@ sed -i 's/timeout_commit = "5s"/timeout_commit = "1s"/g' "$home_dir/config/confi
 sed -i 's/timeout_propose = "3s"/timeout_propose = "1s"/g' "$home_dir/config/config.toml"
 sed -i 's/index_all_keys = false/index_all_keys = true/g' "$home_dir/config/config.toml"
 sed -i 's/"authority": ""/"authority": "'"$TF1_OWNER"'"/g' "$home_dir/config/genesis.json"
+sed -i 's/chain-id = ""/chain-id = "noble-local-0"/g' "$home_dir/config/client.toml"
 
 # FIXME - remove after dev
 cat "$home_dir/config/genesis.json"
