@@ -49,8 +49,8 @@ use wiremock::{
     ResponseTemplate,
 };
 
+pub mod mock_abci_sequencer;
 pub mod mock_grpc_sequencer;
-pub mod mock_http_sequencer;
 
 static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
@@ -58,7 +58,7 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     let config = Config {
         log: String::new(),
         api_listen_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
-        cometbft_endpoint: String::new(),
+        sequencer_abci_endpoint: String::new(),
         sequencer_grpc_endpoint: String::new(),
         sequencer_chain_id: String::new(),
         rollups: String::new(),
@@ -120,7 +120,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
     }
-    let sequencer = mock_http_sequencer::start().await;
+    let sequencer = mock_abci_sequencer::start().await;
     let grpc_server = MockGrpcSequencer::spawn().await;
     let sequencer_url = sequencer.uri();
     let keyfile = NamedTempFile::new().unwrap();
@@ -132,7 +132,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
         sequencer_chain_id: "test-chain-1".to_string(),
         rollups,
-        cometbft_endpoint: sequencer_url.to_string(),
+        sequencer_abci_endpoint: sequencer_url.to_string(),
         sequencer_grpc_endpoint: format!("http://{}", grpc_server.local_addr),
         private_key_file: keyfile.path().to_string_lossy().to_string(),
         sequencer_address_prefix: "astria".into(),

@@ -128,10 +128,10 @@ pub(super) struct Executor {
     // Channel for receiving `SequenceAction`s to be bundled.
     serialized_rollup_transactions: mpsc::Receiver<Sequence>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
-    // sequencer via the cometbft client.
-    cometbft_client: sequencer_client::HttpClient,
+    // sequencer via the ABCI client.
+    abci_client: sequencer_client::HttpClient,
     // The grpc client for grabbing the latest nonce from.
-    sequencer_grpc_client: sequencer_service_client::SequencerServiceClient<Channel>,
+    grpc_client: sequencer_service_client::SequencerServiceClient<Channel>,
     // The chain id used for submission of transactions to the sequencer.
     sequencer_chain_id: String,
     // Private key used to sign sequencer transactions
@@ -205,8 +205,8 @@ impl Executor {
         metrics: &'static Metrics,
     ) -> Fuse<Instrumented<SubmitFut>> {
         SubmitFut {
-            cometbft_client: self.cometbft_client.clone(),
-            sequencer_grpc_client: self.sequencer_grpc_client.clone(),
+            abci_client: self.abci_client.clone(),
+            grpc_client: self.grpc_client.clone(),
             address: self.address,
             nonce,
             chain_id: self.sequencer_chain_id.clone(),
@@ -341,13 +341,9 @@ impl Executor {
         self.ensure_chain_id_is_correct()
             .await
             .wrap_err("failed to validate chain id")?;
-        let nonce = get_pending_nonce(
-            self.sequencer_grpc_client.clone(),
-            self.address,
-            self.metrics,
-        )
-        .await
-        .wrap_err("failed getting initial nonce from sequencer")?;
+        let nonce = get_pending_nonce(self.grpc_client.clone(), self.address, self.metrics)
+            .await
+            .wrap_err("failed getting initial nonce from sequencer")?;
         Ok(nonce)
     }
 
@@ -391,10 +387,9 @@ impl Executor {
                     futures::future::ready(())
                 },
             );
-        let client_genesis: tendermint::Genesis =
-            tryhard::retry_fn(|| self.cometbft_client.genesis())
-                .with_config(retry_config)
-                .await?;
+        let client_genesis: tendermint::Genesis = tryhard::retry_fn(|| self.abci_client.genesis())
+            .with_config(retry_config)
+            .await?;
         Ok(client_genesis.chain_id)
     }
 
@@ -536,7 +531,7 @@ async fn get_pending_nonce(
     err,
 )]
 async fn submit_tx(
-    cometbft_client: sequencer_client::HttpClient,
+    client: sequencer_client::HttpClient,
     tx: SignedTransaction,
     metrics: &Metrics,
 ) -> eyre::Result<tx_sync::Response> {
@@ -571,7 +566,7 @@ async fn submit_tx(
             },
         );
     let res = tryhard::retry_fn(|| {
-        let client = cometbft_client.clone();
+        let client = client.clone();
         let tx = tx.clone();
         let span = info_span!(parent: span.clone(), "attempt send");
         async move { client.submit_transaction_sync(tx).await }.instrument(span)
@@ -656,8 +651,8 @@ pin_project! {
     /// If the sequencer returned a non-zero abci code (albeit not `INVALID_NONCE`), this future will return with
     /// that nonce it used to submit the non-zero abci code request.
     struct SubmitFut {
-        cometbft_client: sequencer_client::HttpClient,
-        sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
+        abci_client: sequencer_client::HttpClient,
+        grpc_client: SequencerServiceClient<tonic::transport::Channel>,
         address: Address,
         chain_id: String,
         nonce: u32,
@@ -708,7 +703,7 @@ impl Future for SubmitFut {
                         "submitting transaction to sequencer",
                     );
                     SubmitState::WaitingForSend {
-                        fut: submit_tx(this.cometbft_client.clone(), tx, self.metrics).boxed(),
+                        fut: submit_tx(this.abci_client.clone(), tx, self.metrics).boxed(),
                     }
                 }
 
@@ -737,7 +732,7 @@ impl Future for SubmitFut {
                             );
                             SubmitState::WaitingForNonce {
                                 fut: get_pending_nonce(
-                                    this.sequencer_grpc_client.clone(),
+                                    this.grpc_client.clone(),
                                     *this.address,
                                     self.metrics,
                                 )
@@ -781,7 +776,7 @@ impl Future for SubmitFut {
                             "resubmitting transaction to sequencer with new nonce",
                         );
                         SubmitState::WaitingForSend {
-                            fut: submit_tx(this.cometbft_client.clone(), tx, self.metrics).boxed(),
+                            fut: submit_tx(this.abci_client.clone(), tx, self.metrics).boxed(),
                         }
                     }
                     Err(error) => {

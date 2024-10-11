@@ -15,7 +15,6 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
-use http::Uri;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
@@ -26,7 +25,7 @@ use crate::{
 };
 
 pub(crate) struct Builder {
-    pub(crate) cometbft_endpoint: String,
+    pub(crate) sequencer_abci_endpoint: String,
     pub(crate) sequencer_grpc_endpoint: String,
     pub(crate) sequencer_chain_id: String,
     pub(crate) private_key_file: String,
@@ -41,7 +40,7 @@ pub(crate) struct Builder {
 impl Builder {
     pub(crate) fn build(self) -> eyre::Result<(super::Executor, executor::Handle)> {
         let Self {
-            cometbft_endpoint,
+            sequencer_abci_endpoint,
             sequencer_grpc_endpoint,
             sequencer_chain_id,
             private_key_file,
@@ -52,11 +51,11 @@ impl Builder {
             shutdown_token,
             metrics,
         } = self;
-        let cometbft_client = sequencer_client::HttpClient::new(cometbft_endpoint.as_str())
+        let abci_client = sequencer_client::HttpClient::new(sequencer_abci_endpoint.as_str())
             .wrap_err("failed constructing sequencer http client")?;
 
-        let sequencer_grpc_client = connect_sequencer_grpc(sequencer_grpc_endpoint.as_str())
-            .wrap_err_with(|| {
+        let grpc_client =
+            connect_sequencer_grpc(sequencer_grpc_endpoint.as_str()).wrap_err_with(|| {
                 format!("failed to connect to sequencer over gRPC at `{sequencer_grpc_endpoint}`")
             })?;
 
@@ -79,8 +78,8 @@ impl Builder {
             super::Executor {
                 status,
                 serialized_rollup_transactions: serialized_rollup_transaction_rx,
-                cometbft_client,
-                sequencer_grpc_client,
+                abci_client,
+                grpc_client,
                 sequencer_chain_id,
                 sequencer_key,
                 address: sequencer_address,
@@ -104,9 +103,9 @@ fn read_signing_key_from_file<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKe
 }
 
 fn connect_sequencer_grpc(
-    sequencer_grpc_endpoint: &str,
+    grpc_endpoint: &str,
 ) -> eyre::Result<SequencerServiceClient<tonic::transport::Channel>> {
-    let uri: Uri = sequencer_grpc_endpoint
+    let uri: tonic::transport::Uri = grpc_endpoint
         .parse()
         .wrap_err("failed to parse endpoint as URI")?;
     Ok(SequencerServiceClient::new(

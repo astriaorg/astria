@@ -602,7 +602,6 @@ dependencies = [
  "ethers",
  "futures",
  "hex",
- "http 0.2.12",
  "humantime",
  "hyper 0.14.30",
  "insta",

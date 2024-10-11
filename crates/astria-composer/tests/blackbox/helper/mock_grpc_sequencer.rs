@@ -36,6 +36,8 @@ use tonic::{
     Status,
 };
 
+// NOTE: the actual full path name is
+// /astria.sequencerblock.v1alpha1.SequencerService/GetPendingNonce
 const GET_PENDING_NONCE_GRPC_NAME: &str = "get_pending_nonce";
 
 pub struct MockGrpcSequencer {

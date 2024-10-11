@@ -12,8 +12,6 @@ homepage = "https://astria.org"
 name = "astria-composer"
 
 [dependencies]
-http = "0.2.9"
-
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = [
   "client",
