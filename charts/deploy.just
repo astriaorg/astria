@@ -257,6 +257,33 @@ init-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAdd
     --sequencer-url {{sequencer_rpc_url}} \
     --fee-asset=$FEE_ASSET --asset=$ASSET
 
+rollup_micro_multiplier := "1000000"
+sequencer_noble_bridge_address := "astria1s6u80uqnx3qqn8lswkqpl80qp226l6tjc0hfsk"
+sequencer_noble_bridge_pkey := "089d5092b5ab0baac5ea7c16098515e9fc9491f9b5f7d3563f30dfc07b01283e"
+init-noble-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
+  #!/usr/bin/env bash
+  set -e
+
+  SEQUENCER_FUNDS_PKEY="934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
+  ASSET="transfer/channel-0/uusdc"
+  FEE_ASSET="nria"
+  TRANSFER_AMOUNT=$(echo "{{transferAmount}} * {{rollup_micro_multiplier}}" | bc)
+
+  IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+
+  docker run --rm --network host $IMAGE sequencer init-bridge-account \
+    --rollup-name {{rollupName}} \
+    --private-key {{sequencer_bridge_pkey}} \
+    --sequencer.chain-id {{sequencer_chain_id}} \
+    --sequencer-url {{sequencer_rpc_url}} \
+    --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
+  docker run --rm --network host $IMAGE sequencer bridge-lock {{sequencer_bridge_address}} \
+    --amount $TRANSFER_AMOUNT \
+    --destination-chain-address {{evmDestinationAddress}} \
+    --private-key $SEQUENCER_FUNDS_PKEY \
+    --sequencer.chain-id {{sequencer_chain_id}} \
+    --sequencer-url {{sequencer_rpc_url}} \
+    --fee-asset=$FEE_ASSET --asset=$ASSET
 
 init-ibc-bridge privateKey asset feeAsset tag=defaultTag rollupName=defaultRollupName:
   docker run --rm --network host {{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }} sequencer init-bridge-account \

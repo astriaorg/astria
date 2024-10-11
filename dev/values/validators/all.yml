@@ -39,7 +39,9 @@ genesis:
     # address of the bridge account for noble. needs funds to sign bridge init tx
     - address: astria14wyh2u6efndllr8gup29295krc98rqas8d0ans
       balance: "69000000"
-
+    # address of the bridge account for noble as an erc20. needs funds to sign bridge init tx
+    - address: astria1s6u80uqnx3qqn8lswkqpl80qp226l6tjc0hfsk
+      balance: "69000000"
 resources:
   cometbft:
     requests:
