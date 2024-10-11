@@ -241,3 +241,12 @@ build-noble tag=defaultNobleTag:
     -t noble-dev:{{tag}} \
     ./noble-local
   kind load docker-image noble-dev:{{tag}} --name astria-dev-cluster
+
+# build custom hermes image. NOTE - expects hermes/ to be a sibling of this project
+build-hermes tag=defaultNobleTag:
+  #!/usr/bin/env bash
+  cd ../../hermes
+  docker buildx build . \
+    -f ./ci/release/hermes.Dockerfile \
+    -t astria-hermes:{{tag}}
+  kind load docker-image astria-hermes:{{tag}} --name astria-dev-cluster
