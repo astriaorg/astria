@@ -124,46 +124,46 @@ impl ActionHandler for FeeChange {
         ensure!(sudo_address == from, "signer is not the sudo key");
 
         match self {
-            Self::TransferFee(fees) => state
+            Self::Transfer(fees) => state
                 .put_transfer_fees(*fees)
                 .wrap_err("failed to put transfer fees"),
-            Self::SequenceFee(fees) => state
+            Self::Sequence(fees) => state
                 .put_sequence_fees(*fees)
                 .wrap_err("failed to put sequence fees"),
-            Self::Ics20WithdrawalFee(fees) => state
+            Self::Ics20Withdrawal(fees) => state
                 .put_ics20_withdrawal_fees(*fees)
                 .wrap_err("failed to put ics20 withdrawal fees"),
-            Self::InitBridgeAccountFee(fees) => state
+            Self::InitBridgeAccount(fees) => state
                 .put_init_bridge_account_fees(*fees)
                 .wrap_err("failed to put init bridge account fees"),
-            Self::BridgeLockFee(fees) => state
+            Self::BridgeLock(fees) => state
                 .put_bridge_lock_fees(*fees)
                 .wrap_err("failed to put bridge lock fees"),
-            Self::BridgeUnlockFee(fees) => state
+            Self::BridgeUnlock(fees) => state
                 .put_bridge_unlock_fees(*fees)
                 .wrap_err("failed to put bridge unlock fees"),
-            Self::BridgeSudoChangeFee(fees) => state
+            Self::BridgeSudoChange(fees) => state
                 .put_bridge_sudo_change_fees(*fees)
                 .wrap_err("failed to put bridge sudo change fees"),
-            Self::IbcRelayFee(fees) => state
+            Self::IbcRelay(fees) => state
                 .put_ibc_relay_fees(*fees)
                 .wrap_err("failed to put ibc relay fees"),
-            Self::ValidatorUpdateFee(fees) => state
+            Self::ValidatorUpdate(fees) => state
                 .put_validator_update_fees(*fees)
                 .wrap_err("failed to put validator update fees"),
-            Self::FeeAssetChangeFee(fees) => state
+            Self::FeeAssetChange(fees) => state
                 .put_fee_asset_change_fees(*fees)
                 .wrap_err("failed to put fee asset change fees"),
-            Self::FeeChangeFee(fees) => state
+            Self::FeeChange(fees) => state
                 .put_fee_change_fees(*fees)
                 .wrap_err("failed to put fee change fees"),
-            Self::IbcRelayerChangeFee(fees) => state
+            Self::IbcRelayerChange(fees) => state
                 .put_ibc_relayer_change_fees(*fees)
                 .wrap_err("failed to put ibc relayer change fees"),
-            Self::SudoAddressChangeFee(fees) => state
+            Self::SudoAddressChange(fees) => state
                 .put_sudo_address_change_fees(*fees)
                 .wrap_err("failed to put sudo address change fees"),
-            Self::IbcSudoChangeFee(fees) => state
+            Self::IbcSudoChange(fees) => state
                 .put_ibc_sudo_change_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
         }
@@ -237,100 +237,83 @@ mod tests {
 
         state
             .put_transfer_fees(TransferFeeComponents {
-                base_fee: transfer_fee,
-                computed_cost_multiplier: 0,
+                base: transfer_fee,
+                multiplier: 0,
             })
             .unwrap();
 
-        let fee_change = FeeChange::TransferFee(TransferFeeComponents {
-            base_fee: 10,
-            computed_cost_multiplier: 0,
+        let fee_change = FeeChange::Transfer(TransferFeeComponents {
+            base: 10,
+            multiplier: 0,
         });
 
         fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_transfer_fees().await.unwrap().base_fee, 10);
+        assert_eq!(state.get_transfer_fees().await.unwrap().base, 10);
 
-        let sequence_base_fee = 5;
+        let sequence_base = 5;
         let sequence_cost_multiplier = 2;
         state
             .put_sequence_fees(SequenceFeeComponents {
-                base_fee: sequence_base_fee,
-                computed_cost_multiplier: sequence_cost_multiplier,
+                base: sequence_base,
+                multiplier: sequence_cost_multiplier,
             })
             .unwrap();
 
-        let fee_change = FeeChange::SequenceFee(SequenceFeeComponents {
-            base_fee: 3,
-            computed_cost_multiplier: 4,
+        let fee_change = FeeChange::Sequence(SequenceFeeComponents {
+            base: 3,
+            multiplier: 4,
         });
 
         fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_sequence_fees().await.unwrap().base_fee, 3);
-        assert_eq!(
-            state
-                .get_sequence_fees()
-                .await
-                .unwrap()
-                .computed_cost_multiplier,
-            4
-        );
+        assert_eq!(state.get_sequence_fees().await.unwrap().base, 3);
+        assert_eq!(state.get_sequence_fees().await.unwrap().multiplier, 4);
 
-        let init_bridge_account_base_fee = 1;
+        let init_bridge_account_base = 1;
         state
             .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
-                base_fee: init_bridge_account_base_fee,
-                computed_cost_multiplier: 0,
+                base: init_bridge_account_base,
+                multiplier: 0,
             })
             .unwrap();
 
-        let fee_change = FeeChange::InitBridgeAccountFee(InitBridgeAccountFeeComponents {
-            base_fee: 2,
-            computed_cost_multiplier: 0,
+        let fee_change = FeeChange::InitBridgeAccount(InitBridgeAccountFeeComponents {
+            base: 2,
+            multiplier: 0,
         });
 
         fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(
-            state.get_init_bridge_account_fees().await.unwrap().base_fee,
-            2
-        );
+        assert_eq!(state.get_init_bridge_account_fees().await.unwrap().base, 2);
 
         let bridge_lock_cost_multiplier = 1;
         state
             .put_bridge_lock_fees(BridgeLockFeeComponents {
-                base_fee: 0,
-                computed_cost_multiplier: bridge_lock_cost_multiplier,
+                base: 0,
+                multiplier: bridge_lock_cost_multiplier,
             })
             .unwrap();
 
-        let fee_change = FeeChange::BridgeLockFee(BridgeLockFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 2,
+        let fee_change = FeeChange::BridgeLock(BridgeLockFeeComponents {
+            base: 0,
+            multiplier: 2,
         });
 
         fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(
-            state
-                .get_bridge_lock_fees()
-                .await
-                .unwrap()
-                .computed_cost_multiplier,
-            2
-        );
+        assert_eq!(state.get_bridge_lock_fees().await.unwrap().multiplier, 2);
 
-        let ics20_withdrawal_base_fee = 1;
+        let ics20_withdrawal_base = 1;
         state
             .put_ics20_withdrawal_fees(Ics20WithdrawalFeeComponents {
-                base_fee: ics20_withdrawal_base_fee,
-                computed_cost_multiplier: 0,
+                base: ics20_withdrawal_base,
+                multiplier: 0,
             })
             .unwrap();
 
-        let fee_change = FeeChange::Ics20WithdrawalFee(Ics20WithdrawalFeeComponents {
-            base_fee: 2,
-            computed_cost_multiplier: 0,
+        let fee_change = FeeChange::Ics20Withdrawal(Ics20WithdrawalFeeComponents {
+            base: 2,
+            multiplier: 0,
         });
 
         fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_ics20_withdrawal_fees().await.unwrap().base_fee, 2);
+        assert_eq!(state.get_ics20_withdrawal_fees().await.unwrap().base, 2);
     }
 }

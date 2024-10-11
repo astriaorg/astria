@@ -402,7 +402,7 @@ pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -413,48 +413,44 @@ pub mod fee_change {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum FeeComponents {
         #[prost(message, tag = "1")]
-        TransferFees(super::super::super::fees::v1alpha1::TransferFeeComponents),
+        BridgeLock(super::super::super::fees::v1alpha1::BridgeLockFeeComponents),
         #[prost(message, tag = "2")]
-        SequenceFees(super::super::super::fees::v1alpha1::SequenceFeeComponents),
-        #[prost(message, tag = "3")]
-        InitBridgeAccountFees(
-            super::super::super::fees::v1alpha1::InitBridgeAccountFeeComponents,
-        ),
-        #[prost(message, tag = "4")]
-        BridgeLockFees(super::super::super::fees::v1alpha1::BridgeLockFeeComponents),
-        #[prost(message, tag = "5")]
-        BridgeUnlockFees(super::super::super::fees::v1alpha1::BridgeUnlockFeeComponents),
-        #[prost(message, tag = "6")]
-        BridgeSudoChangeFees(
+        BridgeSudoChange(
             super::super::super::fees::v1alpha1::BridgeSudoChangeFeeComponents,
         ),
+        #[prost(message, tag = "3")]
+        BridgeUnlock(super::super::super::fees::v1alpha1::BridgeUnlockFeeComponents),
+        #[prost(message, tag = "4")]
+        FeeAssetChange(super::super::super::fees::v1alpha1::FeeAssetChangeFeeComponents),
+        #[prost(message, tag = "5")]
+        FeeChange(super::super::super::fees::v1alpha1::FeeChangeFeeComponents),
         #[prost(message, tag = "7")]
-        Ics20WithdrawalFees(
-            super::super::super::fees::v1alpha1::Ics20WithdrawalFeeComponents,
-        ),
-        #[prost(message, tag = "8")]
-        IbcRelayFees(super::super::super::fees::v1alpha1::IbcRelayFeeComponents),
-        #[prost(message, tag = "9")]
-        ValidatorUpdateFees(
-            super::super::super::fees::v1alpha1::ValidatorUpdateFeeComponents,
-        ),
-        #[prost(message, tag = "10")]
-        FeeAssetChangeFees(
-            super::super::super::fees::v1alpha1::FeeAssetChangeFeeComponents,
-        ),
-        #[prost(message, tag = "11")]
-        FeeChangeFees(super::super::super::fees::v1alpha1::FeeChangeFeeComponents),
-        #[prost(message, tag = "12")]
-        IbcRelayerChangeFees(
+        IbcRelay(super::super::super::fees::v1alpha1::IbcRelayFeeComponents),
+        #[prost(message, tag = "6")]
+        IbcRelayerChange(
             super::super::super::fees::v1alpha1::IbcRelayerChangeFeeComponents,
         ),
-        #[prost(message, tag = "13")]
-        SudoAddressChangeFees(
+        #[prost(message, tag = "8")]
+        IbcSudoChange(super::super::super::fees::v1alpha1::IbcSudoChangeFeeComponents),
+        #[prost(message, tag = "9")]
+        Ics20Withdrawal(
+            super::super::super::fees::v1alpha1::Ics20WithdrawalFeeComponents,
+        ),
+        #[prost(message, tag = "10")]
+        InitBridgeAccount(
+            super::super::super::fees::v1alpha1::InitBridgeAccountFeeComponents,
+        ),
+        #[prost(message, tag = "11")]
+        Sequence(super::super::super::fees::v1alpha1::SequenceFeeComponents),
+        #[prost(message, tag = "12")]
+        SudoAddressChange(
             super::super::super::fees::v1alpha1::SudoAddressChangeFeeComponents,
         ),
+        #[prost(message, tag = "13")]
+        Transfer(super::super::super::fees::v1alpha1::TransferFeeComponents),
         #[prost(message, tag = "14")]
-        IbcSudoChangeFees(
-            super::super::super::fees::v1alpha1::IbcSudoChangeFeeComponents,
+        ValidatorUpdate(
+            super::super::super::fees::v1alpha1::ValidatorUpdateFeeComponents,
         ),
     }
 }
@@ -473,22 +469,6 @@ pub struct IbcSudoChange {
 }
 impl ::prost::Name for IbcSudoChange {
     const NAME: &'static str = "IbcSudoChange";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
-    }
-}
-/// Response to a transaction fee ABCI query.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TransactionFeeResponse {
-    #[prost(uint64, tag = "2")]
-    pub height: u64,
-    #[prost(message, repeated, tag = "3")]
-    pub fees: ::prost::alloc::vec::Vec<super::super::fees::v1alpha1::TransactionFee>,
-}
-impl ::prost::Name for TransactionFeeResponse {
-    const NAME: &'static str = "TransactionFeeResponse";
     const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)

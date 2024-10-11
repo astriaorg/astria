@@ -50,12 +50,12 @@ macro_rules! impl_from_for_fee_component{
         $(
             impl From<$domain_ty> for $storage_ty {
                 fn from(val: $domain_ty) -> Self {
-                    Self{base_fee: val.base_fee, computed_cost_multiplier: val.computed_cost_multiplier}
+                    Self{base: val.base, multiplier: val.multiplier}
                 }
             }
             impl From<$storage_ty> for $domain_ty {
                 fn from(val: $storage_ty) -> Self {
-                    Self{base_fee: val.base_fee, computed_cost_multiplier: val.computed_cost_multiplier}
+                    Self{base: val.base, multiplier: val.multiplier}
                 }
             }
         )*
@@ -89,86 +89,86 @@ macro_rules! impl_from_for_fee_storage {
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct TransferFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct SequenceFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct Ics20WithdrawalFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct InitBridgeAccountFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct BridgeLockFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct BridgeUnlockFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct BridgeSudoChangeFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct IbcRelayFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct ValidatorUpdateFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct FeeAssetChangeFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct FeeChangeFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct IbcRelayerChangeFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct IbcSudoChangeFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::fees) struct SudoAddressChangeFeeComponentsStorage {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 impl_from_for_fee_component!(

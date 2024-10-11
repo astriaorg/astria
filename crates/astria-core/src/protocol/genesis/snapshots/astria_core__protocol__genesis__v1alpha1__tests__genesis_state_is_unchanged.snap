@@ -58,79 +58,79 @@ expression: genesis_state()
     "nria"
   ],
   "fees": {
-    "transfer": {
-      "baseFee": {
-        "lo": "12"
-      },
-      "computedCostMultiplier": {}
-    },
-    "sequence": {
-      "baseFee": {
-        "lo": "32"
-      },
-      "computedCostMultiplier": {
-        "lo": "1"
-      }
-    },
-    "ics20Withdrawal": {
-      "baseFee": {
-        "lo": "24"
-      },
-      "computedCostMultiplier": {}
-    },
-    "initBridgeAccount": {
-      "baseFee": {
-        "lo": "48"
-      },
-      "computedCostMultiplier": {}
-    },
     "bridgeLock": {
-      "baseFee": {
+      "base": {
         "lo": "12"
       },
-      "computedCostMultiplier": {
+      "multiplier": {
         "lo": "1"
       }
-    },
-    "bridgeUnlock": {
-      "baseFee": {
-        "lo": "12"
-      },
-      "computedCostMultiplier": {}
     },
     "bridgeSudoChange": {
-      "baseFee": {
+      "base": {
         "lo": "24"
       },
-      "computedCostMultiplier": {}
+      "multiplier": {}
     },
-    "ibcRelay": {
-      "baseFee": {},
-      "computedCostMultiplier": {}
-    },
-    "validatorUpdate": {
-      "baseFee": {},
-      "computedCostMultiplier": {}
+    "bridgeUnlock": {
+      "base": {
+        "lo": "12"
+      },
+      "multiplier": {}
     },
     "feeAssetChange": {
-      "baseFee": {},
-      "computedCostMultiplier": {}
+      "base": {},
+      "multiplier": {}
     },
     "feeChange": {
-      "baseFee": {},
-      "computedCostMultiplier": {}
+      "base": {},
+      "multiplier": {}
+    },
+    "ibcRelay": {
+      "base": {},
+      "multiplier": {}
     },
     "ibcRelayerChange": {
-      "baseFee": {},
-      "computedCostMultiplier": {}
-    },
-    "sudoAddressChange": {
-      "baseFee": {},
-      "computedCostMultiplier": {}
+      "base": {},
+      "multiplier": {}
     },
     "ibcSudoChange": {
-      "baseFee": {},
-      "computedCostMultiplier": {}
+      "base": {},
+      "multiplier": {}
+    },
+    "ics20Withdrawal": {
+      "base": {
+        "lo": "24"
+      },
+      "multiplier": {}
+    },
+    "initBridgeAccount": {
+      "base": {
+        "lo": "48"
+      },
+      "multiplier": {}
+    },
+    "sequence": {
+      "base": {
+        "lo": "32"
+      },
+      "multiplier": {
+        "lo": "1"
+      }
+    },
+    "sudoAddressChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "transfer": {
+      "base": {
+        "lo": "12"
+      },
+      "multiplier": {}
+    },
+    "validatorUpdate": {
+      "base": {},
+      "multiplier": {}
     }
   }
 }

@@ -324,7 +324,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
 #[tokio::test]
 async fn get_transaction_fee() {
-    use astria_core::generated::protocol::transactions::v1alpha1::TransactionFeeResponse;
+    use astria_core::generated::protocol::fees::v1alpha1::TransactionFeeResponse;
 
     let MockSequencer {
         server,

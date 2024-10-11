@@ -153,7 +153,6 @@ pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
             asset
         );
     }
-
     Ok(())
 }
 
@@ -224,9 +223,9 @@ fn transfer_update_fees(
     transfer_fees: &TransferFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
-        transfer_fees.base_fee,
-        transfer_fees.computed_cost_multiplier,
-        act.computed_cost_base_component(),
+        transfer_fees.base,
+        transfer_fees.multiplier,
+        act.variable_component(),
     );
     fees_by_asset
         .entry(act.fee_asset.to_ibc_prefixed())
@@ -240,9 +239,9 @@ fn sequence_update_fees(
     sequence_fees: &SequenceFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
-        sequence_fees.base_fee,
-        sequence_fees.computed_cost_multiplier,
-        act.computed_cost_base_component(), // data length
+        sequence_fees.base,
+        sequence_fees.multiplier,
+        act.variable_component(),
     );
     fees_by_asset
         .entry(act.fee_asset.to_ibc_prefixed())
@@ -256,9 +255,9 @@ fn ics20_withdrawal_updates_fees(
     ics20_withdrawal_fees: &Ics20WithdrawalFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
-        ics20_withdrawal_fees.base_fee,
-        ics20_withdrawal_fees.computed_cost_multiplier,
-        act.computed_cost_base_component(),
+        ics20_withdrawal_fees.base,
+        ics20_withdrawal_fees.multiplier,
+        act.variable_component(),
     );
     fees_by_asset
         .entry(act.fee_asset.to_ibc_prefixed())
@@ -272,9 +271,9 @@ fn bridge_lock_update_fees(
     bridge_lock_fees: &BridgeLockFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
-        bridge_lock_fees.base_fee,
-        bridge_lock_fees.computed_cost_multiplier,
-        act.computed_cost_base_component(),
+        bridge_lock_fees.base,
+        bridge_lock_fees.multiplier,
+        act.variable_component(),
     );
 
     fees_by_asset
@@ -289,9 +288,9 @@ fn init_bridge_account_update_fees(
     init_bridge_account_fees: &InitBridgeAccountFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
-        init_bridge_account_fees.base_fee,
-        init_bridge_account_fees.computed_cost_multiplier,
-        act.computed_cost_base_component(),
+        init_bridge_account_fees.base,
+        init_bridge_account_fees.multiplier,
+        act.variable_component(),
     );
 
     fees_by_asset
@@ -306,9 +305,9 @@ fn bridge_unlock_update_fees(
     bridge_lock_fees: &BridgeUnlockFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
-        bridge_lock_fees.base_fee,
-        bridge_lock_fees.computed_cost_multiplier,
-        act.computed_cost_base_component(),
+        bridge_lock_fees.base,
+        bridge_lock_fees.multiplier,
+        act.variable_component(),
     );
 
     fees_by_asset
@@ -323,9 +322,9 @@ fn bridge_sudo_change_update_fees(
     bridge_sudo_change_fees: &BridgeSudoChangeFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
-        bridge_sudo_change_fees.base_fee,
-        bridge_sudo_change_fees.computed_cost_multiplier,
-        act.computed_cost_base_component(),
+        bridge_sudo_change_fees.base,
+        bridge_sudo_change_fees.multiplier,
+        act.variable_component(),
     );
 
     fees_by_asset
@@ -334,12 +333,8 @@ fn bridge_sudo_change_update_fees(
         .or_insert(total_fees);
 }
 
-fn calculate_total_fees(
-    base_fee: u128,
-    computed_cost_multiplier: u128,
-    computed_cost_base: u128,
-) -> u128 {
-    base_fee.saturating_add(computed_cost_base.saturating_mul(computed_cost_multiplier))
+fn calculate_total_fees(base: u128, multiplier: u128, computed_cost_base: u128) -> u128 {
+    base.saturating_add(computed_cost_base.saturating_mul(multiplier))
 }
 
 #[cfg(test)]
@@ -397,8 +392,8 @@ mod tests {
             .put_native_asset(crate::test_utils::nria())
             .unwrap();
         let transfer_fees = TransferFeeComponents {
-            base_fee: 12,
-            computed_cost_multiplier: 0,
+            base: 12,
+            multiplier: 0,
         };
         state_tx
             .put_transfer_fees(transfer_fees)
@@ -406,8 +401,8 @@ mod tests {
             .unwrap();
 
         let sequence_fees = SequenceFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 1,
+            base: 0,
+            multiplier: 1,
         };
         state_tx
             .put_sequence_fees(sequence_fees)
@@ -415,8 +410,8 @@ mod tests {
             .unwrap();
 
         let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
-            base_fee: 1,
-            computed_cost_multiplier: 0,
+            base: 1,
+            multiplier: 0,
         };
         state_tx
             .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
@@ -424,8 +419,8 @@ mod tests {
             .unwrap();
 
         let init_bridge_account_fees = InitBridgeAccountFeeComponents {
-            base_fee: 12,
-            computed_cost_multiplier: 0,
+            base: 12,
+            multiplier: 0,
         };
         state_tx
             .put_init_bridge_account_fees(init_bridge_account_fees)
@@ -433,8 +428,8 @@ mod tests {
             .unwrap();
 
         let bridge_lock_fees = BridgeLockFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 1,
+            base: 0,
+            multiplier: 1,
         };
         state_tx
             .put_bridge_lock_fees(bridge_lock_fees)
@@ -442,8 +437,8 @@ mod tests {
             .unwrap();
 
         let bridge_unlock_fees = BridgeUnlockFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 0,
+            base: 0,
+            multiplier: 0,
         };
         state_tx
             .put_bridge_unlock_fees(bridge_unlock_fees)
@@ -451,8 +446,8 @@ mod tests {
             .unwrap();
 
         let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
-            base_fee: 24,
-            computed_cost_multiplier: 0,
+            base: 24,
+            multiplier: 0,
         };
         state_tx
             .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
@@ -464,7 +459,7 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = state_tx.get_transfer_fees().await.unwrap().base_fee;
+        let transfer_fee = state_tx.get_transfer_fees().await.unwrap().base;
         state_tx
             .increase_balance(
                 &state_tx
@@ -526,8 +521,8 @@ mod tests {
             .put_native_asset(crate::test_utils::nria())
             .unwrap();
         let transfer_fees = TransferFeeComponents {
-            base_fee: 12,
-            computed_cost_multiplier: 0,
+            base: 12,
+            multiplier: 0,
         };
         state_tx
             .put_transfer_fees(transfer_fees)
@@ -535,8 +530,8 @@ mod tests {
             .unwrap();
 
         let sequence_fees = SequenceFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 1,
+            base: 0,
+            multiplier: 1,
         };
         state_tx
             .put_sequence_fees(sequence_fees)
@@ -544,8 +539,8 @@ mod tests {
             .unwrap();
 
         let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
-            base_fee: 1,
-            computed_cost_multiplier: 0,
+            base: 1,
+            multiplier: 0,
         };
         state_tx
             .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
@@ -553,8 +548,8 @@ mod tests {
             .unwrap();
 
         let init_bridge_account_fees = InitBridgeAccountFeeComponents {
-            base_fee: 12,
-            computed_cost_multiplier: 0,
+            base: 12,
+            multiplier: 0,
         };
         state_tx
             .put_init_bridge_account_fees(init_bridge_account_fees)
@@ -562,8 +557,8 @@ mod tests {
             .unwrap();
 
         let bridge_lock_fees = BridgeLockFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 1,
+            base: 0,
+            multiplier: 1,
         };
         state_tx
             .put_bridge_lock_fees(bridge_lock_fees)
@@ -571,8 +566,8 @@ mod tests {
             .unwrap();
 
         let bridge_unlock_fees = BridgeUnlockFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 0,
+            base: 0,
+            multiplier: 0,
         };
         state_tx
             .put_bridge_unlock_fees(bridge_unlock_fees)
@@ -580,8 +575,8 @@ mod tests {
             .unwrap();
 
         let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
-            base_fee: 24,
-            computed_cost_multiplier: 0,
+            base: 24,
+            multiplier: 0,
         };
         state_tx
             .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
@@ -593,7 +588,7 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = state_tx.get_transfer_fees().await.unwrap().base_fee;
+        let transfer_fee = state_tx.get_transfer_fees().await.unwrap().base;
         state_tx
             .increase_balance(
                 &state_tx

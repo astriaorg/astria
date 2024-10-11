@@ -161,8 +161,8 @@ mod tests {
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         state
             .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
-                base_fee: 10,
-                computed_cost_multiplier: 0,
+                base: 10,
+                multiplier: 0,
             })
             .unwrap();
 

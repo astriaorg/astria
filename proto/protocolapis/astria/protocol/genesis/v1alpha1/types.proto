@@ -42,21 +42,18 @@ message IbcParameters {
 }
 
 message GenesisFees {
-  // Fee-bearing actions are defined on 1-19
-  astria.protocol.fees.v1alpha1.TransferFeeComponents transfer = 1;
-  astria.protocol.fees.v1alpha1.SequenceFeeComponents sequence = 2;
-  astria.protocol.fees.v1alpha1.Ics20WithdrawalFeeComponents ics20_withdrawal = 3;
-  astria.protocol.fees.v1alpha1.InitBridgeAccountFeeComponents init_bridge_account = 4;
-  astria.protocol.fees.v1alpha1.BridgeLockFeeComponents bridge_lock = 5;
-  astria.protocol.fees.v1alpha1.BridgeUnlockFeeComponents bridge_unlock = 6;
-  astria.protocol.fees.v1alpha1.BridgeSudoChangeFeeComponents bridge_sudo_change = 7;
-
-  // Non fee-bearing actions are defined on 20-39
-  astria.protocol.fees.v1alpha1.IbcRelayFeeComponents ibc_relay = 20;
-  astria.protocol.fees.v1alpha1.ValidatorUpdateFeeComponents validator_update = 21;
-  astria.protocol.fees.v1alpha1.FeeAssetChangeFeeComponents fee_asset_change = 22;
-  astria.protocol.fees.v1alpha1.FeeChangeFeeComponents fee_change = 23;
-  astria.protocol.fees.v1alpha1.IbcRelayerChangeFeeComponents ibc_relayer_change = 24;
-  astria.protocol.fees.v1alpha1.SudoAddressChangeFeeComponents sudo_address_change = 25;
-  astria.protocol.fees.v1alpha1.IbcSudoChangeFeeComponents ibc_sudo_change = 26;
+  astria.protocol.fees.v1alpha1.BridgeLockFeeComponents bridge_lock = 1;
+  astria.protocol.fees.v1alpha1.BridgeSudoChangeFeeComponents bridge_sudo_change = 2;
+  astria.protocol.fees.v1alpha1.BridgeUnlockFeeComponents bridge_unlock = 3;
+  astria.protocol.fees.v1alpha1.FeeAssetChangeFeeComponents fee_asset_change = 4;
+  astria.protocol.fees.v1alpha1.FeeChangeFeeComponents fee_change = 5;
+  astria.protocol.fees.v1alpha1.IbcRelayFeeComponents ibc_relay = 7;
+  astria.protocol.fees.v1alpha1.IbcRelayerChangeFeeComponents ibc_relayer_change = 6;
+  astria.protocol.fees.v1alpha1.IbcSudoChangeFeeComponents ibc_sudo_change = 8;
+  astria.protocol.fees.v1alpha1.Ics20WithdrawalFeeComponents ics20_withdrawal = 9;
+  astria.protocol.fees.v1alpha1.InitBridgeAccountFeeComponents init_bridge_account = 10;
+  astria.protocol.fees.v1alpha1.SequenceFeeComponents sequence = 11;
+  astria.protocol.fees.v1alpha1.SudoAddressChangeFeeComponents sudo_address_change = 12;
+  astria.protocol.fees.v1alpha1.TransferFeeComponents transfer = 13;
+  astria.protocol.fees.v1alpha1.ValidatorUpdateFeeComponents validator_update = 14;
 }

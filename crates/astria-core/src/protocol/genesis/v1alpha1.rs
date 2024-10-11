@@ -838,99 +838,99 @@ mod tests {
             fees: Some(raw::GenesisFees {
                 transfer: Some(
                     TransferFeeComponents {
-                        base_fee: 12,
-                        computed_cost_multiplier: 0,
+                        base: 12,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 sequence: Some(
                     SequenceFeeComponents {
-                        base_fee: 32,
-                        computed_cost_multiplier: 1,
+                        base: 32,
+                        multiplier: 1,
                     }
                     .to_raw(),
                 ),
                 init_bridge_account: Some(
                     InitBridgeAccountFeeComponents {
-                        base_fee: 48,
-                        computed_cost_multiplier: 0,
+                        base: 48,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 bridge_lock: Some(
                     BridgeLockFeeComponents {
-                        base_fee: 12,
-                        computed_cost_multiplier: 1,
+                        base: 12,
+                        multiplier: 1,
                     }
                     .to_raw(),
                 ),
                 bridge_unlock: Some(
                     BridgeUnlockFeeComponents {
-                        base_fee: 12,
-                        computed_cost_multiplier: 0,
+                        base: 12,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 bridge_sudo_change: Some(
                     BridgeSudoChangeFeeComponents {
-                        base_fee: 24,
-                        computed_cost_multiplier: 0,
+                        base: 24,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 ics20_withdrawal: Some(
                     Ics20WithdrawalFeeComponents {
-                        base_fee: 24,
-                        computed_cost_multiplier: 0,
+                        base: 24,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 ibc_relay: Some(
                     IbcRelayFeeComponents {
-                        base_fee: 0,
-                        computed_cost_multiplier: 0,
+                        base: 0,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 validator_update: Some(
                     ValidatorUpdateFeeComponents {
-                        base_fee: 0,
-                        computed_cost_multiplier: 0,
+                        base: 0,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 fee_asset_change: Some(
                     FeeAssetChangeFeeComponents {
-                        base_fee: 0,
-                        computed_cost_multiplier: 0,
+                        base: 0,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 fee_change: Some(
                     FeeChangeFeeComponents {
-                        base_fee: 0,
-                        computed_cost_multiplier: 0,
+                        base: 0,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 ibc_relayer_change: Some(
                     IbcRelayerChangeFeeComponents {
-                        base_fee: 0,
-                        computed_cost_multiplier: 0,
+                        base: 0,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 sudo_address_change: Some(
                     SudoAddressChangeFeeComponents {
-                        base_fee: 0,
-                        computed_cost_multiplier: 0,
+                        base: 0,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),
                 ibc_sudo_change: Some(
                     IbcSudoChangeFeeComponents {
-                        base_fee: 0,
-                        computed_cost_multiplier: 0,
+                        base: 0,
+                        multiplier: 0,
                     }
                     .to_raw(),
                 ),

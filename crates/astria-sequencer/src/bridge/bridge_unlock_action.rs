@@ -238,8 +238,8 @@ mod tests {
         let transfer_amount = 100;
         state
             .put_bridge_unlock_fees(BridgeUnlockFeeComponents {
-                base_fee: transfer_fee,
-                computed_cost_multiplier: 0,
+                base: transfer_fee,
+                multiplier: 0,
             })
             .unwrap();
 

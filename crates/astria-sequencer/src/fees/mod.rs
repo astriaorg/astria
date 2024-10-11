@@ -18,6 +18,7 @@ use astria_core::{
         Transfer,
         ValidatorUpdate,
     },
+    Protobuf,
 };
 use astria_eyre::eyre::{
     self,
@@ -48,6 +49,8 @@ use crate::{
 pub(crate) mod component;
 mod state_ext;
 pub(crate) mod storage;
+#[cfg(test)]
+mod tests_block_fees;
 
 pub(crate) use state_ext::{
     StateReadExt,
@@ -60,13 +63,14 @@ const DEPOSIT_BASE_FEE: u128 = 16;
 
 #[async_trait::async_trait]
 pub(crate) trait FeeHandler {
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()>;
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()>;
 
-    fn computed_cost_base_component(&self) -> u128;
+    fn variable_component(&self) -> u128;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Fee {
+    action_name: String,
     asset: asset::Denom,
     amount: u128,
     source_transaction_id: TransactionId,
@@ -86,23 +90,16 @@ impl Fee {
 #[async_trait::async_trait]
 impl FeeHandler for Transfer {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_transfer_fees()
             .await
             .wrap_err("transfer fees not found, so this action is disabled")?;
-        check_and_pay_fees(
-            self,
-            fees.base_fee,
-            fees.computed_cost_multiplier,
-            state,
-            &self.fee_asset,
-        )
-        .await
+        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
     #[instrument(skip_all)]
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -110,48 +107,33 @@ impl FeeHandler for Transfer {
 #[async_trait::async_trait]
 impl FeeHandler for BridgeLock {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_bridge_lock_fees()
             .await
             .wrap_err("bridge lock fees not found, so this action is disabled")?;
-        check_and_pay_fees(
-            self,
-            fees.base_fee,
-            fees.computed_cost_multiplier,
-            state,
-            &self.fee_asset,
-        )
-        .await
+        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
     #[instrument(skip_all)]
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         base_deposit_fee(&self.asset, &self.destination_chain_address)
-            .expect("deposit fee calculation should not fail")
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeSudoChange {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_bridge_sudo_change_fees()
             .await
             .wrap_err("bridge sudo change fees not found, so this action is disabled")?;
-        check_and_pay_fees(
-            self,
-            fees.base_fee,
-            fees.computed_cost_multiplier,
-            state,
-            &self.fee_asset,
-        )
-        .await
+        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
     #[instrument(skip_all)]
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -159,23 +141,16 @@ impl FeeHandler for BridgeSudoChange {
 #[async_trait::async_trait]
 impl FeeHandler for BridgeUnlock {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_bridge_unlock_fees()
             .await
             .wrap_err("bridge unlock fees not found, so this action is disabled")?;
-        check_and_pay_fees(
-            self,
-            fees.base_fee,
-            fees.computed_cost_multiplier,
-            state,
-            &self.fee_asset,
-        )
-        .await
+        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
     #[instrument(skip_all)]
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -183,23 +158,16 @@ impl FeeHandler for BridgeUnlock {
 #[async_trait::async_trait]
 impl FeeHandler for InitBridgeAccount {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_init_bridge_account_fees()
             .await
             .wrap_err("init bridge account fees not found, so this action is disabled")?;
-        check_and_pay_fees(
-            self,
-            fees.base_fee,
-            fees.computed_cost_multiplier,
-            state,
-            &self.fee_asset,
-        )
-        .await
+        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
     #[instrument(skip_all)]
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -207,23 +175,16 @@ impl FeeHandler for InitBridgeAccount {
 #[async_trait::async_trait]
 impl FeeHandler for action::Ics20Withdrawal {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_ics20_withdrawal_fees()
             .await
             .wrap_err("ics20 withdrawal fees not found, so this action is disabled")?;
-        check_and_pay_fees(
-            self,
-            fees.base_fee,
-            fees.computed_cost_multiplier,
-            state,
-            &self.fee_asset,
-        )
-        .await
+        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
     #[instrument(skip_all)]
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -231,34 +192,25 @@ impl FeeHandler for action::Ics20Withdrawal {
 #[async_trait::async_trait]
 impl FeeHandler for Sequence {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_sequence_fees()
             .await
             .wrap_err("sequence fees not found, so this action is disabled")?;
-        check_and_pay_fees(
-            self,
-            fees.base_fee,
-            fees.computed_cost_multiplier,
-            state,
-            &self.fee_asset,
-        )
-        .await
+        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
     #[instrument(skip_all)]
-    fn computed_cost_base_component(&self) -> u128 {
-        self.data
-            .len()
-            .try_into()
-            .expect("a usize should always convert to a u128")
+    fn variable_component(&self) -> u128 {
+        u128::try_from(self.data.len())
+            .expect("converting a usize to a u128 should work on any currently existing machine")
     }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for ValidatorUpdate {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_validator_update_fees()
             .await
@@ -266,7 +218,7 @@ impl FeeHandler for ValidatorUpdate {
         Ok(())
     }
 
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -274,7 +226,7 @@ impl FeeHandler for ValidatorUpdate {
 #[async_trait::async_trait]
 impl FeeHandler for SudoAddressChange {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_sudo_address_change_fees()
             .await
@@ -282,7 +234,7 @@ impl FeeHandler for SudoAddressChange {
         Ok(())
     }
 
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -290,7 +242,7 @@ impl FeeHandler for SudoAddressChange {
 #[async_trait::async_trait]
 impl FeeHandler for FeeChange {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_fee_change_fees()
             .await
@@ -298,7 +250,7 @@ impl FeeHandler for FeeChange {
         Ok(())
     }
 
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -306,7 +258,7 @@ impl FeeHandler for FeeChange {
 #[async_trait::async_trait]
 impl FeeHandler for IbcSudoChange {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_ibc_sudo_change_fees()
             .await
@@ -314,7 +266,7 @@ impl FeeHandler for IbcSudoChange {
         Ok(())
     }
 
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -322,7 +274,7 @@ impl FeeHandler for IbcSudoChange {
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelayerChange {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_ibc_relayer_change_fees()
             .await
@@ -330,7 +282,7 @@ impl FeeHandler for IbcRelayerChange {
         Ok(())
     }
 
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -338,7 +290,7 @@ impl FeeHandler for IbcRelayerChange {
 #[async_trait::async_trait]
 impl FeeHandler for FeeAssetChange {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_fee_asset_change_fees()
             .await
@@ -346,7 +298,7 @@ impl FeeHandler for FeeAssetChange {
         Ok(())
     }
 
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
@@ -354,7 +306,7 @@ impl FeeHandler for FeeAssetChange {
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelay {
     #[instrument(skip_all, err)]
-    async fn handle_fees_if_present<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_ibc_relay_fees()
             .await
@@ -362,25 +314,21 @@ impl FeeHandler for IbcRelay {
         Ok(())
     }
 
-    fn computed_cost_base_component(&self) -> u128 {
+    fn variable_component(&self) -> u128 {
         0
     }
 }
 
 #[instrument(skip_all, err(level = Level::WARN))]
-async fn check_and_pay_fees<S: StateWrite>(
-    act: &impl FeeHandler,
-    base_fee: u128,
+async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
+    act: &T,
+    base: u128,
     multiplier: u128,
     mut state: S,
     fee_asset: &asset::Denom,
 ) -> eyre::Result<()> {
-    let total_fees = base_fee
-        .checked_add(
-            act.computed_cost_base_component()
-                .checked_mul(multiplier)
-                .ok_or_eyre("fee calculation overflow in multiplication")?,
-        )
+    let total_fees = base
+        .checked_add(act.variable_component().saturating_mul(multiplier))
         .ok_or_eyre("fee calculation overflow in sum")?;
     let transaction_context = state
         .get_transaction_context()
@@ -405,7 +353,13 @@ async fn check_and_pay_fees<S: StateWrite>(
         "invalid fee asset",
     );
     state
-        .add_fee_to_block_fees(fee_asset, total_fees, transaction_id, source_action_index)
+        .add_fee_to_block_fees(
+            act,
+            fee_asset,
+            total_fees,
+            transaction_id,
+            source_action_index,
+        )
         .wrap_err("failed to add to block fees")?;
     state
         .decrease_balance(&from, fee_asset, total_fees)
@@ -417,23 +371,14 @@ async fn check_and_pay_fees<S: StateWrite>(
 /// Returns a modified byte length of the deposit event. Length is calculated with reasonable values
 /// for all fields except `asset` and `destination_chain_address`, ergo it may not be representative
 /// of on-wire length.
-#[cfg(test)]
-pub(crate) fn calculate_base_deposit_fee(
-    asset: &asset::Denom,
-    destination_chain_address: &str,
-) -> Option<u128> {
-    base_deposit_fee(asset, destination_chain_address)
-}
-
-fn base_deposit_fee(asset: &asset::Denom, destination_chain_address: &str) -> Option<u128> {
-    asset
-        .display_len()
-        .checked_add(destination_chain_address.len())
-        .and_then(|var_len| {
-            DEPOSIT_BASE_FEE.checked_add(u128::try_from(var_len).expect(
-                "converting a usize to a u128 should work on any currently existing machine",
-            ))
-        })
+fn base_deposit_fee(asset: &asset::Denom, destination_chain_address: &str) -> u128 {
+    u128::try_from(
+        asset
+            .display_len()
+            .saturating_add(destination_chain_address.len()),
+    )
+    .expect("converting a usize to a u128 should work on any currently existing machine")
+    .saturating_add(DEPOSIT_BASE_FEE)
 }
 
 /// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
@@ -441,6 +386,7 @@ pub(crate) fn construct_tx_fee_event(fee: &Fee) -> Event {
     Event::new(
         "tx.fees",
         [
+            ("actionName", fee.action_name.to_string()).index(),
             ("asset", fee.asset.to_string()).index(),
             ("feeAmount", fee.amount.to_string()).index(),
             ("sourceTransactionId", fee.source_transaction_id.to_string()).index(),
@@ -481,7 +427,7 @@ mod tests {
         assets::StateWriteExt as _,
         bridge::StateWriteExt as _,
         fees::{
-            calculate_base_deposit_fee,
+            base_deposit_fee,
             StateWriteExt as _,
             DEPOSIT_BASE_FEE,
         },
@@ -517,14 +463,14 @@ mod tests {
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let transfer_fees = TransferFeeComponents {
-            base_fee: transfer_fee,
-            computed_cost_multiplier: 0,
+            base: transfer_fee,
+            multiplier: 0,
         };
         state.put_transfer_fees(transfer_fees).unwrap();
 
         let bridge_lock_fees = BridgeLockFeeComponents {
-            base_fee: transfer_fee,
-            computed_cost_multiplier: 2,
+            base: transfer_fee,
+            multiplier: 2,
         };
         state.put_bridge_lock_fees(bridge_lock_fees).unwrap();
 
@@ -557,8 +503,7 @@ mod tests {
         );
 
         // enough balance; should pass
-        let expected_deposit_fee =
-            transfer_fee + calculate_base_deposit_fee(&asset, "someaddress").unwrap() * 2;
+        let expected_deposit_fee = transfer_fee + base_deposit_fee(&asset, "someaddress") * 2;
         state
             .put_account_balance(&from_address, &asset, 100 + expected_deposit_fee)
             .unwrap();
@@ -600,8 +545,7 @@ mod tests {
         reason = "adding length of strings will never overflow u128 on currently existing machines"
     )]
     fn assert_correct_base_deposit_fee(deposit: &Deposit) {
-        let calculated_len =
-            calculate_base_deposit_fee(&deposit.asset, &deposit.destination_chain_address).unwrap();
+        let calculated_len = base_deposit_fee(&deposit.asset, &deposit.destination_chain_address);
         let expected_len = DEPOSIT_BASE_FEE
             + deposit.asset.to_string().len() as u128
             + deposit.destination_chain_address.len() as u128;

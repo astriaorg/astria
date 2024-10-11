@@ -291,6 +291,6 @@ async fn check_execute_and_pay_fees<T: ActionHandler + FeeHandler + Sync, S: Sta
     mut state: S,
 ) -> Result<()> {
     action.check_and_execute(&mut state).await?;
-    action.handle_fees_if_present(&mut state).await?;
+    action.check_and_pay_fees(&mut state).await?;
     Ok(())
 }

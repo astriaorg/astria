@@ -69,18 +69,17 @@ pub(crate) async fn calculate_sequence_action_fee_from_state<S: crate::fees::Sta
     state: &S,
 ) -> u128 {
     let SequenceFeeComponents {
-        base_fee,
-        computed_cost_multiplier,
+        base,
+        multiplier,
     } = state.get_sequence_fees().await.unwrap();
-    base_fee
-        .checked_add(
-            computed_cost_multiplier
-                .checked_mul(
-                    data.len()
-                        .try_into()
-                        .expect("a usize should always convert to a u128"),
-                )
-                .expect("fee multiplication should not overflow"),
-        )
-        .expect("fee addition should not overflow")
+    base.checked_add(
+        multiplier
+            .checked_mul(
+                data.len()
+                    .try_into()
+                    .expect("a usize should always convert to a u128"),
+            )
+            .expect("fee multiplication should not overflow"),
+    )
+    .expect("fee addition should not overflow")
 }

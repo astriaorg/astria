@@ -19,6 +19,7 @@ use astria_core::{
         TransferFeeComponents,
         ValidatorUpdateFeeComponents,
     },
+    Protobuf,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -41,6 +42,7 @@ use super::{
         keys,
     },
     Fee,
+    FeeHandler,
 };
 use crate::storage::StoredValue;
 
@@ -317,8 +319,9 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     /// Constructs and adds `Fee` object to the block fees vec.
     #[instrument(skip_all)]
-    fn add_fee_to_block_fees<'a, TAsset>(
+    fn add_fee_to_block_fees<'a, TAsset, T: FeeHandler + Protobuf>(
         &mut self,
+        _act: &T,
         asset: &'a TAsset,
         amount: u128,
         source_transaction_id: TransactionId,
@@ -331,6 +334,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let current_fees: Option<Vec<Fee>> = self.object_get(keys::BLOCK);
 
         let fee = Fee {
+            action_name: T::full_name(),
             asset: asset::IbcPrefixed::from(asset).into(),
             amount,
             source_transaction_id,
@@ -480,9 +484,17 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use std::collections::HashSet;
 
+    use astria_core::protocol::transaction::v1alpha1::action::Transfer;
     use cnidarium::StateDelta;
 
     use super::*;
+    use crate::{
+        app::test_utils::{
+            get_alice_signing_key,
+            initialize_app_with_storage,
+        },
+        test_utils::ASTRIA_PREFIX,
+    };
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
@@ -494,7 +506,7 @@ mod tests {
 
     #[tokio::test]
     async fn block_fee_read_and_increase() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let (_, storage) = initialize_app_with_storage(None, vec![]).await;
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
@@ -505,8 +517,20 @@ mod tests {
         // can write
         let asset = asset_0();
         let amount = 100u128;
+        let transfer_action = Transfer {
+            to: get_alice_signing_key().try_address(ASTRIA_PREFIX).unwrap(),
+            amount: 100,
+            asset: asset.clone(),
+            fee_asset: asset.clone(),
+        };
         state
-            .add_fee_to_block_fees(&asset, amount, TransactionId::new([0; 32]), 0)
+            .add_fee_to_block_fees(
+                &transfer_action,
+                &asset,
+                amount,
+                TransactionId::new([0; 32]),
+                0,
+            )
             .unwrap();
 
         // holds expected
@@ -514,6 +538,7 @@ mod tests {
         assert_eq!(
             fee_balances_updated[0],
             Fee {
+                action_name: "astria.protocol.transactions.v1alpha1.Transfer".to_string(),
                 asset: asset.to_ibc_prefixed().into(),
                 amount,
                 source_transaction_id: TransactionId::new([0; 32]),
@@ -525,7 +550,7 @@ mod tests {
 
     #[tokio::test]
     async fn block_fee_read_and_increase_can_delete() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let (_, storage) = initialize_app_with_storage(None, vec![]).await;
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
@@ -535,11 +560,36 @@ mod tests {
         let amount_first = 100u128;
         let amount_second = 200u128;
 
+        let transfer_action_first = Transfer {
+            to: get_alice_signing_key().try_address(ASTRIA_PREFIX).unwrap(),
+            amount: amount_first,
+            asset: asset_first.clone(),
+            fee_asset: asset_first.clone(),
+        };
+        let transfer_action_second = Transfer {
+            to: get_alice_signing_key().try_address(ASTRIA_PREFIX).unwrap(),
+            amount: amount_second,
+            asset: asset_second.clone(),
+            fee_asset: asset_second.clone(),
+        };
+
         state
-            .add_fee_to_block_fees(&asset_first, amount_first, TransactionId::new([0; 32]), 0)
+            .add_fee_to_block_fees(
+                &transfer_action_first,
+                &asset_first,
+                amount_first,
+                TransactionId::new([0; 32]),
+                0,
+            )
             .unwrap();
         state
-            .add_fee_to_block_fees(&asset_second, amount_second, TransactionId::new([0; 32]), 1)
+            .add_fee_to_block_fees(
+                &transfer_action_second,
+                &asset_second,
+                amount_second,
+                TransactionId::new([0; 32]),
+                1,
+            )
             .unwrap();
         // holds expected
         let fee_balances = HashSet::<_>::from_iter(state.get_block_fees().unwrap());
@@ -547,12 +597,14 @@ mod tests {
             fee_balances,
             HashSet::from_iter(vec![
                 Fee {
+                    action_name: "astria.protocol.transactions.v1alpha1.Transfer".to_string(),
                     asset: asset_first.to_ibc_prefixed().into(),
                     amount: amount_first,
                     source_transaction_id: TransactionId::new([0; 32]),
                     source_action_index: 0
                 },
                 Fee {
+                    action_name: "astria.protocol.transactions.v1alpha1.Transfer".to_string(),
                     asset: asset_second.to_ibc_prefixed().into(),
                     amount: amount_second,
                     source_transaction_id: TransactionId::new([0; 32]),
@@ -570,8 +622,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = TransferFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_transfer_fees(fee_components).unwrap();
@@ -586,8 +638,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = SequenceFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_sequence_fees(fee_components).unwrap();
@@ -602,8 +654,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = Ics20WithdrawalFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_ics20_withdrawal_fees(fee_components).unwrap();
@@ -618,8 +670,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = InitBridgeAccountFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_init_bridge_account_fees(fee_components).unwrap();
@@ -634,8 +686,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = BridgeLockFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_bridge_lock_fees(fee_components).unwrap();
@@ -650,8 +702,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = BridgeUnlockFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_bridge_unlock_fees(fee_components).unwrap();
@@ -666,8 +718,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = BridgeSudoChangeFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_bridge_sudo_change_fees(fee_components).unwrap();
@@ -682,8 +734,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = IbcRelayFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_ibc_relay_fees(fee_components).unwrap();
@@ -698,8 +750,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = ValidatorUpdateFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_validator_update_fees(fee_components).unwrap();
@@ -714,8 +766,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = FeeAssetChangeFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_fee_asset_change_fees(fee_components).unwrap();
@@ -730,8 +782,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = FeeChangeFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_fee_change_fees(fee_components).unwrap();
@@ -746,8 +798,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = IbcRelayerChangeFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_ibc_relayer_change_fees(fee_components).unwrap();
@@ -762,8 +814,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = SudoAddressChangeFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_sudo_address_change_fees(fee_components).unwrap();
@@ -778,8 +830,8 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let fee_components = IbcSudoChangeFeeComponents {
-            base_fee: 123,
-            computed_cost_multiplier: 1,
+            base: 123,
+            multiplier: 1,
         };
 
         state.put_ibc_sudo_change_fees(fee_components).unwrap();

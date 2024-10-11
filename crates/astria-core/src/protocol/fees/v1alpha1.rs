@@ -2,6 +2,7 @@ use prost::Name as _;
 
 use crate::{
     generated::protocol::fees::v1alpha1 as raw,
+    primitive::v1::asset,
     Protobuf,
 };
 
@@ -38,27 +39,27 @@ macro_rules! impl_protobuf_for_fee_components {
 
                 fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
                     let Self::Raw {
-                        base_fee,
-                        computed_cost_multiplier,
+                        base,
+                        multiplier,
                     } = raw;
                     Ok(Self {
-                        base_fee: base_fee
-                            .ok_or_else(|| Self::Error::missing_field(Self::Raw::full_name(), "base_fee"))?
+                        base: base
+                            .ok_or_else(|| Self::Error::missing_field(Self::Raw::full_name(), "base"))?
                             .into(),
-                        computed_cost_multiplier: computed_cost_multiplier
-                            .ok_or_else(|| Self::Error::missing_field(Self::Raw::full_name(), "computed_cost_multiplier"))?
+                        multiplier: multiplier
+                            .ok_or_else(|| Self::Error::missing_field(Self::Raw::full_name(), "multiplier"))?
                             .into(),
                     })
                 }
 
                 fn to_raw(&self) -> Self::Raw {
                     let Self {
-                        base_fee,
-                        computed_cost_multiplier,
+                        base,
+                        multiplier,
                     } = self;
                     Self::Raw {
-                        base_fee: Some(base_fee.into()),
-                        computed_cost_multiplier: Some(computed_cost_multiplier.into()),
+                        base: Some(base.into()),
+                        multiplier: Some(multiplier.into()),
                     }
                 }
             }
@@ -84,84 +85,163 @@ impl_protobuf_for_fee_components!(
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TransferFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SequenceFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Ics20WithdrawalFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InitBridgeAccountFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BridgeLockFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BridgeUnlockFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BridgeSudoChangeFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct IbcRelayFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ValidatorUpdateFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FeeAssetChangeFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FeeChangeFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct IbcRelayerChangeFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SudoAddressChangeFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct IbcSudoChangeFeeComponents {
-    pub base_fee: u128,
-    pub computed_cost_multiplier: u128,
+    pub base: u128,
+    pub multiplier: u128,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransactionFeeResponse {
+    pub height: u64,
+    pub fees: Vec<(asset::Denom, u128)>,
+}
+
+impl TransactionFeeResponse {
+    #[must_use]
+    pub fn into_raw(self) -> raw::TransactionFeeResponse {
+        raw::TransactionFeeResponse {
+            height: self.height,
+            fees: self
+                .fees
+                .into_iter()
+                .map(
+                    |(asset, fee)| crate::generated::protocol::fees::v1alpha1::TransactionFee {
+                        asset: asset.to_string(),
+                        fee: Some(fee.into()),
+                    },
+                )
+                .collect(),
+        }
+    }
+
+    /// Attempt to convert from a raw protobuf [`raw::TransactionFeeResponse`].
+    ///
+    /// # Errors
+    ///
+    /// - if the asset ID could not be converted from bytes
+    /// - if the fee was unset
+    pub fn try_from_raw(
+        proto: raw::TransactionFeeResponse,
+    ) -> Result<Self, TransactionFeeResponseError> {
+        let raw::TransactionFeeResponse {
+            height,
+            fees,
+        } = proto;
+        let fees = fees
+            .into_iter()
+            .map(
+                |crate::generated::protocol::fees::v1alpha1::TransactionFee {
+                     asset,
+                     fee,
+                 }| {
+                    let asset = asset.parse().map_err(TransactionFeeResponseError::asset)?;
+                    let fee = fee.ok_or(TransactionFeeResponseError::unset_fee())?;
+                    Ok((asset, fee.into()))
+                },
+            )
+            .collect::<Result<_, _>>()?;
+        Ok(Self {
+            height,
+            fees,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TransactionFeeResponseError(TransactionFeeResponseErrorKind);
+
+impl TransactionFeeResponseError {
+    fn unset_fee() -> Self {
+        Self(TransactionFeeResponseErrorKind::UnsetFee)
+    }
+
+    fn asset(inner: asset::ParseDenomError) -> Self {
+        Self(TransactionFeeResponseErrorKind::Asset(inner))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum TransactionFeeResponseErrorKind {
+    #[error("`fee` field is unset")]
+    UnsetFee,
+    #[error("failed to parse asset denom in the `assets` field")]
+    Asset(#[source] asset::ParseDenomError),
 }

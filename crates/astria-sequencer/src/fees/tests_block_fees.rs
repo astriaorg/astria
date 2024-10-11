@@ -24,20 +24,22 @@ use astria_core::{
     sequencerblock::v1alpha1::block::Deposit,
 };
 use cnidarium::StateDelta;
-use tendermint::abci::EventAttributeIndexExt as _;
 
+use super::base_deposit_fee;
 use crate::{
     accounts::StateWriteExt as _,
-    app::test_utils::{
-        get_alice_signing_key,
-        get_bridge_signing_key,
-        initialize_app,
-        BOB_ADDRESS,
+    app::{
+        test_utils::{
+            get_alice_signing_key,
+            get_bridge_signing_key,
+            initialize_app_with_storage,
+            BOB_ADDRESS,
+        },
+        ActionHandler,
+        StateWriteExt,
     },
-    authority::StateReadExt as _,
     bridge::StateWriteExt as _,
     fees::{
-        calculate_base_deposit_fee,
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -50,70 +52,21 @@ use crate::{
 };
 
 #[tokio::test]
-async fn transaction_execution_records_fee_event() {
-    let mut app = initialize_app(None, vec![]).await;
-
-    // transfer funds from Alice to Bob
-    let alice = get_alice_signing_key();
-    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
-    let value = 333_333;
-    let tx = UnsignedTransaction::builder()
-        .actions(vec![
-            Transfer {
-                to: bob_address,
-                amount: value,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
-        .chain_id("test")
-        .try_build()
-        .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
-    let tx_id = signed_tx.id();
-    app.execute_transaction(signed_tx).await.unwrap();
-
-    let sudo_address = app.state.get_sudo_address().await.unwrap();
-    let end_block = app.end_block(1, &sudo_address).await.unwrap();
-
-    let events = end_block.events;
-    let transfer_base_fee = app.state.get_transfer_fees().await.unwrap().base_fee;
-    let event = events.first().unwrap();
-    assert_eq!(event.kind, "tx.fees");
-    assert_eq!(
-        event.attributes[0],
-        ("asset", nria().to_ibc_prefixed().to_string())
-            .index()
-            .into()
-    );
-    assert_eq!(
-        event.attributes[1],
-        ("feeAmount", transfer_base_fee.to_string()).index().into()
-    );
-    assert_eq!(
-        event.attributes[2],
-        ("sourceTransactionId", tx_id.to_string(),).index().into()
-    );
-    assert_eq!(
-        event.attributes[3],
-        ("sourceActionIndex", "0",).index().into()
-    );
-}
-
-#[tokio::test]
 async fn ensure_correct_block_fees_transfer() {
-    let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
-    let transfer_base_fee = 1;
-    state_tx
+    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let snapshot = storage.latest_snapshot();
+    let mut state = StateDelta::new(snapshot);
+    let transfer_base = 1;
+    state
         .put_transfer_fees(TransferFeeComponents {
-            base_fee: transfer_base_fee,
-            computed_cost_multiplier: 0,
+            base: transfer_base,
+            multiplier: 0,
         })
         .unwrap();
-    app.apply(state_tx);
 
+    state
+        .put_chain_id_and_revision_number("ethanwashere".try_into().unwrap())
+        .unwrap();
     let alice = get_alice_signing_key();
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let actions = vec![
@@ -128,33 +81,35 @@ async fn ensure_correct_block_fees_transfer() {
 
     let tx = UnsignedTransaction::builder()
         .actions(actions)
-        .chain_id("test")
+        .chain_id("ethanwashere")
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    signed_tx.check_and_execute(&mut state).await.unwrap();
 
-    let total_block_fees: u128 = app
-        .state
+    let total_block_fees: u128 = state
         .get_block_fees()
         .unwrap()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
-    assert_eq!(total_block_fees, transfer_base_fee);
+    assert_eq!(total_block_fees, transfer_base);
 }
 
 #[tokio::test]
 async fn ensure_correct_block_fees_sequence() {
-    let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx
+    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let snapshot = storage.latest_snapshot();
+    let mut state = StateDelta::new(snapshot);
+    state
         .put_sequence_fees(SequenceFeeComponents {
-            base_fee: 1,
-            computed_cost_multiplier: 1,
+            base: 1,
+            multiplier: 1,
         })
         .unwrap();
-    app.apply(state_tx);
+    state
+        .put_chain_id_and_revision_number("ethanwashere".try_into().unwrap())
+        .unwrap();
 
     let alice = get_alice_signing_key();
     let data = b"hello world".to_vec();
@@ -170,35 +125,36 @@ async fn ensure_correct_block_fees_sequence() {
 
     let tx = UnsignedTransaction::builder()
         .actions(actions)
-        .chain_id("test")
+        .chain_id("ethanwashere")
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
-
-    let total_block_fees: u128 = app
-        .state
+    signed_tx.check_and_execute(&mut state).await.unwrap();
+    let total_block_fees: u128 = state
         .get_block_fees()
         .unwrap()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
-    let expected_fees = calculate_sequence_action_fee_from_state(&data, &app.state).await;
+    let expected_fees = calculate_sequence_action_fee_from_state(&data, &state).await;
     assert_eq!(total_block_fees, expected_fees);
 }
 
 #[tokio::test]
 async fn ensure_correct_block_fees_init_bridge_acct() {
-    let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
-    let init_bridge_account_base_fee = 1;
-    state_tx
+    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let snapshot = storage.latest_snapshot();
+    let mut state = StateDelta::new(snapshot);
+    let init_bridge_account_base = 1;
+    state
         .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
-            base_fee: init_bridge_account_base_fee,
-            computed_cost_multiplier: 0,
+            base: init_bridge_account_base,
+            multiplier: 0,
         })
         .unwrap();
-    app.apply(state_tx);
+    state
+        .put_chain_id_and_revision_number("ethanwashere".try_into().unwrap())
+        .unwrap();
 
     let alice = get_alice_signing_key();
 
@@ -215,20 +171,19 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
 
     let tx = UnsignedTransaction::builder()
         .actions(actions)
-        .chain_id("test")
+        .chain_id("ethanwashere")
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    signed_tx.check_and_execute(&mut state).await.unwrap();
 
-    let total_block_fees: u128 = app
-        .state
+    let total_block_fees: u128 = state
         .get_block_fees()
         .unwrap()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
-    assert_eq!(total_block_fees, init_bridge_account_base_fee);
+    assert_eq!(total_block_fees, init_bridge_account_base);
 }
 
 #[tokio::test]
@@ -239,31 +194,34 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let starting_index_of_action = 0;
 
-    let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
+    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let snapshot = storage.latest_snapshot();
+    let mut state = StateDelta::new(snapshot);
 
-    let transfer_base_fee = 1;
+    state
+        .put_chain_id_and_revision_number("ethanwashere".try_into().unwrap())
+        .unwrap();
+    let transfer_base = 1;
     let bridge_lock_byte_cost_multiplier = 1;
 
-    state_tx
+    state
         .put_transfer_fees(TransferFeeComponents {
-            base_fee: transfer_base_fee,
-            computed_cost_multiplier: 0,
+            base: transfer_base,
+            multiplier: 0,
         })
         .unwrap();
-    state_tx
+    state
         .put_bridge_lock_fees(BridgeLockFeeComponents {
-            base_fee: transfer_base_fee,
-            computed_cost_multiplier: bridge_lock_byte_cost_multiplier,
+            base: transfer_base,
+            multiplier: bridge_lock_byte_cost_multiplier,
         })
         .unwrap();
-    state_tx
+    state
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
         .unwrap();
-    state_tx
+    state
         .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
-    app.apply(state_tx);
 
     let actions = vec![
         BridgeLock {
@@ -278,11 +236,11 @@ async fn ensure_correct_block_fees_bridge_lock() {
 
     let tx = UnsignedTransaction::builder()
         .actions(actions)
-        .chain_id("test")
+        .chain_id("ethanwashere")
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx.clone()).await.unwrap();
+    signed_tx.check_and_execute(&mut state).await.unwrap();
 
     let test_deposit = Deposit {
         bridge_address,
@@ -294,19 +252,14 @@ async fn ensure_correct_block_fees_bridge_lock() {
         source_action_index: starting_index_of_action,
     };
 
-    let total_block_fees: u128 = app
-        .state
+    let total_block_fees: u128 = state
         .get_block_fees()
         .unwrap()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
-    let expected_fees = transfer_base_fee
-        + (calculate_base_deposit_fee(
-            &test_deposit.asset,
-            &test_deposit.destination_chain_address,
-        )
-        .unwrap()
+    let expected_fees = transfer_base
+        + (base_deposit_fee(&test_deposit.asset, &test_deposit.destination_chain_address)
             * bridge_lock_byte_cost_multiplier);
     assert_eq!(total_block_fees, expected_fees);
 }
@@ -318,24 +271,27 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
     let bridge = get_bridge_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
 
-    let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
+    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let snapshot = storage.latest_snapshot();
+    let mut state = StateDelta::new(snapshot);
 
-    let sudo_change_base_fee = 1;
-    state_tx
+    state
+        .put_chain_id_and_revision_number("ethanwashere".try_into().unwrap())
+        .unwrap();
+    let sudo_change_base = 1;
+    state
         .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
-            base_fee: sudo_change_base_fee,
-            computed_cost_multiplier: 0,
+            base: sudo_change_base,
+            multiplier: 0,
         })
         .unwrap();
-    state_tx
+    state
         .put_bridge_account_sudo_address(&bridge_address, alice_address)
         .unwrap();
-    state_tx
+    state
         .increase_balance(&bridge_address, &nria(), 1)
         .await
         .unwrap();
-    app.apply(state_tx);
 
     let actions = vec![
         BridgeSudoChange {
@@ -349,20 +305,19 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
 
     let tx = UnsignedTransaction::builder()
         .actions(actions)
-        .chain_id("test")
+        .chain_id("ethanwashere")
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.into_signed(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    signed_tx.check_and_execute(&mut state).await.unwrap();
 
-    let total_block_fees: u128 = app
-        .state
+    let total_block_fees: u128 = state
         .get_block_fees()
         .unwrap()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
-    assert_eq!(total_block_fees, sudo_change_base_fee);
+    assert_eq!(total_block_fees, sudo_change_base);
 }
 
 // TODO(https://github.com/astriaorg/astria/issues/1382): Add test to ensure correct block fees for ICS20 withdrawal

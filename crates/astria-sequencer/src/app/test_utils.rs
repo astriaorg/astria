@@ -175,60 +175,60 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
 pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::GenesisFees {
     astria_core::protocol::genesis::v1alpha1::GenesisFees {
         transfer: TransferFeeComponents {
-            base_fee: 12,
-            computed_cost_multiplier: 0,
+            base: 12,
+            multiplier: 0,
         },
         sequence: SequenceFeeComponents {
-            base_fee: 32,
-            computed_cost_multiplier: 1,
+            base: 32,
+            multiplier: 1,
         },
         init_bridge_account: InitBridgeAccountFeeComponents {
-            base_fee: 48,
-            computed_cost_multiplier: 0,
+            base: 48,
+            multiplier: 0,
         },
         bridge_lock: BridgeLockFeeComponents {
-            base_fee: 12, // should reflect transfer fee
-            computed_cost_multiplier: 1,
+            base: 12, // should reflect transfer fee
+            multiplier: 1,
         },
         bridge_sudo_change: BridgeSudoChangeFeeComponents {
-            base_fee: 24,
-            computed_cost_multiplier: 0,
+            base: 24,
+            multiplier: 0,
         },
         ics20_withdrawal: Ics20WithdrawalFeeComponents {
-            base_fee: 24,
-            computed_cost_multiplier: 0,
+            base: 24,
+            multiplier: 0,
         },
         bridge_unlock: BridgeUnlockFeeComponents {
-            base_fee: 12, // should reflect transfer fee
-            computed_cost_multiplier: 0,
+            base: 12, // should reflect transfer fee
+            multiplier: 0,
         },
         ibc_relay: IbcRelayFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 0,
+            base: 0,
+            multiplier: 0,
         },
         validator_update: ValidatorUpdateFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 0,
+            base: 0,
+            multiplier: 0,
         },
         fee_asset_change: FeeAssetChangeFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 0,
+            base: 0,
+            multiplier: 0,
         },
         fee_change: FeeChangeFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 0,
+            base: 0,
+            multiplier: 0,
         },
         ibc_relayer_change: IbcRelayerChangeFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 0,
+            base: 0,
+            multiplier: 0,
         },
         sudo_address_change: SudoAddressChangeFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 0,
+            base: 0,
+            multiplier: 0,
         },
         ibc_sudo_change: IbcSudoChangeFeeComponents {
-            base_fee: 0,
-            computed_cost_multiplier: 0,
+            base: 0,
+            multiplier: 0,
         },
     }
 }
@@ -514,8 +514,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
 
     // setup tx fees
     let transfer_fees = TransferFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_transfer_fees(transfer_fees)
@@ -523,8 +523,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let sequence_fees = SequenceFeeComponents {
-        base_fee: MOCK_SEQUENCE_FEE,
-        computed_cost_multiplier: 0,
+        base: MOCK_SEQUENCE_FEE,
+        multiplier: 0,
     };
     state
         .put_sequence_fees(sequence_fees)
@@ -532,8 +532,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
@@ -541,8 +541,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let init_bridge_account_fees = InitBridgeAccountFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_init_bridge_account_fees(init_bridge_account_fees)
@@ -550,8 +550,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let bridge_lock_fees = BridgeLockFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_bridge_lock_fees(bridge_lock_fees)
@@ -559,8 +559,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let bridge_unlock_fees = BridgeUnlockFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_bridge_unlock_fees(bridge_unlock_fees)
@@ -568,8 +568,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
@@ -577,8 +577,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let ibc_relay_fees = IbcRelayFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_ibc_relay_fees(ibc_relay_fees)
@@ -586,8 +586,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let validator_update_fees = ValidatorUpdateFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_validator_update_fees(validator_update_fees)
@@ -595,8 +595,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let fee_asset_change_fees = FeeAssetChangeFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_fee_asset_change_fees(fee_asset_change_fees)
@@ -604,8 +604,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let fee_change_fees = FeeChangeFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_fee_change_fees(fee_change_fees)
@@ -613,8 +613,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let ibc_relayer_change_fees = IbcRelayerChangeFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_ibc_relayer_change_fees(ibc_relayer_change_fees)
@@ -622,8 +622,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let sudo_address_change_fees = SudoAddressChangeFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_sudo_address_change_fees(sudo_address_change_fees)
@@ -631,8 +631,8 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     let ibc_sudo_change_fees = IbcSudoChangeFeeComponents {
-        base_fee: 0,
-        computed_cost_multiplier: 0,
+        base: 0,
+        multiplier: 0,
     };
     state
         .put_ibc_sudo_change_fees(ibc_sudo_change_fees)
