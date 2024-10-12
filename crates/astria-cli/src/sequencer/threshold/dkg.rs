@@ -5,17 +5,16 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use frost_ed25519::{
-    keys::{
-        dkg::{
-            self,
-            round1,
-            round2,
-        },
-        PublicKeyPackage,
-    },
     Identifier,
+    keys::dkg::{
+        self,
+        round1,
+        round2,
+    },
 };
 use rand::thread_rng;
+
+use super::read_line_raw;
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
@@ -31,6 +30,14 @@ pub(super) struct Command {
     /// maximum number of signers that can sign a transaction.
     #[arg(long)]
     max_signers: u16,
+
+    /// path to a file with the secret key package from keygen ceremony
+    #[arg(long)]
+    secret_key_package_path: String,
+
+    /// path to a file with the public key package from keygen ceremony
+    #[arg(long)]
+    public_key_package_path: String,
 }
 
 impl Command {
@@ -41,6 +48,8 @@ impl Command {
             index,
             min_signers,
             max_signers,
+            secret_key_package_path,
+            public_key_package_path,
         } = self;
 
         let id: Identifier = index
@@ -101,63 +110,21 @@ impl Command {
         )
         .wrap_err("failed to run dkg part3")?;
 
-        println!("Save the following information!");
-        println!(
-            "Our secret key package: {}",
-            hex::encode(key_package.serialize()?)
-        );
-        println!(
-            "Public key package: {}",
+        // store the secret key package and public key package
+        std::fs::write(
+            secret_key_package_path.clone(),
+            serde_json::to_string_pretty(&key_package)
+                .wrap_err("failed to serialize secret key package")?,
+        )?;
+        std::fs::write(
+            public_key_package_path.clone(),
             serde_json::to_string_pretty(&pubkey_package)
-                .wrap_err("failed to serialize public key packages")?
-        );
+                .wrap_err("failed to serialize public key package")?,
+        )?;
+
         println!("DKG completed successfully!");
+        println!("Secret key package saved to: {}", secret_key_package_path);
+        println!("Public key package saved to: {}", public_key_package_path);
         Ok(())
     }
-}
-
-// from penumbra `ActualTerminal`
-async fn read_line_raw() -> eyre::Result<String> {
-    use std::io::{
-        Read as _,
-        Write as _,
-    };
-
-    use termion::color;
-    // Use raw mode to allow reading more than 1KB/4KB of data at a time
-    // See https://unix.stackexchange.com/questions/204815/terminal-does-not-accept-pasted-or-typed-lines-of-more-than-1024-characters
-    use termion::raw::IntoRawMode;
-
-    print!("{}", color::Fg(color::Red));
-    // In raw mode, the input is not mirrored into the terminal, so we need
-    // to read char-by-char and echo it back.
-    let mut stdout = std::io::stdout().into_raw_mode()?;
-
-    let mut bytes = Vec::with_capacity(8192);
-    for b in std::io::stdin().bytes() {
-        let b = b?;
-        // In raw mode, we need to handle control characters ourselves
-        if b == 3 || b == 4 {
-            // Ctrl-C or Ctrl-D
-            return Err(eyre::eyre!("aborted"));
-        }
-        // In raw mode, the enter key might generate \r or \n, check either.
-        if b == b'\n' || b == b'\r' {
-            break;
-        }
-        // Store the byte we read and print it back to the terminal.
-        bytes.push(b);
-        stdout.write_all(&[b]).expect("stdout write failed");
-        // Flushing may not be the most efficient but performance isn't critical here.
-        stdout.flush()?;
-    }
-    // Drop _stdout to restore the terminal to normal mode
-    std::mem::drop(stdout);
-    // We consumed a newline of some kind but didn't echo it, now print
-    // one out so subsequent output is guaranteed to be on a new line.
-    println!("");
-    print!("{}", color::Fg(color::Reset));
-
-    let line = String::from_utf8(bytes)?;
-    Ok(line)
 }
