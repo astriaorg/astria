@@ -60,7 +60,7 @@ cargo run -- sequencer threshold sign part1 \
 --nonces-path nonces_1.out
 ```
 
-1. The coordinator generates a signing package given the plaintext message
+2. The coordinator generates a signing package given the plaintext message
 and the commitments from part 1:
 
 ```sh
@@ -69,7 +69,7 @@ cargo run -- sequencer threshold sign prepare-message \
 --signing-package-path signing_package.out
 ```
 
-1. Each participant runs part 2, given the signing package from the previous
+3. Each participant runs part 2, given the signing package from the previous
 step:
 
 ```sh
@@ -79,7 +79,7 @@ cargo run -- sequencer threshold sign part2 \
 --signing-package-path signing_package.out
 ```
 
-1. The coordinator aggregates all the signature shares from the previous step:
+4. The coordinator aggregates all the signature shares from the previous step:
 
 ```sh
 cargo run -- sequencer threshold sign aggregate \

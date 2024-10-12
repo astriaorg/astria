@@ -25,9 +25,9 @@ pub(super) struct Command {
 impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         match self.command {
+            SubCommand::Part1(part1) => part1.run(),
             SubCommand::PrepareMessage(prepare_message) => prepare_message.run().await,
-            SubCommand::Part1(part1) => part1.run().await,
-            SubCommand::Part2(part2) => part2.run().await,
+            SubCommand::Part2(part2) => part2.run(),
             SubCommand::Aggregate(aggregate) => aggregate.run().await,
         }
     }
@@ -70,7 +70,7 @@ struct Part1 {
 }
 
 impl Part1 {
-    async fn run(self) -> eyre::Result<()> {
+    fn run(self) -> eyre::Result<()> {
         let mut rng = thread_rng();
 
         let Self {
@@ -89,7 +89,7 @@ impl Part1 {
             commitments,
         };
 
-        println!("Writing nonces to {}", nonces_path);
+        println!("Writing nonces to {nonces_path}");
         std::fs::write(nonces_path, hex::encode(nonces.serialize()?).as_bytes())?;
 
         println!(
@@ -145,7 +145,7 @@ impl PrepareMessage {
         }
 
         let signing_package = frost_ed25519::SigningPackage::new(commitments, message.as_bytes());
-        println!("Writing signing package to {}", signing_package_path);
+        println!("Writing signing package to {signing_package_path}");
         std::fs::write(
             signing_package_path,
             hex::encode(signing_package.serialize()?).as_bytes(),
@@ -154,6 +154,8 @@ impl PrepareMessage {
     }
 }
 
+// it's okay for all the args to end in `_path`
+#[allow(clippy::struct_field_names)]
 #[derive(Debug, clap::Args)]
 struct Part2 {
     /// path to a file with the secret key package from keygen ceremony
@@ -170,7 +172,7 @@ struct Part2 {
 }
 
 impl Part2 {
-    async fn run(self) -> eyre::Result<()> {
+    fn run(self) -> eyre::Result<()> {
         let Self {
             secret_key_package_path,
             nonces_path,
@@ -212,6 +214,8 @@ struct SignatureShareWithIdentifier {
     signature_share: frost_ed25519::round2::SignatureShare,
 }
 
+// it's okay for all the args to end in `_path`
+#[allow(clippy::struct_field_names)]
 #[derive(Debug, clap::Args)]
 struct Aggregate {
     /// path to the signing package
@@ -251,11 +255,9 @@ impl Aggregate {
             &hex::decode(signing_package_str).wrap_err("failed to decode signing package")?,
         )?;
 
-        let public_key_package_file =
-            std::fs::read_to_string(&public_key_package_path).wrap_err(format!(
-                "failed to read public key package from file: {}",
-                public_key_package_path
-            ))?;
+        let public_key_package_file = std::fs::read_to_string(&public_key_package_path).wrap_err(
+            format!("failed to read public key package from file: {public_key_package_path}",),
+        )?;
         let public_key_package = serde_json::from_str::<frost_ed25519::keys::PublicKeyPackage>(
             &public_key_package_file,
         )?;

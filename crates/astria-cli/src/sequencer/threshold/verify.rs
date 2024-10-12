@@ -23,7 +23,7 @@ pub(super) struct Command {
 }
 
 impl Command {
-    pub(super) async fn run(self) -> eyre::Result<()> {
+    pub(super) fn run(self) -> eyre::Result<()> {
         let Self {
             verifying_key,
             message,
@@ -45,7 +45,7 @@ impl Command {
 
         match verifying_key.verify(message.as_bytes(), &signature) {
             Ok(()) => println!("Signature is valid"),
-            Err(e) => println!("Signature is invalid: {}", e),
+            Err(e) => println!("Signature is invalid: {e}"),
         }
 
         Ok(())

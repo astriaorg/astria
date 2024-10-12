@@ -76,14 +76,14 @@ impl Command {
         let mut round1_public_packages: BTreeMap<Identifier, round1::Package> = BTreeMap::new();
         loop {
             // need a package from every other participant
-            if round1_public_packages.len() == (max_signers - 1) as usize {
+            if round1_public_packages.len() == (max_signers.saturating_sub(1)) as usize {
                 break;
             }
 
             println!(
                 "Enter round 1 package for participant (received {}/{} total packages)",
                 round1_public_packages.len(),
-                max_signers - 1
+                max_signers.saturating_sub(1)
             );
             let input = read_line_raw().await?;
             let Ok(round1_package) = serde_json::from_str::<Round1PackageWithIdentifier>(&input)
@@ -91,6 +91,7 @@ impl Command {
                 continue;
             };
 
+            // ignore if we accidentally put our own package
             if round1_package.identifier == id {
                 continue;
             }
@@ -104,7 +105,7 @@ impl Command {
                 .wrap_err("failed to run dkg part2")?;
 
         let mut round2_public_packages: BTreeMap<Identifier, round2::Package> = BTreeMap::new();
-        for (their_id, round2_package) in round2_packages.into_iter() {
+        for (their_id, round2_package) in round2_packages {
             let round2_package_with_id = Round2PackageWithIdentifier {
                 identifier: id,
                 package: round2_package,
@@ -117,14 +118,14 @@ impl Command {
         }
 
         loop {
-            if round2_public_packages.len() == (max_signers - 1) as usize {
+            if round2_public_packages.len() == (max_signers.saturating_sub(1)) as usize {
                 break;
             }
 
             println!(
                 "Enter round 2 package for participant (received {}/{} total packages)",
                 round2_public_packages.len(),
-                max_signers - 1
+                max_signers.saturating_sub(1)
             );
             let input = read_line_raw().await?;
             let Ok(round2_package) = serde_json::from_str::<Round2PackageWithIdentifier>(&input)
@@ -160,8 +161,8 @@ impl Command {
         )?;
 
         println!("DKG completed successfully!");
-        println!("Secret key package saved to: {}", secret_key_package_path);
-        println!("Public key package saved to: {}", public_key_package_path);
+        println!("Secret key package saved to: {secret_key_package_path}");
+        println!("Public key package saved to: {public_key_package_path}");
         Ok(())
     }
 }

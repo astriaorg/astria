@@ -15,7 +15,7 @@ impl Command {
         match self.command {
             SubCommand::Dkg(dkg) => dkg.run().await,
             SubCommand::Sign(sign) => sign.run().await,
-            SubCommand::Verify(verify) => verify.run().await,
+            SubCommand::Verify(verify) => verify.run(),
         }
     }
 }
@@ -75,7 +75,7 @@ pub(crate) async fn read_line_raw() -> eyre::Result<String> {
     std::mem::drop(stdout);
     // We consumed a newline of some kind but didn't echo it, now print
     // one out so subsequent output is guaranteed to be on a new line.
-    println!("");
+    println!();
     print!("{}", color::Fg(color::Reset));
 
     let line = String::from_utf8(bytes)?;
