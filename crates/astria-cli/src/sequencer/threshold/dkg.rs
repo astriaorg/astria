@@ -13,6 +13,10 @@ use frost_ed25519::{
     },
 };
 use rand::thread_rng;
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use super::read_line_raw;
 
@@ -31,11 +35,11 @@ pub(super) struct Command {
     #[arg(long)]
     max_signers: u16,
 
-    /// path to a file with the secret key package from keygen ceremony
+    /// path to a file with the output secret key package from keygen ceremony.
     #[arg(long)]
     secret_key_package_path: String,
 
-    /// path to a file with the public key package from keygen ceremony
+    /// path to a file with the output public key package from keygen ceremony.
     #[arg(long)]
     public_key_package_path: String,
 }
@@ -58,23 +62,40 @@ impl Command {
         println!("Our identifier is: {}", hex::encode(id.serialize()));
 
         // round 1
-        let (round1_secret_package, public_package) =
+        let (round1_secret_package, round1_public_package) =
             dkg::part1(id, max_signers, min_signers, rng).wrap_err("failed to run dkg part1")?;
+        let round1_public_package_with_id = Round1PackageWithIdentifier {
+            identifier: id,
+            package: round1_public_package,
+        };
         println!(
             "Send our public package to all other participants: {}",
-            hex::encode(public_package.serialize()?)
+            serde_json::to_string(&round1_public_package_with_id)?
         );
 
         let mut round1_public_packages: BTreeMap<Identifier, round1::Package> = BTreeMap::new();
-        for i in 1..=max_signers {
-            if i == index {
+        loop {
+            // need a package from every other participant
+            if round1_public_packages.len() == (max_signers - 1) as usize {
+                break;
+            }
+
+            println!(
+                "Enter round 1 package for participant (received {}/{} total packages)",
+                round1_public_packages.len(),
+                max_signers - 1
+            );
+            let input = read_line_raw().await?;
+            let Ok(round1_package) = serde_json::from_str::<Round1PackageWithIdentifier>(&input)
+            else {
+                continue;
+            };
+
+            if round1_package.identifier == id {
                 continue;
             }
 
-            println!("Enter public package for participant {}:", i);
-            let public_package = read_line_raw().await?;
-            let public_package = dkg::round1::Package::deserialize(&hex::decode(public_package)?)?;
-            round1_public_packages.insert(i.try_into()?, public_package);
+            round1_public_packages.insert(round1_package.identifier, round1_package.package);
         }
 
         // round 2
@@ -83,23 +104,39 @@ impl Command {
                 .wrap_err("failed to run dkg part2")?;
 
         let mut round2_public_packages: BTreeMap<Identifier, round2::Package> = BTreeMap::new();
-        for (id, round2_package) in round2_packages.iter() {
+        for (their_id, round2_package) in round2_packages.into_iter() {
+            let round2_package_with_id = Round2PackageWithIdentifier {
+                identifier: id,
+                package: round2_package,
+            };
             println!(
                 "Send package to participant with id {}: {}",
-                hex::encode(id.serialize()),
-                hex::encode(round2_package.serialize()?)
+                hex::encode(their_id.serialize()),
+                serde_json::to_string(&round2_package_with_id)?
             );
         }
 
-        for i in 1..=max_signers {
-            if i == index {
+        loop {
+            if round2_public_packages.len() == (max_signers - 1) as usize {
+                break;
+            }
+
+            println!(
+                "Enter round 2 package for participant (received {}/{} total packages)",
+                round2_public_packages.len(),
+                max_signers - 1
+            );
+            let input = read_line_raw().await?;
+            let Ok(round2_package) = serde_json::from_str::<Round2PackageWithIdentifier>(&input)
+            else {
+                continue;
+            };
+
+            if round2_package.identifier == id {
                 continue;
             }
 
-            println!("Enter round 2 package received from participant {}:", i);
-            let round2_package = read_line_raw().await?;
-            let round2_package = dkg::round2::Package::deserialize(&hex::decode(round2_package)?)?;
-            round2_public_packages.insert(i.try_into()?, round2_package);
+            round2_public_packages.insert(round2_package.identifier, round2_package.package);
         }
 
         // round 3 (final)
@@ -127,4 +164,16 @@ impl Command {
         println!("Public key package saved to: {}", public_key_package_path);
         Ok(())
     }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Round1PackageWithIdentifier {
+    identifier: Identifier,
+    package: round1::Package,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Round2PackageWithIdentifier {
+    identifier: Identifier,
+    package: round2::Package,
 }

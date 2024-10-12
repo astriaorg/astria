@@ -22,8 +22,17 @@ impl Command {
 
 #[derive(Debug, clap::Subcommand)]
 enum SubCommand {
+    /// distributed key generation command.
+    ///
+    /// generates a secret key share for each participant in the DKG protocol,
+    /// along with the aggregate public key.
     Dkg(dkg::Command),
+
+    /// threshold signing command. requires `min_signers` as specified
+    /// during DKG to produce a signature.
     Sign(sign::Command),
+
+    /// verify an ed25519 signature.
     Verify(verify::Command),
 }
 

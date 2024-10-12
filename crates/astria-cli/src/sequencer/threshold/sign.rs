@@ -35,14 +35,26 @@ impl Command {
 
 #[derive(Debug, clap::Subcommand)]
 enum SubCommand {
+    /// perform part 1 of the signing protocol.
+    ///
+    /// generates participant commitments (used in `prepare-message`)
+    /// and nonces (used in part 2).
     Part1(Part1),
 
-    // executed by the coordinator, or by every individual participant, assuming
-    // all participants use the same commitments generated in part1
+    /// generate a signing package given a message to be signed
+    /// and commitments from part 1.
+    ///
+    /// can be executed by a coordinator, or by every individual participant, assuming
+    /// all participants use the same commitments generated in part 1.
     PrepareMessage(PrepareMessage),
 
+    /// perform part 2 of the signing protocol.
+    ///
+    /// generates a signature share using the nonces from part 1 and the
+    /// signing package from `prepare-message`.
     Part2(Part2),
 
+    /// aggregate signature shares from part 2 to produce the final signature.
     Aggregate(Aggregate),
 }
 
@@ -51,6 +63,10 @@ struct Part1 {
     /// path to a file with the secret key package from keygen ceremony
     #[arg(long)]
     secret_key_package_path: String,
+
+    /// path to a file to output the nonces
+    #[arg(long)]
+    nonces_path: String,
 }
 
 impl Part1 {
@@ -59,6 +75,7 @@ impl Part1 {
 
         let Self {
             secret_key_package_path,
+            nonces_path,
         } = self;
 
         let secret_package = serde_json::from_slice::<frost_ed25519::keys::KeyPackage>(
@@ -72,7 +89,9 @@ impl Part1 {
             commitments,
         };
 
-        println!("Our nonces are: {}", hex::encode(nonces.serialize()?));
+        println!("Writing nonces to {}", nonces_path);
+        std::fs::write(nonces_path, hex::encode(nonces.serialize()?).as_bytes())?;
+
         println!(
             "Our commitments are: {}",
             serde_json::to_string(&commitments_with_id)?
@@ -92,12 +111,17 @@ struct PrepareMessage {
     /// message to be signed
     #[arg(long)]
     message: String,
+
+    /// path to the signing package output file
+    #[arg(long)]
+    signing_package_path: String,
 }
 
 impl PrepareMessage {
     async fn run(self) -> eyre::Result<()> {
         let Self {
             message,
+            signing_package_path,
         } = self;
 
         let mut commitments: BTreeMap<Identifier, frost_ed25519::round1::SigningCommitments> =
@@ -109,18 +133,23 @@ impl PrepareMessage {
             if input == "done" {
                 break;
             }
-            let commitments_with_id = serde_json::from_str::<CommitmentsWithIdentifier>(&input)?;
+            let Ok(commitments_with_id) = serde_json::from_str::<CommitmentsWithIdentifier>(&input)
+            else {
+                continue;
+            };
             commitments.insert(
                 commitments_with_id.identifier,
                 commitments_with_id.commitments,
             );
+            println!("Received {} commitments", commitments.len());
         }
 
         let signing_package = frost_ed25519::SigningPackage::new(commitments, message.as_bytes());
-        println!(
-            "Signing package: {}",
-            hex::encode(signing_package.serialize()?)
-        );
+        println!("Writing signing package to {}", signing_package_path);
+        std::fs::write(
+            signing_package_path,
+            hex::encode(signing_package.serialize()?).as_bytes(),
+        )?;
         Ok(())
     }
 }
@@ -131,32 +160,36 @@ struct Part2 {
     #[arg(long)]
     secret_key_package_path: String,
 
-    /// our hex-encoded nonces from part1
+    /// path to nonces file from part 1
     #[arg(long)]
-    nonces: String,
+    nonces_path: String,
 
-    /// hex-encoded signing package
+    /// path to the signing package
     #[arg(long)]
-    signing_package: String,
+    signing_package_path: String,
 }
 
 impl Part2 {
     async fn run(self) -> eyre::Result<()> {
         let Self {
             secret_key_package_path,
-            nonces,
-            signing_package,
+            nonces_path,
+            signing_package_path,
         } = self;
 
         let secret_package = serde_json::from_slice::<frost_ed25519::keys::KeyPackage>(
             &std::fs::read(secret_key_package_path)
                 .wrap_err("failed to read secret key package file")?,
         )?;
+        let nonces_str =
+            std::fs::read_to_string(&nonces_path).wrap_err("failed to read nonces file")?;
         let nonces = frost_ed25519::round1::SigningNonces::deserialize(
-            &hex::decode(nonces).wrap_err("failed to decode nonces")?,
+            &hex::decode(nonces_str).wrap_err("failed to decode nonces")?,
         )?;
+        let signing_package_str = std::fs::read_to_string(&signing_package_path)
+            .wrap_err("failed to read signing package file")?;
         let signing_package = frost_ed25519::SigningPackage::deserialize(
-            &hex::decode(signing_package).wrap_err("failed to decode signing package")?,
+            &hex::decode(signing_package_str).wrap_err("failed to decode signing package")?,
         )?;
         let sig_share = frost_ed25519::round2::sign(&signing_package, &nonces, &secret_package)
             .wrap_err("failed to sign")?;
@@ -181,9 +214,9 @@ struct SignatureShareWithIdentifier {
 
 #[derive(Debug, clap::Args)]
 struct Aggregate {
-    /// hex-encoded signing package
+    /// path to the signing package
     #[arg(long)]
-    signing_package: String,
+    signing_package_path: String,
 
     /// path to a file with the public key package from keygen ceremony
     #[arg(long)]
@@ -192,6 +225,11 @@ struct Aggregate {
 
 impl Aggregate {
     async fn run(self) -> eyre::Result<()> {
+        let Self {
+            signing_package_path,
+            public_key_package_path,
+        } = self;
+
         let mut sig_shares: BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> =
             BTreeMap::new();
         loop {
@@ -200,18 +238,23 @@ impl Aggregate {
             if input == "done" {
                 break;
             }
-            let sig_share = serde_json::from_str::<SignatureShareWithIdentifier>(&input)?;
+            let Ok(sig_share) = serde_json::from_str::<SignatureShareWithIdentifier>(&input) else {
+                continue;
+            };
             sig_shares.insert(sig_share.identifier, sig_share.signature_share);
+            println!("Received {} signature shares", sig_shares.len());
         }
 
+        let signing_package_str = std::fs::read_to_string(&signing_package_path)
+            .wrap_err("failed to read signing package from file")?;
         let signing_package = frost_ed25519::SigningPackage::deserialize(
-            &hex::decode(self.signing_package).wrap_err("failed to decode signing package")?,
+            &hex::decode(signing_package_str).wrap_err("failed to decode signing package")?,
         )?;
 
-        let public_key_package_file = std::fs::read_to_string(&self.public_key_package_path)
-            .wrap_err(format!(
+        let public_key_package_file =
+            std::fs::read_to_string(&public_key_package_path).wrap_err(format!(
                 "failed to read public key package from file: {}",
-                self.public_key_package_path
+                public_key_package_path
             ))?;
         let public_key_package = serde_json::from_str::<frost_ed25519::keys::PublicKeyPackage>(
             &public_key_package_file,
