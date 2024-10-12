@@ -5,12 +5,12 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use frost_ed25519::{
-    Identifier,
     keys::dkg::{
         self,
         round1,
         round2,
     },
+    Identifier,
 };
 use rand::thread_rng;
 use serde::{

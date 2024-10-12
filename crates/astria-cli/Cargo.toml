@@ -13,7 +13,7 @@ name = "astria-cli"
 
 [dependencies]
 color-eyre = "0.6"
-frost-ed25519 = { version="1.0.0", features = [] }
+frost-ed25519 = { version = "1.0.0", features = [] }
 serde_yaml = "0.9.25"
 termion = "4.0.3"
 tracing-subscriber = "0.3.18"

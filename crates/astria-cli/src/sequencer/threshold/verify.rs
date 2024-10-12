@@ -1,7 +1,7 @@
 use color_eyre::eyre::{
     self,
-    WrapErr as _,
     eyre,
+    WrapErr as _,
 };
 use frost_ed25519::{
     self,
