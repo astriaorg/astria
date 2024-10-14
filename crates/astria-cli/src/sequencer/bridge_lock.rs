@@ -12,6 +12,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use tracing::info;
 
 use crate::utils::submit_transaction;
 
@@ -73,8 +74,7 @@ impl Command {
         .await
         .wrap_err("failed to submit BridgeLock transaction")?;
 
-        println!("BridgeLock completed!");
-        println!("Included in block: {}", res.height);
+        info!(height = % res.height, "BridgeLock completed at height");
         Ok(())
     }
 }

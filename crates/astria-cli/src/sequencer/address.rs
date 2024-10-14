@@ -6,7 +6,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-
+use tracing::info;
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
@@ -49,7 +49,7 @@ impl Bech32m {
                 "failed constructing a valid bech32m address from the provided hex bytes and \
                  prefix",
             )?;
-        println!("{address}");
+        info!(address = %address, "constructed bech32m address");
         Ok(())
     }
 }

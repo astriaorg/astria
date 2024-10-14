@@ -10,6 +10,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use tracing::info;
 
 use crate::utils::submit_transaction;
 
@@ -55,8 +56,8 @@ impl Add {
         .await
         .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
 
-        println!("FeeAssetChangeAction::Addition completed!");
-        println!("Included in block: {}", res.height);
+        info!(height = %res.height, asset = %args.asset, hash = %res.hash, "FeeAssetChangeAction::Addition completed");
+
         Ok(())
     }
 }
@@ -80,8 +81,7 @@ impl Remove {
         .await
         .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
 
-        println!("FeeAssetChangeAction::Removal completed!");
-        println!("Included in block: {}", res.height);
+        info!(height = %res.height, asset = %args.asset, hash = %res.hash, "FeeAssetChangeAction::Removal completed");
         Ok(())
     }
 }

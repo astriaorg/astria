@@ -18,12 +18,37 @@ use color_eyre::eyre;
 const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-10.devnet.astria.org";
 const DEFAULT_SEQUENCER_CHAIN_ID: &str = "astria-dusk-10";
 
+#[derive(clap::ValueEnum, Clone, Debug)]
+pub enum LogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl std::fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogLevel::Error => write!(f, "error"),
+            LogLevel::Warn => write!(f, "warn"),
+            LogLevel::Info => write!(f, "info"),
+            LogLevel::Debug => write!(f, "debug"),
+            LogLevel::Trace => write!(f, "trace"),
+        }
+    }
+}
+
 /// Run commands against the Astria network.
 #[derive(Debug, Parser)]
 #[command(name = "astria-cli", version, about)]
 pub struct Cli {
     #[command(subcommand)]
     command: Command,
+
+    /// Set the log level for the CLI.
+    #[arg(long, value_enum, default_value = "info", global = true)]
+    pub log_level: LogLevel,
 }
 
 impl Cli {

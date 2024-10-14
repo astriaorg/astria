@@ -17,6 +17,7 @@ use color_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
+use tracing::debug;
 
 pub(crate) async fn submit_transaction(
     sequencer_url: &str,
@@ -39,12 +40,13 @@ pub(crate) async fn submit_transaction(
         .prefix(prefix)
         .try_build()
         .wrap_err("failed constructing a valid from address from the provided prefix")?;
-    println!("sending tx from address: {from_address}");
+    debug!(address = %from_address, "sending tx from address:");
 
     let nonce_res = sequencer_client
         .get_latest_nonce(from_address)
         .await
         .wrap_err("failed to get nonce")?;
+    debug!(nonce = %nonce_res.nonce, address = %from_address);
 
     let tx = UnsignedTransaction::builder()
         .nonce(nonce_res.nonce)
