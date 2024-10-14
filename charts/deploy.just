@@ -260,7 +260,7 @@ init-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAdd
 rollup_micro_multiplier := "1000000"
 [no-cd]
 _do-ibc-transfer-uusdc namespace=defaultNamespace:
-  kubectl exec -it pods/hermes-local-chart-0 hermes -n {{namespace}} -- hermes tx ft-transfer --dst-chain sequencer-test-chain-0 --src-chain noble-local-0 --src-port transfer --src-channel channel-0 --amount 100000000 --timeout-seconds 30 --denom uusdc
+  kubectl exec -it pods/hermes-local-chart-0 hermes -n {{namespace}} -- hermes tx ft-transfer --dst-chain sequencer-test-chain-0 --src-chain noble-local-0 --src-port transfer --src-channel channel-0 --amount 100000000 --timeout-seconds 30 --denom uusdc --receiver astria1qrt4kfc9ggyy548u7rg0d64sgq5c952kzk9tg9
 
 sequencer_noble_bridge_address := "astria1s6u80uqnx3qqn8lswkqpl80qp226l6tjc0hfsk"
 sequencer_noble_bridge_pkey := "089d5092b5ab0baac5ea7c16098515e9fc9491f9b5f7d3563f30dfc07b01283e"
@@ -277,11 +277,11 @@ init-noble-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinat
 
   docker run --rm --network host $IMAGE sequencer init-bridge-account \
     --rollup-name {{rollupName}} \
-    --private-key {{sequencer_bridge_pkey}} \
+    --private-key {{sequencer_noble_bridge_pkey}} \
     --sequencer.chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
     --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
-  docker run --rm --network host $IMAGE sequencer bridge-lock {{sequencer_bridge_address}} \
+  docker run --rm --network host $IMAGE sequencer bridge-lock {{sequencer_noble_bridge_address}} \
     --amount $TRANSFER_AMOUNT \
     --destination-chain-address {{evmDestinationAddress}} \
     --private-key $SEQUENCER_FUNDS_PKEY \
