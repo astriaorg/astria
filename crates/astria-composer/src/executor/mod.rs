@@ -475,7 +475,7 @@ async fn get_pending_nonce(
     address: Address,
     metrics: &Metrics,
 ) -> eyre::Result<u32> {
-    debug!("fetching pending nonce from sequencing");
+    debug!("fetching pending nonce from sequencer");
     let span = Span::current();
     let start = Instant::now();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
