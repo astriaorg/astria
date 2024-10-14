@@ -258,6 +258,10 @@ init-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAdd
     --fee-asset=$FEE_ASSET --asset=$ASSET
 
 rollup_micro_multiplier := "1000000"
+[no-cd]
+_do-ibc-transfer-uusdc namespace=defaultNamespace:
+  kubectl exec -it pods/hermes-local-chart-0 hermes -n {{namespace}} -- hermes tx ft-transfer --dst-chain sequencer-test-chain-0 --src-chain noble-local-0 --src-port transfer --src-channel channel-0 --amount 100000000 --timeout-seconds 30 --denom uusdc
+
 sequencer_noble_bridge_address := "astria1s6u80uqnx3qqn8lswkqpl80qp226l6tjc0hfsk"
 sequencer_noble_bridge_pkey := "089d5092b5ab0baac5ea7c16098515e9fc9491f9b5f7d3563f30dfc07b01283e"
 init-noble-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
