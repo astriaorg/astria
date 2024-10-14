@@ -9,58 +9,56 @@ use std::fmt::{
 use penumbra_ibc::IbcRelay;
 
 use super::{
-    action::{
-        ActionName,
-        BridgeLock,
-        BridgeSudoChange,
-        BridgeUnlock,
-        FeeAssetChange,
-        FeeChangeKind,
-        IbcRelayerChange,
-        IbcSudoChange,
-        Ics20Withdrawal,
-        InitBridgeAccount,
-        Sequence,
-        SudoAddressChange,
-        Transfer,
-        ValidatorUpdate,
-    },
     Action,
+    ActionName,
+    BridgeLock,
+    BridgeSudoChange,
+    BridgeUnlock,
+    FeeAssetChange,
+    FeeChangeKind,
+    IbcRelayerChange,
+    IbcSudoChange,
+    Ics20Withdrawal,
+    InitBridgeAccount,
+    Sequence,
+    SudoAddressChange,
+    Transfer,
+    ValidatorUpdate,
 };
 
 trait BelongsToGroup {
-    const GROUP: ActionGroup;
+    const GROUP: Group;
 }
 
 macro_rules! impl_belong_to_group {
     ($(($act:ty, $group:expr)),*$(,)?) => {
         $(
             impl BelongsToGroup for $act {
-                const GROUP: ActionGroup = $group;
+                const GROUP: Group = $group;
             }
         )*
     }
 }
 
 impl_belong_to_group!(
-    (Sequence, ActionGroup::BundleableGeneral),
-    (Transfer, ActionGroup::BundleableGeneral),
-    (ValidatorUpdate, ActionGroup::BundleableGeneral),
-    (SudoAddressChange, ActionGroup::UnbundleableSudo),
-    (IbcRelayerChange, ActionGroup::BundleableSudo),
-    (Ics20Withdrawal, ActionGroup::BundleableGeneral),
-    (InitBridgeAccount, ActionGroup::UnbundleableGeneral),
-    (BridgeLock, ActionGroup::BundleableGeneral),
-    (BridgeUnlock, ActionGroup::BundleableGeneral),
-    (BridgeSudoChange, ActionGroup::UnbundleableGeneral),
-    (FeeChangeKind, ActionGroup::BundleableSudo),
-    (FeeAssetChange, ActionGroup::BundleableSudo),
-    (IbcRelay, ActionGroup::BundleableGeneral),
-    (IbcSudoChange, ActionGroup::UnbundleableSudo),
+    (Sequence, Group::BundleableGeneral),
+    (Transfer, Group::BundleableGeneral),
+    (ValidatorUpdate, Group::BundleableGeneral),
+    (SudoAddressChange, Group::UnbundleableSudo),
+    (IbcRelayerChange, Group::BundleableSudo),
+    (Ics20Withdrawal, Group::BundleableGeneral),
+    (InitBridgeAccount, Group::UnbundleableGeneral),
+    (BridgeLock, Group::BundleableGeneral),
+    (BridgeUnlock, Group::BundleableGeneral),
+    (BridgeSudoChange, Group::UnbundleableGeneral),
+    (FeeChangeKind, Group::BundleableSudo),
+    (FeeAssetChange, Group::BundleableSudo),
+    (IbcRelay, Group::BundleableGeneral),
+    (IbcSudoChange, Group::UnbundleableSudo),
 );
 
 impl Action {
-    const fn group(&self) -> ActionGroup {
+    pub const fn group(&self) -> Group {
         match self {
             Action::Sequence(_) => Sequence::GROUP,
             Action::Transfer(_) => Transfer::GROUP,
@@ -80,34 +78,37 @@ impl Action {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(super) enum ActionGroup {
-    BundleableGeneral,
-    UnbundleableGeneral,
-    BundleableSudo,
-    UnbundleableSudo,
+/// `action::Group`
+///
+/// Used to constrain the types of actions that can be included in a single
+/// transaction and the order which transactions are ran in a block.
+///
+/// NOTE: The ordering is important and must be maintained.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Group {
+    UnbundleableSudo = 1,
+    BundleableSudo = 2,
+    UnbundleableGeneral = 3,
+    BundleableGeneral = 4,
 }
 
-impl ActionGroup {
-    pub(super) fn is_bundleable(self) -> bool {
-        matches!(
-            self,
-            ActionGroup::BundleableGeneral | ActionGroup::BundleableSudo
-        )
+impl Group {
+    pub(crate) fn is_bundleable(self) -> bool {
+        matches!(self, Group::BundleableGeneral | Group::BundleableSudo)
     }
 
-    pub(super) fn is_bundleable_sudo(self) -> bool {
-        matches!(self, ActionGroup::BundleableSudo)
+    pub(crate) fn is_bundleable_sudo(self) -> bool {
+        matches!(self, Group::BundleableSudo)
     }
 }
 
-impl fmt::Display for ActionGroup {
+impl fmt::Display for Group {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ActionGroup::BundleableGeneral => write!(f, "bundleable general"),
-            ActionGroup::UnbundleableGeneral => write!(f, "unbundleable general"),
-            ActionGroup::BundleableSudo => write!(f, "bundleable sudo"),
-            ActionGroup::UnbundleableSudo => write!(f, "unbundleable sudo"),
+            Group::BundleableGeneral => write!(f, "bundleable general"),
+            Group::UnbundleableGeneral => write!(f, "unbundleable general"),
+            Group::BundleableSudo => write!(f, "bundleable sudo"),
+            Group::UnbundleableSudo => write!(f, "unbundleable sudo"),
         }
     }
 }
@@ -117,11 +118,7 @@ impl fmt::Display for ActionGroup {
 pub struct Error(ErrorKind);
 
 impl Error {
-    fn mixed(
-        original_group: ActionGroup,
-        additional_group: ActionGroup,
-        action: &'static str,
-    ) -> Self {
+    fn mixed(original_group: Group, additional_group: Group, action: &'static str) -> Self {
         Self(ErrorKind::Mixed {
             original_group,
             additional_group,
@@ -129,7 +126,7 @@ impl Error {
         })
     }
 
-    fn not_bundleable(group: ActionGroup) -> Self {
+    fn not_bundleable(group: Group) -> Self {
         Self(ErrorKind::NotBundleable {
             group,
         })
@@ -143,41 +140,41 @@ impl Error {
 #[derive(Debug, thiserror::Error)]
 enum ErrorKind {
     #[error(
-        "input contains mixed `ActionGroup` types. original group: {original_group}, additional \
-         group: {additional_group}, triggering action: {action}"
+        "input contains mixed `Group` types. original group: {original_group}, additional group: \
+         {additional_group}, triggering action: {action}"
     )]
     Mixed {
-        original_group: ActionGroup,
-        additional_group: ActionGroup,
+        original_group: Group,
+        additional_group: Group,
         action: &'static str,
     },
-    #[error("attempted to create bundle with non bundleable `ActionGroup` type: {group}")]
-    NotBundleable { group: ActionGroup },
+    #[error("attempted to create bundle with non bundleable `Group` type: {group}")]
+    NotBundleable { group: Group },
     #[error("actions cannot be empty")]
     Empty,
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct Actions {
-    group: ActionGroup,
+pub(crate) struct Actions {
+    group: Group,
     inner: Vec<Action>,
 }
 
 impl Actions {
-    pub(super) fn actions(&self) -> &[Action] {
+    pub(crate) fn actions(&self) -> &[Action] {
         &self.inner
     }
 
     #[must_use]
-    pub(super) fn into_actions(self) -> Vec<Action> {
+    pub(crate) fn into_actions(self) -> Vec<Action> {
         self.inner
     }
 
-    pub(super) fn group(&self) -> ActionGroup {
+    pub(crate) fn group(&self) -> Group {
         self.group
     }
 
-    pub(super) fn try_from_list_of_actions(actions: Vec<Action>) -> Result<Self, Error> {
+    pub(crate) fn try_from_list_of_actions(actions: Vec<Action>) -> Result<Self, Error> {
         let mut actions_iter = actions.iter();
         let group = match actions_iter.next() {
             Some(action) => action.group(),
