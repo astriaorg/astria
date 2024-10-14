@@ -13,7 +13,11 @@ name = "astria-composer"
 
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["serde", "server"] }
+astria-core = { path = "../astria-core", features = [
+  "client",
+  "serde",
+  "server",
+] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
@@ -59,6 +63,7 @@ path = "../astria-sequencer-client"
 features = ["http"]
 
 [dev-dependencies]
+astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }

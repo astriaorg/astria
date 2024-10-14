@@ -20,6 +20,7 @@ config:
   sequencerAddressPrefix: astria
   sequencerNativeAssetBaseDenomination: "nria"
   sequencerRpc: ""
+  sequencerGrpc: ""
   sequencerChainId: ""
   privateKey:
     devContent: ""
