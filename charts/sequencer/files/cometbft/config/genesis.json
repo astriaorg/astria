@@ -3,6 +3,15 @@
   "app_state": {
     "native_asset_base_denomination": "{{ .Values.genesis.nativeAssetBaseDenomination }}",
     "fees": {
+      {{- if not .Values.global.dev }}
+        "transfer_base_fee": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.transferBaseFee }},
+        "sequence_base_fee": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.sequenceBaseFee }},
+        "sequence_byte_cost_multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.sequenceByteCostMultiplier }},
+        "init_bridge_account_base_fee": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.initBridgeAccountBaseFee }},
+        "bridge_lock_byte_cost_multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeLockByteCostMultiplier }},
+        "bridge_sudo_change_fee": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeSudoChangeFee }},
+        "ics20_withdrawal_base_fee": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ics20WithdrawalBaseFee }}
+      {{- else }}
       "bridge_lock": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeLock.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeLock.multiplier }}
@@ -59,6 +68,7 @@
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.validatorUpdate.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.validatorUpdate.multiplier }}
       }
+      {{- end }}
     },
     "allowed_fee_assets": [
       {{- range $index, $value := .Values.genesis.allowedFeeAssets }}
