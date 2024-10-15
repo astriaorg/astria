@@ -17,7 +17,7 @@ spec:
     matchLabels:
       app: evm-bridge-withdrawer
   endpoints:
-    - port: metric
+    - port: metrics
       path: /
       {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}

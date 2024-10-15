@@ -41,6 +41,8 @@ use crate::{
     Protobuf,
 };
 
+pub mod group;
+
 #[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "serde",
