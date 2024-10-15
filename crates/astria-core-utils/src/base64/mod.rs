@@ -1,6 +1,6 @@
 //! Base64 encoding and decoding using a URL-safe alphabet.
 
-mod error;
+mod decode_error;
 #[cfg(feature = "serde")]
 pub mod serde;
 
@@ -15,7 +15,7 @@ use base64::{
     engine::general_purpose::URL_SAFE,
     Engine,
 };
-pub use error::Error;
+pub use decode_error::DecodeError;
 
 /// A helper struct for base64-encoding bytes into a format string without heap allocation.
 ///
@@ -63,8 +63,8 @@ pub fn encode<T: AsRef<[u8]>>(input: T) -> String {
 /// # Errors
 ///
 /// Returns an error if decoding fails.
-pub fn decode<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>, Error> {
-    URL_SAFE.decode(input).map_err(Error::from)
+pub fn decode<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>, DecodeError> {
+    URL_SAFE.decode(input).map_err(DecodeError::new)
 }
 
 #[cfg(test)]
