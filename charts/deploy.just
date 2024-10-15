@@ -136,13 +136,13 @@ delete-dev-rollup rollupName=defaultRollupName:
 wait-for-dev-rollup rollupName=defaultRollupName:
   kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s
 
-deploy-bridge-withdrawer:
-  helm install evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
+deploy-settlor:
+  helm install evm-settlor ./charts/evm-bridge-withdrawer \
     --namespace astria-dev-cluster \
-    -f dev/values/withdrawer/values.yaml
+    -f dev/values/settlor/values.yaml
 
-delete-bridge-withdrawer:
-  @just delete chart evm-bridge-withdrawer astria-dev-cluster
+delete-settlor:
+  @just delete chart evm-settlor astria-dev-cluster
 
 wait-for-bridge-withdrawer:
   kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer --for=condition=Available=True --timeout=600s

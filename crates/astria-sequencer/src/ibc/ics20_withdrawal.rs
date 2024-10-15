@@ -99,33 +99,33 @@ async fn create_ibc_packet_from_withdrawal<S: StateRead>(
 /// Establishes the withdrawal target.
 ///
 /// The function returns the following addresses under the following conditions:
-/// 1. `action.bridge_address` if `action.bridge_address` is set and `from` is its stored withdrawer
+/// 1. `action.bridge_address` if `action.bridge_address` is set and `from` is its stored settlor
 ///    address.
 /// 2. `from` if `action.bridge_address` is unset and `from` is *not* a bridge account.
 ///
 /// Errors if:
 /// 1. Errors reading from DB
-/// 2. `action.bridge_address` is set, but `from` is not the withdrawer address.
+/// 2. `action.bridge_address` is set, but `from` is not the settlor address.
 /// 3. `action.bridge_address` is unset, but `from` is a bridge account.
 async fn establish_withdrawal_target<'a, S: StateRead>(
     action: &'a action::Ics20Withdrawal,
     state: &S,
     from: &'a [u8; 20],
 ) -> Result<&'a [u8; 20]> {
-    // If the bridge address is set, the withdrawer on that address must match
+    // If the bridge address is set, the settlor on that address must match
     // the from address.
     if let Some(bridge_address) = &action.bridge_address {
         let Some(withdrawer) = state
             .get_bridge_account_withdrawer_address(bridge_address)
             .await
-            .wrap_err("failed to get bridge withdrawer")?
+            .wrap_err("failed to get bridge settlor")?
         else {
-            bail!("bridge address must have a withdrawer address set");
+            bail!("bridge address must have a settlor address set");
         };
 
         ensure!(
             &withdrawer == from.address_bytes(),
-            "sender does not match bridge withdrawer address; unauthorized"
+            "sender does not match bridge settlor address; unauthorized"
         );
 
         return Ok(bridge_address.as_bytes());
@@ -336,7 +336,7 @@ mod tests {
 
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
-        // sender is a bridge address, which is also the withdrawer, so it's ok
+        // sender is a bridge address, which is also the settlor, so it's ok
         let bridge_address = [1u8; 20];
         state
             .put_bridge_account_rollup_id(
@@ -405,7 +405,7 @@ mod tests {
 
             state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
-            // withdraw is *not* the bridge address, Ics20Withdrawal must be sent by the withdrawer
+            // withdraw is *not* the bridge address, Ics20Withdrawal must be sent by the settlor
             state
                 .put_bridge_account_rollup_id(
                     &bridge_address(),
@@ -423,7 +423,7 @@ mod tests {
                 &establish_withdrawal_target(&action, &state, &bridge_address())
                     .await
                     .unwrap_err(),
-                "sender does not match bridge withdrawer address; unauthorized",
+                "sender does not match bridge settlor address; unauthorized",
             );
         }
 
@@ -443,7 +443,7 @@ mod tests {
 
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
-        // sender the withdrawer address, so it's ok
+        // sender the settlor address, so it's ok
         let bridge_address = [1u8; 20];
         let withdrawer_address = [2u8; 20];
         state
@@ -485,7 +485,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        // sender is not the withdrawer address, so must fail
+        // sender is not the settlor address, so must fail
         let not_bridge_address = [1u8; 20];
 
         let denom = "test".parse::<Denom>().unwrap();
@@ -507,7 +507,7 @@ mod tests {
             &establish_withdrawal_target(&action, &state, &not_bridge_address)
                 .await
                 .unwrap_err(),
-            "bridge address must have a withdrawer address set",
+            "bridge address must have a settlor address set",
         );
     }
 }

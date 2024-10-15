@@ -64,13 +64,13 @@ impl ActionHandler for BridgeUnlockAction {
             .await
             .wrap_err("failed to get bridge's asset id, must be a bridge account")?;
 
-        // check that the sender of this tx is the authorized withdrawer for the bridge account
+        // check that the sender of this tx is the authorized settlor for the bridge account
         let Some(withdrawer_address) = state
             .get_bridge_account_withdrawer_address(&self.bridge_address)
             .await
-            .wrap_err("failed to get bridge account withdrawer address")?
+            .wrap_err("failed to get bridge account settlor address")?
         else {
-            bail!("bridge account does not have an associated withdrawer address");
+            bail!("bridge account does not have an associated settlor address");
         };
 
         ensure!(
@@ -168,7 +168,7 @@ mod tests {
         // invalid sender, doesn't match action's `from`, should fail
         assert_eyre_error(
             &bridge_unlock.check_and_execute(state).await.unwrap_err(),
-            "bridge account does not have an associated withdrawer address",
+            "bridge account does not have an associated settlor address",
         );
     }
 
@@ -208,7 +208,7 @@ mod tests {
             rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
         };
 
-        // invalid sender, doesn't match action's bridge account's withdrawer, should fail
+        // invalid sender, doesn't match action's bridge account's settlor, should fail
         assert_eyre_error(
             &bridge_unlock.check_and_execute(state).await.unwrap_err(),
             "unauthorized to unlock bridge account",

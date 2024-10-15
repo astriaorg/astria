@@ -212,14 +212,14 @@ pub struct Ics20Withdrawal {
     #[prost(string, tag = "9")]
     pub memo: ::prost::alloc::string::String,
     /// the address of the bridge account to transfer from, if this is a withdrawal
-    /// from a bridge account and the sender of the tx is the bridge's withdrawer,
+    /// from a bridge account and the sender of the tx is the bridge's settlor,
     /// which differs from the bridge account's address.
     ///
     /// if unset, and the transaction sender is not a bridge account, the withdrawal
     /// is treated as a user (non-bridge) withdrawal.
     ///
     /// if unset, and the transaction sender is a bridge account, the withdrawal is
-    /// treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
+    /// treated as a bridge withdrawal (ie. the bridge account's settlor address is checked).
     #[prost(message, optional, tag = "10")]
     pub bridge_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
@@ -324,7 +324,7 @@ pub struct InitBridgeAccountAction {
     #[prost(string, tag = "3")]
     pub fee_asset: ::prost::alloc::string::String,
     /// the address corresponding to the key which has sudo capabilities;
-    /// ie. can change the sudo and withdrawer addresses for this bridge account.
+    /// ie. can change the sudo and settlor addresses for this bridge account.
     /// if this is empty, the sender of the transaction is used.
     #[prost(message, optional, tag = "4")]
     pub sudo_address: ::core::option::Option<
@@ -426,7 +426,7 @@ impl ::prost::Name for BridgeUnlockAction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BridgeSudoChangeAction {
-    /// the address of the bridge account to change the sudo or withdrawer addresses for
+    /// the address of the bridge account to change the sudo or settlor addresses for
     #[prost(message, optional, tag = "1")]
     pub bridge_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
@@ -436,7 +436,7 @@ pub struct BridgeSudoChangeAction {
     pub new_sudo_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
     >,
-    /// the new withdrawer address; unchanged if unset
+    /// the new settlor address; unchanged if unset
     #[prost(message, optional, tag = "3")]
     pub new_withdrawer_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,

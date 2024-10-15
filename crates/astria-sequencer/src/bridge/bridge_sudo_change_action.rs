@@ -49,7 +49,7 @@ impl ActionHandler for BridgeSudoChangeAction {
             state
                 .ensure_base_prefix(new_withdrawer_address)
                 .await
-                .wrap_err("failed check for base prefix of new withdrawer address")?;
+                .wrap_err("failed check for base prefix of new settlor address")?;
         }
 
         ensure!(
@@ -98,7 +98,7 @@ impl ActionHandler for BridgeSudoChangeAction {
         if let Some(withdrawer_address) = self.new_withdrawer_address {
             state
                 .put_bridge_account_withdrawer_address(&self.bridge_address, withdrawer_address)
-                .wrap_err("failed to put bridge account withdrawer address")?;
+                .wrap_err("failed to put bridge account settlor address")?;
         }
 
         Ok(())

@@ -215,9 +215,9 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             ))
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw bridge account withdrawer address from state")?
+            .wrap_err("failed reading raw bridge account settlor address from state")?
         else {
-            debug!("bridge account withdrawer address not found, returning None");
+            debug!("bridge account settlor address not found, returning None");
             return Ok(None);
         };
         StoredValue::deserialize(&bytes)
@@ -226,7 +226,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
                     Some(<[u8; ADDRESS_LEN]>::from(stored_address_bytes))
                 })
             })
-            .wrap_err("invalid bridge account withdrawer address bytes")
+            .wrap_err("invalid bridge account settlor address bytes")
     }
 
     #[instrument(skip_all)]

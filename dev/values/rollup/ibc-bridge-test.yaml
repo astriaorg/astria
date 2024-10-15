@@ -12,7 +12,7 @@ evm-rollup:
         value:
           balance: "0"
           code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
-      # bridge withdrawer contract
+      # bridge settlor contract
       - address: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
         value:
           balance: "0"

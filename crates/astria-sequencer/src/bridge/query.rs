@@ -130,14 +130,14 @@ async fn get_bridge_account_info(
             return Err(error_query_response(
                 None,
                 AbciErrorCode::INTERNAL_ERROR,
-                "withdrawer address not set",
+                "settlor address not set",
             ));
         }
         Err(err) => {
             return Err(error_query_response(
                 Some(err),
                 AbciErrorCode::INTERNAL_ERROR,
-                "failed to get withdrawer address",
+                "failed to get settlor address",
             ));
         }
     };

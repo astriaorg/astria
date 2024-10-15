@@ -106,13 +106,13 @@ pub struct TestBridgeWithdrawer {
     /// The rollup-side ethereum smart contract
     pub ethereum: TestEthereum,
 
-    /// A handle to issue a shutdown to the bridge withdrawer.
+    /// A handle to issue a shutdown to the bridge settlor.
     bridge_withdrawer_shutdown_handle: Option<ShutdownHandle>,
 
-    /// The bridge withdrawer task.
+    /// The bridge settlor task.
     bridge_withdrawer: JoinHandle<()>,
 
-    /// The config used to initialize the bridge withdrawer.
+    /// The config used to initialize the bridge settlor.
     pub config: Config,
 
     /// A handle to the metrics.
@@ -123,7 +123,7 @@ impl Drop for TestBridgeWithdrawer {
     fn drop(&mut self) {
         debug!("dropping TestBridgeWithdrawer");
 
-        // Drop the shutdown handle to cause the bridge withdrawer to shutdown.
+        // Drop the shutdown handle to cause the bridge settlor to shutdown.
         let _ = self.bridge_withdrawer_shutdown_handle.take();
 
         let bridge_withdrawer = mem::replace(&mut self.bridge_withdrawer, tokio::spawn(async {}));
@@ -131,7 +131,7 @@ impl Drop for TestBridgeWithdrawer {
             tokio::time::timeout(Duration::from_secs(2), bridge_withdrawer)
                 .await
                 .unwrap_or_else(|_| {
-                    error!("timeout out waiting for bridge withdrawer to shut down");
+                    error!("timeout out waiting for bridge settlor to shut down");
                     Ok(())
                 })
         });
@@ -531,7 +531,7 @@ pub fn make_erc20_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Actio
 
 #[must_use]
 fn make_ibc_timeout_time() -> u64 {
-    // this is copied from `bridge_withdrawer::ethereum::convert`
+    // this is copied from `settlor::ethereum::convert`
     const ICS20_WITHDRAWAL_TIMEOUT: Duration = Duration::from_secs(300);
 
     tendermint::Time::now()

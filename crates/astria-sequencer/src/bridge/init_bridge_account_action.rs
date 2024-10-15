@@ -44,7 +44,7 @@ impl ActionHandler for InitBridgeAccountAction {
             state
                 .ensure_base_prefix(withdrawer_address)
                 .await
-                .wrap_err("failed check for base prefix of withdrawer address")?;
+                .wrap_err("failed check for base prefix of settlor address")?;
         }
         if let Some(sudo_address) = &self.sudo_address {
             state
@@ -107,7 +107,7 @@ impl ActionHandler for InitBridgeAccountAction {
                 &from,
                 self.withdrawer_address.map_or(from, Address::bytes),
             )
-            .wrap_err("failed to put bridge account withdrawer address")?;
+            .wrap_err("failed to put bridge account settlor address")?;
         state
             .get_and_increase_block_fees(&self.fee_asset, fee, Self::full_name())
             .await

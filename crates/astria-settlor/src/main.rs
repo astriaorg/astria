@@ -56,7 +56,7 @@ async fn main() -> ExitCode {
         .expect("setting a SIGTERM listener should always work on Unix");
     let (withdrawer, shutdown_handle) = match Settlor::new(cfg, metrics) {
         Err(error) => {
-            error!(%error, "failed initializing bridge withdrawer");
+            error!(%error, "failed initializing bridge settlor");
             return ExitCode::FAILURE;
         }
         Ok(handles) => handles,
@@ -77,9 +77,9 @@ async fn main() -> ExitCode {
     );
 
     if let Err(error) = withdrawer_handle.await {
-        error!(%error, "failed to join main withdrawer task");
+        error!(%error, "failed to join main settlor task");
     }
 
-    info!("withdrawer stopped");
+    info!("settlor stopped");
     ExitCode::SUCCESS
 }

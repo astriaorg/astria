@@ -40,7 +40,7 @@ metrics:
 
 otel:
   enabled: false
-  serviceName: "astria-evm-withdrawer"
+  serviceName: "astria-evm-settlor"
   endpoint: ""
   tracesEndpoint: ""
   tracesCompression: gzip

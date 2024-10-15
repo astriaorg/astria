@@ -372,7 +372,7 @@ async fn ensure_mempool_empty(
 }
 
 /// Waits for the mempool to be empty of transactions by the given address (i.e. the bridge
-/// withdrawer's). This is used to make sure that batches are submitted under the correct nonce.
+/// settlor's). This is used to make sure that batches are submitted under the correct nonce.
 ///
 /// This function checks that the mempool is empty by querying:
 /// 1. the pending nonce from the Sequencer's app-side mempool
@@ -381,7 +381,7 @@ async fn ensure_mempool_empty(
 /// transactions by the address.
 ///
 /// This ensures that future submitted batches will continue to maintain the one-to-one
-/// relationship between rollup block and withdrawer nonce that is needed to simplify the sync
+/// relationship between rollup block and settlor nonce that is needed to simplify the sync
 /// process.
 ///
 /// This function runs the above check with an exponential backoff until the nonces match and the

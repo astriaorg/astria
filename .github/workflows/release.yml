@@ -98,13 +98,13 @@ jobs:
       package-name: 'sequencer-relayer'
       display-name: 'Sequencer Relayer'
 
-  bridge-withdrawer:
+  settlor:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
     uses: ./.github/workflows/reusable-release-cargo.yml
     with:
-      package-name: 'bridge-withdrawer'
-      display-name: 'EVM Bridge Withdrawer'
+      package-name: 'settlor'
+      display-name: 'EVM Bridge Settlor'
 
   cli:
     needs: run_checker
@@ -115,7 +115,7 @@ jobs:
       display-name: 'CLI'
 
   release:
-    needs: [proto, conductor, composer, sequencer, sequencer-relayer, cli, bridge-withdrawer]
+    needs: [proto, conductor, composer, sequencer, sequencer-relayer, cli, settlor]
     if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml
     with:

@@ -913,14 +913,14 @@ pub struct Ics20Withdrawal {
     // a memo to include with the transfer
     pub memo: String,
     // the address of the bridge account to transfer from, if this is a withdrawal
-    // from a bridge account and the sender of the tx is the bridge's withdrawer,
+    // from a bridge account and the sender of the tx is the bridge's settlor,
     // which differs from the bridge account's address.
     //
     // if unset, and the transaction sender is not a bridge account, the withdrawal
     // is treated as a user (non-bridge) withdrawal.
     //
     // if unset, and the transaction sender is a bridge account, the withdrawal is
-    // treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
+    // treated as a bridge withdrawal (ie. the bridge account's settlor address is checked).
     pub bridge_address: Option<Address>,
 
     // whether to use a bech32-compatible format of the `.return_address` when generating
@@ -1398,7 +1398,7 @@ pub struct InitBridgeAccountAction {
     // the fee asset which to pay this action's fees with
     pub fee_asset: asset::Denom,
     // the address corresponding to the key which has sudo capabilities;
-    // ie. can change the sudo and withdrawer addresses for this bridge account.
+    // ie. can change the sudo and settlor addresses for this bridge account.
     // if unset, this is set to the sender of the transaction.
     pub sudo_address: Option<Address>,
     // the address corresponding to the key which can withdraw funds from this bridge account.

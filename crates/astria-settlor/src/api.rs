@@ -22,7 +22,7 @@ use serde::Serialize;
 use tokio::sync::watch;
 use tracing::instrument;
 
-use crate::bridge_withdrawer::StateSnapshot;
+use crate::settlor::StateSnapshot;
 
 pub(crate) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 

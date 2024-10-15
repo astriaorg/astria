@@ -14,7 +14,7 @@ use tracing::{
 
 use super::state::State;
 use crate::{
-    bridge_withdrawer::{
+    settlor::{
         startup,
         submitter::Batch,
     },

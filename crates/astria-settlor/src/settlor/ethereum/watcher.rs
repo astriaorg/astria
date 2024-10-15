@@ -46,7 +46,7 @@ use tracing::{
     warn,
 };
 
-use crate::bridge_withdrawer::{
+use crate::settlor::{
     batch::Batch,
     startup,
     state::State,
