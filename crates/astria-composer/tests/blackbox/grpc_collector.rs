@@ -36,7 +36,7 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
     .unwrap();
     composer_client
         .submit_rollup_transaction(SubmitRollupTransactionRequest {
-            rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
+            rollup_id: Some(rollup_id.into_raw()),
             data: Bytes::copy_from_slice(&tx.rlp()),
         })
         .await
@@ -85,7 +85,7 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
     .unwrap();
     composer_client
         .submit_rollup_transaction(SubmitRollupTransactionRequest {
-            rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
+            rollup_id: Some(rollup_id.into_raw()),
             data: Bytes::copy_from_slice(&tx.rlp()),
         })
         .await
@@ -127,7 +127,7 @@ async fn single_rollup_tx_payload_integrity() {
     .unwrap();
     composer_client
         .submit_rollup_transaction(SubmitRollupTransactionRequest {
-            rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
+            rollup_id: Some(rollup_id.into_raw()),
             data: Bytes::copy_from_slice(&tx.rlp()),
         })
         .await

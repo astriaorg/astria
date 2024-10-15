@@ -480,7 +480,7 @@ impl Protobuf for Sequence {
             return Err(SequenceError::field_not_set("rollup_id"));
         };
         let rollup_id =
-            RollupId::try_from_raw(rollup_id).map_err(SequenceError::rollup_id_length)?;
+            RollupId::try_from_raw_ref(rollup_id).map_err(SequenceError::rollup_id_length)?;
         let fee_asset = fee_asset.parse().map_err(SequenceError::fee_asset)?;
         let data = data.clone();
         Ok(Self {
@@ -1409,8 +1409,8 @@ impl Protobuf for InitBridgeAccount {
         let Some(rollup_id) = proto.rollup_id else {
             return Err(InitBridgeAccountError::field_not_set("rollup_id"));
         };
-        let rollup_id = RollupId::try_from_raw(&rollup_id)
-            .map_err(InitBridgeAccountError::invalid_rollup_id)?;
+        let rollup_id =
+            RollupId::try_from_raw(rollup_id).map_err(InitBridgeAccountError::invalid_rollup_id)?;
         let asset = proto
             .asset
             .parse()
