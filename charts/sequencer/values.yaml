@@ -24,7 +24,7 @@ images:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
     tag: "0.18.0"
-    devTag: latest
+    devTag: pr-1647
 
 moniker: ""
 genesis:
@@ -75,6 +75,9 @@ genesis:
       base: "0"
       multiplier: "0"
     ibcRelayerChange:
+      base: "0"
+      multiplier: "0"
+    ibcSudoChange:
       base: "0"
       multiplier: "0"
     ics20Withdrawal:

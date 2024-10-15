@@ -31,6 +31,10 @@
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ibcRelayerChange.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ibcRelayerChange.multiplier }}
       },
+      "ibc_sudo_change": {
+        "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ibcSudoChange.base }},
+        "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ibcSudoChange.multiplier }}
+      },
       "ics20_withdrawal": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ics20Withdrawal.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ics20Withdrawal.multiplier }}
