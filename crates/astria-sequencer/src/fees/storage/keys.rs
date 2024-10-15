@@ -51,13 +51,8 @@ fn extract_asset_from_key(key: &[u8], prefix: &str) -> eyre::Result<IbcPrefixed>
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::{
-        self,
-        Display,
-        Formatter,
-    };
-
     use astria_core::primitive::v1::asset::Denom;
+    use insta::assert_snapshot;
 
     use super::*;
 
@@ -71,28 +66,21 @@ mod tests {
     fn keys_should_not_change() {
         // NOTE: This helper struct is just to avoid having 14 snapshot files to contend with.
         // NOTE: `BLOCK` is only used in the ephemeral store, so isn't included here.
-        struct Helper;
-        impl Display for Helper {
-            fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-                writeln!(formatter, "{BRIDGE_LOCK}")?;
-                writeln!(formatter, "{BRIDGE_SUDO_CHANGE}")?;
-                writeln!(formatter, "{BRIDGE_UNLOCK}")?;
-                writeln!(formatter, "{FEE_ASSET_CHANGE}")?;
-                writeln!(formatter, "{FEE_ASSET_PREFIX}")?;
-                writeln!(formatter, "{FEE_CHANGE}")?;
-                writeln!(formatter, "{IBC_RELAY}")?;
-                writeln!(formatter, "{IBC_RELAYER_CHANGE}")?;
-                writeln!(formatter, "{IBC_SUDO_CHANGE}")?;
-                writeln!(formatter, "{ICS20_WITHDRAWAL}")?;
-                writeln!(formatter, "{INIT_BRIDGE_ACCOUNT}")?;
-                writeln!(formatter, "{SEQUENCE}")?;
-                writeln!(formatter, "{SUDO_ADDRESS_CHANGE}")?;
-                writeln!(formatter, "{TRANSFER}")?;
-                writeln!(formatter, "{VALIDATOR_UPDATE}")?;
-                Ok(())
-            }
-        }
-        insta::assert_snapshot!(Helper);
+        assert_snapshot!("bridge_lock_fees_key", BRIDGE_LOCK);
+        assert_snapshot!("bridge_sudo_change_fees_key", BRIDGE_SUDO_CHANGE);
+        assert_snapshot!("bridge_unlock_fees_key", BRIDGE_UNLOCK);
+        assert_snapshot!("fee_asset_change_fees_key", FEE_ASSET_CHANGE);
+        assert_snapshot!("fee_asset_key", FEE_ASSET_PREFIX);
+        assert_snapshot!("fee_change_fees_key", FEE_CHANGE);
+        assert_snapshot!("ibc_relay_fees_key", IBC_RELAY);
+        assert_snapshot!("ibc_relayer_change_fees_key", IBC_RELAYER_CHANGE);
+        assert_snapshot!("ibc_sudo_change_fees_key", IBC_SUDO_CHANGE);
+        assert_snapshot!("ics20_withdrawal_fees_key", ICS20_WITHDRAWAL);
+        assert_snapshot!("init_bridge_account_fees_key", INIT_BRIDGE_ACCOUNT);
+        assert_snapshot!("sequence_fees_key", SEQUENCE);
+        assert_snapshot!("sudo_address_change_fees_key", SUDO_ADDRESS_CHANGE);
+        assert_snapshot!("transer_fees_key", TRANSFER);
+        assert_snapshot!("validator_update_fees_key", VALIDATOR_UPDATE);
     }
 
     #[test]
