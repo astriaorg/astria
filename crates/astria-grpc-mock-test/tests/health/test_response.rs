@@ -99,6 +99,9 @@ fn dynamic_responder(request: &HealthCheckRequest) -> HealthCheckResponse {
 
 #[tokio::test]
 async fn response_delay_works_as_expected() {
+    const DELAY: Duration = Duration::from_millis(250);
+    const FIFTY_MILLIS: Duration = Duration::from_millis(50);
+
     let server = start_mock_server().await;
     let mut err_client = HealthClient::connect(format!("http://{}", server.local_addr))
         .await
@@ -107,10 +110,7 @@ async fn response_delay_works_as_expected() {
         .await
         .unwrap();
     let mock = Mock::for_rpc_given("check", matcher::message_type::<HealthCheckRequest>())
-        .respond_with(
-            response::default_response::<HealthCheckResponse>()
-                .set_delay(Duration::from_millis(250)),
-        );
+        .respond_with(response::default_response::<HealthCheckResponse>().set_delay(DELAY));
     mock.mount(&server.mocked).await;
 
     let rsp_fut_expect_err = err_client.check(HealthCheckRequest {
@@ -120,12 +120,12 @@ async fn response_delay_works_as_expected() {
         service: "helloworld".to_string(),
     });
 
-    timeout(Duration::from_millis(200), rsp_fut_expect_err)
+    timeout(DELAY - FIFTY_MILLIS, rsp_fut_expect_err)
         .await
-        .unwrap_err(); // should be error
-    let ok_rsp = timeout(Duration::from_millis(300), rsp_fut_expect_ok)
+        .unwrap_err();
+    let ok_rsp = timeout(DELAY + FIFTY_MILLIS, rsp_fut_expect_ok)
         .await
-        .unwrap(); // should be ok
+        .unwrap();
 
     assert!(ok_rsp.is_ok());
     assert_eq!(&HealthCheckResponse::default(), ok_rsp.unwrap().get_ref());
