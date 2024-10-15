@@ -69,8 +69,8 @@ mod tests {
         assert_snapshot!("bridge_lock_fees_key", BRIDGE_LOCK);
         assert_snapshot!("bridge_sudo_change_fees_key", BRIDGE_SUDO_CHANGE);
         assert_snapshot!("bridge_unlock_fees_key", BRIDGE_UNLOCK);
-        assert_snapshot!("allowed_asset_change_fees_key", FEE_ASSET_CHANGE);
-        assert_snapshot!("allowed_asset_key", ALLOWED_ASSET_PREFIX);
+        assert_snapshot!("fee_asset_change_fees_key", FEE_ASSET_CHANGE);
+        assert_snapshot!("allowed_asset_prefix", ALLOWED_ASSET_PREFIX);
         assert_snapshot!("fee_change_fees_key", FEE_CHANGE);
         assert_snapshot!("ibc_relay_fees_key", IBC_RELAY);
         assert_snapshot!("ibc_relayer_change_fees_key", IBC_RELAYER_CHANGE);
@@ -81,6 +81,7 @@ mod tests {
         assert_snapshot!("sudo_address_change_fees_key", SUDO_ADDRESS_CHANGE);
         assert_snapshot!("transer_fees_key", TRANSFER);
         assert_snapshot!("validator_update_fees_key", VALIDATOR_UPDATE);
+        assert_snapshot!("allowed_asset_key", allowed_asset(&test_asset()));
     }
 
     #[test]
