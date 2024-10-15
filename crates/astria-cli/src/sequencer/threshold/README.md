@@ -93,7 +93,7 @@ cargo run -- sequencer threshold sign aggregate \
 --signing-package-path signing_package.out
 ```
 
-The output is an ed25510 signature, eg:
+The output is an ed25519 signature, eg:
 
 ```sh
 Aggregated signature: 6e999e7ce9a7a833af7503547baa2e90d6c69bc4a91dfec3390b438ece5a3c75706b44c97127b1f364d4f620ecba61dc0c1311e4e68ff288e6424185c826a80c
