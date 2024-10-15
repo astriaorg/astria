@@ -597,6 +597,7 @@ dependencies = [
  "astria-config",
  "astria-core",
  "astria-eyre",
+ "astria-grpc-mock",
  "astria-sequencer-client",
  "astria-telemetry",
  "astria-test-utils",

@@ -141,6 +141,40 @@ const POST_TRANSACTION_EXECUTION_RESULT_KEY: &str = "post_transaction_execution_
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
+/// This is used to identify a proposal constructed by the app instance
+/// in `prepare_proposal` during a `process_proposal` call.
+///
+/// The fields are not exhaustive, in most instances just the validator address
+/// is adequate. When running a third party signer such as horcrux however it is
+/// possible that multiple nodes are preparing proposals as the same validator
+/// address, in these instances the timestamp is used as a unique identifier for
+/// the proposal from that node. This is not a perfect solution, but it only
+/// impacts sentry nodes does not halt the network and is cheaper computationally
+/// than an exhaustive comparison.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) struct ProposalFingerprint {
+    validator_address: account::Id,
+    timestamp: tendermint::Time,
+}
+
+impl From<abci::request::PrepareProposal> for ProposalFingerprint {
+    fn from(proposal: abci::request::PrepareProposal) -> Self {
+        Self {
+            validator_address: proposal.proposer_address,
+            timestamp: proposal.time,
+        }
+    }
+}
+
+impl From<abci::request::ProcessProposal> for ProposalFingerprint {
+    fn from(proposal: abci::request::ProcessProposal) -> Self {
+        Self {
+            validator_address: proposal.proposer_address,
+            timestamp: proposal.time,
+        }
+    }
+}
+
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
 /// Note: this is called `App` because this is a Tendermint ABCI application,
@@ -157,14 +191,18 @@ pub(crate) struct App {
     // Transactions are pulled from this mempool during `prepare_proposal`.
     mempool: Mempool,
 
-    // The validator address in cometbft being used to sign votes.
+    // TODO(https://github.com/astriaorg/astria/issues/1660): The executed_proposal_fingerprint and
+    // executed_proposal_hash fields should be stored in the ephemeral storage instead of on the
+    // app struct, to avoid any issues with forgetting to reset them.
+
+    // An identifier for a given proposal constructed by this app.
     //
     // Used to avoid executing a block in both `prepare_proposal` and `process_proposal`. It
     // is set in `prepare_proposal` from information sent in from cometbft and can potentially
     // change round-to-round. In `process_proposal` we check if we prepared the proposal, and
-    // if so, we clear the value and we skip re-execution of the block's transactions to avoid
+    // if so, we clear the value, and we skip re-execution of the block's transactions to avoid
     // failures caused by re-execution.
-    validator_address: Option<account::Id>,
+    executed_proposal_fingerprint: Option<ProposalFingerprint>,
 
     // This is set to the executed hash of the proposal during `process_proposal`
     //
@@ -222,7 +260,7 @@ impl App {
         Ok(Self {
             state,
             mempool,
-            validator_address: None,
+            executed_proposal_fingerprint: None,
             executed_proposal_hash: Hash::default(),
             recost_mempool: false,
             write_batch: None,
@@ -332,7 +370,7 @@ impl App {
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
     ) -> Result<abci::response::PrepareProposal> {
-        self.validator_address = Some(prepare_proposal.proposer_address);
+        self.executed_proposal_fingerprint = Some(prepare_proposal.clone().into());
         self.update_state_for_new_round(&storage);
 
         let mut block_size_constraints = BlockSizeConstraints::new(
@@ -386,11 +424,12 @@ impl App {
         // we skip execution for this `process_proposal` call.
         //
         // if we didn't propose this block, `self.validator_address` will be None or a different
-        // value, so we will execute the block as normal.
-        if let Some(id) = self.validator_address {
-            if id == process_proposal.proposer_address {
+        // value, so we will execute  block as normal.
+        if let Some(constructed_id) = self.executed_proposal_fingerprint {
+            let proposal_id = process_proposal.clone().into();
+            if constructed_id == proposal_id {
                 debug!("skipping process_proposal as we are the proposer for this block");
-                self.validator_address = None;
+                self.executed_proposal_fingerprint = None;
                 self.executed_proposal_hash = process_proposal.hash;
 
                 // if we're the proposer, we should have the execution results from
@@ -420,7 +459,7 @@ impl App {
                 "our validator address was set but we're not the proposer, so our previous \
                  proposal was skipped, executing block"
             );
-            self.validator_address = None;
+            self.executed_proposal_fingerprint = None;
         }
 
         self.update_state_for_new_round(&storage);

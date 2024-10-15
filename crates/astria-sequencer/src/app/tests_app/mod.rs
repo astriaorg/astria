@@ -501,6 +501,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         local_last_commit: None,
         misbehavior: vec![],
     };
+    let proposal_fingerprint = prepare_proposal.clone().into();
 
     let prepare_proposal_result = app
         .prepare_proposal(prepare_proposal, storage.clone())
@@ -508,7 +509,10 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .unwrap();
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
     assert_eq!(app.executed_proposal_hash, Hash::default());
-    assert_eq!(app.validator_address.unwrap(), proposer_address);
+    assert_eq!(
+        app.executed_proposal_fingerprint,
+        Some(proposal_fingerprint)
+    );
 
     app.mempool.run_maintenance(&app.state, false).await;
 
@@ -530,7 +534,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .await
         .unwrap();
     assert_eq!(app.executed_proposal_hash, block_hash);
-    assert!(app.validator_address.is_none());
+    assert!(app.executed_proposal_fingerprint.is_none());
 
     let finalize_block_after_prepare_proposal_result = app
         .finalize_block(finalize_block.clone(), storage.clone())
@@ -549,7 +553,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .await
         .unwrap();
     assert_eq!(app.executed_proposal_hash, block_hash);
-    assert!(app.validator_address.is_none());
+    assert!(app.executed_proposal_fingerprint.is_none());
     let finalize_block_after_process_proposal_result = app
         .finalize_block(finalize_block, storage.clone())
         .await
