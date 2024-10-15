@@ -14,14 +14,12 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use futures::StreamExt as _;
 use tracing::instrument;
 
 use super::storage::{
     self,
     keys::{
         self,
-        extract_asset_from_fee_asset_key,
     },
 };
 use crate::storage::StoredValue;
@@ -79,35 +77,6 @@ pub(crate) trait StateReadExt: StateRead {
             })
             .wrap_err("invalid ibc asset bytes")
     }
-
-    #[instrument(skip_all)]
-    async fn is_allowed_fee_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
-    where
-        TAsset: Sync,
-        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
-    {
-        Ok(self
-            .nonverifiable_get_raw(keys::fee_asset(asset).as_bytes())
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed to read raw fee asset from state")?
-            .is_some())
-    }
-
-    #[instrument(skip_all)]
-    async fn get_allowed_fee_assets(&self) -> Result<Vec<asset::IbcPrefixed>> {
-        let mut assets = Vec::new();
-
-        let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(keys::FEE_ASSET_PREFIX.as_bytes()));
-        while let Some(Ok((key, _))) = stream.next().await {
-            let asset =
-                extract_asset_from_fee_asset_key(&key).wrap_err("failed to extract asset")?;
-            assets.push(asset);
-        }
-
-        Ok(assets)
-    }
 }
 
 impl<T: ?Sized + StateRead> StateReadExt for T {}
@@ -132,34 +101,12 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(key, bytes);
         Ok(())
     }
-
-    #[instrument(skip_all)]
-    fn delete_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset)
-    where
-        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
-    {
-        self.nonverifiable_delete(keys::fee_asset(asset).into_bytes());
-    }
-
-    #[instrument(skip_all)]
-    fn put_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset) -> Result<()>
-    where
-        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
-    {
-        let bytes = StoredValue::Unit
-            .serialize()
-            .context("failed to serialize unit for allowed fee asset")?;
-        self.nonverifiable_put_raw(keys::fee_asset(asset).into_bytes(), bytes);
-        Ok(())
-    }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use cnidarium::StateDelta;
 
     use super::*;
@@ -173,9 +120,6 @@ mod tests {
     }
     fn asset_1() -> asset::Denom {
         "asset_1".parse().unwrap()
-    }
-    fn asset_2() -> asset::Denom {
-        "asset_2".parse().unwrap()
     }
 
     #[tokio::test]
@@ -327,116 +271,6 @@ mod tests {
                 .expect("an ibc asset was written and must exist inside the database"),
             denom.clone().unwrap_trace_prefixed(),
             "original ibc asset was not what was expected"
-        );
-    }
-
-    #[tokio::test]
-    async fn is_allowed_fee_asset() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // non-existent fees assets return false
-        let asset = asset_0();
-        assert!(
-            !state
-                .is_allowed_fee_asset(&asset)
-                .await
-                .expect("checking for allowed fee asset should not fail"),
-            "fee asset was expected to return false"
-        );
-
-        // existent fee assets return true
-        state.put_allowed_fee_asset(&asset).unwrap();
-        assert!(
-            state
-                .is_allowed_fee_asset(&asset)
-                .await
-                .expect("checking for allowed fee asset should not fail"),
-            "fee asset was expected to be allowed"
-        );
-    }
-
-    #[tokio::test]
-    async fn can_delete_allowed_fee_assets_simple() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // setup fee asset
-        let asset = asset_0();
-        state.put_allowed_fee_asset(&asset).unwrap();
-        assert!(
-            state
-                .is_allowed_fee_asset(&asset)
-                .await
-                .expect("checking for allowed fee asset should not fail"),
-            "fee asset was expected to be allowed"
-        );
-
-        // see can get fee asset
-        let assets = state.get_allowed_fee_assets().await.unwrap();
-        assert_eq!(
-            assets,
-            vec![asset.to_ibc_prefixed()],
-            "expected returned allowed fee assets to match what was written in"
-        );
-
-        // can delete
-        state.delete_allowed_fee_asset(&asset);
-
-        // see is deleted
-        let assets = state.get_allowed_fee_assets().await.unwrap();
-        assert!(assets.is_empty(), "fee assets should be empty post delete");
-    }
-
-    #[tokio::test]
-    async fn can_delete_allowed_fee_assets_complex() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // setup fee assets
-        let asset_first = asset_0();
-        state.put_allowed_fee_asset(&asset_first).unwrap();
-        assert!(
-            state
-                .is_allowed_fee_asset(&asset_first)
-                .await
-                .expect("checking for allowed fee asset should not fail"),
-            "fee asset was expected to be allowed"
-        );
-        let asset_second = asset_1();
-        state.put_allowed_fee_asset(&asset_second).unwrap();
-        assert!(
-            state
-                .is_allowed_fee_asset(&asset_second)
-                .await
-                .expect("checking for allowed fee asset should not fail"),
-            "fee asset was expected to be allowed"
-        );
-        let asset_third = asset_2();
-        state.put_allowed_fee_asset(&asset_third).unwrap();
-        assert!(
-            state
-                .is_allowed_fee_asset(&asset_third)
-                .await
-                .expect("checking for allowed fee asset should not fail"),
-            "fee asset was expected to be allowed"
-        );
-
-        // can delete
-        state.delete_allowed_fee_asset(&asset_second);
-
-        // see is deleted
-        let assets = HashSet::<_>::from_iter(state.get_allowed_fee_assets().await.unwrap());
-        assert_eq!(
-            assets,
-            HashSet::from_iter(vec![
-                asset_first.to_ibc_prefixed(),
-                asset_third.to_ibc_prefixed()
-            ]),
-            "delete for allowed fee asset did not behave as expected"
         );
     }
 }

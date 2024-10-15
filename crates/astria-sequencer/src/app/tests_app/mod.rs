@@ -278,7 +278,7 @@ async fn app_transfer_block_fees_to_sudo() {
             .unwrap(),
         transfer_base_fee,
     );
-    assert_eq!(app.state.get_block_fees().unwrap().len(), 0);
+    assert_eq!(app.state.get_block_fees().len(), 0);
 }
 
 #[tokio::test]

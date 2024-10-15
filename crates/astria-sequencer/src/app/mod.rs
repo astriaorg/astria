@@ -105,6 +105,7 @@ use crate::{
         component::FeesComponent,
         construct_tx_fee_event,
         StateReadExt as _,
+        StateWriteExt as _,
     },
     grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
@@ -1155,10 +1156,7 @@ impl App {
         state_tx.clear_validator_updates();
 
         // gather block fees and transfer them to the block proposer
-        let fees = self
-            .state
-            .get_block_fees()
-            .wrap_err("failed to get block fees")?;
+        let fees = self.state.get_block_fees();
 
         for fee in fees {
             state_tx

@@ -1936,7 +1936,7 @@ enum FeeChangeErrorKind {
         #[from]
         source: FeeComponentError,
     },
-    #[error("field {name} was not set")]
+    #[error("field `{name}` was not set")]
     FieldUnset { name: &'static str },
 }
 

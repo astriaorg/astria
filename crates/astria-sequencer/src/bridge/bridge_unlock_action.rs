@@ -119,7 +119,6 @@ mod tests {
         accounts::StateWriteExt as _,
         address::StateWriteExt as _,
         app::ActionHandler as _,
-        assets::StateWriteExt as _,
         bridge::StateWriteExt as _,
         fees::StateWriteExt as _,
         test_utils::{

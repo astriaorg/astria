@@ -48,10 +48,6 @@ use crate::{
         },
         ActionHandler as _,
     },
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
     authority::StateReadExt as _,
     bridge::{
         StateReadExt as _,

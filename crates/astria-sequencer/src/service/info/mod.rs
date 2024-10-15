@@ -66,7 +66,7 @@ impl Info {
         query_router
             .insert(
                 "asset/allowed_fee_assets",
-                crate::assets::query::allowed_fee_assets_request,
+                crate::fees::query::allowed_fee_assets_request,
             )
             .wrap_err("invalid path: `asset/allowed_fee_asset_ids`")?;
         query_router
@@ -201,7 +201,8 @@ mod tests {
             StateWriteExt as _,
         },
         app::StateWriteExt as _,
-        assets::{
+        assets::StateWriteExt as _,
+        fees::{
             StateReadExt as _,
             StateWriteExt as _,
         },

@@ -91,7 +91,6 @@ mod tests {
     use crate::{
         accounts::StateWriteExt as _,
         address::StateWriteExt as _,
-        assets::StateWriteExt as _,
         fees::StateWriteExt as _,
         test_utils::{
             astria_address,

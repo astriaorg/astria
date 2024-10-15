@@ -10,6 +10,7 @@ use crate::{
 #[error("failed validating on-wire type `{on_wire}` as domain type")]
 pub struct FeeComponentError {
     on_wire: String,
+    #[source]
     inner: FeeComponentErrorKind,
 }
 

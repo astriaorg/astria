@@ -46,7 +46,6 @@ use crate::{
         },
         ActionHandler as _,
     },
-    assets::StateWriteExt as _,
     bridge::StateWriteExt as _,
     fees::{
         StateReadExt as _,
@@ -106,7 +105,6 @@ async fn ensure_correct_block_fees_transfer() {
 
     let total_block_fees: u128 = state
         .get_block_fees()
-        .unwrap()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
@@ -146,7 +144,6 @@ async fn ensure_correct_block_fees_sequence() {
     signed_tx.check_and_execute(&mut state).await.unwrap();
     let total_block_fees: u128 = state
         .get_block_fees()
-        .unwrap()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
@@ -190,7 +187,6 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
 
     let total_block_fees: u128 = state
         .get_block_fees()
-        .unwrap()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
@@ -262,7 +258,6 @@ async fn ensure_correct_block_fees_bridge_lock() {
 
     let total_block_fees: u128 = state
         .get_block_fees()
-        .unwrap()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
@@ -318,7 +313,6 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
 
     let total_block_fees: u128 = state
         .get_block_fees()
-        .unwrap()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();

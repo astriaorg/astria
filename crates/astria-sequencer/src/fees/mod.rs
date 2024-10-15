@@ -3,27 +3,28 @@ use astria_core::{
         asset,
         TransactionId,
     },
-    protocol::transaction::v1alpha1::action::{
+    protocol::transaction::{
         self,
-        BridgeLock,
-        BridgeSudoChange,
-        BridgeUnlock,
-        FeeAssetChange,
-        FeeChange,
-        IbcRelayerChange,
-        IbcSudoChange,
-        InitBridgeAccount,
-        Sequence,
-        SudoAddressChange,
-        Transfer,
-        ValidatorUpdate,
+        v1alpha1::action::{
+            BridgeLock,
+            BridgeSudoChange,
+            BridgeUnlock,
+            FeeAssetChange,
+            FeeChange,
+            IbcRelayerChange,
+            IbcSudoChange,
+            InitBridgeAccount,
+            Sequence,
+            SudoAddressChange,
+            Transfer,
+            ValidatorUpdate,
+        },
     },
     Protobuf,
 };
 use astria_eyre::eyre::{
     self,
     ensure,
-    OptionExt as _,
     WrapErr as _,
 };
 use cnidarium::StateWrite;
@@ -38,17 +39,16 @@ use tracing::{
 };
 
 use crate::{
-    accounts::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
-    assets::StateReadExt as _,
+    accounts::StateWriteExt as _,
     transaction::StateReadExt as _,
 };
 
+pub(crate) mod action;
 pub(crate) mod component;
+pub(crate) mod query;
 mod state_ext;
 pub(crate) mod storage;
+
 #[cfg(test)]
 mod tests;
 
@@ -173,7 +173,7 @@ impl FeeHandler for InitBridgeAccount {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for action::Ics20Withdrawal {
+impl FeeHandler for transaction::v1alpha1::action::Ics20Withdrawal {
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
@@ -327,9 +327,7 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
     mut state: S,
     fee_asset: &asset::Denom,
 ) -> eyre::Result<()> {
-    let total_fees = base
-        .checked_add(act.variable_component().saturating_mul(multiplier))
-        .ok_or_eyre("fee calculation overflow in sum")?;
+    let total_fees = base.saturating_add(act.variable_component().saturating_mul(multiplier));
     let transaction_context = state
         .get_transaction_context()
         .expect("transaction source must be present in state when executing an action");
@@ -337,14 +335,6 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
     let transaction_id = transaction_context.transaction_id;
     let source_action_index = transaction_context.source_action_index;
 
-    ensure!(
-        state
-            .get_account_balance(&from, fee_asset)
-            .await
-            .wrap_err("failed to get account balance")?
-            >= total_fees,
-        "insufficient funds for transfer and fee payment",
-    );
     ensure!(
         state
             .is_allowed_fee_asset(fee_asset)
