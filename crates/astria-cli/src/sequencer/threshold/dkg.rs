@@ -45,8 +45,10 @@ pub(super) struct Command {
 }
 
 impl Command {
-    // allow because this is an interactive CLI command which consists of several steps
-    #[allow(clippy::too_many_lines)]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "this is an interactive CLI command which consists of several steps"
+    )]
     pub(super) async fn run(self) -> eyre::Result<()> {
         let rng = thread_rng();
 

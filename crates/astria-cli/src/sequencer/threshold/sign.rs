@@ -172,8 +172,10 @@ impl PrepareMessage {
     }
 }
 
-// it's okay for all the args to end in `_path`
-#[allow(clippy::struct_field_names)]
+#[expect(
+    clippy::struct_field_names,
+    reason = "it's okay for all the args to end in `_path`"
+)]
 #[derive(Debug, clap::Args)]
 struct Part2 {
     /// path to a file with the secret key package from keygen ceremony
@@ -238,8 +240,10 @@ struct SignatureShareWithIdentifier {
     signature_share: frost_ed25519::round2::SignatureShare,
 }
 
-// it's okay for all the args to end in `_path`
-#[allow(clippy::struct_field_names)]
+#[expect(
+    clippy::struct_field_names,
+    reason = "it's okay for all the args to end in `_path`"
+)]
 #[derive(Debug, clap::Args)]
 struct Aggregate {
     /// path to the signing package
