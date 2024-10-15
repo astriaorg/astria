@@ -56,32 +56,45 @@ genesis:
     maxBytes: "1048576"
 
   fees:
-    bridgeLockBaseFee: "0"
-    bridgeLockMultiplier: "1"
-    bridgeSudoChangeBaseFee: "24"
-    bridgeSudoChangeMultiplier: "0"
-    bridgeUnlockBaseFee: "0"
-    bridgeUnlockMultiplier: "0"
-    feeAssetChangeBaseFee: "0"
-    feeAssetChangeMultiplier: "0"
-    feeChangeBaseFee: "0"
-    feeChangeMultiplier: "0"
-    ibcRelayBaseFee: "0"
-    ibcRelayMultiplier: "0"
-    ibcRelayerChangeBaseFee: "0"
-    ibcRelayerChangeMultiplier: "0"
-    ics20WithdrawalBaseFee: "24"
-    ics20WithdrawalMultiplier: "0"
-    initBridgeAccountBaseFee: "48"
-    initBridgeAccountMultiplier: "0"
-    sequenceBaseFee: "32"
-    sequenceMultiplier: "1"
-    sudoAddressChangeBaseFee: "0"
-    sudoAddressChangeMultiplier: "0"
-    transferBaseFee: "12"
-    transferMultiplier: "0"
-    validatorUpdateBaseFee: "0"
-    validatorUpdateMultiplier: "0"
+    bridgeLock:
+      base: "0"
+      multiplier: "1"
+    bridgeSudoChange:
+      base: "24"
+      multiplier: "0"
+    bridgeUnlock:
+      base: "0"
+      multiplier: "0"
+    feeAssetChange:
+      base: "0"
+      multiplier: "0"
+    feeChange:
+      base: "0"
+      multiplier: "0"
+    ibcRelay:
+      base: "0"
+      multiplier: "0"
+    ibcRelayerChange:
+      base: "0"
+      multiplier: "0"
+    ics20Withdrawal:
+      base: "24"
+      multiplier: "0"
+    initBridgeAccount:
+      base: "48"
+      multiplier: "0"
+    sequence:
+      base: "32"
+      multiplier: "1"
+    sudoAddressChange:
+      base: "0"
+      multiplier: "0"
+    transfer:
+      base: "12"
+      multiplier: "0"
+    validatorUpdate:
+      base: "0"
+      multiplier: "0"
 
   validators: []
     # - name: core
