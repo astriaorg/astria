@@ -922,15 +922,15 @@ mod tests {
     }
 
     #[test]
-    fn pbjson_base64_should_be_url_safe() {
+    fn base64_of_raw_rollup_id_should_be_url_safe() {
         // With standard encoding this is "/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v4=", and with
-        // URL-safe "_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v4=".
+        // URL-safe "_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v4=".  The snapshot should only
+        // contain the URL-safe form.
         let rollup_id = RollupId::new([254; 32]);
-        let encoded = serde_json::to_string(&rollup_id.into_raw()).unwrap();
-        assert!(!encoded.contains('/'));
-        assert!(!encoded.contains('+'));
-        assert!(encoded.contains('_'));
-        assert!(encoded.contains('-'));
+        insta::assert_json_snapshot!(
+            "base64_of_raw_rollup_id_should_be_url_safe",
+            &rollup_id.to_raw()
+        );
     }
 
     #[cfg(feature = "unchecked-constructors")]

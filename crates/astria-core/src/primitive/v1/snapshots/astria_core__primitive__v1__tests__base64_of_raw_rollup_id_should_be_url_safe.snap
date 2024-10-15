@@ -1,0 +1,8 @@
+---
+source: crates/astria-core/src/primitive/v1/mod.rs
+assertion_line: 930
+expression: "&rollup_id.to_raw()"
+---
+{
+  "inner": "_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v4="
+}
