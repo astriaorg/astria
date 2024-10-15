@@ -8,8 +8,6 @@ pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
 #[cfg(test)]
-mod tests_block_fees;
-#[cfg(test)]
 mod tests_block_ordering;
 #[cfg(test)]
 mod tests_breaking_changes;
@@ -94,10 +92,7 @@ use crate::{
         StateWriteExt as _,
     },
     address::StateWriteExt as _,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets::StateWriteExt as _,
     authority::{
         component::{
             AuthorityComponent,
@@ -107,11 +102,16 @@ use crate::{
         StateWriteExt as _,
     },
     bridge::{
-        component::BridgeComponent,
         StateReadExt as _,
         StateWriteExt as _,
     },
     component::Component as _,
+    fees::{
+        component::FeesComponent,
+        construct_tx_fee_event,
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
     mempool::{
@@ -126,7 +126,6 @@ use crate::{
             GeneratedCommitments,
         },
     },
-    sequence::component::SequenceComponent,
     transaction::InvalidNonce,
 };
 
@@ -311,6 +310,9 @@ impl App {
         }
 
         // call init_chain on all components
+        FeesComponent::init_chain(&mut state_tx, &genesis_state)
+            .await
+            .wrap_err("init_chain failed on FeesComponent")?;
         AccountsComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on AccountsComponent")?;
@@ -323,15 +325,9 @@ impl App {
         )
         .await
         .wrap_err("init_chain failed on AuthorityComponent")?;
-        BridgeComponent::init_chain(&mut state_tx, &genesis_state)
-            .await
-            .wrap_err("init_chain failed on BridgeComponent")?;
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
-        SequenceComponent::init_chain(&mut state_tx, &genesis_state)
-            .await
-            .wrap_err("init_chain failed on SequenceComponent")?;
 
         state_tx.apply();
 
@@ -1144,15 +1140,12 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on AuthorityComponent")?;
-        BridgeComponent::begin_block(&mut arc_state_tx, begin_block)
-            .await
-            .wrap_err("begin_block failed on BridgeComponent")?;
         IbcComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on IbcComponent")?;
-        SequenceComponent::begin_block(&mut arc_state_tx, begin_block)
+        FeesComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .wrap_err("begin_block failed on SequenceComponent")?;
+            .wrap_err("begin_block failed on FeesComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1214,15 +1207,12 @@ impl App {
         AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on AuthorityComponent")?;
-        BridgeComponent::end_block(&mut arc_state_tx, &end_block)
+        FeesComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .wrap_err("end_block failed on BridgeComponent")?;
+            .wrap_err("end_block failed on FeesComponent")?;
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on IbcComponent")?;
-        SequenceComponent::end_block(&mut arc_state_tx, &end_block)
-            .await
-            .wrap_err("end_block failed on SequenceComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1238,21 +1228,16 @@ impl App {
         state_tx.clear_validator_updates();
 
         // gather block fees and transfer them to the block proposer
-        let fees = self
-            .state
-            .get_block_fees()
-            .await
-            .wrap_err("failed to get block fees")?;
+        let fees = self.state.get_block_fees();
 
-        for (asset, amount) in fees {
+        for fee in fees {
             state_tx
-                .increase_balance(fee_recipient, &asset, amount)
+                .increase_balance(fee_recipient, fee.asset(), fee.amount())
                 .await
                 .wrap_err("failed to increase fee recipient balance")?;
+            let fee_event = construct_tx_fee_event(&fee);
+            state_tx.record(fee_event);
         }
-
-        // clear block fees
-        state_tx.clear_block_fees().await;
 
         let events = self.apply(state_tx);
         Ok(abci::response::EndBlock {

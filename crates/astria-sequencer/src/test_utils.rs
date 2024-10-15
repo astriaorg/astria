@@ -3,6 +3,8 @@ use astria_core::primitive::v1::{
     Address,
     Bech32,
 };
+#[cfg(test)]
+use astria_core::protocol::fees::v1alpha1::SequenceFeeComponents;
 
 pub(crate) const ASTRIA_PREFIX: &str = "astria";
 pub(crate) const ASTRIA_COMPAT_PREFIX: &str = "astriacompat";
@@ -58,4 +60,26 @@ pub(crate) fn assert_eyre_error(error: &astria_eyre::eyre::Error, expected: &'st
         msg.contains(expected),
         "error contained different message\n\texpected: {expected}\n\tfull_error: {msg}",
     );
+}
+
+/// Calculates the fee for a sequence `Action` based on the length of the `data`.
+#[cfg(test)]
+pub(crate) async fn calculate_sequence_action_fee_from_state<S: crate::fees::StateReadExt>(
+    data: &[u8],
+    state: &S,
+) -> u128 {
+    let SequenceFeeComponents {
+        base,
+        multiplier,
+    } = state.get_sequence_fees().await.unwrap();
+    base.checked_add(
+        multiplier
+            .checked_mul(
+                data.len()
+                    .try_into()
+                    .expect("a usize should always convert to a u128"),
+            )
+            .expect("fee multiplication should not overflow"),
+    )
+    .expect("fee addition should not overflow")
 }

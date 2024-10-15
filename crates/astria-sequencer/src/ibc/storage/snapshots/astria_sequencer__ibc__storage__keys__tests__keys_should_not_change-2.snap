@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/ibc/storage/keys.rs
-assertion_line: 64
-expression: ICS20_WITHDRAWAL_BASE_FEE_KEY
+expression: "channel_balance(&channel_id(), &asset())"
 ---
-ibc/ics20_withdrawal_base_fee
+ibc/channel-5/balance/ibc/be429a02d00837245167a2616674a979a2ac6f9806468b48a975b156ad711320

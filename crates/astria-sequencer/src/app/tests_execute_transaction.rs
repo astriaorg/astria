@@ -7,6 +7,10 @@ use astria_core::{
         RollupId,
     },
     protocol::{
+        fees::v1alpha1::{
+            InitBridgeAccountFeeComponents,
+            SequenceFeeComponents,
+        },
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
             action::{
@@ -44,20 +48,20 @@ use crate::{
         },
         ActionHandler as _,
     },
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
     authority::StateReadExt as _,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    fees::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     ibc::StateReadExt as _,
-    sequence::calculate_fee_from_state,
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
+        calculate_sequence_action_fee_from_state,
         nria,
         ASTRIA_PREFIX,
     },
@@ -127,13 +131,13 @@ async fn app_execute_transaction_transfer() {
             .unwrap(),
         value + 10u128.pow(19)
     );
-    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
             .await
             .unwrap(),
-        10u128.pow(19) - (value + transfer_fee),
+        10u128.pow(19) - (value + transfer_base),
     );
     assert_eq!(app.state.get_account_nonce(&bob_address).await.unwrap(), 0);
     assert_eq!(
@@ -193,13 +197,13 @@ async fn app_execute_transaction_transfer_not_native_token() {
         value, // transferred amount
     );
 
-    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
             .await
             .unwrap(),
-        10u128.pow(19) - transfer_fee, // genesis balance - fee
+        10u128.pow(19) - transfer_base, // genesis balance - fee
     );
     assert_eq!(
         app.state
@@ -253,20 +257,20 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
 
 #[tokio::test]
 async fn app_execute_transaction_sequence() {
-    use crate::sequence::StateWriteExt as _;
-
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_sequence_action_base_fee(0).unwrap();
     state_tx
-        .put_sequence_action_byte_cost_multiplier(1)
+        .put_sequence_fees(SequenceFeeComponents {
+            base: 0,
+            multiplier: 1,
+        })
         .unwrap();
     app.apply(state_tx);
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_fee_from_state(&data, &app.state).await.unwrap();
+    let fee = calculate_sequence_action_fee_from_state(&data, &app.state).await;
 
     let tx = UnsignedTransaction::builder()
         .actions(vec![
@@ -593,7 +597,12 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     let fee = 12; // arbitrary
-    state_tx.put_init_bridge_account_base_fee(fee).unwrap();
+    state_tx
+        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
+            base: fee,
+            multiplier: 0,
+        })
+        .unwrap();
     app.apply(state_tx);
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -724,11 +733,6 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
 
     let signed_tx = Arc::new(tx.into_signed(&alice));
 
-    let alice_before_balance = app
-        .state
-        .get_account_balance(&alice_address, &nria())
-        .await
-        .unwrap();
     let bridge_before_balance = app
         .state
         .get_account_balance(&bridge_address, &nria())
@@ -740,7 +744,6 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         app.state.get_account_nonce(&alice_address).await.unwrap(),
         1
     );
-    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
     let expected_deposit = Deposit {
         bridge_address,
         rollup_id,
@@ -751,20 +754,6 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         source_action_index: starting_index_of_action,
     };
 
-    let fee = transfer_fee
-        + app
-            .state
-            .get_bridge_lock_byte_cost_multiplier()
-            .await
-            .unwrap()
-            * crate::bridge::calculate_base_deposit_fee(&expected_deposit).unwrap();
-    assert_eq!(
-        app.state
-            .get_account_balance(&alice_address, &nria())
-            .await
-            .unwrap(),
-        alice_before_balance - (amount + fee)
-    );
     assert_eq!(
         app.state
             .get_account_balance(&bridge_address, &nria())
@@ -918,9 +907,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // figure out needed fee for a single transfer
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_fee_from_state(&data, &app.state.clone())
-        .await
-        .unwrap();
+    let fee = calculate_sequence_action_fee_from_state(&data, &app.state.clone()).await;
 
     // transfer just enough to cover single sequence fee with data
     let signed_tx = UnsignedTransaction::builder()
@@ -1005,9 +992,9 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
 
     // give bridge eoa funds so it can pay for the
     // unlock transfer action
-    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
     state_tx
-        .put_account_balance(&bridge_address, &nria(), transfer_fee)
+        .put_account_balance(&bridge_address, &nria(), transfer_base)
         .unwrap();
 
     // create bridge account
@@ -1237,4 +1224,41 @@ async fn app_execute_transaction_ibc_sudo_change_error() {
         .root_cause()
         .to_string();
     assert!(res.contains("signer is not the sudo key"));
+}
+
+#[tokio::test]
+async fn transaction_execution_records_fee_event() {
+    let mut app = initialize_app(None, vec![]).await;
+
+    // transfer funds from Alice to Bob
+    let alice = get_alice_signing_key();
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+    let value = 333_333;
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![
+            Transfer {
+                to: bob_address,
+                amount: value,
+                asset: nria().into(),
+                fee_asset: nria().into(),
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+    let signed_tx = Arc::new(tx.into_signed(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let sudo_address = app.state.get_sudo_address().await.unwrap();
+    let end_block = app.end_block(1, &sudo_address).await.unwrap();
+
+    let events = end_block.events;
+    let event = events.first().unwrap();
+    assert_eq!(event.kind, "tx.fees");
+    assert_eq!(event.attributes[0].key, "actionName");
+    assert_eq!(event.attributes[1].key, "asset");
+    assert_eq!(event.attributes[2].key, "feeAmount");
+    assert_eq!(event.attributes[3].key, "sourceTransactionId");
+    assert_eq!(event.attributes[4].key, "sourceActionIndex");
 }
