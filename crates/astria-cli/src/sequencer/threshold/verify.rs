@@ -13,9 +13,9 @@ pub(super) struct Command {
     #[arg(long)]
     verifying_key: String,
 
-    // message string to verify
+    // path to file with message bytes to verify
     #[arg(long)]
-    message: String,
+    message_path: String,
 
     // hex-encoded signature
     #[arg(long)]
@@ -26,9 +26,11 @@ impl Command {
     pub(super) fn run(self) -> eyre::Result<()> {
         let Self {
             verifying_key,
-            message,
+            message_path,
             signature,
         } = self;
+
+        let message = std::fs::read(&message_path).wrap_err("failed to read message file")?;
 
         let verifying_key = frost_ed25519::VerifyingKey::deserialize(
             hex::decode(verifying_key)?
@@ -43,7 +45,7 @@ impl Command {
         )
         .wrap_err("failed to parse signature")?;
 
-        match verifying_key.verify(message.as_bytes(), &signature) {
+        match verifying_key.verify(&message, &signature) {
             Ok(()) => println!("Signature is valid"),
             Err(e) => println!("Signature is invalid: {e}"),
         }

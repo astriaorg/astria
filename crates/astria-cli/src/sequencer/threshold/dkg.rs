@@ -45,6 +45,8 @@ pub(super) struct Command {
 }
 
 impl Command {
+    // allow because this is an interactive CLI command which consists of several steps
+    #[allow(clippy::too_many_lines)]
     pub(super) async fn run(self) -> eyre::Result<()> {
         let rng = thread_rng();
 
@@ -70,7 +72,8 @@ impl Command {
         };
         println!(
             "Send our public package to all other participants: {}",
-            serde_json::to_string(&round1_public_package_with_id)?
+            serde_json::to_string(&round1_public_package_with_id)
+                .wrap_err("failed to serialize round 1 public package")?
         );
 
         let mut round1_public_packages: BTreeMap<Identifier, round1::Package> = BTreeMap::new();
@@ -85,7 +88,7 @@ impl Command {
                 round1_public_packages.len(),
                 max_signers.saturating_sub(1)
             );
-            let input = read_line_raw().await?;
+            let input = read_line_raw().await.wrap_err("failed to read line")?;
             let Ok(round1_package) = serde_json::from_str::<Round1PackageWithIdentifier>(&input)
             else {
                 continue;
@@ -113,7 +116,8 @@ impl Command {
             println!(
                 "Send package to participant with id {}: {}",
                 hex::encode(their_id.serialize()),
-                serde_json::to_string(&round2_package_with_id)?
+                serde_json::to_string(&round2_package_with_id)
+                    .wrap_err("failed to serialize round 2 package")?
             );
         }
 
@@ -127,7 +131,7 @@ impl Command {
                 round2_public_packages.len(),
                 max_signers.saturating_sub(1)
             );
-            let input = read_line_raw().await?;
+            let input = read_line_raw().await.wrap_err("failed to read line")?;
             let Ok(round2_package) = serde_json::from_str::<Round2PackageWithIdentifier>(&input)
             else {
                 continue;
@@ -153,12 +157,14 @@ impl Command {
             secret_key_package_path.clone(),
             serde_json::to_string_pretty(&key_package)
                 .wrap_err("failed to serialize secret key package")?,
-        )?;
+        )
+        .wrap_err("failed to write secret key package")?;
         std::fs::write(
             public_key_package_path.clone(),
             serde_json::to_string_pretty(&pubkey_package)
                 .wrap_err("failed to serialize public key package")?,
-        )?;
+        )
+        .wrap_err("failed to write public key package")?;
 
         println!("DKG completed successfully!");
         println!("Secret key package saved to: {secret_key_package_path}");

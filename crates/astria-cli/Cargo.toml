@@ -25,6 +25,8 @@ clap = { workspace = true, features = ["derive", "env"] }
 ethers = { workspace = true, features = ["ws"] }
 hex = { workspace = true }
 ibc-types = { workspace = true }
+pbjson-types = { workspace = true }
+prost = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
