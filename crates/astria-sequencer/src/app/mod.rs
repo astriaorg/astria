@@ -186,9 +186,9 @@ pub(crate) struct App {
     // Transactions are pulled from this mempool during `prepare_proposal`.
     mempool: Mempool,
 
-    // TODO: The executed_proposal_fingerprint and executed_proposal_hash fields should be stored
-    // in the ephemeral storage instead of on the app struct, to avoid any issues with
-    // forgetting to reset them.
+    // TODO(https://github.com/astriaorg/astria/issues/1660): The executed_proposal_fingerprint and
+    // executed_proposal_hash fields should be stored in the ephemeral storage instead of on the app
+    // struct, to avoid any issues with forgetting to reset them.
 
     // An identifier for a given proposal constructed by this app.
     //
