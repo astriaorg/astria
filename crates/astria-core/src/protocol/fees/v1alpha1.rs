@@ -10,15 +10,14 @@ use crate::{
 #[error("failed validating on-wire type `{on_wire}` as domain type")]
 pub struct FeeComponentError {
     on_wire: String,
-    #[source]
-    inner: FeeComponentErrorKind,
+    source: FeeComponentErrorKind,
 }
 
 impl FeeComponentError {
     fn missing_field(on_wire: String, field: &'static str) -> Self {
         Self {
             on_wire,
-            inner: FeeComponentErrorKind::MissingField {
+            source: FeeComponentErrorKind::MissingField {
                 field,
             },
         }

@@ -44,7 +44,7 @@ use super::{
         self,
         keys::{
             self,
-            extract_asset_from_fee_asset_key,
+            extract_asset_from_allowed_asset_key,
         },
     },
     Fee,
@@ -318,7 +318,7 @@ pub(crate) trait StateReadExt: StateRead {
         &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         Ok(self
-            .nonverifiable_get_raw(keys::fee_asset(asset).as_bytes())
+            .get_raw(&keys::allowed_asset(asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw fee asset from state")?
@@ -329,11 +329,10 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_allowed_fee_assets(&self) -> Result<Vec<asset::IbcPrefixed>> {
         let mut assets = Vec::new();
 
-        let mut stream =
-            std::pin::pin!(self.nonverifiable_prefix_raw(keys::FEE_ASSET_PREFIX.as_bytes()));
+        let mut stream = std::pin::pin!(self.prefix_raw(keys::ALLOWED_ASSET_PREFIX));
         while let Some(Ok((key, _))) = stream.next().await {
             let asset =
-                extract_asset_from_fee_asset_key(&key).wrap_err("failed to extract asset")?;
+                extract_asset_from_allowed_asset_key(&key).wrap_err("failed to extract asset")?;
             assets.push(asset);
         }
 
@@ -509,7 +508,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     where
         &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
-        self.nonverifiable_delete(keys::fee_asset(asset).into_bytes());
+        self.delete(keys::allowed_asset(asset));
     }
 
     #[instrument(skip_all)]
@@ -520,7 +519,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::Unit
             .serialize()
             .context("failed to serialize unit for allowed fee asset")?;
-        self.nonverifiable_put_raw(keys::fee_asset(asset).into_bytes(), bytes);
+        self.put_raw(keys::allowed_asset(asset), bytes);
         Ok(())
     }
 }
