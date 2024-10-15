@@ -2,4 +2,4 @@
 source: crates/astria-sequencer/src/fees/storage/keys.rs
 expression: FEE_ASSET_CHANGE
 ---
-fees/allowed_asset_change
+fees/fee_asset_change
