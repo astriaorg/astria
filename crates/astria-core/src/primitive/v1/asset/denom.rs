@@ -907,31 +907,53 @@ mod tests {
 
     #[test]
     fn trace_and_ibc_prefixed_ord_matches_lexical_sort() {
-        let mut denoms = vec![
-            format!("ibc/{}", hex::encode([135u8; 32]))
-                .parse::<Denom>()
-                .unwrap(),
-            format!("ibc/{}", hex::encode([4u8; 32]))
-                .parse::<Denom>()
-                .unwrap(),
-            format!("ibc/{}", hex::encode([0u8; 32]))
-                .parse::<Denom>()
-                .unwrap(),
-            format!("ibc/{}", hex::encode([240u8; 32]))
-                .parse::<Denom>()
-                .unwrap(),
-            format!("ibc/{}", hex::encode([60u8; 32]))
-                .parse::<Denom>()
-                .unwrap(),
-            "ethan/was/here".parse::<Denom>().unwrap(),
-            "nria".parse::<Denom>().unwrap(),
-            "pretty/long/trace/prefixed/denom".parse::<Denom>().unwrap(),
-            "_using/underscore/here".parse::<Denom>().unwrap(),
-            "astria/test/asset".parse::<Denom>().unwrap(),
-        ];
-        let mut denoms_lexical = denoms.clone();
-        denoms.sort_unstable();
-        denoms_lexical.sort_unstable_by_key(ToString::to_string);
-        assert_eq!(denoms, denoms_lexical);
+        let ibc_1 = format!("ibc/{}", hex::encode([135u8; 32]));
+        let ibc_2 = format!("ibc/{}", hex::encode([4u8; 32]));
+        let ibc_3 = format!("ibc/{}", hex::encode([0u8; 32]));
+        let ibc_4 = format!("ibc/{}", hex::encode([240u8; 32]));
+        let ibc_5 = format!("ibc/{}", hex::encode([60u8; 32]));
+        let trace_1 = "ethan/was/here";
+        let trace_2 = "nria";
+        let trace_3 = "pretty/long/trace/prefixed/denom";
+        let trace_4 = "_using/underscore/here";
+        let trace_5 = "astria/test/asset";
+
+        assert_ord_matches_lexical(&ibc_1, &ibc_1);
+        assert_ord_matches_lexical(&ibc_1, &ibc_2);
+        assert_ord_matches_lexical(&ibc_1, &ibc_3);
+        assert_ord_matches_lexical(&ibc_1, &ibc_4);
+        assert_ord_matches_lexical(&ibc_1, &ibc_5);
+
+        assert_ord_matches_lexical(&ibc_2, &ibc_3);
+        assert_ord_matches_lexical(&ibc_2, &ibc_4);
+        assert_ord_matches_lexical(&ibc_2, &ibc_5);
+
+        assert_ord_matches_lexical(&ibc_3, &ibc_4);
+        assert_ord_matches_lexical(&ibc_3, &ibc_5);
+
+        assert_ord_matches_lexical(&ibc_4, &ibc_5);
+
+        assert_ord_matches_lexical(&trace_1, &trace_1);
+        assert_ord_matches_lexical(&trace_1, &trace_2);
+        assert_ord_matches_lexical(&trace_1, &trace_2);
+        assert_ord_matches_lexical(&trace_1, &trace_3);
+        assert_ord_matches_lexical(&trace_1, &trace_4);
+        assert_ord_matches_lexical(&trace_1, &trace_5);
+
+        assert_ord_matches_lexical(&trace_2, &trace_3);
+        assert_ord_matches_lexical(&trace_2, &trace_4);
+        assert_ord_matches_lexical(&trace_2, &trace_5);
+
+        assert_ord_matches_lexical(&trace_3, &trace_4);
+        assert_ord_matches_lexical(&trace_3, &trace_5);
+
+        assert_ord_matches_lexical(&trace_4, &trace_5);
+    }
+
+    #[track_caller]
+    fn assert_ord_matches_lexical(left: &str, right: &str) {
+        let left_denom = left.parse::<Denom>().unwrap();
+        let right_denom = right.parse::<Denom>().unwrap();
+        assert_eq!(left_denom.cmp(&right_denom), left.cmp(right));
     }
 }
