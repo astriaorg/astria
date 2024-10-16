@@ -73,8 +73,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1.GetBlocks RPC because of gRPC status \
-             code or because number of retries were exhausted",
+            "failed to execute astria.execution.v1.GetBlocks RPC because of gRPC status code or \
+             because number of retries were exhausted",
         )?
         .into_inner();
         ensure!(
@@ -97,8 +97,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1.GetGenesisInfo RPC because of gRPC \
-             status code or because number of retries were exhausted",
+            "failed to execute astria.execution.v1.GetGenesisInfo RPC because of gRPC status code \
+             or because number of retries were exhausted",
         )?
         .into_inner();
         let genesis_info = GenesisInfo::try_from_raw(response)
@@ -142,8 +142,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1.ExecuteBlock RPC because of gRPC status \
-             code or because number of retries were exhausted",
+            "failed to execute astria.execution.v1.ExecuteBlock RPC because of gRPC status code \
+             or because number of retries were exhausted",
         )?
         .into_inner();
         let block = Block::try_from_raw(response)
@@ -167,8 +167,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1.GetCommitmentState RPC because of gRPC \
-             status code or because number of retries were exhausted",
+            "failed to execute astria.execution.v1.GetCommitmentState RPC because of gRPC status \
+             code or because number of retries were exhausted",
         )?
         .into_inner();
         let commitment_state = CommitmentState::try_from_raw(response)
@@ -199,8 +199,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1.UpdateCommitmentState RPC because of \
-             gRPC status code or because number of retries were exhausted",
+            "failed to execute astria.execution.v1.UpdateCommitmentState RPC because of gRPC \
+             status code or because number of retries were exhausted",
         )?
         .into_inner();
         let commitment_state = CommitmentState::try_from_raw(response)

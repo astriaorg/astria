@@ -251,8 +251,8 @@ pub(crate) fn address_prefixes() -> AddressPrefixes {
     .unwrap()
 }
 
-pub(crate) fn proto_genesis_state()
--> astria_core::generated::protocol::genesis::v1::GenesisAppState {
+pub(crate) fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState
+{
     use astria_core::generated::protocol::genesis::v1::{
         GenesisAppState,
         IbcParameters,

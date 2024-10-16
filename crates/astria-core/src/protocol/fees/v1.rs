@@ -181,12 +181,10 @@ impl TransactionFeeResponse {
             fees: self
                 .fees
                 .into_iter()
-                .map(
-                    |(asset, fee)| raw::TransactionFee {
-                        asset: asset.to_string(),
-                        fee: Some(fee.into()),
-                    },
-                )
+                .map(|(asset, fee)| raw::TransactionFee {
+                    asset: asset.to_string(),
+                    fee: Some(fee.into()),
+                })
                 .collect(),
         }
     }
