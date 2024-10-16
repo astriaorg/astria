@@ -65,6 +65,7 @@ pub(crate) struct Driver {
     #[allow(dead_code)]
     metrics: &'static Metrics,
     shutdown_token: CancellationToken,
+
     /// The time between receiving a block commitment
     latency_margin: Duration,
     /// Channel for receiving the executed block signal to start processing bundles
@@ -81,9 +82,11 @@ pub(crate) struct Driver {
 
 impl Driver {
     pub(crate) async fn run(mut self) -> eyre::Result<()> {
+        // TODO: should the timer be inside the auction so that we only have one option?
         let mut latency_margin_timer = None;
-
         let mut auction: Option<Auction> = None;
+
+        let mut nonce_fetch: Option<tokio::task::JoinHandle<eyre::Result<u64>>> = None;
 
         let auction_result = loop {
             select! {
@@ -103,7 +106,8 @@ impl Driver {
                     //
                 }
 
-                // get the auction winner if the timer expires
+                // get the auction winner when the timer expires
+                // TODO: should this also be conditioned on auction.is_some()? this feels redundant as we only populate the timer if the auction isnt none
                 _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
                     break Ok(auction.unwrap().winner());
                 }
@@ -120,9 +124,14 @@ impl Driver {
                     if let Err(e) = signal {
                         break Err(eyre!("commit signal channel closed")).wrap_err(e);
                     }
-                    // set auction to closing
-                    // start the timer
+                    // set the timer
                     latency_margin_timer = Some(tokio::time::sleep(self.latency_margin));
+
+                    // TODO: also want to fetch the pending nonce here (we wait for commit because we want the pending nonce from after the commit)
+                    nonce_fetch = Some(tokio::task::spawn(async {
+                        // TODO: fetch the pending nonce using the sequencer client with tryhard
+                        Ok(0)
+                    }));
                 }
 
                 //  TODO: new bundles from the bundle stream if auction exists?
@@ -140,6 +149,14 @@ impl Driver {
                 return Err(e);
             }
         };
+
+        // await the nonce fetch result
+        // TODO: flatten this or get rid of the option somehow
+        let nonce = nonce_fetch
+            .expect("should have received commit to exit the bid loop")
+            .await
+            .wrap_err("task failed")?
+            .wrap_err("failed to fetch nonce")?;
 
         let submission_result = select! {
             biased;

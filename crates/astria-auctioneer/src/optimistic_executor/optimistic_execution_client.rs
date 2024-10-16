@@ -1,9 +1,12 @@
 use std::time::Duration;
 
-use astria_core::generated::bundle::v1alpha1::{
-    optimistic_execution_service_client::OptimisticExecutionServiceClient,
-    ExecuteOptimisticBlockStreamRequest,
-    ExecuteOptimisticBlockStreamResponse,
+use astria_core::{
+    generated::bundle::v1alpha1::{
+        optimistic_execution_service_client::OptimisticExecutionServiceClient,
+        ExecuteOptimisticBlockStreamRequest,
+        ExecuteOptimisticBlockStreamResponse,
+    },
+    primitive::v1::RollupId,
 };
 use astria_eyre::eyre::{
     self,
@@ -68,6 +71,7 @@ impl OptimisticExecutionClient {
 
     pub(crate) async fn execute_optimistic_block_stream(
         &mut self,
+        rollup_id: RollupId,
     ) -> eyre::Result<(
         tonic::Streaming<ExecuteOptimisticBlockStreamResponse>,
         mpsc::Sender<block::Optimistic>,
@@ -82,8 +86,18 @@ impl OptimisticExecutionClient {
             // create request stream
             let (opts_to_exec_tx, opts_to_exec_rx) = mpsc::channel(16);
             let opts = ReceiverStream::new(opts_to_exec_rx);
-            let requests = opts.map(|opt: block::Optimistic| {
-                let base_block = opt.into_base_block();
+            let rollup_id = rollup_id.clone();
+
+            let requests = opts.map(move |opt: block::Optimistic| {
+                let base_block = opt
+                    .try_into_base_block(rollup_id)
+                    .wrap_err("failed to create BaseBlock from filtered_sequencer_block")
+                    // TODO: get rid of this unwrap so we can handle blocks with no transactions.
+                    // - instead of opts.map(), i should onyl create exec requests for blocks with
+                    //   transactions in them.
+                    // - moving this into a domain specific stream will help clear up the logic
+                    .unwrap();
+
                 ExecuteOptimisticBlockStreamRequest {
                     base_block: Some(base_block),
                 }
