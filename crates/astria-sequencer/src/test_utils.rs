@@ -64,7 +64,9 @@ pub(crate) fn assert_eyre_error(error: &astria_eyre::eyre::Error, expected: &'st
 
 /// Calculates the fee for a sequence `Action` based on the length of the `data`.
 #[cfg(test)]
-pub(crate) async fn calculate_rollup_data_submission_fee_from_state<S: crate::fees::StateReadExt>(
+pub(crate) async fn calculate_rollup_data_submission_fee_from_state<
+    S: crate::fees::StateReadExt,
+>(
     data: &[u8],
     state: &S,
 ) -> u128 {

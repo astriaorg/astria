@@ -467,7 +467,8 @@ mod tests {
                     .await
                     .unwrap(),
                 &crate::test_utils::nria(),
-                transfer_fee + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
+                transfer_fee
+                    + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
             )
             .await
             .unwrap();
@@ -596,7 +597,8 @@ mod tests {
                     .await
                     .unwrap(),
                 &crate::test_utils::nria(),
-                transfer_fee + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
+                transfer_fee
+                    + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
             )
             .await
             .unwrap();
