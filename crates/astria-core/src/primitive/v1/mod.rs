@@ -196,7 +196,20 @@ impl RollupId {
     /// # Errors
     ///
     /// Returns an error if the byte slice was not 32 bytes long.
-    pub fn try_from_raw(raw: &raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "for symmetry with other domain type conversions"
+    )]
+    pub fn try_from_raw(raw: raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
+        Self::try_from_raw_ref(&raw)
+    }
+
+    /// Converts from protobuf type to rust type for a rollup ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the byte slice was not 32 bytes long.
+    pub fn try_from_raw_ref(raw: &raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
         Self::try_from_slice(&raw.inner)
     }
 }

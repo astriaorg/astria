@@ -7,7 +7,7 @@ use astria_core::{
     crypto::SigningKey,
     protocol::transaction::v1alpha1::{
         Action,
-        UnsignedTransaction,
+        TransactionBody,
     },
 };
 use astria_sequencer_client::{
@@ -127,13 +127,13 @@ async fn submit_transaction(
         .await
         .wrap_err("failed to get nonce")?;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(actions)
         .nonce(nonce_res.nonce)
         .chain_id(chain_id)
         .try_build()
         .wrap_err("failed to build transaction from actions")?
-        .into_signed(signing_key);
+        .sign(signing_key);
     let res = client
         .submit_transaction_sync(tx)
         .await

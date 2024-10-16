@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/bridge/storage/keys.rs
-assertion_line: 98
-expression: DEPOSITS_EPHEMERAL_KEY
+expression: bridge_account_sudo_address(&address())
 ---
-bridge/deposits
+bridge/sudo/HAxJDxtVKNgXPF3kbRMRYOSywMM=

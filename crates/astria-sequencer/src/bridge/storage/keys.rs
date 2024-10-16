@@ -9,11 +9,6 @@ use crate::{
     storage::keys::AccountPrefixer,
 };
 
-pub(in crate::bridge) const INIT_BRIDGE_ACCOUNT_BASE_FEE: &str = "bridge/init_account_fee";
-pub(in crate::bridge) const BRIDGE_LOCK_BYTE_COST_MULTIPLIER: &str =
-    "bridge/lock_byte_cost_multiplier";
-pub(in crate::bridge) const BRIDGE_SUDO_CHANGE_FEE: &str = "bridge/sudo_change_fee";
-
 pub(in crate::bridge) const BRIDGE_ACCOUNT_PREFIX: &str = "bridge/account/";
 const BRIDGE_ACCOUNT_SUDO_PREFIX: &str = "bridge/sudo/";
 const BRIDGE_ACCOUNT_WITHDRAWER_PREFIX: &str = "bridge/withdrawer/";
@@ -96,9 +91,6 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(INIT_BRIDGE_ACCOUNT_BASE_FEE);
-        insta::assert_snapshot!(BRIDGE_LOCK_BYTE_COST_MULTIPLIER);
-        insta::assert_snapshot!(BRIDGE_SUDO_CHANGE_FEE);
         insta::assert_snapshot!(DEPOSITS_EPHEMERAL);
         insta::assert_snapshot!(rollup_id(&address()));
         insta::assert_snapshot!(asset_id(&address()));
@@ -111,9 +103,6 @@ mod tests {
 
     #[test]
     fn keys_should_have_component_prefix() {
-        assert!(INIT_BRIDGE_ACCOUNT_BASE_FEE.starts_with(COMPONENT_PREFIX));
-        assert!(BRIDGE_LOCK_BYTE_COST_MULTIPLIER.starts_with(COMPONENT_PREFIX));
-        assert!(BRIDGE_SUDO_CHANGE_FEE.starts_with(COMPONENT_PREFIX));
         assert!(DEPOSITS_EPHEMERAL.starts_with(COMPONENT_PREFIX));
         assert!(rollup_id(&address()).starts_with(COMPONENT_PREFIX));
         assert!(asset_id(&address()).starts_with(COMPONENT_PREFIX));

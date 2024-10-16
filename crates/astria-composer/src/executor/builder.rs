@@ -8,7 +8,7 @@ use astria_core::{
     crypto::SigningKey,
     generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient,
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::Sequence,
+    protocol::transaction::v1alpha1::action::RollupDataSubmission,
 };
 use astria_eyre::eyre::{
     self,
@@ -72,7 +72,7 @@ impl Builder {
             .wrap_err("failed constructing a sequencer address from private key")?;
 
         let (serialized_rollup_transaction_tx, serialized_rollup_transaction_rx) =
-            tokio::sync::mpsc::channel::<Sequence>(256);
+            tokio::sync::mpsc::channel::<RollupDataSubmission>(256);
 
         Ok((
             super::Executor {

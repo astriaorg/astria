@@ -2,12 +2,15 @@ use std::time::Duration;
 
 use astria_core::{
     crypto::SigningKey,
-    generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse,
+    generated::protocol::{
+        asset::v1alpha1::AllowedFeeAssetsResponse,
+        fees::v1alpha1::TransactionFee,
+    },
     primitive::v1::Address,
     protocol::transaction::v1alpha1::{
         action::Transfer,
-        SignedTransaction,
-        UnsignedTransaction,
+        Transaction,
+        TransactionBody,
     },
 };
 use hex_literal::hex;
@@ -139,7 +142,7 @@ async fn register_tx_response(server: &MockServer, response: tx::Response) -> Mo
     .await
 }
 
-fn create_signed_transaction() -> SignedTransaction {
+fn create_signed_transaction() -> Transaction {
     let alice_secret_bytes: [u8; 32] =
         hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
             .unwrap()
@@ -156,13 +159,13 @@ fn create_signed_transaction() -> SignedTransaction {
         }
         .into(),
     ];
-    UnsignedTransaction::builder()
+    TransactionBody::builder()
         .actions(actions)
         .chain_id("test")
         .nonce(1)
         .try_build()
         .unwrap()
-        .into_signed(&alice_key)
+        .sign(&alice_key)
 }
 
 #[tokio::test]
@@ -321,10 +324,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
 #[tokio::test]
 async fn get_transaction_fee() {
-    use astria_core::generated::protocol::transactions::v1alpha1::{
-        TransactionFee,
-        TransactionFeeResponse,
-    };
+    use astria_core::generated::protocol::fees::v1alpha1::TransactionFeeResponse;
 
     let MockSequencer {
         server,

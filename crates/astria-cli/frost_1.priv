@@ -1,0 +1,11 @@
+{
+  "header": {
+    "version": 0,
+    "ciphersuite": "FROST-ED25519-SHA512-v1"
+  },
+  "identifier": "0100000000000000000000000000000000000000000000000000000000000000",
+  "signing_share": "9f48b171dd69da5a2caa42791d94838228523f12e8cbf884003597caf6b69600",
+  "verifying_share": "f6c014965f4600d2cde07730f5bcb29c26762f659e0ca4a87e49ab6c8588c908",
+  "verifying_key": "38d31538aeca083be5238e3871a2969baf9787e611b1cdb98103728556732684",
+  "min_signers": 2
+}

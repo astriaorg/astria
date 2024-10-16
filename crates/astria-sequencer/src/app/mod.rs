@@ -8,8 +8,6 @@ pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
 #[cfg(test)]
-mod tests_block_fees;
-#[cfg(test)]
 mod tests_block_ordering;
 #[cfg(test)]
 mod tests_breaking_changes;
@@ -22,7 +20,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transactions::v1alpha1 as raw,
+    generated::protocol::transaction::v1alpha1 as raw,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1alpha1::GenesisAppState,
@@ -32,7 +30,7 @@ use astria_core::{
                 ValidatorUpdate,
             },
             Action,
-            SignedTransaction,
+            Transaction,
         },
     },
     sequencerblock::v1alpha1::block::SequencerBlock,
@@ -94,10 +92,7 @@ use crate::{
         StateWriteExt as _,
     },
     address::StateWriteExt as _,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets::StateWriteExt as _,
     authority::{
         component::{
             AuthorityComponent,
@@ -107,11 +102,16 @@ use crate::{
         StateWriteExt as _,
     },
     bridge::{
-        component::BridgeComponent,
         StateReadExt as _,
         StateWriteExt as _,
     },
     component::Component as _,
+    fees::{
+        component::FeesComponent,
+        construct_tx_fee_event,
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
     mempool::{
@@ -126,7 +126,6 @@ use crate::{
             GeneratedCommitments,
         },
     },
-    sequence::component::SequenceComponent,
     transaction::InvalidNonce,
 };
 
@@ -311,6 +310,9 @@ impl App {
         }
 
         // call init_chain on all components
+        FeesComponent::init_chain(&mut state_tx, &genesis_state)
+            .await
+            .wrap_err("init_chain failed on FeesComponent")?;
         AccountsComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on AccountsComponent")?;
@@ -323,15 +325,9 @@ impl App {
         )
         .await
         .wrap_err("init_chain failed on AuthorityComponent")?;
-        BridgeComponent::init_chain(&mut state_tx, &genesis_state)
-            .await
-            .wrap_err("init_chain failed on BridgeComponent")?;
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
-        SequenceComponent::init_chain(&mut state_tx, &genesis_state)
-            .await
-            .wrap_err("init_chain failed on SequenceComponent")?;
 
         state_tx.apply();
 
@@ -499,7 +495,7 @@ impl App {
         // the max sequenced data bytes.
         let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
 
-        // deserialize txs into `SignedTransaction`s;
+        // deserialize txs into `Transaction`s;
         // this does not error if any txs fail to be deserialized, but the `execution_results.len()`
         // check below ensures that all txs in the proposal are deserializable (and
         // executable).
@@ -562,7 +558,7 @@ impl App {
     /// is stored in ephemeral storage for usage in `process_proposal`.
     ///
     /// Returns the transactions which were successfully executed
-    /// in both their [`SignedTransaction`] and raw bytes form.
+    /// in both their [`Transaction`] and raw bytes form.
     ///
     /// Unlike the usual flow of an ABCI application, this is called during
     /// the proposal phase, ie. `prepare_proposal`.
@@ -578,7 +574,7 @@ impl App {
     async fn execute_transactions_prepare_proposal(
         &mut self,
         block_size_constraints: &mut BlockSizeConstraints,
-    ) -> Result<(Vec<bytes::Bytes>, Vec<SignedTransaction>)> {
+    ) -> Result<(Vec<bytes::Bytes>, Vec<Transaction>)> {
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "executing transactions from mempool");
 
@@ -625,7 +621,7 @@ impl App {
                 .unsigned_transaction()
                 .actions()
                 .iter()
-                .filter_map(Action::as_sequence)
+                .filter_map(Action::as_rollup_data_submission)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
@@ -757,7 +753,7 @@ impl App {
     #[instrument(name = "App::execute_transactions_process_proposal", skip_all)]
     async fn execute_transactions_process_proposal(
         &mut self,
-        txs: Vec<SignedTransaction>,
+        txs: Vec<Transaction>,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> Result<Vec<ExecTxResult>> {
         let mut execution_results = Vec::new();
@@ -773,7 +769,7 @@ impl App {
                 .unsigned_transaction()
                 .actions()
                 .iter()
-                .filter_map(Action::as_sequence)
+                .filter_map(Action::as_rollup_data_submission)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
@@ -1144,15 +1140,12 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on AuthorityComponent")?;
-        BridgeComponent::begin_block(&mut arc_state_tx, begin_block)
-            .await
-            .wrap_err("begin_block failed on BridgeComponent")?;
         IbcComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on IbcComponent")?;
-        SequenceComponent::begin_block(&mut arc_state_tx, begin_block)
+        FeesComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .wrap_err("begin_block failed on SequenceComponent")?;
+            .wrap_err("begin_block failed on FeesComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1162,10 +1155,7 @@ impl App {
 
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all)]
-    async fn execute_transaction(
-        &mut self,
-        signed_tx: Arc<SignedTransaction>,
-    ) -> Result<Vec<Event>> {
+    async fn execute_transaction(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<Event>> {
         signed_tx
             .check_stateless()
             .await
@@ -1214,15 +1204,12 @@ impl App {
         AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on AuthorityComponent")?;
-        BridgeComponent::end_block(&mut arc_state_tx, &end_block)
+        FeesComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .wrap_err("end_block failed on BridgeComponent")?;
+            .wrap_err("end_block failed on FeesComponent")?;
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on IbcComponent")?;
-        SequenceComponent::end_block(&mut arc_state_tx, &end_block)
-            .await
-            .wrap_err("end_block failed on SequenceComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1238,21 +1225,16 @@ impl App {
         state_tx.clear_validator_updates();
 
         // gather block fees and transfer them to the block proposer
-        let fees = self
-            .state
-            .get_block_fees()
-            .await
-            .wrap_err("failed to get block fees")?;
+        let fees = self.state.get_block_fees();
 
-        for (asset, amount) in fees {
+        for fee in fees {
             state_tx
-                .increase_balance(fee_recipient, &asset, amount)
+                .increase_balance(fee_recipient, fee.asset(), fee.amount())
                 .await
                 .wrap_err("failed to increase fee recipient balance")?;
+            let fee_event = construct_tx_fee_event(&fee);
+            state_tx.record(fee_event);
         }
-
-        // clear block fees
-        state_tx.clear_block_fees().await;
 
         let events = self.apply(state_tx);
         Ok(abci::response::EndBlock {
@@ -1333,10 +1315,10 @@ struct BlockData {
     proposer_address: account::Id,
 }
 
-fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<SignedTransaction> {
-    let raw = raw::SignedTransaction::decode(bytes)
+fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<Transaction> {
+    let raw = raw::Transaction::decode(bytes)
         .wrap_err("failed to decode protobuf to signed transaction")?;
-    let tx = SignedTransaction::try_from_raw(raw)
+    let tx = Transaction::try_from_raw(raw)
         .wrap_err("failed to transform raw signed transaction to verified type")?;
 
     Ok(tx)

@@ -1,6 +1,4 @@
 use astria_core::protocol::transaction::v1alpha1::action::{
-    FeeChange,
-    FeeChangeKind,
     IbcSudoChange,
     SudoAddressChange,
     ValidatorUpdate,
@@ -14,16 +12,13 @@ use astria_eyre::eyre::{
 use cnidarium::StateWrite;
 
 use crate::{
-    accounts::StateWriteExt as _,
     address::StateReadExt as _,
     app::ActionHandler,
     authority::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    bridge::StateWriteExt as _,
     ibc::StateWriteExt as _,
-    sequence::StateWriteExt as _,
     transaction::StateReadExt as _,
 };
 
@@ -107,52 +102,6 @@ impl ActionHandler for SudoAddressChange {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for FeeChange {
-    async fn check_stateless(&self) -> Result<()> {
-        Ok(())
-    }
-
-    /// check that the signer of the transaction is the current sudo address,
-    /// as only that address can change the fee
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-        // ensure signer is the valid `sudo` key in state
-        let sudo_address = state
-            .get_sudo_address()
-            .await
-            .wrap_err("failed to get sudo address from state")?;
-        ensure!(sudo_address == from, "signer is not the sudo key");
-
-        match self.fee_change {
-            FeeChangeKind::TransferBaseFee => state
-                .put_transfer_base_fee(self.new_value)
-                .wrap_err("failed to put transfer base fee"),
-            FeeChangeKind::SequenceBaseFee => state
-                .put_sequence_action_base_fee(self.new_value)
-                .wrap_err("failed to put sequence action base fee"),
-            FeeChangeKind::SequenceByteCostMultiplier => state
-                .put_sequence_action_byte_cost_multiplier(self.new_value)
-                .wrap_err("failed to put sequence action byte cost multiplier"),
-            FeeChangeKind::InitBridgeAccountBaseFee => state
-                .put_init_bridge_account_base_fee(self.new_value)
-                .wrap_err("failed to put init bridge account base fee"),
-            FeeChangeKind::BridgeLockByteCostMultiplier => state
-                .put_bridge_lock_byte_cost_multiplier(self.new_value)
-                .wrap_err("failed to put bridge lock byte cost multiplier"),
-            FeeChangeKind::BridgeSudoChangeBaseFee => state
-                .put_bridge_sudo_change_base_fee(self.new_value)
-                .wrap_err("failed to put bridge sudo change base fee"),
-            FeeChangeKind::Ics20WithdrawalBaseFee => state
-                .put_ics20_withdrawal_base_fee(self.new_value)
-                .wrap_err("failed to put ics20 withdrawal base fee"),
-        }
-    }
-}
-
-#[async_trait::async_trait]
 impl ActionHandler for IbcSudoChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
@@ -177,122 +126,5 @@ impl ActionHandler for IbcSudoChange {
             .put_ibc_sudo_address(self.new_address)
             .wrap_err("failed to put ibc sudo address in state")?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use astria_core::primitive::v1::TransactionId;
-    use cnidarium::StateDelta;
-
-    use super::*;
-    use crate::{
-        accounts::StateReadExt as _,
-        bridge::StateReadExt as _,
-        ibc::StateReadExt as _,
-        sequence::StateReadExt as _,
-        transaction::{
-            StateWriteExt as _,
-            TransactionContext,
-        },
-    };
-
-    #[tokio::test]
-    async fn fee_change_action_executes() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-        let transfer_fee = 12;
-
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
-        state.put_sudo_address([1; 20]).unwrap();
-
-        state.put_transfer_base_fee(transfer_fee).unwrap();
-
-        let fee_change = FeeChange {
-            fee_change: FeeChangeKind::TransferBaseFee,
-            new_value: 10,
-        };
-
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_transfer_base_fee().await.unwrap(), 10);
-
-        let sequence_base_fee = 5;
-        state
-            .put_sequence_action_base_fee(sequence_base_fee)
-            .unwrap();
-
-        let fee_change = FeeChange {
-            fee_change: FeeChangeKind::SequenceBaseFee,
-            new_value: 3,
-        };
-
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_sequence_action_base_fee().await.unwrap(), 3);
-
-        let sequence_byte_cost_multiplier = 2;
-        state
-            .put_sequence_action_byte_cost_multiplier(sequence_byte_cost_multiplier)
-            .unwrap();
-
-        let fee_change = FeeChange {
-            fee_change: FeeChangeKind::SequenceByteCostMultiplier,
-            new_value: 4,
-        };
-
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(
-            state
-                .get_sequence_action_byte_cost_multiplier()
-                .await
-                .unwrap(),
-            4
-        );
-
-        let init_bridge_account_base_fee = 1;
-        state
-            .put_init_bridge_account_base_fee(init_bridge_account_base_fee)
-            .unwrap();
-
-        let fee_change = FeeChange {
-            fee_change: FeeChangeKind::InitBridgeAccountBaseFee,
-            new_value: 2,
-        };
-
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_init_bridge_account_base_fee().await.unwrap(), 2);
-
-        let bridge_lock_byte_cost_multiplier = 1;
-        state
-            .put_bridge_lock_byte_cost_multiplier(bridge_lock_byte_cost_multiplier)
-            .unwrap();
-
-        let fee_change = FeeChange {
-            fee_change: FeeChangeKind::BridgeLockByteCostMultiplier,
-            new_value: 2,
-        };
-
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(
-            state.get_bridge_lock_byte_cost_multiplier().await.unwrap(),
-            2
-        );
-
-        let ics20_withdrawal_base_fee = 1;
-        state
-            .put_ics20_withdrawal_base_fee(ics20_withdrawal_base_fee)
-            .unwrap();
-
-        let fee_change = FeeChange {
-            fee_change: FeeChangeKind::Ics20WithdrawalBaseFee,
-            new_value: 2,
-        };
-
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_ics20_withdrawal_base_fee().await.unwrap(), 2);
     }
 }

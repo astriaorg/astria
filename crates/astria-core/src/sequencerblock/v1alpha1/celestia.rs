@@ -257,7 +257,7 @@ impl SubmittedRollupData {
             return Err(SubmittedRollupDataError::field_not_set("rollup_id"));
         };
         let rollup_id =
-            RollupId::try_from_raw(&rollup_id).map_err(SubmittedRollupDataError::rollup_id)?;
+            RollupId::try_from_raw(rollup_id).map_err(SubmittedRollupDataError::rollup_id)?;
         let sequencer_block_hash = sequencer_block_hash.as_ref().try_into().map_err(|_| {
             SubmittedRollupDataError::sequencer_block_hash(sequencer_block_hash.len())
         })?;
@@ -433,7 +433,7 @@ impl UncheckedSubmittedMetadata {
             SequencerBlockHeader::try_from_raw(header).map_err(SubmittedMetadataError::header)
         }?;
         let rollup_ids: Vec<_> = rollup_ids
-            .iter()
+            .into_iter()
             .map(RollupId::try_from_raw)
             .collect::<Result<_, _>>()
             .map_err(SubmittedMetadataError::rollup_ids)?;

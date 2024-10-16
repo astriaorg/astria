@@ -20,7 +20,7 @@ use astria_core::{
         asset,
         RollupId,
     },
-    protocol::transaction::v1alpha1::action::Sequence,
+    protocol::transaction::v1alpha1::action::RollupDataSubmission,
 };
 use astria_eyre::eyre::{
     self,
@@ -194,7 +194,7 @@ impl Geth {
                     if let Some(tx) = tx_res {
                         let tx_hash = tx.hash;
                         let data = tx.rlp().to_vec();
-                        let seq_action = Sequence {
+                        let seq_action = RollupDataSubmission {
                             rollup_id,
                             data: data.into(),
                             fee_asset: fee_asset.clone(),
@@ -234,7 +234,7 @@ impl Geth {
 #[instrument(skip_all)]
 async fn forward_geth_tx(
     executor_handle: &Handle,
-    seq_action: Sequence,
+    seq_action: RollupDataSubmission,
     tx_hash: ethers::types::H256,
     txs_dropped_counter: &Counter,
 ) -> eyre::Result<()> {

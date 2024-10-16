@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/bridge/storage/keys.rs
-assertion_line: 96
-expression: BRIDGE_LOCK_BYTE_COST_MULTIPLIER_KEY
+expression: rollup_id(&address())
 ---
-bridge/lock_byte_cost_multiplier
+bridge/account/HAxJDxtVKNgXPF3kbRMRYOSywMM=/rollup_id
