@@ -18,7 +18,11 @@ use ibc_types::core::{
 };
 use tracing::info;
 
-use crate::utils::submit_transaction;
+use crate::utils::{
+    address_from_signing_key,
+    signing_key_from_private_key,
+    submit_transaction,
+};
 
 fn now_plus_5_minutes() -> u64 {
     use std::time::Duration;
@@ -43,18 +47,17 @@ pub(super) struct Command {
     source_channel: String,
     /// The address to refund on timeout, if unset refunds the signer
     #[arg(long)]
-    return_address: Address,
+    return_address: Option<Address>,
     /// An optional memo to send with transaction
     #[arg(long)]
     memo: Option<String>,
     /// The bridge account to transfer from
-    #[arg(long, default_value = None)]
+    #[arg(long)]
     bridge_address: Option<Address>,
-    /// Informs Sequencner to use its compatatibility address format (for
-    /// example: when sending USDC to Noble).
+    /// Use compatibility address format (for example: when sending USDC to Noble)
     #[arg(long)]
     compat: bool,
-    /// The prefix to construct a bech32m address given the private key.
+    /// The prefix to construct a bech32m address given the private key
     #[arg(long, default_value = "astria")]
     prefix: String,
     // TODO: https://github.com/astriaorg/astria/issues/594
@@ -77,16 +80,18 @@ pub(super) struct Command {
          default_value = crate::DEFAULT_SEQUENCER_CHAIN_ID
      )]
     sequencer_chain_id: String,
-    /// The asset to lock.
+    /// The asset to withdraw
     #[arg(long, default_value = "nria")]
     asset: asset::Denom,
-    /// The asset to pay the transfer fees with.
+    /// The asset to be used to pay the fees
     #[arg(long, default_value = "nria")]
     fee_asset: asset::Denom,
 }
 
 impl Command {
     pub(crate) async fn run(self) -> eyre::Result<()> {
+        let signing_key = signing_key_from_private_key(&self.private_key)?;
+        let from_address = address_from_signing_key(&signing_key, &self.prefix)?;
         let res = submit_transaction(
             self.sequencer_url.as_str(),
             self.sequencer_chain_id.clone(),
@@ -96,7 +101,7 @@ impl Command {
                 amount: self.amount,
                 denom: self.asset,
                 destination_chain_address: self.destination_chain_address,
-                return_address: self.return_address,
+                return_address: self.return_address.unwrap_or(from_address),
                 timeout_height: Height {
                     revision_number: u64::MAX,
                     revision_height: u64::MAX,
@@ -112,7 +117,7 @@ impl Command {
         .await
         .wrap_err("failed to perform ics20 withdrawal")?;
 
-        info!(hash = % res.hash, at_height = %res.height, "ics20 withdrawal completed");
+        info!(hash = %res.hash, at_height = %res.height, "ics20 withdrawal completed");
 
         Ok(())
     }
