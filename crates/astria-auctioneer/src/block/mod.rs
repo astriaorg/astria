@@ -1,121 +1,211 @@
 use astria_core::{
     execution,
     generated::{
-        self,
-        bundle::v1alpha1::BaseBlock,
-        sequencerblock::v1alpha1 as raw,
+        bundle::v1alpha1 as raw_bundle,
+        sequencerblock::v1alpha1 as raw_sequencer_block,
     },
-    sequencerblock::v1alpha1::block::FilteredSequencerBlock,
+    primitive::v1::RollupId,
+    sequencerblock::v1alpha1::block::{
+        FilteredSequencerBlock,
+        FilteredSequencerBlockParts,
+    },
     Protobuf,
 };
+use astria_eyre::eyre::{
+    self,
+    eyre,
+    Context,
+    OptionExt,
+};
+use bytes::Bytes;
+use prost::Message as _;
 
-// TODO: these should be created from the protos
+/// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
+fn convert_tendermint_time_to_protobuf_timestamp(
+    value: sequencer_client::tendermint::Time,
+) -> pbjson_types::Timestamp {
+    let sequencer_client::tendermint_proto::google::protobuf::Timestamp {
+        seconds,
+        nanos,
+    } = value.into();
+    pbjson_types::Timestamp {
+        seconds,
+        nanos,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Optimistic {
     // TODO: actually convert this instead of just wrapping
-    raw: raw::FilteredSequencerBlock,
+    filtered_sequencer_block: FilteredSequencerBlock,
 }
 
 impl Optimistic {
-    pub(crate) fn from_raw(raw: raw::FilteredSequencerBlock) -> Self {
-        Self {
-            raw,
-        }
+    pub(crate) fn try_from_raw(
+        raw: raw_sequencer_block::FilteredSequencerBlock,
+    ) -> eyre::Result<Self> {
+        Ok(Self {
+            filtered_sequencer_block: FilteredSequencerBlock::try_from_raw(raw)?,
+        })
     }
 
-    pub(crate) fn into_raw(self) -> raw::FilteredSequencerBlock {
-        self.raw
+    pub(crate) fn into_raw(self) -> raw_sequencer_block::FilteredSequencerBlock {
+        self.filtered_sequencer_block.into_raw()
     }
 
-    pub(crate) fn into_base_block(self) -> BaseBlock {
-        unimplemented!()
-    }
+    pub(crate) fn try_into_base_block(
+        self,
+        rollup_id: RollupId,
+    ) -> eyre::Result<raw_bundle::BaseBlock> {
+        let FilteredSequencerBlockParts {
+            block_hash,
+            header,
+            mut rollup_transactions,
+            ..
+        } = self.filtered_sequencer_block.into_parts();
 
-    fn into_executed_block(self, _executed_block: Executed) -> Executed {
-        todo!()
-    }
+        let serialized_transactions = rollup_transactions
+            .swap_remove(&rollup_id)
+            .ok_or_eyre(
+                "FilteredSequencerBlock does not contain transactions for the given rollup",
+            )?
+            .into_parts();
 
-    fn into_block_commitment(self, _committed_block: Committed) -> Committed {
-        todo!()
-    }
+        let transactions = serialized_transactions
+            .transactions
+            .into_iter()
+            .map(raw_sequencer_block::RollupData::decode)
+            .collect::<Result<_, _>>()
+            .wrap_err("failed to decode RollupData")?;
 
-    fn reorg(self) -> Self {
-        todo!()
+        let timestamp = Some(convert_tendermint_time_to_protobuf_timestamp(header.time()));
+
+        Ok(raw_bundle::BaseBlock {
+            sequencer_block_hash: Bytes::copy_from_slice(&block_hash),
+            transactions,
+            timestamp,
+        })
     }
 
     pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
-        FilteredSequencerBlock::try_from_raw(self.raw.clone())
-            .unwrap()
-            .block_hash()
-            .clone()
+        self.filtered_sequencer_block.block_hash().clone()
+    }
+
+    pub(crate) fn sequencer_height(&self) -> u64 {
+        self.filtered_sequencer_block.height().into()
     }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct Executed {
-    rsp: execution::v1alpha2::Block,
+    block: execution::v1alpha2::Block,
+    sequencer_block_hash: [u8; 32],
 }
 
 impl Executed {
-    pub(crate) fn from_raw(raw: generated::execution::v1alpha2::Block) -> Self {
-        Self {
-            rsp: execution::v1alpha2::Block::try_from_raw(raw).unwrap(),
-        }
+    pub(crate) fn try_from_raw(
+        raw: raw_bundle::ExecuteOptimisticBlockStreamResponse,
+    ) -> eyre::Result<Self> {
+        let block = if let Some(raw_block) = raw.block {
+            execution::v1alpha2::Block::try_from_raw(raw_block).wrap_err("invalid rollup block")?
+        } else {
+            return Err(eyre!("missing block"));
+        };
+
+        let sequencer_block_hash = raw
+            .base_sequencer_block_hash
+            .as_ref()
+            .try_into()
+            .wrap_err("invalid block hash")?;
+
+        Ok(Self {
+            block,
+            sequencer_block_hash,
+        })
     }
 
-    pub(crate) fn into_raw(self) -> execution::v1alpha2::Block {
-        self.rsp
-    }
-
-    fn reorg(self) -> Optimistic {
-        todo!()
+    pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
+        self.sequencer_block_hash
     }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct Committed {
-    raw: raw::SequencerBlockCommit,
+    sequencer_height: u64,
+    sequnecer_block_hash: [u8; 32],
 }
 
 impl Committed {
-    pub(crate) fn from_raw(raw: raw::SequencerBlockCommit) -> Self {
-        Self {
-            raw,
-        }
+    pub(crate) fn try_from_raw(
+        raw: raw_sequencer_block::SequencerBlockCommit,
+    ) -> eyre::Result<Self> {
+        Ok(Self {
+            sequencer_height: raw.height,
+            sequnecer_block_hash: raw
+                .block_hash
+                .as_ref()
+                .try_into()
+                .wrap_err("invalid block hash")?,
+        })
     }
 
-    pub(crate) fn into_raw(self) -> raw::SequencerBlockCommit {
-        self.raw
+    pub(crate) fn into_raw(self) -> raw_sequencer_block::SequencerBlockCommit {
+        unimplemented!()
+    }
+
+    pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
+        self.sequnecer_block_hash
+    }
+
+    pub(crate) fn sequencer_height(&self) -> u64 {
+        self.sequencer_height
     }
 }
 
-// TODO: instead of state, should `CurrentBlock` just be:
 pub(crate) struct CurrentBlock {
     optimistic: Optimistic,
     executed: Option<Executed>,
     committed: Option<Committed>,
 }
 
+// TODO: cleanup
+// - rename methods
+// - should they be &mut self and return () instead?
 impl CurrentBlock {
-    pub(crate) fn apply_optimistic_block(self, _optimistic_block: Optimistic) -> Self {
-        unimplemented!()
+    pub(crate) fn opt(optimistic_block: Optimistic) -> Self {
+        Self {
+            optimistic: optimistic_block,
+            executed: None,
+            committed: None,
+        }
     }
 
-    pub(crate) fn apply_executed_block(self, _executed_block: Executed) -> Self {
-        unimplemented!()
+    pub(crate) fn exec(self, executed_block: Executed) -> eyre::Result<Self> {
+        if executed_block.sequencer_block_hash() != self.optimistic.sequencer_block_hash() {
+            return Err(eyre!("block hash mismatch"));
+        }
+
+        Ok(Self {
+            executed: Some(executed_block),
+            ..self
+        })
     }
 
-    pub(crate) fn apply_block_commitment(self, _block_commitment: Committed) -> Self {
-        unimplemented!()
+    pub(crate) fn commit(self, block_commitment: Committed) -> eyre::Result<Self> {
+        if block_commitment.sequencer_block_hash() != self.optimistic.sequencer_block_hash() {
+            return Err(eyre!("block hash mismatch"));
+        }
+        if block_commitment.sequencer_height() != self.optimistic.sequencer_height() {
+            return Err(eyre!("block height mismatch"));
+        }
+
+        Ok(Self {
+            committed: Some(block_commitment),
+            ..self
+        })
     }
 
-    pub(crate) fn reorg(self, _opt: Optimistic) -> Result<(), CurrentBlockError> {
-        unimplemented!()
+    pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
+        self.optimistic.sequencer_block_hash()
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub(crate) enum CurrentBlockError {
-    #[error("height out of order")]
-    HeightOutOfOrder,
 }

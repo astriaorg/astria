@@ -10,8 +10,8 @@ pub(crate) use driver::Handle;
 pub(crate) struct Id([u8; 32]);
 
 impl Id {
-    fn from_optimistic_block(optimistic_block: block::Optimistic) -> Self {
-        Self(optimistic_block.sequencer_block_hash())
+    pub(crate) fn from_sequencer_block_hash(block_hash: [u8; 32]) -> Self {
+        Self(block_hash)
     }
 }
 

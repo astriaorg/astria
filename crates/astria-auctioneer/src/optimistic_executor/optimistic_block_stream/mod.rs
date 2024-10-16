@@ -4,6 +4,7 @@ use astria_core::generated::sequencerblock::v1alpha1::GetOptimisticBlockStreamRe
 use astria_eyre::eyre::{
     self,
     eyre,
+    Context,
 };
 use futures::{
     Stream,
@@ -40,11 +41,14 @@ impl Stream for OptimisticBlockStream {
         // TODO: don't unwrap unwrap the streams
         let raw = futures::ready!(self.client.poll_next_unpin(cx))
             .unwrap()
-            .unwrap();
+            .unwrap()
+            .block
+            .ok_or_else(|| {
+                eyre!("optimsitic block stream response did not contain filtered sequencer block")
+            })?;
         // convert raw to block::Optimistic
-        let opt = block::Optimistic::from_raw(raw.block.ok_or_else(|| {
-            eyre!("optimsitic block stream response did not contain filtered sequencer block")
-        })?);
+        let opt =
+            block::Optimistic::try_from_raw(raw).wrap_err("failed to parse raw to Optimistic")?;
         std::task::Poll::Ready(Some(Ok(opt)))
     }
 }
