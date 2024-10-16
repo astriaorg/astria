@@ -175,7 +175,7 @@ impl raw::AllowedFeeAssetsResponse {
 
     /// Converts a protobuf [`raw::AllowedFeeAssetsResponse`] to an astria
     /// native [`AllowedFeeAssetsResponse`] by allocating a new
-    /// [`v1alpha1::AllowedFeeAssetsResponse`].
+    /// [`v1::AllowedFeeAssetsResponse`].
     ///
     /// # Errors
     /// - If one of the assets  cannot be parsed as an [`asset::Denom`].
