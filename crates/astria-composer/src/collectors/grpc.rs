@@ -65,7 +65,7 @@ impl GrpcCollectorService for Grpc {
         )
         .map_err(|err| Status::invalid_argument(format!("invalid rollup ID: {err}")))?;
 
-        let sequence_action = RollupDataSubmission {
+        let rollup_data_submission = RollupDataSubmission {
             rollup_id,
             data: submit_rollup_tx_request.data,
             fee_asset: self.fee_asset.clone(),
@@ -74,7 +74,7 @@ impl GrpcCollectorService for Grpc {
         self.metrics.increment_grpc_txs_received(&rollup_id);
         match self
             .executor
-            .send_timeout(sequence_action, EXECUTOR_SEND_TIMEOUT)
+            .send_timeout(rollup_data_submission, EXECUTOR_SEND_TIMEOUT)
             .await
         {
             Ok(()) => {}

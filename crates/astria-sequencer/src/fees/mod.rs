@@ -194,7 +194,7 @@ impl FeeHandler for RollupDataSubmission {
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
-            .get_sequence_fees()
+            .get_rollup_data_submission_fees()
             .await
             .wrap_err("sequence fees not found, so this action is disabled")?;
         check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await

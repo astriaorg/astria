@@ -337,14 +337,14 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = RollupDataSubmission {
+    let rollup_data_submission = RollupDataSubmission {
         rollup_id,
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
 
     let tx = TransactionBody::builder()
-        .actions(vec![lock_action.into(), sequence_action.into()])
+        .actions(vec![lock_action.into(), rollup_data_submission.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -429,14 +429,14 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = RollupDataSubmission {
+    let rollup_data_submission = RollupDataSubmission {
         rollup_id,
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
 
     let tx = TransactionBody::builder()
-        .actions(vec![lock_action.into(), sequence_action.into()])
+        .actions(vec![lock_action.into(), rollup_data_submission.into()])
         .chain_id("test")
         .try_build()
         .unwrap();

@@ -10,7 +10,6 @@ use astria_eyre::eyre::{
 use crate::storage::keys::Asset;
 
 pub(in crate::fees) const TRANSFER: &str = "fees/transfer";
-pub(in crate::fees) const SEQUENCE: &str = "fees/sequence";
 pub(in crate::fees) const ICS20_WITHDRAWAL: &str = "fees/ics20_withdrawal";
 pub(in crate::fees) const INIT_BRIDGE_ACCOUNT: &str = "fees/init_bridge_account";
 pub(in crate::fees) const BRIDGE_LOCK: &str = "fees/bridge_lock";
@@ -21,6 +20,7 @@ pub(in crate::fees) const VALIDATOR_UPDATE: &str = "fees/validator_update";
 pub(in crate::fees) const FEE_ASSET_CHANGE: &str = "fees/fee_asset_change";
 pub(in crate::fees) const FEE_CHANGE: &str = "fees/fee_change";
 pub(in crate::fees) const IBC_RELAYER_CHANGE: &str = "fees/ibc_relayer_change";
+pub(in crate::fees) const ROLLUP_DATA_SUBMISSION: &str = "fees/rollup_data_submission";
 pub(in crate::fees) const SUDO_ADDRESS_CHANGE: &str = "fees/sudo_address_change";
 pub(in crate::fees) const IBC_SUDO_CHANGE: &str = "fees/ibc_sudo_change";
 pub(in crate::fees) const BLOCK: &str = "fees/block"; // NOTE: `BLOCK` is only used in the ephemeral store.
@@ -77,7 +77,7 @@ mod tests {
         assert_snapshot!("ibc_sudo_change_fees_key", IBC_SUDO_CHANGE);
         assert_snapshot!("ics20_withdrawal_fees_key", ICS20_WITHDRAWAL);
         assert_snapshot!("init_bridge_account_fees_key", INIT_BRIDGE_ACCOUNT);
-        assert_snapshot!("sequence_fees_key", SEQUENCE);
+        assert_snapshot!("rollup_data_submission_fees_key", ROLLUP_DATA_SUBMISSION);
         assert_snapshot!("sudo_address_change_fees_key", SUDO_ADDRESS_CHANGE);
         assert_snapshot!("transer_fees_key", TRANSFER);
         assert_snapshot!("validator_update_fees_key", VALIDATOR_UPDATE);
@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn keys_should_have_component_prefix() {
         assert!(TRANSFER.starts_with(COMPONENT_PREFIX));
-        assert!(SEQUENCE.starts_with(COMPONENT_PREFIX));
+        assert!(ROLLUP_DATA_SUBMISSION.starts_with(COMPONENT_PREFIX));
         assert!(ICS20_WITHDRAWAL.starts_with(COMPONENT_PREFIX));
         assert!(INIT_BRIDGE_ACCOUNT.starts_with(COMPONENT_PREFIX));
         assert!(BRIDGE_LOCK.starts_with(COMPONENT_PREFIX));

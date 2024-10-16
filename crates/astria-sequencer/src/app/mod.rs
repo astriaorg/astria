@@ -621,7 +621,7 @@ impl App {
                 .unsigned_transaction()
                 .actions()
                 .iter()
-                .filter_map(Action::as_sequence)
+                .filter_map(Action::as_rollup_data_submission)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
@@ -769,7 +769,7 @@ impl App {
                 .unsigned_transaction()
                 .actions()
                 .iter()
-                .filter_map(Action::as_sequence)
+                .filter_map(Action::as_rollup_data_submission)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {

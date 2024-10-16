@@ -6,7 +6,7 @@ use bytes::Bytes;
 use prost::Message as _;
 
 use super::{
-    group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
+    group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id,
     transaction::v1alpha1::action::RollupDataSubmission,
 };
 use crate::{
@@ -125,7 +125,7 @@ impl ConfigureSequencerBlock {
         }
 
         let mut rollup_transactions =
-            group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&txs);
+            group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id(&txs);
         for (rollup_id, deposit) in deposits_map.clone() {
             rollup_transactions
                 .entry(rollup_id)

@@ -68,8 +68,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .get_transfer_fees()
         .await
         .wrap_err("failed to get transfer fees")?;
-    let sequence_fees = state
-        .get_sequence_fees()
+    let rollup_data_submission_fees = state
+        .get_rollup_data_submission_fees()
         .await
         .wrap_err("failed to get sequence fees")?;
     let ics20_withdrawal_fees = state
@@ -100,7 +100,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 transfer_update_fees(act, &mut fees_by_asset, &transfer_fees);
             }
             Action::RollupDataSubmission(act) => {
-                sequence_update_fees(act, &mut fees_by_asset, &sequence_fees);
+                sequence_update_fees(act, &mut fees_by_asset, &rollup_data_submission_fees);
             }
             Action::Ics20Withdrawal(act) => {
                 ics20_withdrawal_updates_fees(act, &mut fees_by_asset, &ics20_withdrawal_fees);
@@ -236,11 +236,11 @@ fn transfer_update_fees(
 fn sequence_update_fees(
     act: &RollupDataSubmission,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    sequence_fees: &RollupDataSubmissionFeeComponents,
+    rollup_data_submission_fees: &RollupDataSubmissionFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
-        sequence_fees.base,
-        sequence_fees.multiplier,
+        rollup_data_submission_fees.base,
+        rollup_data_submission_fees.multiplier,
         act.variable_component(),
     );
     fees_by_asset
@@ -375,7 +375,7 @@ mod tests {
         assets::StateWriteExt as _,
         fees::StateWriteExt as _,
         test_utils::{
-            calculate_sequence_action_fee_from_state,
+            calculate_rollup_data_submission_fee_from_state,
             ASTRIA_PREFIX,
         },
     };
@@ -400,12 +400,12 @@ mod tests {
             .wrap_err("failed to initiate transfer fee components")
             .unwrap();
 
-        let sequence_fees = RollupDataSubmissionFeeComponents {
+        let rollup_data_submission_fees = RollupDataSubmissionFeeComponents {
             base: 0,
             multiplier: 1,
         };
         state_tx
-            .put_sequence_fees(sequence_fees)
+            .put_rollup_data_submission_fees(rollup_data_submission_fees)
             .wrap_err("failed to initiate sequence action fee components")
             .unwrap();
 
@@ -467,7 +467,7 @@ mod tests {
                     .await
                     .unwrap(),
                 &crate::test_utils::nria(),
-                transfer_fee + calculate_sequence_action_fee_from_state(&data, &state_tx).await,
+                transfer_fee + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
             )
             .await
             .unwrap();
@@ -529,12 +529,12 @@ mod tests {
             .wrap_err("failed to initiate transfer fee components")
             .unwrap();
 
-        let sequence_fees = RollupDataSubmissionFeeComponents {
+        let rollup_data_submission_fees = RollupDataSubmissionFeeComponents {
             base: 0,
             multiplier: 1,
         };
         state_tx
-            .put_sequence_fees(sequence_fees)
+            .put_rollup_data_submission_fees(rollup_data_submission_fees)
             .wrap_err("failed to initiate sequence action fee components")
             .unwrap();
 
@@ -596,7 +596,7 @@ mod tests {
                     .await
                     .unwrap(),
                 &crate::test_utils::nria(),
-                transfer_fee + calculate_sequence_action_fee_from_state(&data, &state_tx).await,
+                transfer_fee + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
             )
             .await
             .unwrap();

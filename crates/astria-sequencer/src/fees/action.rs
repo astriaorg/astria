@@ -45,7 +45,7 @@ impl ActionHandler for FeeChange {
                 .put_transfer_fees(*fees)
                 .wrap_err("failed to put transfer fees"),
             Self::RollupDataSubmission(fees) => state
-                .put_sequence_fees(*fees)
+                .put_rollup_data_submission_fees(*fees)
                 .wrap_err("failed to put sequence fees"),
             Self::Ics20Withdrawal(fees) => state
                 .put_ics20_withdrawal_fees(*fees)
@@ -191,7 +191,7 @@ mod tests {
         let sequence_base = 5;
         let sequence_cost_multiplier = 2;
         state
-            .put_sequence_fees(RollupDataSubmissionFeeComponents {
+            .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
                 base: sequence_base,
                 multiplier: sequence_cost_multiplier,
             })
@@ -203,8 +203,18 @@ mod tests {
         });
 
         fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_sequence_fees().await.unwrap().base, 3);
-        assert_eq!(state.get_sequence_fees().await.unwrap().multiplier, 4);
+        assert_eq!(
+            state.get_rollup_data_submission_fees().await.unwrap().base,
+            3
+        );
+        assert_eq!(
+            state
+                .get_rollup_data_submission_fees()
+                .await
+                .unwrap()
+                .multiplier,
+            4
+        );
 
         let init_bridge_account_base = 1;
         state

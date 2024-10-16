@@ -561,12 +561,12 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .wrap_err("failed to initiate transfer fee components")
         .unwrap();
 
-    let sequence_fees = RollupDataSubmissionFeeComponents {
+    let rollup_data_submission_fees = RollupDataSubmissionFeeComponents {
         base: MOCK_SEQUENCE_FEE,
         multiplier: 0,
     };
     state
-        .put_sequence_fees(sequence_fees)
+        .put_rollup_data_submission_fees(rollup_data_submission_fees)
         .wrap_err("failed to initiate sequence action fee components")
         .unwrap();
 

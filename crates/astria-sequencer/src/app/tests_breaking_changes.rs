@@ -108,14 +108,14 @@ async fn app_finalize_block_snapshot() {
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = RollupDataSubmission {
+    let rollup_data_submission = RollupDataSubmission {
         rollup_id,
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
 
     let tx = TransactionBody::builder()
-        .actions(vec![lock_action.into(), sequence_action.into()])
+        .actions(vec![lock_action.into(), rollup_data_submission.into()])
         .chain_id("test")
         .try_build()
         .unwrap();

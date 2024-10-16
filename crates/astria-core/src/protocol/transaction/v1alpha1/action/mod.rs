@@ -169,7 +169,7 @@ impl Protobuf for Action {
 // TODO: add unit tests for these methods (https://github.com/astriaorg/astria/issues/1593)
 impl Action {
     #[must_use]
-    pub fn as_sequence(&self) -> Option<&RollupDataSubmission> {
+    pub fn as_rollup_data_submission(&self) -> Option<&RollupDataSubmission> {
         let Self::RollupDataSubmission(sequence_action) = self else {
             return None;
         };

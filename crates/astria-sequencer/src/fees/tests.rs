@@ -56,7 +56,7 @@ use crate::{
         assert_eyre_error,
         astria_address,
         astria_address_from_hex_string,
-        calculate_sequence_action_fee_from_state,
+        calculate_rollup_data_submission_fee_from_state,
         nria,
         ASTRIA_PREFIX,
     },
@@ -117,7 +117,7 @@ async fn ensure_correct_block_fees_sequence() {
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
     state
-        .put_sequence_fees(RollupDataSubmissionFeeComponents {
+        .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
             base: 1,
             multiplier: 1,
         })
@@ -147,7 +147,7 @@ async fn ensure_correct_block_fees_sequence() {
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
-    let expected_fees = calculate_sequence_action_fee_from_state(&data, &state).await;
+    let expected_fees = calculate_rollup_data_submission_fee_from_state(&data, &state).await;
     assert_eq!(total_block_fees, expected_fees);
 }
 

@@ -20,7 +20,7 @@ pub mod test_utils;
 /// [`RollupData::SequencedData`] and groups them by [`RollupId`].
 ///
 /// TODO: This can all be done in-place once <https://github.com/rust-lang/rust/issues/80552> is stabilized.
-pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
+pub fn group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id(
     transactions: &[Transaction],
 ) -> IndexMap<RollupId, Vec<Bytes>> {
     use prost::Message as _;
@@ -29,7 +29,7 @@ pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
 
     let mut map = IndexMap::new();
     for action in transactions.iter().flat_map(Transaction::actions) {
-        if let Some(action) = action.as_sequence() {
+        if let Some(action) = action.as_rollup_data_submission() {
             let txs_for_rollup: &mut Vec<Bytes> = map.entry(action.rollup_id).or_insert(vec![]);
             let rollup_data = RollupData::SequencedData(action.data.clone());
             txs_for_rollup.push(rollup_data.into_raw().encode_to_vec().into());

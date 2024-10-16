@@ -61,7 +61,7 @@ use crate::{
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
-        calculate_sequence_action_fee_from_state,
+        calculate_rollup_data_submission_fee_from_state,
         nria,
         ASTRIA_PREFIX,
     },
@@ -260,7 +260,7 @@ async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_sequence_fees(RollupDataSubmissionFeeComponents {
+        .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
             base: 0,
             multiplier: 1,
         })
@@ -270,7 +270,7 @@ async fn app_execute_transaction_sequence() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_sequence_action_fee_from_state(&data, &app.state).await;
+    let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state).await;
 
     let tx = TransactionBody::builder()
         .actions(vec![
@@ -907,7 +907,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // figure out needed fee for a single transfer
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_sequence_action_fee_from_state(&data, &app.state.clone()).await;
+    let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state.clone()).await;
 
     // transfer just enough to cover single sequence fee with data
     let signed_tx = TransactionBody::builder()
