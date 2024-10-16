@@ -10,7 +10,7 @@ use astria_core::{
         Address,
         ADDRESS_LEN,
     },
-    protocol::transaction::v1alpha1::SignedTransaction,
+    protocol::transaction::v1alpha1::Transaction,
 };
 pub(crate) use state_ext::{
     AssetBalance,
@@ -42,9 +42,9 @@ impl AddressBytes for [u8; ADDRESS_LEN] {
     }
 }
 
-impl<'a> AddressBytes for &'a SignedTransaction {
+impl<'a> AddressBytes for &'a Transaction {
     fn address_bytes(&self) -> &'a [u8; ADDRESS_LEN] {
-        SignedTransaction::address_bytes(self)
+        Transaction::address_bytes(self)
     }
 }
 

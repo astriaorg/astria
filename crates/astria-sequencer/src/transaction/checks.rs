@@ -23,8 +23,8 @@ use astria_core::{
                 Sequence,
                 Transfer,
             },
-            SignedTransaction,
-            UnsignedTransaction,
+            Transaction,
+            TransactionBody,
         },
     },
 };
@@ -48,7 +48,7 @@ use crate::{
 
 #[instrument(skip_all)]
 pub(crate) async fn check_chain_id_mempool<S: StateRead>(
-    tx: &SignedTransaction,
+    tx: &Transaction,
     state: &S,
 ) -> Result<()> {
     let chain_id = state
@@ -61,7 +61,7 @@ pub(crate) async fn check_chain_id_mempool<S: StateRead>(
 
 #[instrument(skip_all)]
 pub(crate) async fn get_fees_for_transaction<S: StateRead>(
-    tx: &UnsignedTransaction,
+    tx: &TransactionBody,
     state: &S,
 ) -> Result<HashMap<asset::IbcPrefixed, u128>> {
     let transfer_fees = state
@@ -135,7 +135,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
 // for all actions in the transaction.
 #[instrument(skip_all)]
 pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
-    tx: &SignedTransaction,
+    tx: &Transaction,
     state: &S,
 ) -> Result<()> {
     let cost_by_asset = get_total_transaction_cost(tx, state)
@@ -160,7 +160,7 @@ pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
 // transaction).
 #[instrument(skip_all)]
 pub(crate) async fn get_total_transaction_cost<S: StateRead>(
-    tx: &SignedTransaction,
+    tx: &Transaction,
     state: &S,
 ) -> Result<HashMap<asset::IbcPrefixed, u128>> {
     let mut cost_by_asset: HashMap<asset::IbcPrefixed, u128> =
@@ -497,13 +497,13 @@ mod tests {
             }),
         ];
 
-        let tx = UnsignedTransaction::builder()
+        let tx = TransactionBody::builder()
             .actions(actions)
             .chain_id("test-chain-id")
             .try_build()
             .unwrap();
 
-        let signed_tx = tx.into_signed(&alice);
+        let signed_tx = tx.sign(&alice);
         check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
             .await
             .expect("sufficient balance for all actions");
@@ -615,13 +615,13 @@ mod tests {
             }),
         ];
 
-        let tx = UnsignedTransaction::builder()
+        let tx = TransactionBody::builder()
             .actions(actions)
             .chain_id("test-chain-id")
             .try_build()
             .unwrap();
 
-        let signed_tx = tx.into_signed(&alice);
+        let signed_tx = tx.sign(&alice);
         let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
             .await
             .err()

@@ -9,7 +9,7 @@ use astria_core::{
                 FeeChange,
                 Transfer,
             },
-            UnsignedTransaction,
+            TransactionBody,
         },
     },
     Protobuf,
@@ -48,7 +48,7 @@ async fn trigger_cleaning() {
     app.commit(storage.clone()).await;
 
     // create tx which will cause mempool cleaning flag to be set
-    let tx_trigger = UnsignedTransaction::builder()
+    let tx_trigger = TransactionBody::builder()
         .actions(vec![
             FeeChange::Transfer(TransferFeeComponents {
                 base: 10,
@@ -59,7 +59,7 @@ async fn trigger_cleaning() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_judy_signing_key());
+        .sign(&get_judy_signing_key());
 
     app.mempool
         .insert(
@@ -144,7 +144,7 @@ async fn do_not_trigger_cleaning() {
 
     // create tx which will fail execution and not trigger flag
     // (wrong sudo signer)
-    let tx_fail = UnsignedTransaction::builder()
+    let tx_fail = TransactionBody::builder()
         .actions(vec![
             FeeChange::Transfer(TransferFeeComponents {
                 base: 10,
@@ -155,7 +155,7 @@ async fn do_not_trigger_cleaning() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_alice_signing_key());
+        .sign(&get_alice_signing_key());
 
     app.mempool
         .insert(
@@ -215,7 +215,7 @@ async fn maintenance_recosting_promotes() {
 
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
-    let tx_fail_recost_funds = UnsignedTransaction::builder()
+    let tx_fail_recost_funds = TransactionBody::builder()
         .actions(vec![
             Transfer {
                 to: astria_address_from_hex_string(CAROL_ADDRESS),
@@ -228,7 +228,7 @@ async fn maintenance_recosting_promotes() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_bob_signing_key());
+        .sign(&get_bob_signing_key());
 
     let mut bob_funds = HashMap::new();
     bob_funds.insert(nria().into(), 11);
@@ -245,7 +245,7 @@ async fn maintenance_recosting_promotes() {
         .unwrap();
 
     // create tx which will enable recost tx to pass
-    let tx_recost = UnsignedTransaction::builder()
+    let tx_recost = TransactionBody::builder()
         .actions(vec![
             FeeChange::Transfer(TransferFeeComponents {
                 base: 10,
@@ -256,7 +256,7 @@ async fn maintenance_recosting_promotes() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_judy_signing_key());
+        .sign(&get_judy_signing_key());
 
     let mut judy_funds = HashMap::new();
     judy_funds.insert(nria().into(), 0);
@@ -395,7 +395,7 @@ async fn maintenance_funds_added_promotes() {
 
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
-    let tx_fail_transfer_funds = UnsignedTransaction::builder()
+    let tx_fail_transfer_funds = TransactionBody::builder()
         .actions(vec![
             Transfer {
                 to: astria_address_from_hex_string(BOB_ADDRESS),
@@ -408,7 +408,7 @@ async fn maintenance_funds_added_promotes() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_carol_signing_key());
+        .sign(&get_carol_signing_key());
 
     let mut carol_funds = HashMap::new();
     carol_funds.insert(nria().into(), 0);
@@ -425,7 +425,7 @@ async fn maintenance_funds_added_promotes() {
         .unwrap();
 
     // create tx which will enable no funds to pass
-    let tx_fund = UnsignedTransaction::builder()
+    let tx_fund = TransactionBody::builder()
         .actions(vec![
             Transfer {
                 to: astria_address_from_hex_string(CAROL_ADDRESS),
@@ -438,7 +438,7 @@ async fn maintenance_funds_added_promotes() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&get_alice_signing_key());
+        .sign(&get_alice_signing_key());
 
     let mut alice_funds = HashMap::new();
     alice_funds.insert(nria().into(), 100);

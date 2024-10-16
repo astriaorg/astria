@@ -14,7 +14,7 @@ use astria_core::{
     primitive::v1::asset::IbcPrefixed,
     protocol::transaction::v1alpha1::{
         action::group::Group,
-        SignedTransaction,
+        Transaction,
     },
 };
 use astria_eyre::eyre::{
@@ -38,7 +38,7 @@ use crate::{
 /// transaction was first seen in the mempool.
 #[derive(Clone, Debug)]
 pub(super) struct TimemarkedTransaction {
-    signed_tx: Arc<SignedTransaction>,
+    signed_tx: Arc<Transaction>,
     tx_hash: [u8; 32],
     time_first_seen: Instant,
     address: [u8; 20],
@@ -46,7 +46,7 @@ pub(super) struct TimemarkedTransaction {
 }
 
 impl TimemarkedTransaction {
-    pub(super) fn new(signed_tx: Arc<SignedTransaction>, cost: HashMap<IbcPrefixed, u128>) -> Self {
+    pub(super) fn new(signed_tx: Arc<Transaction>, cost: HashMap<IbcPrefixed, u128>) -> Self {
         Self {
             tx_hash: signed_tx.id().get(),
             address: *signed_tx.verification_key().address_bytes(),
@@ -629,10 +629,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     ///
     /// If `signed_tx` existed, returns `Ok` with the hashes of the removed transactions. If
     /// `signed_tx` was not in the collection, it is returned via `Err`.
-    fn remove(
-        &mut self,
-        signed_tx: Arc<SignedTransaction>,
-    ) -> Result<Vec<[u8; 32]>, Arc<SignedTransaction>> {
+    fn remove(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<[u8; 32]>, Arc<Transaction>> {
         let address = signed_tx.verification_key().address_bytes();
 
         // Take the collection for this account out of `self` temporarily.
@@ -776,10 +773,10 @@ impl PendingTransactions {
     pub(super) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
         state: &S,
-    ) -> Result<Vec<([u8; 32], Arc<SignedTransaction>)>> {
+    ) -> Result<Vec<([u8; 32], Arc<Transaction>)>> {
         // Used to hold the values in Vec for sorting.
         struct QueueEntry {
-            tx: Arc<SignedTransaction>,
+            tx: Arc<Transaction>,
             tx_hash: [u8; 32],
             priority: TransactionPriority,
         }

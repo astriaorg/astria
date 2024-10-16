@@ -570,7 +570,7 @@ mod tests {
         assert_eq!(
             fee_balances_updated[0],
             Fee {
-                action_name: "astria.protocol.transactions.v1alpha1.Transfer".to_string(),
+                action_name: "astria.protocol.transaction.v1alpha1.Transfer".to_string(),
                 asset: asset.to_ibc_prefixed().into(),
                 amount,
                 source_transaction_id: TransactionId::new([0; 32]),
@@ -614,14 +614,14 @@ mod tests {
             fee_balances,
             HashSet::from_iter(vec![
                 Fee {
-                    action_name: "astria.protocol.transactions.v1alpha1.Transfer".to_string(),
+                    action_name: "astria.protocol.transaction.v1alpha1.Transfer".to_string(),
                     asset: asset_first.to_ibc_prefixed().into(),
                     amount: amount_first,
                     source_transaction_id: TransactionId::new([0; 32]),
                     source_action_index: 0
                 },
                 Fee {
-                    action_name: "astria.protocol.transactions.v1alpha1.Transfer".to_string(),
+                    action_name: "astria.protocol.transaction.v1alpha1.Transfer".to_string(),
                     asset: asset_second.to_ibc_prefixed().into(),
                     amount: amount_second,
                     source_transaction_id: TransactionId::new([0; 32]),

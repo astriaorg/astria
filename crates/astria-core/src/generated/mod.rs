@@ -134,14 +134,14 @@ pub mod protocol {
         }
     }
     #[path = ""]
-    pub mod transactions {
+    pub mod transaction {
         pub mod v1alpha1 {
-            include!("astria.protocol.transactions.v1alpha1.rs");
+            include!("astria.protocol.transaction.v1alpha1.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("astria.protocol.transactions.v1alpha1.serde.rs");
+                include!("astria.protocol.transaction.v1alpha1.serde.rs");
             }
         }
     }
