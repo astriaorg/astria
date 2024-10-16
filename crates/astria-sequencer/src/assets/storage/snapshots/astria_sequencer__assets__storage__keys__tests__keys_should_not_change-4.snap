@@ -1,6 +1,0 @@
----
-source: crates/astria-sequencer/src/assets/storage/keys.rs
-assertion_line: 79
-expression: block_fees(&test_asset())
----
-assets/block_fees/ibc/be429a02d00837245167a2616674a979a2ac6f9806468b48a975b156ad711320
