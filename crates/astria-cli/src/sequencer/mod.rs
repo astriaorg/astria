@@ -5,7 +5,9 @@ mod account;
 mod address;
 mod balance;
 mod block_height;
+mod bridge_account;
 mod bridge_lock;
+mod bridge_sudo_change;
 mod init_bridge_account;
 mod sudo;
 mod transfer;
@@ -27,6 +29,8 @@ impl Command {
             SubCommand::InitBridgeAccount(init_bridge_account) => init_bridge_account.run().await,
             SubCommand::Sudo(sudo) => sudo.run().await,
             SubCommand::Transfer(transfer) => transfer.run().await,
+            SubCommand::BridgeSudoChange(bridge_sudo_change) => bridge_sudo_change.run().await,
+            SubCommand::BridgeAccount(bridge_account) => bridge_account.run().await,
         }
     }
 }
@@ -51,4 +55,8 @@ enum SubCommand {
     Sudo(sudo::Command),
     /// Command for sending balance between accounts
     Transfer(transfer::Command),
+    /// Command for changing sudo and withdrawer addresses
+    BridgeSudoChange(bridge_sudo_change::Command),
+    /// Commands for interacting with the bridge account
+    BridgeAccount(bridge_account::Command),
 }
