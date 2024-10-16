@@ -586,7 +586,7 @@ impl Protobuf for GenesisFees {
     )]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
-            rollup_data_submission: sequence,
+            rollup_data_submission,
             transfer,
             ics20_withdrawal,
             init_bridge_account,
@@ -601,8 +601,8 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
         } = raw;
-        let sequence = RollupDataSubmissionFeeComponents::try_from_raw(
-            sequence
+        let rollup_data_submission = RollupDataSubmissionFeeComponents::try_from_raw(
+            rollup_data_submission
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("sequence"))?,
         )
@@ -687,7 +687,7 @@ impl Protobuf for GenesisFees {
         .map_err(|e| FeesError::fee_components("ibc_sudo_change", e))?;
 
         Ok(Self {
-            rollup_data_submission: sequence,
+            rollup_data_submission,
             transfer,
             ics20_withdrawal,
             init_bridge_account,
