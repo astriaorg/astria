@@ -39,10 +39,8 @@ use astria_core::protocol::{
         BridgeAccountInfoResponse,
         BridgeAccountLastTxHashResponse,
     },
-    transaction::v1alpha1::{
-        TransactionFeeResponse,
-        UnsignedTransaction,
-    },
+    fees::v1alpha1::TransactionFeeResponse,
+    transaction::v1alpha1::UnsignedTransaction,
 };
 pub use astria_core::{
     primitive::v1::Address,
@@ -628,7 +626,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::transactions::v1alpha1::TransactionFeeResponse::decode(
+            astria_core::generated::protocol::fees::v1alpha1::TransactionFeeResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {

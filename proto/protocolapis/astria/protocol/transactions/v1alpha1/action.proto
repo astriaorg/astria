@@ -3,6 +3,7 @@ syntax = "proto3";
 package astria.protocol.transactions.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
+import "astria/protocol/fees/v1alpha1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
 import "astria_vendored/tendermint/abci/types.proto";
 
@@ -219,35 +220,25 @@ message BridgeSudoChange {
 }
 
 message FeeChange {
-  // note that the proto number ranges are doubled from that of `Action`.
-  // this to accomodate both `base_fee` and `byte_cost_multiplier` for each action.
-  oneof value {
-    // core protocol fees are defined on 1-20
-    astria.primitive.v1.Uint128 transfer_base_fee = 1;
-    astria.primitive.v1.Uint128 sequence_base_fee = 2;
-    astria.primitive.v1.Uint128 sequence_byte_cost_multiplier = 3;
-
-    // bridge fees are defined on 20-39
-    astria.primitive.v1.Uint128 init_bridge_account_base_fee = 20;
-    astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 21;
-    astria.primitive.v1.Uint128 bridge_sudo_change_base_fee = 22;
-
-    // ibc fees are defined on 40-59
-    astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 40;
+  // the new fee components values
+  oneof fee_components {
+    astria.protocol.fees.v1alpha1.BridgeLockFeeComponents bridge_lock = 1;
+    astria.protocol.fees.v1alpha1.BridgeSudoChangeFeeComponents bridge_sudo_change = 2;
+    astria.protocol.fees.v1alpha1.BridgeUnlockFeeComponents bridge_unlock = 3;
+    astria.protocol.fees.v1alpha1.FeeAssetChangeFeeComponents fee_asset_change = 4;
+    astria.protocol.fees.v1alpha1.FeeChangeFeeComponents fee_change = 5;
+    astria.protocol.fees.v1alpha1.IbcRelayFeeComponents ibc_relay = 7;
+    astria.protocol.fees.v1alpha1.IbcRelayerChangeFeeComponents ibc_relayer_change = 6;
+    astria.protocol.fees.v1alpha1.IbcSudoChangeFeeComponents ibc_sudo_change = 8;
+    astria.protocol.fees.v1alpha1.Ics20WithdrawalFeeComponents ics20_withdrawal = 9;
+    astria.protocol.fees.v1alpha1.InitBridgeAccountFeeComponents init_bridge_account = 10;
+    astria.protocol.fees.v1alpha1.SequenceFeeComponents sequence = 11;
+    astria.protocol.fees.v1alpha1.SudoAddressChangeFeeComponents sudo_address_change = 12;
+    astria.protocol.fees.v1alpha1.TransferFeeComponents transfer = 13;
+    astria.protocol.fees.v1alpha1.ValidatorUpdateFeeComponents validator_update = 14;
   }
 }
 
 message IbcSudoChange {
   astria.primitive.v1.Address new_address = 1;
-}
-
-// Response to a transaction fee ABCI query.
-message TransactionFeeResponse {
-  uint64 height = 2;
-  repeated TransactionFee fees = 3;
-}
-
-message TransactionFee {
-  string asset = 1;
-  astria.primitive.v1.Uint128 fee = 2;
 }

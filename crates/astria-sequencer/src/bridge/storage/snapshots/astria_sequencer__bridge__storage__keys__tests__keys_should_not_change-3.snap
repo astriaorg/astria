@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/bridge/storage/keys.rs
-assertion_line: 97
-expression: BRIDGE_SUDO_CHANGE_FEE_KEY
+expression: asset_id(&address())
 ---
-bridge/sudo_change_fee
+bridge/account/HAxJDxtVKNgXPF3kbRMRYOSywMM=/asset_id

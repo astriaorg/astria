@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use astria_core::{
     crypto::SigningKey,
-    generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse,
+    generated::protocol::{
+        asset::v1alpha1::AllowedFeeAssetsResponse,
+        fees::v1alpha1::TransactionFee,
+    },
     primitive::v1::Address,
     protocol::transaction::v1alpha1::{
         action::Transfer,
@@ -321,10 +324,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
 #[tokio::test]
 async fn get_transaction_fee() {
-    use astria_core::generated::protocol::transactions::v1alpha1::{
-        TransactionFee,
-        TransactionFeeResponse,
-    };
+    use astria_core::generated::protocol::fees::v1alpha1::TransactionFeeResponse;
 
     let MockSequencer {
         server,

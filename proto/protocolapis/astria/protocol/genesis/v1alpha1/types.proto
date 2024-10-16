@@ -3,6 +3,7 @@ syntax = "proto3";
 package astria.protocol.genesis.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
+import "astria/protocol/fees/v1alpha1/types.proto";
 
 message GenesisAppState {
   string chain_id = 1;
@@ -14,7 +15,7 @@ message GenesisAppState {
   string native_asset_base_denomination = 7;
   IbcParameters ibc_parameters = 8;
   repeated string allowed_fee_assets = 9;
-  Fees fees = 10;
+  GenesisFees fees = 10;
 }
 
 message Account {
@@ -40,12 +41,19 @@ message IbcParameters {
   bool outbound_ics20_transfers_enabled = 3;
 }
 
-message Fees {
-  astria.primitive.v1.Uint128 transfer_base_fee = 1;
-  astria.primitive.v1.Uint128 sequence_base_fee = 2;
-  astria.primitive.v1.Uint128 sequence_byte_cost_multiplier = 3;
-  astria.primitive.v1.Uint128 init_bridge_account_base_fee = 4;
-  astria.primitive.v1.Uint128 bridge_lock_byte_cost_multiplier = 5;
-  astria.primitive.v1.Uint128 bridge_sudo_change_fee = 6;
-  astria.primitive.v1.Uint128 ics20_withdrawal_base_fee = 7;
+message GenesisFees {
+  astria.protocol.fees.v1alpha1.BridgeLockFeeComponents bridge_lock = 1;
+  astria.protocol.fees.v1alpha1.BridgeSudoChangeFeeComponents bridge_sudo_change = 2;
+  astria.protocol.fees.v1alpha1.BridgeUnlockFeeComponents bridge_unlock = 3;
+  astria.protocol.fees.v1alpha1.FeeAssetChangeFeeComponents fee_asset_change = 4;
+  astria.protocol.fees.v1alpha1.FeeChangeFeeComponents fee_change = 5;
+  astria.protocol.fees.v1alpha1.IbcRelayFeeComponents ibc_relay = 7;
+  astria.protocol.fees.v1alpha1.IbcRelayerChangeFeeComponents ibc_relayer_change = 6;
+  astria.protocol.fees.v1alpha1.IbcSudoChangeFeeComponents ibc_sudo_change = 8;
+  astria.protocol.fees.v1alpha1.Ics20WithdrawalFeeComponents ics20_withdrawal = 9;
+  astria.protocol.fees.v1alpha1.InitBridgeAccountFeeComponents init_bridge_account = 10;
+  astria.protocol.fees.v1alpha1.SequenceFeeComponents sequence = 11;
+  astria.protocol.fees.v1alpha1.SudoAddressChangeFeeComponents sudo_address_change = 12;
+  astria.protocol.fees.v1alpha1.TransferFeeComponents transfer = 13;
+  astria.protocol.fees.v1alpha1.ValidatorUpdateFeeComponents validator_update = 14;
 }

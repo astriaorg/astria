@@ -4,23 +4,14 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     bail,
-    ensure,
     Result,
     WrapErr as _,
 };
 use cnidarium::StateWrite;
 
 use crate::{
-    accounts::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -52,16 +43,6 @@ impl ActionHandler for InitBridgeAccount {
                 .wrap_err("failed check for base prefix of sudo address")?;
         }
 
-        ensure!(
-            state.is_allowed_fee_asset(&self.fee_asset).await?,
-            "invalid fee asset",
-        );
-
-        let fee = state
-            .get_init_bridge_account_base_fee()
-            .await
-            .wrap_err("failed to get base fee for initializing bridge account")?;
-
         // this prevents the address from being registered as a bridge account
         // if it's been previously initialized as a bridge account.
         //
@@ -82,39 +63,21 @@ impl ActionHandler for InitBridgeAccount {
             bail!("bridge account already exists");
         }
 
-        let balance = state
-            .get_account_balance(&from, &self.fee_asset)
-            .await
-            .wrap_err("failed getting `from` account balance for fee payment")?;
-
-        ensure!(
-            balance >= fee,
-            "insufficient funds for bridge account initialization",
-        );
-
         state
             .put_bridge_account_rollup_id(&from, self.rollup_id)
             .wrap_err("failed to put bridge account rollup id")?;
         state
             .put_bridge_account_ibc_asset(&from, &self.asset)
             .wrap_err("failed to put asset ID")?;
-        state
-            .put_bridge_account_sudo_address(&from, self.sudo_address.map_or(from, Address::bytes))
-            .wrap_err("failed to put bridge account sudo address")?;
-        state
-            .put_bridge_account_withdrawer_address(
-                &from,
-                self.withdrawer_address.map_or(from, Address::bytes),
-            )
-            .wrap_err("failed to put bridge account withdrawer address")?;
-        state
-            .get_and_increase_block_fees::<Self, _>(&self.fee_asset, fee)
-            .await
-            .wrap_err("failed to get and increase block fees")?;
-        state
-            .decrease_balance(&from, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to deduct fee from account balance")?;
+        state.put_bridge_account_sudo_address(
+            &from,
+            self.sudo_address.map_or(from, Address::bytes),
+        )?;
+        state.put_bridge_account_withdrawer_address(
+            &from,
+            self.withdrawer_address.map_or(from, Address::bytes),
+        )?;
+
         Ok(())
     }
 }

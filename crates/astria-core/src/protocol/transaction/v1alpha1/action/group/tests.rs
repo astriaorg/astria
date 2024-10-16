@@ -19,7 +19,6 @@ use crate::{
         BridgeUnlock,
         FeeAssetChange,
         FeeChange,
-        FeeChangeKind,
         IbcRelayerChange,
         IbcSudoChange,
         Ics20Withdrawal,
@@ -27,6 +26,7 @@ use crate::{
         Sequence,
         SudoAddressChange,
         Transfer,
+        TransferFeeComponents,
         ValidatorUpdate,
     },
 };
@@ -104,10 +104,10 @@ fn from_list_of_actions_bundleable_sudo() {
 
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
-        Action::FeeChange(FeeChange {
-            fee_change: FeeChangeKind::TransferBaseFee,
-            new_value: 100,
-        }),
+        Action::FeeChange(FeeChange::Transfer(TransferFeeComponents {
+            base: 100,
+            multiplier: 0,
+        })),
         Action::FeeAssetChange(FeeAssetChange::Addition(asset)),
         Action::IbcRelayerChange(IbcRelayerChange::Addition(address)),
     ];

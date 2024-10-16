@@ -1,12 +1,9 @@
 use std::time::Duration;
 
 use astria_core::{
-    generated::{
-        composer::v1alpha1::{
-            grpc_collector_service_client::GrpcCollectorServiceClient,
-            SubmitRollupTransactionRequest,
-        },
-        protocol::accounts::v1alpha1::NonceResponse,
+    generated::composer::v1alpha1::{
+        grpc_collector_service_client::GrpcCollectorServiceClient,
+        SubmitRollupTransactionRequest,
     },
     primitive::v1::RollupId,
 };
@@ -24,13 +21,6 @@ use crate::helper::{
 #[tokio::test]
 async fn tx_from_one_rollup_is_received_by_sequencer() {
     let test_composer = spawn_composer(&[]).await;
-    tokio::time::timeout(
-        Duration::from_millis(100),
-        test_composer.setup_guard.wait_until_satisfied(),
-    )
-    .await
-    .expect("composer and sequencer were not setup successfully");
-
     let rollup_id = RollupId::from_unhashed_bytes("test1");
     let expected_chain_ids = vec![rollup_id];
     let mock_guard =
@@ -63,33 +53,20 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
 
 #[tokio::test]
 async fn invalid_nonce_causes_resubmission_under_different_nonce() {
-    use crate::helper::mock_sequencer::mount_abci_query_mock;
-
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
     let rollup_id = RollupId::from_unhashed_bytes("test1");
     let test_composer = spawn_composer(&[]).await;
-    tokio::time::timeout(
-        Duration::from_millis(100),
-        test_composer.setup_guard.wait_until_satisfied(),
-    )
-    .await
-    .expect("composer and sequencer should have been setup successfully");
 
     // Reject the first transaction for invalid nonce
     let invalid_nonce_guard =
         mount_broadcast_tx_sync_invalid_nonce_mock(&test_composer.sequencer, rollup_id).await;
 
-    // Mount a response of 0 to a nonce query
-    let nonce_refetch_guard = mount_abci_query_mock(
-        &test_composer.sequencer,
-        "accounts/nonce",
-        NonceResponse {
-            height: 0,
-            nonce: 1,
-        },
-    )
-    .await;
+    // Mount a response of 1 to a nonce query
+    test_composer
+        .sequencer_mock
+        .mount_pending_nonce_response(1, "setup correct nonce")
+        .await;
 
     let expected_chain_ids = vec![rollup_id];
     // Expect nonce 1 again so that the resubmitted tx is accepted
@@ -124,13 +101,6 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
 
     tokio::time::timeout(
         Duration::from_millis(100),
-        nonce_refetch_guard.wait_until_satisfied(),
-    )
-    .await
-    .expect("new nonce should have been fetched from the sequencer");
-
-    tokio::time::timeout(
-        Duration::from_millis(100),
         valid_nonce_guard.wait_until_satisfied(),
     )
     .await
@@ -143,12 +113,6 @@ async fn single_rollup_tx_payload_integrity() {
     // Initial nonce is 0
     let rollup_id = RollupId::from_unhashed_bytes("test1");
     let test_composer = spawn_composer(&[]).await;
-    tokio::time::timeout(
-        Duration::from_millis(100),
-        test_composer.setup_guard.wait_until_satisfied(),
-    )
-    .await
-    .expect("composer and sequencer should have been setup successfully");
 
     let tx: Transaction = serde_json::from_str(TEST_ETH_TX_JSON).unwrap();
     let mock_guard =

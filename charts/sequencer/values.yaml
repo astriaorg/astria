@@ -23,7 +23,7 @@ images:
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
-    tag: "0.17.0"
+    tag: "0.18.0"
     devTag: latest
 
 moniker: ""
@@ -56,13 +56,48 @@ genesis:
     maxBytes: "1048576"
 
   fees:
-    transferBaseFee: "12"
-    sequenceBaseFee: "32"
-    sequenceByteCostMultiplier: "1"
-    initBridgeAccountBaseFee: "48"
-    bridgeLockByteCostMultiplier: "1"
-    bridgeSudoChangeFee: "24"
-    ics20WithdrawalBaseFee: "24"
+    bridgeLock:
+      base: "0"
+      multiplier: "1"
+    bridgeSudoChange:
+      base: "24"
+      multiplier: "0"
+    bridgeUnlock:
+      base: "0"
+      multiplier: "0"
+    feeAssetChange:
+      base: "0"
+      multiplier: "0"
+    feeChange:
+      base: "0"
+      multiplier: "0"
+    ibcRelay:
+      base: "0"
+      multiplier: "0"
+    ibcRelayerChange:
+      base: "0"
+      multiplier: "0"
+    ibcSudoChange:
+      base: "0"
+      multiplier: "0"
+    ics20Withdrawal:
+      base: "24"
+      multiplier: "0"
+    initBridgeAccount:
+      base: "48"
+      multiplier: "0"
+    sequence:
+      base: "32"
+      multiplier: "1"
+    sudoAddressChange:
+      base: "0"
+      multiplier: "0"
+    transfer:
+      base: "12"
+      multiplier: "0"
+    validatorUpdate:
+      base: "0"
+      multiplier: "0"
 
   validators: []
     # - name: core

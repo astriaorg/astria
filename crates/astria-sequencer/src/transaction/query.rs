@@ -24,7 +24,7 @@ pub(crate) async fn transaction_fee_request(
     request: request::Query,
     _params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::transaction::v1alpha1::TransactionFeeResponse;
+    use astria_core::protocol::fees::v1alpha1::TransactionFeeResponse;
 
     let tx = match preprocess_request(&request) {
         Ok(tx) => tx,

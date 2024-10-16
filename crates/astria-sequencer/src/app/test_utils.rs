@@ -13,6 +13,22 @@ use astria_core::{
         RollupId,
     },
     protocol::{
+        fees::v1alpha1::{
+            BridgeLockFeeComponents,
+            BridgeSudoChangeFeeComponents,
+            BridgeUnlockFeeComponents,
+            FeeAssetChangeFeeComponents,
+            FeeChangeFeeComponents,
+            IbcRelayFeeComponents,
+            IbcRelayerChangeFeeComponents,
+            IbcSudoChangeFeeComponents,
+            Ics20WithdrawalFeeComponents,
+            InitBridgeAccountFeeComponents,
+            SequenceFeeComponents,
+            SudoAddressChangeFeeComponents,
+            TransferFeeComponents,
+            ValidatorUpdateFeeComponents,
+        },
         genesis::v1alpha1::{
             Account,
             AddressPrefixes,
@@ -34,6 +50,7 @@ use astria_core::{
     },
     Protobuf,
 };
+use astria_eyre::eyre::WrapErr as _;
 use bytes::Bytes;
 use cnidarium::{
     Snapshot,
@@ -46,11 +63,9 @@ use crate::{
     accounts::StateWriteExt,
     app::App,
     assets::StateWriteExt as AssetStateWriteExt,
-    bridge::StateWriteExt as BridgeStateWriteExt,
-    ibc::StateWriteExt as IbcStateWriteExt,
+    fees::StateWriteExt as _,
     mempool::Mempool,
     metrics::Metrics,
-    sequence::StateWriteExt as SequenceStateWriteExt,
     test_utils::{
         astria_address_from_hex_string,
         nria,
@@ -165,15 +180,64 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     reason = "allow is only necessary when benchmark isn't enabled"
 )]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
-pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::Fees {
-    astria_core::protocol::genesis::v1alpha1::Fees {
-        transfer_base_fee: 12,
-        sequence_base_fee: 32,
-        sequence_byte_cost_multiplier: 1,
-        init_bridge_account_base_fee: 48,
-        bridge_lock_byte_cost_multiplier: 1,
-        bridge_sudo_change_fee: 24,
-        ics20_withdrawal_base_fee: 24,
+pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::GenesisFees {
+    astria_core::protocol::genesis::v1alpha1::GenesisFees {
+        transfer: TransferFeeComponents {
+            base: 12,
+            multiplier: 0,
+        },
+        sequence: SequenceFeeComponents {
+            base: 32,
+            multiplier: 1,
+        },
+        init_bridge_account: InitBridgeAccountFeeComponents {
+            base: 48,
+            multiplier: 0,
+        },
+        bridge_lock: BridgeLockFeeComponents {
+            base: 12, // should reflect transfer fee
+            multiplier: 1,
+        },
+        bridge_sudo_change: BridgeSudoChangeFeeComponents {
+            base: 24,
+            multiplier: 0,
+        },
+        ics20_withdrawal: Ics20WithdrawalFeeComponents {
+            base: 24,
+            multiplier: 0,
+        },
+        bridge_unlock: BridgeUnlockFeeComponents {
+            base: 12, // should reflect transfer fee
+            multiplier: 0,
+        },
+        ibc_relay: IbcRelayFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        validator_update: ValidatorUpdateFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        fee_asset_change: FeeAssetChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        fee_change: FeeChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        ibc_relayer_change: IbcRelayerChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        sudo_address_change: SudoAddressChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        ibc_sudo_change: IbcSudoChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
     }
 }
 
@@ -455,6 +519,7 @@ pub(crate) fn mock_state_put_account_nonce(
 #[expect(
     clippy::allow_attributes,
     clippy::allow_attributes_without_reason,
+    clippy::too_many_lines,
     reason = "allow is only necessary when benchmark isn't enabled"
 )]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
@@ -487,15 +552,131 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     // setup tx fees
+    let transfer_fees = TransferFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
     state
-        .put_sequence_action_base_fee(MOCK_SEQUENCE_FEE)
+        .put_transfer_fees(transfer_fees)
+        .wrap_err("failed to initiate transfer fee components")
         .unwrap();
-    state.put_sequence_action_byte_cost_multiplier(0).unwrap();
-    state.put_transfer_base_fee(0).unwrap();
-    state.put_ics20_withdrawal_base_fee(0).unwrap();
-    state.put_init_bridge_account_base_fee(0).unwrap();
-    state.put_bridge_lock_byte_cost_multiplier(0).unwrap();
-    state.put_bridge_sudo_change_base_fee(0).unwrap();
+
+    let sequence_fees = SequenceFeeComponents {
+        base: MOCK_SEQUENCE_FEE,
+        multiplier: 0,
+    };
+    state
+        .put_sequence_fees(sequence_fees)
+        .wrap_err("failed to initiate sequence action fee components")
+        .unwrap();
+
+    let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
+        .wrap_err("failed to initiate ics20 withdrawal fee components")
+        .unwrap();
+
+    let init_bridge_account_fees = InitBridgeAccountFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_init_bridge_account_fees(init_bridge_account_fees)
+        .wrap_err("failed to initiate init bridge account fee components")
+        .unwrap();
+
+    let bridge_lock_fees = BridgeLockFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_bridge_lock_fees(bridge_lock_fees)
+        .wrap_err("failed to initiate bridge lock fee components")
+        .unwrap();
+
+    let bridge_unlock_fees = BridgeUnlockFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_bridge_unlock_fees(bridge_unlock_fees)
+        .wrap_err("failed to initiate bridge unlock fee components")
+        .unwrap();
+
+    let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
+        .wrap_err("failed to initiate bridge sudo change fee components")
+        .unwrap();
+
+    let ibc_relay_fees = IbcRelayFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_ibc_relay_fees(ibc_relay_fees)
+        .wrap_err("failed to initiate ibc relay fee components")
+        .unwrap();
+
+    let validator_update_fees = ValidatorUpdateFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_validator_update_fees(validator_update_fees)
+        .wrap_err("failed to initiate validator update fee components")
+        .unwrap();
+
+    let fee_asset_change_fees = FeeAssetChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_fee_asset_change_fees(fee_asset_change_fees)
+        .wrap_err("failed to initiate fee asset change fee components")
+        .unwrap();
+
+    let fee_change_fees = FeeChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_fee_change_fees(fee_change_fees)
+        .wrap_err("failed to initiate fee change fees fee components")
+        .unwrap();
+
+    let ibc_relayer_change_fees = IbcRelayerChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_ibc_relayer_change_fees(ibc_relayer_change_fees)
+        .wrap_err("failed to initiate ibc relayer change fee components")
+        .unwrap();
+
+    let sudo_address_change_fees = SudoAddressChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_sudo_address_change_fees(sudo_address_change_fees)
+        .wrap_err("failed to initiate sudo address change fee components")
+        .unwrap();
+
+    let ibc_sudo_change_fees = IbcSudoChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_ibc_sudo_change_fees(ibc_sudo_change_fees)
+        .wrap_err("failed to initiate ibc sudo change fee components")
+        .unwrap();
 
     // put denoms as allowed fee asset
     state.put_allowed_fee_asset(&denom_0()).unwrap();

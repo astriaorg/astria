@@ -13,7 +13,6 @@ use astria_core::primitive::v1::asset;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        eyre,
         OptionExt as _,
         Result,
         WrapErr as _,
@@ -179,21 +178,6 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
             .and_then(|value| storage::Nonce::try_from(value).map(u32::from))
             .wrap_err("invalid nonce bytes")
     }
-
-    #[instrument(skip_all)]
-    async fn get_transfer_base_fee(&self) -> Result<u128> {
-        let bytes = self
-            .get_raw(keys::TRANSFER_BASE_FEE)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw transfer base fee from state")?;
-        let Some(bytes) = bytes else {
-            return Err(eyre!("transfer base fee not set"));
-        };
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-            .wrap_err("invalid fee bytes")
-    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -279,15 +263,6 @@ pub(crate) trait StateWriteExt: StateWrite {
                 .ok_or_eyre("subtracting from account balance failed due to insufficient funds")?,
         )
         .wrap_err("failed to store updated account balance in database")?;
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    fn put_transfer_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::from(storage::Fee::from(fee))
-            .serialize()
-            .wrap_err("failed to serialize fee")?;
-        self.put_raw(keys::TRANSFER_BASE_FEE.to_string(), bytes);
         Ok(())
     }
 }
@@ -782,16 +757,5 @@ mod tests {
             .decrease_balance(&address, &asset, amount_increase + 1)
             .await
             .expect_err("should not be able to subtract larger balance than what existed");
-    }
-
-    #[tokio::test]
-    async fn transfer_base_fee_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_transfer_base_fee(123).unwrap();
-        let retrieved_fee = state.get_transfer_base_fee().await.unwrap();
-        assert_eq!(retrieved_fee, 123);
     }
 }
