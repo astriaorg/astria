@@ -124,7 +124,8 @@ impl Composer {
         let shutdown_token = CancellationToken::new();
 
         let (executor, executor_handle) = executor::Builder {
-            sequencer_url: cfg.sequencer_url.clone(),
+            sequencer_abci_endpoint: cfg.sequencer_abci_endpoint.clone(),
+            sequencer_grpc_endpoint: cfg.sequencer_grpc_endpoint.clone(),
             sequencer_chain_id: cfg.sequencer_chain_id.clone(),
             private_key_file: cfg.private_key_file.clone(),
             sequencer_address_prefix: cfg.sequencer_address_prefix.clone(),
@@ -217,9 +218,11 @@ impl Composer {
     ///
     /// # Panics
     /// It panics if the Composer cannot set the SIGTERM listener.
-    // allow: it seems splitting this into smaller functions makes the code less readable due to
-    //        the high number of params needed for these functions.
-    #[allow(clippy::too_many_lines)]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "it seems splitting this into smaller functions makes the code less readable due \
+                  to the high number of params needed for these functions"
+    )]
     pub async fn run_until_stopped(self) -> eyre::Result<()> {
         let Self {
             api_server,

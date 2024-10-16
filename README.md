@@ -11,7 +11,7 @@ network. Other components of the Astria network can be found in the
 [astriaorg](https://github.com/astriaorg) organization.
 
 To run locally, we utilize a dev-cluster which can be found at
-[astriaorg/dev-cluster](https://github.com/astriaorg/dev-cluster).
+[astriaorg/astria/charts](https://github.com/astriaorg/astria/tree/main/charts).
 
 To learn more about Astria, please visit [astria.org](https://astria.org).
 

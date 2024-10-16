@@ -18,13 +18,11 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-fn base_prefix_key() -> &'static str {
-    "prefixes/base"
-}
-
-fn ibc_compat_prefix_key() -> &'static str {
-    "prefixes/ibc-compat"
-}
+use super::storage::{
+    self,
+    keys,
+};
+use crate::storage::StoredValue;
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -53,34 +51,34 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("failed to construct address from byte slice and state-provided base prefix")
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, err)]
     async fn get_base_prefix(&self) -> Result<String> {
         let Some(bytes) = self
-            .get_raw(base_prefix_key())
+            .get_raw(keys::BASE_PREFIX)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading address base prefix from state")?
         else {
             bail!("no base prefix found in state");
         };
-        String::from_utf8(bytes).context("prefix retrieved from storage is not valid utf8")
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::AddressPrefix::try_from(value).map(String::from))
+            .context("invalid base prefix bytes")
     }
 
-    // allow: false positive due to proc macro; fixed with rust/clippy 1.81
-    #[allow(clippy::blocks_in_conditions)]
     #[instrument(skip_all, err)]
     async fn get_ibc_compat_prefix(&self) -> Result<String> {
         let Some(bytes) = self
-            .get_raw(ibc_compat_prefix_key())
+            .get_raw(keys::IBC_COMPAT_PREFIX)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading address ibc compat prefix from state")?
         else {
             bail!("no ibc compat prefix found in state")
         };
-        String::from_utf8(bytes).wrap_err("prefix retrieved from storage is not valid utf8")
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::AddressPrefix::try_from(value).map(String::from))
+            .wrap_err("invalid ibc compat prefix bytes")
     }
 }
 
@@ -89,26 +87,31 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_base_prefix(&mut self, prefix: &str) {
-        self.put_raw(base_prefix_key().into(), prefix.into());
+    fn put_base_prefix(&mut self, prefix: String) -> Result<()> {
+        let bytes = StoredValue::from(storage::AddressPrefix::from(prefix.as_str()))
+            .serialize()
+            .context("failed to serialize base prefix")?;
+        self.put_raw(keys::BASE_PREFIX.to_string(), bytes);
+        Ok(())
     }
 
     #[instrument(skip_all)]
-    fn put_ibc_compat_prefix(&mut self, prefix: &str) {
-        self.put_raw(ibc_compat_prefix_key().into(), prefix.into());
+    fn put_ibc_compat_prefix(&mut self, prefix: String) -> Result<()> {
+        let bytes = StoredValue::from(storage::AddressPrefix::from(prefix.as_str()))
+            .serialize()
+            .context("failed to serialize ibc-compat prefix")?;
+        self.put_raw(keys::IBC_COMPAT_PREFIX.to_string(), bytes);
+        Ok(())
     }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
+mod tests {
     use cnidarium::StateDelta;
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
 
     #[tokio::test]
     async fn put_and_get_base_prefix() {
@@ -116,7 +119,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix("astria");
+        state.put_base_prefix("astria".to_string()).unwrap();
         assert_eq!("astria", &state.get_base_prefix().await.unwrap());
     }
 
@@ -126,7 +129,9 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_ibc_compat_prefix("astriacompat");
+        state
+            .put_ibc_compat_prefix("astriacompat".to_string())
+            .unwrap();
         assert_eq!(
             "astriacompat",
             &state.get_ibc_compat_prefix().await.unwrap()

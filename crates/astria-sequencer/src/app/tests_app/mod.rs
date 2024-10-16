@@ -6,16 +6,17 @@ use astria_core::{
     primitive::v1::{
         asset::TracePrefixed,
         RollupId,
+        TransactionId,
     },
     protocol::{
         genesis::v1alpha1::Account,
         transaction::v1alpha1::{
             action::{
-                BridgeLockAction,
-                SequenceAction,
-                TransferAction,
+                BridgeLock,
+                Sequence,
+                SudoAddressChange,
+                Transfer,
             },
-            TransactionParams,
             UnsignedTransaction,
         },
     },
@@ -29,7 +30,10 @@ use prost::{
 use tendermint::{
     abci::{
         self,
-        request::PrepareProposal,
+        request::{
+            PrepareProposal,
+            ProcessProposal,
+        },
         types::CommitInfo,
     },
     account,
@@ -54,12 +58,9 @@ use crate::{
         StateWriteExt as _,
         ValidatorSet,
     },
-    bridge::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    bridge::StateWriteExt as _,
+    fees::StateReadExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
-    state_ext::StateReadExt as _,
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -103,7 +104,7 @@ async fn app_genesis_and_init_chain() {
         assert_eq!(
             balance,
             app.state
-                .get_account_balance(address, nria())
+                .get_account_balance(&address, &nria())
                 .await
                 .unwrap(),
         );
@@ -157,7 +158,7 @@ async fn app_begin_block_remove_byzantine_validators() {
     let misbehavior = types::Misbehavior {
         kind: types::MisbehaviorKind::Unknown,
         validator: types::Validator {
-            address: crate::test_utils::verification_key(1).address_bytes(),
+            address: *crate::test_utils::verification_key(1).address_bytes(),
             power: 0u32.into(),
         },
         height: Height::default(),
@@ -197,7 +198,7 @@ async fn app_commit() {
         assert_eq!(
             balance,
             app.state
-                .get_account_balance(address, nria())
+                .get_account_balance(&address, &nria())
                 .await
                 .unwrap()
         );
@@ -216,7 +217,10 @@ async fn app_commit() {
     } in default_genesis_accounts()
     {
         assert_eq!(
-            snapshot.get_account_balance(address, nria()).await.unwrap(),
+            snapshot
+                .get_account_balance(&address, &nria())
+                .await
+                .unwrap(),
             balance
         );
     }
@@ -231,21 +235,19 @@ async fn app_transfer_block_fees_to_sudo() {
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let amount = 333_333;
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            TransferAction {
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![
+            Transfer {
                 to: bob_address,
                 amount,
                 asset: nria().into(),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    };
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -272,15 +274,15 @@ async fn app_transfer_block_fees_to_sudo() {
     app.commit(storage).await;
 
     // assert that transaction fees were transferred to the block proposer
-    let transfer_fee = app.state.get_transfer_base_fee().await.unwrap();
+    let transfer_base_fee = app.state.get_transfer_fees().await.unwrap().base;
     assert_eq!(
         app.state
-            .get_account_balance(astria_address_from_hex_string(JUDY_ADDRESS), nria())
+            .get_account_balance(&astria_address_from_hex_string(JUDY_ADDRESS), &nria())
             .await
             .unwrap(),
-        transfer_fee,
+        transfer_base_fee,
     );
-    assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
+    assert_eq!(app.state.get_block_fees().len(), 0);
 }
 
 #[tokio::test]
@@ -290,7 +292,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         sequencerblock::v1alpha1::block::RollupData,
     };
 
-    use crate::api_state_ext::StateReadExt as _;
+    use crate::grpc::StateReadExt as _;
 
     let alice = get_alice_signing_key();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
@@ -300,34 +302,52 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(bridge_address, nria())
+        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+        .unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bridge_address, nria())
+        .unwrap();
+    // Put a deposit from a previous block to ensure it is not mixed in with deposits for this
+    // block (it has a different amount and tx ID to the later deposit).
+    let old_deposit = Deposit {
+        bridge_address,
+        rollup_id,
+        amount: 99,
+        asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+        source_transaction_id: TransactionId::new([99; 32]),
+        source_action_index: starting_index_of_action,
+    };
+    state_tx
+        .put_deposits(
+            &[32u8; 32],
+            HashMap::from_iter([(rollup_id, vec![old_deposit])]),
+        )
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
     let amount = 100;
-    let lock_action = BridgeLockAction {
+    let lock_action = BridgeLock {
         to: bridge_address,
         amount,
         asset: nria().into(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = SequenceAction {
+    let sequence_action = Sequence {
         rollup_id,
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![lock_action.into(), sequence_action.into()],
-    };
+
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![lock_action.into(), sequence_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -361,10 +381,6 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         .unwrap();
     app.commit(storage).await;
 
-    // ensure deposits are cleared at the end of the block
-    let deposit_events = app.state.get_deposit_events(&rollup_id).await.unwrap();
-    assert_eq!(deposit_events.len(), 0);
-
     let block = app.state.get_sequencer_block_by_height(1).await.unwrap();
     let mut deposits = vec![];
     for (_, rollup_data) in block.rollup_transactions() {
@@ -380,9 +396,11 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     assert_eq!(*deposits[0], expected_deposit);
 }
 
-// it's a test, so allow a lot of lines
 #[tokio::test]
-#[allow(clippy::too_many_lines)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "it's a test, so allow a lot of lines"
+)]
 async fn app_execution_results_match_proposal_vs_after_proposal() {
     let alice = get_alice_signing_key();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
@@ -393,34 +411,35 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_ibc_asset(bridge_address, &asset)
+        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+        .unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
     let amount = 100;
-    let lock_action = BridgeLockAction {
+    let lock_action = BridgeLock {
         to: bridge_address,
         amount,
         asset: nria().into(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = SequenceAction {
+    let sequence_action = Sequence {
         rollup_id,
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![lock_action.into(), sequence_action.into()],
-    };
+
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![lock_action.into(), sequence_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
     let signed_tx = tx.into_signed(&alice);
 
@@ -483,6 +502,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         local_last_commit: None,
         misbehavior: vec![],
     };
+    let proposal_fingerprint = prepare_proposal.clone().into();
 
     let prepare_proposal_result = app
         .prepare_proposal(prepare_proposal, storage.clone())
@@ -490,7 +510,10 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .unwrap();
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
     assert_eq!(app.executed_proposal_hash, Hash::default());
-    assert_eq!(app.validator_address.unwrap(), proposer_address);
+    assert_eq!(
+        app.executed_proposal_fingerprint,
+        Some(proposal_fingerprint)
+    );
 
     app.mempool.run_maintenance(&app.state, false).await;
 
@@ -512,7 +535,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .await
         .unwrap();
     assert_eq!(app.executed_proposal_hash, block_hash);
-    assert!(app.validator_address.is_none());
+    assert!(app.executed_proposal_fingerprint.is_none());
 
     let finalize_block_after_prepare_proposal_result = app
         .finalize_block(finalize_block.clone(), storage.clone())
@@ -531,7 +554,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .await
         .unwrap();
     assert_eq!(app.executed_proposal_hash, block_hash);
-    assert!(app.validator_address.is_none());
+    assert!(app.executed_proposal_fingerprint.is_none());
     let finalize_block_after_process_proposal_result = app
         .finalize_block(finalize_block, storage.clone())
         .await
@@ -551,36 +574,34 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     // create txs which will cause cometBFT overflow
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            SequenceAction {
+    let tx_pass = UnsignedTransaction::builder()
+        .actions(vec![
+            Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
-    let tx_overflow = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(1)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            SequenceAction {
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+
+    let tx_overflow = UnsignedTransaction::builder()
+        .actions(vec![
+            Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
+        ])
+        .chain_id("test")
+        .nonce(1)
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
 
     app.mempool
         .insert(
@@ -643,36 +664,33 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            SequenceAction {
+    let tx_pass = UnsignedTransaction::builder()
+        .actions(vec![
+            Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 200_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
-    let tx_overflow = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(1)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            SequenceAction {
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+    let tx_overflow = UnsignedTransaction::builder()
+        .actions(vec![
+            Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
                 data: Bytes::copy_from_slice(&[1u8; 100_000]),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&alice);
+        ])
+        .nonce(1)
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
 
     app.mempool
         .insert(
@@ -728,6 +746,122 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 }
 
 #[tokio::test]
+async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
+    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    app.prepare_commit(storage.clone()).await.unwrap();
+    app.commit(storage.clone()).await;
+
+    // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
+    let alice = get_alice_signing_key();
+    let tx_pass = UnsignedTransaction::builder()
+        .actions(vec![
+            Sequence {
+                rollup_id: RollupId::from([1u8; 32]),
+                data: Bytes::copy_from_slice(&[1u8; 200_000]),
+                fee_asset: nria().into(),
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+    let tx_overflow = UnsignedTransaction::builder()
+        .actions(vec![
+            Sequence {
+                rollup_id: RollupId::from([1u8; 32]),
+                data: Bytes::copy_from_slice(&[1u8; 100_000]),
+                fee_asset: nria().into(),
+            }
+            .into(),
+        ])
+        .nonce(1)
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+
+    let txs: Vec<SignedTransaction> = vec![tx_pass, tx_overflow];
+    let generated_commitment = generate_rollup_datas_commitment(&txs, HashMap::new());
+    let txs = generated_commitment.into_transactions(
+        txs.into_iter()
+            .map(|tx| tx.to_raw().encode_to_vec().into())
+            .collect(),
+    );
+
+    let process_proposal = ProcessProposal {
+        hash: Hash::default(),
+        height: 1u32.into(),
+        time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        txs,
+        proposed_last_commit: None,
+        misbehavior: vec![],
+    };
+
+    let result = app
+        .process_proposal(process_proposal.clone(), storage.clone())
+        .await
+        .expect_err("expected max sequenced data limit error");
+
+    assert!(
+        format!("{result:?}").contains("max block sequenced data limit passed"),
+        "process proposal should fail due to max sequenced data limit"
+    );
+}
+
+#[tokio::test]
+async fn app_process_proposal_transaction_fails_to_execute_fails() {
+    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    app.prepare_commit(storage.clone()).await.unwrap();
+    app.commit(storage.clone()).await;
+
+    // create txs which will cause transaction execution failure
+    let alice = get_alice_signing_key();
+    let tx_fail = UnsignedTransaction::builder()
+        .actions(vec![
+            SudoAddressChange {
+                new_address: astria_address_from_hex_string(BOB_ADDRESS),
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&alice);
+
+    let txs: Vec<SignedTransaction> = vec![tx_fail];
+    let generated_commitment = generate_rollup_datas_commitment(&txs, HashMap::new());
+    let txs = generated_commitment.into_transactions(
+        txs.into_iter()
+            .map(|tx| tx.to_raw().encode_to_vec().into())
+            .collect(),
+    );
+
+    let process_proposal = ProcessProposal {
+        hash: Hash::default(),
+        height: 1u32.into(),
+        time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        txs,
+        proposed_last_commit: None,
+        misbehavior: vec![],
+    };
+
+    let result = app
+        .process_proposal(process_proposal.clone(), storage.clone())
+        .await
+        .expect_err("expected transaction execution failure");
+
+    assert!(
+        format!("{result:?}").contains("transaction failed to execute"),
+        "process proposal should fail due transaction execution failure"
+    );
+}
+
+#[tokio::test]
 async fn app_end_block_validator_updates() {
     let initial_validator_set = vec![
         ValidatorUpdate {
@@ -764,7 +898,7 @@ async fn app_end_block_validator_updates() {
         .unwrap();
     app.apply(state_tx);
 
-    let resp = app.end_block(1, proposer_address).await.unwrap();
+    let resp = app.end_block(1, &proposer_address).await.unwrap();
     // we only assert length here as the ordering of the updates is not guaranteed
     // and validator::Update does not implement Ord
     assert_eq!(resp.validator_updates.len(), validator_updates.len());

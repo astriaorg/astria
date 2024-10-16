@@ -62,7 +62,10 @@
 
 use std::net::SocketAddr;
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "naming is helpful for clarity here"
+)]
 pub use __rpc_traits::GethServer;
 use ethers::types::Transaction;
 use jsonrpsee::{
@@ -136,7 +139,10 @@ impl From<Transaction> for SubscriptionCommand {
     }
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "naming is helpful for clarity here"
+)]
 pub struct GethImpl {
     command: Sender<SubscriptionCommand>,
 }

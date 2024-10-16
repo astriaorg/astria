@@ -4,7 +4,6 @@ use prost::{
     Name as _,
 };
 
-use super::raw;
 use crate::{
     crypto::{
         self,
@@ -12,8 +11,8 @@ use crate::{
         SigningKey,
         VerificationKey,
     },
+    generated::protocol::transactions::v1alpha1 as raw,
     primitive::v1::{
-        asset,
         TransactionId,
         ADDRESS_LEN,
     },
@@ -21,7 +20,14 @@ use crate::{
 };
 
 pub mod action;
-pub use action::Action;
+use action::group::Actions;
+pub use action::{
+    group::{
+        Error,
+        Group,
+    },
+    Action,
+};
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -63,20 +69,11 @@ enum SignedTransactionErrorKind {
     Verification(crypto::Error),
 }
 
-/// The individual parts of a [`SignedTransaction`].
-#[derive(Debug)]
-pub struct SignedTransactionParts {
-    pub signature: Signature,
-    pub verification_key: VerificationKey,
-    pub transaction: UnsignedTransaction,
-}
-
 /// A signed transaction.
 ///
 /// [`SignedTransaction`] contains an [`UnsignedTransaction`] together
 /// with its signature and public key.
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
 pub struct SignedTransaction {
     signature: Signature,
     verification_key: VerificationKey,
@@ -85,7 +82,7 @@ pub struct SignedTransaction {
 }
 
 impl SignedTransaction {
-    pub fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
+    pub fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
         self.verification_key.address_bytes()
     }
 
@@ -175,22 +172,6 @@ impl SignedTransaction {
         })
     }
 
-    /// Converts a [`SignedTransaction`] into its [`SignedTransactionParts`].
-    #[must_use]
-    pub fn into_parts(self) -> SignedTransactionParts {
-        let Self {
-            signature,
-            verification_key,
-            transaction,
-            ..
-        } = self;
-        SignedTransactionParts {
-            signature,
-            verification_key,
-            transaction,
-        }
-    }
-
     #[must_use]
     pub fn into_unsigned(self) -> UnsignedTransaction {
         self.transaction
@@ -198,7 +179,17 @@ impl SignedTransaction {
 
     #[must_use]
     pub fn actions(&self) -> &[Action] {
-        &self.transaction.actions
+        self.transaction.actions.actions()
+    }
+
+    #[must_use]
+    pub fn group(&self) -> Group {
+        self.transaction.actions.group()
+    }
+
+    #[must_use]
+    pub fn is_bundleable_sudo_action_group(&self) -> bool {
+        self.transaction.actions.group().is_bundleable_sudo()
     }
 
     #[must_use]
@@ -227,13 +218,27 @@ impl SignedTransaction {
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::module_name_repetitions)]
 pub struct UnsignedTransaction {
-    pub actions: Vec<Action>,
-    pub params: TransactionParams,
+    actions: Actions,
+    params: TransactionParams,
 }
 
 impl UnsignedTransaction {
+    #[must_use]
+    pub fn builder() -> UnsignedTransactionBuilder {
+        UnsignedTransactionBuilder::new()
+    }
+
+    #[must_use]
+    pub fn into_actions(self) -> Vec<Action> {
+        self.actions.into_actions()
+    }
+
+    #[must_use]
+    pub fn actions(&self) -> &[Action] {
+        self.actions.actions()
+    }
+
     #[must_use]
     pub fn nonce(&self) -> u32 {
         self.params.nonce
@@ -262,7 +267,11 @@ impl UnsignedTransaction {
             actions,
             params,
         } = self;
-        let actions = actions.into_iter().map(Action::into_raw).collect();
+        let actions = actions
+            .into_actions()
+            .into_iter()
+            .map(Action::into_raw)
+            .collect();
         raw::UnsignedTransaction {
             actions,
             params: Some(params.into_raw()),
@@ -283,7 +292,7 @@ impl UnsignedTransaction {
             actions,
             params,
         } = self;
-        let actions = actions.iter().map(Action::to_raw).collect();
+        let actions = actions.actions().iter().map(Action::to_raw).collect();
         let params = params.clone().into_raw();
         raw::UnsignedTransaction {
             actions,
@@ -317,10 +326,12 @@ impl UnsignedTransaction {
             .collect::<Result<_, _>>()
             .map_err(UnsignedTransactionError::action)?;
 
-        Ok(Self {
-            actions,
-            params,
-        })
+        UnsignedTransaction::builder()
+            .actions(actions)
+            .chain_id(params.chain_id)
+            .nonce(params.nonce)
+            .try_build()
+            .map_err(UnsignedTransactionError::group)
     }
 
     /// Attempt to convert from a protobuf [`pbjson_types::Any`].
@@ -345,7 +356,7 @@ impl UnsignedTransaction {
 pub struct UnsignedTransactionError(UnsignedTransactionErrorKind);
 
 impl UnsignedTransactionError {
-    fn action(inner: action::ActionError) -> Self {
+    fn action(inner: action::Error) -> Self {
         Self(UnsignedTransactionErrorKind::Action(inner))
     }
 
@@ -362,12 +373,16 @@ impl UnsignedTransactionError {
     fn decode_any(inner: prost::DecodeError) -> Self {
         Self(UnsignedTransactionErrorKind::DecodeAny(inner))
     }
+
+    fn group(inner: action::group::Error) -> Self {
+        Self(UnsignedTransactionErrorKind::Group(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum UnsignedTransactionErrorKind {
     #[error("`actions` field is invalid")]
-    Action(#[source] action::ActionError),
+    Action(#[source] action::Error),
     #[error("`params` field is unset")]
     UnsetParams(),
     #[error(
@@ -381,59 +396,69 @@ enum UnsignedTransactionErrorKind {
         raw::UnsignedTransaction::type_url()
     )]
     DecodeAny(#[source] prost::DecodeError),
+    #[error("`actions` field does not form a valid group of actions")]
+    Group(#[source] action::group::Error),
 }
 
-pub struct TransactionParamsBuilder<TChainId = std::borrow::Cow<'static, str>> {
+#[derive(Default)]
+pub struct UnsignedTransactionBuilder {
     nonce: u32,
-    chain_id: TChainId,
+    chain_id: String,
+    actions: Vec<Action>,
 }
 
-impl TransactionParamsBuilder {
-    fn new() -> Self {
+impl UnsignedTransactionBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[must_use]
+    pub fn actions(self, actions: Vec<Action>) -> Self {
         Self {
-            nonce: 0,
-            chain_id: "".into(),
+            actions,
+            ..self
         }
     }
-}
 
-impl<TChainId> TransactionParamsBuilder<TChainId> {
-    #[must_use = "the transaction params builder must be built to be useful"]
-    pub fn chain_id<'a, T: Into<std::borrow::Cow<'a, str>>>(
-        self,
-        chain_id: T,
-    ) -> TransactionParamsBuilder<std::borrow::Cow<'a, str>> {
-        TransactionParamsBuilder {
+    #[must_use]
+    pub fn chain_id<T: Into<String>>(self, chain_id: T) -> UnsignedTransactionBuilder {
+        UnsignedTransactionBuilder {
             chain_id: chain_id.into(),
             nonce: self.nonce,
+            actions: self.actions,
         }
     }
 
-    #[must_use = "the transaction params builder must be built to be useful"]
+    #[must_use]
     pub fn nonce(self, nonce: u32) -> Self {
         Self {
             nonce,
             ..self
         }
     }
-}
 
-impl<'a> TransactionParamsBuilder<std::borrow::Cow<'a, str>> {
-    /// Constructs a [`TransactionParams`] from the configured builder.
+    /// Constructs a [`UnsignedTransaction`] from the configured builder.
     ///
     /// # Errors
+    /// Returns an error if the actions do not make a valid [`action::Group`].
+    ///
     /// Returns an error if the set chain ID does not contain a chain name that can be turned into
     /// a bech32 human readable prefix (everything before the first dash i.e. `<name>-<rest>`).
-    #[must_use]
-    pub fn build(self) -> TransactionParams {
+    pub fn try_build(self) -> Result<UnsignedTransaction, action::group::Error> {
         let Self {
             nonce,
             chain_id,
+            actions,
         } = self;
-        TransactionParams {
-            nonce,
-            chain_id: chain_id.into(),
-        }
+        let actions = Actions::try_from_list_of_actions(actions)?;
+        Ok(UnsignedTransaction {
+            actions,
+            params: TransactionParams {
+                nonce,
+                chain_id,
+            },
+        })
     }
 }
 
@@ -444,11 +469,6 @@ pub struct TransactionParams {
 }
 
 impl TransactionParams {
-    #[must_use = "the transaction params builder must be built to be useful"]
-    pub fn builder() -> TransactionParamsBuilder {
-        TransactionParamsBuilder::new()
-    }
-
     #[must_use]
     pub fn into_raw(self) -> raw::TransactionParams {
         let Self {
@@ -463,105 +483,29 @@ impl TransactionParams {
     }
 
     /// Convert from a raw protobuf [`raw::UnsignedTransaction`].
-    ///
-    /// # Errors
-    /// See [`TransactionParamsBuilder::try_build`] for errors returned by this method.
     #[must_use]
     pub fn from_raw(proto: raw::TransactionParams) -> Self {
         let raw::TransactionParams {
             nonce,
             chain_id,
         } = proto;
-        Self::builder().nonce(nonce).chain_id(chain_id).build()
-    }
-}
 
-#[derive(Debug, Clone)]
-pub struct TransactionFeeResponse {
-    pub height: u64,
-    pub fees: Vec<(asset::Denom, u128)>,
-}
-
-impl TransactionFeeResponse {
-    #[must_use]
-    pub fn into_raw(self) -> raw::TransactionFeeResponse {
-        raw::TransactionFeeResponse {
-            height: self.height,
-            fees: self
-                .fees
-                .into_iter()
-                .map(|(asset, fee)| raw::TransactionFee {
-                    asset: asset.to_string(),
-                    fee: Some(fee.into()),
-                })
-                .collect(),
+        Self {
+            nonce,
+            chain_id,
         }
     }
-
-    /// Attempt to convert from a raw protobuf [`raw::TransactionFeeResponse`].
-    ///
-    /// # Errors
-    ///
-    /// - if the asset ID could not be converted from bytes
-    /// - if the fee was unset
-    pub fn try_from_raw(
-        proto: raw::TransactionFeeResponse,
-    ) -> Result<Self, TransactionFeeResponseError> {
-        let raw::TransactionFeeResponse {
-            height,
-            fees,
-        } = proto;
-        let fees = fees
-            .into_iter()
-            .map(
-                |raw::TransactionFee {
-                     asset,
-                     fee,
-                 }| {
-                    let asset = asset.parse().map_err(TransactionFeeResponseError::asset)?;
-                    let fee = fee.ok_or(TransactionFeeResponseError::unset_fee())?;
-                    Ok((asset, fee.into()))
-                },
-            )
-            .collect::<Result<_, _>>()?;
-        Ok(Self {
-            height,
-            fees,
-        })
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct TransactionFeeResponseError(TransactionFeeResponseErrorKind);
-
-impl TransactionFeeResponseError {
-    fn unset_fee() -> Self {
-        Self(TransactionFeeResponseErrorKind::UnsetFee)
-    }
-
-    fn asset(inner: asset::ParseDenomError) -> Self {
-        Self(TransactionFeeResponseErrorKind::Asset(inner))
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum TransactionFeeResponseErrorKind {
-    #[error("`fee` field is unset")]
-    UnsetFee,
-    #[error("failed to parse asset denom in the `assets` field")]
-    Asset(#[source] asset::ParseDenomError),
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::{
         primitive::v1::{
             asset,
             Address,
         },
-        protocol::transaction::v1alpha1::action::TransferAction,
+        protocol::transaction::v1alpha1::action::Transfer,
     };
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
@@ -583,7 +527,7 @@ mod test {
             227, 96, 127, 152, 22, 47, 146, 10,
         ]);
 
-        let transfer = TransferAction {
+        let transfer = Transfer {
             to: Address::builder()
                 .array([0; 20])
                 .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -594,14 +538,12 @@ mod test {
             fee_asset: asset(),
         };
 
-        let params = TransactionParams::from_raw(raw::TransactionParams {
-            nonce: 1,
-            chain_id: "test-1".to_string(),
-        });
-        let unsigned = UnsignedTransaction {
-            actions: vec![transfer.into()],
-            params,
-        };
+        let unsigned = UnsignedTransaction::builder()
+            .actions(vec![transfer.into()])
+            .chain_id("test-1".to_string())
+            .nonce(1)
+            .try_build()
+            .unwrap();
 
         let tx = SignedTransaction {
             signature,
@@ -610,7 +552,7 @@ mod test {
             transaction_bytes: unsigned.to_raw().encode_to_vec().into(),
         };
 
-        insta::assert_json_snapshot!(tx.id());
+        insta::assert_json_snapshot!(tx.id().to_raw());
     }
 
     #[test]
@@ -620,7 +562,7 @@ mod test {
             178, 63, 69, 238, 27, 96, 95, 213, 135, 120, 87, 106, 196,
         ]);
 
-        let transfer = TransferAction {
+        let transfer = Transfer {
             to: Address::builder()
                 .array([0; 20])
                 .prefix(ASTRIA_ADDRESS_PREFIX)
@@ -631,16 +573,14 @@ mod test {
             fee_asset: asset(),
         };
 
-        let params = TransactionParams::from_raw(raw::TransactionParams {
-            nonce: 1,
-            chain_id: "test-1".to_string(),
-        });
-        let unsigned = UnsignedTransaction {
-            actions: vec![transfer.into()],
-            params,
-        };
+        let unsigned_tx = UnsignedTransaction::builder()
+            .actions(vec![transfer.into()])
+            .chain_id("test-1".to_string())
+            .nonce(1)
+            .try_build()
+            .unwrap();
 
-        let signed_tx = unsigned.into_signed(&signing_key);
+        let signed_tx = unsigned_tx.into_signed(&signing_key);
         let raw = signed_tx.to_raw();
 
         // `try_from_raw` verifies the signature

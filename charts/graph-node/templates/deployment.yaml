@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graph-node
+  namespace: {{ .Values.global.namespaceOverride | default .Release.Namespace }}
+spec:
+  replicas: {{ .Values.graphNode.replicas }}
+  selector:
+    matchLabels:
+      app: graph-node
+  template:
+    metadata:
+      labels:
+        app: graph-node
+    spec:
+      containers:
+        - name: graph-node
+          envFrom:
+            - configMapRef:
+                name: graph-node-config
+          image: {{ .Values.graphNode.image }}:{{ .Values.graphNode.tag }}
+          ports:
+            - containerPort: {{ .Values.graphNode.ports.http }}
+            - containerPort: {{ .Values.graphNode.ports.jsonRpc }}
+            - containerPort: {{ .Values.graphNode.ports.indexNode }}
+            - containerPort: {{ .Values.graphNode.ports.metrics }}
+            - containerPort: {{ .Values.graphNode.ports.subgraphMetrics }}
+  

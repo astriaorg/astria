@@ -39,10 +39,8 @@ use astria_core::protocol::{
         BridgeAccountInfoResponse,
         BridgeAccountLastTxHashResponse,
     },
-    transaction::v1alpha1::{
-        TransactionFeeResponse,
-        UnsignedTransaction,
-    },
+    fees::v1alpha1::TransactionFeeResponse,
+    transaction::v1alpha1::UnsignedTransaction,
 };
 pub use astria_core::{
     primitive::v1::Address,
@@ -628,7 +626,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::transactions::v1alpha1::TransactionFeeResponse::decode(
+            astria_core::generated::protocol::fees::v1alpha1::TransactionFeeResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
@@ -672,7 +670,6 @@ pub trait SequencerClientExt: Client {
     /// - If the transaction is not found.
     /// - If the transaction execution failed.
     /// - If the transaction proof is missing.
-    #[allow(clippy::blocks_in_conditions)] // Allow: erroneous clippy warning. Should be fixed in Rust 1.81
     #[instrument(skip_all)]
     async fn wait_for_tx_inclusion(
         &self,

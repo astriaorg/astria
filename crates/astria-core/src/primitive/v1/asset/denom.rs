@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::VecDeque,
     str::FromStr,
 };
@@ -131,6 +132,33 @@ impl From<Denom> for IbcPrefixed {
 impl<'a> From<&'a Denom> for IbcPrefixed {
     fn from(value: &Denom) -> Self {
         value.to_ibc_prefixed()
+    }
+}
+
+impl<'a> From<&'a IbcPrefixed> for IbcPrefixed {
+    fn from(value: &IbcPrefixed) -> Self {
+        *value
+    }
+}
+
+impl<'a> From<&'a IbcPrefixed> for Cow<'a, IbcPrefixed> {
+    fn from(ibc_prefixed: &'a IbcPrefixed) -> Self {
+        Cow::Borrowed(ibc_prefixed)
+    }
+}
+
+impl<'a> From<&'a TracePrefixed> for Cow<'a, IbcPrefixed> {
+    fn from(trace_prefixed: &'a TracePrefixed) -> Self {
+        Cow::Owned(trace_prefixed.to_ibc_prefixed())
+    }
+}
+
+impl<'a> From<&'a Denom> for Cow<'a, IbcPrefixed> {
+    fn from(value: &'a Denom) -> Self {
+        match value {
+            Denom::TracePrefixed(trace_prefixed) => Cow::from(trace_prefixed),
+            Denom::IbcPrefixed(ibc_prefixed) => Cow::from(ibc_prefixed),
+        }
     }
 }
 
@@ -304,6 +332,44 @@ impl TracePrefixed {
             len += segment.port.len() + segment.channel.len() + 2; // 2 additional "/" characters
         }
         len + self.base_denom.len()
+    }
+
+    pub fn trace(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.trace
+            .inner
+            .iter()
+            .map(|segment| (segment.port.as_str(), segment.channel.as_str()))
+    }
+
+    #[must_use]
+    pub fn base_denom(&self) -> &str {
+        &self.base_denom
+    }
+
+    /// This should only be used where the inputs have been provided by a trusted entity, e.g. read
+    /// from our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
+    #[cfg(feature = "unchecked-constructors")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts<I: IntoIterator<Item = (String, String)>>(
+        trace: I,
+        base_denom: String,
+    ) -> Self {
+        Self {
+            trace: TraceSegments {
+                inner: trace
+                    .into_iter()
+                    .map(|(port, channel)| PortAndChannel {
+                        port,
+                        channel,
+                    })
+                    .collect(),
+            },
+            base_denom,
+        }
     }
 }
 
@@ -594,20 +660,22 @@ pub struct IbcPrefixed {
 }
 
 impl IbcPrefixed {
+    pub const ENCODED_HASH_LEN: usize = 32;
+
     #[must_use]
-    pub fn new(id: [u8; 32]) -> Self {
+    pub const fn new(id: [u8; Self::ENCODED_HASH_LEN]) -> Self {
         Self {
             id,
         }
     }
 
     #[must_use]
-    pub fn get(&self) -> [u8; 32] {
-        self.id
+    pub const fn as_bytes(&self) -> &[u8; Self::ENCODED_HASH_LEN] {
+        &self.id
     }
 
     #[must_use]
-    pub fn display_len(&self) -> usize {
+    pub const fn display_len(&self) -> usize {
         68 // "ibc/" + 64 hex characters
     }
 }
@@ -637,7 +705,7 @@ impl FromStr for IbcPrefixed {
         if segments.next().is_some() {
             return Err(ParseIbcPrefixedError::too_many_segments());
         }
-        let id = <[u8; 32]>::from_hex(hex).map_err(Self::Err::hex)?;
+        let id = <[u8; Self::ENCODED_HASH_LEN]>::from_hex(hex).map_err(Self::Err::hex)?;
         Ok(Self {
             id,
         })
@@ -754,8 +822,10 @@ mod tests {
             TooManySegments,
         };
         #[track_caller]
-        // allow: silly lint
-        #[allow(clippy::needless_pass_by_value)]
+        #[expect(
+            clippy::needless_pass_by_value,
+            reason = "asserting on owned variants is less noisy then passing them by reference"
+        )]
         fn assert_error(input: &str, kind: ParseIbcPrefixedErrorKind) {
             let error = input
                 .parse::<IbcPrefixed>()
@@ -763,8 +833,6 @@ mod tests {
             assert_eq!(kind, error.0);
         }
         #[track_caller]
-        // allow: silly lint
-        #[allow(clippy::needless_pass_by_value)]
         fn assert_hex_error(input: &str) {
             let error = input
                 .parse::<IbcPrefixed>()
@@ -795,8 +863,10 @@ mod tests {
             Whitespace,
         };
         #[track_caller]
-        // allow: silly lint
-        #[allow(clippy::needless_pass_by_value)]
+        #[expect(
+            clippy::needless_pass_by_value,
+            reason = "asserting on owned variants is less noisy then passing them by reference"
+        )]
         fn assert_error(input: &str, kind: ParseTracePrefixedErrorKind) {
             let error = input
                 .parse::<TracePrefixed>()

@@ -2,7 +2,7 @@
 //! ```sh
 //! cargo bench --features=benchmark -qp astria-sequencer mempool
 //! ```
-#![allow(non_camel_case_types)]
+#![expect(non_camel_case_types, reason = "for benchmark")]
 
 use std::{
     sync::Arc,
@@ -17,6 +17,7 @@ use sha2::{
     Digest as _,
     Sha256,
 };
+use telemetry::Metrics;
 
 use crate::{
     app::test_utils::{
@@ -103,7 +104,8 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         .enable_all()
         .build()
         .unwrap();
-    let mempool = Mempool::new();
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mempool = Mempool::new(metrics, T::size());
     let account_mock_balance = mock_balances(0, 0);
     let tx_mock_cost = mock_tx_cost(0, 0, 0);
     runtime.block_on(async {
@@ -197,7 +199,7 @@ fn builder_queue<T: MempoolSize>(bencher: divan::Bencher) {
     for i in 0..SIGNER_COUNT {
         let signing_key = SigningKey::from([i; 32]);
         let signing_address = signing_key.address_bytes();
-        mock_state_put_account_nonce(&mut mock_state, signing_address, 0);
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, 0);
     }
 
     bencher
@@ -285,9 +287,11 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
         .unwrap();
     // Set the new nonce so that the entire `REMOVAL_CACHE_SIZE` entries in the
     // `comet_bft_removal_cache` are filled (assuming this test case has enough txs).
-    // allow: this is test-only code, using small values, and where the result is not critical.
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_possible_truncation)]
-    let new_nonce = (super::REMOVAL_CACHE_SIZE as u32 / u32::from(SIGNER_COUNT)) + 1;
+    let new_nonce = u32::try_from(super::REMOVAL_CACHE_SIZE)
+        .unwrap()
+        .checked_div(u32::from(SIGNER_COUNT))
+        .and_then(|res| res.checked_add(1))
+        .unwrap();
     let mock_balances = mock_balances(0, 0);
     let mut mock_state = runtime.block_on(mock_state_getter());
 
@@ -295,8 +299,8 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
     for i in 0..SIGNER_COUNT {
         let signing_key = SigningKey::from([i; 32]);
         let signing_address = signing_key.address_bytes();
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances.clone());
-        mock_state_put_account_nonce(&mut mock_state, signing_address, new_nonce);
+        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances.clone());
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, new_nonce);
     }
 
     bencher
@@ -325,9 +329,11 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
         .unwrap();
     // Set the new nonce so that the entire `REMOVAL_CACHE_SIZE` entries in the
     // `comet_bft_removal_cache` are filled (assuming this test case has enough txs).
-    // allow: this is test-only code, using small values, and where the result is not critical.
-    #[allow(clippy::arithmetic_side_effects, clippy::cast_possible_truncation)]
-    let new_nonce = (super::REMOVAL_CACHE_SIZE as u32 / u32::from(SIGNER_COUNT)) + 1;
+    let new_nonce = u32::try_from(super::REMOVAL_CACHE_SIZE)
+        .unwrap()
+        .checked_div(u32::from(SIGNER_COUNT))
+        .and_then(|res| res.checked_add(1))
+        .unwrap();
     let mock_balances = mock_balances(0, 0);
     let mut mock_state = runtime.block_on(mock_state_getter());
 
@@ -335,8 +341,8 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
     for i in 0..SIGNER_COUNT {
         let signing_key = SigningKey::from([i; 32]);
         let signing_address = signing_key.address_bytes();
-        mock_state_put_account_balances(&mut mock_state, signing_address, mock_balances.clone());
-        mock_state_put_account_nonce(&mut mock_state, signing_address, new_nonce);
+        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances.clone());
+        mock_state_put_account_nonce(&mut mock_state, &signing_address, new_nonce);
     }
 
     bencher

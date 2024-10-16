@@ -7,9 +7,8 @@ use divan::{
 };
 use sha2::Sha256;
 
-// allow: unused warning if `bench_include_allocs` feature is not enabled.
-#[allow(dead_code)]
 #[cfg_attr(feature = "bench_include_allocs", global_allocator)]
+#[cfg(feature = "bench_include_allocs")]
 static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 /// Used to specify the size of data for leaves.

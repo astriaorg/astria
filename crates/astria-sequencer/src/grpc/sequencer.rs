@@ -11,6 +11,7 @@ use astria_core::{
         SequencerBlock as RawSequencerBlock,
     },
     primitive::v1::RollupId,
+    Protobuf,
 };
 use bytes::Bytes;
 use cnidarium::Storage;
@@ -26,9 +27,9 @@ use tracing::{
 };
 
 use crate::{
-    api_state_ext::StateReadExt as _,
+    app::StateReadExt as _,
+    grpc::StateReadExt as _,
     mempool::Mempool,
-    state_ext::StateReadExt as _,
 };
 
 pub(crate) struct SequencerServer {
@@ -99,7 +100,7 @@ impl SequencerService for SequencerServer {
         let rollup_ids = request
             .rollup_ids
             .iter()
-            .map(RollupId::try_from_raw)
+            .map(RollupId::try_from_raw_ref)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| Status::invalid_argument(format!("invalid rollup ID: {e}")))?;
 
@@ -117,13 +118,20 @@ impl SequencerService for SequencerServer {
                 ))
             })?;
 
-        let (rollup_transactions_proof, rollup_ids_proof) = snapshot
-            .get_block_proofs_by_block_hash(&block_hash)
+        let rollup_transactions_proof = snapshot
+            .get_rollup_transactions_proof_by_block_hash(&block_hash)
             .await
             .map_err(|e| {
                 Status::internal(format!(
-                    "failed to get sequencer block proofs from storage: {e}"
+                    "failed to get rollup transactions proof from storage: {e}"
                 ))
+            })?;
+
+        let rollup_ids_proof = snapshot
+            .get_rollup_ids_proof_by_block_hash(&block_hash)
+            .await
+            .map_err(|e| {
+                Status::internal(format!("failed to get rollup ids proof from storage: {e}"))
             })?;
 
         let mut all_rollup_ids = snapshot
@@ -149,17 +157,14 @@ impl SequencerService for SequencerServer {
             rollup_transactions.push(rollup_data.into_raw());
         }
 
-        let all_rollup_ids = all_rollup_ids
-            .into_iter()
-            .map(|rollup_id| Bytes::copy_from_slice(rollup_id.as_ref()))
-            .collect();
+        let all_rollup_ids = all_rollup_ids.into_iter().map(RollupId::into_raw).collect();
 
         let block = RawFilteredSequencerBlock {
             block_hash: Bytes::copy_from_slice(&block_hash),
             header: Some(header.into_raw()),
             rollup_transactions,
-            rollup_transactions_proof: rollup_transactions_proof.into(),
-            rollup_ids_proof: rollup_ids_proof.into(),
+            rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
+            rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
             all_rollup_ids,
         };
 
@@ -190,7 +195,7 @@ impl SequencerService for SequencerServer {
             );
             Status::invalid_argument(format!("invalid address: {e}"))
         })?;
-        let nonce = self.mempool.pending_nonce(address.bytes()).await;
+        let nonce = self.mempool.pending_nonce(address.as_bytes()).await;
 
         if let Some(nonce) = nonce {
             return Ok(Response::new(GetPendingNonceResponse {
@@ -200,7 +205,7 @@ impl SequencerService for SequencerServer {
 
         // nonce wasn't in mempool, so just look it up from storage
         let snapshot = self.storage.latest_snapshot();
-        let nonce = snapshot.get_account_nonce(address).await.map_err(|e| {
+        let nonce = snapshot.get_account_nonce(&address).await.map_err(|e| {
             error!(
                 error = AsRef::<dyn std::error::Error>::as_ref(&e),
                 "failed to parse get account nonce from storage",
@@ -215,22 +220,25 @@ impl SequencerService for SequencerServer {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         protocol::test_utils::ConfigureSequencerBlock,
         sequencerblock::v1alpha1::SequencerBlock,
     };
     use cnidarium::StateDelta;
+    use telemetry::Metrics;
 
     use super::*;
     use crate::{
-        api_state_ext::StateWriteExt as _,
-        app::test_utils::{
-            get_alice_signing_key,
-            mock_balances,
-            mock_tx_cost,
+        app::{
+            test_utils::{
+                get_alice_signing_key,
+                mock_balances,
+                mock_tx_cost,
+            },
+            StateWriteExt as _,
         },
-        state_ext::StateWriteExt,
+        grpc::StateWriteExt as _,
         test_utils::astria_address,
     };
 
@@ -246,10 +254,11 @@ mod test {
     async fn test_get_sequencer_block() {
         let block = make_test_sequencer_block(1);
         let storage = cnidarium::TempStorage::new().await.unwrap();
-        let mempool = Mempool::new();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
-        state_tx.put_block_height(1);
-        state_tx.put_sequencer_block(block.clone()).unwrap();
+        state_tx.put_block_height(1).unwrap();
+        state_tx.put_sequencer_block(block).unwrap();
         storage.commit(state_tx).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
@@ -264,13 +273,16 @@ mod test {
     #[tokio::test]
     async fn get_pending_nonce_in_mempool() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
-        let mempool = Mempool::new();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
 
         let alice = get_alice_signing_key();
         let alice_address = astria_address(&alice.address_bytes());
         // insert a transaction with a nonce gap
         let gapped_nonce = 99;
-        let tx = crate::app::test_utils::mock_tx(gapped_nonce, &get_alice_signing_key(), "test");
+        let tx = crate::app::test_utils::MockTxBuilder::new()
+            .nonce(gapped_nonce)
+            .build();
         mempool
             .insert(tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
             .await
@@ -278,7 +290,10 @@ mod test {
 
         // insert a transaction at the current nonce
         let account_nonce = 0;
-        let tx = crate::app::test_utils::mock_tx(account_nonce, &get_alice_signing_key(), "test");
+        let tx = crate::app::test_utils::MockTxBuilder::new()
+            .nonce(account_nonce)
+            .build();
+
         mempool
             .insert(tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
             .await
@@ -287,7 +302,9 @@ mod test {
         // insert a transactions one above account nonce (not gapped)
         let sequential_nonce = 1;
         let tx: Arc<astria_core::protocol::transaction::v1alpha1::SignedTransaction> =
-            crate::app::test_utils::mock_tx(sequential_nonce, &get_alice_signing_key(), "test");
+            crate::app::test_utils::MockTxBuilder::new()
+                .nonce(sequential_nonce)
+                .build();
         mempool
             .insert(tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
             .await
@@ -307,11 +324,12 @@ mod test {
         use crate::accounts::StateWriteExt as _;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
-        let mempool = Mempool::new();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
         let alice = get_alice_signing_key();
         let alice_address = astria_address(&alice.address_bytes());
-        state_tx.put_account_nonce(alice_address, 99).unwrap();
+        state_tx.put_account_nonce(&alice_address, 99).unwrap();
         storage.commit(state_tx).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));

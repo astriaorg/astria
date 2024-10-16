@@ -12,47 +12,47 @@ impl serde::Serialize for Action {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Action", len)?;
         if let Some(v) = self.value.as_ref() {
             match v {
-                action::Value::TransferAction(v) => {
-                    struct_ser.serialize_field("transferAction", v)?;
+                action::Value::Transfer(v) => {
+                    struct_ser.serialize_field("transfer", v)?;
                 }
-                action::Value::SequenceAction(v) => {
-                    struct_ser.serialize_field("sequenceAction", v)?;
+                action::Value::Sequence(v) => {
+                    struct_ser.serialize_field("sequence", v)?;
                 }
-                action::Value::InitBridgeAccountAction(v) => {
-                    struct_ser.serialize_field("initBridgeAccountAction", v)?;
+                action::Value::InitBridgeAccount(v) => {
+                    struct_ser.serialize_field("initBridgeAccount", v)?;
                 }
-                action::Value::BridgeLockAction(v) => {
-                    struct_ser.serialize_field("bridgeLockAction", v)?;
+                action::Value::BridgeLock(v) => {
+                    struct_ser.serialize_field("bridgeLock", v)?;
                 }
-                action::Value::BridgeUnlockAction(v) => {
-                    struct_ser.serialize_field("bridgeUnlockAction", v)?;
+                action::Value::BridgeUnlock(v) => {
+                    struct_ser.serialize_field("bridgeUnlock", v)?;
                 }
-                action::Value::BridgeSudoChangeAction(v) => {
-                    struct_ser.serialize_field("bridgeSudoChangeAction", v)?;
+                action::Value::BridgeSudoChange(v) => {
+                    struct_ser.serialize_field("bridgeSudoChange", v)?;
                 }
-                action::Value::IbcAction(v) => {
-                    struct_ser.serialize_field("ibcAction", v)?;
+                action::Value::Ibc(v) => {
+                    struct_ser.serialize_field("ibc", v)?;
                 }
                 action::Value::Ics20Withdrawal(v) => {
                     struct_ser.serialize_field("ics20Withdrawal", v)?;
                 }
-                action::Value::SudoAddressChangeAction(v) => {
-                    struct_ser.serialize_field("sudoAddressChangeAction", v)?;
+                action::Value::SudoAddressChange(v) => {
+                    struct_ser.serialize_field("sudoAddressChange", v)?;
                 }
-                action::Value::ValidatorUpdateAction(v) => {
-                    struct_ser.serialize_field("validatorUpdateAction", v)?;
+                action::Value::ValidatorUpdate(v) => {
+                    struct_ser.serialize_field("validatorUpdate", v)?;
                 }
-                action::Value::IbcRelayerChangeAction(v) => {
-                    struct_ser.serialize_field("ibcRelayerChangeAction", v)?;
+                action::Value::IbcRelayerChange(v) => {
+                    struct_ser.serialize_field("ibcRelayerChange", v)?;
                 }
-                action::Value::FeeAssetChangeAction(v) => {
-                    struct_ser.serialize_field("feeAssetChangeAction", v)?;
+                action::Value::FeeAssetChange(v) => {
+                    struct_ser.serialize_field("feeAssetChange", v)?;
                 }
-                action::Value::FeeChangeAction(v) => {
-                    struct_ser.serialize_field("feeChangeAction", v)?;
+                action::Value::FeeChange(v) => {
+                    struct_ser.serialize_field("feeChange", v)?;
                 }
-                action::Value::IbcSudoChangeAction(v) => {
-                    struct_ser.serialize_field("ibcSudoChangeAction", v)?;
+                action::Value::IbcSudoChange(v) => {
+                    struct_ser.serialize_field("ibcSudoChange", v)?;
                 }
             }
         }
@@ -66,52 +66,49 @@ impl<'de> serde::Deserialize<'de> for Action {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "transfer_action",
-            "transferAction",
-            "sequence_action",
-            "sequenceAction",
-            "init_bridge_account_action",
-            "initBridgeAccountAction",
-            "bridge_lock_action",
-            "bridgeLockAction",
-            "bridge_unlock_action",
-            "bridgeUnlockAction",
-            "bridge_sudo_change_action",
-            "bridgeSudoChangeAction",
-            "ibc_action",
-            "ibcAction",
+            "transfer",
+            "sequence",
+            "init_bridge_account",
+            "initBridgeAccount",
+            "bridge_lock",
+            "bridgeLock",
+            "bridge_unlock",
+            "bridgeUnlock",
+            "bridge_sudo_change",
+            "bridgeSudoChange",
+            "ibc",
             "ics20_withdrawal",
             "ics20Withdrawal",
-            "sudo_address_change_action",
-            "sudoAddressChangeAction",
-            "validator_update_action",
-            "validatorUpdateAction",
-            "ibc_relayer_change_action",
-            "ibcRelayerChangeAction",
-            "fee_asset_change_action",
-            "feeAssetChangeAction",
-            "fee_change_action",
-            "feeChangeAction",
-            "ibc_sudo_change_action",
-            "ibcSudoChangeAction",
+            "sudo_address_change",
+            "sudoAddressChange",
+            "validator_update",
+            "validatorUpdate",
+            "ibc_relayer_change",
+            "ibcRelayerChange",
+            "fee_asset_change",
+            "feeAssetChange",
+            "fee_change",
+            "feeChange",
+            "ibc_sudo_change",
+            "ibcSudoChange",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            TransferAction,
-            SequenceAction,
-            InitBridgeAccountAction,
-            BridgeLockAction,
-            BridgeUnlockAction,
-            BridgeSudoChangeAction,
-            IbcAction,
+            Transfer,
+            Sequence,
+            InitBridgeAccount,
+            BridgeLock,
+            BridgeUnlock,
+            BridgeSudoChange,
+            Ibc,
             Ics20Withdrawal,
-            SudoAddressChangeAction,
-            ValidatorUpdateAction,
-            IbcRelayerChangeAction,
-            FeeAssetChangeAction,
-            FeeChangeAction,
-            IbcSudoChangeAction,
+            SudoAddressChange,
+            ValidatorUpdate,
+            IbcRelayerChange,
+            FeeAssetChange,
+            FeeChange,
+            IbcSudoChange,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -133,20 +130,20 @@ impl<'de> serde::Deserialize<'de> for Action {
                         E: serde::de::Error,
                     {
                         match value {
-                            "transferAction" | "transfer_action" => Ok(GeneratedField::TransferAction),
-                            "sequenceAction" | "sequence_action" => Ok(GeneratedField::SequenceAction),
-                            "initBridgeAccountAction" | "init_bridge_account_action" => Ok(GeneratedField::InitBridgeAccountAction),
-                            "bridgeLockAction" | "bridge_lock_action" => Ok(GeneratedField::BridgeLockAction),
-                            "bridgeUnlockAction" | "bridge_unlock_action" => Ok(GeneratedField::BridgeUnlockAction),
-                            "bridgeSudoChangeAction" | "bridge_sudo_change_action" => Ok(GeneratedField::BridgeSudoChangeAction),
-                            "ibcAction" | "ibc_action" => Ok(GeneratedField::IbcAction),
+                            "transfer" => Ok(GeneratedField::Transfer),
+                            "sequence" => Ok(GeneratedField::Sequence),
+                            "initBridgeAccount" | "init_bridge_account" => Ok(GeneratedField::InitBridgeAccount),
+                            "bridgeLock" | "bridge_lock" => Ok(GeneratedField::BridgeLock),
+                            "bridgeUnlock" | "bridge_unlock" => Ok(GeneratedField::BridgeUnlock),
+                            "bridgeSudoChange" | "bridge_sudo_change" => Ok(GeneratedField::BridgeSudoChange),
+                            "ibc" => Ok(GeneratedField::Ibc),
                             "ics20Withdrawal" | "ics20_withdrawal" => Ok(GeneratedField::Ics20Withdrawal),
-                            "sudoAddressChangeAction" | "sudo_address_change_action" => Ok(GeneratedField::SudoAddressChangeAction),
-                            "validatorUpdateAction" | "validator_update_action" => Ok(GeneratedField::ValidatorUpdateAction),
-                            "ibcRelayerChangeAction" | "ibc_relayer_change_action" => Ok(GeneratedField::IbcRelayerChangeAction),
-                            "feeAssetChangeAction" | "fee_asset_change_action" => Ok(GeneratedField::FeeAssetChangeAction),
-                            "feeChangeAction" | "fee_change_action" => Ok(GeneratedField::FeeChangeAction),
-                            "ibcSudoChangeAction" | "ibc_sudo_change_action" => Ok(GeneratedField::IbcSudoChangeAction),
+                            "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
+                            "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
+                            "ibcRelayerChange" | "ibc_relayer_change" => Ok(GeneratedField::IbcRelayerChange),
+                            "feeAssetChange" | "fee_asset_change" => Ok(GeneratedField::FeeAssetChange),
+                            "feeChange" | "fee_change" => Ok(GeneratedField::FeeChange),
+                            "ibcSudoChange" | "ibc_sudo_change" => Ok(GeneratedField::IbcSudoChange),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -169,53 +166,53 @@ impl<'de> serde::Deserialize<'de> for Action {
                 let mut value__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::TransferAction => {
+                        GeneratedField::Transfer => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transferAction"));
+                                return Err(serde::de::Error::duplicate_field("transfer"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::TransferAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::Transfer)
 ;
                         }
-                        GeneratedField::SequenceAction => {
+                        GeneratedField::Sequence => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequenceAction"));
+                                return Err(serde::de::Error::duplicate_field("sequence"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::SequenceAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::Sequence)
 ;
                         }
-                        GeneratedField::InitBridgeAccountAction => {
+                        GeneratedField::InitBridgeAccount => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("initBridgeAccountAction"));
+                                return Err(serde::de::Error::duplicate_field("initBridgeAccount"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::InitBridgeAccountAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::InitBridgeAccount)
 ;
                         }
-                        GeneratedField::BridgeLockAction => {
+                        GeneratedField::BridgeLock => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeLockAction"));
+                                return Err(serde::de::Error::duplicate_field("bridgeLock"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::BridgeLockAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::BridgeLock)
 ;
                         }
-                        GeneratedField::BridgeUnlockAction => {
+                        GeneratedField::BridgeUnlock => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeUnlockAction"));
+                                return Err(serde::de::Error::duplicate_field("bridgeUnlock"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::BridgeUnlockAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::BridgeUnlock)
 ;
                         }
-                        GeneratedField::BridgeSudoChangeAction => {
+                        GeneratedField::BridgeSudoChange => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeSudoChangeAction"));
+                                return Err(serde::de::Error::duplicate_field("bridgeSudoChange"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::BridgeSudoChangeAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::BridgeSudoChange)
 ;
                         }
-                        GeneratedField::IbcAction => {
+                        GeneratedField::Ibc => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("ibcAction"));
+                                return Err(serde::de::Error::duplicate_field("ibc"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::Ibc)
 ;
                         }
                         GeneratedField::Ics20Withdrawal => {
@@ -225,46 +222,46 @@ impl<'de> serde::Deserialize<'de> for Action {
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::Ics20Withdrawal)
 ;
                         }
-                        GeneratedField::SudoAddressChangeAction => {
+                        GeneratedField::SudoAddressChange => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sudoAddressChangeAction"));
+                                return Err(serde::de::Error::duplicate_field("sudoAddressChange"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::SudoAddressChangeAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::SudoAddressChange)
 ;
                         }
-                        GeneratedField::ValidatorUpdateAction => {
+                        GeneratedField::ValidatorUpdate => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("validatorUpdateAction"));
+                                return Err(serde::de::Error::duplicate_field("validatorUpdate"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::ValidatorUpdateAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::ValidatorUpdate)
 ;
                         }
-                        GeneratedField::IbcRelayerChangeAction => {
+                        GeneratedField::IbcRelayerChange => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("ibcRelayerChangeAction"));
+                                return Err(serde::de::Error::duplicate_field("ibcRelayerChange"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcRelayerChangeAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcRelayerChange)
 ;
                         }
-                        GeneratedField::FeeAssetChangeAction => {
+                        GeneratedField::FeeAssetChange => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("feeAssetChangeAction"));
+                                return Err(serde::de::Error::duplicate_field("feeAssetChange"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::FeeAssetChangeAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::FeeAssetChange)
 ;
                         }
-                        GeneratedField::FeeChangeAction => {
+                        GeneratedField::FeeChange => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("feeChangeAction"));
+                                return Err(serde::de::Error::duplicate_field("feeChange"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::FeeChangeAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::FeeChange)
 ;
                         }
-                        GeneratedField::IbcSudoChangeAction => {
+                        GeneratedField::IbcSudoChange => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("ibcSudoChangeAction"));
+                                return Err(serde::de::Error::duplicate_field("ibcSudoChange"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcSudoChangeAction)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcSudoChange)
 ;
                         }
                     }
@@ -277,7 +274,7 @@ impl<'de> serde::Deserialize<'de> for Action {
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Action", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for BridgeLockAction {
+impl serde::Serialize for BridgeLock {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -300,7 +297,7 @@ impl serde::Serialize for BridgeLockAction {
         if !self.destination_chain_address.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeLockAction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeLock", len)?;
         if let Some(v) = self.to.as_ref() {
             struct_ser.serialize_field("to", v)?;
         }
@@ -319,7 +316,7 @@ impl serde::Serialize for BridgeLockAction {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for BridgeLockAction {
+impl<'de> serde::Deserialize<'de> for BridgeLock {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -377,13 +374,13 @@ impl<'de> serde::Deserialize<'de> for BridgeLockAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = BridgeLockAction;
+            type Value = BridgeLock;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeLockAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeLock")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeLockAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeLock, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -426,7 +423,7 @@ impl<'de> serde::Deserialize<'de> for BridgeLockAction {
                         }
                     }
                 }
-                Ok(BridgeLockAction {
+                Ok(BridgeLock {
                     to: to__,
                     amount: amount__,
                     asset: asset__.unwrap_or_default(),
@@ -435,10 +432,10 @@ impl<'de> serde::Deserialize<'de> for BridgeLockAction {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeLockAction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeLock", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for BridgeSudoChangeAction {
+impl serde::Serialize for BridgeSudoChange {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -458,7 +455,7 @@ impl serde::Serialize for BridgeSudoChangeAction {
         if !self.fee_asset.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeSudoChangeAction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeSudoChange", len)?;
         if let Some(v) = self.bridge_address.as_ref() {
             struct_ser.serialize_field("bridgeAddress", v)?;
         }
@@ -474,7 +471,7 @@ impl serde::Serialize for BridgeSudoChangeAction {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for BridgeSudoChangeAction {
+impl<'de> serde::Deserialize<'de> for BridgeSudoChange {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -531,13 +528,13 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChangeAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = BridgeSudoChangeAction;
+            type Value = BridgeSudoChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeSudoChangeAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeSudoChange")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeSudoChangeAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeSudoChange, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -573,7 +570,7 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChangeAction {
                         }
                     }
                 }
-                Ok(BridgeSudoChangeAction {
+                Ok(BridgeSudoChange {
                     bridge_address: bridge_address__,
                     new_sudo_address: new_sudo_address__,
                     new_withdrawer_address: new_withdrawer_address__,
@@ -581,10 +578,10 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChangeAction {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeSudoChangeAction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeSudoChange", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for BridgeUnlockAction {
+impl serde::Serialize for BridgeUnlock {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -613,7 +610,7 @@ impl serde::Serialize for BridgeUnlockAction {
         if !self.rollup_withdrawal_event_id.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeUnlockAction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeUnlock", len)?;
         if let Some(v) = self.to.as_ref() {
             struct_ser.serialize_field("to", v)?;
         }
@@ -639,7 +636,7 @@ impl serde::Serialize for BridgeUnlockAction {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
+impl<'de> serde::Deserialize<'de> for BridgeUnlock {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -705,13 +702,13 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = BridgeUnlockAction;
+            type Value = BridgeUnlock;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeUnlockAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeUnlock")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeUnlockAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeUnlock, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -770,7 +767,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
                         }
                     }
                 }
-                Ok(BridgeUnlockAction {
+                Ok(BridgeUnlock {
                     to: to__,
                     amount: amount__,
                     fee_asset: fee_asset__.unwrap_or_default(),
@@ -781,10 +778,10 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlockAction {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeUnlockAction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeUnlock", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for FeeAssetChangeAction {
+impl serde::Serialize for FeeAssetChange {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -795,13 +792,13 @@ impl serde::Serialize for FeeAssetChangeAction {
         if self.value.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.FeeAssetChangeAction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.FeeAssetChange", len)?;
         if let Some(v) = self.value.as_ref() {
             match v {
-                fee_asset_change_action::Value::Addition(v) => {
+                fee_asset_change::Value::Addition(v) => {
                     struct_ser.serialize_field("addition", v)?;
                 }
-                fee_asset_change_action::Value::Removal(v) => {
+                fee_asset_change::Value::Removal(v) => {
                     struct_ser.serialize_field("removal", v)?;
                 }
             }
@@ -809,7 +806,7 @@ impl serde::Serialize for FeeAssetChangeAction {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for FeeAssetChangeAction {
+impl<'de> serde::Deserialize<'de> for FeeAssetChange {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -856,13 +853,13 @@ impl<'de> serde::Deserialize<'de> for FeeAssetChangeAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = FeeAssetChangeAction;
+            type Value = FeeAssetChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.FeeAssetChangeAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.FeeAssetChange")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<FeeAssetChangeAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<FeeAssetChange, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -873,25 +870,25 @@ impl<'de> serde::Deserialize<'de> for FeeAssetChangeAction {
                             if value__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("addition"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_asset_change_action::Value::Addition);
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_asset_change::Value::Addition);
                         }
                         GeneratedField::Removal => {
                             if value__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("removal"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_asset_change_action::Value::Removal);
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_asset_change::Value::Removal);
                         }
                     }
                 }
-                Ok(FeeAssetChangeAction {
+                Ok(FeeAssetChange {
                     value: value__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.FeeAssetChangeAction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.FeeAssetChange", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for FeeChangeAction {
+impl serde::Serialize for FeeChange {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -899,70 +896,110 @@ impl serde::Serialize for FeeChangeAction {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.value.is_some() {
+        if self.fee_components.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.FeeChangeAction", len)?;
-        if let Some(v) = self.value.as_ref() {
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.FeeChange", len)?;
+        if let Some(v) = self.fee_components.as_ref() {
             match v {
-                fee_change_action::Value::TransferBaseFee(v) => {
-                    struct_ser.serialize_field("transferBaseFee", v)?;
+                fee_change::FeeComponents::BridgeLock(v) => {
+                    struct_ser.serialize_field("bridgeLock", v)?;
                 }
-                fee_change_action::Value::SequenceBaseFee(v) => {
-                    struct_ser.serialize_field("sequenceBaseFee", v)?;
+                fee_change::FeeComponents::BridgeSudoChange(v) => {
+                    struct_ser.serialize_field("bridgeSudoChange", v)?;
                 }
-                fee_change_action::Value::SequenceByteCostMultiplier(v) => {
-                    struct_ser.serialize_field("sequenceByteCostMultiplier", v)?;
+                fee_change::FeeComponents::BridgeUnlock(v) => {
+                    struct_ser.serialize_field("bridgeUnlock", v)?;
                 }
-                fee_change_action::Value::InitBridgeAccountBaseFee(v) => {
-                    struct_ser.serialize_field("initBridgeAccountBaseFee", v)?;
+                fee_change::FeeComponents::FeeAssetChange(v) => {
+                    struct_ser.serialize_field("feeAssetChange", v)?;
                 }
-                fee_change_action::Value::BridgeLockByteCostMultiplier(v) => {
-                    struct_ser.serialize_field("bridgeLockByteCostMultiplier", v)?;
+                fee_change::FeeComponents::FeeChange(v) => {
+                    struct_ser.serialize_field("feeChange", v)?;
                 }
-                fee_change_action::Value::BridgeSudoChangeBaseFee(v) => {
-                    struct_ser.serialize_field("bridgeSudoChangeBaseFee", v)?;
+                fee_change::FeeComponents::IbcRelay(v) => {
+                    struct_ser.serialize_field("ibcRelay", v)?;
                 }
-                fee_change_action::Value::Ics20WithdrawalBaseFee(v) => {
-                    struct_ser.serialize_field("ics20WithdrawalBaseFee", v)?;
+                fee_change::FeeComponents::IbcRelayerChange(v) => {
+                    struct_ser.serialize_field("ibcRelayerChange", v)?;
+                }
+                fee_change::FeeComponents::IbcSudoChange(v) => {
+                    struct_ser.serialize_field("ibcSudoChange", v)?;
+                }
+                fee_change::FeeComponents::Ics20Withdrawal(v) => {
+                    struct_ser.serialize_field("ics20Withdrawal", v)?;
+                }
+                fee_change::FeeComponents::InitBridgeAccount(v) => {
+                    struct_ser.serialize_field("initBridgeAccount", v)?;
+                }
+                fee_change::FeeComponents::Sequence(v) => {
+                    struct_ser.serialize_field("sequence", v)?;
+                }
+                fee_change::FeeComponents::SudoAddressChange(v) => {
+                    struct_ser.serialize_field("sudoAddressChange", v)?;
+                }
+                fee_change::FeeComponents::Transfer(v) => {
+                    struct_ser.serialize_field("transfer", v)?;
+                }
+                fee_change::FeeComponents::ValidatorUpdate(v) => {
+                    struct_ser.serialize_field("validatorUpdate", v)?;
                 }
             }
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for FeeChangeAction {
+impl<'de> serde::Deserialize<'de> for FeeChange {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "transfer_base_fee",
-            "transferBaseFee",
-            "sequence_base_fee",
-            "sequenceBaseFee",
-            "sequence_byte_cost_multiplier",
-            "sequenceByteCostMultiplier",
-            "init_bridge_account_base_fee",
-            "initBridgeAccountBaseFee",
-            "bridge_lock_byte_cost_multiplier",
-            "bridgeLockByteCostMultiplier",
-            "bridge_sudo_change_base_fee",
-            "bridgeSudoChangeBaseFee",
-            "ics20_withdrawal_base_fee",
-            "ics20WithdrawalBaseFee",
+            "bridge_lock",
+            "bridgeLock",
+            "bridge_sudo_change",
+            "bridgeSudoChange",
+            "bridge_unlock",
+            "bridgeUnlock",
+            "fee_asset_change",
+            "feeAssetChange",
+            "fee_change",
+            "feeChange",
+            "ibc_relay",
+            "ibcRelay",
+            "ibc_relayer_change",
+            "ibcRelayerChange",
+            "ibc_sudo_change",
+            "ibcSudoChange",
+            "ics20_withdrawal",
+            "ics20Withdrawal",
+            "init_bridge_account",
+            "initBridgeAccount",
+            "sequence",
+            "sudo_address_change",
+            "sudoAddressChange",
+            "transfer",
+            "validator_update",
+            "validatorUpdate",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            TransferBaseFee,
-            SequenceBaseFee,
-            SequenceByteCostMultiplier,
-            InitBridgeAccountBaseFee,
-            BridgeLockByteCostMultiplier,
-            BridgeSudoChangeBaseFee,
-            Ics20WithdrawalBaseFee,
+            BridgeLock,
+            BridgeSudoChange,
+            BridgeUnlock,
+            FeeAssetChange,
+            FeeChange,
+            IbcRelay,
+            IbcRelayerChange,
+            IbcSudoChange,
+            Ics20Withdrawal,
+            InitBridgeAccount,
+            Sequence,
+            SudoAddressChange,
+            Transfer,
+            ValidatorUpdate,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -984,13 +1021,20 @@ impl<'de> serde::Deserialize<'de> for FeeChangeAction {
                         E: serde::de::Error,
                     {
                         match value {
-                            "transferBaseFee" | "transfer_base_fee" => Ok(GeneratedField::TransferBaseFee),
-                            "sequenceBaseFee" | "sequence_base_fee" => Ok(GeneratedField::SequenceBaseFee),
-                            "sequenceByteCostMultiplier" | "sequence_byte_cost_multiplier" => Ok(GeneratedField::SequenceByteCostMultiplier),
-                            "initBridgeAccountBaseFee" | "init_bridge_account_base_fee" => Ok(GeneratedField::InitBridgeAccountBaseFee),
-                            "bridgeLockByteCostMultiplier" | "bridge_lock_byte_cost_multiplier" => Ok(GeneratedField::BridgeLockByteCostMultiplier),
-                            "bridgeSudoChangeBaseFee" | "bridge_sudo_change_base_fee" => Ok(GeneratedField::BridgeSudoChangeBaseFee),
-                            "ics20WithdrawalBaseFee" | "ics20_withdrawal_base_fee" => Ok(GeneratedField::Ics20WithdrawalBaseFee),
+                            "bridgeLock" | "bridge_lock" => Ok(GeneratedField::BridgeLock),
+                            "bridgeSudoChange" | "bridge_sudo_change" => Ok(GeneratedField::BridgeSudoChange),
+                            "bridgeUnlock" | "bridge_unlock" => Ok(GeneratedField::BridgeUnlock),
+                            "feeAssetChange" | "fee_asset_change" => Ok(GeneratedField::FeeAssetChange),
+                            "feeChange" | "fee_change" => Ok(GeneratedField::FeeChange),
+                            "ibcRelay" | "ibc_relay" => Ok(GeneratedField::IbcRelay),
+                            "ibcRelayerChange" | "ibc_relayer_change" => Ok(GeneratedField::IbcRelayerChange),
+                            "ibcSudoChange" | "ibc_sudo_change" => Ok(GeneratedField::IbcSudoChange),
+                            "ics20Withdrawal" | "ics20_withdrawal" => Ok(GeneratedField::Ics20Withdrawal),
+                            "initBridgeAccount" | "init_bridge_account" => Ok(GeneratedField::InitBridgeAccount),
+                            "sequence" => Ok(GeneratedField::Sequence),
+                            "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
+                            "transfer" => Ok(GeneratedField::Transfer),
+                            "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1000,76 +1044,125 @@ impl<'de> serde::Deserialize<'de> for FeeChangeAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = FeeChangeAction;
+            type Value = FeeChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.FeeChangeAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.FeeChange")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<FeeChangeAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<FeeChange, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut value__ = None;
+                let mut fee_components__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::TransferBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transferBaseFee"));
+                        GeneratedField::BridgeLock => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeLock"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::TransferBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::BridgeLock)
 ;
                         }
-                        GeneratedField::SequenceBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequenceBaseFee"));
+                        GeneratedField::BridgeSudoChange => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeSudoChange"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::SequenceBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::BridgeSudoChange)
 ;
                         }
-                        GeneratedField::SequenceByteCostMultiplier => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequenceByteCostMultiplier"));
+                        GeneratedField::BridgeUnlock => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bridgeUnlock"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::SequenceByteCostMultiplier)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::BridgeUnlock)
 ;
                         }
-                        GeneratedField::InitBridgeAccountBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("initBridgeAccountBaseFee"));
+                        GeneratedField::FeeAssetChange => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeAssetChange"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::InitBridgeAccountBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::FeeAssetChange)
 ;
                         }
-                        GeneratedField::BridgeLockByteCostMultiplier => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeLockByteCostMultiplier"));
+                        GeneratedField::FeeChange => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeChange"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::BridgeLockByteCostMultiplier)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::FeeChange)
 ;
                         }
-                        GeneratedField::BridgeSudoChangeBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bridgeSudoChangeBaseFee"));
+                        GeneratedField::IbcRelay => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ibcRelay"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::BridgeSudoChangeBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::IbcRelay)
 ;
                         }
-                        GeneratedField::Ics20WithdrawalBaseFee => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("ics20WithdrawalBaseFee"));
+                        GeneratedField::IbcRelayerChange => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ibcRelayerChange"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change_action::Value::Ics20WithdrawalBaseFee)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::IbcRelayerChange)
+;
+                        }
+                        GeneratedField::IbcSudoChange => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ibcSudoChange"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::IbcSudoChange)
+;
+                        }
+                        GeneratedField::Ics20Withdrawal => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ics20Withdrawal"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::Ics20Withdrawal)
+;
+                        }
+                        GeneratedField::InitBridgeAccount => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("initBridgeAccount"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::InitBridgeAccount)
+;
+                        }
+                        GeneratedField::Sequence => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequence"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::Sequence)
+;
+                        }
+                        GeneratedField::SudoAddressChange => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sudoAddressChange"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::SudoAddressChange)
+;
+                        }
+                        GeneratedField::Transfer => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("transfer"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::Transfer)
+;
+                        }
+                        GeneratedField::ValidatorUpdate => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("validatorUpdate"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::ValidatorUpdate)
 ;
                         }
                     }
                 }
-                Ok(FeeChangeAction {
-                    value: value__,
+                Ok(FeeChange {
+                    fee_components: fee_components__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.FeeChangeAction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.FeeChange", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for IbcHeight {
@@ -1188,7 +1281,7 @@ impl<'de> serde::Deserialize<'de> for IbcHeight {
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.IbcHeight", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for IbcRelayerChangeAction {
+impl serde::Serialize for IbcRelayerChange {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -1199,13 +1292,13 @@ impl serde::Serialize for IbcRelayerChangeAction {
         if self.value.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.IbcRelayerChangeAction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.IbcRelayerChange", len)?;
         if let Some(v) = self.value.as_ref() {
             match v {
-                ibc_relayer_change_action::Value::Addition(v) => {
+                ibc_relayer_change::Value::Addition(v) => {
                     struct_ser.serialize_field("addition", v)?;
                 }
-                ibc_relayer_change_action::Value::Removal(v) => {
+                ibc_relayer_change::Value::Removal(v) => {
                     struct_ser.serialize_field("removal", v)?;
                 }
             }
@@ -1213,7 +1306,7 @@ impl serde::Serialize for IbcRelayerChangeAction {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for IbcRelayerChangeAction {
+impl<'de> serde::Deserialize<'de> for IbcRelayerChange {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -1260,13 +1353,13 @@ impl<'de> serde::Deserialize<'de> for IbcRelayerChangeAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = IbcRelayerChangeAction;
+            type Value = IbcRelayerChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.IbcRelayerChangeAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.IbcRelayerChange")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<IbcRelayerChangeAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<IbcRelayerChange, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -1277,27 +1370,27 @@ impl<'de> serde::Deserialize<'de> for IbcRelayerChangeAction {
                             if value__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("addition"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(ibc_relayer_change_action::Value::Addition)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(ibc_relayer_change::Value::Addition)
 ;
                         }
                         GeneratedField::Removal => {
                             if value__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("removal"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(ibc_relayer_change_action::Value::Removal)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(ibc_relayer_change::Value::Removal)
 ;
                         }
                     }
                 }
-                Ok(IbcRelayerChangeAction {
+                Ok(IbcRelayerChange {
                     value: value__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.IbcRelayerChangeAction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.IbcRelayerChange", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for IbcSudoChangeAction {
+impl serde::Serialize for IbcSudoChange {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -1308,14 +1401,14 @@ impl serde::Serialize for IbcSudoChangeAction {
         if self.new_address.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.IbcSudoChangeAction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.IbcSudoChange", len)?;
         if let Some(v) = self.new_address.as_ref() {
             struct_ser.serialize_field("newAddress", v)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for IbcSudoChangeAction {
+impl<'de> serde::Deserialize<'de> for IbcSudoChange {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -1360,13 +1453,13 @@ impl<'de> serde::Deserialize<'de> for IbcSudoChangeAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = IbcSudoChangeAction;
+            type Value = IbcSudoChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.IbcSudoChangeAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.IbcSudoChange")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<IbcSudoChangeAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<IbcSudoChange, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -1381,12 +1474,12 @@ impl<'de> serde::Deserialize<'de> for IbcSudoChangeAction {
                         }
                     }
                 }
-                Ok(IbcSudoChangeAction {
+                Ok(IbcSudoChange {
                     new_address: new_address__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.IbcSudoChangeAction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.IbcSudoChange", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for Ics20Withdrawal {
@@ -1661,7 +1754,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Ics20Withdrawal", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for InitBridgeAccountAction {
+impl serde::Serialize for InitBridgeAccount {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -1684,7 +1777,7 @@ impl serde::Serialize for InitBridgeAccountAction {
         if self.withdrawer_address.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.InitBridgeAccountAction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.InitBridgeAccount", len)?;
         if let Some(v) = self.rollup_id.as_ref() {
             struct_ser.serialize_field("rollupId", v)?;
         }
@@ -1703,7 +1796,7 @@ impl serde::Serialize for InitBridgeAccountAction {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for InitBridgeAccountAction {
+impl<'de> serde::Deserialize<'de> for InitBridgeAccount {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -1763,13 +1856,13 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccountAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = InitBridgeAccountAction;
+            type Value = InitBridgeAccount;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.InitBridgeAccountAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.InitBridgeAccount")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<InitBridgeAccountAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<InitBridgeAccount, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -1812,7 +1905,7 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccountAction {
                         }
                     }
                 }
-                Ok(InitBridgeAccountAction {
+                Ok(InitBridgeAccount {
                     rollup_id: rollup_id__,
                     asset: asset__.unwrap_or_default(),
                     fee_asset: fee_asset__.unwrap_or_default(),
@@ -1821,10 +1914,10 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccountAction {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.InitBridgeAccountAction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.InitBridgeAccount", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for SequenceAction {
+impl serde::Serialize for Sequence {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -1841,7 +1934,7 @@ impl serde::Serialize for SequenceAction {
         if !self.fee_asset.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.SequenceAction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Sequence", len)?;
         if let Some(v) = self.rollup_id.as_ref() {
             struct_ser.serialize_field("rollupId", v)?;
         }
@@ -1855,7 +1948,7 @@ impl serde::Serialize for SequenceAction {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for SequenceAction {
+impl<'de> serde::Deserialize<'de> for Sequence {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -1907,13 +2000,13 @@ impl<'de> serde::Deserialize<'de> for SequenceAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = SequenceAction;
+            type Value = Sequence;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.SequenceAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.Sequence")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SequenceAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Sequence, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -1944,14 +2037,14 @@ impl<'de> serde::Deserialize<'de> for SequenceAction {
                         }
                     }
                 }
-                Ok(SequenceAction {
+                Ok(Sequence {
                     rollup_id: rollup_id__,
                     data: data__.unwrap_or_default(),
                     fee_asset: fee_asset__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.SequenceAction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Sequence", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for SignedTransaction {
@@ -2086,7 +2179,7 @@ impl<'de> serde::Deserialize<'de> for SignedTransaction {
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.SignedTransaction", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for SudoAddressChangeAction {
+impl serde::Serialize for SudoAddressChange {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -2097,14 +2190,14 @@ impl serde::Serialize for SudoAddressChangeAction {
         if self.new_address.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.SudoAddressChangeAction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.SudoAddressChange", len)?;
         if let Some(v) = self.new_address.as_ref() {
             struct_ser.serialize_field("newAddress", v)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for SudoAddressChangeAction {
+impl<'de> serde::Deserialize<'de> for SudoAddressChange {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -2149,13 +2242,13 @@ impl<'de> serde::Deserialize<'de> for SudoAddressChangeAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = SudoAddressChangeAction;
+            type Value = SudoAddressChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.SudoAddressChangeAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.SudoAddressChange")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SudoAddressChangeAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SudoAddressChange, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -2170,231 +2263,12 @@ impl<'de> serde::Deserialize<'de> for SudoAddressChangeAction {
                         }
                     }
                 }
-                Ok(SudoAddressChangeAction {
+                Ok(SudoAddressChange {
                     new_address: new_address__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.SudoAddressChangeAction", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for TransactionFee {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.asset.is_empty() {
-            len += 1;
-        }
-        if self.fee.is_some() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.TransactionFee", len)?;
-        if !self.asset.is_empty() {
-            struct_ser.serialize_field("asset", &self.asset)?;
-        }
-        if let Some(v) = self.fee.as_ref() {
-            struct_ser.serialize_field("fee", v)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for TransactionFee {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "asset",
-            "fee",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Asset,
-            Fee,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "asset" => Ok(GeneratedField::Asset),
-                            "fee" => Ok(GeneratedField::Fee),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = TransactionFee;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.TransactionFee")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<TransactionFee, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut asset__ = None;
-                let mut fee__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Asset => {
-                            if asset__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("asset"));
-                            }
-                            asset__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::Fee => {
-                            if fee__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("fee"));
-                            }
-                            fee__ = map_.next_value()?;
-                        }
-                    }
-                }
-                Ok(TransactionFee {
-                    asset: asset__.unwrap_or_default(),
-                    fee: fee__,
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.TransactionFee", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for TransactionFeeResponse {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if self.height != 0 {
-            len += 1;
-        }
-        if !self.fees.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.TransactionFeeResponse", len)?;
-        if self.height != 0 {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
-        }
-        if !self.fees.is_empty() {
-            struct_ser.serialize_field("fees", &self.fees)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for TransactionFeeResponse {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "height",
-            "fees",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Height,
-            Fees,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "height" => Ok(GeneratedField::Height),
-                            "fees" => Ok(GeneratedField::Fees),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = TransactionFeeResponse;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.TransactionFeeResponse")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<TransactionFeeResponse, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut height__ = None;
-                let mut fees__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Height => {
-                            if height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("height"));
-                            }
-                            height__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::Fees => {
-                            if fees__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("fees"));
-                            }
-                            fees__ = Some(map_.next_value()?);
-                        }
-                    }
-                }
-                Ok(TransactionFeeResponse {
-                    height: height__.unwrap_or_default(),
-                    fees: fees__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.TransactionFeeResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.SudoAddressChange", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for TransactionParams {
@@ -2508,7 +2382,7 @@ impl<'de> serde::Deserialize<'de> for TransactionParams {
         deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.TransactionParams", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for TransferAction {
+impl serde::Serialize for Transfer {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -2528,7 +2402,7 @@ impl serde::Serialize for TransferAction {
         if !self.fee_asset.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.TransferAction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Transfer", len)?;
         if let Some(v) = self.to.as_ref() {
             struct_ser.serialize_field("to", v)?;
         }
@@ -2544,7 +2418,7 @@ impl serde::Serialize for TransferAction {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for TransferAction {
+impl<'de> serde::Deserialize<'de> for Transfer {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -2598,13 +2472,13 @@ impl<'de> serde::Deserialize<'de> for TransferAction {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = TransferAction;
+            type Value = Transfer;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.TransferAction")
+                formatter.write_str("struct astria.protocol.transactions.v1alpha1.Transfer")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<TransferAction, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Transfer, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -2640,7 +2514,7 @@ impl<'de> serde::Deserialize<'de> for TransferAction {
                         }
                     }
                 }
-                Ok(TransferAction {
+                Ok(Transfer {
                     to: to__,
                     amount: amount__,
                     asset: asset__.unwrap_or_default(),
@@ -2648,7 +2522,7 @@ impl<'de> serde::Deserialize<'de> for TransferAction {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.TransferAction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Transfer", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for UnsignedTransaction {

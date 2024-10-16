@@ -1,7 +1,10 @@
 use std::num::NonZeroU32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct AbciErrorCode(NonZeroU32);
 
 #[rustfmt::skip]
@@ -19,6 +22,10 @@ impl AbciErrorCode {
     pub const TRANSACTION_INSERTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(11) }); 
     pub const LOWER_NONCE_INVALIDATED: Self = Self(unsafe { NonZeroU32::new_unchecked(12) }); 
     pub const BAD_REQUEST: Self = Self(unsafe { NonZeroU32::new_unchecked(13) });
+    pub const ALREADY_PRESENT: Self = Self(unsafe { NonZeroU32::new_unchecked(14) });
+    pub const NONCE_TAKEN: Self = Self(unsafe { NonZeroU32::new_unchecked(15) });
+    pub const ACCOUNT_SIZE_LIMIT: Self = Self(unsafe { NonZeroU32::new_unchecked(16) });
+    pub const PARKED_FULL: Self = Self(unsafe { NonZeroU32::new_unchecked(17) });
 }
 
 impl AbciErrorCode {
@@ -49,6 +56,14 @@ impl AbciErrorCode {
             }
             Self::LOWER_NONCE_INVALIDATED => "lower nonce was invalidated in mempool".into(),
             Self::BAD_REQUEST => "the request payload was malformed".into(),
+            Self::ALREADY_PRESENT => "the transaction is already present in the mempool".into(),
+            Self::NONCE_TAKEN => "there is already a transaction with the same nonce for the \
+                                  account in the mempool"
+                .into(),
+            Self::ACCOUNT_SIZE_LIMIT => {
+                "the account has reached the maximum number of parked transactions".into()
+            }
+            Self::PARKED_FULL => "the mempool is out of space for more parked transactions".into(),
             Self(other) => {
                 format!("invalid error code {other}: should be unreachable (this is a bug)")
             }

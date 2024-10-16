@@ -1,5 +1,5 @@
 #[rustfmt::skip]
-#[allow(clippy::pedantic)]
+#[expect(clippy::pedantic, clippy::allow_attributes, clippy::allow_attributes_without_reason)]
 mod generated;
 use std::{
     borrow::Cow,
@@ -464,7 +464,7 @@ where
         let to = parse_destination_chain_as_address(&event)
             .map_err(GetWithdrawalActionsError::destination_chain_as_address)?;
 
-        let action = astria_core::protocol::transaction::v1alpha1::action::BridgeUnlockAction {
+        let action = astria_core::protocol::transaction::v1alpha1::action::BridgeUnlock {
             to,
             amount,
             rollup_block_number,

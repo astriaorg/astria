@@ -2,14 +2,13 @@ use std::collections::HashMap;
 
 use astria_core::{
     protocol::{
+        fees::v1alpha1::TransferFeeComponents,
         genesis::v1alpha1::Account,
         transaction::v1alpha1::{
             action::{
                 FeeChange,
-                FeeChangeAction,
-                TransferAction,
+                Transfer,
             },
-            TransactionParams,
             UnsignedTransaction,
         },
     },
@@ -41,30 +40,26 @@ use crate::{
     },
 };
 
-#[allow(clippy::too_many_lines)]
 #[tokio::test]
 async fn trigger_cleaning() {
     // check that cleaning is triggered by the prepare, process, and finalize block flows
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
-    let sudo = get_judy_signing_key();
 
     // create tx which will cause mempool cleaning flag to be set
-    let tx_trigger = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            FeeChangeAction {
-                fee_change: FeeChange::TransferBaseFee,
-                new_value: 10,
-            }
+    let tx_trigger = UnsignedTransaction::builder()
+        .actions(vec![
+            FeeChange::Transfer(TransferFeeComponents {
+                base: 10,
+                multiplier: 0,
+            })
             .into(),
-        ],
-    }
-    .into_signed(&sudo);
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_judy_signing_key());
 
     app.mempool
         .insert(
@@ -147,24 +142,20 @@ async fn do_not_trigger_cleaning() {
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
-    let alice = get_alice_signing_key();
-
     // create tx which will fail execution and not trigger flag
     // (wrong sudo signer)
-    let tx_fail = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            FeeChangeAction {
-                fee_change: FeeChange::TransferBaseFee,
-                new_value: 10,
-            }
+    let tx_fail = UnsignedTransaction::builder()
+        .actions(vec![
+            FeeChange::Transfer(TransferFeeComponents {
+                base: 10,
+                multiplier: 0,
+            })
             .into(),
-        ],
-    }
-    .into_signed(&alice);
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_alice_signing_key());
 
     app.mempool
         .insert(
@@ -195,7 +186,7 @@ async fn do_not_trigger_cleaning() {
     assert!(!app.recost_mempool, "flag should not have been set");
 }
 
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn maintenance_recosting_promotes() {
     // check that transaction promotion from recosting works
@@ -224,22 +215,20 @@ async fn maintenance_recosting_promotes() {
 
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
-    let tx_fail_recost_funds = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            TransferAction {
+    let tx_fail_recost_funds = UnsignedTransaction::builder()
+        .actions(vec![
+            Transfer {
                 to: astria_address_from_hex_string(CAROL_ADDRESS),
                 amount: 1u128,
                 asset: nria().into(),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&get_bob_signing_key());
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_bob_signing_key());
 
     let mut bob_funds = HashMap::new();
     bob_funds.insert(nria().into(), 11);
@@ -256,20 +245,18 @@ async fn maintenance_recosting_promotes() {
         .unwrap();
 
     // create tx which will enable recost tx to pass
-    let tx_recost = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            FeeChangeAction {
-                fee_change: FeeChange::TransferBaseFee,
-                new_value: 10, // originally 12
-            }
+    let tx_recost = UnsignedTransaction::builder()
+        .actions(vec![
+            FeeChange::Transfer(TransferFeeComponents {
+                base: 10,
+                multiplier: 0,
+            })
             .into(),
-        ],
-    }
-    .into_signed(&get_judy_signing_key());
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_judy_signing_key());
 
     let mut judy_funds = HashMap::new();
     judy_funds.insert(nria().into(), 0);
@@ -279,6 +266,7 @@ async fn maintenance_recosting_promotes() {
         .insert(Arc::new(tx_recost.clone()), 0, judy_funds, tx_cost)
         .await
         .unwrap();
+    assert_eq!(app.mempool.len().await, 2, "two txs in mempool");
 
     // create block with prepare_proposal
     let prepare_args = abci::request::PrepareProposal {
@@ -294,15 +282,42 @@ async fn maintenance_recosting_promotes() {
     let res = app
         .prepare_proposal(prepare_args, storage.clone())
         .await
-        .expect("");
+        .unwrap();
 
     assert_eq!(
         res.txs.len(),
         3,
         "only one transaction should've been valid (besides 2 generated txs)"
     );
+    assert_eq!(
+        app.mempool.len().await,
+        2,
+        "two txs in mempool; one included in proposal is not yet removed"
+    );
+
     // set dummy hash
     app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
+
+    let process_proposal = abci::request::ProcessProposal {
+        hash: app.executed_proposal_hash,
+        height: Height::default(),
+        time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address: [1u8; 20].to_vec().try_into().unwrap(),
+        txs: res.txs.clone(),
+        proposed_last_commit: None,
+        misbehavior: vec![],
+    };
+    app.process_proposal(process_proposal, storage.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        app.mempool.len().await,
+        2,
+        "two txs in mempool; one included in proposal is not
+    yet removed"
+    );
+
     // finalize with finalize block
     let finalize_block = abci::request::FinalizeBlock {
         hash: app.executed_proposal_hash,
@@ -317,10 +332,12 @@ async fn maintenance_recosting_promotes() {
         },
         misbehavior: vec![],
     };
+
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
     app.commit(storage.clone()).await;
+    assert_eq!(app.mempool.len().await, 1, "recosted tx should remain");
 
     // mempool re-costing should've occurred to allow other transaction to execute
     let prepare_args = abci::request::PrepareProposal {
@@ -341,32 +358,13 @@ async fn maintenance_recosting_promotes() {
     assert_eq!(
         res.txs.len(),
         3,
-        "only one transaction should've been valid (besides 2 generated txs)"
+        "one transaction should've been valid (besides 2 generated txs)"
     );
-    // set dummy hash
-    app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
-    // finalize with finalize block
-    let finalize_block = abci::request::FinalizeBlock {
-        hash: app.executed_proposal_hash,
-        height: 1u32.into(),
-        time: Time::now(),
-        next_validators_hash: Hash::default(),
-        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: res.txs,
-        decided_last_commit: CommitInfo {
-            votes: vec![],
-            round: Round::default(),
-        },
-        misbehavior: vec![],
-    };
-    app.finalize_block(finalize_block.clone(), storage.clone())
-        .await
-        .unwrap();
-    app.commit(storage.clone()).await;
+
     // see transfer went through
     assert_eq!(
         app.state
-            .get_account_balance(astria_address_from_hex_string(CAROL_ADDRESS), nria())
+            .get_account_balance(&astria_address_from_hex_string(CAROL_ADDRESS), &nria())
             .await
             .unwrap(),
         1,
@@ -374,7 +372,7 @@ async fn maintenance_recosting_promotes() {
     );
 }
 
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn maintenance_funds_added_promotes() {
     // check that transaction promotion from new funds works
@@ -397,22 +395,20 @@ async fn maintenance_funds_added_promotes() {
 
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
-    let tx_fail_transfer_funds = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            TransferAction {
+    let tx_fail_transfer_funds = UnsignedTransaction::builder()
+        .actions(vec![
+            Transfer {
                 to: astria_address_from_hex_string(BOB_ADDRESS),
                 amount: 10u128,
                 asset: nria().into(),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&get_carol_signing_key());
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_carol_signing_key());
 
     let mut carol_funds = HashMap::new();
     carol_funds.insert(nria().into(), 0);
@@ -429,22 +425,20 @@ async fn maintenance_funds_added_promotes() {
         .unwrap();
 
     // create tx which will enable no funds to pass
-    let tx_fund = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(0)
-            .chain_id("test")
-            .build(),
-        actions: vec![
-            TransferAction {
+    let tx_fund = UnsignedTransaction::builder()
+        .actions(vec![
+            Transfer {
                 to: astria_address_from_hex_string(CAROL_ADDRESS),
                 amount: 22u128,
                 asset: nria().into(),
                 fee_asset: nria().into(),
             }
             .into(),
-        ],
-    }
-    .into_signed(&get_alice_signing_key());
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap()
+        .into_signed(&get_alice_signing_key());
 
     let mut alice_funds = HashMap::new();
     alice_funds.insert(nria().into(), 100);
@@ -476,8 +470,31 @@ async fn maintenance_funds_added_promotes() {
         3,
         "only one transactions should've been valid (besides 2 generated txs)"
     );
+
+    app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
+    let process_proposal = abci::request::ProcessProposal {
+        hash: app.executed_proposal_hash,
+        height: Height::default(),
+        time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address: [1u8; 20].to_vec().try_into().unwrap(),
+        txs: res.txs.clone(),
+        proposed_last_commit: None,
+        misbehavior: vec![],
+    };
+    app.process_proposal(process_proposal, storage.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        app.mempool.len().await,
+        2,
+        "two txs in mempool; one included in proposal is not
+    yet removed"
+    );
+
     // set dummy hash
     app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
+
     // finalize with finalize block
     let finalize_block = abci::request::FinalizeBlock {
         hash: app.executed_proposal_hash,
@@ -518,11 +535,10 @@ async fn maintenance_funds_added_promotes() {
         3,
         "only one transactions should've been valid (besides 2 generated txs)"
     );
-    // set dummy hash
-    app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
+
     // finalize with finalize block
     let finalize_block = abci::request::FinalizeBlock {
-        hash: app.executed_proposal_hash,
+        hash: Hash::try_from([97u8; 32].to_vec()).unwrap(),
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
@@ -541,7 +557,7 @@ async fn maintenance_funds_added_promotes() {
     // see transfer went through
     assert_eq!(
         app.state
-            .get_account_balance(astria_address_from_hex_string(BOB_ADDRESS), nria())
+            .get_account_balance(&astria_address_from_hex_string(BOB_ADDRESS), &nria())
             .await
             .unwrap(),
         10,

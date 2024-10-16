@@ -124,8 +124,11 @@ mod tests {
     #[test]
     fn should_fail_to_construct_from_missing_file() {
         let error = CelestiaKeys::from_path("missing").unwrap_err();
-        // allow: `assert!(matches!(..))` provides poor feedback on failure.
-        #[allow(clippy::manual_assert)]
+        // TODO (https://github.com/astriaorg/astria/issues/1581): create function for handling this and remove #[expect] (here and below)
+        #[expect(
+            clippy::manual_assert,
+            reason = "`assert!(matches!(..))` provides poor feedback on failure"
+        )]
         if !matches!(error, Error::ReadFile(_)) {
             panic!("expected an error variant `Error::ReadFile`, got {error:?}");
         }
@@ -136,8 +139,10 @@ mod tests {
         let tmp_file = tempfile::NamedTempFile::new().unwrap();
         fs::write(tmp_file.path(), b"not hex").unwrap();
         let error = CelestiaKeys::from_path(tmp_file.path()).unwrap_err();
-        // allow: `assert!(matches!(..))` provides poor feedback on failure.
-        #[allow(clippy::manual_assert)]
+        #[expect(
+            clippy::manual_assert,
+            reason = "`assert!(matches!(..))` provides poor feedback on failure."
+        )]
         if !matches!(error, Error::DecodeFromHex(_)) {
             panic!("expected an error variant `Error::DecodeFromHex`, got {error:?}");
         }
@@ -148,8 +153,10 @@ mod tests {
         let tmp_file = tempfile::NamedTempFile::new().unwrap();
         fs::write(tmp_file.path(), b"abcdef").unwrap();
         let error = CelestiaKeys::from_path(tmp_file.path()).unwrap_err();
-        // allow: `assert!(matches!(..))` provides poor feedback on failure.
-        #[allow(clippy::manual_assert)]
+        #[expect(
+            clippy::manual_assert,
+            reason = "`assert!(matches!(..))` provides poor feedback on failure."
+        )]
         if !matches!(error, Error::InvalidSigningKey) {
             panic!("expected an error variant `Error::InvalidSigningKey`, got {error:?}");
         }

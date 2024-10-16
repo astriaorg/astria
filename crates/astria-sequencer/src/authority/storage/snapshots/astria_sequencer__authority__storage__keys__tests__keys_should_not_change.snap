@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/authority/storage/keys.rs
+assertion_line: 15
+expression: SUDO_STORAGE_KEY
+---
+authority/sudo

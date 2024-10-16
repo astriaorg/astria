@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ipfs
+  namespace: {{ include "graphnode.namespace" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ipfs
+  template:
+    metadata:
+      labels:
+        app: ipfs
+    spec:
+      containers:
+        - name: ipfs
+          image: {{ .Values.ipfs.image }}:{{ .Values.ipfs.tag }}
+          ports:
+          - containerPort: {{ .Values.ipfs.ports.api }}
+          volumeMounts:
+          - name: ipfs-storage
+            mountPath: /data/ipfs
+      volumes:
+        - name: ipfs-storage
+          {{- if .Values.ipfs.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: ipfs-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: {{ include "graphnode.namespace" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}:{{ .Values.postgres.tag }}
+          ports:
+          - containerPort: {{ .Values.postgres.ports.postgres }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgres.password }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.database }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_INITDB_ARGS
+              value: "--lc-collate=C --lc-ctype=C --encoding=UTF8"
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "{{ .Values.postgres.user }}"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+      volumes:
+        - name: postgres-storage
+          {{- if .Values.postgres.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

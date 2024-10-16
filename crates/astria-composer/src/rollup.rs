@@ -1,8 +1,10 @@
 //! Parsing strings of the form `<rollup_name>::<url>`
 
-use std::fmt;
+use std::{
+    fmt,
+    sync::LazyLock,
+};
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 
 #[derive(Debug)]
@@ -33,7 +35,7 @@ impl std::error::Error for ParseError {}
 
 impl Rollup {
     pub(super) fn parse(from: &str) -> Result<Self, ParseError> {
-        static ROLLUP_RE: Lazy<Regex> = Lazy::new(|| {
+        static ROLLUP_RE: LazyLock<Regex> = LazyLock::new(|| {
             Regex::new(
                 r"(?x)
                 ^(?P<rollup_name>[[:alnum:]-]+?)

@@ -13,8 +13,10 @@ use crate::rollup::{
     Rollup,
 };
 
-// this is a config, may have many boolean values
-#[allow(clippy::struct_excessive_bools)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "this is a config, may have many boolean values"
+)]
 #[derive(Debug, Deserialize, Serialize)]
 /// The high-level config for creating an astria-composer service.
 pub struct Config {
@@ -24,8 +26,11 @@ pub struct Config {
     /// Address of the API server
     pub api_listen_addr: SocketAddr,
 
-    /// Address of the RPC server for the sequencer chain
-    pub sequencer_url: String,
+    /// Address of the ABCI server for the sequencer chain
+    pub sequencer_abci_endpoint: String,
+
+    /// Address of the GRPC server for the sequencer chain
+    pub sequencer_grpc_endpoint: String,
 
     /// The chain ID of the sequencer chain
     pub sequencer_chain_id: String,

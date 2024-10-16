@@ -4,17 +4,17 @@ use astria_core::{
         RollupId,
         ROLLUP_ID_LEN,
     },
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transaction::v1alpha1::action::Sequence,
     Protobuf as _,
 };
 
-fn encoded_len(action: &SequenceAction) -> usize {
+fn encoded_len(action: &Sequence) -> usize {
     use prost::Message as _;
     action.to_raw().encoded_len()
 }
 
-pub(crate) fn sequence_action_with_n_bytes(n: usize) -> SequenceAction {
-    SequenceAction {
+pub(crate) fn sequence_action_with_n_bytes(n: usize) -> Sequence {
+    Sequence {
         rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
         data: vec![0; n].into(),
         fee_asset: "nria"
@@ -25,11 +25,11 @@ pub(crate) fn sequence_action_with_n_bytes(n: usize) -> SequenceAction {
     }
 }
 
-pub(crate) fn empty_sequence_action() -> SequenceAction {
+pub(crate) fn empty_sequence_action() -> Sequence {
     sequence_action_with_n_bytes(0)
 }
 
-pub(crate) fn sequence_action_of_max_size(max: usize) -> SequenceAction {
+pub(crate) fn sequence_action_of_max_size(max: usize) -> Sequence {
     // an action where the data part is exactly max bytes long
     let big_action = sequence_action_with_n_bytes(max);
     // the number of bytes past max

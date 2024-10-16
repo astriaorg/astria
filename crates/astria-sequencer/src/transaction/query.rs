@@ -14,8 +14,8 @@ use tendermint::abci::{
 };
 
 use crate::{
+    app::StateReadExt as _,
     assets::StateReadExt as _,
-    state_ext::StateReadExt as _,
     transaction::checks::get_fees_for_transaction,
 };
 
@@ -24,7 +24,7 @@ pub(crate) async fn transaction_fee_request(
     request: request::Query,
     _params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::transaction::v1alpha1::TransactionFeeResponse;
+    use astria_core::protocol::fees::v1alpha1::TransactionFeeResponse;
 
     let tx = match preprocess_request(&request) {
         Ok(tx) => tx,
@@ -59,7 +59,7 @@ pub(crate) async fn transaction_fee_request(
 
     let mut fees = Vec::with_capacity(fees_with_ibc_denoms.len());
     for (ibc_denom, value) in fees_with_ibc_denoms {
-        let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(ibc_denom).await {
+        let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(&ibc_denom).await {
             Ok(Some(trace_denom)) => trace_denom,
             Ok(None) => {
                 return response::Query {

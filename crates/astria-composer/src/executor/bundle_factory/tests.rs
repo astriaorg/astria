@@ -3,7 +3,7 @@ use astria_core::{
         RollupId,
         ROLLUP_ID_LEN,
     },
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transaction::v1alpha1::action::Sequence,
 };
 
 mod sized_bundle {
@@ -73,7 +73,7 @@ mod sized_bundle {
         assert!(bundle.buffer.is_empty());
 
         // assert that the flushed bundle has just the sequence action pushed earlier
-        let actions = flushed_bundle.into_actions();
+        let actions = flushed_bundle.buffer;
         assert_eq!(actions.len(), 1);
         let actual_seq_action = actions[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action.rollup_id);
@@ -137,7 +137,7 @@ mod bundle_factory {
         assert_eq!(bundle_factory.finished.len(), 1);
         // assert `pop_finished()` will return `seq_action0`
         let next_actions = bundle_factory.next_finished();
-        let actions = next_actions.unwrap().pop().into_actions();
+        let actions = next_actions.unwrap().pop().buffer;
         let actual_seq_action = actions[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action0.rollup_id);
         assert_eq!(actual_seq_action.data, seq_action0.data);
@@ -164,8 +164,10 @@ mod bundle_factory {
 
         // assert that the bundle factory has one bundle in the finished queue, that the factory is
         // full and that err was returned
-        // allow: this is intended to match all possible variants
-        #[allow(clippy::match_wildcard_for_single_variants)]
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "this is intended to match all possible variants"
+        )]
         match err {
             BundleFactoryError::FinishedQueueFull(_) => {}
             other => panic!("expected a FinishedQueueFull variant, but got {other:?}"),
@@ -201,7 +203,7 @@ mod bundle_factory {
         // try to push a third bundle that wouldn't fit in `curr_bundle`, forcing the factory to
         // flush it into `finished` this shouldn't work since the `finished` queue's
         // capacity is 1.
-        let seq_action1 = SequenceAction {
+        let seq_action1 = Sequence {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             ..sequence_action_of_max_size(200)
         };
@@ -211,8 +213,10 @@ mod bundle_factory {
 
         // assert that the bundle factory has one bundle in the finished queue, that the factory is
         // full and that err was returned
-        // allow: this is intended to match all possible variants
-        #[allow(clippy::match_wildcard_for_single_variants)]
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "this is intended to match all possible variants"
+        )]
         match err {
             BundleFactoryError::FinishedQueueFull(_) => {}
             other => panic!("expected a FinishedQueueFull variant, but got {other:?}"),
@@ -236,7 +240,7 @@ mod bundle_factory {
         // assert that the finished queue is empty (curr wasn't flushed)
         assert_eq!(bundle_factory.finished.len(), 0);
         // assert `pop_now()` returns `seq_action`
-        let actions = bundle_factory.pop_now().into_actions();
+        let actions = bundle_factory.pop_now().buffer;
         let actual_seq_action = actions[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action.rollup_id);
         assert_eq!(actual_seq_action.data, seq_action.data);
@@ -252,7 +256,7 @@ mod bundle_factory {
 
         // push another sequence action that is <100 bytes total to force the current bundle to
         // flush
-        let seq_action1 = SequenceAction {
+        let seq_action1 = Sequence {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             ..sequence_action_of_max_size(200)
         };
@@ -261,7 +265,7 @@ mod bundle_factory {
         // assert that the bundle factory has one bundle in the finished queue
         assert_eq!(bundle_factory.finished.len(), 1);
         // assert `pop_now()` will return `seq_action0`
-        let actions = bundle_factory.pop_now().into_actions();
+        let actions = bundle_factory.pop_now().buffer;
         let actual_seq_action = actions[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action0.rollup_id);
         assert_eq!(actual_seq_action.data, seq_action0.data);
@@ -286,7 +290,7 @@ mod bundle_factory {
         let seq_action0 = sequence_action_of_max_size(200);
         bundle_factory.try_push(seq_action0.clone()).unwrap();
 
-        let seq_action1 = SequenceAction {
+        let seq_action1 = Sequence {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             ..sequence_action_of_max_size(200)
         };
@@ -296,7 +300,7 @@ mod bundle_factory {
         assert_eq!(bundle_factory.finished.len(), 1);
 
         // assert `pop_now()` will return `seq_action0` on the first call
-        let actions_finished = bundle_factory.pop_now().into_actions();
+        let actions_finished = bundle_factory.pop_now().buffer;
         assert_eq!(actions_finished.len(), 1);
         let actual_seq_action = actions_finished[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action0.rollup_id);
@@ -306,7 +310,7 @@ mod bundle_factory {
         assert_eq!(bundle_factory.finished.len(), 0);
 
         // assert `pop_now()` will return `seq_action1` on the second call (i.e. from curr)
-        let actions_curr = bundle_factory.pop_now().into_actions();
+        let actions_curr = bundle_factory.pop_now().buffer;
         assert_eq!(actions_curr.len(), 1);
         let actual_seq_action = actions_curr[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action1.rollup_id);
@@ -332,5 +336,27 @@ mod bundle_factory {
         let _actions_finished = bundle_factory.pop_now();
         assert_eq!(bundle_factory.finished.len(), 0);
         assert!(!bundle_factory.is_full());
+    }
+
+    #[test]
+    fn transaction_construction_does_not_panic() {
+        let mut bundle_factory = BundleFactory::new(1000, 10);
+
+        bundle_factory
+            .try_push(sequence_action_with_n_bytes(50))
+            .unwrap();
+        bundle_factory
+            .try_push(sequence_action_with_n_bytes(50))
+            .unwrap();
+        bundle_factory
+            .try_push(sequence_action_with_n_bytes(50))
+            .unwrap();
+
+        let bundle = bundle_factory.pop_now();
+
+        // construction of multiple sequence actions should not panic
+        let unsigned_tx = bundle.to_unsigned_transaction(0, "astria-testnet-1");
+
+        assert_eq!(unsigned_tx.actions().len(), 3);
     }
 }

@@ -35,13 +35,9 @@ impl Component for AccountsComponent {
             .wrap_err("failed to read native asset from state")?;
         for account in app_state.accounts() {
             state
-                .put_account_balance(account.address, &native_asset, account.balance)
+                .put_account_balance(&account.address, &native_asset, account.balance)
                 .wrap_err("failed writing account balance to state")?;
         }
-
-        state
-            .put_transfer_base_fee(app_state.fees().transfer_base_fee)
-            .wrap_err("failed to put transfer base fee")?;
         Ok(())
     }
 

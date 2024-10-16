@@ -196,7 +196,7 @@ impl Consensus {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::{
         collections::HashMap,
         str::FromStr,
@@ -210,8 +210,7 @@ mod test {
         },
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
-            action::SequenceAction,
-            TransactionParams,
+            action::Sequence,
             UnsignedTransaction,
         },
     };
@@ -237,20 +236,18 @@ mod test {
     };
 
     fn make_unsigned_tx() -> UnsignedTransaction {
-        UnsignedTransaction {
-            params: TransactionParams::builder()
-                .nonce(0)
-                .chain_id("test")
-                .build(),
-            actions: vec![
-                SequenceAction {
+        UnsignedTransaction::builder()
+            .actions(vec![
+                Sequence {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: Bytes::from_static(b"hello world"),
                     fee_asset: crate::test_utils::nria().into(),
                 }
                 .into(),
-            ],
-        }
+            ])
+            .chain_id("test")
+            .try_build()
+            .unwrap()
     }
 
     fn new_prepare_proposal_request() -> request::PrepareProposal {
@@ -271,7 +268,7 @@ mod test {
             txs,
             proposed_last_commit: None,
             misbehavior: vec![],
-            hash: Hash::default(),
+            hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),
             next_validators_hash: Hash::default(),
             time: Time::now(),
@@ -455,7 +452,7 @@ mod test {
             vec![
                 astria_core::generated::protocol::genesis::v1alpha1::Account {
                     address: Some(
-                        crate::test_utils::astria_address(&funded_key.address_bytes()).to_raw(),
+                        crate::test_utils::astria_address(funded_key.address_bytes()).to_raw(),
                     ),
                     balance: Some(10u128.pow(19).into()),
                 },
@@ -473,8 +470,8 @@ mod test {
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let mempool = Mempool::new();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
         let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
@@ -505,16 +502,17 @@ mod test {
         let mut header = default_header();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
+        mempool
+            .insert(signed_tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+            .await
+            .unwrap();
+
         let process_proposal = new_process_proposal_request(block_data.clone());
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
             .await
             .unwrap();
 
-        mempool
-            .insert(signed_tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
-            .await
-            .unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),

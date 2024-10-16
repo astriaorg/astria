@@ -2,6 +2,7 @@ use std::{
     io::Write as _,
     mem,
     net::SocketAddr,
+    sync::LazyLock,
     time::Duration,
 };
 
@@ -21,7 +22,7 @@ use astria_core::{
         memos::v1alpha1::Ics20WithdrawalFromRollup,
         transaction::v1alpha1::{
             action::{
-                BridgeUnlockAction,
+                BridgeUnlock,
                 Ics20Withdrawal,
             },
             Action,
@@ -37,7 +38,6 @@ use ibc_types::core::{
     channel::ChannelId,
     client::Height as IbcHeight,
 };
-use once_cell::sync::Lazy;
 use sequencer_client::{
     Address,
     NonceResponse,
@@ -74,7 +74,7 @@ pub(crate) const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 pub(crate) const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
-static TELEMETRY: Lazy<()> = Lazy::new(|| {
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         telemetry::configure()
@@ -237,7 +237,7 @@ impl TestBridgeWithdrawer {
     }
 }
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(clippy::module_name_repetitions, reason = "naming is for clarity here")]
 pub struct TestBridgeWithdrawerConfig {
     /// Configures the rollup's withdrawal smart contract to either native or ERC20.
     pub ethereum_config: TestEthereumConfig,
@@ -251,7 +251,7 @@ impl TestBridgeWithdrawerConfig {
             ethereum_config,
             asset_denom,
         } = self;
-        Lazy::force(&TELEMETRY);
+        LazyLock::force(&TELEMETRY);
 
         // sequencer signer key
         let keyfile = NamedTempFile::new().unwrap();
@@ -435,7 +435,7 @@ pub fn make_native_bridge_unlock_action(receipt: &TransactionReceipt) -> Action 
     let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
     let event_index = receipt.logs[0].log_index.unwrap().encode_hex();
 
-    let inner = BridgeUnlockAction {
+    let inner = BridgeUnlock {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),
@@ -485,7 +485,7 @@ pub fn make_erc20_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
     // use the second event because the erc20 transfer also emits an event
     let event_index = receipt.logs[1].log_index.unwrap().encode_hex();
 
-    let inner = BridgeUnlockAction {
+    let inner = BridgeUnlock {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),

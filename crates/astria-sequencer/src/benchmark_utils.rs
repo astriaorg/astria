@@ -16,13 +16,9 @@ use astria_core::{
         RollupId,
     },
     protocol::transaction::v1alpha1::{
-        action::{
-            Action,
-            SequenceAction,
-            TransferAction,
-        },
+        action,
+        action::Action,
         SignedTransaction,
-        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -74,8 +70,10 @@ pub(crate) fn transactions(tx_types: TxTypes) -> &'static Vec<Arc<SignedTransact
     .unwrap()
 }
 
-// allow: false-positive as described in "Known problems" of lint.
-#[allow(clippy::mutable_key_type)]
+#[expect(
+    clippy::mutable_key_type,
+    reason = "false-positive as described in \"Known problems\" of lint"
+)]
 fn sequence_actions() -> Vec<Arc<SignedTransaction>> {
     let mut nonces_and_chain_ids = HashMap::new();
     signing_keys()
@@ -84,21 +82,18 @@ fn sequence_actions() -> Vec<Arc<SignedTransaction>> {
             let (nonce, chain_id) = nonces_and_chain_ids
                 .entry(verification_key)
                 .or_insert_with(|| (0_u32, format!("chain-{}", signing_key.verification_key())));
-            let params = TransactionParams::builder()
-                .nonce(*nonce)
-                .chain_id(chain_id.as_str())
-                .build();
-            *nonce = (*nonce).wrapping_add(1);
-            let sequence_action = SequenceAction {
+            let sequence_action = action::Sequence {
                 rollup_id: RollupId::new([1; 32]),
                 data: vec![2; 1000].into(),
                 fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
             };
-            let tx = UnsignedTransaction {
-                actions: vec![Action::Sequence(sequence_action)],
-                params,
-            }
-            .into_signed(signing_key);
+            let tx = UnsignedTransaction::builder()
+                .actions(vec![Action::Sequence(sequence_action)])
+                .nonce(*nonce)
+                .chain_id(chain_id.as_str())
+                .try_build()
+                .expect("failed to build transaction from actions")
+                .into_signed(signing_key);
             Arc::new(tx)
         })
         .take(SEQUENCE_ACTION_TX_COUNT)
@@ -109,7 +104,7 @@ fn transfers() -> Vec<Arc<SignedTransaction>> {
     let sender = signing_keys().next().unwrap();
     let receiver = signing_keys().nth(1).unwrap();
     let to = astria_address(&receiver.address_bytes());
-    let action = Action::from(TransferAction {
+    let action = Action::from(action::Transfer {
         to,
         amount: 1,
         asset: nria().into(),
@@ -117,17 +112,17 @@ fn transfers() -> Vec<Arc<SignedTransaction>> {
     });
     (0..TRANSFERS_TX_COUNT)
         .map(|nonce| {
-            let params = TransactionParams::builder()
+            let tx = UnsignedTransaction::builder()
+                .actions(
+                    std::iter::repeat(action.clone())
+                        .take(TRANSFERS_PER_TX)
+                        .collect(),
+                )
                 .nonce(u32::try_from(nonce).unwrap())
                 .chain_id("test")
-                .build();
-            let tx = UnsignedTransaction {
-                actions: std::iter::repeat(action.clone())
-                    .take(TRANSFERS_PER_TX)
-                    .collect(),
-                params,
-            }
-            .into_signed(sender);
+                .try_build()
+                .expect("failed to build transaction from actions")
+                .into_signed(sender);
             Arc::new(tx)
         })
         .collect()

@@ -16,7 +16,6 @@ use astria_core::{
             TransferAction,
             ValidatorUpdate,
         },
-        TransactionParams,
         UnsignedTransaction,
     },
 };
@@ -464,7 +463,7 @@ async fn submit_transaction(
     let sequencer_key = SigningKey::from(private_key_bytes);
 
     let from_address = Address::builder()
-        .array(sequencer_key.verification_key().address_bytes())
+        .array(*sequencer_key.verification_key().address_bytes())
         .prefix(prefix)
         .try_build()
         .wrap_err("failed constructing a valid from address from the provided prefix")?;
@@ -475,14 +474,13 @@ async fn submit_transaction(
         .await
         .wrap_err("failed to get nonce")?;
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(nonce_res.nonce)
-            .chain_id(chain_id)
-            .build(),
-        actions: vec![action],
-    }
-    .into_signed(&sequencer_key);
+    let tx = UnsignedTransaction::builder()
+        .actions(vec![action])
+        .nonce(nonce_res.nonce)
+        .chain_id(chain_id)
+        .try_build()
+        .wrap_err("failed to build transaction from actions")?
+        .into_signed(&sequencer_key);
     let res = sequencer_client
         .submit_transaction_sync(tx)
         .await
@@ -501,7 +499,7 @@ async fn submit_transaction(
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
