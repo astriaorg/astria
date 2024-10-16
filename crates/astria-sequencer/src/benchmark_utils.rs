@@ -62,7 +62,10 @@ pub(crate) fn transactions(tx_types: TxTypes) -> &'static Vec<Arc<Transaction>> 
     static TXS: OnceLock<HashMap<TxTypes, Vec<Arc<Transaction>>>> = OnceLock::new();
     TXS.get_or_init(|| {
         let mut map = HashMap::new();
-        map.insert(TxTypes::AllSequenceActions, sequence_actions());
+        map.insert(
+            TxTypes::AllSequenceActions,
+            rollup_data_submission_actions(),
+        );
         map.insert(TxTypes::AllTransfers, transfers());
         map
     })
@@ -74,7 +77,7 @@ pub(crate) fn transactions(tx_types: TxTypes) -> &'static Vec<Arc<Transaction>> 
     clippy::mutable_key_type,
     reason = "false-positive as described in \"Known problems\" of lint"
 )]
-fn sequence_actions() -> Vec<Arc<Transaction>> {
+fn rollup_data_submission_actions() -> Vec<Arc<Transaction>> {
     let mut nonces_and_chain_ids = HashMap::new();
     signing_keys()
         .map(move |signing_key| {
@@ -82,13 +85,13 @@ fn sequence_actions() -> Vec<Arc<Transaction>> {
             let (nonce, chain_id) = nonces_and_chain_ids
                 .entry(verification_key)
                 .or_insert_with(|| (0_u32, format!("chain-{}", signing_key.verification_key())));
-            let sequence_action = action::Sequence {
+            let action = action::RollupDataSubmission {
                 rollup_id: RollupId::new([1; 32]),
                 data: vec![2; 1000].into(),
                 fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([3; 32])),
             };
             let tx = TransactionBody::builder()
-                .actions(vec![Action::Sequence(sequence_action)])
+                .actions(vec![Action::RollupDataSubmission(action)])
                 .nonce(*nonce)
                 .chain_id(chain_id.as_str())
                 .try_build()
