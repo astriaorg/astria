@@ -72,9 +72,9 @@ impl Command {
             }),
         )
         .await
-        .wrap_err("failed to submit BridgeLock transaction")?;
+        .wrap_err("failed to submit BridgeSudoChange transaction")?;
 
-        println!("BridgeLock completed!");
+        println!("BridgeSudoChange completed!");
         println!("Included in block: {}", res.height);
         Ok(())
     }
