@@ -4,7 +4,7 @@ use astria_core::{
         Address,
     },
     protocol::transaction::v1alpha1::{
-        action::BridgeSudoChangeAction,
+        action::BridgeSudoChange,
         Action,
     },
 };
@@ -64,7 +64,7 @@ impl Command {
             self.sequencer_chain_id.clone(),
             &self.prefix,
             self.private_key.as_str(),
-            Action::BridgeSudoChange(BridgeSudoChangeAction {
+            Action::BridgeSudoChange(BridgeSudoChange {
                 bridge_address: self.bridge_address,
                 new_sudo_address: self.new_sudo_address,
                 new_withdrawer_address: self.new_withdrawer_address,
