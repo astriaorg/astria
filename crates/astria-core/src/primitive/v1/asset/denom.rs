@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::VecDeque,
     str::FromStr,
 };
@@ -75,6 +76,15 @@ impl Denom {
         };
         trace
     }
+
+    /// Calculates the length of the display formatted [Denom] without allocating a String.
+    #[must_use]
+    pub fn display_len(&self) -> usize {
+        match self {
+            Denom::TracePrefixed(trace) => trace.display_len(),
+            Denom::IbcPrefixed(ibc) => ibc.display_len(),
+        }
+    }
 }
 
 impl From<IbcPrefixed> for Denom {
@@ -122,6 +132,33 @@ impl From<Denom> for IbcPrefixed {
 impl<'a> From<&'a Denom> for IbcPrefixed {
     fn from(value: &Denom) -> Self {
         value.to_ibc_prefixed()
+    }
+}
+
+impl<'a> From<&'a IbcPrefixed> for IbcPrefixed {
+    fn from(value: &IbcPrefixed) -> Self {
+        *value
+    }
+}
+
+impl<'a> From<&'a IbcPrefixed> for Cow<'a, IbcPrefixed> {
+    fn from(ibc_prefixed: &'a IbcPrefixed) -> Self {
+        Cow::Borrowed(ibc_prefixed)
+    }
+}
+
+impl<'a> From<&'a TracePrefixed> for Cow<'a, IbcPrefixed> {
+    fn from(trace_prefixed: &'a TracePrefixed) -> Self {
+        Cow::Owned(trace_prefixed.to_ibc_prefixed())
+    }
+}
+
+impl<'a> From<&'a Denom> for Cow<'a, IbcPrefixed> {
+    fn from(value: &'a Denom) -> Self {
+        match value {
+            Denom::TracePrefixed(trace_prefixed) => Cow::from(trace_prefixed),
+            Denom::IbcPrefixed(ibc_prefixed) => Cow::from(ibc_prefixed),
+        }
     }
 }
 
@@ -207,82 +244,42 @@ impl TracePrefixed {
         self.trace.is_empty()
     }
 
-    /// Checks if the trace prefixed denom starts with `s`.
+    /// Checks if the trace prefixed denom has `port` in left-most position.
     ///
     /// # Examples
     ///
     /// ```
     /// use astria_core::primitive::v1::asset::denom::TracePrefixed;
     /// let denom = "four/segments/of/a/denom".parse::<TracePrefixed>().unwrap();
-    ///
-    /// // Empty string is always true:
-    /// assert!(denom.starts_with_str(""));
-    /// // Single slash is always false:
-    /// assert!(!denom.starts_with_str("/"));
-    /// // Emptry strings are false:
-    /// assert!(!denom.starts_with_str(" "));
-    ///
-    /// // In general, whitespace is not trimmed and leads to false
-    /// assert!(!denom.starts_with_str("four/segments /"));
-    ///
-    /// // Trailing slashes don't change the result if they are part of the trace prefix:
-    /// assert!(denom.starts_with_str("four/segments"));
-    /// assert!(denom.starts_with_str("four/segments/"));
-    ///
-    /// // Trailing slashes on the full trace prefix denom however return false:
-    /// assert!(!denom.starts_with_str("four/segments/of/a/denom/"));
-    ///
-    /// // Providing only a port is true
-    /// assert!(denom.starts_with_str("four"));
-    /// // Providing a full port/channel pair followed by just a port is also true
-    /// assert!(denom.starts_with_str("four/segments/of"));
-    ///
-    /// // Half of a port or channel is false
-    /// assert!(!denom.starts_with_str("four/segm"));
-    ///
-    /// // The full trace prefixed denom is true:
-    /// assert!(denom.starts_with_str("four/segments/of/a/denom"));
+    /// assert!(denom.has_leading_port("four"));
+    /// assert!(!denom.has_leading_port("segments"));
+    /// assert!(!denom.has_leading_port("of"));
+    /// assert!(!denom.has_leading_port("a"));
+    /// assert!(!denom.has_leading_port("denom"));
+    /// assert!(!denom.has_leading_port(""));
     /// ```
     #[must_use]
-    pub fn starts_with_str(&self, s: &str) -> bool {
-        if s.is_empty() {
-            return true;
-        }
-        let mut had_trailing_slash = false;
-        let s = s
-            .strip_suffix('/')
-            .inspect(|_| had_trailing_slash = true)
-            .unwrap_or(s);
-        if s.is_empty() {
-            return false;
-        }
-        let mut parts = s.split('/');
-        for segment in self.trace.iter() {
-            // first iteration: we know that s is not empty after stripping the /
-            // so that this is not wrongly returning true.
-            let Some(port) = parts.next() else {
-                return true;
-            };
-            if segment.port() != port {
-                return false;
-            }
-            let Some(channel) = parts.next() else {
-                return true;
-            };
-            if segment.channel() != channel {
-                return false;
-            }
-        }
-        let Some(base_denom) = parts.next() else {
-            return true;
-        };
-        if base_denom != self.base_denom {
-            return false;
-        }
-        if had_trailing_slash {
-            return false;
-        }
-        parts.next().is_none()
+    pub fn has_leading_port<T: AsRef<str>>(&self, port: T) -> bool {
+        self.trace.leading_port() == Some(port.as_ref())
+    }
+
+    /// Checks if the trace prefixed denom has `channel` in left-most position.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use astria_core::primitive::v1::asset::denom::TracePrefixed;
+    /// let denom = "four/segments/of/a/denom".parse::<TracePrefixed>().unwrap();
+    /// assert!(!denom.has_leading_channel("four"));
+    /// assert!(denom.has_leading_channel("segments"));
+    /// assert!(!denom.has_leading_channel("of"));
+    /// assert!(!denom.has_leading_channel("a"));
+    /// assert!(!denom.has_leading_channel("denom"));
+    /// assert!(!denom.has_leading_channel(""));
+    /// ```
+    #[must_use]
+    pub fn has_leading_channel<T: AsRef<str>>(&self, channel: T) -> bool {
+        self.trace.leading_channel() == Some(channel.as_ref())
     }
 
     #[must_use]
@@ -290,12 +287,66 @@ impl TracePrefixed {
         self.trace.last_channel()
     }
 
-    pub fn pop_trace_segment(&mut self) -> Option<PortAndChannel> {
+    pub fn pop_leading_port_and_channel(&mut self) -> Option<PortAndChannel> {
         self.trace.pop()
     }
 
     pub fn push_trace_segment(&mut self, segment: PortAndChannel) {
         self.trace.push(segment);
+    }
+
+    /// Calculates the length of the display formatted [`TracePrefixed`] without allocating a
+    /// String.
+    #[must_use]
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "string derived length should never overflow usize::MAX on 64 bit machines \
+                  because of memory constraints"
+    )]
+    fn display_len(&self) -> usize {
+        let mut len: usize = 0;
+        for segment in &self.trace.inner {
+            len += segment.port.len() + segment.channel.len() + 2; // 2 additional "/" characters
+        }
+        len + self.base_denom.len()
+    }
+
+    pub fn trace(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.trace
+            .inner
+            .iter()
+            .map(|segment| (segment.port.as_str(), segment.channel.as_str()))
+    }
+
+    #[must_use]
+    pub fn base_denom(&self) -> &str {
+        &self.base_denom
+    }
+
+    /// This should only be used where the inputs have been provided by a trusted entity, e.g. read
+    /// from our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
+    #[cfg(feature = "unchecked-constructors")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts<I: IntoIterator<Item = (String, String)>>(
+        trace: I,
+        base_denom: String,
+    ) -> Self {
+        Self {
+            trace: TraceSegments {
+                inner: trace
+                    .into_iter()
+                    .map(|(port, channel)| PortAndChannel {
+                        port,
+                        channel,
+                    })
+                    .collect(),
+            },
+            base_denom,
+        }
     }
 }
 
@@ -309,6 +360,14 @@ impl TraceSegments {
         Self {
             inner: VecDeque::new(),
         }
+    }
+
+    fn leading_port(&self) -> Option<&str> {
+        self.inner.front().map(|segment| &*segment.port)
+    }
+
+    fn leading_channel(&self) -> Option<&str> {
+        self.inner.front().map(|segment| &*segment.channel)
     }
 
     fn push(&mut self, seg: PortAndChannel) {
@@ -325,10 +384,6 @@ impl TraceSegments {
 
     fn is_empty(&self) -> bool {
         self.inner.is_empty()
-    }
-
-    fn iter(&self) -> impl Iterator<Item = &PortAndChannel> {
-        self.inner.iter()
     }
 }
 
@@ -510,16 +565,23 @@ pub struct IbcPrefixed {
 }
 
 impl IbcPrefixed {
+    pub const ENCODED_HASH_LEN: usize = 32;
+
     #[must_use]
-    pub fn new(id: [u8; 32]) -> Self {
+    pub const fn new(id: [u8; Self::ENCODED_HASH_LEN]) -> Self {
         Self {
             id,
         }
     }
 
     #[must_use]
-    pub fn get(&self) -> [u8; 32] {
-        self.id
+    pub const fn as_bytes(&self) -> &[u8; Self::ENCODED_HASH_LEN] {
+        &self.id
+    }
+
+    #[must_use]
+    pub const fn display_len(&self) -> usize {
+        68 // "ibc/" + 64 hex characters
     }
 }
 
@@ -548,7 +610,7 @@ impl FromStr for IbcPrefixed {
         if segments.next().is_some() {
             return Err(ParseIbcPrefixedError::too_many_segments());
         }
-        let id = <[u8; 32]>::from_hex(hex).map_err(Self::Err::hex)?;
+        let id = <[u8; Self::ENCODED_HASH_LEN]>::from_hex(hex).map_err(Self::Err::hex)?;
         Ok(Self {
             id,
         })
@@ -640,8 +702,10 @@ mod tests {
             TooManySegments,
         };
         #[track_caller]
-        // allow: silly lint
-        #[allow(clippy::needless_pass_by_value)]
+        #[expect(
+            clippy::needless_pass_by_value,
+            reason = "asserting on owned variants is less noisy then passing them by reference"
+        )]
         fn assert_error(input: &str, kind: ParseIbcPrefixedErrorKind) {
             let error = input
                 .parse::<IbcPrefixed>()
@@ -649,8 +713,6 @@ mod tests {
             assert_eq!(kind, error.0);
         }
         #[track_caller]
-        // allow: silly lint
-        #[allow(clippy::needless_pass_by_value)]
         fn assert_hex_error(input: &str) {
             let error = input
                 .parse::<IbcPrefixed>()
@@ -681,8 +743,10 @@ mod tests {
             Whitespace,
         };
         #[track_caller]
-        // allow: silly lint
-        #[allow(clippy::needless_pass_by_value)]
+        #[expect(
+            clippy::needless_pass_by_value,
+            reason = "asserting on owned variants is less noisy then passing them by reference"
+        )]
         fn assert_error(input: &str, kind: ParseTracePrefixedErrorKind) {
             let error = input
                 .parse::<TracePrefixed>()
@@ -717,37 +781,35 @@ mod tests {
     #[test]
     fn pop_path() {
         let mut denom = "a/long/path/to/denom".parse::<TracePrefixed>().unwrap();
-        let port_and_channel = denom.pop_trace_segment().unwrap();
+        let port_and_channel = denom.pop_leading_port_and_channel().unwrap();
         assert_eq!("a", port_and_channel.port());
         assert_eq!("long", port_and_channel.channel());
 
-        let port_and_channel = denom.pop_trace_segment().unwrap();
+        let port_and_channel = denom.pop_leading_port_and_channel().unwrap();
         assert_eq!("path", port_and_channel.port());
         assert_eq!("to", port_and_channel.channel());
 
-        assert_eq!(None, denom.pop_trace_segment());
+        assert_eq!(None, denom.pop_leading_port_and_channel());
     }
 
     #[test]
-    fn start_prefixes() {
-        let denom = "four/segments/of/a/denom".parse::<TracePrefixed>().unwrap();
+    fn display_len_outputs_expected_length() {
+        assert_correct_display_len("0123456789");
+        assert_correct_display_len("path_with-special^characters!@#$%&*()+={}|;:?<>,.`~");
 
-        assert!(denom.starts_with_str(""));
-        assert!(!denom.starts_with_str("/"));
-        assert!(!denom.starts_with_str(" "));
+        assert_correct_display_len("MixedCasePath");
+        assert_correct_display_len("denom");
+        assert_correct_display_len("short/path/denom");
+        assert_correct_display_len("a/very/long/path/to/the/denom");
+        assert_correct_display_len(&format!("ibc/{}", hex::encode([0u8; 32])));
+        assert_correct_display_len(&format!("ibc/{}", hex::encode([1u8; 32])));
+        assert_correct_display_len(&format!("ibc/{}", hex::encode([42u8; 32])));
+        assert_correct_display_len(&format!("ibc/{}", hex::encode([255u8; 32])));
+    }
 
-        assert!(!denom.starts_with_str("four/segments /"));
-
-        assert!(denom.starts_with_str("four/segments"));
-        assert!(denom.starts_with_str("four/segments/"));
-
-        assert!(!denom.starts_with_str("four/segments/of/a/denom/"));
-
-        assert!(denom.starts_with_str("four"));
-        assert!(denom.starts_with_str("four/segments/of"));
-
-        assert!(!denom.starts_with_str("four/segm"));
-
-        assert!(denom.starts_with_str("four/segments/of/a/denom"));
+    #[track_caller]
+    fn assert_correct_display_len(denom_str: &str) {
+        let denom = denom_str.parse::<Denom>().unwrap();
+        assert_eq!(denom_str.len(), denom.display_len());
     }
 }

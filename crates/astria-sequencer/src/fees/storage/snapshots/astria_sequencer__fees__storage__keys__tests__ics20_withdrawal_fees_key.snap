@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/fees/storage/keys.rs
+expression: ICS20_WITHDRAWAL
+---
+fees/ics20_withdrawal

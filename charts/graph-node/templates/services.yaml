@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: graph-node
+  namespace: {{ include "graphnode.namespace" . }}
+spec:
+  selector:
+    app: graph-node
+  ports:
+    - name: http
+      port: {{ .Values.graphNode.ports.http }}
+      targetPort: {{ .Values.graphNode.ports.http }}
+    - name: json-rpc
+      port: {{ .Values.graphNode.ports.jsonRpc }}
+      targetPort: {{ .Values.graphNode.ports.jsonRpc }}
+    - name: index-node
+      port: {{ .Values.graphNode.ports.indexNode }}
+      targetPort: {{ .Values.graphNode.ports.indexNode }}
+    - name: metrics
+      port: {{ .Values.graphNode.ports.metrics }}
+      targetPort: {{ .Values.graphNode.ports.metrics }}
+    - name: subgraph-metrics
+      port: {{ .Values.graphNode.ports.subgraphMetrics }}
+      targetPort: {{ .Values.graphNode.ports.subgraphMetrics }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ipfs
+  namespace: {{ include "graphnode.namespace" . }}
+spec:
+  selector:
+    app: ipfs
+  ports:
+    - name: api
+      port: {{ .Values.ipfs.ports.api }}
+      targetPort: {{ .Values.ipfs.ports.api }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: {{ include "graphnode.namespace" . }}
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: {{ .Values.postgres.ports.postgres }}
+      targetPort: {{ .Values.postgres.ports.postgres }}

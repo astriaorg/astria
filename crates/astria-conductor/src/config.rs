@@ -33,10 +33,12 @@ impl std::fmt::Display for CommitLevel {
     }
 }
 
-// Allowed `struct_excessive_bools` because this is used as a container
-// for deserialization. Making this a builder-pattern is not actionable.
-#[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Serialize, Deserialize)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "This is used as a container for deserialization. Making this a builder-pattern is \
+              not actionable"
+)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     /// The block time of Celestia network in milliseconds.
     pub celestia_block_time_ms: u64,
@@ -60,6 +62,12 @@ pub struct Config {
 
     /// The number of requests per second that will be sent to Sequencer.
     pub sequencer_requests_per_second: u32,
+
+    /// The chain ID of the sequencer network the conductor should be communiacting with.
+    pub expected_sequencer_chain_id: String,
+
+    /// The chain ID of the Celestia network the conductor should be communicating with.
+    pub expected_celestia_chain_id: String,
 
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,

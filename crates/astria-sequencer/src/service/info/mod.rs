@@ -6,8 +6,8 @@ use std::{
     },
 };
 
-use anyhow::Context as _;
 use astria_core::protocol::abci::AbciErrorCode;
+use astria_eyre::eyre::WrapErr as _;
 use cnidarium::Storage;
 use futures::{
     Future,
@@ -32,7 +32,12 @@ use tracing::{
 
 mod abci_query_router;
 
-use crate::state_ext::StateReadExt;
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::Result,
+};
+
+use crate::app::StateReadExt as _;
 
 #[derive(Clone)]
 pub(crate) struct Info {
@@ -41,47 +46,47 @@ pub(crate) struct Info {
 }
 
 impl Info {
-    pub(crate) fn new(storage: Storage) -> anyhow::Result<Self> {
+    pub(crate) fn new(storage: Storage) -> Result<Self> {
         let mut query_router = abci_query_router::Router::new();
         query_router
             .insert(
                 "accounts/balance/:account",
                 crate::accounts::query::balance_request,
             )
-            .context("invalid path: `accounts/balance/:account`")?;
+            .wrap_err("invalid path: `accounts/balance/:account`")?;
         query_router
             .insert(
                 "accounts/nonce/:account",
                 crate::accounts::query::nonce_request,
             )
-            .context("invalid path: `accounts/nonce/:account`")?;
+            .wrap_err("invalid path: `accounts/nonce/:account`")?;
         query_router
             .insert("asset/denom/:id", crate::assets::query::denom_request)
-            .context("invalid path: `asset/denom/:id`")?;
+            .wrap_err("invalid path: `asset/denom/:id`")?;
         query_router
             .insert(
                 "asset/allowed_fee_assets",
-                crate::assets::query::allowed_fee_assets_request,
+                crate::fees::query::allowed_fee_assets_request,
             )
-            .context("invalid path: `asset/allowed_fee_asset_ids`")?;
+            .wrap_err("invalid path: `asset/allowed_fee_asset_ids`")?;
         query_router
             .insert(
                 "bridge/account_last_tx_hash/:address",
                 crate::bridge::query::bridge_account_last_tx_hash_request,
             )
-            .context("invalid path: `bridge/account_last_tx_hash/:address`")?;
+            .wrap_err("invalid path: `bridge/account_last_tx_hash/:address`")?;
         query_router
             .insert(
                 "transaction/fee",
                 crate::transaction::query::transaction_fee_request,
             )
-            .context("invalid path: `transaction/fee`")?;
+            .wrap_err("invalid path: `transaction/fee`")?;
         query_router
             .insert(
                 "bridge/account_info/:address",
                 crate::bridge::query::bridge_account_info_request,
             )
-            .context("invalid path: `bridge/account_info/:address`")?;
+            .wrap_err("invalid path: `bridge/account_info/:address`")?;
         Ok(Self {
             storage,
             query_router,
@@ -103,7 +108,8 @@ impl Info {
                     .latest_snapshot()
                     .root_hash()
                     .await
-                    .context("failed to get app hash")?;
+                    .map_err(anyhow_to_eyre)
+                    .wrap_err("failed to get app hash")?;
 
                 let response = InfoResponse::Info(response::Info {
                     version: env!("CARGO_PKG_VERSION").to_string(),
@@ -171,7 +177,7 @@ impl Service<InfoRequest> for Info {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         primitive::v1::asset,
         protocol::{
@@ -194,11 +200,12 @@ mod test {
             StateReadExt as _,
             StateWriteExt as _,
         },
-        assets::{
+        app::StateWriteExt as _,
+        assets::StateWriteExt as _,
+        fees::{
             StateReadExt as _,
             StateWriteExt as _,
         },
-        state_ext::StateWriteExt as _,
     };
 
     #[tokio::test]
@@ -214,10 +221,12 @@ mod test {
         let height = 99;
         let version = storage.latest_version().wrapping_add(1);
         let mut state = StateDelta::new(storage.latest_snapshot());
-        state.put_storage_version_by_height(height, version);
+        state
+            .put_storage_version_by_height(height, version)
+            .unwrap();
 
-        state.put_base_prefix("astria");
-        state.put_native_asset(&crate::test_utils::nria());
+        state.put_base_prefix("astria".to_string()).unwrap();
+        state.put_native_asset(crate::test_utils::nria()).unwrap();
 
         let address = state
             .try_base_prefixed(&hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap())
@@ -226,9 +235,9 @@ mod test {
 
         let balance = 1000;
         state
-            .put_account_balance(address, crate::test_utils::nria(), balance)
+            .put_account_balance(&address, &crate::test_utils::nria(), balance)
             .unwrap();
-        state.put_block_height(height);
+        state.put_block_height(height).unwrap();
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
@@ -273,14 +282,17 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());
 
-        let denom = "some/ibc/asset".parse().unwrap();
+        let denom: asset::TracePrefixed = "some/ibc/asset".parse().unwrap();
         let height = 99;
-        state.put_block_height(height);
-        state.put_ibc_asset(&denom).unwrap();
+        state.put_block_height(height).unwrap();
+        state.put_ibc_asset(denom.clone()).unwrap();
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
-            path: format!("asset/denom/{}", hex::encode(denom.to_ibc_prefixed().get())),
+            path: format!(
+                "asset/denom/{}",
+                hex::encode(denom.to_ibc_prefixed().as_bytes())
+            ),
             data: vec![].into(),
             height: u32::try_from(height).unwrap().into(),
             prove: false,
@@ -322,7 +334,7 @@ mod test {
         let height = 99;
 
         for asset in &assets {
-            state.put_allowed_fee_asset(asset);
+            state.put_allowed_fee_asset(asset).unwrap();
             assert!(
                 state
                     .is_allowed_fee_asset(asset)
@@ -331,7 +343,7 @@ mod test {
                 "fee asset was expected to be allowed"
             );
         }
-        state.put_block_height(height);
+        state.put_block_height(height).unwrap();
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {

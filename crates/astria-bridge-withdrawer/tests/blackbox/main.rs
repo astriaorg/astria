@@ -1,10 +1,17 @@
+#![expect(
+    clippy::missing_panics_doc,
+    reason = "These are tests; failing with panics is ok."
+)]
+
 use astria_core::protocol::transaction::v1alpha1::Action;
 use helpers::{
     assert_actions_eq,
     default_sequencer_address,
-    make_bridge_unlock_action,
-    make_ics20_withdrawal_action,
-    signed_tx_from_request,
+    make_erc20_bridge_unlock_action,
+    make_erc20_ics20_withdrawal_action,
+    make_native_bridge_unlock_action,
+    make_native_ics20_withdrawal_action,
+    tx_from_request,
     TestBridgeWithdrawerConfig,
 };
 
@@ -20,7 +27,7 @@ async fn native_sequencer_withdraw_success() {
         .mount_pending_nonce_response(1, "process batch 1")
         .await;
     let broadcast_guard = test_env
-        .mount_broadcast_tx_commit_success_response_as_scoped()
+        .mount_broadcast_tx_sync_success_response_as_scoped()
         .await;
 
     // send a native sequencer withdrawal tx to the rollup
@@ -39,7 +46,7 @@ async fn native_sequencer_withdraw_success() {
         )
         .await;
 
-    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock>(
+    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock, NativeAsset>(
         &broadcast_guard.received_requests().await,
         &receipt,
     );
@@ -57,7 +64,7 @@ async fn native_ics20_withdraw_success() {
         .mount_pending_nonce_response(1, "process batch 1")
         .await;
     let broadcast_guard = test_env
-        .mount_broadcast_tx_commit_success_response_as_scoped()
+        .mount_broadcast_tx_sync_success_response_as_scoped()
         .await;
 
     // send an ics20 withdrawal tx to the rollup
@@ -76,7 +83,7 @@ async fn native_ics20_withdraw_success() {
         )
         .await;
 
-    assert_contract_receipt_action_matches_broadcast_action::<Ics20>(
+    assert_contract_receipt_action_matches_broadcast_action::<Ics20, NativeAsset>(
         &broadcast_guard.received_requests().await,
         &receipt,
     );
@@ -94,7 +101,7 @@ async fn erc20_sequencer_withdraw_success() {
         .mount_pending_nonce_response(1, "process batch 1")
         .await;
     let broadcast_guard = test_env
-        .mount_broadcast_tx_commit_success_response_as_scoped()
+        .mount_broadcast_tx_sync_success_response_as_scoped()
         .await;
 
     // mint some erc20 tokens to the rollup wallet
@@ -119,7 +126,7 @@ async fn erc20_sequencer_withdraw_success() {
         )
         .await;
 
-    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock>(
+    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock, Erc20>(
         &broadcast_guard.received_requests().await,
         &receipt,
     );
@@ -137,7 +144,7 @@ async fn erc20_ics20_withdraw_success() {
         .mount_pending_nonce_response(1, "process batch 1")
         .await;
     let broadcast_guard = test_env
-        .mount_broadcast_tx_commit_success_response_as_scoped()
+        .mount_broadcast_tx_sync_success_response_as_scoped()
         .await;
 
     // mint some erc20 tokens to the rollup wallet
@@ -162,38 +169,58 @@ async fn erc20_ics20_withdraw_success() {
         )
         .await;
 
-    assert_contract_receipt_action_matches_broadcast_action::<Ics20>(
+    assert_contract_receipt_action_matches_broadcast_action::<Ics20, Erc20>(
         &broadcast_guard.received_requests().await,
         &receipt,
     );
 }
 
-trait ActionFromReceipt {
+trait ActionFromReceipt<TAsset> {
     fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action;
 }
 
+struct NativeAsset;
+struct Erc20;
+
 struct BridgeUnlock;
-impl ActionFromReceipt for BridgeUnlock {
+impl ActionFromReceipt<NativeAsset> for BridgeUnlock {
     #[track_caller]
     fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
-        make_bridge_unlock_action(receipt)
+        make_native_bridge_unlock_action(receipt)
+    }
+}
+
+impl ActionFromReceipt<Erc20> for BridgeUnlock {
+    #[track_caller]
+    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
+        make_erc20_bridge_unlock_action(receipt)
     }
 }
 
 struct Ics20;
-impl ActionFromReceipt for Ics20 {
+impl ActionFromReceipt<NativeAsset> for Ics20 {
     #[track_caller]
     fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
-        make_ics20_withdrawal_action(receipt)
+        make_native_ics20_withdrawal_action(receipt)
+    }
+}
+
+impl ActionFromReceipt<Erc20> for Ics20 {
+    #[track_caller]
+    fn action_from_receipt(receipt: &ethers::types::TransactionReceipt) -> Action {
+        make_erc20_ics20_withdrawal_action(receipt)
     }
 }
 
 #[track_caller]
-fn assert_contract_receipt_action_matches_broadcast_action<T: ActionFromReceipt>(
+fn assert_contract_receipt_action_matches_broadcast_action<
+    TAction: ActionFromReceipt<TAsset>,
+    TAsset,
+>(
     received_broadcasts: &[wiremock::Request],
     receipt: &ethers::types::TransactionReceipt,
 ) {
-    let tx = signed_tx_from_request(received_broadcasts.first().expect(
+    let tx = tx_from_request(received_broadcasts.first().expect(
         "at least one request should have been received if the broadcast guard is satisfied",
     ));
     let actual = tx
@@ -201,6 +228,6 @@ fn assert_contract_receipt_action_matches_broadcast_action<T: ActionFromReceipt>
         .first()
         .expect("the signed transaction should contain at least one action");
 
-    let expected = T::action_from_receipt(receipt);
+    let expected = TAction::action_from_receipt(receipt);
     assert_actions_eq(&expected, actual);
 }

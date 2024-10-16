@@ -31,7 +31,7 @@ use sequencer_client::{
     tendermint_rpc,
     Address,
     SequencerClientExt as _,
-    SignedTransaction,
+    Transaction,
 };
 use tendermint_rpc::{
     endpoint::tx,
@@ -65,40 +65,36 @@ pub(super) struct Builder {
     pub(super) shutdown_token: CancellationToken,
     pub(super) state: Arc<State>,
     pub(super) sequencer_chain_id: String,
-    pub(super) sequencer_cometbft_endpoint: String,
-    pub(super) sequencer_grpc_endpoint: String,
+    pub(super) sequencer_cometbft_client: sequencer_client::HttpClient,
+    pub(super) sequencer_grpc_client: SequencerServiceClient<Channel>,
     pub(super) sequencer_bridge_address: Address,
     pub(super) expected_fee_asset: asset::Denom,
     pub(super) metrics: &'static Metrics,
 }
 
 impl Builder {
-    pub(super) fn build(self) -> eyre::Result<Startup> {
+    pub(super) fn build(self) -> Startup {
         let Self {
             shutdown_token,
             state,
             sequencer_chain_id,
-            sequencer_cometbft_endpoint,
+            sequencer_cometbft_client,
             sequencer_bridge_address,
-            sequencer_grpc_endpoint,
+            sequencer_grpc_client,
             expected_fee_asset,
             metrics,
         } = self;
 
-        let sequencer_cometbft_client =
-            sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
-                .wrap_err("failed constructing cometbft http client")?;
-
-        Ok(Startup {
+        Startup {
             shutdown_token,
             state,
             sequencer_chain_id,
             sequencer_cometbft_client,
-            sequencer_grpc_endpoint,
+            sequencer_grpc_client,
             sequencer_bridge_address,
             expected_fee_asset,
             metrics,
-        })
+        }
     }
 }
 
@@ -141,7 +137,7 @@ pub(super) struct Startup {
     state: Arc<State>,
     sequencer_chain_id: String,
     sequencer_cometbft_client: sequencer_client::HttpClient,
-    sequencer_grpc_endpoint: String,
+    sequencer_grpc_client: SequencerServiceClient<Channel>,
     sequencer_bridge_address: Address,
     expected_fee_asset: asset::Denom,
     metrics: &'static Metrics,
@@ -159,7 +155,7 @@ impl Startup {
 
             wait_for_empty_mempool(
                 self.sequencer_cometbft_client.clone(),
-                self.sequencer_grpc_endpoint.clone(),
+                self.sequencer_grpc_client.clone(),
                 self.sequencer_bridge_address,
                 self.state.clone(),
                 self.metrics,
@@ -238,23 +234,9 @@ impl Startup {
         Ok(())
     }
 
-    /// Gets the last transaction by the bridge account on the sequencer. This is used to
-    /// determine the starting rollup height for syncing to the latest on-chain state.
-    ///
-    /// # Returns
-    /// The last transaction by the bridge account on the sequencer, if it exists.
-    ///
-    /// # Errors
-    ///
-    /// 1. Failing to fetch the last transaction hash by the bridge account.
-    /// 2. Failing to convert the last transaction hash to a tendermint hash.
-    /// 3. Failing to fetch the last transaction by the bridge account.
-    /// 4. The last transaction by the bridge account failed to execute (this should not happen
-    ///   in the sequencer logic).
-    /// 5. Failing to convert the transaction data from bytes to proto.
-    /// 6. Failing to convert the transaction data from proto to `SignedTransaction`.
+    /// Gets the last transaction by the bridge account on the sequencer.
     #[instrument(skip_all, err)]
-    async fn get_last_transaction(&self) -> eyre::Result<Option<SignedTransaction>> {
+    async fn get_last_transaction(&self) -> eyre::Result<Option<Transaction>> {
         // get last transaction hash by the bridge account, if it exists
         let last_transaction_hash_resp = get_bridge_account_last_transaction_hash(
             self.sequencer_cometbft_client.clone(),
@@ -288,16 +270,23 @@ impl Startup {
         );
 
         let proto_tx =
-            astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::decode(
+            astria_core::generated::protocol::transaction::v1alpha1::Transaction::decode(
                 &*last_transaction.tx,
             )
-            .wrap_err_with(|| format!(
-                "failed to decode data in Sequencer CometBFT transaction as `{}`",
-                astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::full_name(),
-                        ))?;
+            .wrap_err_with(|| {
+                format!(
+                    "failed to decode data in Sequencer CometBFT transaction as `{}`",
+                    astria_core::generated::protocol::transaction::v1alpha1::Transaction::full_name(
+                    ),
+                )
+            })?;
 
-        let tx = SignedTransaction::try_from_raw(proto_tx)
-            .wrap_err_with(|| format!("failed to verify {}", astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::full_name()))?;
+        let tx = Transaction::try_from_raw(proto_tx).wrap_err_with(|| {
+            format!(
+                "failed to verify {}",
+                astria_core::generated::protocol::transaction::v1alpha1::Transaction::full_name()
+            )
+        })?;
 
         info!(
             last_bridge_account_tx.hash = %telemetry::display::hex(&tx_hash),
@@ -400,7 +389,7 @@ async fn ensure_mempool_empty(
 #[instrument(skip_all, err)]
 async fn wait_for_empty_mempool(
     cometbft_client: sequencer_client::HttpClient,
-    sequencer_grpc_endpoint: String,
+    sequencer_grpc_client: SequencerServiceClient<Channel>,
     address: Address,
     state: Arc<State>,
     metrics: &'static Metrics,
@@ -424,14 +413,9 @@ async fn wait_for_empty_mempool(
                 futures::future::ready(())
             },
         );
-    let sequencer_client = SequencerServiceClient::connect(sequencer_grpc_endpoint.clone())
-        .await
-        .wrap_err_with(|| {
-            format!("failed to connect to sequencer at `{sequencer_grpc_endpoint}`")
-        })?;
 
     tryhard::retry_fn(|| {
-        let sequencer_client = sequencer_client.clone();
+        let sequencer_client = sequencer_grpc_client.clone();
         let cometbft_client = cometbft_client.clone();
         let state = state.clone();
         ensure_mempool_empty(cometbft_client, sequencer_client, address, state, metrics)
@@ -456,10 +440,8 @@ async fn wait_for_empty_mempool(
 /// 1. The last transaction by the bridge account did not contain a withdrawal action.
 /// 2. The memo of the last transaction by the bridge account could not be parsed.
 /// 3. The block number in the memo of the last transaction by the bridge account could not be
-///   converted to a u64.
-fn rollup_height_from_signed_transaction(
-    signed_transaction: &SignedTransaction,
-) -> eyre::Result<u64> {
+///    converted to a u64.
+fn rollup_height_from_signed_transaction(signed_transaction: &Transaction) -> eyre::Result<u64> {
     // find the last batch's rollup block height
     let withdrawal_action = signed_transaction
         .actions()
@@ -480,7 +462,7 @@ fn rollup_height_from_signed_transaction(
     .expect("action is already checked to be either BridgeUnlock or Ics20Withdrawal");
 
     info!(
-        last_batch.tx_hash = %telemetry::display::hex(&signed_transaction.sha256_of_proto_encoding()),
+        last_batch.transaction_id = %signed_transaction.id(),
         last_batch.rollup_height = last_batch_rollup_height,
         "extracted rollup height from last batch of withdrawals",
     );

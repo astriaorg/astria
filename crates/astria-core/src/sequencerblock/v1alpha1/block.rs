@@ -29,11 +29,13 @@ use crate::{
         AddressError,
         IncorrectRollupIdLength,
         RollupId,
+        TransactionId,
+        TransactionIdError,
     },
     protocol::transaction::v1alpha1::{
         action,
-        SignedTransaction,
-        SignedTransactionError,
+        Transaction,
+        TransactionError,
     },
     Protobuf as _,
 };
@@ -90,8 +92,8 @@ pub struct RollupTransactions {
 impl RollupTransactions {
     /// Returns the [`RollupId`] identifying the rollup these transactions belong to.
     #[must_use]
-    pub fn rollup_id(&self) -> RollupId {
-        self.rollup_id
+    pub fn rollup_id(&self) -> &RollupId {
+        &self.rollup_id
     }
 
     /// Returns the block data for this rollup.
@@ -138,7 +140,7 @@ impl RollupTransactions {
             return Err(RollupTransactionsError::field_not_set("rollup_id"));
         };
         let rollup_id =
-            RollupId::try_from_raw(&rollup_id).map_err(RollupTransactionsError::rollup_id)?;
+            RollupId::try_from_raw(rollup_id).map_err(RollupTransactionsError::rollup_id)?;
         let proof = 'proof: {
             let Some(proof) = proof else {
                 break 'proof Err(RollupTransactionsError::field_not_set("proof"));
@@ -162,6 +164,27 @@ impl RollupTransactions {
             proof,
         } = self;
         RollupTransactionsParts {
+            rollup_id,
+            transactions,
+            proof,
+        }
+    }
+
+    /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
+    /// our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
+    #[cfg(feature = "unchecked-constructors")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(parts: RollupTransactionsParts) -> Self {
+        let RollupTransactionsParts {
+            rollup_id,
+            transactions,
+            proof,
+        } = parts;
+        Self {
             rollup_id,
             transactions,
             proof,
@@ -222,16 +245,12 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::RollupIdsNotInSequencerBlock)
     }
 
-    fn signed_transaction_protobuf_decode(source: prost::DecodeError) -> Self {
-        Self(SequencerBlockErrorKind::SignedTransactionProtobufDecode(
-            source,
-        ))
+    fn transaction_protobuf_decode(source: prost::DecodeError) -> Self {
+        Self(SequencerBlockErrorKind::TransactionProtobufDecode(source))
     }
 
-    fn raw_signed_transaction_conversion(source: SignedTransactionError) -> Self {
-        Self(SequencerBlockErrorKind::RawSignedTransactionConversion(
-            source,
-        ))
+    fn raw_signed_transaction_conversion(source: TransactionError) -> Self {
+        Self(SequencerBlockErrorKind::RawTransactionConversion(source))
     }
 
     fn rollup_transactions_root_does_not_match_reconstructed() -> Self {
@@ -296,15 +315,15 @@ enum SequencerBlockErrorKind {
     )]
     RollupIdsNotInSequencerBlock,
     #[error(
-        "failed decoding an entry in the cometbft block.data field as a protobuf signed astria \
+        "failed decoding an entry in the cometbft block.data field as a protobuf astria \
          transaction"
     )]
-    SignedTransactionProtobufDecode(#[source] prost::DecodeError),
+    TransactionProtobufDecode(#[source] prost::DecodeError),
     #[error(
-        "failed converting a raw protobuf signed transaction decoded from the cometbft block.data
-        field to a native astria signed transaction"
+        "failed converting a raw protobuf transaction decoded from the cometbft block.data
+        field to a native astria transaction"
     )]
-    RawSignedTransactionConversion(#[source] SignedTransactionError),
+    RawTransactionConversion(#[source] TransactionError),
     #[error(
         "the root derived from the rollup transactions in the cometbft block.data field did not \
          match the root stored in the same block.data field"
@@ -369,13 +388,13 @@ impl SequencerBlockHeader {
     }
 
     #[must_use]
-    pub fn rollup_transactions_root(&self) -> [u8; 32] {
-        self.rollup_transactions_root
+    pub fn rollup_transactions_root(&self) -> &[u8; 32] {
+        &self.rollup_transactions_root
     }
 
     #[must_use]
-    pub fn data_hash(&self) -> [u8; 32] {
-        self.data_hash
+    pub fn data_hash(&self) -> &[u8; 32] {
+        &self.data_hash
     }
 
     #[must_use]
@@ -476,6 +495,33 @@ impl SequencerBlockHeader {
             proposer_address,
         })
     }
+
+    /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
+    /// our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
+    #[cfg(feature = "unchecked-constructors")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(parts: SequencerBlockHeaderParts) -> Self {
+        let SequencerBlockHeaderParts {
+            chain_id,
+            height,
+            time,
+            rollup_transactions_root,
+            data_hash,
+            proposer_address,
+        } = parts;
+        Self {
+            chain_id,
+            height,
+            time,
+            rollup_transactions_root,
+            data_hash,
+            proposer_address,
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -533,7 +579,6 @@ enum SequencerBlockHeaderErrorKind {
 ///
 /// Exists to provide convenient access to fields of a [`SequencerBlock`].
 #[derive(Clone, Debug, PartialEq)]
-#[allow(clippy::module_name_repetitions)]
 pub struct SequencerBlockParts {
     pub block_hash: [u8; 32],
     pub header: SequencerBlockHeader,
@@ -545,7 +590,10 @@ pub struct SequencerBlockParts {
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
 /// converting its opaque `data` bytes into sequencer specific types.
 #[derive(Clone, Debug, PartialEq)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct SequencerBlock {
     /// The result of hashing the cometbft header. Guaranteed to not be `None` as compared to
     /// the cometbft/tendermint-rs return type.
@@ -555,17 +603,17 @@ pub struct SequencerBlock {
     header: SequencerBlockHeader,
     /// The collection of rollup transactions that were included in this block.
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
-    // The proof that the rollup transactions are included in the `CometBFT` block this
-    // sequencer block is derived form. This proof together with
-    // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
-    // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
-    // rollup transactions.
+    /// The proof that the rollup transactions are included in the `CometBFT` block this
+    /// sequencer block is derived form. This proof together with
+    /// `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+    /// rollup transactions.
     rollup_transactions_proof: merkle::Proof,
-    // The proof that the rollup IDs listed in `rollup_transactions` are included
-    // in the `CometBFT` block this sequencer block is derived form. This proof together
-    // with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
-    // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
-    // the rollup transactions.
+    /// The proof that the rollup IDs listed in `rollup_transactions` are included
+    /// in the `CometBFT` block this sequencer block is derived form. This proof together
+    /// with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+    /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
+    /// the rollup transactions.
     rollup_ids_proof: merkle::Proof,
 }
 
@@ -574,8 +622,8 @@ impl SequencerBlock {
     ///
     /// This is done by hashing the `CometBFT` header stored in this block.
     #[must_use]
-    pub fn block_hash(&self) -> [u8; 32] {
-        self.block_hash
+    pub fn block_hash(&self) -> &[u8; 32] {
+        &self.block_hash
     }
 
     #[must_use]
@@ -592,6 +640,16 @@ impl SequencerBlock {
     #[must_use]
     pub fn rollup_transactions(&self) -> &IndexMap<RollupId, RollupTransactions> {
         &self.rollup_transactions
+    }
+
+    #[must_use]
+    pub fn rollup_transactions_proof(&self) -> &merkle::Proof {
+        &self.rollup_transactions_proof
+    }
+
+    #[must_use]
+    pub fn rollup_ids_proof(&self) -> &merkle::Proof {
+        &self.rollup_ids_proof
     }
 
     /// Converts a [`SequencerBlock`] into its [`SequencerBlockParts`].
@@ -727,15 +785,13 @@ impl SequencerBlock {
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
             let raw_tx =
-                crate::generated::protocol::transactions::v1alpha1::SignedTransaction::decode(
-                    &*elem,
-                )
-                .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
-            let signed_tx = SignedTransaction::try_from_raw(raw_tx)
+                crate::generated::protocol::transaction::v1alpha1::Transaction::decode(&*elem)
+                    .map_err(SequencerBlockError::transaction_protobuf_decode)?;
+            let tx = Transaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
-            for action in signed_tx.into_unsigned().actions {
+            for action in tx.into_unsigned().into_actions() {
                 // XXX: The fee asset is dropped. We shjould explain why that's ok.
-                if let action::Action::Sequence(action::SequenceAction {
+                if let action::Action::Sequence(action::Sequence {
                     rollup_id,
                     data,
                     fee_asset: _,
@@ -910,6 +966,31 @@ impl SequencerBlock {
             rollup_ids_proof,
         })
     }
+
+    /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
+    /// our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
+    #[cfg(feature = "unchecked-constructors")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(parts: SequencerBlockParts) -> Self {
+        let SequencerBlockParts {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        } = parts;
+        Self {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        }
+    }
 }
 
 fn rollup_transactions_and_ids_root_from_data(
@@ -950,7 +1031,6 @@ where
 ///
 /// Exists to provide convenient access to fields of a [`FilteredSequencerBlock`].
 #[derive(Debug, Clone, PartialEq)]
-#[allow(clippy::module_name_repetitions)]
 pub struct FilteredSequencerBlockParts {
     pub block_hash: [u8; 32],
     pub header: SequencerBlockHeader,
@@ -965,7 +1045,10 @@ pub struct FilteredSequencerBlockParts {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
 pub struct FilteredSequencerBlock {
     block_hash: [u8; 32],
     header: SequencerBlockHeader,
@@ -981,8 +1064,8 @@ pub struct FilteredSequencerBlock {
 
 impl FilteredSequencerBlock {
     #[must_use]
-    pub fn block_hash(&self) -> [u8; 32] {
-        self.block_hash
+    pub fn block_hash(&self) -> &[u8; 32] {
+        &self.block_hash
     }
 
     #[must_use]
@@ -1001,8 +1084,8 @@ impl FilteredSequencerBlock {
     }
 
     #[must_use]
-    pub fn rollup_transactions_root(&self) -> [u8; 32] {
-        self.header.rollup_transactions_root
+    pub fn rollup_transactions_root(&self) -> &[u8; 32] {
+        &self.header.rollup_transactions_root
     }
 
     #[must_use]
@@ -1038,11 +1121,7 @@ impl FilteredSequencerBlock {
                 .map(RollupTransactions::into_raw)
                 .collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
-            all_rollup_ids: self
-                .all_rollup_ids
-                .iter()
-                .map(|id| Bytes::copy_from_slice(id.as_ref()))
-                .collect(),
+            all_rollup_ids: self.all_rollup_ids.iter().map(RollupId::to_raw).collect(),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
         }
     }
@@ -1127,7 +1206,7 @@ impl FilteredSequencerBlock {
 
         let all_rollup_ids: Vec<RollupId> = all_rollup_ids
             .into_iter()
-            .map(|bytes| RollupId::try_from_slice(&bytes))
+            .map(RollupId::try_from_raw)
             .collect::<Result<_, _>>()
             .map_err(FilteredSequencerBlockError::invalid_rollup_id)?;
 
@@ -1145,7 +1224,7 @@ impl FilteredSequencerBlock {
             ) {
                 return Err(
                     FilteredSequencerBlockError::rollup_transaction_for_id_not_in_sequencer_block(
-                        rollup_transactions.rollup_id(),
+                        *rollup_transactions.rollup_id(),
                     ),
                 );
             }
@@ -1289,66 +1368,23 @@ impl FilteredSequencerBlockError {
 )]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.
-    bridge_address: Address,
+    pub bridge_address: Address,
     // the rollup ID registered to the `bridge_address`
-    rollup_id: RollupId,
+    pub rollup_id: RollupId,
     // the amount that was transferred to `bridge_address`
-    amount: u128,
+    pub amount: u128,
     // the IBC ICS20 denom of the asset that was transferred
-    asset: asset::Denom,
+    pub asset: asset::Denom,
     // the address on the destination chain (rollup) which to send the bridged funds to
-    destination_chain_address: String,
-}
-
-impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
-    fn from(deposit: Deposit) -> Self {
-        deposit.into_raw()
-    }
+    pub destination_chain_address: String,
+    // the transaction ID of the source action for the deposit, consisting
+    // of the transaction hash.
+    pub source_transaction_id: TransactionId,
+    // index of the deposit's source action within its transaction
+    pub source_action_index: u64,
 }
 
 impl Deposit {
-    #[must_use]
-    pub fn new(
-        bridge_address: Address,
-        rollup_id: RollupId,
-        amount: u128,
-        asset: asset::Denom,
-        destination_chain_address: String,
-    ) -> Self {
-        Self {
-            bridge_address,
-            rollup_id,
-            amount,
-            asset,
-            destination_chain_address,
-        }
-    }
-
-    #[must_use]
-    pub fn bridge_address(&self) -> &Address {
-        &self.bridge_address
-    }
-
-    #[must_use]
-    pub fn rollup_id(&self) -> &RollupId {
-        &self.rollup_id
-    }
-
-    #[must_use]
-    pub fn amount(&self) -> u128 {
-        self.amount
-    }
-
-    #[must_use]
-    pub fn asset(&self) -> &asset::Denom {
-        &self.asset
-    }
-
-    #[must_use]
-    pub fn destination_chain_address(&self) -> &str {
-        &self.destination_chain_address
-    }
-
     #[must_use]
     pub fn into_raw(self) -> raw::Deposit {
         let Self {
@@ -1357,6 +1393,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
+            source_transaction_id,
+            source_action_index,
         } = self;
         raw::Deposit {
             bridge_address: Some(bridge_address.into_raw()),
@@ -1364,6 +1402,8 @@ impl Deposit {
             amount: Some(amount.into()),
             asset: asset.to_string(),
             destination_chain_address,
+            source_transaction_id: Some(source_transaction_id.into_raw()),
+            source_action_index,
         }
     }
 
@@ -1382,6 +1422,8 @@ impl Deposit {
             amount,
             asset,
             destination_chain_address,
+            source_transaction_id,
+            source_action_index,
         } = raw;
         let Some(bridge_address) = bridge_address else {
             return Err(DepositError::field_not_set("bridge_address"));
@@ -1393,15 +1435,28 @@ impl Deposit {
             return Err(DepositError::field_not_set("rollup_id"));
         };
         let rollup_id =
-            RollupId::try_from_raw(&rollup_id).map_err(DepositError::incorrect_rollup_id_length)?;
+            RollupId::try_from_raw(rollup_id).map_err(DepositError::incorrect_rollup_id_length)?;
         let asset = asset.parse().map_err(DepositError::incorrect_asset)?;
+        let Some(source_transaction_id) = source_transaction_id else {
+            return Err(DepositError::field_not_set("transaction_id"));
+        };
+        let source_transaction_id = TransactionId::try_from_raw_ref(&source_transaction_id)
+            .map_err(DepositError::transaction_id_error)?;
         Ok(Self {
             bridge_address,
             rollup_id,
             amount,
             asset,
             destination_chain_address,
+            source_transaction_id,
+            source_action_index,
         })
+    }
+}
+
+impl From<Deposit> for crate::generated::sequencerblock::v1alpha1::Deposit {
+    fn from(deposit: Deposit) -> Self {
+        deposit.into_raw()
     }
 }
 
@@ -1427,6 +1482,10 @@ impl DepositError {
     fn incorrect_asset(source: asset::ParseDenomError) -> Self {
         Self(DepositErrorKind::IncorrectAsset(source))
     }
+
+    fn transaction_id_error(source: TransactionIdError) -> Self {
+        Self(DepositErrorKind::TransactionIdError(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1439,6 +1498,8 @@ enum DepositErrorKind {
     IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the `asset` field could not be parsed")]
     IncorrectAsset(#[source] asset::ParseDenomError),
+    #[error("field `source_transaction_id` was invalid")]
+    TransactionIdError(#[source] TransactionIdError),
 }
 
 /// A piece of data that is sent to a rollup execution node.

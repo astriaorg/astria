@@ -13,22 +13,25 @@ use astria_core::{
     },
     protocol::transaction::v1alpha1::{
         Action,
-        TransactionParams,
-        UnsignedTransaction,
+        TransactionBody,
     },
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     eyre,
     Context,
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
 use sequencer_client::{
-    tendermint_rpc::endpoint::broadcast::tx_commit,
+    tendermint_rpc::endpoint::{
+        broadcast::tx_sync,
+        tx,
+    },
     Address,
     SequencerClientExt,
-    SignedTransaction,
+    Transaction,
 };
 use signer::SequencerKey;
 use state::State;
@@ -65,14 +68,14 @@ pub(super) struct Submitter {
     state: Arc<State>,
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
-    sequencer_grpc_endpoint: String,
+    sequencer_grpc_client: SequencerServiceClient<Channel>,
     signer: SequencerKey,
     metrics: &'static Metrics,
 }
 
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        let (sequencer_chain_id, sequencer_grpc_client) = select! {
+        let sequencer_chain_id = select! {
             () = self.shutdown_token.cancelled() => {
                 report_exit(Ok("submitter received shutdown signal while waiting for startup"));
                 return Ok(());
@@ -81,12 +84,8 @@ impl Submitter {
             startup_info = self.startup_handle.get_info() => {
                 let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
 
-                let sequencer_grpc_client = sequencer_service_client::SequencerServiceClient::connect(
-                    self.sequencer_grpc_endpoint.clone(),
-                ).await.wrap_err("failed to connect to sequencer gRPC endpoint")?;
-
                 self.state.set_submitter_ready();
-                (chain_id, sequencer_grpc_client)
+                chain_id
             }
         };
         self.state.set_submitter_ready();
@@ -106,7 +105,7 @@ impl Submitter {
 
                     // if batch submission fails, halt the submitter
                     if let Err(e) = self.process_batch(
-                        sequencer_grpc_client.clone(),
+                        self.sequencer_grpc_client.clone(),
                         &sequencer_chain_id,
                         actions,
                         rollup_height,
@@ -154,20 +153,19 @@ impl Submitter {
         .wrap_err("failed to get nonce from sequencer")?;
         debug!(nonce, "fetched latest nonce");
 
-        let unsigned = UnsignedTransaction {
-            actions,
-            params: TransactionParams::builder()
-                .nonce(nonce)
-                .chain_id(sequencer_chain_id)
-                .build(),
-        };
+        let unsigned = TransactionBody::builder()
+            .actions(actions)
+            .nonce(nonce)
+            .chain_id(sequencer_chain_id)
+            .try_build()
+            .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        let signed = unsigned.into_signed(signer.signing_key());
-        debug!(tx_hash = %telemetry::display::hex(&signed.sha256_of_proto_encoding()), "signed transaction");
+        let signed = unsigned.sign(signer.signing_key());
+        debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response
-        let rsp = submit_tx(
+        let (check_tx, tx_response) = submit_tx(
             sequencer_cometbft_client.clone(),
             signed,
             state.clone(),
@@ -175,31 +173,31 @@ impl Submitter {
         )
         .await
         .context("failed to submit transaction to cometbft")?;
-        if let tendermint::abci::Code::Err(check_tx_code) = rsp.check_tx.code {
+        if let tendermint::abci::Code::Err(check_tx_code) = check_tx.code {
             Err(eyre!(
                 "check_tx failure upon submitting transaction to sequencer: transaction failed to \
                  be included in the mempool, aborting. abci.code = {check_tx_code}, abci.log = \
                  {}, rollup.height = {rollup_height}",
-                rsp.check_tx.log
+                check_tx.log
             ))
-        } else if let tendermint::abci::Code::Err(deliver_tx_code) = rsp.tx_result.code {
+        } else if let tendermint::abci::Code::Err(deliver_tx_code) = tx_response.tx_result.code {
             Err(eyre!(
                 "deliver_tx failure upon submitting transaction to sequencer: transaction failed \
                  to be executed in a block, aborting. abci.code = {deliver_tx_code}, abci.log = \
                  {}, rollup.height = {rollup_height}",
-                rsp.tx_result.log,
+                tx_response.tx_result.log,
             ))
         } else {
             // update state after successful submission
             info!(
-                sequencer.block = rsp.height.value(),
-                sequencer.tx_hash = %rsp.hash,
+                sequencer.block = tx_response.height.value(),
+                sequencer.tx_hash = %tx_response.hash,
                 rollup.height = rollup_height,
                 "withdraw batch successfully executed."
             );
             state.set_last_rollup_height_submitted(rollup_height);
-            state.set_last_sequencer_height(rsp.height.value());
-            state.set_last_sequencer_tx_hash(rsp.hash);
+            state.set_last_sequencer_height(tx_response.height.value());
+            state.set_last_sequencer_tx_hash(tx_response.hash);
             Ok(())
         }
     }
@@ -215,22 +213,22 @@ fn report_exit(reason: eyre::Result<&str>) {
     }
 }
 
-/// Submits a `SignedTransaction` to the sequencer with an exponential backoff
+/// Submits a transaction to the sequencer with exponential backoff.
 #[instrument(
     name = "submit_tx",
     skip_all,
     fields(
         nonce = tx.nonce(),
-        transaction.hash = %telemetry::display::hex(&tx.sha256_of_proto_encoding()),
+        transaction.id = %tx.id(),
     ),
     err
 )]
 async fn submit_tx(
     client: sequencer_client::HttpClient,
-    tx: SignedTransaction,
+    tx: Transaction,
     state: Arc<State>,
     metrics: &'static Metrics,
-) -> eyre::Result<tx_commit::Response> {
+) -> eyre::Result<(tx_sync::Response, tx::Response)> {
     let nonce = tx.nonce();
     metrics.set_current_nonce(nonce);
     let start = std::time::Instant::now();
@@ -261,21 +259,33 @@ async fn submit_tx(
                 async move {}
             },
         );
-    let res = tryhard::retry_fn(|| {
+    let check_tx = tryhard::retry_fn(|| {
         let client = client.clone();
         let tx = tx.clone();
         let span = info_span!(parent: span.clone(), "attempt send");
-        async move { client.submit_transaction_commit(tx).await }.instrument(span)
+        async move { client.submit_transaction_sync(tx).await }.instrument(span)
     })
     .with_config(retry_config)
     .await
     .wrap_err("failed sending transaction after 1024 attempts");
 
-    state.set_sequencer_connected(res.is_ok());
+    state.set_sequencer_connected(check_tx.is_ok());
 
     metrics.record_sequencer_submission_latency(start.elapsed());
 
-    res
+    let check_tx = check_tx?;
+
+    ensure!(check_tx.code.is_ok(), "check_tx failed: {}", check_tx.log);
+
+    let tx_response = client.wait_for_tx_inclusion(check_tx.hash).await;
+
+    ensure!(
+        tx_response.tx_result.code.is_ok(),
+        "deliver_tx failed: {}",
+        tx_response.tx_result.log
+    );
+
+    Ok((check_tx, tx_response))
 }
 
 #[instrument(skip_all, err)]

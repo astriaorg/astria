@@ -1,12 +1,12 @@
-use anyhow::{
+use astria_core::protocol::transaction::v1alpha1::action::{
+    BridgeUnlock,
+    Transfer,
+};
+use astria_eyre::eyre::{
     bail,
     ensure,
-    Context as _,
     Result,
-};
-use astria_core::protocol::transaction::v1alpha1::action::{
-    BridgeUnlockAction,
-    TransferAction,
+    WrapErr as _,
 };
 use cnidarium::StateWrite;
 
@@ -25,7 +25,7 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-impl ActionHandler for BridgeUnlockAction {
+impl ActionHandler for BridgeUnlock {
     // TODO(https://github.com/astriaorg/astria/issues/1430): move checks to the `BridgeUnlock` parsing.
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.amount > 0, "amount must be greater than zero",);
@@ -35,8 +35,8 @@ impl ActionHandler for BridgeUnlockAction {
             "rollup withdrawal event id must be non-empty",
         );
         ensure!(
-            self.rollup_withdrawal_event_id.len() <= 64,
-            "rollup withdrawal event id must not be more than 64 bytes",
+            self.rollup_withdrawal_event_id.len() <= 256,
+            "rollup withdrawal event id must not be more than 256 bytes",
         );
         ensure!(
             self.rollup_block_number > 0,
@@ -47,28 +47,28 @@ impl ActionHandler for BridgeUnlockAction {
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
         state
             .ensure_base_prefix(&self.to)
             .await
-            .context("failed check for base prefix of destination address")?;
+            .wrap_err("failed check for base prefix of destination address")?;
         state
             .ensure_base_prefix(&self.bridge_address)
             .await
-            .context("failed check for base prefix of bridge address")?;
+            .wrap_err("failed check for base prefix of bridge address")?;
 
         let asset = state
-            .get_bridge_account_ibc_asset(self.bridge_address)
+            .get_bridge_account_ibc_asset(&self.bridge_address)
             .await
-            .context("failed to get bridge's asset id, must be a bridge account")?;
+            .wrap_err("failed to get bridge's asset id, must be a bridge account")?;
 
         // check that the sender of this tx is the authorized withdrawer for the bridge account
         let Some(withdrawer_address) = state
-            .get_bridge_account_withdrawer_address(self.bridge_address)
+            .get_bridge_account_withdrawer_address(&self.bridge_address)
             .await
-            .context("failed to get bridge account withdrawer address")?
+            .wrap_err("failed to get bridge account withdrawer address")?
         else {
             bail!("bridge account does not have an associated withdrawer address");
         };
@@ -78,23 +78,23 @@ impl ActionHandler for BridgeUnlockAction {
             "unauthorized to unlock bridge account",
         );
 
-        let transfer_action = TransferAction {
+        let transfer_action = Transfer {
             to: self.to,
             asset: asset.into(),
             amount: self.amount,
             fee_asset: self.fee_asset.clone(),
         };
 
-        check_transfer(&transfer_action, self.bridge_address, &state).await?;
+        check_transfer(&transfer_action, &self.bridge_address, &state).await?;
         state
             .check_and_set_withdrawal_event_block_for_bridge_account(
-                self.bridge_address,
+                &self.bridge_address,
                 &self.rollup_withdrawal_event_id,
                 self.rollup_block_number,
             )
             .await
             .context("withdrawal event already processed")?;
-        execute_transfer(&transfer_action, self.bridge_address, state).await?;
+        execute_transfer(&transfer_action, &self.bridge_address, state).await?;
 
         Ok(())
     }
@@ -106,8 +106,12 @@ mod tests {
         primitive::v1::{
             asset,
             RollupId,
+            TransactionId,
         },
-        protocol::transaction::v1alpha1::action::BridgeUnlockAction,
+        protocol::{
+            fees::v1alpha1::BridgeUnlockFeeComponents,
+            transaction::v1alpha1::action::BridgeUnlock,
+        },
     };
     use cnidarium::StateDelta;
 
@@ -115,10 +119,10 @@ mod tests {
         accounts::StateWriteExt as _,
         address::StateWriteExt as _,
         app::ActionHandler as _,
-        assets::StateWriteExt as _,
         bridge::StateWriteExt as _,
+        fees::StateWriteExt as _,
         test_utils::{
-            assert_anyhow_error,
+            assert_eyre_error,
             astria_address,
             ASTRIA_PREFIX,
         },
@@ -138,10 +142,12 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
         let transfer_amount = 100;
@@ -149,10 +155,10 @@ mod tests {
         let to_address = astria_address(&[2; 20]);
         let bridge_address = astria_address(&[3; 20]);
         state
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
 
-        let bridge_unlock = BridgeUnlockAction {
+        let bridge_unlock = BridgeUnlock {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
@@ -163,7 +169,7 @@ mod tests {
         };
 
         // invalid sender, doesn't match action's `from`, should fail
-        assert_anyhow_error(
+        assert_eyre_error(
             &bridge_unlock.check_and_execute(state).await.unwrap_err(),
             "bridge account does not have an associated withdrawer address",
         );
@@ -175,10 +181,12 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
         let transfer_amount = 100;
@@ -186,12 +194,14 @@ mod tests {
         let to_address = astria_address(&[2; 20]);
         let bridge_address = astria_address(&[3; 20]);
         let withdrawer_address = astria_address(&[4; 20]);
-        state.put_bridge_account_withdrawer_address(bridge_address, withdrawer_address);
         state
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
+            .unwrap();
+        state
+            .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
 
-        let bridge_unlock = BridgeUnlockAction {
+        let bridge_unlock = BridgeUnlock {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset,
@@ -202,7 +212,7 @@ mod tests {
         };
 
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
-        assert_anyhow_error(
+        assert_eyre_error(
             &bridge_unlock.check_and_execute(state).await.unwrap_err(),
             "unauthorized to unlock bridge account",
         );
@@ -215,31 +225,42 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let bridge_address = astria_address(&[1; 20]);
-        state.put_current_source(TransactionContext {
+        state.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
         let transfer_fee = 10;
         let transfer_amount = 100;
-        state.put_transfer_base_fee(transfer_fee).unwrap();
+        state
+            .put_bridge_unlock_fees(BridgeUnlockFeeComponents {
+                base: transfer_fee,
+                multiplier: 0,
+            })
+            .unwrap();
 
         let to_address = astria_address(&[2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
-        state.put_bridge_account_rollup_id(bridge_address, &rollup_id);
         state
-            .put_bridge_account_ibc_asset(bridge_address, &asset)
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state.put_bridge_account_withdrawer_address(bridge_address, bridge_address);
-        state.put_allowed_fee_asset(&asset);
+        state
+            .put_bridge_account_ibc_asset(&bridge_address, &asset)
+            .unwrap();
+        state
+            .put_bridge_account_withdrawer_address(&bridge_address, bridge_address)
+            .unwrap();
+        state.put_allowed_fee_asset(&asset).unwrap();
         // Put plenty of balance
         state
-            .put_account_balance(bridge_address, &asset, 3 * transfer_amount)
+            .put_account_balance(&bridge_address, &asset, 3 * transfer_amount)
             .unwrap();
 
-        let bridge_unlock_first = BridgeUnlockAction {
+        let bridge_unlock_first = BridgeUnlock {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
@@ -248,7 +269,7 @@ mod tests {
             rollup_block_number: 1,
             rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
         };
-        let bridge_unlock_second = BridgeUnlockAction {
+        let bridge_unlock_second = BridgeUnlock {
             rollup_block_number: 10,
             ..bridge_unlock_first.clone()
         };
@@ -258,7 +279,7 @@ mod tests {
             .check_and_execute(&mut state)
             .await
             .unwrap();
-        assert_anyhow_error(
+        assert_eyre_error(
             &bridge_unlock_second
                 .check_and_execute(&mut state)
                 .await

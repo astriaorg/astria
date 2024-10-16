@@ -1,9 +1,3 @@
-use anyhow::{
-    bail,
-    ensure,
-    Context as _,
-    Result,
-};
 use astria_core::{
     primitive::v1::{
         asset::Denom,
@@ -14,7 +8,16 @@ use astria_core::{
         memos::v1alpha1::Ics20WithdrawalFromRollup,
         transaction::v1alpha1::action,
     },
-    Protobuf as _,
+};
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        ensure,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
 use cnidarium::{
     StateRead,
@@ -34,12 +37,14 @@ use penumbra_proto::core::component::ibc::v1::FungibleTokenPacketData;
 
 use crate::{
     accounts::{
-        AddressBytes,
+        AddressBytes as _,
         StateWriteExt as _,
     },
     address::StateReadExt as _,
-    app::ActionHandler,
-    assets::StateWriteExt as _,
+    app::{
+        ActionHandler,
+        StateReadExt as _,
+    },
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -48,14 +53,13 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    state_ext::StateReadExt as _,
     transaction::StateReadExt as _,
 };
 
 async fn create_ibc_packet_from_withdrawal<S: StateRead>(
     withdrawal: &action::Ics20Withdrawal,
     state: S,
-) -> anyhow::Result<IBCPacket<Unchecked>> {
+) -> Result<IBCPacket<Unchecked>> {
     let sender = if withdrawal.use_compat_address {
         let ibc_compat_prefix = state.get_ibc_compat_prefix().await.context(
             "need to construct bech32 compatible address for IBC communication but failed reading \
@@ -101,28 +105,28 @@ async fn create_ibc_packet_from_withdrawal<S: StateRead>(
 /// 1. Errors reading from DB
 /// 2. `action.bridge_address` is set, but `from` is not the withdrawer address.
 /// 3. `action.bridge_address` is unset, but `from` is a bridge account.
-async fn establish_withdrawal_target<S: StateRead>(
-    action: &action::Ics20Withdrawal,
+async fn establish_withdrawal_target<'a, S: StateRead>(
+    action: &'a action::Ics20Withdrawal,
     state: &S,
-    from: [u8; 20],
-) -> Result<[u8; 20]> {
+    from: &'a [u8; 20],
+) -> Result<&'a [u8; 20]> {
     // If the bridge address is set, the withdrawer on that address must match
     // the from address.
-    if let Some(bridge_address) = action.bridge_address {
+    if let Some(bridge_address) = &action.bridge_address {
         let Some(withdrawer) = state
             .get_bridge_account_withdrawer_address(bridge_address)
             .await
-            .context("failed to get bridge withdrawer")?
+            .wrap_err("failed to get bridge withdrawer")?
         else {
             bail!("bridge address must have a withdrawer address set");
         };
 
         ensure!(
-            withdrawer == from.address_bytes(),
+            &withdrawer == from.address_bytes(),
             "sender does not match bridge withdrawer address; unauthorized"
         );
 
-        return Ok(bridge_address.address_bytes());
+        return Ok(bridge_address.as_bytes());
     }
 
     // If the bridge address is not set, the sender must not be a bridge account.
@@ -160,8 +164,8 @@ impl ActionHandler for action::Ics20Withdrawal {
                 "rollup withdrawal event id must be non-empty",
             );
             ensure!(
-                parsed_bridge_memo.rollup_withdrawal_event_id.len() <= 64,
-                "rollup withdrawal event id must be no more than 64 bytes",
+                parsed_bridge_memo.rollup_withdrawal_event_id.len() <= 256,
+                "rollup withdrawal event id must be no more than 256 bytes",
             );
             ensure!(
                 parsed_bridge_memo.rollup_block_number != 0,
@@ -177,17 +181,17 @@ impl ActionHandler for action::Ics20Withdrawal {
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
-            .get_current_source()
+            .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
 
         state
             .ensure_base_prefix(&self.return_address)
             .await
-            .context("failed to verify that return address address has permitted base prefix")?;
+            .wrap_err("failed to verify that return address address has permitted base prefix")?;
 
         if let Some(bridge_address) = &self.bridge_address {
-            state.ensure_base_prefix(bridge_address).await.context(
+            state.ensure_base_prefix(bridge_address).await.wrap_err(
                 "failed to verify that bridge address address has permitted base prefix",
             )?;
             let parsed_bridge_memo: Ics20WithdrawalFromRollup = serde_json::from_str(&self.memo)
@@ -195,7 +199,9 @@ impl ActionHandler for action::Ics20Withdrawal {
 
             state
                 .check_and_set_withdrawal_event_block_for_bridge_account(
-                    self.bridge_address.map_or(from, Address::bytes),
+                    self.bridge_address
+                        .as_ref()
+                        .map_or(&from, Address::as_bytes),
                     &parsed_bridge_memo.rollup_withdrawal_event_id,
                     parsed_bridge_memo.rollup_block_number,
                 )
@@ -203,19 +209,14 @@ impl ActionHandler for action::Ics20Withdrawal {
                 .context("withdrawal event already processed")?;
         }
 
-        let withdrawal_target = establish_withdrawal_target(self, &state, from)
+        let withdrawal_target = establish_withdrawal_target(self, &state, &from)
             .await
-            .context("failed establishing which account to withdraw funds from")?;
-
-        let fee = state
-            .get_ics20_withdrawal_base_fee()
-            .await
-            .context("failed to get ics20 withdrawal base fee")?;
+            .wrap_err("failed establishing which account to withdraw funds from")?;
 
         let current_timestamp = state
             .get_block_timestamp()
             .await
-            .context("failed to get block timestamp")?;
+            .wrap_err("failed to get block timestamp")?;
         let packet = {
             let packet = create_ibc_packet_from_withdrawal(self, &state)
                 .await
@@ -223,23 +224,14 @@ impl ActionHandler for action::Ics20Withdrawal {
             state
                 .send_packet_check(packet, current_timestamp)
                 .await
-                .context("packet failed send check")?
+                .map_err(anyhow_to_eyre)
+                .wrap_err("packet failed send check")?
         };
-
-        state
-            .get_and_increase_block_fees(self.fee_asset(), fee, Self::full_name())
-            .await
-            .context("failed to get and increase block fees")?;
 
         state
             .decrease_balance(withdrawal_target, self.denom(), self.amount())
             .await
-            .context("failed to decrease sender or bridge balance")?;
-
-        state
-            .decrease_balance(from, self.fee_asset(), fee)
-            .await
-            .context("failed to subtract fee from sender balance")?;
+            .wrap_err("failed to decrease sender or bridge balance")?;
 
         // if we're the source, move tokens to the escrow account,
         // otherwise the tokens are just burned
@@ -247,7 +239,7 @@ impl ActionHandler for action::Ics20Withdrawal {
             let channel_balance = state
                 .get_ibc_channel_balance(self.source_channel(), self.denom())
                 .await
-                .context("failed to get channel balance")?;
+                .wrap_err("failed to get channel balance")?;
 
             state
                 .put_ibc_channel_balance(
@@ -255,9 +247,9 @@ impl ActionHandler for action::Ics20Withdrawal {
                     self.denom(),
                     channel_balance
                         .checked_add(self.amount())
-                        .context("overflow when adding to channel balance")?,
+                        .ok_or_eyre("overflow when adding to channel balance")?,
                 )
-                .context("failed to update channel balance")?;
+                .wrap_err("failed to update channel balance")?;
         }
 
         state.send_packet_execute(packet).await;
@@ -267,7 +259,7 @@ impl ActionHandler for action::Ics20Withdrawal {
 
 fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
     if let Denom::TracePrefixed(trace) = asset {
-        !trace.starts_with_str(&format!("{source_port}/{source_channel}"))
+        !trace.has_leading_port(source_port) || !trace.has_leading_channel(source_channel)
     } else {
         false
     }
@@ -283,7 +275,7 @@ mod tests {
     use crate::{
         address::StateWriteExt as _,
         test_utils::{
-            assert_anyhow_error,
+            assert_eyre_error,
             astria_address,
             ASTRIA_PREFIX,
         },
@@ -312,7 +304,7 @@ mod tests {
         };
 
         assert_eq!(
-            establish_withdrawal_target(&action, &state, from)
+            *establish_withdrawal_target(&action, &state, &from)
                 .await
                 .unwrap(),
             from
@@ -325,15 +317,19 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         // sender is a bridge address, which is also the withdrawer, so it's ok
         let bridge_address = [1u8; 20];
-        state.put_bridge_account_rollup_id(
-            bridge_address,
-            &RollupId::from_unhashed_bytes("testrollupid"),
-        );
-        state.put_bridge_account_withdrawer_address(bridge_address, bridge_address);
+        state
+            .put_bridge_account_rollup_id(
+                &bridge_address,
+                RollupId::from_unhashed_bytes("testrollupid"),
+            )
+            .unwrap();
+        state
+            .put_bridge_account_withdrawer_address(&bridge_address, bridge_address)
+            .unwrap();
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
@@ -350,8 +346,8 @@ mod tests {
             use_compat_address: false,
         };
 
-        assert_anyhow_error(
-            &establish_withdrawal_target(&action, &state, bridge_address)
+        assert_eyre_error(
+            &establish_withdrawal_target(&action, &state, &bridge_address)
                 .await
                 .unwrap_err(),
             "sender cannot be a bridge address if bridge address is not set",
@@ -390,20 +386,24 @@ mod tests {
             let snapshot = storage.latest_snapshot();
             let mut state = StateDelta::new(snapshot);
 
-            state.put_base_prefix(ASTRIA_PREFIX);
+            state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
             // withdraw is *not* the bridge address, Ics20Withdrawal must be sent by the withdrawer
-            state.put_bridge_account_rollup_id(
-                bridge_address(),
-                &RollupId::from_unhashed_bytes("testrollupid"),
-            );
-            state.put_bridge_account_withdrawer_address(
-                bridge_address(),
-                astria_address(&[2u8; 20]),
-            );
+            state
+                .put_bridge_account_rollup_id(
+                    &bridge_address(),
+                    RollupId::from_unhashed_bytes("testrollupid"),
+                )
+                .unwrap();
+            state
+                .put_bridge_account_withdrawer_address(
+                    &bridge_address(),
+                    astria_address(&[2u8; 20]),
+                )
+                .unwrap();
 
-            assert_anyhow_error(
-                &establish_withdrawal_target(&action, &state, bridge_address())
+            assert_eyre_error(
+                &establish_withdrawal_target(&action, &state, &bridge_address())
                     .await
                     .unwrap_err(),
                 "sender does not match bridge withdrawer address; unauthorized",
@@ -424,16 +424,20 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX);
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         // sender the withdrawer address, so it's ok
         let bridge_address = [1u8; 20];
         let withdrawer_address = [2u8; 20];
-        state.put_bridge_account_rollup_id(
-            bridge_address,
-            &RollupId::from_unhashed_bytes("testrollupid"),
-        );
-        state.put_bridge_account_withdrawer_address(bridge_address, withdrawer_address);
+        state
+            .put_bridge_account_rollup_id(
+                &bridge_address,
+                RollupId::from_unhashed_bytes("testrollupid"),
+            )
+            .unwrap();
+        state
+            .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
+            .unwrap();
 
         let denom = "test".parse::<Denom>().unwrap();
         let action = action::Ics20Withdrawal {
@@ -451,7 +455,7 @@ mod tests {
         };
 
         assert_eq!(
-            establish_withdrawal_target(&action, &state, withdrawer_address)
+            *establish_withdrawal_target(&action, &state, &withdrawer_address)
                 .await
                 .unwrap(),
             bridge_address,
@@ -482,8 +486,8 @@ mod tests {
             use_compat_address: false,
         };
 
-        assert_anyhow_error(
-            &establish_withdrawal_target(&action, &state, not_bridge_address)
+        assert_eyre_error(
+            &establish_withdrawal_target(&action, &state, &not_bridge_address)
                 .await
                 .unwrap_err(),
             "bridge address must have a withdrawer address set",

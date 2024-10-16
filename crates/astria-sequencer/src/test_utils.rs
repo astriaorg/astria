@@ -3,6 +3,8 @@ use astria_core::primitive::v1::{
     Address,
     Bech32,
 };
+#[cfg(test)]
+use astria_core::protocol::fees::v1alpha1::SequenceFeeComponents;
 
 pub(crate) const ASTRIA_PREFIX: &str = "astria";
 pub(crate) const ASTRIA_COMPAT_PREFIX: &str = "astriacompat";
@@ -15,6 +17,11 @@ pub(crate) fn astria_address(bytes: &[u8]) -> Address {
         .unwrap()
 }
 
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn astria_compat_address(bytes: &[u8]) -> Address<Bech32> {
     Address::builder()
@@ -47,10 +54,32 @@ pub(crate) fn verification_key(seed: u64) -> astria_core::crypto::VerificationKe
 
 #[cfg(test)]
 #[track_caller]
-pub(crate) fn assert_anyhow_error(error: &anyhow::Error, expected: &'static str) {
+pub(crate) fn assert_eyre_error(error: &astria_eyre::eyre::Error, expected: &'static str) {
     let msg = error.to_string();
     assert!(
         msg.contains(expected),
         "error contained different message\n\texpected: {expected}\n\tfull_error: {msg}",
     );
+}
+
+/// Calculates the fee for a sequence `Action` based on the length of the `data`.
+#[cfg(test)]
+pub(crate) async fn calculate_sequence_action_fee_from_state<S: crate::fees::StateReadExt>(
+    data: &[u8],
+    state: &S,
+) -> u128 {
+    let SequenceFeeComponents {
+        base,
+        multiplier,
+    } = state.get_sequence_fees().await.unwrap();
+    base.checked_add(
+        multiplier
+            .checked_mul(
+                data.len()
+                    .try_into()
+                    .expect("a usize should always convert to a u128"),
+            )
+            .expect("fee multiplication should not overflow"),
+    )
+    .expect("fee addition should not overflow")
 }

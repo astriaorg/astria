@@ -16,12 +16,11 @@ use astria_core::{
             TransferAction,
             ValidatorUpdate,
         },
-        TransactionParams,
-        UnsignedTransaction,
+        Body,
     },
 };
 use astria_sequencer_client::{
-    tendermint_rpc::endpoint,
+    tendermint_rpc::endpoint::tx::Response,
     Client,
     HttpClient,
     SequencerClientExt,
@@ -453,7 +452,7 @@ async fn submit_transaction(
     prefix: &str,
     private_key: &str,
     action: Action,
-) -> eyre::Result<endpoint::broadcast::tx_commit::Response> {
+) -> eyre::Result<Response> {
     let sequencer_client =
         HttpClient::new(sequencer_url).wrap_err("failed constructing http sequencer client")?;
 
@@ -464,7 +463,7 @@ async fn submit_transaction(
     let sequencer_key = SigningKey::from(private_key_bytes);
 
     let from_address = Address::builder()
-        .array(sequencer_key.verification_key().address_bytes())
+        .array(*sequencer_key.verification_key().address_bytes())
         .prefix(prefix)
         .try_build()
         .wrap_err("failed constructing a valid from address from the provided prefix")?;
@@ -475,33 +474,32 @@ async fn submit_transaction(
         .await
         .wrap_err("failed to get nonce")?;
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(nonce_res.nonce)
-            .chain_id(chain_id)
-            .build(),
-        actions: vec![action],
-    }
-    .into_signed(&sequencer_key);
+    let tx = Body::builder()
+        .actions(vec![action])
+        .nonce(nonce_res.nonce)
+        .chain_id(chain_id)
+        .try_build()
+        .wrap_err("failed to build transaction from actions")?
+        .sign(&sequencer_key);
     let res = sequencer_client
-        .submit_transaction_commit(tx)
+        .submit_transaction_sync(tx)
         .await
         .wrap_err("failed to submit transaction")?;
+
+    let tx_response = sequencer_client.wait_for_tx_inclusion(res.hash).await;
+
+    ensure!(res.code.is_ok(), "failed to check tx: {}", res.log);
+
     ensure!(
-        res.check_tx.code.is_ok(),
-        "failed to check tx: {}",
-        res.check_tx.log
-    );
-    ensure!(
-        res.tx_result.code.is_ok(),
+        tx_response.tx_result.code.is_ok(),
         "failed to execute tx: {}",
-        res.tx_result.log
+        tx_response.tx_result.log
     );
-    Ok(res)
+    Ok(tx_response)
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

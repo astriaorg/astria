@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use anyhow::Context as _;
+use astria_eyre::eyre::WrapErr as _;
 use astria_sequencer::{
     Config,
     Sequencer,
@@ -14,6 +14,8 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    astria_eyre::install().expect("astria eyre hook must be the first hook installed");
+
     eprintln!(
         "{}",
         serde_json::to_string(&BUILD_INFO)
@@ -39,7 +41,7 @@ async fn main() -> ExitCode {
 
     let (metrics, _telemetry_guard) = match telemetry_conf
         .try_init(&())
-        .context("failed to setup telemetry")
+        .wrap_err("failed to setup telemetry")
     {
         Err(e) => {
             eprintln!("initializing sequencer failed:\n{e:?}");

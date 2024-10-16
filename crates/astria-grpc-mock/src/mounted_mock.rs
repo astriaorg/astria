@@ -111,7 +111,7 @@ impl MountedMock {
         &mut self,
         rpc: &'static str,
         request: &Request<AnyMessage>,
-    ) -> MockResult<U> {
+    ) -> (MockResult<U>, Option<std::time::Duration>) {
         let n_matches =
             u64::try_from(self.successful_responses.len() + self.bad_responses.len()).ok();
         if self.inner.max_n_matches == n_matches
@@ -122,16 +122,18 @@ impl MountedMock {
                 .iter()
                 .all(|matcher| matcher.matches(request))
         {
-            return MockResult::NoMatch;
+            return (MockResult::NoMatch, None);
         }
 
+        let mut delay = None;
         let response = match self.inner.response.respond(request) {
-            Err(status) => {
+            (Err(status), _) => {
                 self.successful_responses
                     .push((clone_request(request), Err(status.clone())));
                 Ok(Err(status))
             }
-            Ok(mock_response) => {
+            (Ok(mock_response), rsp_delay) => {
+                delay = rsp_delay;
                 let (metadata, erased_message, extensions) =
                     clone_response(&mock_response.inner).into_parts();
                 if let Ok(message) = erased_message.clone_box().into_any().downcast::<U>() {
@@ -173,8 +175,8 @@ impl MountedMock {
             self.notify.0.notify_waiters();
         }
         match response {
-            Ok(ok) => MockResult::Success(ok),
-            Err(err) => MockResult::BadResponse(err),
+            Ok(ok) => (MockResult::Success(ok), delay),
+            Err(err) => (MockResult::BadResponse(err), None),
         }
     }
 

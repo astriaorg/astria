@@ -38,7 +38,10 @@ use tonic::{
 
 const GET_PENDING_NONCE_GRPC_NAME: &str = "get_pending_nonce";
 
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "naming is helpful for clarity here"
+)]
 pub struct MockSequencerServer {
     _server: JoinHandle<eyre::Result<()>>,
     pub(crate) mock_server: MockServer,

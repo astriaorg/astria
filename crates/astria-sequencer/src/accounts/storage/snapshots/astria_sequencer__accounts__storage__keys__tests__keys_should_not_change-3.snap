@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/accounts/storage/keys.rs
+assertion_line: 91
+expression: nonce(&address())
+---
+accounts/HAxJDxtVKNgXPF3kbRMRYOSywMM=/nonce

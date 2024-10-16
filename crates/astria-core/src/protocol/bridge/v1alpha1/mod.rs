@@ -156,7 +156,7 @@ impl BridgeAccountInfoResponse {
         Ok(Self {
             height,
             info: Some(BridgeAccountInfo {
-                rollup_id: RollupId::try_from_raw(&rollup_id)
+                rollup_id: RollupId::try_from_raw(rollup_id)
                     .map_err(BridgeAccountInfoResponseError::invalid_rollup_id)?,
                 asset,
                 sudo_address: Address::try_from_raw(&sudo_address)

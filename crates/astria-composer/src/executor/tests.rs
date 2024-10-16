@@ -4,6 +4,7 @@ use std::{
         IpAddr,
         SocketAddr,
     },
+    sync::LazyLock,
     time::Duration,
 };
 
@@ -17,15 +18,14 @@ use astria_core::{
         RollupId,
         ROLLUP_ID_LEN,
     },
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transaction::v1alpha1::action::Sequence,
 };
 use astria_eyre::eyre;
-use once_cell::sync::Lazy;
 use prost::{
     bytes::Bytes,
     Message as _,
 };
-use sequencer_client::SignedTransaction;
+use sequencer_client::Transaction;
 use serde_json::json;
 use telemetry::Metrics as _;
 use tempfile::NamedTempFile;
@@ -72,7 +72,7 @@ use crate::{
     Config,
 };
 
-static TELEMETRY: Lazy<()> = Lazy::new(|| {
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
     // haven't configured telemetry to provide metrics here.
     let config = Config {
@@ -111,8 +111,8 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
     }
 });
 
-fn sequence_action() -> SequenceAction {
-    SequenceAction {
+fn sequence_action() -> Sequence {
+    Sequence {
         rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
         data: Bytes::new(),
         fee_asset: "nria".parse().unwrap(),
@@ -121,7 +121,7 @@ fn sequence_action() -> SequenceAction {
 
 /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
 async fn setup() -> (MockServer, Config, NamedTempFile) {
-    Lazy::force(&TELEMETRY);
+    LazyLock::force(&TELEMETRY);
     let server = MockServer::start().await;
 
     let keyfile = NamedTempFile::new().unwrap();
@@ -202,17 +202,15 @@ async fn mount_default_nonce_query_mock(server: &MockServer) -> MockGuard {
         .await
 }
 
-/// Convert a `Request` object to a `SignedTransaction`
-fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction as RawSignedTransaction;
-    use prost::Message as _;
+fn tx_from_request(request: &Request) -> Transaction {
+    use astria_core::generated::protocol::transaction::v1alpha1::Transaction as RawTransaction;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
         serde_json::from_slice(&request.body)
             .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
-    let raw_signed_tx = RawSignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
+    let raw_signed_tx = RawTransaction::decode(&*wrapped_tx_sync_req.params().tx)
         .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
-    let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
+    let signed_tx = Transaction::try_from_raw(raw_signed_tx)
         .expect("can't convert raw signed tx to checked signed tx");
     debug!(?signed_tx, "sequencer mock received signed transaction");
 
@@ -224,7 +222,7 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
 /// `expected_nonces`.
 async fn mount_broadcast_tx_sync_seq_actions_mock(server: &MockServer) -> MockGuard {
     let matcher = move |request: &Request| {
-        let signed_tx = signed_tx_from_request(request);
+        let signed_tx = tx_from_request(request);
         let actions = signed_tx.actions();
 
         // verify all received actions are sequence actions
@@ -354,7 +352,7 @@ async fn full_bundle() {
     // order to make space for the second
     let seq0 = sequence_action_of_max_size(cfg.max_bytes_per_bundle);
 
-    let seq1 = SequenceAction {
+    let seq1 = Sequence {
         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
         ..sequence_action_of_max_size(cfg.max_bytes_per_bundle)
     };
@@ -384,7 +382,7 @@ async fn full_bundle() {
     assert_eq!(requests.len(), 1);
 
     // verify the expected sequence actions were received
-    let signed_tx = signed_tx_from_request(&requests[0]);
+    let signed_tx = tx_from_request(&requests[0]);
     let actions = signed_tx.actions();
 
     assert_eq!(
@@ -443,7 +441,7 @@ async fn bundle_triggered_by_block_timer() {
 
     // send two sequence actions to the executor, both small enough to fit in a single bundle
     // without filling it
-    let seq0 = SequenceAction {
+    let seq0 = Sequence {
         data: vec![0u8; cfg.max_bytes_per_bundle / 4].into(),
         ..sequence_action()
     };
@@ -472,7 +470,7 @@ async fn bundle_triggered_by_block_timer() {
     assert_eq!(requests.len(), 1);
 
     // verify the expected sequence actions were received
-    let signed_tx = signed_tx_from_request(&requests[0]);
+    let signed_tx = tx_from_request(&requests[0]);
     let actions = signed_tx.actions();
 
     assert_eq!(
@@ -530,12 +528,12 @@ async fn two_seq_actions_single_bundle() {
 
     // send two sequence actions to the executor, both small enough to fit in a single bundle
     // without filling it
-    let seq0 = SequenceAction {
+    let seq0 = Sequence {
         data: vec![0u8; cfg.max_bytes_per_bundle / 4].into(),
         ..sequence_action()
     };
 
-    let seq1 = SequenceAction {
+    let seq1 = Sequence {
         rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
         data: vec![1u8; cfg.max_bytes_per_bundle / 4].into(),
         ..sequence_action()
@@ -569,7 +567,7 @@ async fn two_seq_actions_single_bundle() {
     assert_eq!(requests.len(), 1);
 
     // verify the expected sequence actions were received
-    let signed_tx = signed_tx_from_request(&requests[0]);
+    let signed_tx = tx_from_request(&requests[0]);
     let actions = signed_tx.actions();
 
     assert_eq!(

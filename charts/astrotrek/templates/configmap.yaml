@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: api-env
+  name: env
+data:
+  API_HOST: "{{ .Values.config.api.host }}"
+  API_PORT: "{{ .Values.ports.api }}"
+  API_PROMETHEUS_ENABLED: "{{ .Values.metrics.enabled }}"
+  API_RATE_LIMIT: "{{ .Values.config.api.rateLimit }}"
+  API_REQUEST_TIMEOUT: "{{ .Values.config.api.requestTimeout }}"
+  ASTRIA_ENV: "{{ .Values.config.astriaEnv }}"
+  INDEXER_BLOCK_PERIOD: "{{ .Values.config.indexer.indexerBlockPeriod }}"
+  INDEXER_SCRIPTS_DIR: "{{ .Values.config.indexer.indexerScriptDir }}"
+  INDEXER_THREADS_COUNT: "{{ .Values.config.indexer.indexerThreadsCount }}"
+  INDEXER_VIEWS_DIR: "{{ .Values.config.indexer.indexerViewsDir }}"
+  LOG_LEVEL: "{{ .Values.config.logLevel }}"
+  POSTGRES_DB: "{{ .Values.config.database.postgresDb }}"
+  POSTGRES_HOST: "{{ .Values.config.database.postgresHost }}"
+  POSTGRES_PASSWORD: "{{ .Values.config.database.postgresPassword }}"
+  POSTGRES_PORT: "{{ .Values.ports.db}}"
+  POSTGRES_USER: "{{ .Values.config.database.postgresUser }}"
+  PROFILER_SERVER: "{{ .Values.config.profilerServer }}"
+  SEQUENCER_RPC_RPS: "{{ .Values.config.sequencerRpcRps }}"
+  SEQUENCER_RPC_TIMEOUT: "{{ .Values.config.sequencerRpcTimeout }}"
+  SEQUENCER_RPC_URL: "{{ .Values.config.sequencerRpcUrl }}"
+  NUXT_PUBLIC_API_DEV: "{{ .Values.config.frontend.rpcApiUrl }}"
+  NUXT_PUBLIC_WSS_DEV: "{{ .Values.config.frontend.wsApiUrl }}"

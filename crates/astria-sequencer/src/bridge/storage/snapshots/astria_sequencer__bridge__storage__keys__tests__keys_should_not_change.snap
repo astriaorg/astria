@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/keys.rs
+expression: DEPOSITS_EPHEMERAL
+---
+bridge/deposits

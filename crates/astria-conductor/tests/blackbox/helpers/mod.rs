@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    sync::LazyLock,
+    time::Duration,
+};
 
 use astria_conductor::{
     conductor,
@@ -19,12 +22,12 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
+use astria_grpc_mock::response::error_response;
 use bytes::Bytes;
 use celestia_types::{
     nmt::Namespace,
     Blob,
 };
-use once_cell::sync::Lazy;
 use prost::Message;
 use sequencer_client::{
     tendermint,
@@ -40,18 +43,20 @@ use astria_eyre;
 pub use mock_grpc::MockGrpc;
 use serde_json::json;
 use tracing::debug;
+use wiremock::MockServer;
 
 pub const CELESTIA_BEARER_TOKEN: &str = "ABCDEFGH";
 
 pub const ROLLUP_ID: RollupId = RollupId::new([42; 32]);
-pub static ROLLUP_ID_BYTES: Bytes = Bytes::from_static(&RollupId::get(ROLLUP_ID));
+pub static ROLLUP_ID_BYTES: Bytes = Bytes::from_static(ROLLUP_ID.as_bytes());
 
 pub const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
+pub const CELESTIA_CHAIN_ID: &str = "test_celestia-1000";
 
 pub const INITIAL_SOFT_HASH: [u8; 64] = [1; 64];
 pub const INITIAL_FIRM_HASH: [u8; 64] = [1; 64];
 
-static TELEMETRY: Lazy<()> = Lazy::new(|| {
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     astria_eyre::install().unwrap();
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
@@ -81,7 +86,7 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
          environment does not stall the runtime: the test could be configured using \
          `#[tokio::test(flavor = \"multi_thread\", worker_threads = 1)]`"
     );
-    Lazy::force(&TELEMETRY);
+    LazyLock::force(&TELEMETRY);
 
     let mock_grpc = MockGrpc::spawn().await;
     let mock_http = wiremock::MockServer::start().await;
@@ -127,7 +132,7 @@ impl Drop for TestConductor {
             let err_msg =
                 match tokio::time::timeout(Duration::from_secs(2), self.conductor.shutdown()).await
                 {
-                    Ok(Ok(())) => None,
+                    Ok(Ok(_)) => None,
                     Ok(Err(conductor_err)) => Some(format!(
                         "conductor shut down with an error:\n{conductor_err:?}"
                     )),
@@ -193,6 +198,7 @@ impl TestConductor {
         celestia_height: u64,
         namespace: Namespace,
         blobs: Vec<Blob>,
+        delay: Option<Duration>,
     ) {
         use base64::prelude::*;
         use wiremock::{
@@ -204,6 +210,7 @@ impl TestConductor {
             Request,
             ResponseTemplate,
         };
+        let delay = delay.unwrap_or(Duration::from_millis(0));
         let namespace_params = BASE64_STANDARD.encode(namespace.as_bytes());
         Mock::given(body_partial_json(json!({
             "jsonrpc": "2.0",
@@ -217,13 +224,15 @@ impl TestConductor {
         .respond_with(move |request: &Request| {
             let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
             let id = body.get("id");
-            ResponseTemplate::new(200).set_body_json(json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": blobs,
-            }))
+            ResponseTemplate::new(200)
+                .set_body_json(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": blobs,
+                }))
+                .set_delay(delay)
         })
-        .expect(1)
+        .expect(1..)
         .mount(&self.mock_http)
         .await;
     }
@@ -238,6 +247,7 @@ impl TestConductor {
                 header,
             },
             Mock,
+            Request,
             ResponseTemplate,
         };
         Mock::given(body_partial_json(
@@ -247,11 +257,15 @@ impl TestConductor {
             "authorization",
             &*format!("Bearer {CELESTIA_BEARER_TOKEN}"),
         ))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "result": extended_header
-        })))
+        .respond_with(move |request: &Request| {
+            let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
+            let id = body.get("id");
+            ResponseTemplate::new(200).set_body_json(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": extended_header
+            }))
+        })
         .expect(1..)
         .mount(&self.mock_http)
         .await;
@@ -287,66 +301,8 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_genesis(&self) {
-        use tendermint::{
-            consensus::{
-                params::{
-                    AbciParams,
-                    ValidatorParams,
-                },
-                Params,
-            },
-            genesis::Genesis,
-            time::Time,
-        };
-        use wiremock::{
-            matchers::body_partial_json,
-            Mock,
-            ResponseTemplate,
-        };
-        Mock::given(body_partial_json(
-            json!({"jsonrpc": "2.0", "method": "genesis", "params": null}),
-        ))
-        .respond_with(ResponseTemplate::new(200).set_body_json(
-            tendermint_rpc::response::Wrapper::new_with_id(
-                tendermint_rpc::Id::uuid_v4(),
-                Some(
-                    tendermint_rpc::endpoint::genesis::Response::<serde_json::Value> {
-                        genesis: Genesis {
-                            genesis_time: Time::from_unix_timestamp(1, 1).unwrap(),
-                            chain_id: SEQUENCER_CHAIN_ID.try_into().unwrap(),
-                            initial_height: 1,
-                            consensus_params: Params {
-                                block: tendermint::block::Size {
-                                    max_bytes: 1024,
-                                    max_gas: 1024,
-                                    time_iota_ms: 1000,
-                                },
-                                evidence: tendermint::evidence::Params {
-                                    max_age_num_blocks: 1000,
-                                    max_age_duration: tendermint::evidence::Duration(
-                                        Duration::from_secs(3600),
-                                    ),
-                                    max_bytes: 1_048_576,
-                                },
-                                validator: ValidatorParams {
-                                    pub_key_types: vec![tendermint::public_key::Algorithm::Ed25519],
-                                },
-                                version: None,
-                                abci: AbciParams::default(),
-                            },
-                            validators: vec![],
-                            app_hash: tendermint::hash::AppHash::default(),
-                            app_state: serde_json::Value::Null,
-                        },
-                    },
-                ),
-                None,
-            ),
-        ))
-        .expect(1..)
-        .mount(&self.mock_http)
-        .await;
+    pub async fn mount_genesis(&self, chain_id: &str) {
+        mount_genesis(&self.mock_http, chain_id).await;
     }
 
     pub async fn mount_get_genesis_info(&self, genesis_info: GenesisInfo) {
@@ -402,6 +358,7 @@ impl TestConductor {
         &self,
         expected_pbjson: S,
         response: FilteredSequencerBlock,
+        delay: Duration,
     ) {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
@@ -412,7 +369,7 @@ impl TestConductor {
             "get_filtered_sequencer_block",
             message_partial_pbjson(&expected_pbjson),
         )
-        .respond_with(constant_response(response))
+        .respond_with(constant_response(response).set_delay(delay))
         .expect(1..)
         .mount(&self.mock_grpc.mock_server)
         .await;
@@ -422,6 +379,7 @@ impl TestConductor {
         &self,
         mock_name: Option<&str>,
         commitment_state: CommitmentState,
+        expected_calls: u64,
     ) -> astria_grpc_mock::MockGuard {
         use astria_core::generated::execution::v1alpha2::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
@@ -439,7 +397,7 @@ impl TestConductor {
         if let Some(name) = mock_name {
             mock = mock.with_name(name);
         }
-        mock.expect(1)
+        mock.expect(expected_calls)
             .mount_as_scoped(&self.mock_grpc.mock_server)
             .await
     }
@@ -472,9 +430,89 @@ impl TestConductor {
         .mount(&self.mock_http)
         .await;
     }
+
+    pub async fn mount_tonic_status_code<S: serde::Serialize>(
+        &self,
+        expected_pbjson: S,
+        code: tonic::Code,
+    ) -> astria_grpc_mock::MockGuard {
+        use astria_grpc_mock::{
+            matcher::message_partial_pbjson,
+            Mock,
+        };
+
+        let mock = Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
+            .respond_with(error_response(code))
+            .up_to_n_times(1);
+        mock.expect(1)
+            .mount_as_scoped(&self.mock_grpc.mock_server)
+            .await
+    }
 }
 
-fn make_config() -> Config {
+pub async fn mount_genesis(mock_http: &MockServer, chain_id: &str) {
+    use tendermint::{
+        consensus::{
+            params::{
+                AbciParams,
+                ValidatorParams,
+            },
+            Params,
+        },
+        genesis::Genesis,
+        time::Time,
+    };
+    use wiremock::{
+        matchers::body_partial_json,
+        Mock,
+        ResponseTemplate,
+    };
+    Mock::given(body_partial_json(
+        json!({"jsonrpc": "2.0", "method": "genesis", "params": null}),
+    ))
+    .respond_with(ResponseTemplate::new(200).set_body_json(
+        tendermint_rpc::response::Wrapper::new_with_id(
+            tendermint_rpc::Id::uuid_v4(),
+            Some(
+                tendermint_rpc::endpoint::genesis::Response::<serde_json::Value> {
+                    genesis: Genesis {
+                        genesis_time: Time::from_unix_timestamp(1, 1).unwrap(),
+                        chain_id: chain_id.try_into().unwrap(),
+                        initial_height: 1,
+                        consensus_params: Params {
+                            block: tendermint::block::Size {
+                                max_bytes: 1024,
+                                max_gas: 1024,
+                                time_iota_ms: 1000,
+                            },
+                            evidence: tendermint::evidence::Params {
+                                max_age_num_blocks: 1000,
+                                max_age_duration: tendermint::evidence::Duration(
+                                    Duration::from_secs(3600),
+                                ),
+                                max_bytes: 1_048_576,
+                            },
+                            validator: ValidatorParams {
+                                pub_key_types: vec![tendermint::public_key::Algorithm::Ed25519],
+                            },
+                            version: None,
+                            abci: AbciParams::default(),
+                        },
+                        validators: vec![],
+                        app_hash: tendermint::hash::AppHash::default(),
+                        app_state: serde_json::Value::Null,
+                    },
+                },
+            ),
+            None,
+        ),
+    ))
+    .expect(1..)
+    .mount(mock_http)
+    .await;
+}
+
+pub(crate) fn make_config() -> Config {
     Config {
         celestia_block_time_ms: 12000,
         celestia_node_http_url: "http://127.0.0.1:26658".into(),
@@ -484,6 +522,8 @@ fn make_config() -> Config {
         sequencer_cometbft_url: "http://127.0.0.1:26657".into(),
         sequencer_requests_per_second: 500,
         sequencer_block_time_ms: 2000,
+        expected_celestia_chain_id: CELESTIA_CHAIN_ID.into(),
+        expected_sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
         execution_rpc_url: "http://127.0.0.1:50051".into(),
         log: "info".into(),
         execution_commit_level: astria_conductor::config::CommitLevel::SoftAndFirm,
@@ -594,7 +634,7 @@ pub fn make_commit(height: u32) -> tendermint::block::Commit {
     let signing_key = signing_key();
     let validator = validator();
 
-    let block_hash = make_sequencer_block(height).block_hash();
+    let block_hash = *make_sequencer_block(height).block_hash();
 
     let timestamp = tendermint::Time::from_unix_timestamp(1, 1).unwrap();
     let canonical_vote = tendermint::vote::CanonicalVote {

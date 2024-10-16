@@ -1,9 +1,9 @@
 [package]
 name = "astria-sequencer"
-version = "0.17.0"
+version = "0.18.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-rust-version = "1.76"
+rust-version = "1.81.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
@@ -15,16 +15,27 @@ name = "astria-sequencer"
 benchmark = ["divan"]
 
 [dependencies]
-astria-core = { path = "../astria-core", features = ["server", "serde"] }
+astria-core = { path = "../astria-core", features = [
+  "server",
+  "serde",
+  "unchecked-constructors",
+] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
+
+# The "anyhow" feature is only included because it is necessary for the implementation of
+# `penumbra_ibc::component::HostInterface` in `crates/astria-sequencer/src/ibc/host_interface.rs`.
+# Avoid using "anyhow" results anywhere else.
+astria-eyre = { path = "../astria-eyre", features = ["anyhow"] }
+
 config = { package = "astria-config", path = "../astria-config" }
-merkle = { package = "astria-merkle", path = "../astria-merkle" }
+merkle = { package = "astria-merkle", path = "../astria-merkle", features = [
+  "unchecked-constructors",
+] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
 
-anyhow = "1"
-borsh = { version = "1", features = ["derive"] }
+borsh = { version = "1.5.1", features = ["bytes", "derive"] }
 cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6", features = [
   "metrics",
 ] }
@@ -36,6 +47,7 @@ tower-actor = "0.1.0"
 tower-http = { version = "0.4", features = ["cors"] }
 
 async-trait = { workspace = true }
+base64 = { workspace = true }
 bytes = { workspace = true }
 divan = { workspace = true, optional = true }
 futures = { workspace = true }
@@ -44,6 +56,7 @@ ibc-types = { workspace = true, features = ["with_serde"] }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 penumbra-proto = { workspace = true }
 penumbra-tower-trace = { workspace = true }
+pin-project-lite = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }

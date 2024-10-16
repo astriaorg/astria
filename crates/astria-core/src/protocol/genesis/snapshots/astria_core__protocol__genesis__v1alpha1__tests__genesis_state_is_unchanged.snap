@@ -58,26 +58,79 @@ expression: genesis_state()
     "nria"
   ],
   "fees": {
-    "transferBaseFee": {
-      "lo": "12"
+    "bridgeLock": {
+      "base": {
+        "lo": "12"
+      },
+      "multiplier": {
+        "lo": "1"
+      }
     },
-    "sequenceBaseFee": {
-      "lo": "32"
+    "bridgeSudoChange": {
+      "base": {
+        "lo": "24"
+      },
+      "multiplier": {}
     },
-    "sequenceByteCostMultiplier": {
-      "lo": "1"
+    "bridgeUnlock": {
+      "base": {
+        "lo": "12"
+      },
+      "multiplier": {}
     },
-    "initBridgeAccountBaseFee": {
-      "lo": "48"
+    "feeAssetChange": {
+      "base": {},
+      "multiplier": {}
     },
-    "bridgeLockByteCostMultiplier": {
-      "lo": "1"
+    "feeChange": {
+      "base": {},
+      "multiplier": {}
     },
-    "bridgeSudoChangeFee": {
-      "lo": "24"
+    "ibcRelay": {
+      "base": {},
+      "multiplier": {}
     },
-    "ics20WithdrawalBaseFee": {
-      "lo": "24"
+    "ibcRelayerChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "ibcSudoChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "ics20Withdrawal": {
+      "base": {
+        "lo": "24"
+      },
+      "multiplier": {}
+    },
+    "initBridgeAccount": {
+      "base": {
+        "lo": "48"
+      },
+      "multiplier": {}
+    },
+    "sequence": {
+      "base": {
+        "lo": "32"
+      },
+      "multiplier": {
+        "lo": "1"
+      }
+    },
+    "sudoAddressChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "transfer": {
+      "base": {
+        "lo": "12"
+      },
+      "multiplier": {}
+    },
+    "validatorUpdate": {
+      "base": {},
+      "multiplier": {}
     }
   }
 }

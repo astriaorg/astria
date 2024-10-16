@@ -1,26 +1,37 @@
+use std::time::Duration;
+
 use astria_core::{
     crypto::SigningKey,
-    generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse,
+    generated::protocol::{
+        asset::v1alpha1::AllowedFeeAssetsResponse,
+        fees::v1alpha1::TransactionFee,
+    },
     primitive::v1::Address,
     protocol::transaction::v1alpha1::{
-        action::TransferAction,
-        SignedTransaction,
-        TransactionParams,
-        UnsignedTransaction,
+        action::Transfer,
+        Transaction,
+        TransactionBody,
     },
 };
 use hex_literal::hex;
 use prost::bytes::Bytes;
 use serde_json::json;
 use tendermint::{
+    abci::{
+        self,
+        Code,
+    },
     block::Height,
+    merkle,
+    tx::Proof,
     Hash,
 };
 use tendermint_rpc::{
-    endpoint::broadcast::tx_commit::v0_37::DialectResponse,
+    endpoint::tx,
     response::Wrapper,
     Id,
 };
+use tokio::time::timeout;
 use wiremock::{
     matchers::{
         body_partial_json,
@@ -116,13 +127,10 @@ async fn register_broadcast_tx_sync_response(
     .await
 }
 
-async fn register_broadcast_tx_commit_response(
-    server: &MockServer,
-    response: DialectResponse,
-) -> MockGuard {
+async fn register_tx_response(server: &MockServer, response: tx::Response) -> MockGuard {
     let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(json!({
-        "method": "broadcast_tx_commit"
+        "method": "tx"
     })))
     .respond_with(
         ResponseTemplate::new(200)
@@ -134,7 +142,7 @@ async fn register_broadcast_tx_commit_response(
     .await
 }
 
-fn create_signed_transaction() -> SignedTransaction {
+fn create_signed_transaction() -> Transaction {
     let alice_secret_bytes: [u8; 32] =
         hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
             .unwrap()
@@ -143,7 +151,7 @@ fn create_signed_transaction() -> SignedTransaction {
     let alice_key = SigningKey::from(alice_secret_bytes);
 
     let actions = vec![
-        TransferAction {
+        Transfer {
             to: bob_address(),
             amount: 333_333,
             asset: "nria".parse().unwrap(),
@@ -151,14 +159,13 @@ fn create_signed_transaction() -> SignedTransaction {
         }
         .into(),
     ];
-    UnsignedTransaction {
-        params: TransactionParams::builder()
-            .nonce(1)
-            .chain_id("test")
-            .build(),
-        actions,
-    }
-    .into_signed(&alice_key)
+    TransactionBody::builder()
+        .actions(actions)
+        .chain_id("test")
+        .nonce(1)
+        .try_build()
+        .unwrap()
+        .sign(&alice_key)
 }
 
 #[tokio::test]
@@ -317,10 +324,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
 #[tokio::test]
 async fn get_transaction_fee() {
-    use astria_core::generated::protocol::transactions::v1alpha1::{
-        TransactionFee,
-        TransactionFeeResponse,
-    };
+    use astria_core::generated::protocol::fees::v1alpha1::TransactionFeeResponse;
 
     let MockSequencer {
         server,
@@ -371,25 +375,50 @@ async fn submit_tx_sync() {
 }
 
 #[tokio::test]
-async fn submit_tx_commit() {
-    use tendermint_rpc::dialect;
-
+async fn wait_for_tx_inclusion() {
     let MockSequencer {
         server,
         client,
     } = MockSequencer::start().await;
-
-    let server_response = DialectResponse {
-        check_tx: dialect::CheckTx::default(),
-        deliver_tx: dialect::DeliverTx::default(),
-        hash: Hash::Sha256([0; 32]),
-        height: Height::from(1u32),
+    let proof = Proof {
+        root_hash: Hash::Sha256([0; 32]),
+        data: vec![1, 2, 3, 4],
+        proof: merkle::Proof {
+            total: 1,
+            index: 1,
+            leaf_hash: Hash::Sha256([0; 32]),
+            aunts: vec![],
+        },
     };
-    let _guard = register_broadcast_tx_commit_response(&server, server_response).await;
 
-    let signed_tx = create_signed_transaction();
+    let tx_server_response = tx::Response {
+        hash: Hash::Sha256([0; 32]),
+        height: Height::try_from(1u64).unwrap(),
+        index: 1,
+        tx_result: abci::types::ExecTxResult {
+            code: Code::default(),
+            data: Bytes::from(vec![1, 2, 3, 4]),
+            log: "ethan was here".to_string(),
+            info: String::new(),
+            gas_wanted: 0,
+            gas_used: 0,
+            events: vec![],
+            codespace: String::new(),
+        },
+        tx: vec![],
+        proof: Some(proof),
+    };
 
-    let response = client.submit_transaction_commit(signed_tx).await.unwrap();
-    assert_eq!(response.check_tx.code, 0.into());
-    assert_eq!(response.tx_result.code, 0.into());
+    let _tx_response_guard = register_tx_response(&server, tx_server_response.clone()).await;
+
+    let response = client.wait_for_tx_inclusion(tx_server_response.hash);
+
+    let response = timeout(Duration::from_millis(1000), response)
+        .await
+        .expect("should have received a transaction response within 1000ms");
+
+    assert_eq!(response.tx_result.code, tx_server_response.tx_result.code);
+    assert_eq!(response.tx_result.data, tx_server_response.tx_result.data);
+    assert_eq!(response.tx_result.log, tx_server_response.tx_result.log);
+    assert_eq!(response.hash, tx_server_response.hash);
 }

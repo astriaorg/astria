@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package astria.protocol.fees.v1alpha1;
+
+import "astria/primitive/v1/types.proto";
+
+message TransactionFee {
+  string asset = 1;
+  astria.primitive.v1.Uint128 fee = 2;
+}
+
+message TransferFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message SequenceFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message InitBridgeAccountFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message BridgeLockFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message BridgeUnlockFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message BridgeSudoChangeFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message Ics20WithdrawalFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message IbcRelayFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message ValidatorUpdateFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message FeeAssetChangeFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message FeeChangeFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message IbcRelayerChangeFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message SudoAddressChangeFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message IbcSudoChangeFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+// Response to a transaction fee ABCI query.
+message TransactionFeeResponse {
+  uint64 height = 2;
+  repeated astria.protocol.fees.v1alpha1.TransactionFee fees = 3;
+}

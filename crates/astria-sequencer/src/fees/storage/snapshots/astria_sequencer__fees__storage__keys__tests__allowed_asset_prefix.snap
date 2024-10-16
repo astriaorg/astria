@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/fees/storage/keys.rs
+expression: ALLOWED_ASSET_PREFIX
+---
+fees/allowed_asset/

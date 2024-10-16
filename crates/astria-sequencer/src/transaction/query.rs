@@ -1,12 +1,15 @@
 use astria_core::{
-    generated::protocol::transactions::v1alpha1::UnsignedTransaction as RawUnsignedTransaction,
+    generated::protocol::transaction::v1alpha1::TransactionBody as RawBody,
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::UnsignedTransaction,
+        transaction::v1alpha1::TransactionBody,
     },
 };
 use cnidarium::Storage;
-use prost::Message as _;
+use prost::{
+    Message as _,
+    Name as _,
+};
 use tendermint::abci::{
     request,
     response,
@@ -14,8 +17,8 @@ use tendermint::abci::{
 };
 
 use crate::{
+    app::StateReadExt as _,
     assets::StateReadExt as _,
-    state_ext::StateReadExt as _,
     transaction::checks::get_fees_for_transaction,
 };
 
@@ -24,7 +27,7 @@ pub(crate) async fn transaction_fee_request(
     request: request::Query,
     _params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::transaction::v1alpha1::TransactionFeeResponse;
+    use astria_core::protocol::fees::v1alpha1::TransactionFeeResponse;
 
     let tx = match preprocess_request(&request) {
         Ok(tx) => tx,
@@ -59,7 +62,7 @@ pub(crate) async fn transaction_fee_request(
 
     let mut fees = Vec::with_capacity(fees_with_ibc_denoms.len());
     for (ibc_denom, value) in fees_with_ibc_denoms {
-        let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(ibc_denom).await {
+        let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(&ibc_denom).await {
             Ok(Some(trace_denom)) => trace_denom,
             Ok(None) => {
                 return response::Query {
@@ -101,20 +104,23 @@ pub(crate) async fn transaction_fee_request(
     }
 }
 
-fn preprocess_request(request: &request::Query) -> Result<UnsignedTransaction, response::Query> {
-    let tx = match RawUnsignedTransaction::decode(&*request.data) {
+fn preprocess_request(request: &request::Query) -> Result<TransactionBody, response::Query> {
+    let tx = match RawBody::decode(&*request.data) {
         Ok(tx) => tx,
         Err(err) => {
             return Err(response::Query {
                 code: Code::Err(AbciErrorCode::BAD_REQUEST.value()),
                 info: AbciErrorCode::BAD_REQUEST.info(),
-                log: format!("failed to decode request data to unsigned transaction: {err:#}"),
+                log: format!(
+                    "failed to decode request data to a protobuf {}: {err:#}",
+                    RawBody::full_name()
+                ),
                 ..response::Query::default()
             });
         }
     };
 
-    let tx = match UnsignedTransaction::try_from_raw(tx) {
+    let tx = match TransactionBody::try_from_raw(tx) {
         Ok(tx) => tx,
         Err(err) => {
             return Err(response::Query {

@@ -20,6 +20,7 @@ spec:
         {{- if .Values.config.geth.purgeMempool }}
         - name: purge-mempool
           image: {{ include "rollup.image" . }}
+          imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
           command: [ "sh", "-c", "rm" ]
           args:
             - -f
@@ -32,6 +33,7 @@ spec:
         - name: init-geth
           command: [ "/scripts/init-geth.sh" ]
           image: {{ include "rollup.image" . }}
+          imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
           envFrom:
             - configMapRef:
                 name: {{ include "rollup.name" . }}-geth-env
@@ -51,6 +53,7 @@ spec:
             {{- end }}
             {{- end }}
           image: {{ include "rollup.image" . }}
+          imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
           volumeMounts:
             - mountPath: /scripts/
               name: {{ include "rollup.name" . }}-executor-scripts-volume
@@ -73,6 +76,7 @@ spec:
             {{- toYaml .Values.resources.geth | trim | nindent 12 }}
         - name: conductor
           image: {{ include "conductor.image" . }}
+          imagePullPolicy: {{ .Values.images.conductor.pullPolicy }}
           command: [ "/usr/local/bin/astria-conductor" ]
           stdin: {{ .Values.global.useTTY }}
           tty: {{ .Values.global.useTTY }}

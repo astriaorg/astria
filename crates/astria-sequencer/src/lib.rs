@@ -1,6 +1,5 @@
 pub(crate) mod accounts;
 pub(crate) mod address;
-mod api_state_ext;
 pub(crate) mod app;
 pub(crate) mod assets;
 pub(crate) mod authority;
@@ -10,7 +9,7 @@ pub(crate) mod bridge;
 mod build_info;
 pub(crate) mod component;
 pub mod config;
-pub(crate) mod fee_asset_change;
+pub(crate) mod fees;
 pub(crate) mod grpc;
 pub(crate) mod ibc;
 mod mempool;
@@ -19,8 +18,7 @@ pub(crate) mod proposal;
 pub(crate) mod sequence;
 mod sequencer;
 pub(crate) mod service;
-pub(crate) mod state_ext;
-pub(crate) mod storage_keys;
+pub(crate) mod storage;
 #[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod test_utils;
 pub(crate) mod transaction;

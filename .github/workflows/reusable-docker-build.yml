@@ -18,6 +18,10 @@ on:
       tag:
         required: false
         type: string
+      force:
+        required: false
+        type: boolean
+        default: false
     secrets:
       DOCKER_TOKEN:
         required: false
@@ -34,7 +38,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    if: startsWith(inputs.tag, inputs.binary-name) || !inputs.tag && (startsWith(github.ref, format('refs/tags/{0}-v', inputs.binary-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    if: inputs.force || startsWith(inputs.tag, inputs.binary-name) || !inputs.tag && (startsWith(github.ref, format('refs/tags/{0}-v', inputs.binary-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || github.event_name == 'merge_group')
     steps:
       # Checking out the repo
       - uses: actions/checkout@v4
@@ -64,6 +68,8 @@ jobs:
             type=ref,event=pr
             type=match,pattern=refs/tags/${{ inputs.binary-name }}-v(.*),group=1,enable=${{ startsWith(env.FULL_REF, 'refs/tags/') }},value=${{ env.FULL_REF }}
             type=sha
+            # set the actual commit SHA from the PR head instead of from the PR merge commit (alternatively, we could checkout the PR head in actions/checkout)
+            type=raw,value=sha-${{ github.event.pull_request.head.sha || github.sha }},enable=${{ startsWith(env.FULL_REF, 'refs/pull/') }}
             # set latest tag for `main` branch
             type=raw,value=latest,enable=${{ env.FULL_REF == format('refs/heads/{0}', 'main') }}
       - name: Build and push

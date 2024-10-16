@@ -75,5 +75,6 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.sequencer.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_SEQUENCER_MEMPOOL_PARKED_MAX_TX_COUNT: "{{ .Values.sequencer.mempool.parked.maxTxCount }}"
   {{- end }}
 ---

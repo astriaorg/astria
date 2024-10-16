@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient;
 use astria_eyre::eyre::{
     self,
     Context as _,
@@ -47,8 +48,8 @@ pub(crate) struct Builder {
     pub(crate) startup_handle: startup::InfoHandle,
     pub(crate) sequencer_key_path: String,
     pub(crate) sequencer_address_prefix: String,
-    pub(crate) sequencer_cometbft_endpoint: String,
-    pub(crate) sequencer_grpc_endpoint: String,
+    pub(crate) sequencer_cometbft_client: sequencer_client::HttpClient,
+    pub(crate) sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
     pub(crate) state: Arc<State>,
     pub(crate) metrics: &'static Metrics,
 }
@@ -61,8 +62,8 @@ impl Builder {
             startup_handle,
             sequencer_key_path,
             sequencer_address_prefix,
-            sequencer_cometbft_endpoint,
-            sequencer_grpc_endpoint,
+            sequencer_cometbft_client,
+            sequencer_grpc_client,
             state,
             metrics,
         } = self;
@@ -74,10 +75,6 @@ impl Builder {
             .wrap_err("failed to load sequencer private key")?;
         info!(address = %signer.address(), "loaded sequencer signer");
 
-        let sequencer_cometbft_client =
-            sequencer_client::HttpClient::new(&*sequencer_cometbft_endpoint)
-                .wrap_err("failed constructing cometbft http client")?;
-
         let (batches_tx, batches_rx) = tokio::sync::mpsc::channel(BATCH_QUEUE_SIZE);
         let handle = Handle::new(batches_tx);
 
@@ -88,7 +85,7 @@ impl Builder {
                 state,
                 batches_rx,
                 sequencer_cometbft_client,
-                sequencer_grpc_endpoint,
+                sequencer_grpc_client,
                 signer,
                 metrics,
             },

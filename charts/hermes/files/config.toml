@@ -8,7 +8,7 @@ enabled = {{ .Values.rest.enabled }}
 
 # Specify the IPv4/6 host over which the built-in HTTP server will serve the RESTful
 # API requests. Default: 127.0.0.1
-host = '127.0.0.1'
+host = '0.0.0.0'
 
 # Specify the port over which the built-in HTTP server will serve the restful API
 # requests. Default: 3000
@@ -35,7 +35,7 @@ tx_confirmation = {{ .Values.mode.packets.txConfirmation }}
 
 [telemetry]
 enabled = {{ .Values.telemetry.enabled }}
-host = '127.0.0.1'
+host = '0.0.0.0'
 port = {{ .Values.ports.telemetry }}
 
 [telemetry.buckets]
