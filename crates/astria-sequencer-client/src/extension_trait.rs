@@ -40,7 +40,7 @@ use astria_core::protocol::{
         BridgeAccountLastTxHashResponse,
     },
     fees::v1alpha1::TransactionFeeResponse,
-    transaction::v1alpha1::UnsignedTransaction,
+    transaction::v1alpha1::TransactionBody,
 };
 pub use astria_core::{
     primitive::v1::Address,
@@ -49,7 +49,7 @@ pub use astria_core::{
             BalanceResponse,
             NonceResponse,
         },
-        transaction::v1alpha1::SignedTransaction,
+        transaction::v1alpha1::Transaction,
     },
     sequencerblock::v1alpha1::{
         block::SequencerBlockError,
@@ -615,7 +615,7 @@ pub trait SequencerClientExt: Client {
 
     async fn get_transaction_fee(
         &self,
-        tx: UnsignedTransaction,
+        tx: TransactionBody,
     ) -> Result<TransactionFeeResponse, Error> {
         let path = "transaction/fee".to_string();
         let data = tx.into_raw().encode_to_vec();
@@ -653,10 +653,7 @@ pub trait SequencerClientExt: Client {
     /// # Errors
     ///
     /// - If calling the tendermint RPC endpoint fails.
-    async fn submit_transaction_sync(
-        &self,
-        tx: SignedTransaction,
-    ) -> Result<tx_sync::Response, Error> {
+    async fn submit_transaction_sync(&self, tx: Transaction) -> Result<tx_sync::Response, Error> {
         let tx_bytes = tx.into_raw().encode_to_vec();
         self.broadcast_tx_sync(tx_bytes)
             .await

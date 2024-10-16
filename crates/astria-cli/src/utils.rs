@@ -3,7 +3,7 @@ use astria_core::{
     primitive::v1::Address,
     protocol::transaction::v1alpha1::{
         Action,
-        UnsignedTransaction,
+        TransactionBody,
     },
 };
 use astria_sequencer_client::{
@@ -38,13 +38,13 @@ pub(crate) async fn submit_transaction(
         .await
         .wrap_err("failed to get nonce")?;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .nonce(nonce_res.nonce)
         .chain_id(chain_id)
         .actions(vec![action])
         .try_build()
         .wrap_err("failed to construct a transaction")?
-        .into_signed(&sequencer_key);
+        .sign(&sequencer_key);
     let res = sequencer_client
         .submit_transaction_sync(tx)
         .await

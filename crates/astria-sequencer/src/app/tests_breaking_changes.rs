@@ -30,7 +30,7 @@ use astria_core::{
                 ValidatorUpdate,
             },
             Action,
-            UnsignedTransaction,
+            TransactionBody,
         },
     },
     sequencerblock::v1alpha1::block::Deposit,
@@ -114,13 +114,13 @@ async fn app_finalize_block_snapshot() {
         fee_asset: nria().into(),
     };
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![lock_action.into(), sequence_action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = tx.into_signed(&alice);
+    let signed_tx = tx.sign(&alice);
 
     let expected_deposit = Deposit {
         bridge_address,
@@ -202,7 +202,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-    let tx_bundleable_general = UnsignedTransaction::builder()
+    let tx_bundleable_general = TransactionBody::builder()
         .actions(vec![
             Transfer {
                 to: bob_address,
@@ -223,7 +223,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let tx_bundleable_sudo = UnsignedTransaction::builder()
+    let tx_bundleable_sudo = TransactionBody::builder()
         .actions(vec![
             IbcRelayerChange::Addition(bob_address).into(),
             IbcRelayerChange::Addition(carol_address).into(),
@@ -237,7 +237,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let tx_sudo_ibc = UnsignedTransaction::builder()
+    let tx_sudo_ibc = TransactionBody::builder()
         .actions(vec![
             IbcSudoChange {
                 new_address: bob_address,
@@ -249,7 +249,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let tx_sudo = UnsignedTransaction::builder()
+    let tx_sudo = TransactionBody::builder()
         .actions(vec![
             SudoAddressChange {
                 new_address: bob_address,
@@ -261,23 +261,23 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let signed_tx_general_bundleable = Arc::new(tx_bundleable_general.into_signed(&alice));
+    let signed_tx_general_bundleable = Arc::new(tx_bundleable_general.sign(&alice));
     app.execute_transaction(signed_tx_general_bundleable)
         .await
         .unwrap();
 
-    let signed_tx_sudo_bundleable = Arc::new(tx_bundleable_sudo.into_signed(&alice));
+    let signed_tx_sudo_bundleable = Arc::new(tx_bundleable_sudo.sign(&alice));
     app.execute_transaction(signed_tx_sudo_bundleable)
         .await
         .unwrap();
 
-    let signed_tx_sudo_ibc = Arc::new(tx_sudo_ibc.into_signed(&alice));
+    let signed_tx_sudo_ibc = Arc::new(tx_sudo_ibc.sign(&alice));
     app.execute_transaction(signed_tx_sudo_ibc).await.unwrap();
 
-    let signed_tx_sudo = Arc::new(tx_sudo.into_signed(&alice));
+    let signed_tx_sudo = Arc::new(tx_sudo.sign(&alice));
     app.execute_transaction(signed_tx_sudo).await.unwrap();
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![
             InitBridgeAccount {
                 rollup_id,
@@ -291,10 +291,10 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&bridge));
+    let signed_tx = Arc::new(tx.sign(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
-    let tx_bridge_bundleable = UnsignedTransaction::builder()
+    let tx_bridge_bundleable = TransactionBody::builder()
         .actions(vec![
             BridgeLock {
                 to: bridge_address,
@@ -320,10 +320,10 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx_bridge_bundleable.into_signed(&bridge));
+    let signed_tx = Arc::new(tx_bridge_bundleable.sign(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
-    let tx_bridge = UnsignedTransaction::builder()
+    let tx_bridge = TransactionBody::builder()
         .actions(vec![
             BridgeSudoChange {
                 bridge_address,
@@ -338,7 +338,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx_bridge.into_signed(&bridge));
+    let signed_tx = Arc::new(tx_bridge.sign(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();

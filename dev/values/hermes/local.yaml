@@ -1,4 +1,4 @@
-image: "ghcr.io/astriaorg/hermes:0.2.0"
+image: "ghcr.io/astriaorg/hermes:sha-f6189cd"
 
 createChannel:
   enabled: true

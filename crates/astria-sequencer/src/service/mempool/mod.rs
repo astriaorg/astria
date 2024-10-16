@@ -10,11 +10,11 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transactions::v1alpha1 as raw,
+    generated::protocol::transaction::v1alpha1 as raw,
     primitive::v1::asset::IbcPrefixed,
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
+        transaction::v1alpha1::Transaction,
     },
 };
 use astria_eyre::eyre::WrapErr as _;
@@ -27,7 +27,10 @@ use futures::{
     Future,
     FutureExt,
 };
-use prost::Message as _;
+use prost::{
+    Message as _,
+    Name as _,
+};
 use tendermint::{
     abci::Code,
     v0_38::abci::{
@@ -303,12 +306,12 @@ async fn check_removed_comet_bft(
 /// Performs stateless checks on the transaction.
 ///
 /// Returns an `Err(response::CheckTx)` if the transaction fails any of the checks.
-/// Otherwise, it returns the [`SignedTransaction`] to be inserted into the mempool.
+/// Otherwise, it returns the [`Transaction`] to be inserted into the mempool.
 async fn stateless_checks<S: StateRead>(
     tx: Bytes,
     state: &S,
     metrics: &'static Metrics,
-) -> Result<SignedTransaction, response::CheckTx> {
+) -> Result<Transaction, response::CheckTx> {
     let start_parsing = Instant::now();
 
     let tx_len = tx.len();
@@ -324,24 +327,24 @@ async fn stateless_checks<S: StateRead>(
         ));
     }
 
-    let raw_signed_tx = match raw::SignedTransaction::decode(tx) {
-        Ok(tx) => tx,
-        Err(e) => {
-            return Err(error_response(
-                AbciErrorCode::INVALID_PARAMETER,
-                format!("failed decoding bytes as a protobuf SignedTransaction: {e:#}"),
-            ));
-        }
-    };
-    let signed_tx = match SignedTransaction::try_from_raw(raw_signed_tx) {
+    let raw_signed_tx = match raw::Transaction::decode(tx) {
         Ok(tx) => tx,
         Err(e) => {
             return Err(error_response(
                 AbciErrorCode::INVALID_PARAMETER,
                 format!(
-                    "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
-                     the signature was invalid: {e:#}"
+                    "failed decoding bytes as a protobuf {}: {e:#}",
+                    raw::Transaction::full_name()
                 ),
+            ));
+        }
+    };
+    let signed_tx = match Transaction::try_from_raw(raw_signed_tx) {
+        Ok(tx) => tx,
+        Err(e) => {
+            return Err(error_response(
+                AbciErrorCode::INVALID_PARAMETER,
+                format!("the provided transaction could not be validated: {e:?}",),
             ));
         }
     };
@@ -386,7 +389,7 @@ async fn stateless_checks<S: StateRead>(
 async fn insert_into_mempool<S: StateRead>(
     mempool: &AppMempool,
     state: &S,
-    signed_tx: SignedTransaction,
+    signed_tx: Transaction,
     metrics: &'static Metrics,
 ) -> Result<(), response::CheckTx> {
     let start_convert_address = Instant::now();

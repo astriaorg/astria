@@ -48,8 +48,8 @@ pub struct Config {
     #[serde(alias = "max_submit_interval_ms")]
     pub block_time_ms: u64,
 
-    /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
-    /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
+    /// Max bytes to encode into a single sequencer transaction, not including signature,
+    /// public key, nonce. This is the sum of the sizes of all the sequence actions.
     pub max_bytes_per_bundle: usize,
 
     /// Max amount of `SizedBundle`s to allow to accrue in the `BundleFactory`'s finished queue.

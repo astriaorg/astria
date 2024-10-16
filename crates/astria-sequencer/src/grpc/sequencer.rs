@@ -301,7 +301,7 @@ mod tests {
 
         // insert a transactions one above account nonce (not gapped)
         let sequential_nonce = 1;
-        let tx: Arc<astria_core::protocol::transaction::v1alpha1::SignedTransaction> =
+        let tx: Arc<astria_core::protocol::transaction::v1alpha1::Transaction> =
             crate::app::test_utils::MockTxBuilder::new()
                 .nonce(sequential_nonce)
                 .build();
