@@ -57,7 +57,6 @@ data:
   ASTRIA_SEQUENCER_LOG: "astria_sequencer=debug"
   ASTRIA_SEQUENCER_LISTEN_ADDR: "127.0.0.1:{{ .Values.ports.sequencerABCI }}"
   ASTRIA_SEQUENCER_DB_FILEPATH: "/sequencer/penumbra.db"
-  ASTRIA_SEQUENCER_ENABLE_MINT: "false"
   # Socket address for GRPC server
   ASTRIA_SEQUENCER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.sequencerGrpc }}"
   ASTRIA_SEQUENCER_NO_METRICS: "{{ not .Values.sequencer.metrics.enabled }}"
