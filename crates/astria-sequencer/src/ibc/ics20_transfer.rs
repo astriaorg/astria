@@ -423,10 +423,14 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
         .parse()
         .wrap_err("failed to parse packet data amount to u128")?;
 
-    let recipient: Address = packet_data
-        .receiver
-        .parse()
-        .wrap_err("invalid recipient address")?;
+    let recipient = parse_address_on_sequencer(&state, &packet_data.receiver)
+        .await
+        .with_context(|| {
+            format!(
+                "failed parsing packet.receiver `{}` as the recipient address",
+                packet_data.receiver
+            )
+        })?;
 
     let mut asset = parse_asset(&state, &packet_data.denom)
         .await
@@ -521,7 +525,7 @@ async fn refund_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<(
 
     // Since we are refunding tokens, packet_data.sender is an address on Astria:
     // the packet was not commited on the counter party chain but returned as-is.
-    let receiver = parse_sender(&state, &packet_data.sender)
+    let receiver = parse_address_on_sequencer(&state, &packet_data.sender)
         .await
         .with_context(|| {
             format!(
@@ -611,7 +615,7 @@ async fn parse_asset<S: StateRead>(state: S, input: &str) -> Result<denom::Trace
 }
 
 #[instrument(skip_all, fields(input), err)]
-async fn parse_sender<S: StateRead>(state: &S, input: &str) -> Result<Address> {
+async fn parse_address_on_sequencer<S: StateRead>(state: &S, input: &str) -> Result<Address> {
     use futures::TryFutureExt as _;
     let (base_prefix, compat_prefix) = match try_join!(
         state
@@ -828,6 +832,11 @@ mod tests {
 
         let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
+
+        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_tx
+            .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
+            .unwrap();
         state_tx
             .put_ibc_channel_balance(&packet().chan_on_b, &nria(), amount)
             .unwrap();
@@ -867,6 +876,11 @@ mod tests {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot.clone());
+
+        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_tx
+            .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
+            .unwrap();
 
         let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
@@ -913,6 +927,10 @@ mod tests {
         let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
+        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_tx
+            .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
+            .unwrap();
         state_tx.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
@@ -991,6 +1009,10 @@ mod tests {
         let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
+        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_tx
+            .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
+            .unwrap();
         state_tx.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
