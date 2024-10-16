@@ -6,10 +6,10 @@ use std::{
     sync::Arc,
 };
 
-use astria_core::primitive::v1::asset::Denom;
 use astria_core::{
     primitive::v1::{
         asset,
+        asset::Denom,
         Address,
         AddressError,
     },
@@ -275,15 +275,12 @@ where
                     .map_err(BuildError::parse_ics20_asset_source_channel)?,
             );
 
-            // USDC from Noble requires using the bech32 compat address as the sender/return address.
+            // USDC from Noble requires using the bech32 compat address as the sender/return
+            // address.
             //
             // since we're always unwrapping the asset (sending back to the originating chain), we
             // can check that the base denom is USDC, and if it is, we know we're sending to Noble.
-            use_compat_address = if ics20_asset_to_withdraw.base_denom() == "usdc" {
-                true
-            } else {
-                false
-            };    
+            use_compat_address = ics20_asset_to_withdraw.base_denom() == "usdc";
         };
 
         let contract =
