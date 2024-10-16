@@ -41,8 +41,9 @@ enum SubCommand {
 
 #[derive(Debug, clap::Args)]
 struct Create {
-    #[command(flatten)]
-    inner: ArgsCreate,
+    /// The address prefix
+    #[arg(long, default_value = "astria")]
+    prefix: String,
 }
 
 impl Create {
@@ -50,14 +51,7 @@ impl Create {
         let signing_key = SigningKey::new(OsRng);
         let pretty_signing_key = hex::encode(signing_key.as_bytes());
         let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
-        let pretty_address = Address::<astria_core::primitive::v1::Bech32m>::builder()
-            .array(signing_key.address_bytes())
-            .prefix(self.inner.prefix)
-            .try_build()
-            .wrap_err(
-                "failed constructing a valid bech32m address from the provided hex bytes and \
-                 prefix",
-            )?;
+        let pretty_address = SigningKey::try_address(&signing_key, &self.prefix)?;
         println!("Create Sequencer Account");
         println!();
         // TODO: don't print private keys to CLI, prefer writing to file:
@@ -130,11 +124,4 @@ struct ArgsInner {
     sequencer_url: String,
     /// The address of the Sequencer account
     address: Address,
-}
-
-#[derive(clap::Args, Debug)]
-struct ArgsCreate {
-    /// The address prefix
-    #[arg(long, default_value = "astria")]
-    prefix: String,
 }
