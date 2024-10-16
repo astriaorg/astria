@@ -39,7 +39,7 @@ impl TransactionError {
     }
 
     fn body(inner: TransactionBodyError) -> Self {
-        Self(TransactionErrorKind::Transaction(inner))
+        Self(TransactionErrorKind::TransactionBody(inner))
     }
 
     fn verification(inner: crypto::Error) -> Self {
@@ -50,19 +50,19 @@ impl TransactionError {
         Self(TransactionErrorKind::VerificationKey(inner))
     }
 
-    fn unset_transaction() -> Self {
-        Self(TransactionErrorKind::UnsetTransaction)
+    fn unset_body() -> Self {
+        Self(TransactionErrorKind::UnsetBody)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum TransactionErrorKind {
-    #[error("`transaction` field not set")]
-    UnsetTransaction,
+    #[error("`body` field not set")]
+    UnsetBody,
     #[error("`signature` field invalid")]
     Signature(#[source] crypto::Error),
-    #[error("`transaction` field invalid")]
-    Transaction(#[source] TransactionBodyError),
+    #[error("`body` field invalid")]
+    TransactionBody(#[source] TransactionBodyError),
     #[error("`public_key` field invalid")]
     VerificationKey(#[source] crypto::Error),
     #[error("transaction could not be verified given the signature and verification key")]
@@ -149,20 +149,19 @@ impl Transaction {
         let raw::Transaction {
             signature,
             public_key,
-            body: transaction,
+            body,
         } = proto;
         let signature = Signature::try_from(&*signature).map_err(TransactionError::signature)?;
         let verification_key =
             VerificationKey::try_from(&*public_key).map_err(TransactionError::verification_key)?;
-        let Some(transaction) = transaction else {
-            return Err(TransactionError::unset_transaction());
+        let Some(body) = body else {
+            return Err(TransactionError::unset_body());
         };
-        let bytes = transaction.value.clone();
+        let bytes = body.value.clone();
         verification_key
             .verify(&signature, &bytes)
             .map_err(TransactionError::verification)?;
-        let transaction =
-            TransactionBody::try_from_any(transaction).map_err(TransactionError::body)?;
+        let transaction = TransactionBody::try_from_any(body).map_err(TransactionError::body)?;
         Ok(Self {
             signature,
             verification_key,
