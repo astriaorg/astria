@@ -13,7 +13,7 @@ use astria_core::{
     protocol::transaction::v1alpha1::{
         action::Sequence,
         Action,
-        UnsignedTransaction,
+        TransactionBody,
     },
     Protobuf as _,
 };
@@ -75,16 +75,13 @@ impl SizedBundle {
         }
     }
 
-    /// Constructs an [`UnsignedTransaction`] from the actions contained in the bundle and `params`.
+    /// Constructs a [`Body`] from the actions contained in the bundle and provided parameters.
+    ///
     /// # Panics
-    /// Method is expected to never panic because only `SequenceActions` are added to the bundle,
+    /// Method is expected to never panic because only `Sequence` actions are added to the bundle,
     /// which should produce a valid variant of the [`action::Group`] type.
-    pub(super) fn to_unsigned_transaction(
-        &self,
-        nonce: u32,
-        chain_id: &str,
-    ) -> UnsignedTransaction {
-        UnsignedTransaction::builder()
+    pub(super) fn to_transaction_body(&self, nonce: u32, chain_id: &str) -> TransactionBody {
+        TransactionBody::builder()
             .actions(self.buffer.clone())
             .chain_id(chain_id)
             .nonce(nonce)

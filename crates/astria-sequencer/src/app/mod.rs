@@ -20,7 +20,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transactions::v1alpha1 as raw,
+    generated::protocol::transaction::v1alpha1 as raw,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1alpha1::GenesisAppState,
@@ -30,7 +30,7 @@ use astria_core::{
                 ValidatorUpdate,
             },
             Action,
-            SignedTransaction,
+            Transaction,
         },
     },
     sequencerblock::v1alpha1::block::SequencerBlock,
@@ -495,7 +495,7 @@ impl App {
         // the max sequenced data bytes.
         let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
 
-        // deserialize txs into `SignedTransaction`s;
+        // deserialize txs into `Transaction`s;
         // this does not error if any txs fail to be deserialized, but the `execution_results.len()`
         // check below ensures that all txs in the proposal are deserializable (and
         // executable).
@@ -558,7 +558,7 @@ impl App {
     /// is stored in ephemeral storage for usage in `process_proposal`.
     ///
     /// Returns the transactions which were successfully executed
-    /// in both their [`SignedTransaction`] and raw bytes form.
+    /// in both their [`Transaction`] and raw bytes form.
     ///
     /// Unlike the usual flow of an ABCI application, this is called during
     /// the proposal phase, ie. `prepare_proposal`.
@@ -574,7 +574,7 @@ impl App {
     async fn execute_transactions_prepare_proposal(
         &mut self,
         block_size_constraints: &mut BlockSizeConstraints,
-    ) -> Result<(Vec<bytes::Bytes>, Vec<SignedTransaction>)> {
+    ) -> Result<(Vec<bytes::Bytes>, Vec<Transaction>)> {
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "executing transactions from mempool");
 
@@ -753,7 +753,7 @@ impl App {
     #[instrument(name = "App::execute_transactions_process_proposal", skip_all)]
     async fn execute_transactions_process_proposal(
         &mut self,
-        txs: Vec<SignedTransaction>,
+        txs: Vec<Transaction>,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> Result<Vec<ExecTxResult>> {
         let mut execution_results = Vec::new();
@@ -1155,10 +1155,7 @@ impl App {
 
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all)]
-    async fn execute_transaction(
-        &mut self,
-        signed_tx: Arc<SignedTransaction>,
-    ) -> Result<Vec<Event>> {
+    async fn execute_transaction(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<Event>> {
         signed_tx
             .check_stateless()
             .await
@@ -1318,10 +1315,10 @@ struct BlockData {
     proposer_address: account::Id,
 }
 
-fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<SignedTransaction> {
-    let raw = raw::SignedTransaction::decode(bytes)
+fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<Transaction> {
+    let raw = raw::Transaction::decode(bytes)
         .wrap_err("failed to decode protobuf to signed transaction")?;
-    let tx = SignedTransaction::try_from_raw(raw)
+    let tx = Transaction::try_from_raw(raw)
         .wrap_err("failed to transform raw signed transaction to verified type")?;
 
     Ok(tx)

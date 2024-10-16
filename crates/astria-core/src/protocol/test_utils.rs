@@ -15,7 +15,7 @@ use crate::{
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
-    protocol::transaction::v1alpha1::UnsignedTransaction,
+    protocol::transaction::v1alpha1::TransactionBody,
     sequencerblock::v1alpha1::{
         block::Deposit,
         SequencerBlock,
@@ -104,7 +104,7 @@ impl ConfigureSequencerBlock {
         let txs = if actions.is_empty() {
             vec![]
         } else {
-            let unsigned_transaction = UnsignedTransaction::builder()
+            let unsigned_transaction = TransactionBody::builder()
                 .actions(actions)
                 .chain_id(chain_id.clone())
                 .nonce(1)
@@ -113,7 +113,7 @@ impl ConfigureSequencerBlock {
                     "should be able to build unsigned transaction since only sequence actions are \
                      contained",
                 );
-            vec![unsigned_transaction.into_signed(&signing_key)]
+            vec![unsigned_transaction.sign(&signing_key)]
         };
         let mut deposits_map: HashMap<RollupId, Vec<Deposit>> = HashMap::new();
         for deposit in deposits {

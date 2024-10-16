@@ -17,7 +17,7 @@ use astria_core::{
                 SudoAddressChange,
                 Transfer,
             },
-            UnsignedTransaction,
+            TransactionBody,
         },
     },
     sequencerblock::v1alpha1::block::Deposit,
@@ -235,7 +235,7 @@ async fn app_transfer_block_fees_to_sudo() {
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let amount = 333_333;
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![
             Transfer {
                 to: bob_address,
@@ -249,7 +249,7 @@ async fn app_transfer_block_fees_to_sudo() {
         .try_build()
         .unwrap();
 
-    let signed_tx = tx.into_signed(&alice);
+    let signed_tx = tx.sign(&alice);
 
     let proposer_address: tendermint::account::Id = [99u8; 20].to_vec().try_into().unwrap();
 
@@ -343,13 +343,13 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         fee_asset: nria().into(),
     };
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![lock_action.into(), sequence_action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = tx.into_signed(&alice);
+    let signed_tx = tx.sign(&alice);
 
     let expected_deposit = Deposit {
         bridge_address,
@@ -435,13 +435,13 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         fee_asset: nria().into(),
     };
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![lock_action.into(), sequence_action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = tx.into_signed(&alice);
+    let signed_tx = tx.sign(&alice);
 
     let expected_deposit = Deposit {
         bridge_address,
@@ -574,7 +574,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     // create txs which will cause cometBFT overflow
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction::builder()
+    let tx_pass = TransactionBody::builder()
         .actions(vec![
             Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -586,9 +586,9 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&alice);
+        .sign(&alice);
 
-    let tx_overflow = UnsignedTransaction::builder()
+    let tx_overflow = TransactionBody::builder()
         .actions(vec![
             Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -601,7 +601,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .nonce(1)
         .try_build()
         .unwrap()
-        .into_signed(&alice);
+        .sign(&alice);
 
     app.mempool
         .insert(
@@ -664,7 +664,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction::builder()
+    let tx_pass = TransactionBody::builder()
         .actions(vec![
             Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -676,8 +676,8 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&alice);
-    let tx_overflow = UnsignedTransaction::builder()
+        .sign(&alice);
+    let tx_overflow = TransactionBody::builder()
         .actions(vec![
             Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -690,7 +690,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&alice);
+        .sign(&alice);
 
     app.mempool
         .insert(
@@ -753,7 +753,7 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
-    let tx_pass = UnsignedTransaction::builder()
+    let tx_pass = TransactionBody::builder()
         .actions(vec![
             Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -765,8 +765,8 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&alice);
-    let tx_overflow = UnsignedTransaction::builder()
+        .sign(&alice);
+    let tx_overflow = TransactionBody::builder()
         .actions(vec![
             Sequence {
                 rollup_id: RollupId::from([1u8; 32]),
@@ -779,9 +779,9 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&alice);
+        .sign(&alice);
 
-    let txs: Vec<SignedTransaction> = vec![tx_pass, tx_overflow];
+    let txs: Vec<Transaction> = vec![tx_pass, tx_overflow];
     let generated_commitment = generate_rollup_datas_commitment(&txs, HashMap::new());
     let txs = generated_commitment.into_transactions(
         txs.into_iter()
@@ -819,7 +819,7 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
 
     // create txs which will cause transaction execution failure
     let alice = get_alice_signing_key();
-    let tx_fail = UnsignedTransaction::builder()
+    let tx_fail = TransactionBody::builder()
         .actions(vec![
             SudoAddressChange {
                 new_address: astria_address_from_hex_string(BOB_ADDRESS),
@@ -829,9 +829,9 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&alice);
+        .sign(&alice);
 
-    let txs: Vec<SignedTransaction> = vec![tx_fail];
+    let txs: Vec<Transaction> = vec![tx_fail];
     let generated_commitment = generate_rollup_datas_commitment(&txs, HashMap::new());
     let txs = generated_commitment.into_transactions(
         txs.into_iter()

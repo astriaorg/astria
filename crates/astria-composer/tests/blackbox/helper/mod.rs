@@ -24,11 +24,11 @@ use astria_core::{
     },
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
+        transaction::v1alpha1::Transaction,
     },
 };
 use astria_eyre::eyre;
-use ethers::prelude::Transaction;
+use ethers::prelude::Transaction as EthersTransaction;
 use mock_grpc_sequencer::MockGrpcSequencer;
 use telemetry::metrics;
 use tempfile::NamedTempFile;
@@ -205,20 +205,18 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
     }
 }
 
-fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction as RawSignedTransaction;
+fn signed_tx_from_request(request: &Request) -> Transaction {
+    use astria_core::generated::protocol::transaction::v1alpha1::Transaction as RawTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
         serde_json::from_slice(&request.body)
             .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
-    let raw_signed_tx = RawSignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
-        .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
-    let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
-        .expect("can't convert raw signed tx to checked signed tx");
-    debug!(?signed_tx, "sequencer mock received signed transaction");
-
-    signed_tx
+    let raw_tx = RawTransaction::decode(&*wrapped_tx_sync_req.params().tx)
+        .expect("can't deserialize sequencer tx from broadcast jsonrpc request");
+    let tx = Transaction::try_from_raw(raw_tx).expect("can't validate raw sequencer tx");
+    debug!(?tx, "sequencer mock received transaction");
+    tx
 }
 
 fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
@@ -241,7 +239,7 @@ fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
 /// Panics if the request body has no sequence actions
 pub async fn mount_matcher_verifying_tx_integrity(
     server: &MockServer,
-    expected_rlp: Transaction,
+    expected_rlp: EthersTransaction,
 ) -> MockGuard {
     let matcher = move |request: &Request| {
         let sequencer_tx = signed_tx_from_request(request);

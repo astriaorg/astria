@@ -6,7 +6,7 @@ use std::fmt;
 
 use astria_core::protocol::transaction::v1alpha1::{
     action::Action,
-    SignedTransaction,
+    Transaction,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -83,7 +83,7 @@ impl fmt::Display for InvalidNonce {
 impl std::error::Error for InvalidNonce {}
 
 #[async_trait::async_trait]
-impl ActionHandler for SignedTransaction {
+impl ActionHandler for Transaction {
     async fn check_stateless(&self) -> Result<()> {
         ensure!(!self.actions().is_empty(), "must have at least one action");
 

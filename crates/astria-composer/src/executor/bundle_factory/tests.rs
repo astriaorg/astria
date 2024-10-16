@@ -355,7 +355,7 @@ mod bundle_factory {
         let bundle = bundle_factory.pop_now();
 
         // construction of multiple sequence actions should not panic
-        let unsigned_tx = bundle.to_unsigned_transaction(0, "astria-testnet-1");
+        let unsigned_tx = bundle.to_transaction_body(0, "astria-testnet-1");
 
         assert_eq!(unsigned_tx.actions().len(), 3);
     }
