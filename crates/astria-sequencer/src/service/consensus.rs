@@ -210,7 +210,7 @@ mod tests {
         },
         primitive::v1::RollupId,
         protocol::transaction::v1alpha1::{
-            action::Sequence,
+            action::RollupDataSubmission,
             TransactionBody,
         },
     };
@@ -238,7 +238,7 @@ mod tests {
     fn make_unsigned_tx() -> TransactionBody {
         TransactionBody::builder()
             .actions(vec![
-                Sequence {
+                RollupDataSubmission {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: Bytes::from_static(b"hello world"),
                     fee_asset: crate::test_utils::nria().into(),

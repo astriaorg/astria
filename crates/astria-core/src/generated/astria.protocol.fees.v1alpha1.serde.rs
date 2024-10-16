@@ -1078,7 +1078,7 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccountFeeComponents {
         deserializer.deserialize_struct("astria.protocol.fees.v1alpha1.InitBridgeAccountFeeComponents", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for SequenceFeeComponents {
+impl serde::Serialize for RollupDataSubmissionFeeComponents {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -1092,7 +1092,7 @@ impl serde::Serialize for SequenceFeeComponents {
         if self.multiplier.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.fees.v1alpha1.SequenceFeeComponents", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.fees.v1alpha1.RollupDataSubmissionFeeComponents", len)?;
         if let Some(v) = self.base.as_ref() {
             struct_ser.serialize_field("base", v)?;
         }
@@ -1102,7 +1102,7 @@ impl serde::Serialize for SequenceFeeComponents {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for SequenceFeeComponents {
+impl<'de> serde::Deserialize<'de> for RollupDataSubmissionFeeComponents {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -1149,13 +1149,13 @@ impl<'de> serde::Deserialize<'de> for SequenceFeeComponents {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = SequenceFeeComponents;
+            type Value = RollupDataSubmissionFeeComponents;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.fees.v1alpha1.SequenceFeeComponents")
+                formatter.write_str("struct astria.protocol.fees.v1alpha1.RollupDataSubmissionFeeComponents")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SequenceFeeComponents, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RollupDataSubmissionFeeComponents, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -1177,13 +1177,13 @@ impl<'de> serde::Deserialize<'de> for SequenceFeeComponents {
                         }
                     }
                 }
-                Ok(SequenceFeeComponents {
+                Ok(RollupDataSubmissionFeeComponents {
                     base: base__,
                     multiplier: multiplier__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.fees.v1alpha1.SequenceFeeComponents", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.fees.v1alpha1.RollupDataSubmissionFeeComponents", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for SudoAddressChangeFeeComponents {

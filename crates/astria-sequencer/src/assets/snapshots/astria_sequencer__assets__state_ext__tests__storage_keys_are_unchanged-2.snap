@@ -1,6 +1,0 @@
----
-source: crates/astria-sequencer/src/assets/state_ext.rs
-expression: fee_asset_key(trace_prefixed)
----
-fee_asset/ce072174ebc356c6ead681d61ab417ee72fdedd8155eb76478ece374bb04dc1d
-

@@ -505,7 +505,7 @@ impl serde::Serialize for GenesisFees {
         if self.init_bridge_account.is_some() {
             len += 1;
         }
-        if self.sequence.is_some() {
+        if self.rollup_data_submission.is_some() {
             len += 1;
         }
         if self.sudo_address_change.is_some() {
@@ -548,8 +548,8 @@ impl serde::Serialize for GenesisFees {
         if let Some(v) = self.init_bridge_account.as_ref() {
             struct_ser.serialize_field("initBridgeAccount", v)?;
         }
-        if let Some(v) = self.sequence.as_ref() {
-            struct_ser.serialize_field("sequence", v)?;
+        if let Some(v) = self.rollup_data_submission.as_ref() {
+            struct_ser.serialize_field("rollupDataSubmission", v)?;
         }
         if let Some(v) = self.sudo_address_change.as_ref() {
             struct_ser.serialize_field("sudoAddressChange", v)?;
@@ -590,7 +590,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             "ics20Withdrawal",
             "init_bridge_account",
             "initBridgeAccount",
-            "sequence",
+            "rollup_data_submission",
+            "rollupDataSubmission",
             "sudo_address_change",
             "sudoAddressChange",
             "transfer",
@@ -610,7 +611,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            Sequence,
+            RollupDataSubmission,
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
@@ -645,7 +646,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             "ibcSudoChange" | "ibc_sudo_change" => Ok(GeneratedField::IbcSudoChange),
                             "ics20Withdrawal" | "ics20_withdrawal" => Ok(GeneratedField::Ics20Withdrawal),
                             "initBridgeAccount" | "init_bridge_account" => Ok(GeneratedField::InitBridgeAccount),
-                            "sequence" => Ok(GeneratedField::Sequence),
+                            "rollupDataSubmission" | "rollup_data_submission" => Ok(GeneratedField::RollupDataSubmission),
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "transfer" => Ok(GeneratedField::Transfer),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
@@ -678,7 +679,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                 let mut ibc_sudo_change__ = None;
                 let mut ics20_withdrawal__ = None;
                 let mut init_bridge_account__ = None;
-                let mut sequence__ = None;
+                let mut rollup_data_submission__ = None;
                 let mut sudo_address_change__ = None;
                 let mut transfer__ = None;
                 let mut validator_update__ = None;
@@ -744,11 +745,11 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             }
                             init_bridge_account__ = map_.next_value()?;
                         }
-                        GeneratedField::Sequence => {
-                            if sequence__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequence"));
+                        GeneratedField::RollupDataSubmission => {
+                            if rollup_data_submission__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupDataSubmission"));
                             }
-                            sequence__ = map_.next_value()?;
+                            rollup_data_submission__ = map_.next_value()?;
                         }
                         GeneratedField::SudoAddressChange => {
                             if sudo_address_change__.is_some() {
@@ -781,7 +782,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                     ibc_sudo_change: ibc_sudo_change__,
                     ics20_withdrawal: ics20_withdrawal__,
                     init_bridge_account: init_bridge_account__,
-                    sequence: sequence__,
+                    rollup_data_submission: rollup_data_submission__,
                     sudo_address_change: sudo_address_change__,
                     transfer: transfer__,
                     validator_update: validator_update__,

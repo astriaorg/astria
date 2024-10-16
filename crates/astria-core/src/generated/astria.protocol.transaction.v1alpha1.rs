@@ -16,7 +16,7 @@ pub mod action {
         #[prost(message, tag = "1")]
         Transfer(super::Transfer),
         #[prost(message, tag = "2")]
-        Sequence(super::Sequence),
+        RollupDataSubmission(super::RollupDataSubmission),
         /// Bridge actions are defined on 11-20
         #[prost(message, tag = "11")]
         InitBridgeAccount(super::InitBridgeAccount),
@@ -80,14 +80,14 @@ impl ::prost::Name for Transfer {
         ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
-/// `Sequence` represents a transaction destined for another
+/// `RollupDataSubmission` represents a transaction destined for another
 /// chain, ordered by the sequencer.
 ///
 /// It contains the rollup ID of the destination chain, and the
 /// opaque transaction data.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Sequence {
+pub struct RollupDataSubmission {
     #[prost(message, optional, tag = "1")]
     pub rollup_id: ::core::option::Option<super::super::super::primitive::v1::RollupId>,
     #[prost(bytes = "bytes", tag = "2")]
@@ -96,8 +96,8 @@ pub struct Sequence {
     #[prost(string, tag = "3")]
     pub fee_asset: ::prost::alloc::string::String,
 }
-impl ::prost::Name for Sequence {
-    const NAME: &'static str = "Sequence";
+impl ::prost::Name for RollupDataSubmission {
+    const NAME: &'static str = "RollupDataSubmission";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
@@ -441,7 +441,9 @@ pub mod fee_change {
             super::super::super::fees::v1alpha1::InitBridgeAccountFeeComponents,
         ),
         #[prost(message, tag = "11")]
-        Sequence(super::super::super::fees::v1alpha1::SequenceFeeComponents),
+        RollupDataSubmission(
+            super::super::super::fees::v1alpha1::RollupDataSubmissionFeeComponents,
+        ),
         #[prost(message, tag = "12")]
         SudoAddressChange(
             super::super::super::fees::v1alpha1::SudoAddressChangeFeeComponents,

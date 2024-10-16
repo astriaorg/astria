@@ -33,10 +33,10 @@ impl Component for FeesComponent {
             .put_transfer_fees(transfer_fees)
             .wrap_err("failed to store transfer fee components")?;
 
-        let sequence_fees = app_state.fees().sequence;
+        let rollup_data_submission_fees = app_state.fees().rollup_data_submission;
         state
-            .put_sequence_fees(sequence_fees)
-            .wrap_err("failed to store sequence action fee components")?;
+            .put_rollup_data_submission_fees(rollup_data_submission_fees)
+            .wrap_err("failed to store rollup data submission action fee components")?;
 
         let ics20_withdrawal_fees = app_state.fees().ics20_withdrawal;
         state

@@ -20,7 +20,7 @@ use super::{
     IbcSudoChange,
     Ics20Withdrawal,
     InitBridgeAccount,
-    Sequence,
+    RollupDataSubmission,
     SudoAddressChange,
     Transfer,
     ValidatorUpdate,
@@ -41,7 +41,7 @@ macro_rules! impl_belong_to_group {
 }
 
 impl_belong_to_group!(
-    (Sequence, Group::BundleableGeneral),
+    (RollupDataSubmission, Group::BundleableGeneral),
     (Transfer, Group::BundleableGeneral),
     (ValidatorUpdate, Group::BundleableGeneral),
     (SudoAddressChange, Group::UnbundleableSudo),
@@ -60,7 +60,7 @@ impl_belong_to_group!(
 impl Action {
     pub const fn group(&self) -> Group {
         match self {
-            Action::Sequence(_) => Sequence::GROUP,
+            Action::RollupDataSubmission(_) => RollupDataSubmission::GROUP,
             Action::Transfer(_) => Transfer::GROUP,
             Action::ValidatorUpdate(_) => ValidatorUpdate::GROUP,
             Action::SudoAddressChange(_) => SudoAddressChange::GROUP,

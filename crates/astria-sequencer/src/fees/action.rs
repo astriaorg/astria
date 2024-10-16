@@ -44,8 +44,8 @@ impl ActionHandler for FeeChange {
             Self::Transfer(fees) => state
                 .put_transfer_fees(*fees)
                 .wrap_err("failed to put transfer fees"),
-            Self::Sequence(fees) => state
-                .put_sequence_fees(*fees)
+            Self::RollupDataSubmission(fees) => state
+                .put_rollup_data_submission_fees(*fees)
                 .wrap_err("failed to put sequence fees"),
             Self::Ics20Withdrawal(fees) => state
                 .put_ics20_withdrawal_fees(*fees)
@@ -138,7 +138,7 @@ mod tests {
                 BridgeLockFeeComponents,
                 Ics20WithdrawalFeeComponents,
                 InitBridgeAccountFeeComponents,
-                SequenceFeeComponents,
+                RollupDataSubmissionFeeComponents,
                 TransferFeeComponents,
             },
             transaction::v1alpha1::action::FeeChange,
@@ -188,23 +188,33 @@ mod tests {
         fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(state.get_transfer_fees().await.unwrap().base, 10);
 
-        let sequence_base = 5;
-        let sequence_cost_multiplier = 2;
+        let rollup_data_submission_base = 5;
+        let rollup_data_submission_cost_multiplier = 2;
         state
-            .put_sequence_fees(SequenceFeeComponents {
-                base: sequence_base,
-                multiplier: sequence_cost_multiplier,
+            .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
+                base: rollup_data_submission_base,
+                multiplier: rollup_data_submission_cost_multiplier,
             })
             .unwrap();
 
-        let fee_change = FeeChange::Sequence(SequenceFeeComponents {
+        let fee_change = FeeChange::RollupDataSubmission(RollupDataSubmissionFeeComponents {
             base: 3,
             multiplier: 4,
         });
 
         fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_sequence_fees().await.unwrap().base, 3);
-        assert_eq!(state.get_sequence_fees().await.unwrap().multiplier, 4);
+        assert_eq!(
+            state.get_rollup_data_submission_fees().await.unwrap().base,
+            3
+        );
+        assert_eq!(
+            state
+                .get_rollup_data_submission_fees()
+                .await
+                .unwrap()
+                .multiplier,
+            4
+        );
 
         let init_bridge_account_base = 1;
         state

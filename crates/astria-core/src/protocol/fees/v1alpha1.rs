@@ -68,7 +68,7 @@ macro_rules! impl_protobuf_for_fee_components {
 }
 impl_protobuf_for_fee_components!(
     TransferFeeComponents => raw::TransferFeeComponents,
-    SequenceFeeComponents => raw::SequenceFeeComponents,
+    RollupDataSubmissionFeeComponents => raw::RollupDataSubmissionFeeComponents,
     Ics20WithdrawalFeeComponents => raw::Ics20WithdrawalFeeComponents ,
     InitBridgeAccountFeeComponents => raw::InitBridgeAccountFeeComponents ,
     BridgeLockFeeComponents => raw::BridgeLockFeeComponents,
@@ -90,7 +90,7 @@ pub struct TransferFeeComponents {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SequenceFeeComponents {
+pub struct RollupDataSubmissionFeeComponents {
     pub base: u128,
     pub multiplier: u128,
 }

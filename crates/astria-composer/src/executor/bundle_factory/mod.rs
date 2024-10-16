@@ -11,7 +11,7 @@ use std::{
 use astria_core::{
     primitive::v1::RollupId,
     protocol::transaction::v1alpha1::{
-        action::Sequence,
+        action::RollupDataSubmission,
         Action,
         TransactionBody,
     },
@@ -29,9 +29,9 @@ mod tests;
 #[derive(Debug, thiserror::Error)]
 enum SizedBundleError {
     #[error("bundle does not have enough space left for the given sequence action")]
-    NotEnoughSpace(Sequence),
+    NotEnoughSpace(RollupDataSubmission),
     #[error("sequence action is larger than the max bundle size")]
-    SequenceActionTooLarge(Sequence),
+    SequenceActionTooLarge(RollupDataSubmission),
 }
 
 pub(super) struct SizedBundleReport<'a>(pub(super) &'a SizedBundle);
@@ -97,7 +97,7 @@ impl SizedBundle {
     /// # Errors
     /// - `seq_action` is beyond the max size allowed for the entire bundle
     /// - `seq_action` does not fit in the remaining space in the bundle
-    fn try_push(&mut self, seq_action: Sequence) -> Result<(), SizedBundleError> {
+    fn try_push(&mut self, seq_action: RollupDataSubmission) -> Result<(), SizedBundleError> {
         let seq_action_size = encoded_len(&seq_action);
 
         if seq_action_size > self.max_size {
@@ -114,7 +114,7 @@ impl SizedBundle {
             .entry(seq_action.rollup_id)
             .and_modify(|count| *count = count.saturating_add(1))
             .or_insert(1);
-        self.buffer.push(Action::Sequence(seq_action));
+        self.buffer.push(Action::RollupDataSubmission(seq_action));
         self.curr_size = new_size;
 
         Ok(())
@@ -159,7 +159,7 @@ pub(super) struct FinishedQueueFull {
     curr_bundle_size: usize,
     finished_queue_capacity: usize,
     sequence_action_size: usize,
-    seq_action: Sequence,
+    seq_action: RollupDataSubmission,
 }
 
 impl From<FinishedQueueFull> for BundleFactoryError {
@@ -193,7 +193,10 @@ impl BundleFactory {
     /// Buffer `seq_action` into the current bundle. If the bundle won't fit `seq_action`, flush
     /// `curr_bundle` into the `finished` queue and start a new bundle, unless the `finished` queue
     /// is at capacity.
-    pub(super) fn try_push(&mut self, seq_action: Sequence) -> Result<(), BundleFactoryError> {
+    pub(super) fn try_push(
+        &mut self,
+        seq_action: RollupDataSubmission,
+    ) -> Result<(), BundleFactoryError> {
         let seq_action = with_ibc_prefixed(seq_action);
         let seq_action_size = encoded_len(&seq_action);
 
@@ -283,14 +286,14 @@ impl<'a> NextFinishedBundle<'a> {
     }
 }
 
-fn with_ibc_prefixed(action: Sequence) -> Sequence {
-    Sequence {
+fn with_ibc_prefixed(action: RollupDataSubmission) -> RollupDataSubmission {
+    RollupDataSubmission {
         fee_asset: action.fee_asset.to_ibc_prefixed().into(),
         ..action
     }
 }
 
-fn encoded_len(action: &Sequence) -> usize {
+fn encoded_len(action: &RollupDataSubmission) -> usize {
     use prost::Message as _;
     action.to_raw().encoded_len()
 }

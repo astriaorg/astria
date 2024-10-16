@@ -24,7 +24,7 @@ use astria_core::{
             IbcSudoChangeFeeComponents,
             Ics20WithdrawalFeeComponents,
             InitBridgeAccountFeeComponents,
-            SequenceFeeComponents,
+            RollupDataSubmissionFeeComponents,
             SudoAddressChangeFeeComponents,
             TransferFeeComponents,
             ValidatorUpdateFeeComponents,
@@ -39,7 +39,7 @@ use astria_core::{
                 group::Group,
                 FeeAssetChange,
                 InitBridgeAccount,
-                Sequence,
+                RollupDataSubmission,
                 SudoAddressChange,
                 ValidatorUpdate,
             },
@@ -186,7 +186,7 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::Genesi
             base: 12,
             multiplier: 0,
         },
-        sequence: SequenceFeeComponents {
+        rollup_data_submission: RollupDataSubmissionFeeComponents {
             base: 32,
             multiplier: 1,
         },
@@ -382,7 +382,7 @@ impl MockTxBuilder {
 
     pub(crate) fn build(self) -> Arc<Transaction> {
         let action: Action = match self.group {
-            Group::BundleableGeneral => Sequence {
+            Group::BundleableGeneral => RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
                 data: Bytes::from_static(&[0x99]),
                 fee_asset: denom_0(),
@@ -561,12 +561,12 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .wrap_err("failed to initiate transfer fee components")
         .unwrap();
 
-    let sequence_fees = SequenceFeeComponents {
+    let rollup_data_submission_fees = RollupDataSubmissionFeeComponents {
         base: MOCK_SEQUENCE_FEE,
         multiplier: 0,
     };
     state
-        .put_sequence_fees(sequence_fees)
+        .put_rollup_data_submission_fees(rollup_data_submission_fees)
         .wrap_err("failed to initiate sequence action fee components")
         .unwrap();
 

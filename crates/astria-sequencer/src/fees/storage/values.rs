@@ -9,7 +9,7 @@ use astria_core::protocol::fees::v1alpha1::{
     IbcSudoChangeFeeComponents,
     Ics20WithdrawalFeeComponents,
     InitBridgeAccountFeeComponents,
-    SequenceFeeComponents,
+    RollupDataSubmissionFeeComponents,
     SudoAddressChangeFeeComponents,
     TransferFeeComponents,
     ValidatorUpdateFeeComponents,
@@ -30,7 +30,7 @@ pub(crate) struct Value(ValueImpl);
 )]
 enum ValueImpl {
     TransferFees(TransferFeeComponentsStorage),
-    SequenceFees(SequenceFeeComponentsStorage),
+    SequenceFees(RollupDataSubmissionFeeComponentsStorage),
     Ics20WithdrawalFees(Ics20WithdrawalFeeComponentsStorage),
     InitBridgeAccountFees(InitBridgeAccountFeeComponentsStorage),
     BridgeLockFees(BridgeLockFeeComponentsStorage),
@@ -94,7 +94,7 @@ pub(in crate::fees) struct TransferFeeComponentsStorage {
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct SequenceFeeComponentsStorage {
+pub(in crate::fees) struct RollupDataSubmissionFeeComponentsStorage {
     pub base: u128,
     pub multiplier: u128,
 }
@@ -173,7 +173,7 @@ pub(in crate::fees) struct SudoAddressChangeFeeComponentsStorage {
 
 impl_from_for_fee_component!(
     TransferFeeComponents => TransferFeeComponentsStorage,
-    SequenceFeeComponents => SequenceFeeComponentsStorage,
+    RollupDataSubmissionFeeComponents => RollupDataSubmissionFeeComponentsStorage,
     Ics20WithdrawalFeeComponents => Ics20WithdrawalFeeComponentsStorage,
     InitBridgeAccountFeeComponents => InitBridgeAccountFeeComponentsStorage,
     BridgeLockFeeComponents => BridgeLockFeeComponentsStorage,
@@ -190,7 +190,7 @@ impl_from_for_fee_component!(
 
 impl_from_for_fee_storage!(
     TransferFeeComponentsStorage => TransferFees,
-    SequenceFeeComponentsStorage => SequenceFees,
+    RollupDataSubmissionFeeComponentsStorage => SequenceFees,
     Ics20WithdrawalFeeComponentsStorage => Ics20WithdrawalFees,
     InitBridgeAccountFeeComponentsStorage => InitBridgeAccountFees,
     BridgeLockFeeComponentsStorage => BridgeLockFees,

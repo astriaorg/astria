@@ -14,7 +14,7 @@ message TransferFeeComponents {
   astria.primitive.v1.Uint128 multiplier = 2;
 }
 
-message SequenceFeeComponents {
+message RollupDataSubmissionFeeComponents {
   astria.primitive.v1.Uint128 base = 1;
   astria.primitive.v1.Uint128 multiplier = 2;
 }

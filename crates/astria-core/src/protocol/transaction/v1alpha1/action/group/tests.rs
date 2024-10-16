@@ -23,7 +23,7 @@ use crate::{
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
-        Sequence,
+        RollupDataSubmission,
         SudoAddressChange,
         Transfer,
         TransferFeeComponents,
@@ -42,7 +42,7 @@ fn try_from_list_of_actions_bundleable_general() {
 
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
-        Action::Sequence(Sequence {
+        Action::RollupDataSubmission(RollupDataSubmission {
             rollup_id: RollupId::from([8; 32]),
             data: vec![].into(),
             fee_asset: asset.clone(),
@@ -221,7 +221,7 @@ fn from_list_of_actions_mixed() {
 
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
-        Action::Sequence(Sequence {
+        Action::RollupDataSubmission(RollupDataSubmission {
             rollup_id: RollupId::from([8; 32]),
             data: vec![].into(),
             fee_asset: asset.clone(),

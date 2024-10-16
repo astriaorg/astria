@@ -1,5 +1,5 @@
 ---
 source: crates/astria-sequencer/src/fees/storage/keys.rs
-expression: SEQUENCE
+expression: ROLLUP_DATA_SUBMISSION
 ---
-fees/sequence
+fees/rollup_data_submission

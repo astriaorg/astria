@@ -16,7 +16,7 @@ use astria_core::{
         IbcSudoChangeFeeComponents,
         Ics20WithdrawalFeeComponents,
         InitBridgeAccountFeeComponents,
-        SequenceFeeComponents,
+        RollupDataSubmissionFeeComponents,
         SudoAddressChangeFeeComponents,
         TransferFeeComponents,
         ValidatorUpdateFeeComponents,
@@ -78,9 +78,9 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_sequence_fees(&self) -> Result<SequenceFeeComponents> {
+    async fn get_rollup_data_submission_fees(&self) -> Result<RollupDataSubmissionFeeComponents> {
         let bytes = self
-            .get_raw(keys::SEQUENCE)
+            .get_raw(keys::ROLLUP_DATA_SUBMISSION)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sequence fee components from state")?;
@@ -89,8 +89,8 @@ pub(crate) trait StateReadExt: StateRead {
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
-                storage::SequenceFeeComponentsStorage::try_from(value)
-                    .map(SequenceFeeComponents::from)
+                storage::RollupDataSubmissionFeeComponentsStorage::try_from(value)
+                    .map(RollupDataSubmissionFeeComponents::from)
             })
             .wrap_err("invalid fees bytes")
     }
@@ -387,11 +387,16 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_sequence_fees(&mut self, fees: SequenceFeeComponents) -> Result<()> {
-        let bytes = StoredValue::from(storage::SequenceFeeComponentsStorage::from(fees))
-            .serialize()
-            .wrap_err("failed to serialize fees")?;
-        self.put_raw(keys::SEQUENCE.to_string(), bytes);
+    fn put_rollup_data_submission_fees(
+        &mut self,
+        fees: RollupDataSubmissionFeeComponents,
+    ) -> Result<()> {
+        let bytes = StoredValue::from(storage::RollupDataSubmissionFeeComponentsStorage::from(
+            fees,
+        ))
+        .serialize()
+        .wrap_err("failed to serialize fees")?;
+        self.put_raw(keys::ROLLUP_DATA_SUBMISSION.to_string(), bytes);
         Ok(())
     }
 
@@ -649,18 +654,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sequence_fees_round_trip() {
+    async fn rollup_data_submission_fees_round_trip() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = SequenceFeeComponents {
+        let fee_components = RollupDataSubmissionFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_sequence_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_sequence_fees().await.unwrap();
+        state
+            .put_rollup_data_submission_fees(fee_components)
+            .unwrap();
+        let retrieved_fee = state.get_rollup_data_submission_fees().await.unwrap();
         assert_eq!(retrieved_fee, fee_components);
     }
 

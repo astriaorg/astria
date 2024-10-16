@@ -33,7 +33,7 @@ use crate::{
         IbcSudoChangeFeeComponents,
         Ics20WithdrawalFeeComponents,
         InitBridgeAccountFeeComponents,
-        SequenceFeeComponents,
+        RollupDataSubmissionFeeComponents,
         SudoAddressChangeFeeComponents,
         TransferFeeComponents,
         ValidatorUpdateFeeComponents,
@@ -50,7 +50,7 @@ pub mod group;
     serde(into = "raw::Action", try_from = "raw::Action")
 )]
 pub enum Action {
-    Sequence(Sequence),
+    RollupDataSubmission(RollupDataSubmission),
     Transfer(Transfer),
     ValidatorUpdate(ValidatorUpdate),
     SudoAddressChange(SudoAddressChange),
@@ -74,7 +74,7 @@ impl Protobuf for Action {
     fn to_raw(&self) -> Self::Raw {
         use raw::action::Value;
         let kind = match self {
-            Action::Sequence(act) => Value::Sequence(act.to_raw()),
+            Action::RollupDataSubmission(act) => Value::RollupDataSubmission(act.to_raw()),
             Action::Transfer(act) => Value::Transfer(act.to_raw()),
             Action::ValidatorUpdate(act) => Value::ValidatorUpdate(act.to_raw()),
             Action::SudoAddressChange(act) => Value::SudoAddressChange(act.clone().into_raw()),
@@ -99,7 +99,7 @@ impl Protobuf for Action {
     /// # Errors
     ///
     /// Returns an error if conversion of one of the inner raw action variants
-    /// to a native action ([`SequenceAction`] or [`TransferAction`]) fails.
+    /// to a native action fails.
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Error> {
         Self::try_from_raw(raw.clone())
     }
@@ -109,7 +109,7 @@ impl Protobuf for Action {
     /// # Errors
     ///
     /// Returns an error if conversion of one of the inner raw action variants
-    /// to a native action ([`SequenceAction`] or [`TransferAction`]) fails.
+    /// to a native action fails.
     fn try_from_raw(proto: raw::Action) -> Result<Self, Error> {
         use raw::action::Value;
         let raw::Action {
@@ -119,9 +119,9 @@ impl Protobuf for Action {
             return Err(Error::unset());
         };
         let action = match action {
-            Value::Sequence(act) => {
-                Self::Sequence(Sequence::try_from_raw(act).map_err(Error::sequence)?)
-            }
+            Value::RollupDataSubmission(act) => Self::RollupDataSubmission(
+                RollupDataSubmission::try_from_raw(act).map_err(Error::rollup_data_submission)?,
+            ),
             Value::Transfer(act) => {
                 Self::Transfer(Transfer::try_from_raw(act).map_err(Error::transfer)?)
             }
@@ -169,8 +169,8 @@ impl Protobuf for Action {
 // TODO: add unit tests for these methods (https://github.com/astriaorg/astria/issues/1593)
 impl Action {
     #[must_use]
-    pub fn as_sequence(&self) -> Option<&Sequence> {
-        let Self::Sequence(sequence_action) = self else {
+    pub fn as_rollup_data_submission(&self) -> Option<&RollupDataSubmission> {
+        let Self::RollupDataSubmission(sequence_action) = self else {
             return None;
         };
         Some(sequence_action)
@@ -193,9 +193,9 @@ impl Action {
     }
 }
 
-impl From<Sequence> for Action {
-    fn from(value: Sequence) -> Self {
-        Self::Sequence(value)
+impl From<RollupDataSubmission> for Action {
+    fn from(value: RollupDataSubmission) -> Self {
+        Self::RollupDataSubmission(value)
     }
 }
 
@@ -294,7 +294,7 @@ pub(super) trait ActionName {
 impl ActionName for Action {
     fn name(&self) -> &'static str {
         match self {
-            Action::Sequence(_) => "Sequence",
+            Action::RollupDataSubmission(_) => "RollupDataSubmission",
             Action::Transfer(_) => "Transfer",
             Action::ValidatorUpdate(_) => "ValidatorUpdate",
             Action::SudoAddressChange(_) => "SudoAddressChange",
@@ -321,8 +321,8 @@ impl Error {
         Self(ActionErrorKind::Unset)
     }
 
-    fn sequence(inner: SequenceError) -> Self {
-        Self(ActionErrorKind::Sequence(inner))
+    fn rollup_data_submission(inner: RollupDataSubmissionError) -> Self {
+        Self(ActionErrorKind::RollupDataSubmission(inner))
     }
 
     fn transfer(inner: TransferError) -> Self {
@@ -382,8 +382,8 @@ impl Error {
 enum ActionErrorKind {
     #[error("required action value was not set")]
     Unset,
-    #[error("sequence action was not valid")]
-    Sequence(#[source] SequenceError),
+    #[error("rollup data submission action was not valid")]
+    RollupDataSubmission(#[source] RollupDataSubmissionError),
     #[error("transfer action was not valid")]
     Transfer(#[source] TransferError),
     #[error("validator update action was not valid")]
@@ -414,24 +414,24 @@ enum ActionErrorKind {
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct SequenceError(SequenceErrorKind);
+pub struct RollupDataSubmissionError(RollupDataSubmissionErrorKind);
 
-impl SequenceError {
+impl RollupDataSubmissionError {
     fn field_not_set(field: &'static str) -> Self {
-        Self(SequenceErrorKind::FieldNotSet(field))
+        Self(RollupDataSubmissionErrorKind::FieldNotSet(field))
     }
 
     fn rollup_id_length(inner: IncorrectRollupIdLength) -> Self {
-        Self(SequenceErrorKind::RollupIdLength(inner))
+        Self(RollupDataSubmissionErrorKind::RollupIdLength(inner))
     }
 
     fn fee_asset(inner: asset::ParseDenomError) -> Self {
-        Self(SequenceErrorKind::FeeAsset(inner))
+        Self(RollupDataSubmissionErrorKind::FeeAsset(inner))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum SequenceErrorKind {
+enum RollupDataSubmissionErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("`rollup_id` field did not contain a valid rollup ID")]
@@ -441,25 +441,25 @@ enum SequenceErrorKind {
 }
 
 #[derive(Clone, Debug)]
-pub struct Sequence {
+pub struct RollupDataSubmission {
     pub rollup_id: RollupId,
     pub data: Bytes,
     /// asset to use for fee payment.
     pub fee_asset: asset::Denom,
 }
 
-impl Protobuf for Sequence {
-    type Error = SequenceError;
-    type Raw = raw::Sequence;
+impl Protobuf for RollupDataSubmission {
+    type Error = RollupDataSubmissionError;
+    type Raw = raw::RollupDataSubmission;
 
     #[must_use]
-    fn to_raw(&self) -> raw::Sequence {
+    fn to_raw(&self) -> raw::RollupDataSubmission {
         let Self {
             rollup_id,
             data,
             fee_asset,
         } = self;
-        raw::Sequence {
+        raw::RollupDataSubmission {
             rollup_id: Some(rollup_id.to_raw()),
             data: data.clone(),
             fee_asset: fee_asset.to_string(),
@@ -469,19 +469,21 @@ impl Protobuf for Sequence {
     /// Convert from a reference to the raw protobuf type.
     ///
     /// # Errors
-    /// Returns `SequenceActionError` if the `proto.rollup_id` field was not 32 bytes.
+    /// Returns [`RollupDataSubmissionError`] if the on-wire data type could not be validated.
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
-        let raw::Sequence {
+        let raw::RollupDataSubmission {
             rollup_id,
             data,
             fee_asset,
         } = raw;
         let Some(rollup_id) = rollup_id else {
-            return Err(SequenceError::field_not_set("rollup_id"));
+            return Err(RollupDataSubmissionError::field_not_set("rollup_id"));
         };
-        let rollup_id =
-            RollupId::try_from_raw_ref(rollup_id).map_err(SequenceError::rollup_id_length)?;
-        let fee_asset = fee_asset.parse().map_err(SequenceError::fee_asset)?;
+        let rollup_id = RollupId::try_from_raw_ref(rollup_id)
+            .map_err(RollupDataSubmissionError::rollup_id_length)?;
+        let fee_asset = fee_asset
+            .parse()
+            .map_err(RollupDataSubmissionError::fee_asset)?;
         let data = data.clone();
         Ok(Self {
             rollup_id,
@@ -1945,7 +1947,7 @@ enum FeeChangeErrorKind {
 #[derive(Debug, Clone)]
 pub enum FeeChange {
     Transfer(TransferFeeComponents),
-    Sequence(SequenceFeeComponents),
+    RollupDataSubmission(RollupDataSubmissionFeeComponents),
     Ics20Withdrawal(Ics20WithdrawalFeeComponents),
     InitBridgeAccount(InitBridgeAccountFeeComponents),
     BridgeLock(BridgeLockFeeComponents),
@@ -1971,8 +1973,8 @@ impl Protobuf for FeeChange {
                 Self::Transfer(fee_change) => {
                     raw::fee_change::FeeComponents::Transfer(fee_change.to_raw())
                 }
-                Self::Sequence(fee_change) => {
-                    raw::fee_change::FeeComponents::Sequence(fee_change.to_raw())
+                Self::RollupDataSubmission(fee_change) => {
+                    raw::fee_change::FeeComponents::RollupDataSubmission(fee_change.to_raw())
                 }
                 Self::Ics20Withdrawal(fee_change) => {
                     raw::fee_change::FeeComponents::Ics20Withdrawal(fee_change.to_raw())
@@ -2025,8 +2027,10 @@ impl Protobuf for FeeChange {
             Some(raw::fee_change::FeeComponents::Transfer(fee_change)) => {
                 Self::Transfer(TransferFeeComponents::try_from_raw_ref(fee_change)?)
             }
-            Some(raw::fee_change::FeeComponents::Sequence(fee_change)) => {
-                Self::Sequence(SequenceFeeComponents::try_from_raw_ref(fee_change)?)
+            Some(raw::fee_change::FeeComponents::RollupDataSubmission(fee_change)) => {
+                Self::RollupDataSubmission(RollupDataSubmissionFeeComponents::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
             Some(raw::fee_change::FeeComponents::Ics20Withdrawal(fee_change)) => {
                 Self::Ics20Withdrawal(Ics20WithdrawalFeeComponents::try_from_raw_ref(fee_change)?)

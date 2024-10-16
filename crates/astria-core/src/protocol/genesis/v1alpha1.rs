@@ -28,7 +28,7 @@ use crate::{
         IbcSudoChangeFeeComponents,
         Ics20WithdrawalFeeComponents,
         InitBridgeAccountFeeComponents,
-        SequenceFeeComponents,
+        RollupDataSubmissionFeeComponents,
         SudoAddressChangeFeeComponents,
         TransferFeeComponents,
         ValidatorUpdateFeeComponents,
@@ -560,7 +560,7 @@ impl From<raw::IbcParameters> for IBCParameters {
 
 #[derive(Clone, Debug)]
 pub struct GenesisFees {
-    pub sequence: SequenceFeeComponents,
+    pub rollup_data_submission: RollupDataSubmissionFeeComponents,
     pub transfer: TransferFeeComponents,
     pub ics20_withdrawal: Ics20WithdrawalFeeComponents,
     pub init_bridge_account: InitBridgeAccountFeeComponents,
@@ -586,7 +586,7 @@ impl Protobuf for GenesisFees {
     )]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
-            sequence,
+            rollup_data_submission,
             transfer,
             ics20_withdrawal,
             init_bridge_account,
@@ -601,8 +601,8 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
         } = raw;
-        let sequence = SequenceFeeComponents::try_from_raw(
-            sequence
+        let rollup_data_submission = RollupDataSubmissionFeeComponents::try_from_raw(
+            rollup_data_submission
                 .clone()
                 .ok_or_else(|| Self::Error::field_not_set("sequence"))?,
         )
@@ -687,7 +687,7 @@ impl Protobuf for GenesisFees {
         .map_err(|e| FeesError::fee_components("ibc_sudo_change", e))?;
 
         Ok(Self {
-            sequence,
+            rollup_data_submission,
             transfer,
             ics20_withdrawal,
             init_bridge_account,
@@ -706,7 +706,7 @@ impl Protobuf for GenesisFees {
 
     fn to_raw(&self) -> Self::Raw {
         let Self {
-            sequence,
+            rollup_data_submission,
             transfer,
             ics20_withdrawal,
             init_bridge_account,
@@ -722,8 +722,8 @@ impl Protobuf for GenesisFees {
             ibc_sudo_change,
         } = self;
         Self::Raw {
+            rollup_data_submission: Some(rollup_data_submission.to_raw()),
             transfer: Some(transfer.to_raw()),
-            sequence: Some(sequence.to_raw()),
             ics20_withdrawal: Some(ics20_withdrawal.to_raw()),
             init_bridge_account: Some(init_bridge_account.to_raw()),
             bridge_lock: Some(bridge_lock.to_raw()),
@@ -850,8 +850,8 @@ mod tests {
                     }
                     .to_raw(),
                 ),
-                sequence: Some(
-                    SequenceFeeComponents {
+                rollup_data_submission: Some(
+                    RollupDataSubmissionFeeComponents {
                         base: 32,
                         multiplier: 1,
                     }
