@@ -15,7 +15,7 @@ pub(crate) mod ibc;
 mod mempool;
 pub(crate) mod metrics;
 pub(crate) mod proposal;
-pub(crate) mod sequence;
+pub(crate) mod rollup_data;
 mod sequencer;
 pub(crate) mod service;
 pub(crate) mod storage;
