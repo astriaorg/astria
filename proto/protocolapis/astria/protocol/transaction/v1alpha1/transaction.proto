@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package astria.protocol.transactions.v1alpha1;
+package astria.protocol.transaction.v1alpha1;
 
-import "astria/protocol/transactions/v1alpha1/action.proto";
+import "astria/protocol/transaction/v1alpha1/action.proto";
 import "google/protobuf/any.proto";
 
 // `Transaction` is a transaction `TransactionBody` together with a public

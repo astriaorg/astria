@@ -9,7 +9,7 @@ impl serde::Serialize for Action {
         if self.value.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Action", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.Action", len)?;
         if let Some(v) = self.value.as_ref() {
             match v {
                 action::Value::Transfer(v) => {
@@ -156,7 +156,7 @@ impl<'de> serde::Deserialize<'de> for Action {
             type Value = Action;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.Action")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.Action")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<Action, V::Error>
@@ -271,7 +271,7 @@ impl<'de> serde::Deserialize<'de> for Action {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Action", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.Action", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for BridgeLock {
@@ -297,7 +297,7 @@ impl serde::Serialize for BridgeLock {
         if !self.destination_chain_address.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeLock", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.BridgeLock", len)?;
         if let Some(v) = self.to.as_ref() {
             struct_ser.serialize_field("to", v)?;
         }
@@ -377,7 +377,7 @@ impl<'de> serde::Deserialize<'de> for BridgeLock {
             type Value = BridgeLock;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeLock")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.BridgeLock")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeLock, V::Error>
@@ -432,7 +432,7 @@ impl<'de> serde::Deserialize<'de> for BridgeLock {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeLock", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.BridgeLock", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for BridgeSudoChange {
@@ -455,7 +455,7 @@ impl serde::Serialize for BridgeSudoChange {
         if !self.fee_asset.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeSudoChange", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.BridgeSudoChange", len)?;
         if let Some(v) = self.bridge_address.as_ref() {
             struct_ser.serialize_field("bridgeAddress", v)?;
         }
@@ -531,7 +531,7 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChange {
             type Value = BridgeSudoChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeSudoChange")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.BridgeSudoChange")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeSudoChange, V::Error>
@@ -578,7 +578,7 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChange {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeSudoChange", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.BridgeSudoChange", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for BridgeUnlock {
@@ -610,7 +610,7 @@ impl serde::Serialize for BridgeUnlock {
         if !self.rollup_withdrawal_event_id.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.BridgeUnlock", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.BridgeUnlock", len)?;
         if let Some(v) = self.to.as_ref() {
             struct_ser.serialize_field("to", v)?;
         }
@@ -705,7 +705,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlock {
             type Value = BridgeUnlock;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.BridgeUnlock")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.BridgeUnlock")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<BridgeUnlock, V::Error>
@@ -778,7 +778,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlock {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.BridgeUnlock", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.BridgeUnlock", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for FeeAssetChange {
@@ -792,7 +792,7 @@ impl serde::Serialize for FeeAssetChange {
         if self.value.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.FeeAssetChange", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.FeeAssetChange", len)?;
         if let Some(v) = self.value.as_ref() {
             match v {
                 fee_asset_change::Value::Addition(v) => {
@@ -856,7 +856,7 @@ impl<'de> serde::Deserialize<'de> for FeeAssetChange {
             type Value = FeeAssetChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.FeeAssetChange")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.FeeAssetChange")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<FeeAssetChange, V::Error>
@@ -885,7 +885,7 @@ impl<'de> serde::Deserialize<'de> for FeeAssetChange {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.FeeAssetChange", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.FeeAssetChange", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for FeeChange {
@@ -899,7 +899,7 @@ impl serde::Serialize for FeeChange {
         if self.fee_components.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.FeeChange", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.FeeChange", len)?;
         if let Some(v) = self.fee_components.as_ref() {
             match v {
                 fee_change::FeeComponents::BridgeLock(v) => {
@@ -1047,7 +1047,7 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             type Value = FeeChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.FeeChange")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.FeeChange")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<FeeChange, V::Error>
@@ -1162,7 +1162,7 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.FeeChange", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.FeeChange", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for IbcHeight {
@@ -1179,7 +1179,7 @@ impl serde::Serialize for IbcHeight {
         if self.revision_height != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.IbcHeight", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.IbcHeight", len)?;
         if self.revision_number != 0 {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("revisionNumber", ToString::to_string(&self.revision_number).as_str())?;
@@ -1243,7 +1243,7 @@ impl<'de> serde::Deserialize<'de> for IbcHeight {
             type Value = IbcHeight;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.IbcHeight")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.IbcHeight")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<IbcHeight, V::Error>
@@ -1278,7 +1278,7 @@ impl<'de> serde::Deserialize<'de> for IbcHeight {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.IbcHeight", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.IbcHeight", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for IbcRelayerChange {
@@ -1292,7 +1292,7 @@ impl serde::Serialize for IbcRelayerChange {
         if self.value.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.IbcRelayerChange", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.IbcRelayerChange", len)?;
         if let Some(v) = self.value.as_ref() {
             match v {
                 ibc_relayer_change::Value::Addition(v) => {
@@ -1356,7 +1356,7 @@ impl<'de> serde::Deserialize<'de> for IbcRelayerChange {
             type Value = IbcRelayerChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.IbcRelayerChange")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.IbcRelayerChange")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<IbcRelayerChange, V::Error>
@@ -1387,7 +1387,7 @@ impl<'de> serde::Deserialize<'de> for IbcRelayerChange {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.IbcRelayerChange", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.IbcRelayerChange", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for IbcSudoChange {
@@ -1401,7 +1401,7 @@ impl serde::Serialize for IbcSudoChange {
         if self.new_address.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.IbcSudoChange", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.IbcSudoChange", len)?;
         if let Some(v) = self.new_address.as_ref() {
             struct_ser.serialize_field("newAddress", v)?;
         }
@@ -1456,7 +1456,7 @@ impl<'de> serde::Deserialize<'de> for IbcSudoChange {
             type Value = IbcSudoChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.IbcSudoChange")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.IbcSudoChange")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<IbcSudoChange, V::Error>
@@ -1479,7 +1479,7 @@ impl<'de> serde::Deserialize<'de> for IbcSudoChange {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.IbcSudoChange", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.IbcSudoChange", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for Ics20Withdrawal {
@@ -1523,7 +1523,7 @@ impl serde::Serialize for Ics20Withdrawal {
         if self.use_compat_address {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Ics20Withdrawal", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.Ics20Withdrawal", len)?;
         if let Some(v) = self.amount.as_ref() {
             struct_ser.serialize_field("amount", v)?;
         }
@@ -1646,7 +1646,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
             type Value = Ics20Withdrawal;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.Ics20Withdrawal")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.Ics20Withdrawal")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<Ics20Withdrawal, V::Error>
@@ -1751,7 +1751,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Ics20Withdrawal", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.Ics20Withdrawal", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for InitBridgeAccount {
@@ -1777,7 +1777,7 @@ impl serde::Serialize for InitBridgeAccount {
         if self.withdrawer_address.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.InitBridgeAccount", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.InitBridgeAccount", len)?;
         if let Some(v) = self.rollup_id.as_ref() {
             struct_ser.serialize_field("rollupId", v)?;
         }
@@ -1859,7 +1859,7 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccount {
             type Value = InitBridgeAccount;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.InitBridgeAccount")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.InitBridgeAccount")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<InitBridgeAccount, V::Error>
@@ -1914,7 +1914,7 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccount {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.InitBridgeAccount", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.InitBridgeAccount", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for Sequence {
@@ -1934,7 +1934,7 @@ impl serde::Serialize for Sequence {
         if !self.fee_asset.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Sequence", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.Sequence", len)?;
         if let Some(v) = self.rollup_id.as_ref() {
             struct_ser.serialize_field("rollupId", v)?;
         }
@@ -2003,7 +2003,7 @@ impl<'de> serde::Deserialize<'de> for Sequence {
             type Value = Sequence;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.Sequence")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.Sequence")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<Sequence, V::Error>
@@ -2044,7 +2044,7 @@ impl<'de> serde::Deserialize<'de> for Sequence {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Sequence", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.Sequence", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for SudoAddressChange {
@@ -2058,7 +2058,7 @@ impl serde::Serialize for SudoAddressChange {
         if self.new_address.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.SudoAddressChange", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.SudoAddressChange", len)?;
         if let Some(v) = self.new_address.as_ref() {
             struct_ser.serialize_field("newAddress", v)?;
         }
@@ -2113,7 +2113,7 @@ impl<'de> serde::Deserialize<'de> for SudoAddressChange {
             type Value = SudoAddressChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.SudoAddressChange")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.SudoAddressChange")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<SudoAddressChange, V::Error>
@@ -2136,7 +2136,7 @@ impl<'de> serde::Deserialize<'de> for SudoAddressChange {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.SudoAddressChange", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.SudoAddressChange", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for Transaction {
@@ -2156,7 +2156,7 @@ impl serde::Serialize for Transaction {
         if self.body.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Transaction", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.Transaction", len)?;
         if !self.signature.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("signature", pbjson::private::base64::encode(&self.signature).as_str())?;
@@ -2225,7 +2225,7 @@ impl<'de> serde::Deserialize<'de> for Transaction {
             type Value = Transaction;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.Transaction")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.Transaction")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<Transaction, V::Error>
@@ -2268,7 +2268,7 @@ impl<'de> serde::Deserialize<'de> for Transaction {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Transaction", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.Transaction", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for TransactionBody {
@@ -2285,7 +2285,7 @@ impl serde::Serialize for TransactionBody {
         if !self.actions.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.TransactionBody", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.TransactionBody", len)?;
         if let Some(v) = self.params.as_ref() {
             struct_ser.serialize_field("params", v)?;
         }
@@ -2345,7 +2345,7 @@ impl<'de> serde::Deserialize<'de> for TransactionBody {
             type Value = TransactionBody;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.TransactionBody")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.TransactionBody")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<TransactionBody, V::Error>
@@ -2376,7 +2376,7 @@ impl<'de> serde::Deserialize<'de> for TransactionBody {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.TransactionBody", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.TransactionBody", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for TransactionParams {
@@ -2393,7 +2393,7 @@ impl serde::Serialize for TransactionParams {
         if !self.chain_id.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.TransactionParams", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.TransactionParams", len)?;
         if self.nonce != 0 {
             struct_ser.serialize_field("nonce", &self.nonce)?;
         }
@@ -2454,7 +2454,7 @@ impl<'de> serde::Deserialize<'de> for TransactionParams {
             type Value = TransactionParams;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.TransactionParams")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.TransactionParams")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<TransactionParams, V::Error>
@@ -2487,7 +2487,7 @@ impl<'de> serde::Deserialize<'de> for TransactionParams {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.TransactionParams", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.TransactionParams", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for Transfer {
@@ -2510,7 +2510,7 @@ impl serde::Serialize for Transfer {
         if !self.fee_asset.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Transfer", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.Transfer", len)?;
         if let Some(v) = self.to.as_ref() {
             struct_ser.serialize_field("to", v)?;
         }
@@ -2583,7 +2583,7 @@ impl<'de> serde::Deserialize<'de> for Transfer {
             type Value = Transfer;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transactions.v1alpha1.Transfer")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.Transfer")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<Transfer, V::Error>
@@ -2630,6 +2630,6 @@ impl<'de> serde::Deserialize<'de> for Transfer {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transactions.v1alpha1.Transfer", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.Transfer", FIELDS, GeneratedVisitor)
     }
 }

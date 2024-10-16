@@ -1,5 +1,5 @@
 use astria_core::{
-    generated::protocol::transactions::v1alpha1::TransactionBody as RawBody,
+    generated::protocol::transaction::v1alpha1::TransactionBody as RawBody,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1alpha1::TransactionBody,

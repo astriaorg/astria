@@ -203,7 +203,7 @@ async fn mount_default_nonce_query_mock(server: &MockServer) -> MockGuard {
 }
 
 fn tx_from_request(request: &Request) -> Transaction {
-    use astria_core::generated::protocol::transactions::v1alpha1::Transaction as RawTransaction;
+    use astria_core::generated::protocol::transaction::v1alpha1::Transaction as RawTransaction;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
         serde_json::from_slice(&request.body)

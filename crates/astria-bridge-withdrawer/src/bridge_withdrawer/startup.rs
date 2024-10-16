@@ -270,20 +270,20 @@ impl Startup {
         );
 
         let proto_tx =
-            astria_core::generated::protocol::transactions::v1alpha1::Transaction::decode(
+            astria_core::generated::protocol::transaction::v1alpha1::Transaction::decode(
                 &*last_transaction.tx,
             )
             .wrap_err_with(|| {
                 format!(
                 "failed to decode data in Sequencer CometBFT transaction as `{}`",
-                astria_core::generated::protocol::transactions::v1alpha1::Transaction::full_name(),
+                astria_core::generated::protocol::transaction::v1alpha1::Transaction::full_name(),
                         )
             })?;
 
         let tx = Transaction::try_from_raw(proto_tx).wrap_err_with(|| {
             format!(
                 "failed to verify {}",
-                astria_core::generated::protocol::transactions::v1alpha1::Transaction::full_name()
+                astria_core::generated::protocol::transaction::v1alpha1::Transaction::full_name()
             )
         })?;
 

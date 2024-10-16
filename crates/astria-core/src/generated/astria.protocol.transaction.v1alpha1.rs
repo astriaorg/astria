@@ -50,9 +50,9 @@ pub mod action {
 }
 impl ::prost::Name for Action {
     const NAME: &'static str = "Action";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// `TransferAction` represents a value transfer transaction.
@@ -75,9 +75,9 @@ pub struct Transfer {
 }
 impl ::prost::Name for Transfer {
     const NAME: &'static str = "Transfer";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// `Sequence` represents a transaction destined for another
@@ -98,9 +98,9 @@ pub struct Sequence {
 }
 impl ::prost::Name for Sequence {
     const NAME: &'static str = "Sequence";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// / `SudoAddressChange` represents a transaction that changes
@@ -116,9 +116,9 @@ pub struct SudoAddressChange {
 }
 impl ::prost::Name for SudoAddressChange {
     const NAME: &'static str = "SudoAddressChange";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -176,9 +176,9 @@ pub struct Ics20Withdrawal {
 }
 impl ::prost::Name for Ics20Withdrawal {
     const NAME: &'static str = "Ics20Withdrawal";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -191,9 +191,9 @@ pub struct IbcHeight {
 }
 impl ::prost::Name for IbcHeight {
     const NAME: &'static str = "IbcHeight";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// `IbcRelayerChange` represents a transaction that adds
@@ -218,9 +218,9 @@ pub mod ibc_relayer_change {
 }
 impl ::prost::Name for IbcRelayerChange {
     const NAME: &'static str = "IbcRelayerChange";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// `FeeAssetChange` represents a transaction that adds
@@ -244,9 +244,9 @@ pub mod fee_asset_change {
 }
 impl ::prost::Name for FeeAssetChange {
     const NAME: &'static str = "FeeAssetChange";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// `InitBridgeAccount` represents a transaction that initializes
@@ -283,9 +283,9 @@ pub struct InitBridgeAccount {
 }
 impl ::prost::Name for InitBridgeAccount {
     const NAME: &'static str = "InitBridgeAccount";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// `BridgeLock` represents a transaction that transfers
@@ -315,9 +315,9 @@ pub struct BridgeLock {
 }
 impl ::prost::Name for BridgeLock {
     const NAME: &'static str = "BridgeLock";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// `BridgeUnlock` represents a transaction that transfers
@@ -362,9 +362,9 @@ pub struct BridgeUnlock {
 }
 impl ::prost::Name for BridgeUnlock {
     const NAME: &'static str = "BridgeUnlock";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -391,9 +391,9 @@ pub struct BridgeSudoChange {
 }
 impl ::prost::Name for BridgeSudoChange {
     const NAME: &'static str = "BridgeSudoChange";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -456,9 +456,9 @@ pub mod fee_change {
 }
 impl ::prost::Name for FeeChange {
     const NAME: &'static str = "FeeChange";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -469,9 +469,9 @@ pub struct IbcSudoChange {
 }
 impl ::prost::Name for IbcSudoChange {
     const NAME: &'static str = "IbcSudoChange";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// `Transaction` is a transaction `TransactionBody` together with a public
@@ -488,9 +488,9 @@ pub struct Transaction {
 }
 impl ::prost::Name for Transaction {
     const NAME: &'static str = "Transaction";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// The `TransactionBody` of the `Transaction` that is being signed over.
@@ -505,9 +505,9 @@ pub struct TransactionBody {
 }
 impl ::prost::Name for TransactionBody {
     const NAME: &'static str = "TransactionBody";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
 /// The `TransactionParams` of the transaction that define the
@@ -522,8 +522,8 @@ pub struct TransactionParams {
 }
 impl ::prost::Name for TransactionParams {
     const NAME: &'static str = "TransactionParams";
-    const PACKAGE: &'static str = "astria.protocol.transactions.v1alpha1";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transactions.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
