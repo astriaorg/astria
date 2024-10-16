@@ -484,7 +484,7 @@ pub struct Transaction {
     #[prost(bytes = "bytes", tag = "2")]
     pub public_key: ::prost::bytes::Bytes,
     #[prost(message, optional, tag = "3")]
-    pub transaction: ::core::option::Option<::pbjson_types::Any>,
+    pub body: ::core::option::Option<::pbjson_types::Any>,
 }
 impl ::prost::Name for Transaction {
     const NAME: &'static str = "Transaction";
@@ -498,10 +498,10 @@ impl ::prost::Name for Transaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TransactionBody {
-    #[prost(message, repeated, tag = "1")]
-    pub actions: ::prost::alloc::vec::Vec<Action>,
-    #[prost(message, optional, tag = "2")]
+    #[prost(message, optional, tag = "1")]
     pub params: ::core::option::Option<TransactionParams>,
+    #[prost(message, repeated, tag = "2")]
+    pub actions: ::prost::alloc::vec::Vec<Action>,
 }
 impl ::prost::Name for TransactionBody {
     const NAME: &'static str = "TransactionBody";

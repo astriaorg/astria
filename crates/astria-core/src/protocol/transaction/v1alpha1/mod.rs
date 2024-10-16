@@ -77,8 +77,8 @@ enum TransactionErrorKind {
 pub struct Transaction {
     signature: Signature,
     verification_key: VerificationKey,
-    transaction: TransactionBody,
-    transaction_bytes: bytes::Bytes,
+    body: TransactionBody,
+    body_bytes: bytes::Bytes,
 }
 
 impl Transaction {
@@ -105,13 +105,13 @@ impl Transaction {
         let Self {
             signature,
             verification_key,
-            transaction_bytes,
+            body_bytes: transaction_bytes,
             ..
         } = self;
         raw::Transaction {
             signature: Bytes::copy_from_slice(&signature.to_bytes()),
             public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
-            transaction: Some(pbjson_types::Any {
+            body: Some(pbjson_types::Any {
                 type_url: raw::TransactionBody::type_url(),
                 value: transaction_bytes,
             }),
@@ -123,13 +123,13 @@ impl Transaction {
         let Self {
             signature,
             verification_key,
-            transaction_bytes,
+            body_bytes: transaction_bytes,
             ..
         } = self;
         raw::Transaction {
             signature: Bytes::copy_from_slice(&signature.to_bytes()),
             public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
-            transaction: Some(pbjson_types::Any {
+            body: Some(pbjson_types::Any {
                 type_url: raw::TransactionBody::type_url(),
                 value: transaction_bytes.clone(),
             }),
@@ -149,7 +149,7 @@ impl Transaction {
         let raw::Transaction {
             signature,
             public_key,
-            transaction,
+            body: transaction,
         } = proto;
         let signature = Signature::try_from(&*signature).map_err(TransactionError::signature)?;
         let verification_key =
@@ -166,29 +166,29 @@ impl Transaction {
         Ok(Self {
             signature,
             verification_key,
-            transaction,
-            transaction_bytes: bytes,
+            body: transaction,
+            body_bytes: bytes,
         })
     }
 
     #[must_use]
     pub fn into_unsigned(self) -> TransactionBody {
-        self.transaction
+        self.body
     }
 
     #[must_use]
     pub fn actions(&self) -> &[Action] {
-        self.transaction.actions.actions()
+        self.body.actions.actions()
     }
 
     #[must_use]
     pub fn group(&self) -> Group {
-        self.transaction.actions.group()
+        self.body.actions.group()
     }
 
     #[must_use]
     pub fn is_bundleable_sudo_action_group(&self) -> bool {
-        self.transaction.actions.group().is_bundleable_sudo()
+        self.body.actions.group().is_bundleable_sudo()
     }
 
     #[must_use]
@@ -203,16 +203,16 @@ impl Transaction {
 
     #[must_use]
     pub fn unsigned_transaction(&self) -> &TransactionBody {
-        &self.transaction
+        &self.body
     }
 
     pub fn chain_id(&self) -> &str {
-        self.transaction.chain_id()
+        self.body.chain_id()
     }
 
     #[must_use]
     pub fn nonce(&self) -> u32 {
-        self.transaction.nonce()
+        self.body.nonce()
     }
 }
 
@@ -256,8 +256,8 @@ impl TransactionBody {
         Transaction {
             signature,
             verification_key,
-            transaction: self,
-            transaction_bytes: bytes.into(),
+            body: self,
+            body_bytes: bytes.into(),
         }
     }
 
@@ -547,8 +547,8 @@ mod tests {
         let tx = Transaction {
             signature,
             verification_key,
-            transaction: body.clone(),
-            transaction_bytes: body.to_raw().encode_to_vec().into(),
+            body: body.clone(),
+            body_bytes: body.to_raw().encode_to_vec().into(),
         };
 
         insta::assert_json_snapshot!(tx.id().to_raw());

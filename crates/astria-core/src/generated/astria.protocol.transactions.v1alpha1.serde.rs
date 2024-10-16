@@ -2153,7 +2153,7 @@ impl serde::Serialize for Transaction {
         if !self.public_key.is_empty() {
             len += 1;
         }
-        if self.transaction.is_some() {
+        if self.body.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.Transaction", len)?;
@@ -2165,8 +2165,8 @@ impl serde::Serialize for Transaction {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("publicKey", pbjson::private::base64::encode(&self.public_key).as_str())?;
         }
-        if let Some(v) = self.transaction.as_ref() {
-            struct_ser.serialize_field("transaction", v)?;
+        if let Some(v) = self.body.as_ref() {
+            struct_ser.serialize_field("body", v)?;
         }
         struct_ser.end()
     }
@@ -2181,14 +2181,14 @@ impl<'de> serde::Deserialize<'de> for Transaction {
             "signature",
             "public_key",
             "publicKey",
-            "transaction",
+            "body",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Signature,
             PublicKey,
-            Transaction,
+            Body,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -2212,7 +2212,7 @@ impl<'de> serde::Deserialize<'de> for Transaction {
                         match value {
                             "signature" => Ok(GeneratedField::Signature),
                             "publicKey" | "public_key" => Ok(GeneratedField::PublicKey),
-                            "transaction" => Ok(GeneratedField::Transaction),
+                            "body" => Ok(GeneratedField::Body),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -2234,7 +2234,7 @@ impl<'de> serde::Deserialize<'de> for Transaction {
             {
                 let mut signature__ = None;
                 let mut public_key__ = None;
-                let mut transaction__ = None;
+                let mut body__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Signature => {
@@ -2253,18 +2253,18 @@ impl<'de> serde::Deserialize<'de> for Transaction {
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::Transaction => {
-                            if transaction__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transaction"));
+                        GeneratedField::Body => {
+                            if body__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("body"));
                             }
-                            transaction__ = map_.next_value()?;
+                            body__ = map_.next_value()?;
                         }
                     }
                 }
                 Ok(Transaction {
                     signature: signature__.unwrap_or_default(),
                     public_key: public_key__.unwrap_or_default(),
-                    transaction: transaction__,
+                    body: body__,
                 })
             }
         }
@@ -2279,18 +2279,18 @@ impl serde::Serialize for TransactionBody {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.actions.is_empty() {
-            len += 1;
-        }
         if self.params.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.TransactionBody", len)?;
         if !self.actions.is_empty() {
-            struct_ser.serialize_field("actions", &self.actions)?;
+            len += 1;
         }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transactions.v1alpha1.TransactionBody", len)?;
         if let Some(v) = self.params.as_ref() {
             struct_ser.serialize_field("params", v)?;
+        }
+        if !self.actions.is_empty() {
+            struct_ser.serialize_field("actions", &self.actions)?;
         }
         struct_ser.end()
     }
@@ -2302,14 +2302,14 @@ impl<'de> serde::Deserialize<'de> for TransactionBody {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "actions",
             "params",
+            "actions",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Actions,
             Params,
+            Actions,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -2331,8 +2331,8 @@ impl<'de> serde::Deserialize<'de> for TransactionBody {
                         E: serde::de::Error,
                     {
                         match value {
-                            "actions" => Ok(GeneratedField::Actions),
                             "params" => Ok(GeneratedField::Params),
+                            "actions" => Ok(GeneratedField::Actions),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -2352,27 +2352,27 @@ impl<'de> serde::Deserialize<'de> for TransactionBody {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut actions__ = None;
                 let mut params__ = None;
+                let mut actions__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Actions => {
-                            if actions__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("actions"));
-                            }
-                            actions__ = Some(map_.next_value()?);
-                        }
                         GeneratedField::Params => {
                             if params__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("params"));
                             }
                             params__ = map_.next_value()?;
                         }
+                        GeneratedField::Actions => {
+                            if actions__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("actions"));
+                            }
+                            actions__ = Some(map_.next_value()?);
+                        }
                     }
                 }
                 Ok(TransactionBody {
-                    actions: actions__.unwrap_or_default(),
                     params: params__,
+                    actions: actions__.unwrap_or_default(),
                 })
             }
         }
