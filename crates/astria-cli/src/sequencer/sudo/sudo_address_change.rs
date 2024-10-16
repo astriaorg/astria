@@ -1,6 +1,6 @@
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::{
+    protocol::transaction::v1::{
         action::SudoAddressChange,
         Action,
     },

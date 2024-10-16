@@ -5,7 +5,7 @@ use std::{
 
 use astria_core::{
     self,
-    generated::sequencerblock::v1alpha1::{
+    generated::sequencerblock::v1::{
         sequencer_service_server::{
             SequencerService,
             SequencerServiceServer,
@@ -37,7 +37,7 @@ use tonic::{
 };
 
 // NOTE: the actual full path name is
-// /astria.sequencerblock.v1alpha1.SequencerService/GetPendingNonce
+// /astria.sequencerblock.v1.SequencerService/GetPendingNonce
 const GET_PENDING_NONCE_GRPC_NAME: &str = "get_pending_nonce";
 
 pub struct MockGrpcSequencer {

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use astria_core::{
     primitive::v1::asset,
     protocol::{
-        fees::v1alpha1::{
+        fees::v1::{
             BridgeLockFeeComponents,
             BridgeSudoChangeFeeComponents,
             BridgeUnlockFeeComponents,
@@ -12,7 +12,7 @@ use astria_core::{
             RollupDataSubmissionFeeComponents,
             TransferFeeComponents,
         },
-        transaction::v1alpha1::{
+        transaction::v1::{
             action::{
                 Action,
                 BridgeLock,
@@ -346,7 +346,7 @@ mod tests {
             ADDRESS_LEN,
         },
         protocol::{
-            fees::v1alpha1::{
+            fees::v1::{
                 BridgeLockFeeComponents,
                 BridgeSudoChangeFeeComponents,
                 BridgeUnlockFeeComponents,
@@ -355,7 +355,7 @@ mod tests {
                 RollupDataSubmissionFeeComponents,
                 TransferFeeComponents,
             },
-            transaction::v1alpha1::action::{
+            transaction::v1::action::{
                 RollupDataSubmission,
                 Transfer,
             },

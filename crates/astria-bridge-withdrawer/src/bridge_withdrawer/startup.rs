@@ -4,16 +4,16 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::sequencer_service_client::{
+    generated::sequencerblock::v1::sequencer_service_client::{
         self,
         SequencerServiceClient,
     },
     primitive::v1::asset,
     protocol::{
-        asset::v1alpha1::AllowedFeeAssetsResponse,
-        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+        asset::v1::AllowedFeeAssetsResponse,
+        bridge::v1::BridgeAccountLastTxHashResponse,
         memos,
-        transaction::v1alpha1::Action,
+        transaction::v1::Action,
     },
 };
 use astria_eyre::eyre::{
@@ -270,13 +270,13 @@ impl Startup {
         );
 
         let proto_tx =
-            astria_core::generated::protocol::transaction::v1alpha1::Transaction::decode(
+            astria_core::generated::protocol::transaction::v1::Transaction::decode(
                 &*last_transaction.tx,
             )
             .wrap_err_with(|| {
                 format!(
                     "failed to decode data in Sequencer CometBFT transaction as `{}`",
-                    astria_core::generated::protocol::transaction::v1alpha1::Transaction::full_name(
+                    astria_core::generated::protocol::transaction::v1::Transaction::full_name(
                     ),
                 )
             })?;
@@ -284,7 +284,7 @@ impl Startup {
         let tx = Transaction::try_from_raw(proto_tx).wrap_err_with(|| {
             format!(
                 "failed to verify {}",
-                astria_core::generated::protocol::transaction::v1alpha1::Transaction::full_name()
+                astria_core::generated::protocol::transaction::v1::Transaction::full_name()
             )
         })?;
 
@@ -452,7 +452,7 @@ fn rollup_height_from_signed_transaction(signed_transaction: &Transaction) -> ey
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => Some(action.rollup_block_number),
         Action::Ics20Withdrawal(action) => {
-            let memo: memos::v1alpha1::Ics20WithdrawalFromRollup =
+            let memo: memos::v1::Ics20WithdrawalFromRollup =
                 serde_json::from_str(&action.memo)
                     .wrap_err("failed to parse memo from last transaction by the bridge account")?;
             Some(memo.rollup_block_number)

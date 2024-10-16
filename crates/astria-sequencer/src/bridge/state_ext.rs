@@ -7,7 +7,7 @@ use astria_core::{
         TransactionId,
         ADDRESS_LEN,
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1::block::Deposit,
 };
 use astria_eyre::{
     anyhow_to_eyre,

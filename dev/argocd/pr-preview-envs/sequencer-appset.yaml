@@ -1,5 +1,5 @@
 # Ref: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/applicationset.yaml
-apiVersion: argoproj.io/v1alpha1
+apiVersion: argoproj.io/v1
 kind: ApplicationSet
 metadata:
   name: pr-preview-sequencer-0

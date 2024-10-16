@@ -15,7 +15,7 @@ use astria_core::{
         },
         RollupId,
     },
-    protocol::transaction::v1alpha1::{
+    protocol::transaction::v1::{
         action,
         action::Action,
         Transaction,

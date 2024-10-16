@@ -1,6 +1,6 @@
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1alpha1::block::{
+    sequencerblock::v1::block::{
         RollupTransactions,
         SequencerBlock,
         SequencerBlockHeader,
@@ -336,7 +336,7 @@ mod tests {
     use astria_core::{
         primitive::v1::TransactionId,
         protocol::test_utils::ConfigureSequencerBlock,
-        sequencerblock::v1alpha1::block::Deposit,
+        sequencerblock::v1::block::Deposit,
     };
     use cnidarium::StateDelta;
     use rand::Rng;

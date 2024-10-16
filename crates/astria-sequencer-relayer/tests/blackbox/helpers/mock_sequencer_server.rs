@@ -18,7 +18,7 @@ use astria_core::{
     },
     primitive::v1::RollupId,
     protocol::test_utils::ConfigureSequencerBlock,
-    sequencerblock::v1alpha1::SequencerBlock,
+    sequencerblock::v1::SequencerBlock,
 };
 use astria_eyre::eyre::{
     self,

@@ -32,20 +32,20 @@ message GetPendingNonceResponse {
 service SequencerService {
   // Given a block height, returns the sequencer block at that height.
   rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock) {
-    option (google.api.http) = {get: "/v1alpha1/sequencer/{height}"};
+    option (google.api.http) = {get: "/v1/sequencer/{height}"};
   }
 
   // Given a block height and set of rollup ids, returns a SequencerBlock which
   // is filtered to contain only the transactions that are relevant to the given rollup.
   rpc GetFilteredSequencerBlock(GetFilteredSequencerBlockRequest) returns (FilteredSequencerBlock) {
     option (google.api.http) = {
-      post: "/v1alpha1/sequencer/{height}:filtered"
+      post: "/v1/sequencer/{height}:filtered"
       body: "*"
     };
   }
 
   // Returns the pending nonce for the given account.
   rpc GetPendingNonce(GetPendingNonceRequest) returns (GetPendingNonceResponse) {
-    option (google.api.http) = {get: "/v1alpha1/sequencer/pendingnonce/{account}"};
+    option (google.api.http) = {get: "/v1/sequencer/pendingnonce/{account}"};
   }
 }

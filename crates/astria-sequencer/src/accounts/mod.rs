@@ -10,7 +10,7 @@ use astria_core::{
         Address,
         ADDRESS_LEN,
     },
-    protocol::transaction::v1alpha1::Transaction,
+    protocol::transaction::v1::Transaction,
 };
 pub(crate) use state_ext::{
     AssetBalance,

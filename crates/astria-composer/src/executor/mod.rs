@@ -12,7 +12,7 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
-    generated::sequencerblock::v1alpha1::{
+    generated::sequencerblock::v1::{
         sequencer_service_client::{
             self,
             SequencerServiceClient,
@@ -21,7 +21,7 @@ use astria_core::{
     },
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::{
+        transaction::v1::{
             action::RollupDataSubmission,
             Transaction,
         },

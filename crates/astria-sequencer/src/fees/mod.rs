@@ -5,7 +5,7 @@ use astria_core::{
     },
     protocol::transaction::{
         self,
-        v1alpha1::action::{
+        v1::action::{
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
@@ -173,7 +173,7 @@ impl FeeHandler for InitBridgeAccount {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for transaction::v1alpha1::action::Ics20Withdrawal {
+impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state

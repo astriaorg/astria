@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use astria_core::{
     protocol::{
-        fees::v1alpha1::TransferFeeComponents,
-        genesis::v1alpha1::Account,
-        transaction::v1alpha1::{
+        fees::v1::TransferFeeComponents,
+        genesis::v1::Account,
+        transaction::v1::{
             action::{
                 FeeChange,
                 Transfer,

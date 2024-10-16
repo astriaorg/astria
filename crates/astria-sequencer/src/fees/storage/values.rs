@@ -1,4 +1,4 @@
-use astria_core::protocol::fees::v1alpha1::{
+use astria_core::protocol::fees::v1::{
     BridgeLockFeeComponents,
     BridgeSudoChangeFeeComponents,
     BridgeUnlockFeeComponents,
