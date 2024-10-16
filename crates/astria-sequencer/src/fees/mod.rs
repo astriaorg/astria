@@ -61,13 +61,35 @@ pub(crate) use state_ext::{
 /// [`tests::get_base_deposit_fee()`].
 const DEPOSIT_BASE_FEE: u128 = 16;
 
+// This module contains the fee handling logic for all actions. All actions must implement the
+// [`FeeHandler`] trait. In addition to this, new actions should provide new, unique read/write
+// methods in [`fees::StateReadExt`] and [`fees::StateWriteExt`] for the fees associated with the
+// action, which take/return a domain type [`<action_name>FeeComponents`]. If there are no fees
+// stored to the state for the given action, it is assumed to be disabled, and the transaction
+// execution should fail. If the action is free, the fees should be explicitly set to zero in the
+// state. See action implementations for examples of how to implement this trait for new actions.
+
+/// This trait handles fees for all actions, even if the given aciton is free. It must
+/// be implemented for all actions. All actions' fees are calculated via the formula:
+/// `base + (variable * multiplier)`.
 #[async_trait::async_trait]
 pub(crate) trait FeeHandler {
+    /// Gets the associated fees for the action and pays them. If the action is free, the
+    /// implementation of this method should still attempt to read the zero fees from state. If
+    /// no fees are found, the action is de facto disabled, and the implementation should error
+    /// out.
+    // NOTE: All fee-bearing implementations of this method MUST make use of the private helper
+    // function `check_and_pay_fees`.
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()>;
 
+    /// Returns the variable component of the fee calculation: `base + (variable * multiplier)`.
     fn variable_component(&self) -> u128;
 }
 
+/// Contains all the necessary information to mint fees in the receiver's account and to construct a
+/// `tx.fees` ABCI event for sequencer fee reporting. `Fee`s are added to the block fees as they are
+/// deducted from the payer's account in [`FeeHandler::check_and_pay_fees`]. The fees are then paid
+/// to the payee and events created in [`crate::app::end_block`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Fee {
     action_name: String,
@@ -319,6 +341,17 @@ impl FeeHandler for IbcRelay {
     }
 }
 
+/// Takes an action, its fees, the state, and the fee asset, and pays the fees. Fees are calculated
+/// via the formula `base + (variable * multiplier)`. This only deducts the fees from the sender's
+/// balance, but does not mint them in the receiver's account. This action takes place in
+/// [`crate::app::end_block`].
+///
+/// # Errors
+///
+/// - If the function fails to get allowed fee assets from the state.
+/// - If the fee asset is not allowed in the state.
+/// - If deduction of the fees from the sender's balance fails.
+/// - If adding the fees event to the block fees fails.
 #[instrument(skip_all, err(level = Level::WARN))]
 async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
     act: &T,
@@ -352,9 +385,8 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
     Ok(())
 }
 
-/// Returns a modified byte length of the deposit event. Length is calculated with reasonable values
-/// for all fields except `asset` and `destination_chain_address`, ergo it may not be representative
-/// of on-wire length.
+/// Returns a modified byte length of the deposit event. Length is calculated by adding
+/// the lengths of the asset and the destination chain address to the base deposit fee.
 fn base_deposit_fee(asset: &asset::Denom, destination_chain_address: &str) -> u128 {
     u128::try_from(
         asset
@@ -365,7 +397,7 @@ fn base_deposit_fee(asset: &asset::Denom, destination_chain_address: &str) -> u1
     .saturating_add(DEPOSIT_BASE_FEE)
 }
 
-/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
+/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting.
 pub(crate) fn construct_tx_fee_event(fee: &Fee) -> Event {
     Event::new(
         "tx.fees",

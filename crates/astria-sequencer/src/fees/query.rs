@@ -13,6 +13,8 @@ use tendermint::abci::{
 use super::StateReadExt as _;
 use crate::app::StateReadExt as _;
 
+/// Returns a query response containing a `Vec` of all the currently allowed fee assets in their
+/// `IbcPrefixed` form.
 pub(crate) async fn allowed_fee_assets_request(
     storage: Storage,
     request: request::Query,
