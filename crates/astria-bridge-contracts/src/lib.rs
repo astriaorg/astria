@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use astria_core::primitive::v1::asset::Denom;
 use astria_core::{
     primitive::v1::{
         asset,
@@ -36,6 +37,7 @@ use ethers::{
     },
 };
 pub use generated::*;
+use ibc_types::core::channel::ChannelId;
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -263,6 +265,7 @@ where
         }
 
         let mut ics20_source_channel = None;
+        let mut use_compat_address = false;
         if let Some(ics20_asset_to_withdraw) = &ics20_asset_to_withdraw {
             ics20_source_channel.replace(
                 ics20_asset_to_withdraw
@@ -271,6 +274,16 @@ where
                     .parse()
                     .map_err(BuildError::parse_ics20_asset_source_channel)?,
             );
+
+            // USDC from Noble requires using the bech32 compat address as the sender/return address.
+            //
+            // since we're always unwrapping the asset (sending back to the originating chain), we
+            // can check that the base denom is USDC, and if it is, we know we're sending to Noble.
+            use_compat_address = if ics20_asset_to_withdraw.base_denom() == "usdc" {
+                true
+            } else {
+                false
+            };    
         };
 
         let contract =
@@ -297,6 +310,7 @@ where
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
             ics20_source_channel,
+            use_compat_address,
         })
     }
 }
@@ -310,6 +324,7 @@ pub struct GetWithdrawalActions<P> {
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
     ics20_source_channel: Option<ibc_types::core::channel::ChannelId>,
+    use_compat_address: bool,
 }
 
 impl<P> GetWithdrawalActions<P>
@@ -394,7 +409,7 @@ where
         let event = decode_log::<Ics20WithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
 
-        let (denom, source_channel) = (
+        let (denom, source_channel): (Denom, ChannelId) = (
             self.ics20_asset_to_withdraw
                 .clone()
                 .expect("must be set if this method is entered")
@@ -428,9 +443,7 @@ where
             timeout_time: timeout_in_5_min(),
             source_channel,
             bridge_address: Some(self.bridge_address),
-            // FIXME: this needs a way to determine when to use compat address
-            // https://github.com/astriaorg/astria/issues/1424
-            use_compat_address: false,
+            use_compat_address: self.use_compat_address,
         };
         Ok(Action::Ics20Withdrawal(action))
     }
