@@ -36,7 +36,7 @@ struct Get {
         default_value = crate::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
-    /// The address of the Sequencer bridge account
+    /// The bridge account address on the Sequencer
     pub(crate) address: Address,
 }
 
@@ -48,9 +48,9 @@ impl Get {
         let res = sequencer_client
             .get_bridge_account_info(self.address)
             .await
-            .wrap_err("failed to get bridge account")?;
+            .wrap_err("failed getting bridge account")?;
         let Some(info) = res.info else {
-            return Err(eyre::eyre!("no bridge account information found"));
+            return Err(eyre::eyre!("bridge account information not found"));
         };
         println!("Bridge Account Information for address: {}", self.address);
         println!("    Rollup Id: {}", info.rollup_id);
