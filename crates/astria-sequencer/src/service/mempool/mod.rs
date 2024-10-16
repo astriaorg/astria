@@ -344,7 +344,7 @@ async fn stateless_checks<S: StateRead>(
         Err(e) => {
             return Err(error_response(
                 AbciErrorCode::INVALID_PARAMETER,
-                format!("the provided transaction could not be validated: {e:#}",),
+                format!("the provided transaction could not be validated: {e:?}",),
             ));
         }
     };
