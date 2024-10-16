@@ -1003,21 +1003,21 @@ mod tests {
 
         assert_ord_matches_lexical(&ibc_4, &ibc_5);
 
-        assert_ord_matches_lexical(&trace_1, &trace_1);
-        assert_ord_matches_lexical(&trace_1, &trace_2);
-        assert_ord_matches_lexical(&trace_1, &trace_2);
-        assert_ord_matches_lexical(&trace_1, &trace_3);
-        assert_ord_matches_lexical(&trace_1, &trace_4);
-        assert_ord_matches_lexical(&trace_1, &trace_5);
+        assert_ord_matches_lexical(trace_1, trace_1);
+        assert_ord_matches_lexical(trace_1, trace_2);
+        assert_ord_matches_lexical(trace_1, trace_2);
+        assert_ord_matches_lexical(trace_1, trace_3);
+        assert_ord_matches_lexical(trace_1, trace_4);
+        assert_ord_matches_lexical(trace_1, trace_5);
 
-        assert_ord_matches_lexical(&trace_2, &trace_3);
-        assert_ord_matches_lexical(&trace_2, &trace_4);
-        assert_ord_matches_lexical(&trace_2, &trace_5);
+        assert_ord_matches_lexical(trace_2, trace_3);
+        assert_ord_matches_lexical(trace_2, trace_4);
+        assert_ord_matches_lexical(trace_2, trace_5);
 
-        assert_ord_matches_lexical(&trace_3, &trace_4);
-        assert_ord_matches_lexical(&trace_3, &trace_5);
+        assert_ord_matches_lexical(trace_3, trace_4);
+        assert_ord_matches_lexical(trace_3, trace_5);
 
-        assert_ord_matches_lexical(&trace_4, &trace_5);
+        assert_ord_matches_lexical(trace_4, trace_5);
     }
 
     #[track_caller]
