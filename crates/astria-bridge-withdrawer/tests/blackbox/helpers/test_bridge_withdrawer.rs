@@ -34,10 +34,7 @@ use ethers::{
     types::TransactionReceipt,
 };
 use futures::Future;
-use ibc_types::core::{
-    channel::ChannelId,
-    client::Height as IbcHeight,
-};
+use ibc_types::core::client::Height as IbcHeight;
 use sequencer_client::{
     Address,
     NonceResponse,
@@ -394,7 +391,6 @@ struct SubsetOfIcs20Withdrawal {
     destination_chain_address: String,
     return_address: Address,
     timeout_height: IbcHeight,
-    source_channel: ChannelId,
     fee_asset: asset::Denom,
     memo: String,
     bridge_address: Option<Address>,
@@ -409,7 +405,6 @@ impl From<Ics20Withdrawal> for SubsetOfIcs20Withdrawal {
             return_address,
             timeout_height,
             timeout_time: _timeout_time,
-            source_channel,
             fee_asset,
             memo,
             bridge_address,
@@ -421,7 +416,6 @@ impl From<Ics20Withdrawal> for SubsetOfIcs20Withdrawal {
             destination_chain_address,
             return_address,
             timeout_height,
-            source_channel,
             fee_asset,
             memo,
             bridge_address,
@@ -470,7 +464,6 @@ pub fn make_native_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Acti
         fee_asset: denom,
         timeout_height,
         timeout_time,
-        source_channel: "channel-0".parse().unwrap(),
         bridge_address: Some(default_bridge_address()),
         use_compat_address: false,
     };
@@ -521,7 +514,6 @@ pub fn make_erc20_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Actio
         fee_asset: denom,
         timeout_height,
         timeout_time,
-        source_channel: "channel-0".parse().unwrap(),
         bridge_address: Some(default_bridge_address()),
         use_compat_address: false,
     };

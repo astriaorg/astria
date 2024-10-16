@@ -1,6 +1,9 @@
 use astria_core::{
     primitive::v1::{
-        asset::Denom,
+        asset::{
+            Denom,
+            TracePrefixed,
+        },
         Address,
         Bech32,
     },
@@ -14,6 +17,7 @@ use astria_eyre::{
     eyre::{
         bail,
         ensure,
+        eyre,
         OptionExt as _,
         Result,
         WrapErr as _,
@@ -45,6 +49,7 @@ use crate::{
         ActionHandler,
         StateReadExt as _,
     },
+    assets::StateReadExt as _,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -58,6 +63,7 @@ use crate::{
 
 async fn create_ibc_packet_from_withdrawal<S: StateRead>(
     withdrawal: &action::Ics20Withdrawal,
+    asset: TracePrefixed,
     state: S,
 ) -> Result<IBCPacket<Unchecked>> {
     let sender = if withdrawal.use_compat_address {
@@ -85,9 +91,18 @@ async fn create_ibc_packet_from_withdrawal<S: StateRead>(
     let serialized_packet_data =
         serde_json::to_vec(&packet).context("failed to serialize fungible token packet as JSON")?;
 
+    let source_channel = asset
+        .leading_channel()
+        .ok_or_eyre(
+            "the asset to be withdrawn does not have a channel, but it must have a channel to be \
+             withdrawn from sequencer to another chain",
+        )?
+        .parse()
+        .wrap_err("failed to parse the leading channel of the asset to be withdrawn")?;
+
     Ok(IBCPacket::new(
         PortId::transfer(),
-        withdrawal.source_channel().clone(),
+        source_channel,
         *withdrawal.timeout_height(),
         withdrawal.timeout_time(),
         serialized_packet_data,
@@ -217,8 +232,26 @@ impl ActionHandler for action::Ics20Withdrawal {
             .get_block_timestamp()
             .await
             .wrap_err("failed to get block timestamp")?;
+
+        // FIXME: We can use a Cow here to avoid cloning.
+        let trace_prefixed = match &self.denom {
+            Denom::TracePrefixed(asset) => asset.clone(),
+            Denom::IbcPrefixed(asset) => state
+                .map_ibc_to_trace_prefixed_asset(asset)
+                .await
+                .wrap_err_with(|| {
+                    format!("failed to look up the full trace prefixed denom for `{asset}`")
+                })?
+                .ok_or_else(|| {
+                    eyre!(
+                        "asset `{asset}` is not known and does not have a full trace prefixed \
+                         counterpart in state"
+                    )
+                })?,
+        };
+
         let packet = {
-            let packet = create_ibc_packet_from_withdrawal(self, &state)
+            let packet = create_ibc_packet_from_withdrawal(self, trace_prefixed, &state)
                 .await
                 .context("failed converting the withdrawal action into IBC packet")?;
             state
@@ -236,14 +269,16 @@ impl ActionHandler for action::Ics20Withdrawal {
         // if we're the source, move tokens to the escrow account,
         // otherwise the tokens are just burned
         if is_source(packet.source_port(), packet.source_channel(), self.denom()) {
+            // XXX: we checked that that packet.source_channel is the leading channel
+            // of the denom, so we can update the balances.
             let channel_balance = state
-                .get_ibc_channel_balance(self.source_channel(), self.denom())
+                .get_ibc_channel_balance(packet.source_channel(), self.denom())
                 .await
                 .wrap_err("failed to get channel balance")?;
 
             state
                 .put_ibc_channel_balance(
-                    self.source_channel(),
+                    packet.source_channel(),
                     self.denom(),
                     channel_balance
                         .checked_add(self.amount())
@@ -297,7 +332,6 @@ mod tests {
             return_address: astria_address(&from),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
-            source_channel: "channel-0".to_string().parse().unwrap(),
             fee_asset: denom.clone(),
             memo: String::new(),
             use_compat_address: false,
@@ -340,7 +374,6 @@ mod tests {
             return_address: astria_address(&bridge_address),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
-            source_channel: "channel-0".to_string().parse().unwrap(),
             fee_asset: denom.clone(),
             memo: String::new(),
             use_compat_address: false,
@@ -374,7 +407,6 @@ mod tests {
                 return_address: astria_address(&[1; 20]),
                 timeout_height: Height::new(1, 1).unwrap(),
                 timeout_time: 1,
-                source_channel: "channel-0".to_string().parse().unwrap(),
                 fee_asset: denom(),
                 memo: String::new(),
                 use_compat_address: false,
@@ -448,7 +480,6 @@ mod tests {
             return_address: astria_address(&bridge_address),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
-            source_channel: "channel-0".to_string().parse().unwrap(),
             fee_asset: denom.clone(),
             memo: String::new(),
             use_compat_address: false,
@@ -480,7 +511,6 @@ mod tests {
             return_address: astria_address(&not_bridge_address),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
-            source_channel: "channel-0".to_string().parse().unwrap(),
             fee_asset: denom.clone(),
             memo: String::new(),
             use_compat_address: false,

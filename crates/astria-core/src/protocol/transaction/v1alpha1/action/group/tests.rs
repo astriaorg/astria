@@ -82,7 +82,6 @@ fn try_from_list_of_actions_bundleable_general() {
             fee_asset: asset.clone(),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 0,
-            source_channel: "channel-0".parse().unwrap(),
             bridge_address: Some(address),
             use_compat_address: false,
         }),

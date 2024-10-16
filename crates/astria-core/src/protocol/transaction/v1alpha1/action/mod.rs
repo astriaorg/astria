@@ -1,11 +1,5 @@
 use bytes::Bytes;
-use ibc_types::{
-    core::{
-        channel::ChannelId,
-        client::Height as IbcHeight,
-    },
-    IdentifierError,
-};
+use ibc_types::core::client::Height as IbcHeight;
 use penumbra_ibc::IbcRelay;
 use prost::Name as _;
 
@@ -881,8 +875,6 @@ enum IbcSudoChangeErrorKind {
 /// The parameters match the arguments to the `sendFungibleTokens` function in the
 /// [ICS 20 spec](https://github.com/cosmos/ibc/blob/fe150abb629de5c1a598e8c7896a7568f2083681/spec/app/ics-020-fungible-token-transfer/README.md#packet-relay).
 ///
-/// Note that it does not contain `source_port` as that is implicit (it uses the `transfer`) port.
-///
 /// It also contains a `return_address` field which may or may not be the same as the signer
 /// of the packet. The funds will be returned to the `return_address` in the case of a timeout.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -899,8 +891,6 @@ pub struct Ics20Withdrawal {
     pub timeout_height: IbcHeight,
     // the unix timestamp (in nanoseconds) at which this transfer expires.
     pub timeout_time: u64,
-    // the source channel used for the withdrawal.
-    pub source_channel: ChannelId,
     // the asset to use for fee payment.
     pub fee_asset: asset::Denom,
     // a memo to include with the transfer
@@ -954,11 +944,6 @@ impl Ics20Withdrawal {
     }
 
     #[must_use]
-    pub fn source_channel(&self) -> &ChannelId {
-        &self.source_channel
-    }
-
-    #[must_use]
     pub fn fee_asset(&self) -> &asset::Denom {
         &self.fee_asset
     }
@@ -982,7 +967,6 @@ impl Protobuf for Ics20Withdrawal {
             return_address: Some(self.return_address.into_raw()),
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
-            source_channel: self.source_channel.to_string(),
             fee_asset: self.fee_asset.to_string(),
             memo: self.memo.clone(),
             bridge_address: self.bridge_address.as_ref().map(Address::to_raw),
@@ -999,7 +983,6 @@ impl Protobuf for Ics20Withdrawal {
             return_address: Some(self.return_address.into_raw()),
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
-            source_channel: self.source_channel.to_string(),
             fee_asset: self.fee_asset.to_string(),
             memo: self.memo,
             bridge_address: self.bridge_address.map(Address::into_raw),
@@ -1015,7 +998,6 @@ impl Protobuf for Ics20Withdrawal {
     /// - if the `denom` field is invalid
     /// - if the `return_address` field is invalid or missing
     /// - if the `timeout_height` field is missing
-    /// - if the `source_channel` field is invalid
     fn try_from_raw(proto: raw::Ics20Withdrawal) -> Result<Self, Ics20WithdrawalError> {
         let raw::Ics20Withdrawal {
             amount,
@@ -1024,7 +1006,6 @@ impl Protobuf for Ics20Withdrawal {
             return_address,
             timeout_height,
             timeout_time,
-            source_channel,
             fee_asset,
             memo,
             bridge_address,
@@ -1052,9 +1033,6 @@ impl Protobuf for Ics20Withdrawal {
             return_address,
             timeout_height,
             timeout_time,
-            source_channel: source_channel
-                .parse()
-                .map_err(Ics20WithdrawalError::invalid_source_channel)?,
             fee_asset: fee_asset
                 .parse()
                 .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
@@ -1072,7 +1050,6 @@ impl Protobuf for Ics20Withdrawal {
     /// - if the `denom` field is invalid
     /// - if the `return_address` field is invalid or missing
     /// - if the `timeout_height` field is missing
-    /// - if the `source_channel` field is invalid
     fn try_from_raw_ref(proto: &raw::Ics20Withdrawal) -> Result<Self, Ics20WithdrawalError> {
         let raw::Ics20Withdrawal {
             amount,
@@ -1081,7 +1058,6 @@ impl Protobuf for Ics20Withdrawal {
             return_address,
             timeout_height,
             timeout_time,
-            source_channel,
             fee_asset,
             memo,
             bridge_address,
@@ -1112,9 +1088,6 @@ impl Protobuf for Ics20Withdrawal {
             return_address,
             timeout_height,
             timeout_time: *timeout_time,
-            source_channel: source_channel
-                .parse()
-                .map_err(Ics20WithdrawalError::invalid_source_channel)?,
             fee_asset: fee_asset
                 .parse()
                 .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
@@ -1173,11 +1146,6 @@ impl Ics20WithdrawalError {
     }
 
     #[must_use]
-    fn invalid_source_channel(err: IdentifierError) -> Self {
-        Self(Ics20WithdrawalErrorKind::InvalidSourceChannel(err))
-    }
-
-    #[must_use]
     fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
         Self(Ics20WithdrawalErrorKind::InvalidFeeAsset(err))
     }
@@ -1200,8 +1168,6 @@ enum Ics20WithdrawalErrorKind {
     FieldNotSet { field: &'static str },
     #[error("`return_address` field was invalid")]
     ReturnAddress { source: AddressError },
-    #[error("`source_channel` field was invalid")]
-    InvalidSourceChannel(#[source] IdentifierError),
     #[error("field `fee_asset` could not be parsed")]
     InvalidFeeAsset(#[source] asset::ParseDenomError),
     #[error("`bridge_address` field was invalid")]

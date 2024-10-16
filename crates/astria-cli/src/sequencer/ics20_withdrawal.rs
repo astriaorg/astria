@@ -12,10 +12,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use ibc_types::core::{
-    channel::ChannelId,
-    client::Height,
-};
+use ibc_types::core::client::Height;
 use tracing::info;
 
 use crate::utils::{
@@ -42,9 +39,6 @@ pub(super) struct Command {
     /// The address on the destination chain
     #[arg(long)]
     destination_chain_address: String,
-    /// The source channel used for withdrawal
-    #[arg(long)]
-    source_channel: String,
     /// The address to refund on timeout, if unset refunds the signer
     #[arg(long)]
     return_address: Option<Address>,
@@ -107,7 +101,6 @@ impl Command {
                     revision_height: u64::MAX,
                 },
                 timeout_time: now_plus_5_minutes(),
-                source_channel: ChannelId(self.source_channel),
                 fee_asset: self.fee_asset,
                 memo: self.memo.unwrap_or_default(),
                 bridge_address: self.bridge_address,

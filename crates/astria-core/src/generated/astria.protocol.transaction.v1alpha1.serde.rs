@@ -1508,9 +1508,6 @@ impl serde::Serialize for Ics20Withdrawal {
         if self.timeout_time != 0 {
             len += 1;
         }
-        if !self.source_channel.is_empty() {
-            len += 1;
-        }
         if !self.fee_asset.is_empty() {
             len += 1;
         }
@@ -1542,9 +1539,6 @@ impl serde::Serialize for Ics20Withdrawal {
         if self.timeout_time != 0 {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("timeoutTime", ToString::to_string(&self.timeout_time).as_str())?;
-        }
-        if !self.source_channel.is_empty() {
-            struct_ser.serialize_field("sourceChannel", &self.source_channel)?;
         }
         if !self.fee_asset.is_empty() {
             struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
@@ -1578,8 +1572,6 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
             "timeoutHeight",
             "timeout_time",
             "timeoutTime",
-            "source_channel",
-            "sourceChannel",
             "fee_asset",
             "feeAsset",
             "memo",
@@ -1597,7 +1589,6 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
             ReturnAddress,
             TimeoutHeight,
             TimeoutTime,
-            SourceChannel,
             FeeAsset,
             Memo,
             BridgeAddress,
@@ -1629,7 +1620,6 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                             "returnAddress" | "return_address" => Ok(GeneratedField::ReturnAddress),
                             "timeoutHeight" | "timeout_height" => Ok(GeneratedField::TimeoutHeight),
                             "timeoutTime" | "timeout_time" => Ok(GeneratedField::TimeoutTime),
-                            "sourceChannel" | "source_channel" => Ok(GeneratedField::SourceChannel),
                             "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
                             "memo" => Ok(GeneratedField::Memo),
                             "bridgeAddress" | "bridge_address" => Ok(GeneratedField::BridgeAddress),
@@ -1659,7 +1649,6 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                 let mut return_address__ = None;
                 let mut timeout_height__ = None;
                 let mut timeout_time__ = None;
-                let mut source_channel__ = None;
                 let mut fee_asset__ = None;
                 let mut memo__ = None;
                 let mut bridge_address__ = None;
@@ -1704,12 +1693,6 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::SourceChannel => {
-                            if source_channel__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sourceChannel"));
-                            }
-                            source_channel__ = Some(map_.next_value()?);
-                        }
                         GeneratedField::FeeAsset => {
                             if fee_asset__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("feeAsset"));
@@ -1743,7 +1726,6 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                     return_address: return_address__,
                     timeout_height: timeout_height__,
                     timeout_time: timeout_time__.unwrap_or_default(),
-                    source_channel: source_channel__.unwrap_or_default(),
                     fee_asset: fee_asset__.unwrap_or_default(),
                     memo: memo__.unwrap_or_default(),
                     bridge_address: bridge_address__,

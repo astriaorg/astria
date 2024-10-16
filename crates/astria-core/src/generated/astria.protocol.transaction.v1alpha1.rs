@@ -146,14 +146,11 @@ pub struct Ics20Withdrawal {
     /// the unix timestamp (in nanoseconds) at which this transfer expires.
     #[prost(uint64, tag = "6")]
     pub timeout_time: u64,
-    /// the source channel used for the withdrawal.
-    #[prost(string, tag = "7")]
-    pub source_channel: ::prost::alloc::string::String,
     /// the asset used to pay the transaction fee
-    #[prost(string, tag = "8")]
+    #[prost(string, tag = "7")]
     pub fee_asset: ::prost::alloc::string::String,
     /// a memo to include with the transfer
-    #[prost(string, tag = "9")]
+    #[prost(string, tag = "8")]
     pub memo: ::prost::alloc::string::String,
     /// the address of the bridge account to transfer from, if this is a withdrawal
     /// from a bridge account and the sender of the tx is the bridge's withdrawer,
@@ -164,14 +161,14 @@ pub struct Ics20Withdrawal {
     ///
     /// if unset, and the transaction sender is a bridge account, the withdrawal is
     /// treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
-    #[prost(message, optional, tag = "10")]
+    #[prost(message, optional, tag = "9")]
     pub bridge_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
     >,
     /// whether to use a bech32-compatible format of the `.return_address` when generating
     /// fungible token packets (as opposed to Astria-native bech32m addresses). This is
     /// necessary for chains like noble which enforce a strict bech32 format.
-    #[prost(bool, tag = "11")]
+    #[prost(bool, tag = "10")]
     pub use_compat_address: bool,
 }
 impl ::prost::Name for Ics20Withdrawal {

@@ -282,6 +282,10 @@ impl TracePrefixed {
         self.trace.leading_channel() == Some(channel.as_ref())
     }
 
+    pub fn leading_channel(&self) -> Option<&str> {
+        self.trace.leading_channel()
+    }
+
     #[must_use]
     pub fn last_channel(&self) -> Option<&str> {
         self.trace.last_channel()

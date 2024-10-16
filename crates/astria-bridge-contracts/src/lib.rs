@@ -71,18 +71,6 @@ impl BuildError {
             field,
         })
     }
-
-    #[must_use]
-    fn ics20_asset_without_channel() -> Self {
-        Self(BuildErrorKind::Ics20AssetWithoutChannel)
-    }
-
-    #[must_use]
-    fn parse_ics20_asset_source_channel(source: ibc_types::IdentifierError) -> Self {
-        Self(BuildErrorKind::ParseIcs20AssetSourceChannel {
-            source,
-        })
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -104,10 +92,6 @@ enum BuildErrorKind {
     CallBaseChainAssetPrecision {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
-    #[error("ics20 asset must have a channel to be withdrawn via IBC")]
-    Ics20AssetWithoutChannel,
-    #[error("could not parse ics20 asset channel as channel ID")]
-    ParseIcs20AssetSourceChannel { source: ibc_types::IdentifierError },
 }
 
 pub struct NoProvider;
@@ -262,17 +246,6 @@ where
             return Err(BuildError::no_withdraws_configured());
         }
 
-        let mut ics20_source_channel = None;
-        if let Some(ics20_asset_to_withdraw) = &ics20_asset_to_withdraw {
-            ics20_source_channel.replace(
-                ics20_asset_to_withdraw
-                    .last_channel()
-                    .ok_or(BuildError::ics20_asset_without_channel())?
-                    .parse()
-                    .map_err(BuildError::parse_ics20_asset_source_channel)?,
-            );
-        };
-
         let contract =
             i_astria_withdrawer::IAstriaWithdrawer::new(contract_address, provider.clone());
 
@@ -296,7 +269,6 @@ where
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
-            ics20_source_channel,
         })
     }
 }
@@ -309,7 +281,6 @@ pub struct GetWithdrawalActions<P> {
     fee_asset: asset::Denom,
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
-    ics20_source_channel: Option<ibc_types::core::channel::ChannelId>,
 }
 
 impl<P> GetWithdrawalActions<P>
@@ -394,15 +365,11 @@ where
         let event = decode_log::<Ics20WithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
 
-        let (denom, source_channel) = (
-            self.ics20_asset_to_withdraw
-                .clone()
-                .expect("must be set if this method is entered")
-                .into(),
-            self.ics20_source_channel
-                .clone()
-                .expect("must be set if this method is entered"),
-        );
+        let denom = self
+            .ics20_asset_to_withdraw
+            .clone()
+            .expect("must be set if this method is entered")
+            .into();
 
         let memo = memo_to_json(&memos::v1alpha1::Ics20WithdrawalFromRollup {
             memo: event.memo.clone(),
@@ -426,7 +393,6 @@ where
             // thus, we set it to the maximum possible value.
             timeout_height: max_timeout_height(),
             timeout_time: timeout_in_5_min(),
-            source_channel,
             bridge_address: Some(self.bridge_address),
             // FIXME: this needs a way to determine when to use compat address
             // https://github.com/astriaorg/astria/issues/1424
