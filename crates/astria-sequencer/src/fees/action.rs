@@ -188,12 +188,12 @@ mod tests {
         fee_change.check_and_execute(&mut state).await.unwrap();
         assert_eq!(state.get_transfer_fees().await.unwrap().base, 10);
 
-        let sequence_base = 5;
-        let sequence_cost_multiplier = 2;
+        let rollup_data_submission_base = 5;
+        let rollup_data_submission_cost_multiplier = 2;
         state
             .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
-                base: sequence_base,
-                multiplier: sequence_cost_multiplier,
+                base: rollup_data_submission_base,
+                multiplier: rollup_data_submission_cost_multiplier,
             })
             .unwrap();
 
