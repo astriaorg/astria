@@ -791,7 +791,7 @@ impl SequencerBlock {
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in tx.into_unsigned().into_actions() {
                 // XXX: The fee asset is dropped. We shjould explain why that's ok.
-                if let action::Action::Sequence(action::Sequence {
+                if let action::Action::RollupDataSubmission(action::RollupDataSubmission {
                     rollup_id,
                     data,
                     fee_asset: _,
@@ -1504,8 +1504,8 @@ enum DepositErrorKind {
 
 /// A piece of data that is sent to a rollup execution node.
 ///
-/// The data can be either sequenced data (originating from a [`SequenceAction`]
-/// submitted by a user) or a [`Deposit`] originating from a [`BridgeLockAction`].
+/// The data can be either sequenced data (originating from a [`RollupDataSubmission`]
+/// action submitted by a user) or a [`Deposit`] (originating from a [`BridgeLock`] action).
 ///
 /// The rollup node receives this type as opaque, protobuf-encoded bytes from conductor,
 /// and must decode it accordingly.

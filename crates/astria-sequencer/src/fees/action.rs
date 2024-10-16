@@ -44,7 +44,7 @@ impl ActionHandler for FeeChange {
             Self::Transfer(fees) => state
                 .put_transfer_fees(*fees)
                 .wrap_err("failed to put transfer fees"),
-            Self::Sequence(fees) => state
+            Self::RollupDataSubmission(fees) => state
                 .put_sequence_fees(*fees)
                 .wrap_err("failed to put sequence fees"),
             Self::Ics20Withdrawal(fees) => state
@@ -138,7 +138,7 @@ mod tests {
                 BridgeLockFeeComponents,
                 Ics20WithdrawalFeeComponents,
                 InitBridgeAccountFeeComponents,
-                SequenceFeeComponents,
+                RollupDataSubmissionFeeComponents,
                 TransferFeeComponents,
             },
             transaction::v1alpha1::action::FeeChange,
@@ -191,13 +191,13 @@ mod tests {
         let sequence_base = 5;
         let sequence_cost_multiplier = 2;
         state
-            .put_sequence_fees(SequenceFeeComponents {
+            .put_sequence_fees(RollupDataSubmissionFeeComponents {
                 base: sequence_base,
                 multiplier: sequence_cost_multiplier,
             })
             .unwrap();
 
-        let fee_change = FeeChange::Sequence(SequenceFeeComponents {
+        let fee_change = FeeChange::RollupDataSubmission(RollupDataSubmissionFeeComponents {
             base: 3,
             multiplier: 4,
         });

@@ -23,7 +23,7 @@ use astria_core::{
             IbcSudoChangeFeeComponents,
             Ics20WithdrawalFeeComponents,
             InitBridgeAccountFeeComponents,
-            SequenceFeeComponents,
+            RollupDataSubmissionFeeComponents,
             SudoAddressChangeFeeComponents,
             TransferFeeComponents,
             ValidatorUpdateFeeComponents,
@@ -114,8 +114,8 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
                 }
                 .to_raw(),
             ),
-            sequence: Some(
-                SequenceFeeComponents {
+            rollup_data_submission: Some(
+                RollupDataSubmissionFeeComponents {
                     base: 32,
                     multiplier: 1,
                 }

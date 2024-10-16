@@ -86,7 +86,7 @@ genesis:
     initBridgeAccount:
       base: "48"
       multiplier: "0"
-    sequence:
+    rollupDataSubmission:
       base: "32"
       multiplier: "1"
     sudoAddressChange:

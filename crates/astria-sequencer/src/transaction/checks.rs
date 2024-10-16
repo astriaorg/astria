@@ -9,7 +9,7 @@ use astria_core::{
             BridgeUnlockFeeComponents,
             Ics20WithdrawalFeeComponents,
             InitBridgeAccountFeeComponents,
-            SequenceFeeComponents,
+            RollupDataSubmissionFeeComponents,
             TransferFeeComponents,
         },
         transaction::v1alpha1::{
@@ -20,7 +20,7 @@ use astria_core::{
                 BridgeUnlock,
                 Ics20Withdrawal,
                 InitBridgeAccount,
-                Sequence,
+                RollupDataSubmission,
                 Transfer,
             },
             Transaction,
@@ -99,7 +99,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
             Action::Transfer(act) => {
                 transfer_update_fees(act, &mut fees_by_asset, &transfer_fees);
             }
-            Action::Sequence(act) => {
+            Action::RollupDataSubmission(act) => {
                 sequence_update_fees(act, &mut fees_by_asset, &sequence_fees);
             }
             Action::Ics20Withdrawal(act) => {
@@ -202,7 +202,7 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             Action::ValidatorUpdate(_)
             | Action::SudoAddressChange(_)
             | Action::IbcSudoChange(_)
-            | Action::Sequence(_)
+            | Action::RollupDataSubmission(_)
             | Action::InitBridgeAccount(_)
             | Action::BridgeSudoChange(_)
             | Action::Ibc(_)
@@ -234,9 +234,9 @@ fn transfer_update_fees(
 }
 
 fn sequence_update_fees(
-    act: &Sequence,
+    act: &RollupDataSubmission,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    sequence_fees: &SequenceFeeComponents,
+    sequence_fees: &RollupDataSubmissionFeeComponents,
 ) {
     let total_fees = calculate_total_fees(
         sequence_fees.base,
@@ -352,11 +352,11 @@ mod tests {
                 BridgeUnlockFeeComponents,
                 Ics20WithdrawalFeeComponents,
                 InitBridgeAccountFeeComponents,
-                SequenceFeeComponents,
+                RollupDataSubmissionFeeComponents,
                 TransferFeeComponents,
             },
             transaction::v1alpha1::action::{
-                Sequence,
+                RollupDataSubmission,
                 Transfer,
             },
         },
@@ -400,7 +400,7 @@ mod tests {
             .wrap_err("failed to initiate transfer fee components")
             .unwrap();
 
-        let sequence_fees = SequenceFeeComponents {
+        let sequence_fees = RollupDataSubmissionFeeComponents {
             base: 0,
             multiplier: 1,
         };
@@ -490,7 +490,7 @@ mod tests {
                 fee_asset: crate::test_utils::nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
-            Action::Sequence(Sequence {
+            Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
                 fee_asset: crate::test_utils::nria().into(),
@@ -529,7 +529,7 @@ mod tests {
             .wrap_err("failed to initiate transfer fee components")
             .unwrap();
 
-        let sequence_fees = SequenceFeeComponents {
+        let sequence_fees = RollupDataSubmissionFeeComponents {
             base: 0,
             multiplier: 1,
         };
@@ -608,7 +608,7 @@ mod tests {
                 fee_asset: crate::test_utils::nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
-            Action::Sequence(Sequence {
+            Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
                 fee_asset: crate::test_utils::nria().into(),

@@ -4,7 +4,7 @@ use astria_core::primitive::v1::{
     Bech32,
 };
 #[cfg(test)]
-use astria_core::protocol::fees::v1alpha1::SequenceFeeComponents;
+use astria_core::protocol::fees::v1alpha1::RollupDataSubmissionFeeComponents;
 
 pub(crate) const ASTRIA_PREFIX: &str = "astria";
 pub(crate) const ASTRIA_COMPAT_PREFIX: &str = "astriacompat";
@@ -68,7 +68,7 @@ pub(crate) async fn calculate_sequence_action_fee_from_state<S: crate::fees::Sta
     data: &[u8],
     state: &S,
 ) -> u128 {
-    let SequenceFeeComponents {
+    let RollupDataSubmissionFeeComponents {
         base,
         multiplier,
     } = state.get_sequence_fees().await.unwrap();

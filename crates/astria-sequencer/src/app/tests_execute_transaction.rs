@@ -9,7 +9,7 @@ use astria_core::{
     protocol::{
         fees::v1alpha1::{
             InitBridgeAccountFeeComponents,
-            SequenceFeeComponents,
+            RollupDataSubmissionFeeComponents,
         },
         genesis::v1alpha1::GenesisAppState,
         transaction::v1alpha1::{
@@ -18,7 +18,7 @@ use astria_core::{
                 BridgeUnlock,
                 IbcRelayerChange,
                 IbcSudoChange,
-                Sequence,
+                RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
                 ValidatorUpdate,
@@ -260,7 +260,7 @@ async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_sequence_fees(SequenceFeeComponents {
+        .put_sequence_fees(RollupDataSubmissionFeeComponents {
             base: 0,
             multiplier: 1,
         })
@@ -274,7 +274,7 @@ async fn app_execute_transaction_sequence() {
 
     let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -310,7 +310,7 @@ async fn app_execute_transaction_invalid_fee_asset() {
 
     let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: test_asset(),
@@ -808,7 +808,7 @@ async fn app_execute_transaction_invalid_nonce() {
 
     let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -857,7 +857,7 @@ async fn app_execute_transaction_invalid_chain_id() {
     let data = Bytes::from_static(b"hello world");
     let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -929,13 +929,13 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     // build double transfer exceeding balance
     let signed_tx_fail = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: data.clone(),
                 fee_asset: nria().into(),
             }
             .into(),
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: data.clone(),
                 fee_asset: nria().into(),
@@ -958,7 +958,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     // build single transfer to see passes
     let signed_tx_pass = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),

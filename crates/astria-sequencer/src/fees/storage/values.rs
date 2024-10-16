@@ -9,7 +9,7 @@ use astria_core::protocol::fees::v1alpha1::{
     IbcSudoChangeFeeComponents,
     Ics20WithdrawalFeeComponents,
     InitBridgeAccountFeeComponents,
-    SequenceFeeComponents,
+    RollupDataSubmissionFeeComponents,
     SudoAddressChangeFeeComponents,
     TransferFeeComponents,
     ValidatorUpdateFeeComponents,
@@ -173,7 +173,7 @@ pub(in crate::fees) struct SudoAddressChangeFeeComponentsStorage {
 
 impl_from_for_fee_component!(
     TransferFeeComponents => TransferFeeComponentsStorage,
-    SequenceFeeComponents => SequenceFeeComponentsStorage,
+    RollupDataSubmissionFeeComponents => SequenceFeeComponentsStorage,
     Ics20WithdrawalFeeComponents => Ics20WithdrawalFeeComponentsStorage,
     InitBridgeAccountFeeComponents => InitBridgeAccountFeeComponentsStorage,
     BridgeLockFeeComponents => BridgeLockFeeComponentsStorage,

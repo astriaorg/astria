@@ -110,7 +110,7 @@ expression: genesis_state()
       },
       "multiplier": {}
     },
-    "sequence": {
+    "rollupDataSubmission": {
       "base": {
         "lo": "32"
       },

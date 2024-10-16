@@ -14,7 +14,7 @@ use astria_core::{
             IbcRelayerChange,
             IbcSudoChange,
             InitBridgeAccount,
-            Sequence,
+            RollupDataSubmission,
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
@@ -190,7 +190,7 @@ impl FeeHandler for transaction::v1alpha1::action::Ics20Withdrawal {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for Sequence {
+impl FeeHandler for RollupDataSubmission {
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state

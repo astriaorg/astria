@@ -16,7 +16,7 @@ use astria_core::{
         IbcSudoChangeFeeComponents,
         Ics20WithdrawalFeeComponents,
         InitBridgeAccountFeeComponents,
-        SequenceFeeComponents,
+        RollupDataSubmissionFeeComponents,
         SudoAddressChangeFeeComponents,
         TransferFeeComponents,
         ValidatorUpdateFeeComponents,
@@ -78,7 +78,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_sequence_fees(&self) -> Result<SequenceFeeComponents> {
+    async fn get_sequence_fees(&self) -> Result<RollupDataSubmissionFeeComponents> {
         let bytes = self
             .get_raw(keys::SEQUENCE)
             .await
@@ -90,7 +90,7 @@ pub(crate) trait StateReadExt: StateRead {
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::SequenceFeeComponentsStorage::try_from(value)
-                    .map(SequenceFeeComponents::from)
+                    .map(RollupDataSubmissionFeeComponents::from)
             })
             .wrap_err("invalid fees bytes")
     }
@@ -387,7 +387,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_sequence_fees(&mut self, fees: SequenceFeeComponents) -> Result<()> {
+    fn put_sequence_fees(&mut self, fees: RollupDataSubmissionFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::SequenceFeeComponentsStorage::from(fees))
             .serialize()
             .wrap_err("failed to serialize fees")?;
@@ -654,7 +654,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = SequenceFeeComponents {
+        let fee_components = RollupDataSubmissionFeeComponents {
             base: 123,
             multiplier: 1,
         };

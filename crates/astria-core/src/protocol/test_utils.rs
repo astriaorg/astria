@@ -7,7 +7,7 @@ use prost::Message as _;
 
 use super::{
     group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-    transaction::v1alpha1::action::Sequence,
+    transaction::v1alpha1::action::RollupDataSubmission,
 };
 use crate::{
     crypto::SigningKey,
@@ -93,7 +93,7 @@ impl ConfigureSequencerBlock {
         let actions: Vec<Action> = sequence_data
             .into_iter()
             .map(|(rollup_id, data)| {
-                Sequence {
+                RollupDataSubmission {
                     rollup_id,
                     data: data.into(),
                     fee_asset: "nria".parse().unwrap(),
@@ -104,16 +104,16 @@ impl ConfigureSequencerBlock {
         let txs = if actions.is_empty() {
             vec![]
         } else {
-            let unsigned_transaction = TransactionBody::builder()
+            let body = TransactionBody::builder()
                 .actions(actions)
                 .chain_id(chain_id.clone())
                 .nonce(1)
                 .try_build()
                 .expect(
-                    "should be able to build unsigned transaction since only sequence actions are \
-                     contained",
+                    "should be able to build transaction body since only rollup data submission \
+                     actions are contained",
                 );
-            vec![unsigned_transaction.sign(&signing_key)]
+            vec![body.sign(&signing_key)]
         };
         let mut deposits_map: HashMap<RollupId, Vec<Deposit>> = HashMap::new();
         for deposit in deposits {

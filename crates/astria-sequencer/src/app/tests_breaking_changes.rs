@@ -25,7 +25,7 @@ use astria_core::{
                 BridgeUnlock,
                 IbcRelayerChange,
                 IbcSudoChange,
-                Sequence,
+                RollupDataSubmission,
                 Transfer,
                 ValidatorUpdate,
             },
@@ -108,7 +108,7 @@ async fn app_finalize_block_snapshot() {
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = Sequence {
+    let sequence_action = RollupDataSubmission {
         rollup_id,
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
@@ -211,7 +211,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 fee_asset: nria().into(),
             }
             .into(),
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: Bytes::from_static(b"hello world"),
                 fee_asset: nria().into(),

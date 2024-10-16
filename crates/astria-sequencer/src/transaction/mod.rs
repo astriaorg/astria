@@ -93,7 +93,7 @@ impl ActionHandler for Transaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for TransferAction")?,
-                Action::Sequence(act) => act
+                Action::RollupDataSubmission(act) => act
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for SequenceAction")?,
@@ -220,7 +220,7 @@ impl ActionHandler for Transaction {
                 Action::Transfer(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("executing transfer action failed")?,
-                Action::Sequence(act) => check_execute_and_pay_fees(act, &mut state)
+                Action::RollupDataSubmission(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("executing sequence action failed")?,
                 Action::ValidatorUpdate(act) => check_execute_and_pay_fees(act, &mut state)

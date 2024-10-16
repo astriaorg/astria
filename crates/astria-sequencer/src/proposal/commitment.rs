@@ -95,7 +95,7 @@ mod tests {
         crypto::SigningKey,
         protocol::transaction::v1alpha1::{
             action::{
-                Sequence,
+                RollupDataSubmission,
                 Transfer,
             },
             TransactionBody,
@@ -107,7 +107,7 @@ mod tests {
 
     #[test]
     fn generate_rollup_datas_commitment_should_ignore_transfers() {
-        let sequence_action = Sequence {
+        let sequence_action = RollupDataSubmission {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: Bytes::from_static(b"hello world"),
             fee_asset: crate::test_utils::nria().into(),
@@ -158,7 +158,7 @@ mod tests {
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
 
-        let sequence_action = Sequence {
+        let sequence_action = RollupDataSubmission {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec().into(),
             fee_asset: crate::test_utils::nria().into(),

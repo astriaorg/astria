@@ -15,7 +15,7 @@ use astria_core::{
             BridgeLockFeeComponents,
             BridgeSudoChangeFeeComponents,
             InitBridgeAccountFeeComponents,
-            SequenceFeeComponents,
+            RollupDataSubmissionFeeComponents,
             TransferFeeComponents,
         },
         transaction::v1alpha1::{
@@ -23,7 +23,7 @@ use astria_core::{
                 BridgeLock,
                 BridgeSudoChange,
                 InitBridgeAccount,
-                Sequence,
+                RollupDataSubmission,
                 Transfer,
             },
             TransactionBody,
@@ -117,7 +117,7 @@ async fn ensure_correct_block_fees_sequence() {
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
     state
-        .put_sequence_fees(SequenceFeeComponents {
+        .put_sequence_fees(RollupDataSubmissionFeeComponents {
             base: 1,
             multiplier: 1,
         })
@@ -127,7 +127,7 @@ async fn ensure_correct_block_fees_sequence() {
     let data = b"hello world".to_vec();
 
     let actions = vec![
-        Sequence {
+        RollupDataSubmission {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: data.clone().into(),
             fee_asset: nria().into(),

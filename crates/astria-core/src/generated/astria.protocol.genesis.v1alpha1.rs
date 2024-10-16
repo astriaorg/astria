@@ -134,8 +134,8 @@ pub struct GenesisFees {
         super::super::fees::v1alpha1::InitBridgeAccountFeeComponents,
     >,
     #[prost(message, optional, tag = "11")]
-    pub sequence: ::core::option::Option<
-        super::super::fees::v1alpha1::SequenceFeeComponents,
+    pub rollup_data_submission: ::core::option::Option<
+        super::super::fees::v1alpha1::RollupDataSubmissionFeeComponents,
     >,
     #[prost(message, optional, tag = "12")]
     pub sudo_address_change: ::core::option::Option<
