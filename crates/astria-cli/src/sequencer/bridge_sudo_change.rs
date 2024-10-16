@@ -52,9 +52,6 @@ pub(crate) struct Command {
         default_value = crate::DEFAULT_SEQUENCER_CHAIN_ID
     )]
     pub(crate) sequencer_chain_id: String,
-    /// The asset to lock.
-    #[arg(long, default_value = "nria")]
-    pub(crate) asset: asset::Denom,
     /// The asset to pay the transfer fees with.
     #[arg(long, default_value = "nria")]
     pub(crate) fee_asset: asset::Denom,
