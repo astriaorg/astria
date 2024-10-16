@@ -46,13 +46,15 @@ corresponding code repository that the vulnerability was reported.
 
 ### Feedback on this Policy
 
-If you have suggestions for improving this policy, please submit a pull request.
+If you have suggestions for improving this policy,
+please submit a pull request.
 
 ### What to Expect from Us
 
 When working with us according to this policy, you can expect us to:
 
-- Extend Safe Harbor protection for your vulnerability research related to this policy;
+- Extend Safe Harbor protection for your vulnerability research related
+  to this policy;
 - Work with you to understand and validate your report,
   including providing a timely initial response to the submission;
 - Work to remediate discovered vulnerabilities in a timely manner; and
@@ -66,12 +68,15 @@ good-faith hacking and malicious attack, we ask that you:
 
 - Follow this policy and any other relevant agreements.
 - Report discovered vulnerabilities promptly.
-- Avoid violating privacy, disrupting systems, destroying data, or harming user experience.
+- Avoid violating privacy, disrupting systems, destroying data,
+  or harming user experience.
 - Use only specified reporting method and official communication channels.
-- Keep vulnerability details confidential until fixed, as per the Disclosure Policy.
+- Keep vulnerability details confidential until fixed, as per the
+  Disclosure Policy.
 - Test only in-scope systems and respect out-of-scope
   systems and activities.
-- Limit data access when demonstrating a Proof of Concept, and immediately report any accidental access to sensitive data.
+- Limit data access when demonstrating a Proof of Concept,
+and immediately report any accidental access to sensitive data.
 - Interact only with test accounts you own or have explicit permission to use.
 - Do not engage in extortion.
 
@@ -84,12 +89,13 @@ all applicable laws, we consider this research to be:
  (and/or similar state laws), and we will not initiate or support
  legal action against you for accidental, good faith
  violations of this policy;
-- Exempt from the Digital Millennium Copyright Act (DMCA), and we will not bring
-a claim against you for circumvention of technology controls;
+- Exempt from the Digital Millennium Copyright Act (DMCA), and we will not
+  bring a claim against you for circumvention of technology controls;
 - Exempt from restrictions in our Terms & Conditions that would interfere with
-conducting security research, and we waive those restrictions on a limited basis
-for work done under this policy; and
+conducting security research, and we waive those restrictions on a limited
+basis for work done under this policy; and
 - Lawful, helpful to the overall security of the Internet, and
 conducted in good faith.
 
-If you're unsure whether your research is consistent with this policy, please report through our official channels before proceeding.
+If you're unsure whether your research is consistent with this policy,
+please report through our official channels before proceeding.
