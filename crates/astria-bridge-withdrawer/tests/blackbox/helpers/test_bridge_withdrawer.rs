@@ -18,9 +18,9 @@ use astria_core::{
         Denom,
     },
     protocol::{
-        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
-        memos::v1alpha1::Ics20WithdrawalFromRollup,
-        transaction::v1alpha1::{
+        bridge::v1::BridgeAccountLastTxHashResponse,
+        memos::v1::Ics20WithdrawalFromRollup,
+        transaction::v1::{
             action::{
                 BridgeUnlock,
                 Ics20Withdrawal,

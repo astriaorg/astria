@@ -15,13 +15,13 @@ pub use __feature_gated_exports::*;
 pub use astria_core::{
     primitive::v1::Address,
     protocol::{
-        account::v1alpha1::{
+        account::v1::{
             BalanceResponse,
             NonceResponse,
         },
-        transaction::v1alpha1::Transaction,
+        transaction::v1::Transaction,
     },
-    sequencerblock::v1alpha1::SequencerBlock,
+    sequencerblock::v1::SequencerBlock,
 };
 use futures_util::{
     FutureExt,

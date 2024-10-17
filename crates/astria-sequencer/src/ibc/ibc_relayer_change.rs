@@ -1,4 +1,4 @@
-use astria_core::protocol::transaction::v1alpha1::action::IbcRelayerChange;
+use astria_core::protocol::transaction::v1::action::IbcRelayerChange;
 use astria_eyre::eyre::{
     ensure,
     Result,

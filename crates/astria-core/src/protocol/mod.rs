@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use indexmap::IndexMap;
-use transaction::v1alpha1::Transaction;
+use transaction::v1::Transaction;
 
 use crate::primitive::v1::RollupId;
 
@@ -25,7 +25,7 @@ pub fn group_rollup_data_submissions_in_signed_transaction_transactions_by_rollu
 ) -> IndexMap<RollupId, Vec<Bytes>> {
     use prost::Message as _;
 
-    use crate::sequencerblock::v1alpha1::block::RollupData;
+    use crate::sequencerblock::v1::block::RollupData;
 
     let mut map = IndexMap::new();
     for action in transactions.iter().flat_map(Transaction::actions) {

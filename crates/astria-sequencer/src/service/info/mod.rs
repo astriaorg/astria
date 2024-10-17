@@ -189,9 +189,9 @@ mod tests {
     use astria_core::{
         primitive::v1::asset,
         protocol::{
-            account::v1alpha1::BalanceResponse,
-            asset::v1alpha1::DenomResponse,
-            transaction::v1alpha1::action::{
+            account::v1::BalanceResponse,
+            asset::v1::DenomResponse,
+            transaction::v1::action::{
                 ValidatorUpdate,
                 ValidatorUpdateV2,
             },
@@ -229,8 +229,8 @@ mod tests {
     #[tokio::test]
     async fn handle_balance_query() {
         use astria_core::{
-            generated::protocol::accounts::v1alpha1 as raw,
-            protocol::account::v1alpha1::AssetBalance,
+            generated::protocol::accounts::v1 as raw,
+            protocol::account::v1::AssetBalance,
         };
 
         let storage = cnidarium::TempStorage::new()
@@ -295,7 +295,7 @@ mod tests {
 
     #[tokio::test]
     async fn handle_denom_query() {
-        use astria_core::generated::protocol::asset::v1alpha1 as raw;
+        use astria_core::generated::protocol::asset::v1 as raw;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());
@@ -339,7 +339,7 @@ mod tests {
 
     #[tokio::test]
     async fn handle_allowed_fee_assets_query() {
-        use astria_core::generated::protocol::asset::v1alpha1 as raw;
+        use astria_core::generated::protocol::asset::v1 as raw;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());

@@ -13,7 +13,7 @@ use astria_core::{
         RollupId,
     },
     protocol::{
-        fees::v1alpha1::{
+        fees::v1::{
             BridgeLockFeeComponents,
             BridgeSudoChangeFeeComponents,
             BridgeUnlockFeeComponents,
@@ -29,12 +29,12 @@ use astria_core::{
             TransferFeeComponents,
             ValidatorUpdateFeeComponents,
         },
-        genesis::v1alpha1::{
+        genesis::v1::{
             Account,
             AddressPrefixes,
             GenesisAppState,
         },
-        transaction::v1alpha1::{
+        transaction::v1::{
             action::{
                 group::Group,
                 FeeAssetChange,
@@ -180,8 +180,8 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
     reason = "allow is only necessary when benchmark isn't enabled"
 )]
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
-pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::GenesisFees {
-    astria_core::protocol::genesis::v1alpha1::GenesisFees {
+pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees {
+    astria_core::protocol::genesis::v1::GenesisFees {
         transfer: TransferFeeComponents {
             base: 12,
             multiplier: 0,
@@ -243,7 +243,7 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::Genesi
 
 pub(crate) fn address_prefixes() -> AddressPrefixes {
     AddressPrefixes::try_from_raw(
-        astria_core::generated::protocol::genesis::v1alpha1::AddressPrefixes {
+        astria_core::generated::protocol::genesis::v1::AddressPrefixes {
             base: crate::test_utils::ASTRIA_PREFIX.into(),
             ibc_compat: crate::test_utils::ASTRIA_COMPAT_PREFIX.into(),
         },
@@ -251,9 +251,9 @@ pub(crate) fn address_prefixes() -> AddressPrefixes {
     .unwrap()
 }
 
-pub(crate) fn proto_genesis_state()
--> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
-    use astria_core::generated::protocol::genesis::v1alpha1::{
+pub(crate) fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState
+{
+    use astria_core::generated::protocol::genesis::v1::{
         GenesisAppState,
         IbcParameters,
     };

@@ -9,8 +9,8 @@ use astria_core::{
         TransactionId,
     },
     protocol::{
-        genesis::v1alpha1::Account,
-        transaction::v1alpha1::{
+        genesis::v1::Account,
+        transaction::v1::{
             action::{
                 BridgeLock,
                 RollupDataSubmission,
@@ -20,7 +20,7 @@ use astria_core::{
             TransactionBody,
         },
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1::block::Deposit,
 };
 use cnidarium::StateDelta;
 use prost::{
@@ -288,8 +288,8 @@ async fn app_transfer_block_fees_to_sudo() {
 #[tokio::test]
 async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     use astria_core::{
-        generated::sequencerblock::v1alpha1::RollupData as RawRollupData,
-        sequencerblock::v1alpha1::block::RollupData,
+        generated::sequencerblock::v1::RollupData as RawRollupData,
+        sequencerblock::v1::block::RollupData,
     };
 
     use crate::grpc::StateReadExt as _;

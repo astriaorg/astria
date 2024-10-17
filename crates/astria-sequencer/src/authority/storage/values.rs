@@ -10,7 +10,7 @@ use std::{
 use astria_core::{
     crypto::VerificationKey as DomainVerificationKey,
     primitive::v1::ADDRESS_LEN,
-    protocol::transaction::v1alpha1::action::ValidatorUpdate as DomainValidatorUpdate,
+    protocol::transaction::v1::action::ValidatorUpdate as DomainValidatorUpdate,
 };
 use astria_eyre::eyre::bail;
 use borsh::{

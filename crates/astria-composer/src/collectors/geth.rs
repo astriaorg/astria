@@ -20,7 +20,7 @@ use astria_core::{
         asset,
         RollupId,
     },
-    protocol::transaction::v1alpha1::action::RollupDataSubmission,
+    protocol::transaction::v1::action::RollupDataSubmission,
 };
 use astria_eyre::eyre::{
     self,

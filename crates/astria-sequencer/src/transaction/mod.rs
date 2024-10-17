@@ -4,7 +4,7 @@ mod state_ext;
 
 use std::fmt;
 
-use astria_core::protocol::transaction::v1alpha1::{
+use astria_core::protocol::transaction::v1::{
     action::Action,
     Transaction,
 };

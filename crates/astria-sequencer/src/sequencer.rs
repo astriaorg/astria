@@ -1,4 +1,4 @@
-use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer;
+use astria_core::generated::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{

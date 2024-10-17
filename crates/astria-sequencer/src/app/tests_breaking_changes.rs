@@ -17,8 +17,8 @@ use std::{
 use astria_core::{
     primitive::v1::RollupId,
     protocol::{
-        genesis::v1alpha1::Account,
-        transaction::v1alpha1::{
+        genesis::v1::Account,
+        transaction::v1::{
             action::{
                 BridgeLock,
                 BridgeSudoChange,
@@ -33,7 +33,7 @@ use astria_core::{
             TransactionBody,
         },
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1::block::Deposit,
     Protobuf,
 };
 use cnidarium::StateDelta;
@@ -164,7 +164,7 @@ async fn app_finalize_block_snapshot() {
 #[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
-    use astria_core::protocol::transaction::v1alpha1::action::{
+    use astria_core::protocol::transaction::v1::action::{
         FeeAssetChange,
         InitBridgeAccount,
         SudoAddressChange,
@@ -184,7 +184,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         });
         acc.into_iter().map(Protobuf::into_raw).collect()
     };
-    let genesis_state = astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+    let genesis_state = astria_core::generated::protocol::genesis::v1::GenesisAppState {
         accounts,
         authority_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
         ibc_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),

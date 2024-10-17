@@ -3,7 +3,7 @@ use std::{
     ops::Deref,
 };
 
-use astria_core::protocol::transaction::v1alpha1::{
+use astria_core::protocol::transaction::v1::{
     action::group::Group,
     Transaction,
 };

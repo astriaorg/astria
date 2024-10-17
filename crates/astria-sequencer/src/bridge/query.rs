@@ -2,7 +2,7 @@ use astria_core::{
     primitive::v1::Address,
     protocol::{
         abci::AbciErrorCode,
-        bridge::v1alpha1::BridgeAccountInfo,
+        bridge::v1::BridgeAccountInfo,
     },
 };
 use astria_eyre::eyre::{
@@ -167,7 +167,7 @@ pub(crate) async fn bridge_account_info_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::bridge::v1alpha1::BridgeAccountInfoResponse;
+    use astria_core::protocol::bridge::v1::BridgeAccountInfoResponse;
 
     let address = match preprocess_request(&params) {
         Ok(tup) => tup,
@@ -215,7 +215,7 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::bridge::v1alpha1::BridgeAccountLastTxHashResponse;
+    use astria_core::protocol::bridge::v1::BridgeAccountLastTxHashResponse;
 
     let address = match preprocess_request(&params) {
         Ok(tup) => tup,
@@ -293,9 +293,9 @@ fn preprocess_request(params: &[(String, String)]) -> Result<Address, response::
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        generated::protocol::bridge::v1alpha1::BridgeAccountInfoResponse as RawBridgeAccountInfoResponse,
+        generated::protocol::bridge::v1::BridgeAccountInfoResponse as RawBridgeAccountInfoResponse,
         primitive::v1::RollupId,
-        protocol::bridge::v1alpha1::BridgeAccountInfoResponse,
+        protocol::bridge::v1::BridgeAccountInfoResponse,
     };
     use cnidarium::StateDelta;
 

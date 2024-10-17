@@ -1,8 +1,8 @@
 use astria_core::{
-    generated::protocol::transaction::v1alpha1::TransactionBody as RawBody,
+    generated::protocol::transaction::v1::TransactionBody as RawBody,
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::TransactionBody,
+        transaction::v1::TransactionBody,
     },
 };
 use cnidarium::Storage;
@@ -27,7 +27,7 @@ pub(crate) async fn transaction_fee_request(
     request: request::Query,
     _params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::fees::v1alpha1::TransactionFeeResponse;
+    use astria_core::protocol::fees::v1::TransactionFeeResponse;
 
     let tx = match preprocess_request(&request) {
         Ok(tx) => tx,
