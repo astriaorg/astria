@@ -6,11 +6,8 @@ use std::{
     str::FromStr,
 };
 
-use base64::{
-    display::Base64Display,
-    prelude::BASE64_URL_SAFE,
-};
 use bytes::Bytes;
+use core_utils::base64;
 use sha2::{
     Digest as _,
     Sha256,
@@ -90,7 +87,7 @@ impl Protobuf for merkle::Proof {
 pub struct RollupId {
     #[cfg_attr(
         feature = "serde",
-        serde(serialize_with = "crate::serde::base64_serialize")
+        serde(serialize_with = "core_utils::base64::serde::serialize")
     )]
     inner: [u8; 32],
 }
@@ -244,7 +241,7 @@ impl From<&RollupId> for RollupId {
 
 impl std::fmt::Display for RollupId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Base64Display::new(self.as_ref(), &BASE64_URL_SAFE).fmt(f)
+        base64::display(self.as_ref()).fmt(f)
     }
 }
 
@@ -802,6 +799,7 @@ mod tests {
         AddressError,
         AddressErrorKind,
         Bech32m,
+        RollupId,
         ADDRESS_LEN,
     };
     use crate::primitive::v1::Bech32;
@@ -934,6 +932,18 @@ mod tests {
             .try_build()
             .unwrap();
         let _ = address.into_raw();
+    }
+
+    #[test]
+    fn base64_of_raw_rollup_id_should_be_url_safe() {
+        // With standard encoding this is "/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v4=", and with
+        // URL-safe "_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v4=".  The snapshot should only
+        // contain the URL-safe form.
+        let rollup_id = RollupId::new([254; 32]);
+        insta::assert_json_snapshot!(
+            "base64_of_raw_rollup_id_should_be_url_safe",
+            &rollup_id.to_raw()
+        );
     }
 
     #[cfg(feature = "unchecked-constructors")]
