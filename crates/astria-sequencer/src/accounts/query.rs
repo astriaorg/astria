@@ -107,7 +107,7 @@ pub(crate) async fn balance_request(
     // custom `Ord` implementation which sorts by `Denom` in alphabetical order. The comparison
     // should never return `Ordering::Equal` since `Denom` is a unique identifier, hence the
     // unstable sort will be deterministic.
-    balances.sort_unstable();
+    balances.sort_unstable_by(|a, b| a.denom.cmp(&b.denom));
 
     let payload = BalanceResponse {
         height: height.value(),

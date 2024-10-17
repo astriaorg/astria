@@ -22,7 +22,7 @@ enum AssetBalanceErrorKind {
     InvalidDenom { source: ParseDenomError },
 }
 
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssetBalance {
     pub denom: Denom,
     pub balance: u128,
@@ -52,27 +52,6 @@ impl AssetBalance {
             denom: self.denom.to_string(),
             balance: Some(self.balance.into()),
         }
-    }
-}
-
-impl PartialOrd for AssetBalance {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for AssetBalance {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match self.denom.cmp(&other.denom) {
-            std::cmp::Ordering::Equal => self.balance.cmp(&other.balance),
-            other => other,
-        }
-    }
-}
-
-impl PartialEq for AssetBalance {
-    fn eq(&self, other: &Self) -> bool {
-        self.denom == other.denom && self.balance == other.balance
     }
 }
 
