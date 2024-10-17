@@ -100,7 +100,7 @@ impl SequencerService for SequencerServer {
         let rollup_ids = request
             .rollup_ids
             .iter()
-            .map(RollupId::try_from_raw)
+            .map(RollupId::try_from_raw_ref)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| Status::invalid_argument(format!("invalid rollup ID: {e}")))?;
 
@@ -157,10 +157,7 @@ impl SequencerService for SequencerServer {
             rollup_transactions.push(rollup_data.into_raw());
         }
 
-        let all_rollup_ids = all_rollup_ids
-            .into_iter()
-            .map(|rollup_id| Bytes::copy_from_slice(rollup_id.as_ref()))
-            .collect();
+        let all_rollup_ids = all_rollup_ids.into_iter().map(RollupId::into_raw).collect();
 
         let block = RawFilteredSequencerBlock {
             block_hash: Bytes::copy_from_slice(&block_hash),
@@ -304,7 +301,7 @@ mod tests {
 
         // insert a transactions one above account nonce (not gapped)
         let sequential_nonce = 1;
-        let tx: Arc<astria_core::protocol::transaction::v1alpha1::SignedTransaction> =
+        let tx: Arc<astria_core::protocol::transaction::v1alpha1::Transaction> =
             crate::app::test_utils::MockTxBuilder::new()
                 .nonce(sequential_nonce)
                 .build();

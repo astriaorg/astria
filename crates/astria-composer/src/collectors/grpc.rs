@@ -12,7 +12,7 @@ use astria_core::{
         asset,
         RollupId,
     },
-    protocol::transaction::v1alpha1::action::Sequence,
+    protocol::transaction::v1alpha1::action::RollupDataSubmission,
 };
 use tokio::sync::mpsc::error::SendTimeoutError;
 use tonic::{
@@ -58,11 +58,14 @@ impl GrpcCollectorService for Grpc {
     ) -> Result<Response<SubmitRollupTransactionResponse>, Status> {
         let submit_rollup_tx_request = request.into_inner();
 
-        let Ok(rollup_id) = RollupId::try_from_slice(&submit_rollup_tx_request.rollup_id) else {
-            return Err(Status::invalid_argument("invalid rollup id"));
-        };
+        let rollup_id = RollupId::try_from_raw(
+            submit_rollup_tx_request
+                .rollup_id
+                .ok_or_else(|| Status::invalid_argument("rollup ID not set"))?,
+        )
+        .map_err(|err| Status::invalid_argument(format!("invalid rollup ID: {err}")))?;
 
-        let sequence_action = Sequence {
+        let rollup_data_submission = RollupDataSubmission {
             rollup_id,
             data: submit_rollup_tx_request.data,
             fee_asset: self.fee_asset.clone(),
@@ -71,7 +74,7 @@ impl GrpcCollectorService for Grpc {
         self.metrics.increment_grpc_txs_received(&rollup_id);
         match self
             .executor
-            .send_timeout(sequence_action, EXECUTOR_SEND_TIMEOUT)
+            .send_timeout(rollup_data_submission, EXECUTOR_SEND_TIMEOUT)
             .await
         {
             Ok(()) => {}

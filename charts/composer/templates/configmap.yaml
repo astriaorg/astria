@@ -8,7 +8,6 @@ data:
   ASTRIA_COMPOSER_API_LISTEN_ADDR: "0.0.0.0:{{ .Values.ports.healthApi }}"
   ASTRIA_COMPOSER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.grpc }}"
   ASTRIA_COMPOSER_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.sequencerChainId . }}"
-  ASTRIA_COMPOSER_SEQUENCER_URL: "{{ tpl .Values.config.sequencerRpc . }}"
   ASTRIA_COMPOSER_ROLLUPS: "{{ include "composer.rollups" . }}"
   ASTRIA_COMPOSER_PRIVATE_KEY_FILE: "/var/secrets/{{ .Values.config.privateKey.secret.filename }}"
   ASTRIA_COMPOSER_MAX_BYTES_PER_BUNDLE: "{{ .Values.config.maxBytesPerBundle }}"
@@ -30,7 +29,10 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders . }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
+  ASTRIA_COMPOSER_SEQUENCER_URL: "{{ tpl .Values.config.sequencerRpc . }}"
   {{- else }}
+  ASTRIA_COMPOSER_SEQUENCER_ABCI_ENDPOINT: "{{ tpl .Values.config.sequencerRpc . }}"
+  ASTRIA_COMPOSER_SEQUENCER_GRPC_ENDPOINT: "{{ tpl .Values.config.sequencerGrpc . }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}

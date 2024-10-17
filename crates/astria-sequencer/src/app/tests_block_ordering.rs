@@ -5,7 +5,7 @@ use std::{
 
 use astria_core::protocol::transaction::v1alpha1::{
     action::group::Group,
-    SignedTransaction,
+    Transaction,
 };
 use bytes::Bytes;
 use prost::Message;
@@ -37,7 +37,7 @@ async fn app_process_proposal_ordering_ok() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
     // create transactions that should pass with expected ordering
-    let txs: Vec<SignedTransaction> = vec![
+    let txs: Vec<Transaction> = vec![
         MockTxBuilder::new()
             .group(Group::BundleableGeneral)
             .signer(get_alice_signing_key())
@@ -98,7 +98,7 @@ async fn app_process_proposal_ordering_fail() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
     // create transactions that should fail due to incorrect ordering
-    let txs: Vec<SignedTransaction> = vec![
+    let txs: Vec<Transaction> = vec![
         MockTxBuilder::new()
             .group(Group::UnbundleableGeneral)
             .signer(get_bob_signing_key())

@@ -593,6 +593,7 @@ dependencies = [
  "astria-config",
  "astria-core",
  "astria-eyre",
+ "astria-grpc-mock",
  "astria-sequencer-client",
  "astria-telemetry",
  "astria-test-utils",
@@ -786,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "astria-build-info",
  "astria-config",

@@ -8,13 +8,8 @@ use astria_eyre::eyre::{
 use cnidarium::StateWrite;
 
 use crate::{
-    accounts::StateWriteExt as _,
     address::StateReadExt as _,
     app::ActionHandler,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -49,14 +44,6 @@ impl ActionHandler for BridgeSudoChange {
                 .wrap_err("failed check for base prefix of new withdrawer address")?;
         }
 
-        ensure!(
-            state
-                .is_allowed_fee_asset(&self.fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
-
         // check that the sender of this tx is the authorized sudo address for the bridge account
         let Some(sudo_address) = state
             .get_bridge_account_sudo_address(&self.bridge_address)
@@ -72,19 +59,6 @@ impl ActionHandler for BridgeSudoChange {
             sudo_address == from,
             "unauthorized for bridge sudo change action",
         );
-
-        let fee = state
-            .get_bridge_sudo_change_base_fee()
-            .await
-            .wrap_err("failed to get bridge sudo change fee")?;
-        state
-            .get_and_increase_block_fees::<Self, _>(&self.fee_asset, fee)
-            .await
-            .wrap_err("failed to add to block fees")?;
-        state
-            .decrease_balance(&self.bridge_address, &self.fee_asset, fee)
-            .await
-            .wrap_err("failed to decrease balance for bridge sudo change fee")?;
 
         if let Some(sudo_address) = self.new_sudo_address {
             state
@@ -104,15 +78,20 @@ impl ActionHandler for BridgeSudoChange {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::{
-        asset,
-        TransactionId,
+    use astria_core::{
+        primitive::v1::{
+            asset,
+            TransactionId,
+        },
+        protocol::fees::v1alpha1::BridgeSudoChangeFeeComponents,
     };
     use cnidarium::StateDelta;
 
     use super::*;
     use crate::{
+        accounts::StateWriteExt as _,
         address::StateWriteExt as _,
+        fees::StateWriteExt as _,
         test_utils::{
             astria_address,
             ASTRIA_PREFIX,
@@ -179,7 +158,12 @@ mod tests {
             source_action_index: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state.put_bridge_sudo_change_base_fee(10).unwrap();
+        state
+            .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
+                base: 10,
+                multiplier: 0,
+            })
+            .unwrap();
 
         let fee_asset = test_asset();
         state.put_allowed_fee_asset(&fee_asset).unwrap();

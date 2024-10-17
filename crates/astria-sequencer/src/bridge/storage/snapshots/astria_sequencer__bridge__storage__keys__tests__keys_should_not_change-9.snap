@@ -1,6 +1,0 @@
----
-source: crates/astria-sequencer/src/bridge/storage/keys.rs
-assertion_line: 103
-expression: "bridge_account_withdrawal_event(&address(), \"the-event\")"
----
-bridge/account/HAxJDxtVKNgXPF3kbRMRYOSywMM=/withdrawal_event/the-event
