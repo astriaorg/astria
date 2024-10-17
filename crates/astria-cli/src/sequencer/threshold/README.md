@@ -66,8 +66,12 @@ cargo run -- sequencer threshold sign part1 \
 --nonces-path nonces_1.out
 ```
 
-1. The coordinator generates a signing package given the plaintext message
-and the commitments from part 1:
+1. The coordinator generates a signing package given the message
+and the commitments from part 1. 
+
+Note that by default, the message is expected to be a json-encoded 
+`TransactionBody`, which is then re-encoded as a protobuf message. 
+To sign a plaintext message, use the `--is-plaintext-message` flag.
 
 ```sh
 cargo run -- sequencer threshold sign prepare-message \

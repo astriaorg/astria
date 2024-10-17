@@ -12,6 +12,7 @@ use frost_ed25519::{
     self,
     Identifier,
 };
+use prost::Message as _;
 use rand::thread_rng;
 use serde::{
     Deserialize,
@@ -121,9 +122,17 @@ struct CommitmentsWithIdentifier {
 
 #[derive(Debug, clap::Args)]
 struct PrepareMessage {
-    /// path to file with message bytes to be signed
+    /// path to file with message (json-formatted `TransactionBody`) to be signed
+    ///
+    /// the `TransactionBody` is re-encoded into protobuf bytes before signing
     #[arg(long)]
     message_path: String,
+
+    /// whether the message is plaintext (not a `TransactionBody`)
+    ///
+    /// if true, the message is signed as-is, without re-encoding into protobuf bytes
+    #[arg(long)]
+    is_plaintext_message: bool,
 
     /// path to the signing package output file
     #[arg(long)]
@@ -134,10 +143,17 @@ impl PrepareMessage {
     async fn run(self) -> eyre::Result<()> {
         let Self {
             message_path,
+            is_plaintext_message,
             signing_package_path,
         } = self;
 
-        let message = std::fs::read(&message_path).wrap_err("failed to read message file")?;
+        let mut message = std::fs::read(&message_path).wrap_err("failed to read message file")?;
+
+        if !is_plaintext_message {
+            let tx_body = serde_json::from_slice::<TransactionBody>(&message)
+                .wrap_err("failed to deserialize message as TransactionBody")?;
+            message = tx_body.encode_to_vec();
+        }
 
         let mut commitments: BTreeMap<Identifier, frost_ed25519::round1::SigningCommitments> =
             BTreeMap::new();
