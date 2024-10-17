@@ -5,7 +5,7 @@ use astria_core::{
         Bech32m,
         ADDRESS_LEN,
     },
-    protocol::transaction::v1alpha1::{
+    protocol::transaction::v1::{
         action::{
             Action,
             BridgeLockAction,

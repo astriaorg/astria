@@ -1,4 +1,4 @@
-use astria_core::protocol::transaction::v1alpha1::action::{
+use astria_core::protocol::transaction::v1::action::{
     FeeAssetChange,
     FeeChange,
 };
@@ -134,14 +134,14 @@ mod tests {
     use astria_core::{
         primitive::v1::TransactionId,
         protocol::{
-            fees::v1alpha1::{
+            fees::v1::{
                 BridgeLockFeeComponents,
                 Ics20WithdrawalFeeComponents,
                 InitBridgeAccountFeeComponents,
                 RollupDataSubmissionFeeComponents,
                 TransferFeeComponents,
             },
-            transaction::v1alpha1::action::FeeChange,
+            transaction::v1::action::FeeChange,
         },
     };
     use cnidarium::StateDelta;

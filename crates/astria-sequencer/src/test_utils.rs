@@ -4,7 +4,7 @@ use astria_core::primitive::v1::{
     Bech32,
 };
 #[cfg(test)]
-use astria_core::protocol::fees::v1alpha1::RollupDataSubmissionFeeComponents;
+use astria_core::protocol::fees::v1::RollupDataSubmissionFeeComponents;
 
 pub(crate) const ASTRIA_PREFIX: &str = "astria";
 pub(crate) const ASTRIA_COMPAT_PREFIX: &str = "astriacompat";

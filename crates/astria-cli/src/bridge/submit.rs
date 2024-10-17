@@ -5,7 +5,7 @@ use std::path::{
 
 use astria_core::{
     crypto::SigningKey,
-    protocol::transaction::v1alpha1::{
+    protocol::transaction::v1::{
         Action,
         TransactionBody,
     },

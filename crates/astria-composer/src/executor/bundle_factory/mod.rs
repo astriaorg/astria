@@ -10,7 +10,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::transaction::v1alpha1::{
+    protocol::transaction::v1::{
         action::RollupDataSubmission,
         Action,
         TransactionBody,

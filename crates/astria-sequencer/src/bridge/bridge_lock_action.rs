@@ -1,9 +1,9 @@
 use astria_core::{
-    protocol::transaction::v1alpha1::action::{
+    protocol::transaction::v1::action::{
         BridgeLock,
         Transfer,
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1::block::Deposit,
 };
 use astria_eyre::eyre::{
     ensure,

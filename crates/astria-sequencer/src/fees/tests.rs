@@ -11,14 +11,14 @@ use astria_core::{
         TRANSACTION_ID_LEN,
     },
     protocol::{
-        fees::v1alpha1::{
+        fees::v1::{
             BridgeLockFeeComponents,
             BridgeSudoChangeFeeComponents,
             InitBridgeAccountFeeComponents,
             RollupDataSubmissionFeeComponents,
             TransferFeeComponents,
         },
-        transaction::v1alpha1::{
+        transaction::v1::{
             action::{
                 BridgeLock,
                 BridgeSudoChange,
@@ -29,7 +29,7 @@ use astria_core::{
             TransactionBody,
         },
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1::block::Deposit,
 };
 use cnidarium::StateDelta;
 
@@ -442,7 +442,7 @@ fn get_base_deposit_fee() {
         .slice(&[0u8; ADDRESS_LEN][..])
         .try_build()
         .unwrap();
-    let raw_deposit = astria_core::generated::sequencerblock::v1alpha1::Deposit {
+    let raw_deposit = astria_core::generated::sequencerblock::v1::Deposit {
         bridge_address: Some(bridge_address.to_raw()),
         rollup_id: Some(RollupId::from_unhashed_bytes([0; ROLLUP_ID_LEN]).to_raw()),
         amount: Some(1000.into()),

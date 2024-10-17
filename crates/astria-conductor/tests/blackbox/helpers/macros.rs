@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! block {
     (number: $number:expr,hash: $hash:expr,parent: $parent:expr $(,)?) => {
-        ::astria_core::generated::execution::v1alpha2::Block {
+        ::astria_core::generated::execution::v1::Block {
             number: $number,
             hash: ::bytes::Bytes::from(Vec::from($hash)),
             parent_block_hash: ::bytes::Bytes::from(Vec::from($parent)),
@@ -59,7 +59,7 @@ macro_rules! commitment_state {
         soft: (number: $soft_number:expr,hash: $soft_hash:expr,parent: $soft_parent:expr $(,)?),
         base_celestia_height: $base_celestia_height:expr $(,)?
     ) => {
-       ::astria_core::generated::execution::v1alpha2::CommitmentState {
+       ::astria_core::generated::execution::v1::CommitmentState {
             firm: Some($crate::block!(
                 number: $firm_number,
                 hash: $firm_hash,
@@ -98,7 +98,7 @@ macro_rules! genesis_info {
         $sequencer_height:expr,celestia_block_variance:
         $variance:expr $(,)?
     ) => {
-        ::astria_core::generated::execution::v1alpha2::GenesisInfo {
+        ::astria_core::generated::execution::v1::GenesisInfo {
             rollup_id: Some($crate::ROLLUP_ID.to_raw()),
             sequencer_genesis_block_height: $sequencer_height,
             celestia_block_variance: $variance,
@@ -312,7 +312,7 @@ macro_rules! mount_get_filtered_sequencer_block {
     ($test_env:ident, sequencer_height: $height:expr, delay: $delay:expr $(,)?) => {
         $test_env
             .mount_get_filtered_sequencer_block(
-                ::astria_core::generated::sequencerblock::v1alpha1::GetFilteredSequencerBlockRequest {
+                ::astria_core::generated::sequencerblock::v1::GetFilteredSequencerBlockRequest {
                     height: $height,
                     rollup_ids: vec![$crate::ROLLUP_ID.to_raw()],
                 },
@@ -385,12 +385,12 @@ macro_rules! mount_get_block {
             hash: $hash,
             parent: $parent,
         );
-        let identifier = ::astria_core::generated::execution::v1alpha2::BlockIdentifier {
+        let identifier = ::astria_core::generated::execution::v1::BlockIdentifier {
             identifier: Some(
-                ::astria_core::generated::execution::v1alpha2::block_identifier::Identifier::BlockNumber(block.number)
+                ::astria_core::generated::execution::v1::block_identifier::Identifier::BlockNumber(block.number)
         )};
         $test_env.mount_get_block(
-            ::astria_core::generated::execution::v1alpha2::GetBlockRequest {
+            ::astria_core::generated::execution::v1::GetBlockRequest {
                 identifier: Some(identifier),
             },
             block,
