@@ -151,7 +151,6 @@ mod tests {
         },
     };
     use bytes::Bytes;
-    use cnidarium::StateDelta;
 
     use super::*;
     use crate::{
@@ -170,23 +169,23 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
+        storage::Storage,
         test_utils::calculate_rollup_data_submission_fee_from_state,
     };
 
     #[tokio::test]
     #[expect(clippy::too_many_lines, reason = "it's a test")]
     async fn check_balance_total_fees_transfers_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state_tx.put_base_prefix("astria".to_string()).unwrap();
-        state_tx.put_native_asset(nria()).unwrap();
+        state_delta.put_base_prefix("astria".to_string()).unwrap();
+        state_delta.put_native_asset(nria()).unwrap();
         let transfer_fees = TransferFeeComponents {
             base: 12,
             multiplier: 0,
         };
-        state_tx
+        state_delta
             .put_transfer_fees(transfer_fees)
             .wrap_err("failed to initiate transfer fee components")
             .unwrap();
@@ -195,7 +194,7 @@ mod tests {
             base: 0,
             multiplier: 1,
         };
-        state_tx
+        state_delta
             .put_rollup_data_submission_fees(rollup_data_submission_fees)
             .wrap_err("failed to initiate sequence action fee components")
             .unwrap();
@@ -204,7 +203,7 @@ mod tests {
             base: 1,
             multiplier: 0,
         };
-        state_tx
+        state_delta
             .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
             .wrap_err("failed to initiate ics20 withdrawal fee components")
             .unwrap();
@@ -213,7 +212,7 @@ mod tests {
             base: 12,
             multiplier: 0,
         };
-        state_tx
+        state_delta
             .put_init_bridge_account_fees(init_bridge_account_fees)
             .wrap_err("failed to initiate init bridge account fee components")
             .unwrap();
@@ -222,7 +221,7 @@ mod tests {
             base: 0,
             multiplier: 1,
         };
-        state_tx
+        state_delta
             .put_bridge_lock_fees(bridge_lock_fees)
             .wrap_err("failed to initiate bridge lock fee components")
             .unwrap();
@@ -231,7 +230,7 @@ mod tests {
             base: 0,
             multiplier: 0,
         };
-        state_tx
+        state_delta
             .put_bridge_unlock_fees(bridge_unlock_fees)
             .wrap_err("failed to initiate bridge unlock fee components")
             .unwrap();
@@ -240,7 +239,7 @@ mod tests {
             base: 24,
             multiplier: 0,
         };
-        state_tx
+        state_delta
             .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
             .wrap_err("failed to initiate bridge sudo change fee components")
             .unwrap();
@@ -250,27 +249,27 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = state_tx
+        let transfer_fee = state_delta
             .get_transfer_fees()
             .await
             .expect("should not error fetching transfer fees")
             .expect("transfer fees should be stored")
             .base;
-        state_tx
+        state_delta
             .increase_balance(
-                &state_tx
+                &state_delta
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
                 &nria(),
                 transfer_fee
-                    + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
+                    + calculate_rollup_data_submission_fee_from_state(&data, &state_delta).await,
             )
             .await
             .unwrap();
-        state_tx
+        state_delta
             .increase_balance(
-                &state_tx
+                &state_delta
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
@@ -285,7 +284,10 @@ mod tests {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: nria().into(),
-                to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
+                to: state_delta
+                    .try_base_prefixed(&[0; ADDRESS_LEN])
+                    .await
+                    .unwrap(),
             }),
             Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
@@ -301,7 +303,7 @@ mod tests {
             .unwrap();
 
         let signed_tx = tx.sign(&alice);
-        check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
+        check_balance_for_total_fees_and_transfers(&signed_tx, &state_delta)
             .await
             .expect("sufficient balance for all actions");
     }
@@ -309,17 +311,18 @@ mod tests {
     #[tokio::test]
     #[expect(clippy::too_many_lines, reason = "it's a test")]
     async fn check_balance_total_fees_and_transfers_insufficient_other_asset_balance() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx.put_native_asset(nria()).unwrap();
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta.put_native_asset(nria()).unwrap();
         let transfer_fees = TransferFeeComponents {
             base: 12,
             multiplier: 0,
         };
-        state_tx
+        state_delta
             .put_transfer_fees(transfer_fees)
             .wrap_err("failed to initiate transfer fee components")
             .unwrap();
@@ -328,7 +331,7 @@ mod tests {
             base: 0,
             multiplier: 1,
         };
-        state_tx
+        state_delta
             .put_rollup_data_submission_fees(rollup_data_submission_fees)
             .wrap_err("failed to initiate sequence action fee components")
             .unwrap();
@@ -337,7 +340,7 @@ mod tests {
             base: 1,
             multiplier: 0,
         };
-        state_tx
+        state_delta
             .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
             .wrap_err("failed to initiate ics20 withdrawal fee components")
             .unwrap();
@@ -346,7 +349,7 @@ mod tests {
             base: 12,
             multiplier: 0,
         };
-        state_tx
+        state_delta
             .put_init_bridge_account_fees(init_bridge_account_fees)
             .wrap_err("failed to initiate init bridge account fee components")
             .unwrap();
@@ -355,7 +358,7 @@ mod tests {
             base: 0,
             multiplier: 1,
         };
-        state_tx
+        state_delta
             .put_bridge_lock_fees(bridge_lock_fees)
             .wrap_err("failed to initiate bridge lock fee components")
             .unwrap();
@@ -364,7 +367,7 @@ mod tests {
             base: 0,
             multiplier: 0,
         };
-        state_tx
+        state_delta
             .put_bridge_unlock_fees(bridge_unlock_fees)
             .wrap_err("failed to initiate bridge unlock fee components")
             .unwrap();
@@ -373,7 +376,7 @@ mod tests {
             base: 24,
             multiplier: 0,
         };
-        state_tx
+        state_delta
             .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
             .wrap_err("failed to initiate bridge sudo change fee components")
             .unwrap();
@@ -383,21 +386,21 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = state_tx
+        let transfer_fee = state_delta
             .get_transfer_fees()
             .await
             .expect("should not error fetching transfer fees")
             .expect("transfer fees should be stored")
             .base;
-        state_tx
+        state_delta
             .increase_balance(
-                &state_tx
+                &state_delta
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
                 &nria(),
                 transfer_fee
-                    + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
+                    + calculate_rollup_data_submission_fee_from_state(&data, &state_delta).await,
             )
             .await
             .unwrap();
@@ -407,7 +410,10 @@ mod tests {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: nria().into(),
-                to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
+                to: state_delta
+                    .try_base_prefixed(&[0; ADDRESS_LEN])
+                    .await
+                    .unwrap(),
             }),
             Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
@@ -423,7 +429,7 @@ mod tests {
             .unwrap();
 
         let signed_tx = tx.sign(&alice);
-        let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
+        let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_delta)
             .await
             .err()
             .unwrap();

@@ -173,9 +173,8 @@ fn revision_number_from_chain_id(chain_id: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use cnidarium::StateDelta;
-
     use super::*;
+    use crate::storage::Storage;
 
     #[test]
     fn revision_number_from_chain_id_regex() {
@@ -200,23 +199,22 @@ mod tests {
 
     #[tokio::test]
     async fn put_chain_id_and_revision_number() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // doesn't exist at first
-        let _ = state
+        let _ = state_delta
             .get_chain_id()
             .await
             .expect_err("no chain ID should exist at first");
 
         // can write new
         let chain_id_orig: tendermint::chain::Id = "test-chain-orig".try_into().unwrap();
-        state
+        state_delta
             .put_chain_id_and_revision_number(chain_id_orig.clone())
             .unwrap();
         assert_eq!(
-            state
+            state_delta
                 .get_chain_id()
                 .await
                 .expect("a chain ID was written and must exist inside the database"),
@@ -225,7 +223,7 @@ mod tests {
         );
 
         assert_eq!(
-            state
+            state_delta
                 .get_revision_number()
                 .await
                 .expect("getting the revision number should succeed"),
@@ -235,11 +233,11 @@ mod tests {
 
         // can rewrite with new value
         let chain_id_update: tendermint::chain::Id = "test-chain-update".try_into().unwrap();
-        state
+        state_delta
             .put_chain_id_and_revision_number(chain_id_update.clone())
             .unwrap();
         assert_eq!(
-            state
+            state_delta
                 .get_chain_id()
                 .await
                 .expect("a new chain ID was written and must exist inside the database"),
@@ -248,7 +246,7 @@ mod tests {
         );
 
         assert_eq!(
-            state
+            state_delta
                 .get_revision_number()
                 .await
                 .expect("getting the revision number should succeed"),
@@ -258,11 +256,11 @@ mod tests {
 
         // can rewrite with chain id with revision number
         let chain_id_update: tendermint::chain::Id = "test-chain-99".try_into().unwrap();
-        state
+        state_delta
             .put_chain_id_and_revision_number(chain_id_update.clone())
             .unwrap();
         assert_eq!(
-            state
+            state_delta
                 .get_chain_id()
                 .await
                 .expect("a new chain ID was written and must exist inside the database"),
@@ -271,7 +269,7 @@ mod tests {
         );
 
         assert_eq!(
-            state
+            state_delta
                 .get_revision_number()
                 .await
                 .expect("getting the revision number should succeed"),
@@ -282,21 +280,20 @@ mod tests {
 
     #[tokio::test]
     async fn block_height() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // doesn't exist at first
-        let _ = state
+        let _ = state_delta
             .get_block_height()
             .await
             .expect_err("no block height should exist at first");
 
         // can write new
         let block_height_orig = 0;
-        state.put_block_height(block_height_orig).unwrap();
+        state_delta.put_block_height(block_height_orig).unwrap();
         assert_eq!(
-            state
+            state_delta
                 .get_block_height()
                 .await
                 .expect("a block height was written and must exist inside the database"),
@@ -306,9 +303,9 @@ mod tests {
 
         // can rewrite with new value
         let block_height_update = 1;
-        state.put_block_height(block_height_update).unwrap();
+        state_delta.put_block_height(block_height_update).unwrap();
         assert_eq!(
-            state
+            state_delta
                 .get_block_height()
                 .await
                 .expect("a new block height was written and must exist inside the database"),
@@ -319,21 +316,22 @@ mod tests {
 
     #[tokio::test]
     async fn block_timestamp() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // doesn't exist at first
-        let _ = state
+        let _ = state_delta
             .get_block_timestamp()
             .await
             .expect_err("no block timestamp should exist at first");
 
         // can write new
         let block_timestamp_orig = Time::from_unix_timestamp(1_577_836_800, 0).unwrap();
-        state.put_block_timestamp(block_timestamp_orig).unwrap();
+        state_delta
+            .put_block_timestamp(block_timestamp_orig)
+            .unwrap();
         assert_eq!(
-            state
+            state_delta
                 .get_block_timestamp()
                 .await
                 .expect("a block timestamp was written and must exist inside the database"),
@@ -343,9 +341,11 @@ mod tests {
 
         // can rewrite with new value
         let block_timestamp_update = Time::from_unix_timestamp(1_577_836_801, 0).unwrap();
-        state.put_block_timestamp(block_timestamp_update).unwrap();
+        state_delta
+            .put_block_timestamp(block_timestamp_update)
+            .unwrap();
         assert_eq!(
-            state
+            state_delta
                 .get_block_timestamp()
                 .await
                 .expect("a new block timestamp was written and must exist inside the database"),
@@ -356,24 +356,23 @@ mod tests {
 
     #[tokio::test]
     async fn storage_version() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // doesn't exist at first
         let block_height_orig = 0;
-        let _ = state
+        let _ = state_delta
             .get_storage_version_by_height(block_height_orig)
             .await
             .expect_err("no block height should exist at first");
 
         // can write for block height 0
         let storage_version_orig = 0;
-        state
+        state_delta
             .put_storage_version_by_height(block_height_orig, storage_version_orig)
             .unwrap();
         assert_eq!(
-            state
+            state_delta
                 .get_storage_version_by_height(block_height_orig)
                 .await
                 .expect("a storage version was written and must exist inside the database"),
@@ -383,11 +382,11 @@ mod tests {
 
         // can update block height 0
         let storage_version_update = 0;
-        state
+        state_delta
             .put_storage_version_by_height(block_height_orig, storage_version_update)
             .unwrap();
         assert_eq!(
-            state
+            state_delta
                 .get_storage_version_by_height(block_height_orig)
                 .await
                 .expect("a new storage version was written and must exist inside the database"),
@@ -397,11 +396,11 @@ mod tests {
 
         // can write block 1 and block 0 is unchanged
         let block_height_update = 1;
-        state
+        state_delta
             .put_storage_version_by_height(block_height_update, storage_version_orig)
             .unwrap();
         assert_eq!(
-            state
+            state_delta
                 .get_storage_version_by_height(block_height_update)
                 .await
                 .expect("a second storage version was written and must exist inside the database"),
@@ -409,7 +408,7 @@ mod tests {
             "additional storage version was not what was expected"
         );
         assert_eq!(
-            state
+            state_delta
                 .get_storage_version_by_height(block_height_orig)
                 .await
                 .expect(

@@ -11,6 +11,7 @@ use telemetry::{
 };
 
 const CHECK_TX_STAGE: &str = "stage";
+const CACHE_GET_OUTCOME: &str = "outcome";
 
 pub struct Metrics {
     prepare_proposal_excluded_transactions_cometbft_space: Counter,
@@ -40,6 +41,12 @@ pub struct Metrics {
     transactions_in_mempool_parked: Gauge,
     mempool_recosted: Counter,
     internal_logic_error: Counter,
+    verifiable_cache_hit: Counter,
+    verifiable_cache_miss: Counter,
+    verifiable_cache_item_total: Histogram,
+    non_verifiable_cache_hit: Counter,
+    non_verifiable_cache_miss: Counter,
+    non_verifiable_cache_item_total: Histogram,
 }
 
 impl Metrics {
@@ -163,6 +170,30 @@ impl Metrics {
 
     pub(crate) fn increment_internal_logic_error(&self) {
         self.internal_logic_error.increment(1);
+    }
+
+    pub(crate) fn increment_verifiable_cache_hit(&self) {
+        self.verifiable_cache_hit.increment(1);
+    }
+
+    pub(crate) fn increment_verifiable_cache_miss(&self) {
+        self.verifiable_cache_miss.increment(1);
+    }
+
+    pub(crate) fn record_verifiable_cache_item_total(&self, total: usize) {
+        self.verifiable_cache_item_total.record(total);
+    }
+
+    pub(crate) fn increment_non_verifiable_cache_hit(&self) {
+        self.non_verifiable_cache_hit.increment(1);
+    }
+
+    pub(crate) fn increment_non_verifiable_cache_miss(&self) {
+        self.non_verifiable_cache_miss.increment(1);
+    }
+
+    pub(crate) fn record_non_verifiable_cache_item_total(&self, total: usize) {
+        self.non_verifiable_cache_item_total.record(total);
     }
 }
 
@@ -355,6 +386,36 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let mut verifiable_cache_factory = builder.new_counter_factory(
+            VERIFIABLE_CACHE_GET_COUNT,
+            "The number of attempts to get data from the verifiable cache in storage",
+        )?;
+        let verifiable_cache_hit = verifiable_cache_factory
+            .register_with_labels(&[(CACHE_GET_OUTCOME, "hit".to_string())])?;
+        let verifiable_cache_miss = verifiable_cache_factory
+            .register_with_labels(&[(CACHE_GET_OUTCOME, "miss".to_string())])?;
+        let verifiable_cache_item_total = builder
+            .new_histogram_factory(
+                VERIFIABLE_CACHE_ITEM_TOTAL,
+                "The number of items in the verifiable cache in storage",
+            )?
+            .register()?;
+
+        let mut non_verifiable_cache_factory = builder.new_counter_factory(
+            NON_VERIFIABLE_CACHE_GET_COUNT,
+            "The number of attempts to get data from the non-verifiable cache in storage",
+        )?;
+        let non_verifiable_cache_hit = non_verifiable_cache_factory
+            .register_with_labels(&[(CACHE_GET_OUTCOME, "hit".to_string())])?;
+        let non_verifiable_cache_miss = non_verifiable_cache_factory
+            .register_with_labels(&[(CACHE_GET_OUTCOME, "miss".to_string())])?;
+        let non_verifiable_cache_item_total = builder
+            .new_histogram_factory(
+                NON_VERIFIABLE_CACHE_ITEM_TOTAL,
+                "The number of items in the non-verifiable cache in storage",
+            )?
+            .register()?;
+
         Ok(Self {
             prepare_proposal_excluded_transactions_cometbft_space,
             prepare_proposal_excluded_transactions_sequencer_space,
@@ -383,6 +444,12 @@ impl telemetry::Metrics for Metrics {
             transactions_in_mempool_parked,
             mempool_recosted,
             internal_logic_error,
+            verifiable_cache_hit,
+            verifiable_cache_miss,
+            verifiable_cache_item_total,
+            non_verifiable_cache_hit,
+            non_verifiable_cache_miss,
+            non_verifiable_cache_item_total,
         })
     }
 }
@@ -411,32 +478,16 @@ metric_names!(const METRICS_NAMES:
     TRANSACTIONS_IN_MEMPOOL_TOTAL,
     TRANSACTIONS_IN_MEMPOOL_PARKED,
     MEMPOOL_RECOSTED,
-    INTERNAL_LOGIC_ERROR
+    INTERNAL_LOGIC_ERROR,
+    VERIFIABLE_CACHE_GET_COUNT,
+    NON_VERIFIABLE_CACHE_GET_COUNT,
+    VERIFIABLE_CACHE_ITEM_TOTAL,
+    NON_VERIFIABLE_CACHE_ITEM_TOTAL,
 );
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
-        CHECK_TX_DURATION_SECONDS,
-        CHECK_TX_REMOVED_ACCOUNT_BALANCE,
-        CHECK_TX_REMOVED_EXPIRED,
-        CHECK_TX_REMOVED_FAILED_EXECUTION,
-        CHECK_TX_REMOVED_FAILED_STATELESS,
-        CHECK_TX_REMOVED_TOO_LARGE,
-        INTERNAL_LOGIC_ERROR,
-        MEMPOOL_RECOSTED,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
-        PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
-        PROPOSAL_DEPOSITS,
-        PROPOSAL_TRANSACTIONS,
-        TRANSACTIONS_IN_MEMPOOL_PARKED,
-        TRANSACTIONS_IN_MEMPOOL_TOTAL,
-        TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
-    };
+    use super::*;
 
     #[track_caller]
     fn assert_const(actual: &'static str, suffix: &str) {
@@ -503,5 +554,15 @@ mod tests {
         );
         assert_const(MEMPOOL_RECOSTED, "mempool_recosted");
         assert_const(INTERNAL_LOGIC_ERROR, "internal_logic_error");
+        assert_const(VERIFIABLE_CACHE_GET_COUNT, "verifiable_cache_get_count");
+        assert_const(
+            NON_VERIFIABLE_CACHE_GET_COUNT,
+            "non_verifiable_cache_get_count",
+        );
+        assert_const(VERIFIABLE_CACHE_ITEM_TOTAL, "verifiable_cache_item_total");
+        assert_const(
+            NON_VERIFIABLE_CACHE_ITEM_TOTAL,
+            "non_verifiable_cache_item_total",
+        );
     }
 }

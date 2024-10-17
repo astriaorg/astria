@@ -1,12 +1,9 @@
 use astria_core::generated::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
-use astria_eyre::{
-    anyhow_to_eyre,
-    eyre::{
-        eyre,
-        OptionExt as _,
-        Result,
-        WrapErr as _,
-    },
+use astria_eyre::eyre::{
+    eyre,
+    OptionExt as _,
+    Result,
+    WrapErr as _,
 };
 use penumbra_tower_trace::{
     trace::request_span,
@@ -41,6 +38,7 @@ use crate::{
     mempool::Mempool,
     metrics::Metrics,
     service,
+    storage::Storage,
 };
 
 pub struct Sequencer;
@@ -72,15 +70,15 @@ impl Sequencer {
 
         let substore_prefixes = vec![penumbra_ibc::IBC_SUBSTORE_PREFIX];
 
-        let storage = cnidarium::Storage::load(
+        let storage = Storage::load(
             config.db_filepath.clone(),
             substore_prefixes
                 .into_iter()
-                .map(std::string::ToString::to_string)
+                .map(ToString::to_string)
                 .collect(),
+            metrics,
         )
         .await
-        .map_err(anyhow_to_eyre)
         .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
 
@@ -151,12 +149,16 @@ impl Sequencer {
             .wrap_err("grpc server task failed")?
             .wrap_err("grpc server failed")?;
         server_handle.abort();
+        // We don't care about the returned value - it's likely a `cancelled` error.
+        let _ = server_handle.await;
+        // Shut down storage.
+        storage.release().await;
         Ok(())
     }
 }
 
 fn start_grpc_server(
-    storage: &cnidarium::Storage,
+    storage: &Storage,
     mempool: Mempool,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
@@ -170,7 +172,7 @@ fn start_grpc_server(
     use penumbra_tower_trace::remote_addr;
     use tower_http::cors::CorsLayer;
 
-    let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
+    let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.inner());
     let sequencer_api = SequencerServer::new(storage.clone(), mempool);
     let cors_layer: CorsLayer = CorsLayer::permissive();
 

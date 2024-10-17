@@ -21,12 +21,13 @@ use crate::{
         Mempool,
         RemovalReason,
     },
+    storage::Storage,
 };
 
 #[tokio::test]
 async fn future_nonces_are_accepted() {
     // The mempool should allow future nonces.
-    let storage = cnidarium::TempStorage::new().await.unwrap();
+    let storage = Storage::new_temp().await;
     let snapshot = storage.latest_snapshot();
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
@@ -56,7 +57,7 @@ async fn future_nonces_are_accepted() {
 #[tokio::test]
 async fn rechecks_pass() {
     // The mempool should not fail rechecks of transactions.
-    let storage = cnidarium::TempStorage::new().await.unwrap();
+    let storage = Storage::new_temp().await;
     let snapshot = storage.latest_snapshot();
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
@@ -94,7 +95,7 @@ async fn can_reinsert_after_recheck_fail() {
     // The mempool should be able to re-insert a transaction after a recheck fails due to the
     // transaction being removed from the appside mempool. This is to allow users to re-insert
     // if they wish to do so.
-    let storage = cnidarium::TempStorage::new().await.unwrap();
+    let storage = Storage::new_temp().await;
     let snapshot = storage.latest_snapshot();
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
@@ -142,7 +143,7 @@ async fn recheck_adds_non_tracked_tx() {
     // The mempool should be able to insert a transaction on recheck if it isn't in the mempool.
     // This could happen in the case of a sequencer restart as the cometbft mempool persists but
     // the appside one does not.
-    let storage = cnidarium::TempStorage::new().await.unwrap();
+    let storage = Storage::new_temp().await;
     let snapshot = storage.latest_snapshot();
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));

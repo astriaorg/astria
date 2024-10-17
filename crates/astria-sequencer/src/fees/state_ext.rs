@@ -587,7 +587,6 @@ mod tests {
     use std::collections::HashSet;
 
     use astria_core::protocol::transaction::v1::action::Transfer;
-    use cnidarium::StateDelta;
     use futures::{
         StreamExt as _,
         TryStreamExt as _,
@@ -595,7 +594,10 @@ mod tests {
     use tokio::pin;
 
     use super::*;
-    use crate::app::benchmark_and_test_utils::initialize_app_with_storage;
+    use crate::{
+        app::benchmark_and_test_utils::initialize_app_with_storage,
+        storage::Storage,
+    };
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
@@ -612,22 +614,21 @@ mod tests {
     #[tokio::test]
     async fn block_fee_read_and_increase() {
         let (_, storage) = initialize_app_with_storage(None, vec![]).await;
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // doesn't exist at first
-        let fee_balances_orig = state.get_block_fees();
+        let fee_balances_orig = state_delta.get_block_fees();
         assert!(fee_balances_orig.is_empty());
 
         // can write
         let asset = asset_0();
         let amount = 100u128;
-        state
+        state_delta
             .add_fee_to_block_fees::<_, Transfer>(&asset, amount, 0)
             .unwrap();
 
         // holds expected
-        let fee_balances_updated = state.get_block_fees();
+        let fee_balances_updated = state_delta.get_block_fees();
         assert_eq!(
             fee_balances_updated[0],
             Fee {
@@ -643,8 +644,7 @@ mod tests {
     #[tokio::test]
     async fn block_fee_read_and_increase_can_delete() {
         let (_, storage) = initialize_app_with_storage(None, vec![]).await;
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // can write
         let asset_first = asset_0();
@@ -652,14 +652,14 @@ mod tests {
         let amount_first = 100u128;
         let amount_second = 200u128;
 
-        state
+        state_delta
             .add_fee_to_block_fees::<_, Transfer>(&asset_first, amount_first, 0)
             .unwrap();
-        state
+        state_delta
             .add_fee_to_block_fees::<_, Transfer>(&asset_second, amount_second, 1)
             .unwrap();
         // holds expected
-        let fee_balances = HashSet::<_>::from_iter(state.get_block_fees());
+        let fee_balances = HashSet::<_>::from_iter(state_delta.get_block_fees());
         assert_eq!(
             fee_balances,
             HashSet::from_iter(vec![
@@ -682,240 +682,241 @@ mod tests {
 
     #[tokio::test]
     async fn transfer_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = TransferFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_transfer_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_transfer_fees().await.unwrap();
+        state_delta.put_transfer_fees(fee_components).unwrap();
+        let retrieved_fee = state_delta.get_transfer_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn rollup_data_submission_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = RollupDataSubmissionFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state
+        state_delta
             .put_rollup_data_submission_fees(fee_components)
             .unwrap();
-        let retrieved_fee = state.get_rollup_data_submission_fees().await.unwrap();
+        let retrieved_fee = state_delta.get_rollup_data_submission_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn ics20_withdrawal_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = Ics20WithdrawalFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_ics20_withdrawal_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_ics20_withdrawal_fees().await.unwrap();
+        state_delta
+            .put_ics20_withdrawal_fees(fee_components)
+            .unwrap();
+        let retrieved_fee = state_delta.get_ics20_withdrawal_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn init_bridge_account_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = InitBridgeAccountFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_init_bridge_account_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_init_bridge_account_fees().await.unwrap();
+        state_delta
+            .put_init_bridge_account_fees(fee_components)
+            .unwrap();
+        let retrieved_fee = state_delta.get_init_bridge_account_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn bridge_lock_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = BridgeLockFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_bridge_lock_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_bridge_lock_fees().await.unwrap();
+        state_delta.put_bridge_lock_fees(fee_components).unwrap();
+        let retrieved_fee = state_delta.get_bridge_lock_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn bridge_unlock_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = BridgeUnlockFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_bridge_unlock_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_bridge_unlock_fees().await.unwrap();
+        state_delta.put_bridge_unlock_fees(fee_components).unwrap();
+        let retrieved_fee = state_delta.get_bridge_unlock_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn bridge_sudo_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = BridgeSudoChangeFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_bridge_sudo_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_bridge_sudo_change_fees().await.unwrap();
+        state_delta
+            .put_bridge_sudo_change_fees(fee_components)
+            .unwrap();
+        let retrieved_fee = state_delta.get_bridge_sudo_change_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn ibc_relay_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = IbcRelayFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_ibc_relay_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_ibc_relay_fees().await.unwrap();
+        state_delta.put_ibc_relay_fees(fee_components).unwrap();
+        let retrieved_fee = state_delta.get_ibc_relay_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn validator_update_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = ValidatorUpdateFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_validator_update_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_validator_update_fees().await.unwrap();
+        state_delta
+            .put_validator_update_fees(fee_components)
+            .unwrap();
+        let retrieved_fee = state_delta.get_validator_update_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn fee_asset_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = FeeAssetChangeFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_fee_asset_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_fee_asset_change_fees().await.unwrap();
+        state_delta
+            .put_fee_asset_change_fees(fee_components)
+            .unwrap();
+        let retrieved_fee = state_delta.get_fee_asset_change_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn fee_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = FeeChangeFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_fee_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_fee_change_fees().await.unwrap();
+        state_delta.put_fee_change_fees(fee_components).unwrap();
+        let retrieved_fee = state_delta.get_fee_change_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn ibc_relayer_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = IbcRelayerChangeFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_ibc_relayer_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_ibc_relayer_change_fees().await.unwrap();
+        state_delta
+            .put_ibc_relayer_change_fees(fee_components)
+            .unwrap();
+        let retrieved_fee = state_delta.get_ibc_relayer_change_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn sudo_address_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = SudoAddressChangeFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_sudo_address_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_sudo_address_change_fees().await.unwrap();
+        state_delta
+            .put_sudo_address_change_fees(fee_components)
+            .unwrap();
+        let retrieved_fee = state_delta.get_sudo_address_change_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn ibc_sudo_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let fee_components = IbcSudoChangeFeeComponents {
             base: 123,
             multiplier: 1,
         };
 
-        state.put_ibc_sudo_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_ibc_sudo_change_fees().await.unwrap();
+        state_delta
+            .put_ibc_sudo_change_fees(fee_components)
+            .unwrap();
+        let retrieved_fee = state_delta.get_ibc_sudo_change_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
     async fn is_allowed_fee_asset() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // non-existent fees assets return false
         let asset = asset_0();
         assert!(
-            !state
+            !state_delta
                 .is_allowed_fee_asset(&asset)
                 .await
                 .expect("checking for allowed fee asset should not fail"),
@@ -923,9 +924,9 @@ mod tests {
         );
 
         // existent fee assets return true
-        state.put_allowed_fee_asset(&asset).unwrap();
+        state_delta.put_allowed_fee_asset(&asset).unwrap();
         assert!(
-            state
+            state_delta
                 .is_allowed_fee_asset(&asset)
                 .await
                 .expect("checking for allowed fee asset should not fail"),
@@ -935,15 +936,14 @@ mod tests {
 
     #[tokio::test]
     async fn can_delete_allowed_fee_assets_simple() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // setup fee asset
         let asset = asset_0();
-        state.put_allowed_fee_asset(&asset).unwrap();
+        state_delta.put_allowed_fee_asset(&asset).unwrap();
         assert!(
-            state
+            state_delta
                 .is_allowed_fee_asset(&asset)
                 .await
                 .expect("checking for allowed fee asset should not fail"),
@@ -952,7 +952,7 @@ mod tests {
 
         // see can get fee asset
         pin!(
-            let assets = state.allowed_fee_assets();
+            let assets = state_delta.allowed_fee_assets();
         );
         assert_eq!(
             assets.next().await.transpose().unwrap(),
@@ -961,11 +961,11 @@ mod tests {
         );
 
         // can delete
-        state.delete_allowed_fee_asset(&asset);
+        state_delta.delete_allowed_fee_asset(&asset);
 
         // see is deleted
         pin!(
-            let assets = state.allowed_fee_assets();
+            let assets = state_delta.allowed_fee_assets();
         );
         assert_eq!(
             assets.next().await.transpose().unwrap(),
@@ -976,33 +976,32 @@ mod tests {
 
     #[tokio::test]
     async fn can_delete_allowed_fee_assets_complex() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // setup fee assets
         let asset_first = asset_0();
-        state.put_allowed_fee_asset(&asset_first).unwrap();
+        state_delta.put_allowed_fee_asset(&asset_first).unwrap();
         assert!(
-            state
+            state_delta
                 .is_allowed_fee_asset(&asset_first)
                 .await
                 .expect("checking for allowed fee asset should not fail"),
             "fee asset was expected to be allowed"
         );
         let asset_second = asset_1();
-        state.put_allowed_fee_asset(&asset_second).unwrap();
+        state_delta.put_allowed_fee_asset(&asset_second).unwrap();
         assert!(
-            state
+            state_delta
                 .is_allowed_fee_asset(&asset_second)
                 .await
                 .expect("checking for allowed fee asset should not fail"),
             "fee asset was expected to be allowed"
         );
         let asset_third = asset_2();
-        state.put_allowed_fee_asset(&asset_third).unwrap();
+        state_delta.put_allowed_fee_asset(&asset_third).unwrap();
         assert!(
-            state
+            state_delta
                 .is_allowed_fee_asset(&asset_third)
                 .await
                 .expect("checking for allowed fee asset should not fail"),
@@ -1010,10 +1009,10 @@ mod tests {
         );
 
         // can delete
-        state.delete_allowed_fee_asset(&asset_second);
+        state_delta.delete_allowed_fee_asset(&asset_second);
 
         // see is deleted
-        let assets = state
+        let assets = state_delta
             .allowed_fee_assets()
             .try_collect::<HashSet<_>>()
             .await

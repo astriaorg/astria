@@ -268,7 +268,6 @@ fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) ->
 #[cfg(test)]
 mod tests {
     use astria_core::primitive::v1::RollupId;
-    use cnidarium::StateDelta;
     use ibc_types::core::client::Height;
 
     use super::*;
@@ -279,13 +278,13 @@ mod tests {
             astria_address,
             ASTRIA_PREFIX,
         },
+        storage::Storage,
     };
 
     #[tokio::test]
     async fn sender_is_withdrawal_target_if_bridge_is_not_set_and_sender_is_not_bridge() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let state_delta = storage.new_delta_of_latest_snapshot();
 
         let denom = "test".parse::<Denom>().unwrap();
         let from = [1u8; 20];
@@ -304,7 +303,7 @@ mod tests {
         };
 
         assert_eq!(
-            *establish_withdrawal_target(&action, &state, &from)
+            *establish_withdrawal_target(&action, &state_delta, &from)
                 .await
                 .unwrap(),
             from
@@ -313,21 +312,22 @@ mod tests {
 
     #[tokio::test]
     async fn sender_is_withdrawal_target_if_bridge_is_unset_but_sender_is_bridge() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
 
         // sender is a bridge address, which is also the withdrawer, so it's ok
         let bridge_address = [1u8; 20];
-        state
+        state_delta
             .put_bridge_account_rollup_id(
                 &bridge_address,
                 RollupId::from_unhashed_bytes("testrollupid"),
             )
             .unwrap();
-        state
+        state_delta
             .put_bridge_account_withdrawer_address(&bridge_address, bridge_address)
             .unwrap();
 
@@ -347,7 +347,7 @@ mod tests {
         };
 
         assert_eyre_error(
-            &establish_withdrawal_target(&action, &state, &bridge_address)
+            &establish_withdrawal_target(&action, &state_delta, &bridge_address)
                 .await
                 .unwrap_err(),
             "sender cannot be a bridge address if bridge address is not set",
@@ -382,20 +382,21 @@ mod tests {
         }
 
         async fn run_test(action: action::Ics20Withdrawal) {
-            let storage = cnidarium::TempStorage::new().await.unwrap();
-            let snapshot = storage.latest_snapshot();
-            let mut state = StateDelta::new(snapshot);
+            let storage = Storage::new_temp().await;
+            let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-            state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+            state_delta
+                .put_base_prefix(ASTRIA_PREFIX.to_string())
+                .unwrap();
 
             // withdraw is *not* the bridge address, Ics20Withdrawal must be sent by the withdrawer
-            state
+            state_delta
                 .put_bridge_account_rollup_id(
                     &bridge_address(),
                     RollupId::from_unhashed_bytes("testrollupid"),
                 )
                 .unwrap();
-            state
+            state_delta
                 .put_bridge_account_withdrawer_address(
                     &bridge_address(),
                     astria_address(&[2u8; 20]),
@@ -403,7 +404,7 @@ mod tests {
                 .unwrap();
 
             assert_eyre_error(
-                &establish_withdrawal_target(&action, &state, &bridge_address())
+                &establish_withdrawal_target(&action, &state_delta, &bridge_address())
                     .await
                     .unwrap_err(),
                 "sender does not match bridge withdrawer address; unauthorized",
@@ -420,22 +421,23 @@ mod tests {
 
     #[tokio::test]
     async fn bridge_sender_is_withdrawal_target() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
 
         // sender the withdrawer address, so it's ok
         let bridge_address = [1u8; 20];
         let withdrawer_address = [2u8; 20];
-        state
+        state_delta
             .put_bridge_account_rollup_id(
                 &bridge_address,
                 RollupId::from_unhashed_bytes("testrollupid"),
             )
             .unwrap();
-        state
+        state_delta
             .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
             .unwrap();
 
@@ -455,7 +457,7 @@ mod tests {
         };
 
         assert_eq!(
-            *establish_withdrawal_target(&action, &state, &withdrawer_address)
+            *establish_withdrawal_target(&action, &state_delta, &withdrawer_address)
                 .await
                 .unwrap(),
             bridge_address,
@@ -464,9 +466,8 @@ mod tests {
 
     #[tokio::test]
     async fn bridge_is_rejected_as_withdrawal_target_because_it_has_no_withdrawer_address_set() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let state_delta = storage.new_delta_of_latest_snapshot();
 
         // sender is not the withdrawer address, so must fail
         let not_bridge_address = [1u8; 20];
@@ -487,7 +488,7 @@ mod tests {
         };
 
         assert_eyre_error(
-            &establish_withdrawal_target(&action, &state, &not_bridge_address)
+            &establish_withdrawal_target(&action, &state_delta, &not_bridge_address)
                 .await
                 .unwrap_err(),
             "bridge address must have a withdrawer address set",

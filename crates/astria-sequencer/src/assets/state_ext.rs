@@ -107,9 +107,8 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use cnidarium::StateDelta;
-
     use super::*;
+    use crate::storage::Storage;
 
     fn asset() -> asset::Denom {
         "asset".parse().unwrap()
@@ -124,21 +123,20 @@ mod tests {
 
     #[tokio::test]
     async fn native_asset() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // doesn't exist at first
         assert!(
-            state.get_native_asset().await.unwrap().is_none(),
+            state_delta.get_native_asset().await.unwrap().is_none(),
             "no native asset denom should exist at first"
         );
 
         // can write
         let denom_orig: asset::TracePrefixed = "denom_orig".parse().unwrap();
-        state.put_native_asset(denom_orig.clone()).unwrap();
+        state_delta.put_native_asset(denom_orig.clone()).unwrap();
         assert_eq!(
-            state.get_native_asset().await.unwrap().expect(
+            state_delta.get_native_asset().await.unwrap().expect(
                 "a native asset denomination was written and must exist inside the database"
             ),
             denom_orig,
@@ -147,9 +145,9 @@ mod tests {
 
         // can write new value
         let denom_update: asset::TracePrefixed = "denom_update".parse().unwrap();
-        state.put_native_asset(denom_update.clone()).unwrap();
+        state_delta.put_native_asset(denom_update.clone()).unwrap();
         assert_eq!(
-            state.get_native_asset().await.unwrap().expect(
+            state_delta.get_native_asset().await.unwrap().expect(
                 "a native asset denomination update was written and must exist inside the database"
             ),
             denom_update,
@@ -159,15 +157,14 @@ mod tests {
 
     #[tokio::test]
     async fn get_ibc_asset_non_existent() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let state_delta = storage.new_delta_of_latest_snapshot();
 
         let asset = asset();
 
         // gets for non existing assets should return none
         assert_eq!(
-            state
+            state_delta
                 .map_ibc_to_trace_prefixed_asset(&asset.to_ibc_prefixed())
                 .await
                 .expect("getting non existing asset should not fail"),
@@ -177,28 +174,27 @@ mod tests {
 
     #[tokio::test]
     async fn has_ibc_asset() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let denom = asset();
 
         // non existing calls are ok for 'has'
         assert!(
-            !state
+            !state_delta
                 .has_ibc_asset(&denom)
                 .await
                 .expect("'has' for non existing ibc assets should be ok"),
             "query for non existing asset should return false"
         );
 
-        state
+        state_delta
             .put_ibc_asset(denom.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
 
         // existing calls are ok for 'has'
         assert!(
-            state
+            state_delta
                 .has_ibc_asset(&denom)
                 .await
                 .expect("'has' for existing ibc assets should be ok"),
@@ -208,17 +204,16 @@ mod tests {
 
     #[tokio::test]
     async fn put_ibc_asset_simple() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // can write new
         let denom = asset();
-        state
+        state_delta
             .put_ibc_asset(denom.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
         assert_eq!(
-            state
+            state_delta
                 .map_ibc_to_trace_prefixed_asset(&denom.to_ibc_prefixed())
                 .await
                 .unwrap()
@@ -230,17 +225,16 @@ mod tests {
 
     #[tokio::test]
     async fn put_ibc_asset_complex() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // can write new
         let denom = asset_0();
-        state
+        state_delta
             .put_ibc_asset(denom.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
         assert_eq!(
-            state
+            state_delta
                 .map_ibc_to_trace_prefixed_asset(&denom.to_ibc_prefixed())
                 .await
                 .unwrap()
@@ -251,11 +245,11 @@ mod tests {
 
         // can write another without affecting original
         let denom_1 = asset_1();
-        state
+        state_delta
             .put_ibc_asset(denom_1.clone().unwrap_trace_prefixed())
             .expect("putting ibc asset should not fail");
         assert_eq!(
-            state
+            state_delta
                 .map_ibc_to_trace_prefixed_asset(&denom_1.to_ibc_prefixed())
                 .await
                 .unwrap()
@@ -264,7 +258,7 @@ mod tests {
             "additional ibc asset was not what was expected"
         );
         assert_eq!(
-            state
+            state_delta
                 .map_ibc_to_trace_prefixed_asset(&denom.to_ibc_prefixed())
                 .await
                 .unwrap()

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Provide and use new `Storage` struct, wrapping `cnidarium::Storage` [#1801](https://github.com/astriaorg/astria/pull/1801).
+- Provide and use new `Snapshot` struct, wrapping `cnidarium::Snapshot` and
+holding a cache of recently-read values [#1801](https://github.com/astriaorg/astria/pull/1801).
+
 ## [1.0.0] - 2024-10-25
 
 ### Changed

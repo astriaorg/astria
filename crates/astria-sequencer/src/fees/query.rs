@@ -24,10 +24,7 @@ use astria_eyre::eyre::{
     OptionExt as _,
     WrapErr as _,
 };
-use cnidarium::{
-    StateRead,
-    Storage,
-};
+use cnidarium::StateRead;
 use futures::{
     FutureExt as _,
     StreamExt as _,
@@ -57,6 +54,7 @@ use super::{
 use crate::{
     app::StateReadExt as _,
     assets::StateReadExt as _,
+    storage::Storage,
 };
 
 async fn find_trace_prefixed_or_return_ibc<S: StateRead>(

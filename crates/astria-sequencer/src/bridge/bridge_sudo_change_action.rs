@@ -85,7 +85,6 @@ mod tests {
         },
         protocol::fees::v1::BridgeSudoChangeFeeComponents,
     };
-    use cnidarium::StateDelta;
 
     use super::*;
     use crate::{
@@ -96,6 +95,7 @@ mod tests {
             ASTRIA_PREFIX,
         },
         fees::StateWriteExt as _,
+        storage::Storage,
         transaction::{
             StateWriteExt as _,
             TransactionContext,
@@ -108,23 +108,24 @@ mod tests {
 
     #[tokio::test]
     async fn fails_with_unauthorized_if_signer_is_not_sudo_address() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state.put_transaction_context(TransactionContext {
+        state_delta.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
 
         let asset = test_asset();
-        state.put_allowed_fee_asset(&asset).unwrap();
+        state_delta.put_allowed_fee_asset(&asset).unwrap();
 
         let bridge_address = astria_address(&[99; 20]);
         let sudo_address = astria_address(&[98; 20]);
-        state
+        state_delta
             .put_bridge_account_sudo_address(&bridge_address, sudo_address)
             .unwrap();
 
@@ -137,7 +138,7 @@ mod tests {
 
         assert!(
             action
-                .check_and_execute(state)
+                .check_and_execute(state_delta)
                 .await
                 .unwrap_err()
                 .to_string()
@@ -147,18 +148,19 @@ mod tests {
 
     #[tokio::test]
     async fn executes() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let sudo_address = astria_address(&[98; 20]);
-        state.put_transaction_context(TransactionContext {
+        state_delta.put_transaction_context(TransactionContext {
             address_bytes: sudo_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
         });
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta
             .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
                 base: 10,
                 multiplier: 0,
@@ -166,17 +168,17 @@ mod tests {
             .unwrap();
 
         let fee_asset = test_asset();
-        state.put_allowed_fee_asset(&fee_asset).unwrap();
+        state_delta.put_allowed_fee_asset(&fee_asset).unwrap();
 
         let bridge_address = astria_address(&[99; 20]);
 
-        state
+        state_delta
             .put_bridge_account_sudo_address(&bridge_address, sudo_address)
             .unwrap();
 
         let new_sudo_address = astria_address(&[98; 20]);
         let new_withdrawer_address = astria_address(&[97; 20]);
-        state
+        state_delta
             .put_account_balance(&bridge_address, &fee_asset, 10)
             .unwrap();
 
@@ -187,17 +189,17 @@ mod tests {
             fee_asset,
         };
 
-        action.check_and_execute(&mut state).await.unwrap();
+        action.check_and_execute(&mut state_delta).await.unwrap();
 
         assert_eq!(
-            state
+            state_delta
                 .get_bridge_account_sudo_address(&bridge_address)
                 .await
                 .unwrap(),
             Some(new_sudo_address.bytes()),
         );
         assert_eq!(
-            state
+            state_delta
                 .get_bridge_account_withdrawer_address(&bridge_address)
                 .await
                 .unwrap(),

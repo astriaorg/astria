@@ -38,7 +38,6 @@ use std::{
     pin::Pin,
 };
 
-use cnidarium::Storage;
 use matchit::{
     InsertError,
     Match,
@@ -48,6 +47,8 @@ use tendermint::abci::{
     request,
     response,
 };
+
+use crate::storage::Storage;
 
 /// `Router` is a wrapper around [`matchit::Router`] to route abci queries
 /// to handlers.

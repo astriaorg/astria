@@ -12,7 +12,6 @@ use astria_core::{
     },
     Protobuf,
 };
-use cnidarium::Storage;
 
 use crate::{
     app::{
@@ -29,6 +28,7 @@ use crate::{
         SIGNER_COUNT,
     },
     proposal::block_size_constraints::BlockSizeConstraints,
+    storage::Storage,
 };
 
 /// The max time for any benchmark.

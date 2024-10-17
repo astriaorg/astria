@@ -38,25 +38,20 @@ use astria_core::{
     sequencerblock::v1::block::SequencerBlock,
     Protobuf as _,
 };
-use astria_eyre::{
-    anyhow_to_eyre,
-    eyre::{
-        bail,
-        ensure,
-        eyre,
-        OptionExt as _,
-        Result,
-        WrapErr as _,
-    },
+use astria_eyre::eyre::{
+    bail,
+    ensure,
+    eyre,
+    OptionExt as _,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::{
-    ArcStateDeltaExt,
-    Snapshot,
+    ArcStateDeltaExt as _,
     StagedWriteBatch,
     StateDelta,
     StateRead,
     StateWrite,
-    Storage,
 };
 use prost::Message as _;
 use sha2::{
@@ -127,6 +122,10 @@ use crate::{
             GeneratedCommitments,
         },
     },
+    storage::{
+        Snapshot,
+        Storage,
+    },
     transaction::InvalidNonce,
 };
 
@@ -184,7 +183,7 @@ impl From<abci::request::ProcessProposal> for ProposalFingerprint {
 ///
 /// [Penumbra reference]: https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42
 pub(crate) struct App {
-    state: InterBlockState,
+    state_delta: InterBlockState,
 
     // The mempool of the application.
     //
@@ -246,7 +245,6 @@ impl App {
         let app_hash: AppHash = snapshot
             .root_hash()
             .await
-            .map_err(anyhow_to_eyre)
             .wrap_err("failed to get current root hash")?
             .0
             .to_vec()
@@ -255,10 +253,10 @@ impl App {
 
         // We perform the `Arc` wrapping of `State` here to ensure
         // there should be no unexpected copies elsewhere.
-        let state = Arc::new(StateDelta::new(snapshot));
+        let state_delta = Arc::new(snapshot.new_delta());
 
         Ok(Self {
-            state,
+            state_delta,
             mempool,
             executed_proposal_fingerprint: None,
             executed_proposal_hash: Hash::default(),
@@ -277,43 +275,43 @@ impl App {
         genesis_validators: Vec<ValidatorUpdate>,
         chain_id: String,
     ) -> Result<AppHash> {
-        let mut state_tx = self
-            .state
+        let mut delta_delta = self
+            .state_delta
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
-        state_tx
+        delta_delta
             .put_base_prefix(genesis_state.address_prefixes().base().to_string())
             .wrap_err("failed to write base prefix to state")?;
-        state_tx
+        delta_delta
             .put_ibc_compat_prefix(genesis_state.address_prefixes().ibc_compat().to_string())
             .wrap_err("failed to write ibc-compat prefix to state")?;
 
         if let Some(native_asset) = genesis_state.native_asset_base_denomination() {
-            state_tx
+            delta_delta
                 .put_native_asset(native_asset.clone())
                 .wrap_err("failed to write native asset to state")?;
-            state_tx
+            delta_delta
                 .put_ibc_asset(native_asset.clone())
                 .wrap_err("failed to commit native asset as ibc asset to state")?;
         }
 
-        state_tx
+        delta_delta
             .put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?)
             .wrap_err("failed to write chain id to state")?;
-        state_tx
+        delta_delta
             .put_block_height(0)
             .wrap_err("failed to write block height to state")?;
 
         // call init_chain on all components
-        FeesComponent::init_chain(&mut state_tx, &genesis_state)
+        FeesComponent::init_chain(&mut delta_delta, &genesis_state)
             .await
             .wrap_err("init_chain failed on FeesComponent")?;
-        AccountsComponent::init_chain(&mut state_tx, &genesis_state)
+        AccountsComponent::init_chain(&mut delta_delta, &genesis_state)
             .await
             .wrap_err("init_chain failed on AccountsComponent")?;
         AuthorityComponent::init_chain(
-            &mut state_tx,
+            &mut delta_delta,
             &AuthorityComponentAppState {
                 authority_sudo_address: *genesis_state.authority_sudo_address(),
                 genesis_validators,
@@ -321,11 +319,11 @@ impl App {
         )
         .await
         .wrap_err("init_chain failed on AuthorityComponent")?;
-        IbcComponent::init_chain(&mut state_tx, &genesis_state)
+        IbcComponent::init_chain(&mut delta_delta, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
 
-        state_tx.apply();
+        delta_delta.apply();
 
         let app_hash = self
             .prepare_commit(storage)
@@ -342,7 +340,7 @@ impl App {
         // if the previous round was committed, then the state stays the same.
         //
         // this also clears the ephemeral storage.
-        self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+        self.state_delta = Arc::new(storage.new_delta_of_latest_snapshot());
 
         // clear the cached executed proposal hash
         self.executed_proposal_hash = Hash::default();
@@ -391,7 +389,7 @@ impl App {
         self.metrics
             .record_proposal_transactions(signed_txs_included.len());
 
-        let deposits = self.state.get_cached_block_deposits();
+        let deposits = self.state_delta.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
@@ -429,7 +427,7 @@ impl App {
                 // `SequencerBlock` and to set `self.finalize_block`.
                 //
                 // we can't run this in `prepare_proposal` as we don't know the block hash there.
-                let Some(tx_results) = self.state.object_get(EXECUTION_RESULTS_KEY) else {
+                let Some(tx_results) = self.state_delta.object_get(EXECUTION_RESULTS_KEY) else {
                     bail!("execution results must be present after executing transactions")
                 };
 
@@ -515,7 +513,7 @@ impl App {
         );
         self.metrics.record_proposal_transactions(signed_txs.len());
 
-        let deposits = self.state.get_cached_block_deposits();
+        let deposits = self.state_delta.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         let GeneratedCommitments {
@@ -584,7 +582,7 @@ impl App {
         // get copy of transactions to execute from mempool
         let pending_txs = self
             .mempool
-            .builder_queue(&self.state)
+            .builder_queue(&self.state_delta)
             .await
             .expect("failed to fetch pending transactions");
 
@@ -726,10 +724,10 @@ impl App {
         // to the ephemeral store.
         // this is okay as we should have the only reference to the state
         // at this point.
-        let mut state_tx = Arc::try_begin_transaction(&mut self.state)
+        let mut delta_delta = Arc::try_begin_transaction(&mut self.state_delta)
             .expect("state Arc should not be referenced elsewhere");
-        state_tx.object_put(EXECUTION_RESULTS_KEY, execution_results);
-        let _ = state_tx.apply();
+        delta_delta.object_put(EXECUTION_RESULTS_KEY, execution_results);
+        let _ = delta_delta.apply();
 
         Ok((validated_txs, included_signed_txs))
     }
@@ -827,7 +825,7 @@ impl App {
     #[instrument(name = "App::pre_execute_transactions", skip_all, err)]
     async fn pre_execute_transactions(&mut self, block_data: BlockData) -> Result<()> {
         let chain_id = self
-            .state
+            .state_delta
             .get_chain_id()
             .await
             .wrap_err("failed to get chain ID from state")?;
@@ -894,12 +892,12 @@ impl App {
         };
 
         let chain_id = self
-            .state
+            .state_delta
             .get_chain_id()
             .await
             .wrap_err("failed to get chain ID from state")?;
         let sudo_address = self
-            .state
+            .state_delta
             .get_sudo_address()
             .await
             .wrap_err("failed to get sudo address from state")?;
@@ -907,14 +905,14 @@ impl App {
         let end_block = self.end_block(height.value(), &sudo_address).await?;
 
         // get deposits for this block from state's ephemeral cache and put them to storage.
-        let mut state_tx = StateDelta::new(self.state.clone());
-        let deposits_in_this_block = self.state.get_cached_block_deposits();
+        let mut delta_delta = StateDelta::new(self.state_delta.clone());
+        let deposits_in_this_block = self.state_delta.get_cached_block_deposits();
         debug!(
             deposits = %telemetry::display::json(&deposits_in_this_block),
             "got block deposits from state"
         );
 
-        state_tx
+        delta_delta
             .put_deposits(&block_hash, deposits_in_this_block.clone())
             .wrap_err("failed to put deposits to state")?;
 
@@ -937,7 +935,7 @@ impl App {
             deposits_in_this_block,
         )
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
-        state_tx
+        delta_delta
             .put_sequencer_block(sequencer_block)
             .wrap_err("failed to write sequencer block to state")?;
 
@@ -948,11 +946,11 @@ impl App {
             tx_results: finalize_block_tx_results,
         };
 
-        state_tx.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
+        delta_delta.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
 
         // events that occur after end_block are ignored here;
         // there should be none anyways.
-        let _ = self.apply(state_tx);
+        let _ = self.apply(delta_delta);
 
         Ok(())
     }
@@ -1050,11 +1048,15 @@ impl App {
         if self.recost_mempool {
             self.metrics.increment_mempool_recosted();
         }
-        update_mempool_after_finalization(&mut self.mempool, &self.state, self.recost_mempool)
-            .await;
+        update_mempool_after_finalization(
+            &mut self.mempool,
+            &self.state_delta,
+            self.recost_mempool,
+        )
+        .await;
 
         let post_transaction_execution_result: PostTransactionExecutionResult = self
-            .state
+            .state_delta
             .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
             .expect(
                 "post_transaction_execution_result must be present, as txs were already executed \
@@ -1080,17 +1082,20 @@ impl App {
     #[instrument(skip_all, err)]
     async fn prepare_commit(&mut self, storage: Storage) -> Result<AppHash> {
         // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
-        let dummy_state = StateDelta::new(storage.latest_snapshot());
-        let mut state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
-            .expect("we have exclusive ownership of the State at commit()");
+        let dummy_state = storage.new_delta_of_latest_snapshot();
+        let mut state_delta = Arc::try_unwrap(std::mem::replace(
+            &mut self.state_delta,
+            Arc::new(dummy_state),
+        ))
+        .expect("we have exclusive ownership of the State at commit()");
 
         // store the storage version indexed by block height
         let new_version = storage.latest_version().wrapping_add(1);
-        let height = state
+        let height = state_delta
             .get_block_height()
             .await
             .expect("block height must be set, as `put_block_height` was already called");
-        state
+        state_delta
             .put_storage_version_by_height(height, new_version)
             .wrap_err("failed to put storage version by height")?;
         debug!(
@@ -1100,9 +1105,8 @@ impl App {
         );
 
         let write_batch = storage
-            .prepare_commit(state)
+            .prepare_commit(state_delta)
             .await
-            .map_err(anyhow_to_eyre)
             .wrap_err("failed to prepare commit")?;
         let app_hash: AppHash = write_batch
             .root_hash()
@@ -1119,34 +1123,34 @@ impl App {
         &mut self,
         begin_block: &abci::request::BeginBlock,
     ) -> Result<Vec<abci::Event>> {
-        let mut state_tx = StateDelta::new(self.state.clone());
+        let mut delta_delta = StateDelta::new(self.state_delta.clone());
 
-        state_tx
+        delta_delta
             .put_block_height(begin_block.header.height.into())
             .wrap_err("failed to put block height")?;
-        state_tx
+        delta_delta
             .put_block_timestamp(begin_block.header.time)
             .wrap_err("failed to put block timestamp")?;
 
         // call begin_block on all components
-        let mut arc_state_tx = Arc::new(state_tx);
-        AccountsComponent::begin_block(&mut arc_state_tx, begin_block)
+        let mut arc_delta_delta = Arc::new(delta_delta);
+        AccountsComponent::begin_block(&mut arc_delta_delta, begin_block)
             .await
             .wrap_err("begin_block failed on AccountsComponent")?;
-        AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
+        AuthorityComponent::begin_block(&mut arc_delta_delta, begin_block)
             .await
             .wrap_err("begin_block failed on AuthorityComponent")?;
-        IbcComponent::begin_block(&mut arc_state_tx, begin_block)
+        IbcComponent::begin_block(&mut arc_delta_delta, begin_block)
             .await
             .wrap_err("begin_block failed on IbcComponent")?;
-        FeesComponent::begin_block(&mut arc_state_tx, begin_block)
+        FeesComponent::begin_block(&mut arc_delta_delta, begin_block)
             .await
             .wrap_err("begin_block failed on FeesComponent")?;
 
-        let state_tx = Arc::try_unwrap(arc_state_tx)
+        let delta_delta = Arc::try_unwrap(arc_delta_delta)
             .expect("components should not retain copies of shared state");
 
-        Ok(self.apply(state_tx))
+        Ok(self.apply(delta_delta))
     }
 
     /// Executes a signed transaction.
@@ -1157,13 +1161,13 @@ impl App {
             .await
             .wrap_err("stateless check failed")?;
 
-        let mut state_tx = self
-            .state
+        let mut delta_delta = self
+            .state_delta
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
         signed_tx
-            .check_and_execute(&mut state_tx)
+            .check_and_execute(&mut delta_delta)
             .await
             .wrap_err("failed executing transaction")?;
 
@@ -1175,7 +1179,7 @@ impl App {
                     .iter()
                     .any(|act| act.is_fee_asset_change() || act.is_fee_change());
 
-        Ok(state_tx.apply().1)
+        Ok(delta_delta.apply().1)
     }
 
     #[instrument(name = "App::end_block", skip_all)]
@@ -1184,8 +1188,8 @@ impl App {
         height: u64,
         fee_recipient: &[u8; 20],
     ) -> Result<abci::response::EndBlock> {
-        let state_tx = StateDelta::new(self.state.clone());
-        let mut arc_state_tx = Arc::new(state_tx);
+        let delta_delta = StateDelta::new(self.state_delta.clone());
+        let mut arc_delta_delta = Arc::new(delta_delta);
 
         let end_block = abci::request::EndBlock {
             height: height
@@ -1194,43 +1198,43 @@ impl App {
         };
 
         // call end_block on all components
-        AccountsComponent::end_block(&mut arc_state_tx, &end_block)
+        AccountsComponent::end_block(&mut arc_delta_delta, &end_block)
             .await
             .wrap_err("end_block failed on AccountsComponent")?;
-        AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
+        AuthorityComponent::end_block(&mut arc_delta_delta, &end_block)
             .await
             .wrap_err("end_block failed on AuthorityComponent")?;
-        FeesComponent::end_block(&mut arc_state_tx, &end_block)
+        FeesComponent::end_block(&mut arc_delta_delta, &end_block)
             .await
             .wrap_err("end_block failed on FeesComponent")?;
-        IbcComponent::end_block(&mut arc_state_tx, &end_block)
+        IbcComponent::end_block(&mut arc_delta_delta, &end_block)
             .await
             .wrap_err("end_block failed on IbcComponent")?;
 
-        let mut state_tx = Arc::try_unwrap(arc_state_tx)
+        let mut delta_delta = Arc::try_unwrap(arc_delta_delta)
             .expect("components should not retain copies of shared state");
 
         // gather and return validator updates
         let validator_updates = self
-            .state
+            .state_delta
             .get_validator_updates()
             .await
             .expect("failed getting validator updates");
 
         // clear validator updates
-        state_tx.clear_validator_updates();
+        delta_delta.clear_validator_updates();
 
         // gather block fees and transfer them to the block proposer
-        let fees = self.state.get_block_fees();
+        let fees = self.state_delta.get_block_fees();
 
         for fee in fees {
-            state_tx
+            delta_delta
                 .increase_balance(fee_recipient, fee.asset(), fee.amount())
                 .await
                 .wrap_err("failed to increase fee recipient balance")?;
         }
 
-        let events = self.apply(state_tx);
+        let events = self.apply(delta_delta);
         Ok(abci::response::EndBlock {
             validator_updates: validator_updates
                 .try_into_cometbft()
@@ -1259,7 +1263,7 @@ impl App {
             .expect("root hash to app hash conversion must succeed");
 
         // Get the latest version of the state, now that we've committed it.
-        self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+        self.state_delta = Arc::new(storage.new_delta_of_latest_snapshot());
     }
 
     // StateDelta::apply only works when the StateDelta wraps an underlying
@@ -1268,16 +1272,16 @@ impl App {
     // access. This method "externally" applies the state delta to the
     // inter-block state.
     //
-    // Invariant: state_tx and self.state are the only two references to the
+    // Invariant: delta_delta and self.state are the only two references to the
     // inter-block state.
-    fn apply(&mut self, state_tx: StateDelta<InterBlockState>) -> Vec<Event> {
-        let (state2, mut cache) = state_tx.flatten();
-        std::mem::drop(state2);
+    fn apply(&mut self, delta_delta: StateDelta<InterBlockState>) -> Vec<Event> {
+        let (state2, mut cache) = delta_delta.flatten();
+        drop(state2);
         // Now there is only one reference to the inter-block state: self.state
 
         let events = cache.take_events();
         cache.apply_to(
-            Arc::get_mut(&mut self.state).expect("no other references to inter-block state"),
+            Arc::get_mut(&mut self.state_delta).expect("no other references to inter-block state"),
         );
 
         events

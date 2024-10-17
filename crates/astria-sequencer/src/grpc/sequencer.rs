@@ -14,7 +14,6 @@ use astria_core::{
     Protobuf,
 };
 use bytes::Bytes;
-use cnidarium::Storage;
 use tonic::{
     Request,
     Response,
@@ -30,6 +29,7 @@ use crate::{
     app::StateReadExt as _,
     grpc::StateReadExt as _,
     mempool::Mempool,
+    storage::Storage,
 };
 
 pub(crate) struct SequencerServer {
@@ -225,7 +225,6 @@ mod tests {
         protocol::test_utils::ConfigureSequencerBlock,
         sequencerblock::v1::SequencerBlock,
     };
-    use cnidarium::StateDelta;
     use telemetry::Metrics;
 
     use super::*;
@@ -253,13 +252,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_sequencer_block() {
         let block = make_test_sequencer_block(1);
-        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);
-        let mut state_tx = StateDelta::new(storage.latest_snapshot());
-        state_tx.put_block_height(1).unwrap();
-        state_tx.put_sequencer_block(block).unwrap();
-        storage.commit(state_tx).await.unwrap();
+        state_delta.put_block_height(1).unwrap();
+        state_delta.put_sequencer_block(block).unwrap();
+        storage.commit(state_delta).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
         let request = GetSequencerBlockRequest {
@@ -272,7 +271,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_pending_nonce_in_mempool() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let storage = Storage::new_temp().await;
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);
 
@@ -323,14 +322,14 @@ mod tests {
     async fn get_pending_nonce_in_storage() {
         use crate::accounts::StateWriteExt as _;
 
-        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);
-        let mut state_tx = StateDelta::new(storage.latest_snapshot());
         let alice = get_alice_signing_key();
         let alice_address = astria_address(&alice.address_bytes());
-        state_tx.put_account_nonce(&alice_address, 99).unwrap();
-        storage.commit(state_tx).await.unwrap();
+        state_delta.put_account_nonce(&alice_address, 99).unwrap();
+        storage.commit(state_delta).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
         let request = GetPendingNonceRequest {

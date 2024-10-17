@@ -32,11 +32,7 @@ use astria_core::{
     Protobuf,
 };
 use astria_eyre::eyre::WrapErr as _;
-use cnidarium::{
-    Snapshot,
-    StateDelta,
-    Storage,
-};
+use cnidarium::StateDelta;
 use telemetry::Metrics as _;
 
 use crate::{
@@ -50,6 +46,10 @@ use crate::{
     fees::StateWriteExt as _,
     mempool::Mempool,
     metrics::Metrics,
+    storage::{
+        Snapshot,
+        Storage,
+    },
 };
 
 pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
@@ -164,9 +164,7 @@ pub(crate) async fn initialize_app_with_storage(
     genesis_state: Option<GenesisAppState>,
     genesis_validators: Vec<ValidatorUpdate>,
 ) -> (App, Storage) {
-    let storage = cnidarium::TempStorage::new()
-        .await
-        .expect("failed to create temp storage backing chain state");
+    let storage = Storage::new_temp().await;
     let snapshot = storage.latest_snapshot();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mempool = Mempool::new(metrics, 100);
@@ -292,30 +290,29 @@ pub(crate) fn mock_state_put_account_nonce(
     reason = "lines come from necessary fees setup"
 )]
 pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
-    let storage = cnidarium::TempStorage::new().await.unwrap();
-    let snapshot = storage.latest_snapshot();
-    let mut state: StateDelta<cnidarium::Snapshot> = StateDelta::new(snapshot);
+    let storage = Storage::new_temp().await;
+    let mut state_delta = storage.new_delta_of_latest_snapshot();
 
     // setup denoms
-    state
+    state_delta
         .put_ibc_asset(denom_0().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_1().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_2().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_3().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_4().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_5().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_6().unwrap_trace_prefixed())
         .unwrap();
 
@@ -325,7 +322,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_transfer_fees(transfer_fees)
         .wrap_err("failed to initiate transfer fee components")
         .unwrap();
@@ -334,7 +331,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: MOCK_SEQUENCE_FEE,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_rollup_data_submission_fees(rollup_data_submission_fees)
         .wrap_err("failed to initiate sequence action fee components")
         .unwrap();
@@ -343,7 +340,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
         .wrap_err("failed to initiate ics20 withdrawal fee components")
         .unwrap();
@@ -352,7 +349,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_init_bridge_account_fees(init_bridge_account_fees)
         .wrap_err("failed to initiate init bridge account fee components")
         .unwrap();
@@ -361,7 +358,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_bridge_lock_fees(bridge_lock_fees)
         .wrap_err("failed to initiate bridge lock fee components")
         .unwrap();
@@ -370,7 +367,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_bridge_unlock_fees(bridge_unlock_fees)
         .wrap_err("failed to initiate bridge unlock fee components")
         .unwrap();
@@ -379,7 +376,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
         .wrap_err("failed to initiate bridge sudo change fee components")
         .unwrap();
@@ -388,7 +385,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_ibc_relay_fees(ibc_relay_fees)
         .wrap_err("failed to initiate ibc relay fee components")
         .unwrap();
@@ -397,7 +394,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_validator_update_fees(validator_update_fees)
         .wrap_err("failed to initiate validator update fee components")
         .unwrap();
@@ -406,7 +403,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_fee_asset_change_fees(fee_asset_change_fees)
         .wrap_err("failed to initiate fee asset change fee components")
         .unwrap();
@@ -415,7 +412,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_fee_change_fees(fee_change_fees)
         .wrap_err("failed to initiate fee change fees fee components")
         .unwrap();
@@ -424,7 +421,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_ibc_relayer_change_fees(ibc_relayer_change_fees)
         .wrap_err("failed to initiate ibc relayer change fee components")
         .unwrap();
@@ -433,7 +430,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_sudo_address_change_fees(sudo_address_change_fees)
         .wrap_err("failed to initiate sudo address change fee components")
         .unwrap();
@@ -442,13 +439,13 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         base: 0,
         multiplier: 0,
     };
-    state
+    state_delta
         .put_ibc_sudo_change_fees(ibc_sudo_change_fees)
         .wrap_err("failed to initiate ibc sudo change fee components")
         .unwrap();
 
     // put denoms as allowed fee asset
-    state.put_allowed_fee_asset(&denom_0()).unwrap();
+    state_delta.put_allowed_fee_asset(&denom_0()).unwrap();
 
-    state
+    state_delta
 }

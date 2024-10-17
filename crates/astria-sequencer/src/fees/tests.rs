@@ -31,7 +31,6 @@ use astria_core::{
     },
     sequencerblock::v1::block::Deposit,
 };
-use cnidarium::StateDelta;
 
 use super::base_deposit_fee;
 use crate::{
@@ -61,6 +60,7 @@ use crate::{
         StateWriteExt as _,
         DEPOSIT_BASE_FEE,
     },
+    storage::Storage,
     test_utils::calculate_rollup_data_submission_fee_from_state,
     transaction::{
         StateWriteExt as _,
@@ -75,10 +75,9 @@ fn test_asset() -> asset::Denom {
 #[tokio::test]
 async fn ensure_correct_block_fees_transfer() {
     let (_, storage) = initialize_app_with_storage(None, vec![]).await;
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
+    let mut state_delta = storage.new_delta_of_latest_snapshot();
     let transfer_base = 1;
-    state
+    state_delta
         .put_transfer_fees(TransferFeeComponents {
             base: transfer_base,
             multiplier: 0,
@@ -103,9 +102,9 @@ async fn ensure_correct_block_fees_transfer() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
+    signed_tx.check_and_execute(&mut state_delta).await.unwrap();
 
-    let total_block_fees: u128 = state
+    let total_block_fees: u128 = state_delta
         .get_block_fees()
         .into_iter()
         .map(|fee| fee.amount())
@@ -116,9 +115,8 @@ async fn ensure_correct_block_fees_transfer() {
 #[tokio::test]
 async fn ensure_correct_block_fees_sequence() {
     let (_, storage) = initialize_app_with_storage(None, vec![]).await;
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
-    state
+    let mut state_delta = storage.new_delta_of_latest_snapshot();
+    state_delta
         .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
             base: 1,
             multiplier: 1,
@@ -143,23 +141,22 @@ async fn ensure_correct_block_fees_sequence() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
-    let total_block_fees: u128 = state
+    signed_tx.check_and_execute(&mut state_delta).await.unwrap();
+    let total_block_fees: u128 = state_delta
         .get_block_fees()
         .into_iter()
         .map(|fee| fee.amount())
         .sum();
-    let expected_fees = calculate_rollup_data_submission_fee_from_state(&data, &state).await;
+    let expected_fees = calculate_rollup_data_submission_fee_from_state(&data, &state_delta).await;
     assert_eq!(total_block_fees, expected_fees);
 }
 
 #[tokio::test]
 async fn ensure_correct_block_fees_init_bridge_acct() {
     let (_, storage) = initialize_app_with_storage(None, vec![]).await;
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
+    let mut state_delta = storage.new_delta_of_latest_snapshot();
     let init_bridge_account_base = 1;
-    state
+    state_delta
         .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
             base: init_bridge_account_base,
             multiplier: 0,
@@ -185,9 +182,9 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
+    signed_tx.check_and_execute(&mut state_delta).await.unwrap();
 
-    let total_block_fees: u128 = state
+    let total_block_fees: u128 = state_delta
         .get_block_fees()
         .into_iter()
         .map(|fee| fee.amount())
@@ -204,28 +201,27 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let starting_index_of_action = 0;
 
     let (_, storage) = initialize_app_with_storage(None, vec![]).await;
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
+    let mut state_delta = storage.new_delta_of_latest_snapshot();
 
     let transfer_base = 1;
     let bridge_lock_byte_cost_multiplier = 1;
 
-    state
+    state_delta
         .put_transfer_fees(TransferFeeComponents {
             base: transfer_base,
             multiplier: 0,
         })
         .unwrap();
-    state
+    state_delta
         .put_bridge_lock_fees(BridgeLockFeeComponents {
             base: transfer_base,
             multiplier: bridge_lock_byte_cost_multiplier,
         })
         .unwrap();
-    state
+    state_delta
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
         .unwrap();
-    state
+    state_delta
         .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
 
@@ -246,7 +242,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
+    signed_tx.check_and_execute(&mut state_delta).await.unwrap();
 
     let test_deposit = Deposit {
         bridge_address,
@@ -258,7 +254,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
         source_action_index: starting_index_of_action,
     };
 
-    let total_block_fees: u128 = state
+    let total_block_fees: u128 = state_delta
         .get_block_fees()
         .into_iter()
         .map(|fee| fee.amount())
@@ -277,20 +273,19 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
     let bridge_address = astria_address(&bridge.address_bytes());
 
     let (_, storage) = initialize_app_with_storage(None, vec![]).await;
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
+    let mut state_delta = storage.new_delta_of_latest_snapshot();
 
     let sudo_change_base = 1;
-    state
+    state_delta
         .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
             base: sudo_change_base,
             multiplier: 0,
         })
         .unwrap();
-    state
+    state_delta
         .put_bridge_account_sudo_address(&bridge_address, alice_address)
         .unwrap();
-    state
+    state_delta
         .increase_balance(&bridge_address, &nria(), 1)
         .await
         .unwrap();
@@ -311,9 +306,9 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
+    signed_tx.check_and_execute(&mut state_delta).await.unwrap();
 
-    let total_block_fees: u128 = state
+    let total_block_fees: u128 = state_delta
         .get_block_fees()
         .into_iter()
         .map(|fee| fee.amount())
@@ -323,31 +318,32 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
 
 #[tokio::test]
 async fn bridge_lock_fee_calculation_works_as_expected() {
-    let storage = cnidarium::TempStorage::new().await.unwrap();
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
+    let storage = Storage::new_temp().await;
+    let mut state_delta = storage.new_delta_of_latest_snapshot();
     let transfer_fee = 12;
 
     let from_address = astria_address(&[2; 20]);
     let transaction_id = TransactionId::new([0; 32]);
-    state.put_transaction_context(TransactionContext {
+    state_delta.put_transaction_context(TransactionContext {
         address_bytes: from_address.bytes(),
         transaction_id,
         source_action_index: 0,
     });
-    state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+    state_delta
+        .put_base_prefix(ASTRIA_PREFIX.to_string())
+        .unwrap();
 
     let transfer_fees = TransferFeeComponents {
         base: transfer_fee,
         multiplier: 0,
     };
-    state.put_transfer_fees(transfer_fees).unwrap();
+    state_delta.put_transfer_fees(transfer_fees).unwrap();
 
     let bridge_lock_fees = BridgeLockFeeComponents {
         base: transfer_fee,
         multiplier: 2,
     };
-    state.put_bridge_lock_fees(bridge_lock_fees).unwrap();
+    state_delta.put_bridge_lock_fees(bridge_lock_fees).unwrap();
 
     let bridge_address = astria_address(&[1; 20]);
     let asset = test_asset();
@@ -360,29 +356,35 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
-    state
+    state_delta
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
         .unwrap();
-    state
+    state_delta
         .put_bridge_account_ibc_asset(&bridge_address, asset.clone())
         .unwrap();
-    state.put_allowed_fee_asset(&asset).unwrap();
+    state_delta.put_allowed_fee_asset(&asset).unwrap();
 
     // not enough balance; should fail
-    state
+    state_delta
         .put_account_balance(&from_address, &asset, transfer_fee)
         .unwrap();
     assert_eyre_error(
-        &bridge_lock.check_and_execute(&mut state).await.unwrap_err(),
+        &bridge_lock
+            .check_and_execute(&mut state_delta)
+            .await
+            .unwrap_err(),
         "insufficient funds for transfer",
     );
 
     // enough balance; should pass
     let expected_deposit_fee = transfer_fee + base_deposit_fee(&asset, "someaddress") * 2;
-    state
+    state_delta
         .put_account_balance(&from_address, &asset, 100 + expected_deposit_fee)
         .unwrap();
-    bridge_lock.check_and_execute(&mut state).await.unwrap();
+    bridge_lock
+        .check_and_execute(&mut state_delta)
+        .await
+        .unwrap();
 }
 
 #[test]

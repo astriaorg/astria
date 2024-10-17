@@ -90,14 +90,14 @@ async fn app_finalize_block_snapshot() {
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let starting_index_of_action = 0;
 
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
+    delta_delta
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
         .unwrap();
-    state_tx
+    delta_delta
         .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
 
     // the state changes must be committed, as `finalize_block` will execute the
     // changes on the latest snapshot, not the app's `StateDelta`.
@@ -345,7 +345,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let signed_tx = Arc::new(tx_bridge.sign(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
-    let sudo_address = app.state.get_sudo_address().await.unwrap();
+    let sudo_address = app.state_delta.get_sudo_address().await.unwrap();
     app.end_block(1, &sudo_address).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();

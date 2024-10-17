@@ -20,10 +20,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::WrapErr as _;
 use bytes::Bytes;
-use cnidarium::{
-    StateRead,
-    Storage,
-};
+use cnidarium::StateRead;
 use futures::{
     Future,
     FutureExt,
@@ -59,6 +56,7 @@ use crate::{
         RemovalReason,
     },
     metrics::Metrics,
+    storage::Storage,
     transaction,
 };
 

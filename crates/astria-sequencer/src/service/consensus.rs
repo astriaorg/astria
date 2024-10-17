@@ -4,7 +4,6 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use cnidarium::Storage;
 use tendermint::v0_38::abci::{
     request,
     response,
@@ -20,7 +19,10 @@ use tracing::{
     Instrument,
 };
 
-use crate::app::App;
+use crate::{
+    app::App,
+    storage::Storage,
+};
 
 pub(crate) struct Consensus {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
@@ -468,7 +470,7 @@ mod tests {
         .try_into()
         .unwrap();
 
-        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let storage = Storage::new_temp().await;
         let snapshot = storage.latest_snapshot();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);

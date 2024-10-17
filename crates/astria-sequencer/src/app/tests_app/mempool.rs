@@ -368,7 +368,7 @@ async fn maintenance_recosting_promotes() {
 
     // see transfer went through
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&astria_address_from_hex_string(CAROL_ADDRESS), &nria())
             .await
             .unwrap(),
@@ -561,7 +561,7 @@ async fn maintenance_funds_added_promotes() {
     app.commit(storage.clone()).await;
     // see transfer went through
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&astria_address_from_hex_string(BOB_ADDRESS), &nria())
             .await
             .unwrap(),

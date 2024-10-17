@@ -60,6 +60,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
 dependencies = [
  "cfg-if",
+ "getrandom 0.2.15",
  "once_cell",
  "version_check",
  "zerocopy",
@@ -180,9 +181,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.86"
+version = "1.0.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
+checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
 
 [[package]]
 name = "ark-bls12-377"
@@ -795,6 +796,7 @@ dependencies = [
 name = "astria-sequencer"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
  "astria-build-info",
  "astria-config",
  "astria-core",
@@ -820,16 +822,19 @@ dependencies = [
  "penumbra-tower-trace",
  "pin-project-lite",
  "prost",
+ "quick_cache",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "regex",
  "serde",
  "serde_json",
  "sha2 0.10.8",
+ "tempfile",
  "tendermint",
  "tendermint-proto",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "tonic 0.10.2",
  "tower",
  "tower-abci",
@@ -6412,6 +6417,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d6da84cc204722a989e01ba2f6e1e276e190f22263d0cb6ce8526fcdb0d2e1f"
 dependencies = [
  "byteorder",
+]
+
+[[package]]
+name = "quick_cache"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d7c94f8935a9df96bb6380e8592c70edf497a643f94bd23b2f76b399385dbf4"
+dependencies = [
+ "ahash",
+ "equivalent",
+ "hashbrown 0.14.5",
+ "parking_lot",
 ]
 
 [[package]]
