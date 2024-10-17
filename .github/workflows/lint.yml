@@ -50,9 +50,6 @@ jobs:
         with:
           input: "proto/composerapis"
           against: "buf.build/astria/composer-apis"
-      - if: contains(github.event.pull_request.labels.*.name, 'allow-breaking-proto')
-        run: |
-          echo "OK: breaking changes allowed"
 
   rust:
     runs-on: ubuntu-22.04
