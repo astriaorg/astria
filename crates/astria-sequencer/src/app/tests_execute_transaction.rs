@@ -1310,7 +1310,7 @@ async fn app_execute_transaction_validator_update_v2() {
     let validator_updates = app.state.get_validator_updates().await.unwrap();
     assert_eq!(validator_updates.len(), 1);
     assert_eq!(
-        validator_updates.get(crate::test_utils::verification_key(1).address_bytes()),
+        validator_updates.get(&verification_key),
         Some(&inner_update)
     );
     let validator_names = app.state.get_validator_names().await.unwrap();
