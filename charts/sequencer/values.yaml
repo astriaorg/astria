@@ -18,8 +18,8 @@ images:
   cometBFT:
     repo: docker.io/cometbft/cometbft
     pullPolicy: IfNotPresent
-    tag: v0.38.12
-    devTag: v0.38.12
+    tag: v0.38.8
+    devTag: v0.38.8
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
