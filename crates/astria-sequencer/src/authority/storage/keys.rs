@@ -1,6 +1,7 @@
 pub(in crate::authority) const SUDO: &str = "authority/sudo";
 pub(in crate::authority) const VALIDATOR_SET: &str = "authority/validator_set";
 pub(in crate::authority) const VALIDATOR_UPDATES: &str = "authority/validator_updates";
+pub(in crate::authority) const VALIDATOR_NAMES: &str = "authority/validator_names";
 
 #[cfg(test)]
 mod tests {
@@ -13,6 +14,7 @@ mod tests {
         insta::assert_snapshot!(SUDO);
         insta::assert_snapshot!(VALIDATOR_SET);
         insta::assert_snapshot!(VALIDATOR_UPDATES);
+        insta::assert_snapshot!(VALIDATOR_NAMES);
     }
 
     #[test]
@@ -20,5 +22,6 @@ mod tests {
         assert!(SUDO.starts_with(COMPONENT_PREFIX));
         assert!(VALIDATOR_SET.starts_with(COMPONENT_PREFIX));
         assert!(VALIDATOR_UPDATES.starts_with(COMPONENT_PREFIX));
+        assert!(VALIDATOR_NAMES.starts_with(COMPONENT_PREFIX));
     }
 }

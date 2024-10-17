@@ -133,6 +133,7 @@ impl ::prost::Name for IbcRelayFeeComponents {
         ::prost::alloc::format!("astria.protocol.fees.v1alpha1.{}", Self::NAME)
     }
 }
+/// Deprecated, use `ValidatorUpdateV2FeeComponents` instead.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ValidatorUpdateFeeComponents {
@@ -218,6 +219,21 @@ pub struct IbcSudoChangeFeeComponents {
 }
 impl ::prost::Name for IbcSudoChangeFeeComponents {
     const NAME: &'static str = "IbcSudoChangeFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.fees.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.fees.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ValidatorUpdateV2FeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for ValidatorUpdateV2FeeComponents {
+    const NAME: &'static str = "ValidatorUpdateV2FeeComponents";
     const PACKAGE: &'static str = "astria.protocol.fees.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.fees.v1alpha1.{}", Self::NAME)

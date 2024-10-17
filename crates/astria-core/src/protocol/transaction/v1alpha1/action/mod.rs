@@ -37,6 +37,7 @@ use crate::{
         SudoAddressChangeFeeComponents,
         TransferFeeComponents,
         ValidatorUpdateFeeComponents,
+        ValidatorUpdateV2FeeComponents,
     },
     Protobuf,
 };
@@ -64,6 +65,7 @@ pub enum Action {
     BridgeUnlock(BridgeUnlock),
     BridgeSudoChange(BridgeSudoChange),
     FeeChange(FeeChange),
+    ValidatorUpdateV2(ValidatorUpdateV2),
 }
 
 impl Protobuf for Action {
@@ -88,6 +90,7 @@ impl Protobuf for Action {
             Action::BridgeUnlock(act) => Value::BridgeUnlock(act.to_raw()),
             Action::BridgeSudoChange(act) => Value::BridgeSudoChange(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChange(act.to_raw()),
+            Action::ValidatorUpdateV2(act) => Value::ValidatorUpdateV2(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -161,6 +164,9 @@ impl Protobuf for Action {
             Value::FeeChange(act) => {
                 Self::FeeChange(FeeChange::try_from_raw_ref(&act).map_err(Error::fee_change)?)
             }
+            Value::ValidatorUpdateV2(act) => Self::ValidatorUpdateV2(
+                ValidatorUpdateV2::try_from_raw(act).map_err(Error::validator_update)?,
+            ),
         };
         Ok(action)
     }
@@ -308,6 +314,7 @@ impl ActionName for Action {
             Action::BridgeUnlock(_) => "BridgeUnlock",
             Action::BridgeSudoChange(_) => "BridgeSudoChange",
             Action::FeeChange(_) => "FeeChange",
+            Action::ValidatorUpdateV2(_) => "ValidatorUpdateV2",
         }
     }
 }
@@ -624,6 +631,7 @@ enum ValidatorUpdateErrorKind {
     VerificationKey { source: crate::crypto::Error },
 }
 
+/// **NOTE**: This action is deprecated. Use [`ValidatorUpdateV2`] instead.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde",
@@ -733,6 +741,123 @@ impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdat
 
     fn try_from(
         value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+    ) -> Result<Self, Self::Error> {
+        Self::try_from_raw(value)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(::serde::Deserialize, ::serde::Serialize),
+    serde(
+        into = "crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2",
+        try_from = "crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2",
+    )
+)]
+pub struct ValidatorUpdateV2 {
+    pub power: u32,
+    pub verification_key: crate::crypto::VerificationKey,
+    pub name: String,
+}
+
+impl Protobuf for ValidatorUpdateV2 {
+    type Error = ValidatorUpdateError;
+    type Raw = raw::ValidatorUpdateV2;
+
+    /// Create a validator update by verifying a raw protobuf-decoded
+    /// [`crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2`].
+    ///
+    /// # Errors
+    /// Returns an error if the `.power` field is negative, if `.pub_key`
+    /// is not set, or if `.pub_key` contains a non-ed25519 variant, or
+    /// if the ed25519 has invalid bytes (that is, bytes from which an
+    /// ed25519 public key cannot be constructed).
+    fn try_from_raw(value: Self::Raw) -> Result<Self, Self::Error> {
+        use crate::generated::astria_vendored::tendermint::crypto::{
+            public_key,
+            PublicKey,
+        };
+        let Self::Raw {
+            pub_key,
+            power,
+            name,
+        } = value;
+        let power = power
+            .try_into()
+            .map_err(|_| Self::Error::negative_power(power))?;
+        let verification_key = match pub_key {
+            None
+            | Some(PublicKey {
+                sum: None,
+            }) => Err(Self::Error::public_key_not_set()),
+            Some(PublicKey {
+                sum: Some(public_key::Sum::Secp256k1(..)),
+            }) => Err(Self::Error::secp256k1_not_supported()),
+
+            Some(PublicKey {
+                sum: Some(public_key::Sum::Ed25519(bytes)),
+            }) => crate::crypto::VerificationKey::try_from(&*bytes)
+                .map_err(Self::Error::verification_key),
+        }?;
+        Ok(Self {
+            power,
+            verification_key,
+            name,
+        })
+    }
+
+    /// Create a validator update by verifying a reference to raw protobuf-decoded
+    /// [`crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2`].
+    ///
+    /// # Errors
+    /// Returns an error if the `.power` field is negative, if `.pub_key`
+    /// is not set, or if `.pub_key` contains a non-ed25519 variant, or
+    /// if the ed25519 has invalid bytes (that is, bytes from which an
+    /// ed25519 public key cannot be constructed).
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw.clone())
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> Self::Raw {
+        use crate::generated::astria_vendored::tendermint::crypto::{
+            public_key,
+            PublicKey,
+        };
+        let Self {
+            power,
+            verification_key,
+            name,
+        } = self;
+
+        Self::Raw {
+            power: (*power).into(),
+            pub_key: Some(PublicKey {
+                sum: Some(public_key::Sum::Ed25519(
+                    verification_key.to_bytes().to_vec(),
+                )),
+            }),
+            name: name.clone(),
+        }
+    }
+}
+
+impl From<ValidatorUpdateV2>
+    for crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2
+{
+    fn from(value: ValidatorUpdateV2) -> Self {
+        value.into_raw()
+    }
+}
+
+impl TryFrom<crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2>
+    for ValidatorUpdateV2
+{
+    type Error = ValidatorUpdateError;
+
+    fn try_from(
+        value: crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2,
     ) -> Result<Self, Self::Error> {
         Self::try_from_raw(value)
     }
@@ -1960,6 +2085,7 @@ pub enum FeeChange {
     IbcRelayerChange(IbcRelayerChangeFeeComponents),
     SudoAddressChange(SudoAddressChangeFeeComponents),
     IbcSudoChange(IbcSudoChangeFeeComponents),
+    ValidatorUpdateV2(ValidatorUpdateV2FeeComponents),
 }
 
 impl Protobuf for FeeChange {
@@ -2011,6 +2137,9 @@ impl Protobuf for FeeChange {
                 }
                 Self::IbcSudoChange(fee_change) => {
                     raw::fee_change::FeeComponents::IbcSudoChange(fee_change.to_raw())
+                }
+                Self::ValidatorUpdateV2(fee_change) => {
+                    raw::fee_change::FeeComponents::ValidatorUpdateV2(fee_change.to_raw())
                 }
             }),
         }
@@ -2071,6 +2200,11 @@ impl Protobuf for FeeChange {
             }
             Some(raw::fee_change::FeeComponents::IbcSudoChange(fee_change)) => {
                 Self::IbcSudoChange(IbcSudoChangeFeeComponents::try_from_raw_ref(fee_change)?)
+            }
+            Some(raw::fee_change::FeeComponents::ValidatorUpdateV2(fee_change)) => {
+                Self::ValidatorUpdateV2(ValidatorUpdateV2FeeComponents::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })

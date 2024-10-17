@@ -87,6 +87,12 @@ impl Info {
                 crate::bridge::query::bridge_account_info_request,
             )
             .wrap_err("invalid path: `bridge/account_info/:address`")?;
+        query_router
+            .insert(
+                "authority/validator_name/:address",
+                crate::authority::query::validator_name_request,
+            )
+            .wrap_err("invalid path: `authority/validator_name/:address`")?;
         Ok(Self {
             storage,
             query_router,
@@ -178,11 +184,17 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use astria_core::{
         primitive::v1::asset,
         protocol::{
             account::v1alpha1::BalanceResponse,
             asset::v1alpha1::DenomResponse,
+            transaction::v1alpha1::action::{
+                ValidatorUpdate,
+                ValidatorUpdateV2,
+            },
         },
     };
     use cnidarium::StateDelta;
@@ -202,10 +214,16 @@ mod tests {
         },
         app::StateWriteExt as _,
         assets::StateWriteExt as _,
+        authority::{
+            StateWriteExt as _,
+            ValidatorNames,
+            ValidatorSet,
+        },
         fees::{
             StateReadExt as _,
             StateWriteExt as _,
         },
+        test_utils::verification_key,
     };
 
     #[tokio::test]
@@ -381,5 +399,63 @@ mod tests {
                 "expected asset_id to be in allowed fee assets"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn handle_validator_name_query() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let mut state = StateDelta::new(storage.latest_snapshot());
+        let verification_key = verification_key(1);
+        let height = 0u32;
+        let power = 100;
+
+        let inner_validator_update = ValidatorUpdate {
+            power,
+            verification_key: verification_key.clone(),
+        };
+
+        let validator_update = ValidatorUpdateV2 {
+            verification_key: verification_key.clone(),
+            power,
+            name: "validator_name".to_string(),
+        };
+
+        let mut validator_names = ValidatorNames::new(BTreeMap::new());
+        validator_names.push_name(
+            &validator_update.verification_key,
+            validator_update.name.clone(),
+        );
+        state.put_validator_names(validator_names).unwrap();
+        let mut validator_set = ValidatorSet::new(BTreeMap::new());
+        validator_set.push_update(inner_validator_update);
+        state.put_validator_set(validator_set).unwrap();
+        storage.commit(state).await.unwrap();
+
+        let info_request = InfoRequest::Query(request::Query {
+            path: format!(
+                "authority/validator_name/{}",
+                hex::encode(verification_key.address_bytes())
+            ),
+            data: vec![].into(),
+            height: height.into(),
+            prove: false,
+        });
+
+        let response = {
+            let storage = (*storage).clone();
+            let info_service = Info::new(storage).unwrap();
+            info_service
+                .handle_info_request(info_request)
+                .await
+                .unwrap()
+        };
+        let query_response = match response {
+            InfoResponse::Query(query) => query,
+            other => panic!("expected InfoResponse::Query, got {other:?}"),
+        };
+        assert!(query_response.code.is_ok());
+
+        let validator_name_resp = String::from_utf8(query_response.value.to_vec()).unwrap();
+        assert_eq!(validator_name_resp, validator_update.name);
     }
 }

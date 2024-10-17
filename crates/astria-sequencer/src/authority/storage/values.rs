@@ -21,7 +21,10 @@ use telemetry::display::base64;
 
 use crate::{
     accounts::AddressBytes as DomainAddressBytes,
-    authority::ValidatorSet as DomainValidatorSet,
+    authority::{
+        ValidatorNames as DomainValidatorNames,
+        ValidatorSet as DomainValidatorSet,
+    },
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -31,6 +34,7 @@ pub(crate) struct Value<'a>(ValueImpl<'a>);
 enum ValueImpl<'a> {
     AddressBytes(AddressBytes<'a>),
     ValidatorSet(ValidatorSet<'a>),
+    ValidatorNames(ValidatorNames<'a>),
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -151,5 +155,65 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for ValidatorSet<'a> {
             bail!("authority stored value type mismatch: expected validator set, found {value:?}");
         };
         Ok(validator_set)
+    }
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+struct ValidatorName<'a> {
+    address: AddressBytes<'a>,
+    name: Cow<'a, str>,
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub(in crate::authority) struct ValidatorNames<'a>(Vec<ValidatorName<'a>>);
+
+impl<'a> From<&'a DomainValidatorNames> for ValidatorNames<'a> {
+    fn from(value: &'a DomainValidatorNames) -> Self {
+        ValidatorNames(
+            value
+                .address_names()
+                .map(|(address, name)| ValidatorName {
+                    address: AddressBytes::from(address),
+                    name: name.into(),
+                })
+                .collect(),
+        )
+    }
+}
+
+impl<'a> From<ValidatorNames<'a>> for DomainValidatorNames {
+    fn from(value: ValidatorNames<'a>) -> Self {
+        let inner = value
+            .0
+            .into_iter()
+            .map(|name| {
+                let address = <[u8; 20]>::from(name.address);
+                let name = name.name.into_owned();
+                (address, name)
+            })
+            .collect();
+        DomainValidatorNames::new(inner)
+    }
+}
+
+impl<'a> From<ValidatorNames<'a>> for crate::storage::StoredValue<'a> {
+    fn from(validator_names: ValidatorNames<'a>) -> Self {
+        crate::storage::StoredValue::Authority(Value(ValueImpl::ValidatorNames(validator_names)))
+    }
+}
+
+impl<'a> TryFrom<crate::storage::StoredValue<'a>> for ValidatorNames<'a> {
+    type Error = astria_eyre::eyre::Error;
+
+    fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
+        let crate::storage::StoredValue::Authority(Value(ValueImpl::ValidatorNames(
+            validator_names,
+        ))) = value
+        else {
+            bail!(
+                "authority stored value type mismatch: expected validator names, found {value:?}"
+            );
+        };
+        Ok(validator_names)
     }
 }

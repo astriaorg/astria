@@ -2,6 +2,7 @@ use astria_core::protocol::transaction::v1alpha1::action::{
     IbcSudoChange,
     SudoAddressChange,
     ValidatorUpdate,
+    ValidatorUpdateV2,
 };
 use astria_eyre::eyre::{
     bail,
@@ -125,6 +126,40 @@ impl ActionHandler for IbcSudoChange {
         state
             .put_ibc_sudo_address(self.new_address)
             .wrap_err("failed to put ibc sudo address in state")?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl ActionHandler for ValidatorUpdateV2 {
+    async fn check_stateless(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let inner_update = ValidatorUpdate {
+            verification_key: self.verification_key.clone(),
+            power: self.power,
+        };
+        inner_update
+            .check_and_execute(&mut state)
+            .await
+            .wrap_err("failed to execute inner validator update")?;
+        let mut validator_names = state
+            .get_validator_names()
+            .await
+            .wrap_err("failed to get validator names from state")?;
+        match self.power {
+            0 => {
+                validator_names.remove(&self.verification_key);
+            }
+            _ => {
+                validator_names.push_name(&self.verification_key, self.name.clone());
+            }
+        }
+        state
+            .put_validator_names(validator_names)
+            .wrap_err("failed to put validator names in state")?;
         Ok(())
     }
 }

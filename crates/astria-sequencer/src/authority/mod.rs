@@ -1,5 +1,6 @@
 mod action;
 pub(crate) mod component;
+pub(crate) mod query;
 mod state_ext;
 pub(crate) mod storage;
 
@@ -79,5 +80,36 @@ impl ValidatorSet {
             .map(crate::utils::sequencer_to_cometbft_validator)
             .collect::<Result<Vec<_>, _>>()
             .wrap_err("failed to map one or more astria validators to cometbft validators")
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Clone))]
+pub(crate) struct ValidatorNames(BTreeMap<[u8; ADDRESS_LEN], String>);
+
+impl ValidatorNames {
+    pub(super) fn new(inner: BTreeMap<[u8; ADDRESS_LEN], String>) -> Self {
+        Self(inner)
+    }
+
+    pub(super) fn address_names(&self) -> impl Iterator<Item = (&[u8; ADDRESS_LEN], &String)> {
+        self.0.iter()
+    }
+
+    pub(super) fn push_name<T: AddressBytes>(&mut self, address: &T, name: String) {
+        self.0.insert(*address.address_bytes(), name);
+    }
+
+    pub(super) fn remove<T: AddressBytes>(&mut self, address: &T) {
+        self.0.remove(address.address_bytes());
+    }
+
+    pub(super) fn get<T: AddressBytes>(&self, address: &T) -> Option<&String> {
+        self.0.get(address.address_bytes())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
     }
 }

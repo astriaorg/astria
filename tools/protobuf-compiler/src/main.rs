@@ -76,6 +76,10 @@ fn main() {
             ".astria_vendored.tendermint.abci.ValidatorUpdate",
             "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
         )
+        .extern_path(
+            ".astria_vendored.tendermint.crypto.PublicKey",
+            "crate::generated::astria_vendored::tendermint::crypto::PublicKey",
+        )
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
         .type_attribute(
             ".astria.protocol.genesis.v1alpha1.IbcParameters",

@@ -14,13 +14,17 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use tracing::instrument;
+use tracing::{
+    info,
+    instrument,
+};
 
 use super::{
     storage::{
         self,
         keys,
     },
+    ValidatorNames,
     ValidatorSet,
 };
 use crate::{
@@ -77,6 +81,24 @@ pub(crate) trait StateReadExt: StateRead {
             .and_then(|value| storage::ValidatorSet::try_from(value).map(ValidatorSet::from))
             .wrap_err("invalid validator update bytes")
     }
+
+    #[instrument(skip_all)]
+    async fn get_validator_names(&self) -> Result<ValidatorNames> {
+        let Some(bytes) = self
+            .get_raw(keys::VALIDATOR_NAMES)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator names from state")?
+        else {
+            info!(
+                "request made to get validator names, but they were not found. returning empty set"
+            );
+            return Ok(ValidatorNames::new(BTreeMap::new()));
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::ValidatorNames::try_from(value).map(ValidatorNames::from))
+            .wrap_err("invalid validator names bytes")
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -113,6 +135,15 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn clear_validator_updates(&mut self) {
         self.nonverifiable_delete(keys::VALIDATOR_UPDATES.into());
+    }
+
+    #[instrument(skip_all)]
+    fn put_validator_names(&mut self, validator_names: ValidatorNames) -> Result<()> {
+        let bytes = StoredValue::from(storage::ValidatorNames::from(&validator_names))
+            .serialize()
+            .wrap_err("failed to serialize validator names")?;
+        self.put_raw(keys::VALIDATOR_NAMES.to_string(), bytes);
+        Ok(())
     }
 }
 
@@ -416,6 +447,46 @@ mod tests {
         assert_eq!(
             initial_validator_set, validator_set_endstate,
             "validator set apply updates did not behave as expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_and_get_validator_names() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let initial = BTreeMap::new();
+        let mut validator_names = ValidatorNames::new(initial);
+
+        // returns empty validator names if none in state
+        assert_eq!(state.get_validator_names().await.unwrap().len(), 0,);
+
+        // can write new
+        state
+            .put_validator_names(validator_names.clone())
+            .expect("writing initial validator set should not fail");
+        assert_eq!(
+            state
+                .get_validator_names()
+                .await
+                .expect("validator names were written and must exist inside the database"),
+            validator_names,
+            "stored validator names were not what was expected"
+        );
+
+        // can update
+        validator_names.push_name(&[0; ADDRESS_LEN], "test".to_string());
+        state
+            .put_validator_names(validator_names.clone())
+            .expect("writing update validator set should not fail");
+        assert_eq!(
+            state
+                .get_validator_names()
+                .await
+                .expect("validator names were written and must exist inside the database"),
+            validator_names,
+            "stored validator names were not what was expected"
         );
     }
 }

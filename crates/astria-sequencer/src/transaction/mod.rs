@@ -92,27 +92,27 @@ impl ActionHandler for Transaction {
                 Action::Transfer(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for TransferAction")?,
+                    .wrap_err("stateless check failed for Transfer")?,
                 Action::RollupDataSubmission(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for SequenceAction")?,
+                    .wrap_err("stateless check failed for Sequence")?,
                 Action::ValidatorUpdate(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for ValidatorUpdateAction")?,
+                    .wrap_err("stateless check failed for ValidatorUpdate")?,
                 Action::SudoAddressChange(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for SudoAddressChangeAction")?,
+                    .wrap_err("stateless check failed for SudoAddressChange")?,
                 Action::IbcSudoChange(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for IbcSudoChangeAction")?,
+                    .wrap_err("stateless check failed for IbcSudoChange")?,
                 Action::FeeChange(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for FeeChangeAction")?,
+                    .wrap_err("stateless check failed for FeeChange")?,
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
@@ -121,36 +121,40 @@ impl ActionHandler for Transaction {
                         .check_stateless(())
                         .await
                         .map_err(anyhow_to_eyre)
-                        .wrap_err("stateless check failed for IbcAction")?;
+                        .wrap_err("stateless check failed for IbcRelay")?;
                 }
                 Action::Ics20Withdrawal(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for Ics20WithdrawalAction")?,
+                    .wrap_err("stateless check failed for Ics20Withdrawal")?,
                 Action::IbcRelayerChange(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for IbcRelayerChangeAction")?,
+                    .wrap_err("stateless check failed for IbcRelayerChange")?,
                 Action::FeeAssetChange(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for FeeAssetChangeAction")?,
+                    .wrap_err("stateless check failed for FeeAssetChange")?,
                 Action::InitBridgeAccount(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for InitBridgeAccountAction")?,
+                    .wrap_err("stateless check failed for InitBridgeAccount")?,
                 Action::BridgeLock(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for BridgeLockAction")?,
+                    .wrap_err("stateless check failed for BridgeLock")?,
                 Action::BridgeUnlock(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for BridgeUnlockAction")?,
+                    .wrap_err("stateless check failed for BridgeUnlock")?,
                 Action::BridgeSudoChange(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for BridgeSudoChangeAction")?,
+                    .wrap_err("stateless check failed for BridgeSudoChange")?,
+                Action::ValidatorUpdateV2(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for ValidatorUpdateV2")?,
             }
         }
         Ok(())
@@ -277,6 +281,9 @@ impl ActionHandler for Transaction {
                 Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge sudo change")?,
+                Action::ValidatorUpdateV2(act) => check_execute_and_pay_fees(act, &mut state)
+                    .await
+                    .wrap_err("executing validor update (v2)")?,
             }
         }
 
