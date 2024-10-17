@@ -4,21 +4,21 @@ dependencies:
   version: 0.3.6
 - name: evm-rollup
   repository: file://../evm-rollup
-  version: 0.27.8
+  version: 0.28.0
 - name: composer
   repository: file://../composer
-  version: 0.1.6
+  version: 1.0.0-rc.1
 - name: evm-faucet
   repository: file://../evm-faucet
   version: 0.1.2
 - name: evm-bridge-withdrawer
   repository: file://../evm-bridge-withdrawer
-  version: 0.3.1
+  version: 1.0.0-rc.1
 - name: postgresql
   repository: https://charts.bitnami.com/bitnami
   version: 15.2.4
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.2
-digest: sha256:05842ed4276a5eeb84b1743b2e48d8434f21fd5192fcef27d61eb3682ae918de
-generated: "2024-10-17T07:55:32.06074-07:00"
+digest: sha256:8278238cbd6ebd24cfe5ace8027cbb1fe9abc58a23c25af119d8102a13d99a64
+generated: "2024-10-17T08:07:03.063773-07:00"
