@@ -10,7 +10,7 @@ images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
     pullPolicy: IfNotPresent
-    tag: v0.16.0
+    tag: 0.16.0
     devTag: latest
     overrideTag: ""
   conductor:
