@@ -41,6 +41,10 @@ pub(super) struct Command {
     /// The power the validator is being updated to
     #[arg(long)]
     power: u32,
+    /// If set this will only generate the action and print out
+    /// in json format. Will not sign or send the transaction.
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    generate_only: bool,
 }
 
 impl Command {
@@ -50,17 +54,26 @@ impl Command {
                 .wrap_err("failed to decode public key bytes from argument")?,
         )
         .wrap_err("failed to construct public key from bytes")?;
-        let validator_update = ValidatorUpdate {
+        let validator_update = Action::ValidatorUpdate(ValidatorUpdate {
             power: self.power,
             verification_key,
-        };
+        });
+
+        if self.generate_only {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&validator_update)
+                    .wrap_err("failed to serialize ValidatorUpdate action")?
+            );
+            return Ok(());
+        }
 
         let res = submit_transaction(
             self.sequencer_url.as_str(),
             self.sequencer_chain_id.clone(),
             &self.prefix,
             self.private_key.as_str(),
-            Action::ValidatorUpdate(validator_update),
+            validator_update,
         )
         .await
         .wrap_err("failed to submit ValidatorUpdate transaction")?;

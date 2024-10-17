@@ -40,18 +40,31 @@ pub(super) struct Command {
     /// The new address to take over sudo privileges
     #[arg(long)]
     address: Address,
+    /// If set this will only generate the transaction body and print out
+    /// in pbjson format. Will not sign or send the transaction.
+    #[arg(long,  action = clap::ArgAction::SetTrue)]
+    generate_only: bool,
 }
 
 impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
+        let action = Action::SudoAddressChange(SudoAddressChange {
+            new_address: self.address,
+        });
+        if self.generate_only {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&action)
+                    .wrap_err("failed to serialize SudoAddressChange action")?
+            );
+            return Ok(());
+        }
         let res = submit_transaction(
             self.sequencer_url.as_str(),
             self.sequencer_chain_id.clone(),
             &self.prefix,
             self.private_key.as_str(),
-            Action::SudoAddressChange(SudoAddressChange {
-                new_address: self.address,
-            }),
+            action,
         )
         .await
         .wrap_err("failed to submit SudoAddressChange transaction")?;
