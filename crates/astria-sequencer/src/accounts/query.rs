@@ -77,6 +77,8 @@ async fn get_trace_prefixed_account_balances<S: StateRead>(
     stream.try_collect::<Vec<_>>().await
 }
 
+/// Returns a list of [`AssetBalance`]s for the provided address. `AssetBalance`s are sorted
+/// alphabetically by [`asset::Denom`].
 pub(crate) async fn balance_request(
     storage: Storage,
     request: request::Query,
@@ -88,7 +90,7 @@ pub(crate) async fn balance_request(
         Err(err_rsp) => return err_rsp,
     };
 
-    let balances = match get_trace_prefixed_account_balances(&snapshot, &address).await {
+    let mut balances = match get_trace_prefixed_account_balances(&snapshot, &address).await {
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
@@ -100,6 +102,13 @@ pub(crate) async fn balance_request(
             };
         }
     };
+
+    // Unstable sort does not allocate auxillary memory and is typically faster. This utilizes a
+    // custom `Ord` implementation which sorts by `Denom` in alphabetical order. The comparison
+    // should never return `Ordering::Equal` since `Denom` is a unique identifier, hence the
+    // unstable sort will be deterministic.
+    balances.sort_unstable();
+
     let payload = BalanceResponse {
         height: height.value(),
         balances,
