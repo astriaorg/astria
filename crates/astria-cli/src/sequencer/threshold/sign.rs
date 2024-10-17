@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use astria_core::generated::protocol::transaction::v1alpha1::{
+use astria_core::generated::protocol::transaction::v1::{
     Transaction,
     TransactionBody,
 };
