@@ -17,6 +17,7 @@ use std::{
 use astria_core::{
     primitive::v1::RollupId,
     protocol::{
+        fees::v1::ValidatorUpdateV2FeeComponents,
         genesis::v1::Account,
         transaction::v1::{
             action::{
@@ -28,6 +29,7 @@ use astria_core::{
                 RollupDataSubmission,
                 Transfer,
                 ValidatorUpdate,
+                ValidatorUpdateV2,
             },
             Action,
             TransactionBody,
@@ -62,6 +64,7 @@ use crate::{
     },
     authority::StateReadExt as _,
     bridge::StateWriteExt as _,
+    fees::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
         astria_address,
@@ -194,10 +197,25 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     .unwrap();
     let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
 
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx
+        .put_validator_update_v2_fees(ValidatorUpdateV2FeeComponents {
+            base: 0,
+            multiplier: 0,
+        })
+        .unwrap();
+    app.apply(state_tx);
+
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
         power: 100,
         verification_key: crate::test_utils::verification_key(1),
+    };
+
+    let update_with_name = ValidatorUpdateV2 {
+        name: "test_validator".to_string(),
+        power: 100,
+        verification_key: crate::test_utils::verification_key(2),
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -218,6 +236,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
+            Action::ValidatorUpdateV2(update_with_name.clone()),
         ])
         .chain_id("test")
         .try_build()

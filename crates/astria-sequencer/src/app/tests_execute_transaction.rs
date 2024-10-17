@@ -10,6 +10,7 @@ use astria_core::{
         fees::v1::{
             InitBridgeAccountFeeComponents,
             RollupDataSubmissionFeeComponents,
+            ValidatorUpdateV2FeeComponents,
         },
         genesis::v1::GenesisAppState,
         transaction::v1::{
@@ -22,6 +23,7 @@ use astria_core::{
                 SudoAddressChange,
                 Transfer,
                 ValidatorUpdate,
+                ValidatorUpdateV2,
             },
             Action,
             TransactionBody,
@@ -1261,4 +1263,60 @@ async fn transaction_execution_records_fee_event() {
     assert_eq!(event.attributes[2].key, "feeAmount");
     assert_eq!(event.attributes[3].key, "sourceTransactionId");
     assert_eq!(event.attributes[4].key, "sourceActionIndex");
+}
+
+#[tokio::test]
+async fn app_execute_transaction_validator_update_v2() {
+    let alice = get_alice_signing_key();
+    let alice_address = astria_address(&alice.address_bytes());
+
+    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let verification_key = crate::test_utils::verification_key(1);
+
+    let validator_update_v2_fees = ValidatorUpdateV2FeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx
+        .put_validator_update_v2_fees(validator_update_v2_fees)
+        .unwrap();
+    app.apply(state_tx);
+
+    let inner_update = ValidatorUpdate {
+        power: 100,
+        verification_key: verification_key.clone(),
+    };
+    let update_with_name = ValidatorUpdateV2 {
+        power: inner_update.power,
+        verification_key: inner_update.verification_key.clone(),
+        name: "test_validator".to_string(),
+    };
+
+    let tx = TransactionBody::builder()
+        .actions(vec![Action::ValidatorUpdateV2(update_with_name.clone())])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+    assert_eq!(
+        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        1
+    );
+
+    let validator_updates = app.state.get_validator_updates().await.unwrap();
+    assert_eq!(validator_updates.len(), 1);
+    assert_eq!(
+        validator_updates.get(crate::test_utils::verification_key(1).address_bytes()),
+        Some(&inner_update)
+    );
+    let validator_names = app.state.get_validator_names().await.unwrap();
+    assert_eq!(validator_names.len(), 1);
+    assert_eq!(
+        validator_names.get(&verification_key),
+        Some(&update_with_name.name)
+    );
 }
