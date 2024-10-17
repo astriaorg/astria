@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 52, 53, 55, 56, 57, 51"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -34,6 +34,10 @@ pub mod action {
         /// POA sudo actions are defined on 50-60
         #[prost(message, tag = "50")]
         SudoAddressChange(super::SudoAddressChange),
+        #[prost(message, tag = "51")]
+        ValidatorUpdate(
+            crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+        ),
         #[prost(message, tag = "52")]
         IbcRelayerChange(super::IbcRelayerChange),
         #[prost(message, tag = "53")]
@@ -42,15 +46,6 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
-        #[prost(message, tag = "57")]
-        ValidatorUpdateV2(super::ValidatorUpdateV2),
-        /// Deprecated
-        ///
-        /// Prefer `ValidatorUpdateV2` instead.
-        #[prost(message, tag = "51")]
-        ValidatorUpdate(
-            crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
-        ),
     }
 }
 impl ::prost::Name for Action {
@@ -403,30 +398,11 @@ impl ::prost::Name for BridgeSudoChange {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ValidatorUpdateV2 {
-    #[prost(message, optional, tag = "1")]
-    pub pub_key: ::core::option::Option<
-        crate::generated::astria_vendored::tendermint::crypto::PublicKey,
-    >,
-    #[prost(int64, tag = "2")]
-    pub power: i64,
-    #[prost(string, tag = "3")]
-    pub name: ::prost::alloc::string::String,
-}
-impl ::prost::Name for ValidatorUpdateV2 {
-    const NAME: &'static str = "ValidatorUpdateV2";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -477,10 +453,6 @@ pub mod fee_change {
         #[prost(message, tag = "14")]
         ValidatorUpdate(
             super::super::super::fees::v1alpha1::ValidatorUpdateFeeComponents,
-        ),
-        #[prost(message, tag = "15")]
-        ValidatorUpdateV2(
-            super::super::super::fees::v1alpha1::ValidatorUpdateV2FeeComponents,
         ),
     }
 }

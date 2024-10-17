@@ -751,8 +751,8 @@ impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdat
     feature = "serde",
     derive(::serde::Deserialize, ::serde::Serialize),
     serde(
-        into = "crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2",
-        try_from = "crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2",
+        into = "crate::generated::protocol::transaction::v1::ValidatorUpdateV2",
+        try_from = "crate::generated::protocol::transaction::v1::ValidatorUpdateV2",
     )
 )]
 pub struct ValidatorUpdateV2 {
@@ -843,21 +843,17 @@ impl Protobuf for ValidatorUpdateV2 {
     }
 }
 
-impl From<ValidatorUpdateV2>
-    for crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2
-{
+impl From<ValidatorUpdateV2> for crate::generated::protocol::transaction::v1::ValidatorUpdateV2 {
     fn from(value: ValidatorUpdateV2) -> Self {
         value.into_raw()
     }
 }
 
-impl TryFrom<crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2>
-    for ValidatorUpdateV2
-{
+impl TryFrom<crate::generated::protocol::transaction::v1::ValidatorUpdateV2> for ValidatorUpdateV2 {
     type Error = ValidatorUpdateError;
 
     fn try_from(
-        value: crate::generated::protocol::transaction::v1alpha1::ValidatorUpdateV2,
+        value: crate::generated::protocol::transaction::v1::ValidatorUpdateV2,
     ) -> Result<Self, Self::Error> {
         Self::try_from_raw(value)
     }

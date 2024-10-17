@@ -6,7 +6,6 @@ import "astria/primitive/v1/types.proto";
 import "astria/protocol/fees/v1alpha1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
 import "astria_vendored/tendermint/abci/types.proto";
-import "astria_vendored/tendermint/crypto/keys.proto";
 
 message Action {
   oneof value {
@@ -26,14 +25,11 @@ message Action {
 
     // POA sudo actions are defined on 50-60
     SudoAddressChange sudo_address_change = 50;
+    astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51;
     IbcRelayerChange ibc_relayer_change = 52;
     FeeAssetChange fee_asset_change = 53;
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
-    ValidatorUpdateV2 validator_update_v2 = 57;
-
-    // Deprecated
-    astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51;  // Prefer `ValidatorUpdateV2` instead.
   }
   reserved 3 to 10;
   reserved 15 to 20;
@@ -223,12 +219,6 @@ message BridgeSudoChange {
   string fee_asset = 4;
 }
 
-message ValidatorUpdateV2 {
-  astria_vendored.tendermint.crypto.PublicKey pub_key = 1;
-  int64 power = 2;
-  string name = 3;
-}
-
 message FeeChange {
   // the new fee components values
   oneof fee_components {
@@ -246,7 +236,6 @@ message FeeChange {
     astria.protocol.fees.v1alpha1.SudoAddressChangeFeeComponents sudo_address_change = 12;
     astria.protocol.fees.v1alpha1.TransferFeeComponents transfer = 13;
     astria.protocol.fees.v1alpha1.ValidatorUpdateFeeComponents validator_update = 14;
-    astria.protocol.fees.v1alpha1.ValidatorUpdateV2FeeComponents validator_update_v2 = 15;
   }
 }
 

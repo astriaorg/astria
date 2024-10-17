@@ -132,7 +132,7 @@ mod tests {
         vec,
     };
 
-    use astria_core::protocol::transaction::v1alpha1::action::{
+    use astria_core::protocol::transaction::v1::action::{
         ValidatorUpdate,
         ValidatorUpdateV2,
     };
