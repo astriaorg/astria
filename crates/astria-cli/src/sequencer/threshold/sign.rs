@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
-use astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction;
+use astria_core::generated::protocol::transaction::v1alpha1::{
+    Transaction,
+    TransactionBody,
+};
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -268,7 +271,6 @@ struct Aggregate {
 
 impl Aggregate {
     async fn run(self) -> eyre::Result<()> {
-        use astria_core::generated::protocol::transactions::v1alpha1::UnsignedTransaction;
         use prost::{
             Message as _,
             Name as _,
@@ -317,20 +319,30 @@ impl Aggregate {
                 .wrap_err("failed to aggregate")?;
         println!("Aggregated signature:",);
         print!("{}", color::Fg(color::Green));
-        println!("{}", hex::encode(signature.serialize()));
+        println!(
+            "{}",
+            hex::encode(
+                signature
+                    .serialize()
+                    .wrap_err("failed to serialize signature")?
+            )
+        );
 
         if let Some(message_path) = message_path {
             let message = std::fs::read(&message_path).wrap_err("failed to read message file")?;
-            let transaction = SignedTransaction {
-                transaction: Some(pbjson_types::Any {
-                    type_url: UnsignedTransaction::type_url(),
+            let transaction = Transaction {
+                body: Some(pbjson_types::Any {
+                    type_url: TransactionBody::type_url(),
                     value: message.into(),
                 }),
-                signature: signature.serialize().to_vec().into(),
+                signature: signature
+                    .serialize()
+                    .wrap_err("failed to serialize signature")?
+                    .into(),
                 public_key: public_key_package
                     .verifying_key()
                     .serialize()
-                    .to_vec()
+                    .wrap_err("failed to serialize verifying key")?
                     .into(),
             };
 

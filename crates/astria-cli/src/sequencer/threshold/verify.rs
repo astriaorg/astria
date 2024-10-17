@@ -1,6 +1,5 @@
 use color_eyre::eyre::{
     self,
-    eyre,
     WrapErr as _,
 };
 use frost_ed25519::{
@@ -33,15 +32,11 @@ impl Command {
         let message = std::fs::read(&message_path).wrap_err("failed to read message file")?;
 
         let verifying_key = frost_ed25519::VerifyingKey::deserialize(
-            hex::decode(verifying_key)?
-                .try_into()
-                .map_err(|_| eyre!("verifying key must be 32 bytes"))?,
+            &hex::decode(verifying_key).wrap_err("failed to parse verifying key")?,
         )
         .wrap_err("failed to parse verifying key")?;
         let signature = frost_ed25519::Signature::deserialize(
-            hex::decode(signature)?
-                .try_into()
-                .map_err(|_| eyre!("signature must be 64 bytes"))?,
+            &hex::decode(signature).wrap_err("failed to parse signature")?,
         )
         .wrap_err("failed to parse signature")?;
 
