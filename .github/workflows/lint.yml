@@ -6,6 +6,7 @@ on:
       - synchronize
       - reopened
       - labeled
+      - unlabeled
   merge_group:
   push:
     branches:
