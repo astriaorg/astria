@@ -514,7 +514,7 @@ dependencies = [
 
 [[package]]
 name = "astria-bridge-withdrawer"
-version = "0.3.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "astria-bridge-contracts",
  "astria-build-info",
@@ -560,7 +560,7 @@ dependencies = [
 
 [[package]]
 name = "astria-cli"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "astria-bridge-contracts",
  "astria-core",
@@ -591,7 +591,7 @@ dependencies = [
 
 [[package]]
 name = "astria-composer"
-version = "0.8.3"
+version = "1.0.0-rc.1"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -635,7 +635,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.20.1"
+version = "1.0.0-rc.1"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -780,7 +780,7 @@ dependencies = [
 
 [[package]]
 name = "astria-merkle"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "ct-merkle",
  "divan",
@@ -791,7 +791,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "0.18.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -864,7 +864,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "0.16.2"
+version = "1.0.0-rc.1"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",

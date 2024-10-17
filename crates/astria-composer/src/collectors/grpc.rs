@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use astria_core::{
-    generated::composer::v1alpha1::{
+    generated::composer::v1::{
         grpc_collector_service_server::GrpcCollectorService,
         SubmitRollupTransactionRequest,
         SubmitRollupTransactionResponse,
@@ -12,7 +12,7 @@ use astria_core::{
         asset,
         RollupId,
     },
-    protocol::transaction::v1alpha1::action::RollupDataSubmission,
+    protocol::transaction::v1::action::RollupDataSubmission,
 };
 use tokio::sync::mpsc::error::SendTimeoutError;
 use tonic::{

@@ -20,11 +20,11 @@ use astria_core::{
         Bech32,
         Bech32m,
     },
-    protocol::memos::v1alpha1::{
+    protocol::memos::v1::{
         Ics20TransferDeposit,
         Ics20WithdrawalFromRollup,
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1::block::Deposit,
 };
 use astria_eyre::{
     anyhow::{
@@ -749,11 +749,11 @@ mod tests {
             RollupId,
             TransactionId,
         },
-        protocol::memos::v1alpha1::{
+        protocol::memos::v1::{
             Ics20TransferDeposit,
             Ics20WithdrawalFromRollup,
         },
-        sequencerblock::v1alpha1::block::Deposit,
+        sequencerblock::v1::block::Deposit,
     };
     use cnidarium::StateDelta;
     use ibc_types::{

@@ -4,7 +4,7 @@ use astria_core::{
         RollupId,
         ROLLUP_ID_LEN,
     },
-    protocol::transaction::v1alpha1::action::RollupDataSubmission,
+    protocol::transaction::v1::action::RollupDataSubmission,
     Protobuf as _,
 };
 

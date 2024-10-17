@@ -14,7 +14,7 @@ use astria_core::{
     },
     protocol::{
         memos,
-        transaction::v1alpha1::{
+        transaction::v1::{
             action::Ics20Withdrawal,
             Action,
         },
@@ -404,7 +404,7 @@ where
                 .expect("must be set if this method is entered"),
         );
 
-        let memo = memo_to_json(&memos::v1alpha1::Ics20WithdrawalFromRollup {
+        let memo = memo_to_json(&memos::v1::Ics20WithdrawalFromRollup {
             memo: event.memo.clone(),
             rollup_block_number,
             rollup_return_address: event.sender.to_string(),
@@ -464,7 +464,7 @@ where
         let to = parse_destination_chain_as_address(&event)
             .map_err(GetWithdrawalActionsError::destination_chain_as_address)?;
 
-        let action = astria_core::protocol::transaction::v1alpha1::action::BridgeUnlock {
+        let action = astria_core::protocol::transaction::v1::action::BridgeUnlock {
             to,
             amount,
             rollup_block_number,

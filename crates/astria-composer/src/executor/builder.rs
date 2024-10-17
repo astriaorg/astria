@@ -6,9 +6,9 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
-    generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient,
+    generated::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::RollupDataSubmission,
+    protocol::transaction::v1::action::RollupDataSubmission,
 };
 use astria_eyre::eyre::{
     self,
