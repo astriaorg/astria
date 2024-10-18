@@ -12,9 +12,9 @@ layer is the Celestia blockchain.
 
 ## Application Logic
 
-The application logic of the relayer is comprised of three main tasks: getting
-the data from a sequencer node, transforming the data in preparation for
-publishing, and putting the transformed data onto the Celestia network.
+The application logic of the relayer comprises three main tasks: getting the
+data from a sequencer node, transforming the data in preparation for publishing,
+and putting the transformed data onto the Celestia network.
 
 ### Getting the Data from a Sequencer Node
 
@@ -28,9 +28,9 @@ following:
 1. upon receiving the sequencer block, forwards it to the transformation task
 
 Note that currently the relayer only communicates with a single sequencer node,
-and that this node is comprised of two separate processes, each providing their
-own http servers. Consequently, the relayer queries two different endpoints
-using two different protocols; CometBFT's ABCI `Info` for the block height via
+and that this node comprises two separate processes, each providing their own
+http servers. Consequently, the relayer queries two different endpoints using
+two different protocols; CometBFT's ABCI `Info` for the block height via
 JSONRPC, and the sequencer app's `GetSequencerBlock` via gRPC. This is likely to
 improve in the near future, as work is under way to extend the sequencer app's
 API to the extent that no direct communication with the CometBFT node will be
@@ -56,7 +56,7 @@ should not occur in practice.
 Transforming the data is done as part of an endlessly repeating task, the
 "submitter task", where the sequencer blocks are received from the reader task
 (generally once per second), accumulated into a batch and sent to the Celestia
-node as soon confirmation of the previous submission has been received.  In
+node as soon as confirmation of the previous submission has been received.  In
 practice, the submission rate is generally once per 12 seconds, i.e. the
 Celestia block time.
 
