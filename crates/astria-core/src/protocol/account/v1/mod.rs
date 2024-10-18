@@ -22,7 +22,7 @@ enum AssetBalanceErrorKind {
     InvalidDenom { source: ParseDenomError },
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssetBalance {
     pub denom: Denom,
     pub balance: u128,
