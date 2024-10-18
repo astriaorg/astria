@@ -31,10 +31,6 @@ message Action {
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
   }
-
-  // deprecated fields
-  reserved 54; // deprecated "mint_action"
-  reserved "mint_action";
 }
 
 // `TransferAction` represents a value transfer transaction.
