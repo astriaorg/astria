@@ -1,4 +1,4 @@
-# Sequencer application
+# Sequencer Application
 
 A sequencer blockchain node consists of two components:
 [CometBFT](https://github.com/cometbft/cometbft) (formerly known as tendermint)
@@ -13,7 +13,7 @@ into the application when necessary to execute the state transition logic.
 
 This document aims to specify the application logic of the sequencer chain.
 
-## Background and transaction types
+## Background and Transaction Types
 
 The sequencer chain's primary purpose is to sequence (order) data. This data is
 not executed on the sequencer chain, as it's destined for other chains (i.e.
@@ -23,7 +23,7 @@ Additionally, the sequencer chain has a native token used to pay fees for
 sequencing. The sequencer is account-based, so every account has an associated
 balance.
 
-### Accounts and keys
+### Accounts and Keys
 
 Currently, the sequencer supports [Ed25519](https://ed25519.cr.yp.to/) keys for
 accounts and signing.
@@ -87,11 +87,128 @@ pub struct Transaction {
 The address corresponding to the signer is derived from the
 `ed25519_consensus::VerificationKey` (i.e. the public key).
 
-### Actions
+## Actions
 
-TBD
+The following is an exhaustive list of all user-accessible actions available
+to be submitted as of Sequencer v0.18.0.
 
-## ABCI block lifecycle
+### Core Protocol Actions
+
+* `Transfer`: represents a value transfer action between two accounts. It consists
+of the following fields:
+
+  | **Field** | **Type** | **Description** |
+  | --------- | -------- | ----------- |
+  | to        | `Address`| The account to transfer to. The "from" address is assumed|
+  ||| to be the signer of the transaction. |
+  | amount    | `uint128`| The amount to transfer. |
+  | asset     | `string` | The asset to transfer. |
+  | fee_asset | `string` | The asset used to pay for the action's fees. |
+
+* `RollupDataSubmission`: a transaction ordered by the sequencer, whose destination
+is another chain. It consists of the following:
+
+  | **Field** | **Type** | **Description** |
+  | --------- | -------- | ----------- |
+  | rollup_id | `RollupId`| ID of the destination chain. |
+  | data      | `bytes`  | The opaque transaction data. |
+  | fee_asset | `string` | The asset used to pay for the action's fees. |
+
+### Bridge Actions
+
+These actions deal with transfering funds to/from a bridge account to be used on
+a rollup.
+
+* `InitBridgeAccount`: initializes a bridge account for the given rollup on the
+sequencer chain. The signer of the transaction is the owner of the bridge account,
+and the only actor authorized to transfer out of the account. It is made up of
+the following fields:
+
+  | **Field** | **Type** | **Description** |
+  | --------- | -------- | ----------- |
+  | rollup_id | `RollupId` | The rollup ID with which to register the bridge account.|
+  | asset     | `string`   | The asset ID that will be accepted by the account.|
+  | fee_asset | `string`   | The asset with which to pay fees. |
+  | sudo_address | `Address` | The address which has authority over the bridge|
+  ||| account. If empty, assigned to the signer. |
+  | withdrawer_address | `Address` | The address which is allowed to withdraw funds|
+  ||| from the bridge account. If empty, assigned to the signer.|
+
+* `BridgeLock`: transfers funds from a sequencer account to a bridge account.
+It is effectively similar to `Transfer`. Upon execution of a bridge lock action,
+a `Deposit` event will be emitted, containing the information of the transfer.
+
+  | **Field** | **Type** | **Description** |
+  | --------- | -------- | ----------- |
+  | to        | `Address`| The bridge account to transfer to. The "from" address|
+  ||| is assumed to be the signer of the transaction. |
+  | amount    | `uint128`| The amount to transfer. |
+  | asset     | `string` | The asset to transfer. |
+  | fee_asset | `string` | The asset used to pay for the action's fees. |
+  | destination_chain_address | `string` | The address on the destination chain|
+  ||| which will receive the bridged funds. |
+
+* `BridgeUnlock`: transfers funds from a bridge account to a sequencer account.
+Effectively similar to `Transfer`, it contains the following fields:
+
+  | **Field** | **Type** | **Description** |
+  | --------- | -------- | ----------- |
+  | to        | `Address`| The account to transfer to. |
+  | amount    | `uint128`| The amount to transfer. |
+  | fee_asset | `string` | The asset used to pay for the action's fees. |
+  | memo      | `string` | Can be used to provide unique, identifying information|
+  ||| about the bridge unlock action. |
+  | bridge_address | `Address` | The address of the bridge account to transfer|
+  ||| from. |
+  | rollup_block_number | `uint64` | The block number on the rollup which triggered|
+  ||| the transaction underlying the bridge unlock. |
+  | rollup_withdrawal_event_id | `string` | An identifier of the original rollup|
+  ||| can be used to trace distinct rollup events from the bridge. |
+
+* `BridgeSudoChange`: changes the sudo and/or withdrawer address for the given
+bridge account. The signer must be the current bridge sudo account.
+
+  | **Field** | **Type** | **Description** |
+  | --------- | -------- | ----------- |
+  | bridge_address | `Address` | The address of the bridge account to which these|
+  ||| changes should be made. |
+  | new_sudo_address | `Address` | The new sudo address for the bridge account.|
+  ||| If unset, will stay the same. |
+  | new_withdrawer_address | `Address` | The new withdrawer address for the bridge|
+  ||| account. If unset, will stay the same. |
+  | fee_asset | `string` | The assed with which to pay fees for this action.|
+
+### IBC User Actions
+
+Actions which deal with transfering funds between the sequencer and a separate
+chain.
+
+* `IbcRelay`: transmits data packets between the sequencer chain and another
+chain using the [IBC](https://www.ibcprotocol.dev/) protocol. It has one field:
+
+  | **Field** | **Type** | **Description** |
+  | --------- | -------- | ----------- |
+  | raw_action | `google.protobuf.Any` | The raw IBC Relay action. |
+
+* `Ics20Withdrawal`: transfers tokens from a sequencer account to a different
+chain via [ICS-20 protocol](https://github.com/cosmos/ibc/blob/main/spec/app/ics-020-fungible-token-transfer/README.md).
+It consists of the following:
+
+  | **Field** | **Type** | **Description** |
+  | --------- | -------- | ----------- |
+  | amount    | `uint218`| The amount to transfer. |
+  | denom     | `string` | The denomination to transfer. |
+  | destination_chain_address | `string` | The address on the destination chain|
+  ||| to send the transfer to. Not validated by Astria. |
+  | return_address | `Address` | The sequencer chain address to return funds to|
+  ||| in case the withdrawal fails. |
+  | timeout_height | `IbcHeight` | The sequencer height at which this action expires.|
+  | timeout_time | `uint64` | The unix timestamp (ns) at which this transfer expires.|
+  | source_channel | `string` | The source channel used for the withdrawal. |
+  | fee_asset | `string` | The asset used to pay fees with. |
+  | memo | `string` | A memo to invlude with the transfer. |
+
+## ABCI Block Lifecycle
 
 CometBFT makes progress through successive consensus rounds. During each round,
 a new block is proposed and voted on by validators. If >2/3 of validator
@@ -144,7 +261,7 @@ of steps in CometBFT v0.37:
 
 This is executed by all sequencer nodes to write the state changes to disk.
 
-## Transaction lifecycle
+## Transaction Lifecycle
 
 The lifecycle of a sequencer transaction is as follows:
 
@@ -163,9 +280,56 @@ The lifecycle of a sequencer transaction is as follows:
   execute successfully or fail. If the transaction fails, it will still be included
   in the block, but with a failure result, and will not have made any state changes.
 
-## ABCI queries
+## ABCI Queries
 
-TBD
+The sequencer supports queries directly into its state via ABCI. The current queries
+support by the sequencer are the following:
+
+* **Account Balance:** returns a list of assets and their corresponding balances
+for the given account, at the current block height. Usage:
+
+```sh
+abci-cli query --path=accounts/balance/<ADDRESS>
+```
+
+* **Account Nonce:** returns the account's current nonce. Usage:
+
+```sh
+abci-cli query --path=accounts/nonce/<ADDRESS>
+```
+
+* **Denom Request:** returns the full asset denomination given the asset ID. Usage:
+
+```sh
+abci-cli query --path=asset/denom/<DENOM_ID>
+```
+
+* **Allowed Fee Assets:** returns a list of all currently allowed fee assets. Usage:
+
+```sh
+abci-cli query --path=asset/allowed_fee_assets
+```
+
+* **Last Bridge TX Hash:** returns the hash of the last transaction that interacted
+with the given bridge account. Usage:
+
+```sh
+abci-cli query --path=bridge/account_last_tx_hash/<BRIDGE_ADDRESS>
+```
+
+* **Transaction Fee:** returns the estimated fees a given transaction will incur.
+Usage:
+
+```sh
+abci-cli query --path=transaction/fee --data=<TRANSACTION_BODY_BYTES>
+```
+
+* **Bridge Account Info:** returns the `rollup_id`, `asset`, `sudo_address`, and
+`withdrawer_address` for the given bridge account. Usage:
+
+```sh
+abci-cli query --path=bridge/account_info/<BRIDGE_ADDRESS>
+```
 
 ## Fees
 
