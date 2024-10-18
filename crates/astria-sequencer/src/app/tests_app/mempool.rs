@@ -14,6 +14,11 @@ use astria_core::{
     },
     Protobuf,
 };
+use benchmark_and_test_utils::{
+    proto_genesis_state,
+    ALICE_ADDRESS,
+    CAROL_ADDRESS,
+};
 use prost::Message as _;
 use tendermint::{
     abci::{
@@ -33,11 +38,11 @@ use super::*;
 use crate::{
     accounts::StateReadExt as _,
     app::test_utils::*,
-    proposal::commitment::generate_rollup_datas_commitment,
-    test_utils::{
+    benchmark_and_test_utils::{
         astria_address_from_hex_string,
         nria,
     },
+    proposal::commitment::generate_rollup_datas_commitment,
 };
 
 #[tokio::test]

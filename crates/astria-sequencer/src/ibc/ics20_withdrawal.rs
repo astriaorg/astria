@@ -274,7 +274,7 @@ mod tests {
     use super::*;
     use crate::{
         address::StateWriteExt as _,
-        test_utils::{
+        benchmark_and_test_utils::{
             assert_eyre_error,
             astria_address,
             ASTRIA_PREFIX,
