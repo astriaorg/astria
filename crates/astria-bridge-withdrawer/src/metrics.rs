@@ -53,8 +53,8 @@ impl Metrics {
     pub(crate) fn set_batch_total_settled_value(&self, value: u128) {
         if value > u128::from(u32::MAX) {
             tracing::warn!(
-                "{BATCH_TOTAL_SETTLED_VALUE} set with value ({value}) which exceeds u32::MAX, \
-                 precision loss in metric"
+                "{BATCH_TOTAL_SETTLED_VALUE} set with {value} which exceeds u32::MAX, precision \
+                 loss in metric"
             );
         }
         self.batch_total_settled_value.set(value as f64);
@@ -139,13 +139,13 @@ metric_names!(const METRICS_NAMES:
 #[cfg(test)]
 mod tests {
     use super::{
+        BATCH_TOTAL_SETTLED_VALUE,
         CURRENT_NONCE,
         NONCE_FETCH_COUNT,
         NONCE_FETCH_FAILURE_COUNT,
         NONCE_FETCH_LATENCY,
         SEQUENCER_SUBMISSION_FAILURE_COUNT,
         SEQUENCER_SUBMISSION_LATENCY,
-        BATCH_TOTAL_SETTLED_VALUE,
     };
 
     #[track_caller]
