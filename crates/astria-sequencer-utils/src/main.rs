@@ -7,6 +7,7 @@ use astria_sequencer_utils::{
     },
     genesis_example,
     genesis_parser,
+    transaction_parser,
 };
 
 fn main() -> Result<()> {
@@ -16,5 +17,6 @@ fn main() -> Result<()> {
         Command::CopyGenesisState(args) => genesis_parser::run(args),
         Command::GenerateGenesisState(args) => genesis_example::run(&args),
         Command::ParseBlob(args) => blob_parser::run(args),
+        Command::ParseTransaction(args) => transaction_parser::run(args),
     }
 }
