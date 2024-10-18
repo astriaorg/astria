@@ -9,8 +9,8 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(BASE_PREFIX);
-        insta::assert_snapshot!(IBC_COMPAT_PREFIX);
+        insta::assert_snapshot!("base_prefix", BASE_PREFIX);
+        insta::assert_snapshot!("ibc_compat_prefix", IBC_COMPAT_PREFIX);
     }
 
     #[test]

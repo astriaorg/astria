@@ -1,6 +1,6 @@
 ---
 source: crates/astria-core/src/primitive/v1/mod.rs
-expression: address
+expression: "&main_address.to_raw()"
 ---
 {
   "bech32m": "astria19g4z52329g4z52329g4z52329g4z5232ayenag"

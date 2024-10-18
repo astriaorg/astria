@@ -15,11 +15,11 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(CHAIN_ID);
-        insta::assert_snapshot!(REVISION_NUMBER);
-        insta::assert_snapshot!(BLOCK_HEIGHT);
-        insta::assert_snapshot!(BLOCK_TIMESTAMP);
-        insta::assert_snapshot!(storage_version_by_height(42));
+        insta::assert_snapshot!("chain_id_key", CHAIN_ID);
+        insta::assert_snapshot!("revision_number_key", REVISION_NUMBER);
+        insta::assert_snapshot!("block_height_key", BLOCK_HEIGHT);
+        insta::assert_snapshot!("block_timestamp_key", BLOCK_TIMESTAMP);
+        insta::assert_snapshot!("storage_version_key", storage_version_by_height(42));
     }
 
     #[test]
