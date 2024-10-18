@@ -74,7 +74,7 @@ impl Command {
         );
 
         println!("Submission completed!");
-        println!("Included in block: {}", res.height);
+        println!("Included in block: {}", tx_response.height);
         Ok(())
     }
 }
