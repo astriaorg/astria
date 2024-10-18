@@ -5,8 +5,8 @@ use astria_core::{
         Bech32,
     },
     protocol::{
-        memos::v1alpha1::Ics20WithdrawalFromRollup,
-        transaction::v1alpha1::action,
+        memos::v1::Ics20WithdrawalFromRollup,
+        transaction::v1::action,
     },
 };
 use astria_eyre::{

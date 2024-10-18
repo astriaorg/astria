@@ -26,7 +26,7 @@ pub(crate) async fn denom_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::asset::v1alpha1::DenomResponse;
+    use astria_core::protocol::asset::v1::DenomResponse;
 
     // use the latest snapshot, as this is a lookup of id->denom
     let snapshot = storage.latest_snapshot();

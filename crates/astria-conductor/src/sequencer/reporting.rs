@@ -1,6 +1,6 @@
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1alpha1::block::{
+    sequencerblock::v1::block::{
         FilteredSequencerBlock,
         RollupTransactions,
     },
@@ -45,7 +45,7 @@ mod tests {
     use astria_core::{
         primitive::v1::RollupId,
         protocol::test_utils::ConfigureSequencerBlock,
-        sequencerblock::v1alpha1::block::FilteredSequencerBlock,
+        sequencerblock::v1::block::FilteredSequencerBlock,
     };
     use insta::assert_json_snapshot;
 

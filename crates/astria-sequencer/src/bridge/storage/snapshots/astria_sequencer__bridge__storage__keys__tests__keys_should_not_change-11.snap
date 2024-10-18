@@ -1,6 +1,0 @@
----
-source: crates/astria-sequencer/src/bridge/storage/keys.rs
-assertion_line: 104
-expression: last_transaction_id_for_bridge_account(&address())
----
-bridge/account/HAxJDxtVKNgXPF3kbRMRYOSywMM=/last_tx

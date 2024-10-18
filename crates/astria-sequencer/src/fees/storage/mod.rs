@@ -13,7 +13,7 @@ pub(super) use values::{
     IbcSudoChangeFeeComponentsStorage,
     Ics20WithdrawalFeeComponentsStorage,
     InitBridgeAccountFeeComponentsStorage,
-    SequenceFeeComponentsStorage,
+    RollupDataSubmissionFeeComponentsStorage,
     SudoAddressChangeFeeComponentsStorage,
     TransferFeeComponentsStorage,
     ValidatorUpdateFeeComponentsStorage,

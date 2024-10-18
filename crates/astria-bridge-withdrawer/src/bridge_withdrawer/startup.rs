@@ -4,16 +4,16 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::sequencer_service_client::{
+    generated::sequencerblock::v1::sequencer_service_client::{
         self,
         SequencerServiceClient,
     },
     primitive::v1::asset,
     protocol::{
-        asset::v1alpha1::AllowedFeeAssetsResponse,
-        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+        asset::v1::AllowedFeeAssetsResponse,
+        bridge::v1::BridgeAccountLastTxHashResponse,
         memos,
-        transaction::v1alpha1::Action,
+        transaction::v1::Action,
     },
 };
 use astria_eyre::eyre::{
@@ -31,7 +31,7 @@ use sequencer_client::{
     tendermint_rpc,
     Address,
     SequencerClientExt as _,
-    SignedTransaction,
+    Transaction,
 };
 use tendermint_rpc::{
     endpoint::tx,
@@ -234,23 +234,9 @@ impl Startup {
         Ok(())
     }
 
-    /// Gets the last transaction by the bridge account on the sequencer. This is used to
-    /// determine the starting rollup height for syncing to the latest on-chain state.
-    ///
-    /// # Returns
-    /// The last transaction by the bridge account on the sequencer, if it exists.
-    ///
-    /// # Errors
-    ///
-    /// 1. Failing to fetch the last transaction hash by the bridge account.
-    /// 2. Failing to convert the last transaction hash to a tendermint hash.
-    /// 3. Failing to fetch the last transaction by the bridge account.
-    /// 4. The last transaction by the bridge account failed to execute (this should not happen
-    ///   in the sequencer logic).
-    /// 5. Failing to convert the transaction data from bytes to proto.
-    /// 6. Failing to convert the transaction data from proto to `SignedTransaction`.
+    /// Gets the last transaction by the bridge account on the sequencer.
     #[instrument(skip_all, err)]
-    async fn get_last_transaction(&self) -> eyre::Result<Option<SignedTransaction>> {
+    async fn get_last_transaction(&self) -> eyre::Result<Option<Transaction>> {
         // get last transaction hash by the bridge account, if it exists
         let last_transaction_hash_resp = get_bridge_account_last_transaction_hash(
             self.sequencer_cometbft_client.clone(),
@@ -283,17 +269,22 @@ impl Startup {
              the sequencer logic."
         );
 
-        let proto_tx =
-            astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::decode(
-                &*last_transaction.tx,
-            )
-            .wrap_err_with(|| format!(
+        let proto_tx = astria_core::generated::protocol::transaction::v1::Transaction::decode(
+            &*last_transaction.tx,
+        )
+        .wrap_err_with(|| {
+            format!(
                 "failed to decode data in Sequencer CometBFT transaction as `{}`",
-                astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::full_name(),
-                        ))?;
+                astria_core::generated::protocol::transaction::v1::Transaction::full_name(),
+            )
+        })?;
 
-        let tx = SignedTransaction::try_from_raw(proto_tx)
-            .wrap_err_with(|| format!("failed to verify {}", astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction::full_name()))?;
+        let tx = Transaction::try_from_raw(proto_tx).wrap_err_with(|| {
+            format!(
+                "failed to verify {}",
+                astria_core::generated::protocol::transaction::v1::Transaction::full_name()
+            )
+        })?;
 
         info!(
             last_bridge_account_tx.hash = %telemetry::display::hex(&tx_hash),
@@ -448,9 +439,7 @@ async fn wait_for_empty_mempool(
 /// 2. The memo of the last transaction by the bridge account could not be parsed.
 /// 3. The block number in the memo of the last transaction by the bridge account could not be
 ///    converted to a u64.
-fn rollup_height_from_signed_transaction(
-    signed_transaction: &SignedTransaction,
-) -> eyre::Result<u64> {
+fn rollup_height_from_signed_transaction(signed_transaction: &Transaction) -> eyre::Result<u64> {
     // find the last batch's rollup block height
     let withdrawal_action = signed_transaction
         .actions()
@@ -461,9 +450,8 @@ fn rollup_height_from_signed_transaction(
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => Some(action.rollup_block_number),
         Action::Ics20Withdrawal(action) => {
-            let memo: memos::v1alpha1::Ics20WithdrawalFromRollup =
-                serde_json::from_str(&action.memo)
-                    .wrap_err("failed to parse memo from last transaction by the bridge account")?;
+            let memo: memos::v1::Ics20WithdrawalFromRollup = serde_json::from_str(&action.memo)
+                .wrap_err("failed to parse memo from last transaction by the bridge account")?;
             Some(memo.rollup_block_number)
         }
         _ => None,

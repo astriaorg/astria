@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use astria_core::{
     primitive::v1::asset,
-    protocol::bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+    protocol::bridge::v1::BridgeAccountLastTxHashResponse,
 };
 use prost::Message as _;
 use sequencer_client::{
     NonceResponse,
-    SignedTransaction,
+    Transaction,
 };
 use tendermint::{
     abci::types::ExecTxResult,
@@ -189,7 +189,7 @@ pub async fn mount_allowed_fee_assets_response_as_scoped(
 fn prepare_allowed_fee_assets_response(fee_assets: Vec<asset::Denom>) -> Mock {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: astria_core::protocol::asset::v1alpha1::AllowedFeeAssetsResponse {
+            value: astria_core::protocol::asset::v1::AllowedFeeAssetsResponse {
                 fee_assets,
                 height: 1,
             }
@@ -329,17 +329,17 @@ fn prepare_broadcast_tx_sync_response(response: tx_sync::Response) -> Mock {
     .expect(1)
 }
 
-/// Convert a `Request` object to a `SignedTransaction`
-pub fn signed_tx_from_request(request: &wiremock::Request) -> SignedTransaction {
-    use astria_core::generated::protocol::transactions::v1alpha1::SignedTransaction as RawSignedTransaction;
+/// Convert a wiremock request to an astria transaction
+pub fn tx_from_request(request: &wiremock::Request) -> Transaction {
+    use astria_core::generated::protocol::transaction::v1::Transaction as RawTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: tendermint_rpc::request::Wrapper<tx_sync::Request> =
         serde_json::from_slice(&request.body)
             .expect("deserialize to JSONRPC wrapped tx_sync::Request");
-    let raw_signed_tx = RawSignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
+    let raw_signed_tx = RawTransaction::decode(&*wrapped_tx_sync_req.params().tx)
         .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
-    let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
+    let signed_tx = Transaction::try_from_raw(raw_signed_tx)
         .expect("can't convert raw signed tx to checked signed tx");
     debug!(?signed_tx, "sequencer mock received signed transaction");
 

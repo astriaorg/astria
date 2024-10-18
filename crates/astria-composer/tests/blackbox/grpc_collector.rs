@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use astria_core::{
-    generated::composer::v1alpha1::{
+    generated::composer::v1::{
         grpc_collector_service_client::GrpcCollectorServiceClient,
         SubmitRollupTransactionRequest,
     },

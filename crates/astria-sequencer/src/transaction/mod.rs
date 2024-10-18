@@ -4,9 +4,9 @@ mod state_ext;
 
 use std::fmt;
 
-use astria_core::protocol::transaction::v1alpha1::{
+use astria_core::protocol::transaction::v1::{
     action::Action,
-    SignedTransaction,
+    Transaction,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -83,7 +83,7 @@ impl fmt::Display for InvalidNonce {
 impl std::error::Error for InvalidNonce {}
 
 #[async_trait::async_trait]
-impl ActionHandler for SignedTransaction {
+impl ActionHandler for Transaction {
     async fn check_stateless(&self) -> Result<()> {
         ensure!(!self.actions().is_empty(), "must have at least one action");
 
@@ -93,7 +93,7 @@ impl ActionHandler for SignedTransaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for TransferAction")?,
-                Action::Sequence(act) => act
+                Action::RollupDataSubmission(act) => act
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for SequenceAction")?,
@@ -220,7 +220,7 @@ impl ActionHandler for SignedTransaction {
                 Action::Transfer(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("executing transfer action failed")?,
-                Action::Sequence(act) => check_execute_and_pay_fees(act, &mut state)
+                Action::RollupDataSubmission(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("executing sequence action failed")?,
                 Action::ValidatorUpdate(act) => check_execute_and_pay_fees(act, &mut state)

@@ -7,27 +7,27 @@ use astria_core::{
         RollupId,
     },
     protocol::{
-        fees::v1alpha1::{
+        fees::v1::{
             InitBridgeAccountFeeComponents,
-            SequenceFeeComponents,
+            RollupDataSubmissionFeeComponents,
         },
-        genesis::v1alpha1::GenesisAppState,
-        transaction::v1alpha1::{
+        genesis::v1::GenesisAppState,
+        transaction::v1::{
             action::{
                 BridgeLock,
                 BridgeUnlock,
                 IbcRelayerChange,
                 IbcSudoChange,
-                Sequence,
+                RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
                 ValidatorUpdate,
             },
             Action,
-            UnsignedTransaction,
+            TransactionBody,
         },
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1::block::Deposit,
     Protobuf as _,
 };
 use bytes::Bytes;
@@ -61,7 +61,7 @@ use crate::{
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
-        calculate_sequence_action_fee_from_state,
+        calculate_rollup_data_submission_fee_from_state,
         nria,
         ASTRIA_PREFIX,
     },
@@ -72,8 +72,8 @@ use crate::{
     utils::create_deposit_event,
 };
 
-fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
-    astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState {
+    astria_core::generated::protocol::genesis::v1::GenesisAppState {
         authority_sudo_address: Some(
             get_alice_signing_key()
                 .try_address(ASTRIA_PREFIX)
@@ -107,7 +107,7 @@ async fn app_execute_transaction_transfer() {
     let alice_address = astria_address(&alice.address_bytes());
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![
             Transfer {
                 to: bob_address,
@@ -121,7 +121,7 @@ async fn app_execute_transaction_transfer() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     assert_eq!(
@@ -165,7 +165,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
 
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![
             Transfer {
                 to: bob_address,
@@ -179,7 +179,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     assert_eq!(
@@ -231,7 +231,7 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
     let bob = astria_address_from_hex_string(BOB_ADDRESS);
 
     // 0-value transfer; only fee is deducted from sender
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![
             Transfer {
                 to: bob,
@@ -245,7 +245,7 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&keypair));
+    let signed_tx = Arc::new(tx.sign(&keypair));
     let res = app
         .execute_transaction(signed_tx)
         .await
@@ -260,7 +260,7 @@ async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_sequence_fees(SequenceFeeComponents {
+        .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
             base: 0,
             multiplier: 1,
         })
@@ -270,11 +270,11 @@ async fn app_execute_transaction_sequence() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_sequence_action_fee_from_state(&data, &app.state).await;
+    let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state).await;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -285,7 +285,7 @@ async fn app_execute_transaction_sequence() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
         app.state.get_account_nonce(&alice_address).await.unwrap(),
@@ -308,9 +308,9 @@ async fn app_execute_transaction_invalid_fee_asset() {
     let alice = get_alice_signing_key();
     let data = Bytes::from_static(b"hello world");
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: test_asset(),
@@ -321,7 +321,7 @@ async fn app_execute_transaction_invalid_fee_asset() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     assert!(app.execute_transaction(signed_tx).await.is_err());
 }
 
@@ -337,13 +337,13 @@ async fn app_execute_transaction_validator_update() {
         verification_key: crate::test_utils::verification_key(1),
     };
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![Action::ValidatorUpdate(update.clone())])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
         app.state.get_account_nonce(&alice_address).await.unwrap(),
@@ -365,7 +365,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
 
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![Action::IbcRelayerChange(IbcRelayerChange::Addition(
             alice_address,
         ))])
@@ -373,7 +373,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
         app.state.get_account_nonce(&alice_address).await.unwrap(),
@@ -396,12 +396,12 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
     .unwrap();
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![IbcRelayerChange::Removal(alice_address).into()])
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
         app.state.get_account_nonce(&alice_address).await.unwrap(),
@@ -426,13 +426,13 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
     .unwrap();
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![IbcRelayerChange::Removal(alice_address).into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     assert!(app.execute_transaction(signed_tx).await.is_err());
 }
 
@@ -444,7 +444,7 @@ async fn app_execute_transaction_sudo_address_change() {
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
 
     let new_address = astria_address_from_hex_string(BOB_ADDRESS);
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![Action::SudoAddressChange(SudoAddressChange {
             new_address,
         })])
@@ -452,7 +452,7 @@ async fn app_execute_transaction_sudo_address_change() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
         app.state.get_account_nonce(&alice_address).await.unwrap(),
@@ -482,7 +482,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
     .try_into()
     .unwrap();
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![Action::SudoAddressChange(SudoAddressChange {
             new_address: alice_address,
         })])
@@ -490,7 +490,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     let res = app
         .execute_transaction(signed_tx)
         .await
@@ -502,14 +502,14 @@ async fn app_execute_transaction_sudo_address_change_error() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_addition() {
-    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
+    use astria_core::protocol::transaction::v1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![Action::FeeAssetChange(FeeAssetChange::Addition(
             test_asset(),
         ))])
@@ -517,7 +517,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
         app.state.get_account_nonce(&alice_address).await.unwrap(),
@@ -529,7 +529,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_removal() {
-    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
+    use astria_core::protocol::transaction::v1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -543,7 +543,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     .unwrap();
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![Action::FeeAssetChange(FeeAssetChange::Removal(
             test_asset(),
         ))])
@@ -551,7 +551,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
         app.state.get_account_nonce(&alice_address).await.unwrap(),
@@ -563,13 +563,13 @@ async fn app_execute_transaction_fee_asset_change_removal() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_invalid() {
-    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
+    use astria_core::protocol::transaction::v1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
 
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![Action::FeeAssetChange(FeeAssetChange::Removal(
             nria().into(),
         ))])
@@ -577,7 +577,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     let res = app
         .execute_transaction(signed_tx)
         .await
@@ -589,7 +589,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
 
 #[tokio::test]
 async fn app_execute_transaction_init_bridge_account_ok() {
-    use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccount;
+    use astria_core::protocol::transaction::v1::action::InitBridgeAccount;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -614,13 +614,13 @@ async fn app_execute_transaction_init_bridge_account_ok() {
         withdrawer_address: None,
     };
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
 
     let before_balance = app
         .state
@@ -658,7 +658,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
 
 #[tokio::test]
 async fn app_execute_transaction_init_bridge_account_account_already_registered() {
-    use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccount;
+    use astria_core::protocol::transaction::v1::action::InitBridgeAccount;
 
     let alice = get_alice_signing_key();
     let mut app = initialize_app(None, vec![]).await;
@@ -671,13 +671,13 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         sudo_address: None,
         withdrawer_address: None,
     };
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let action = InitBridgeAccount {
@@ -688,13 +688,13 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
         withdrawer_address: None,
     };
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     assert!(app.execute_transaction(signed_tx).await.is_err());
 }
 
@@ -725,13 +725,13 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
 
     let bridge_before_balance = app
         .state
@@ -770,7 +770,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
 
 #[tokio::test]
 async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
-    use astria_core::protocol::transaction::v1alpha1::action::BridgeLock;
+    use astria_core::protocol::transaction::v1::action::BridgeLock;
 
     let alice = get_alice_signing_key();
     let mut app = initialize_app(None, vec![]).await;
@@ -786,13 +786,13 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     assert!(app.execute_transaction(signed_tx).await.is_err());
 }
 
@@ -806,9 +806,9 @@ async fn app_execute_transaction_invalid_nonce() {
     // create tx with invalid nonce 1
     let data = Bytes::from_static(b"hello world");
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -820,7 +820,7 @@ async fn app_execute_transaction_invalid_nonce() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     let response = app.execute_transaction(signed_tx).await;
 
     // check that tx was not executed by checking nonce and balance are unchanged
@@ -855,9 +855,9 @@ async fn app_execute_transaction_invalid_chain_id() {
 
     // create tx with invalid nonce 1
     let data = Bytes::from_static(b"hello world");
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -867,7 +867,7 @@ async fn app_execute_transaction_invalid_chain_id() {
         .chain_id("wrong-chain")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     let response = app.execute_transaction(signed_tx).await;
 
     // check that tx was not executed by checking nonce and balance are unchanged
@@ -907,10 +907,10 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // figure out needed fee for a single transfer
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_sequence_action_fee_from_state(&data, &app.state.clone()).await;
+    let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state.clone()).await;
 
     // transfer just enough to cover single sequence fee with data
-    let signed_tx = UnsignedTransaction::builder()
+    let signed_tx = TransactionBody::builder()
         .actions(vec![
             Transfer {
                 to: keypair_address,
@@ -923,19 +923,19 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&alice);
+        .sign(&alice);
     app.execute_transaction(Arc::new(signed_tx)).await.unwrap();
 
     // build double transfer exceeding balance
-    let signed_tx_fail = UnsignedTransaction::builder()
+    let signed_tx_fail = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: data.clone(),
                 fee_asset: nria().into(),
             }
             .into(),
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: data.clone(),
                 fee_asset: nria().into(),
@@ -945,7 +945,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&keypair);
+        .sign(&keypair);
     // try double, see fails stateful check
     let res = signed_tx_fail
         .check_and_execute(Arc::get_mut(&mut app.state).unwrap())
@@ -956,9 +956,9 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     assert!(res.contains("insufficient funds for asset"));
 
     // build single transfer to see passes
-    let signed_tx_pass = UnsignedTransaction::builder()
+    let signed_tx_pass = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -968,7 +968,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .into_signed(&keypair);
+        .sign(&keypair);
 
     signed_tx_pass
         .check_and_execute(Arc::get_mut(&mut app.state).unwrap())
@@ -1017,13 +1017,13 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
 
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
@@ -1042,13 +1042,13 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         rollup_withdrawal_event_id: "id-from-rollup".to_string(),
     };
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&bridge));
+    let signed_tx = Arc::new(tx.sign(&bridge));
     app.execute_transaction(signed_tx)
         .await
         .expect("executing bridge unlock action should succeed");
@@ -1090,13 +1090,13 @@ async fn app_execute_transaction_action_index_correctly_increments() {
         destination_chain_address: "nootwashere".to_string(),
     };
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![action.clone().into(), action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx.clone()).await.unwrap();
     assert_eq!(
         app.state.get_account_nonce(&alice_address).await.unwrap(),
@@ -1138,12 +1138,12 @@ async fn transaction_execution_records_deposit_event() {
         fee_asset: nria().into(),
         destination_chain_address: "test_chain_address".to_string(),
     };
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
 
     let expected_deposit = Deposit {
         bridge_address: bob_address,
@@ -1173,7 +1173,7 @@ async fn app_execute_transaction_ibc_sudo_change() {
 
     let new_address = astria_address_from_hex_string(BOB_ADDRESS);
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![Action::IbcSudoChange(IbcSudoChange {
             new_address,
         })])
@@ -1181,7 +1181,7 @@ async fn app_execute_transaction_ibc_sudo_change() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let ibc_sudo_address = app.state.get_ibc_sudo_address().await.unwrap();
@@ -1208,7 +1208,7 @@ async fn app_execute_transaction_ibc_sudo_change_error() {
     .unwrap();
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![Action::IbcSudoChange(IbcSudoChange {
             new_address: alice_address,
         })])
@@ -1216,7 +1216,7 @@ async fn app_execute_transaction_ibc_sudo_change_error() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     let res = app
         .execute_transaction(signed_tx)
         .await
@@ -1234,7 +1234,7 @@ async fn transaction_execution_records_fee_event() {
     let alice = get_alice_signing_key();
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
-    let tx = UnsignedTransaction::builder()
+    let tx = TransactionBody::builder()
         .actions(vec![
             Transfer {
                 to: bob_address,
@@ -1247,7 +1247,7 @@ async fn transaction_execution_records_fee_event() {
         .chain_id("test")
         .try_build()
         .unwrap();
-    let signed_tx = Arc::new(tx.into_signed(&alice));
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();
