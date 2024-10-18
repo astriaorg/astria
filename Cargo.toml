@@ -106,3 +106,12 @@ tracing = "0.1"
 tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
+
+# patch for handling height field in gRPC headers for IBC queries
+# see https://github.com/noot/penumbra/pull/3
+[patch.'https://github.com/penumbra-zone/penumbra.git']
+penumbra-ibc = { git = "https://github.com/noot/penumbra.git", rev = "3bf75a2fd2afa43f39320ffef3b8d5360ea9c5f8" }
+penumbra-proto = { git = "https://github.com/noot/penumbra.git", rev = "3bf75a2fd2afa43f39320ffef3b8d5360ea9c5f8" }
+penumbra-tower-trace = { git = "https://github.com/noot/penumbra.git", rev = "3bf75a2fd2afa43f39320ffef3b8d5360ea9c5f8" }
+cnidarium = { git = "https://github.com/noot/penumbra.git", rev = "3bf75a2fd2afa43f39320ffef3b8d5360ea9c5f8" }
+cnidarium-component = { git = "https://github.com/noot/penumbra.git", rev = "3bf75a2fd2afa43f39320ffef3b8d5360ea9c5f8" }
