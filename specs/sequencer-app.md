@@ -90,7 +90,7 @@ The address corresponding to the signer is derived from the
 ## Actions
 
 The following is an exhaustive list of all user-accessible actions available
-to be submitted as of Sequencer v0.18.0.
+to be submitted as of Sequencer v1.0.0-rc.1.
 
 ### Core Protocol Actions
 
