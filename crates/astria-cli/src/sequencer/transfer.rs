@@ -3,8 +3,8 @@ use astria_core::{
         asset,
         Address,
     },
-    protocol::transaction::v1alpha1::{
-        action::TransferAction,
+    protocol::transaction::v1::{
+        action::Transfer,
         Action,
     },
 };
@@ -61,7 +61,7 @@ impl Command {
             self.sequencer_chain_id.clone(),
             &self.prefix,
             self.private_key.as_str(),
-            Action::Transfer(TransferAction {
+            Action::Transfer(Transfer {
                 to: self.to_address,
                 amount: self.amount,
                 asset: self.asset.clone(),

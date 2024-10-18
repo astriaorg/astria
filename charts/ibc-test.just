@@ -70,6 +70,9 @@ run tag=defaultTag:
     exit 1
   fi
 
+  # Execute the transfer from Celstia to sequencer with compat address
+  just ibc-test _do-compat-ibc-transfer
+
   # check that celestia balance updated correctly
   for i in {1..50}
   do
@@ -84,6 +87,25 @@ run tag=defaultTag:
   done
   if [[ -z $expected_celestia_balance_found ]]; then
     echo "expected celestia balance was not found after withdraw; IBC transfer from Celestia to the Rollup failed"
+    exit 1
+  fi
+
+  # check that sequencer balance updated correctly
+  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+  EXPECTED_BALANCE=$(echo "1 * {{transfer_amount}}" | bc)
+  for i in {1..50}
+  do
+    BALANCE=$(docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer account balance {{sequencer_address}} --sequencer-url {{sequencer_rpc_url}}  | awk '/transfer\/channel-0\/utia/{print $(NF-1)}')
+    echo "check $i, balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      expected_sequencer_balance_found="1"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $expected_sequencer_balance_found ]]; then
+    echo "expected sequencer balance was not found after IBC transfer; IBC transfer with compat address failed"
     exit 1
   fi
 
@@ -143,12 +165,16 @@ run tag=defaultTag:
   fi
 
 bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
+sequencer_address := "astria1cewd7alwml4fhx3w3lxq3vgf20cqe0qm650fac"
+compat_address := "astriacompat1cewd7alwml4fhx3w3lxq3vgf20cqe0qmdzxmvn"
 celestia_dev_account_address := "celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96"
 celestia_chain_id := "celestia-local-0"
 celestia_node_url := "http://rpc.app.celestia.localdev.me:80"
 sequencer_tia_bridge_pkey := "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
 keyring_backend := "test"
 celestia_desitnation_address := "0x4a58639fb5458e65e4fa917ff951c390292c24a1"
+sequencer_rpc_url := "http://rpc.sequencer.localdev.me"
+cli_image := "ghcr.io/astriaorg/astria-cli"
 
 # This is the same address as used in deploy.just
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
@@ -181,6 +207,22 @@ _do-ibc-transfer namespace=defaultNamespace:
     {{bridge_address}} \
     "{{transfer_amount}}utia" \
     --memo="{\"rollupDepositAddress\":\"{{evm_destination_address}}\"}" \
+    --chain-id="{{celestia_chain_id}}" \
+    --from="{{celestia_dev_account_address}}" \
+    --fees="{{transfer_fees}}utia" \
+    --yes \
+    --log_level=debug \
+    --home /home/celestia \
+    --keyring-backend="{{keyring_backend}}"'
+
+_do-compat-ibc-transfer namespace=defaultNamespace:
+  echo "Performing IBC transfer with compat address..."
+  kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
+  'celestia-appd tx ibc-transfer transfer \
+    transfer \
+    channel-0 \
+    {{compat_address}} \
+    "{{transfer_amount}}utia" \
     --chain-id="{{celestia_chain_id}}" \
     --from="{{celestia_dev_account_address}}" \
     --fees="{{transfer_fees}}utia" \

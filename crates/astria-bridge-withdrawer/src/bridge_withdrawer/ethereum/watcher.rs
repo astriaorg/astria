@@ -12,7 +12,7 @@ use astria_core::{
         asset,
         Address,
     },
-    protocol::transaction::v1alpha1::Action,
+    protocol::transaction::v1::Action,
 };
 use astria_eyre::{
     eyre::{

@@ -14,7 +14,7 @@ pub(crate) enum StoredValue<'a> {
     Assets(crate::assets::storage::Value<'a>),
     Accounts(crate::accounts::storage::Value),
     Authority(crate::authority::storage::Value<'a>),
-    Sequence(crate::sequence::storage::Value),
+    Fees(crate::fees::storage::Value),
     Bridge(crate::bridge::storage::Value<'a>),
     Ibc(crate::ibc::storage::Value<'a>),
     App(crate::app::storage::Value<'a>),

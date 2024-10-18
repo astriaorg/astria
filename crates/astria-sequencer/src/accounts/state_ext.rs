@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fmt::Display,
     pin::Pin,
     task::{
@@ -12,7 +13,6 @@ use astria_core::primitive::v1::asset;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        eyre,
         OptionExt as _,
         Result,
         WrapErr as _,
@@ -27,43 +27,17 @@ use futures::Stream;
 use pin_project_lite::pin_project;
 use tracing::instrument;
 
-use super::storage;
+use super::storage::{
+    self,
+    keys::{
+        self,
+        extract_asset_from_key,
+    },
+};
 use crate::{
     accounts::AddressBytes,
     storage::StoredValue,
 };
-
-const ACCOUNTS_PREFIX: &str = "accounts";
-const TRANSFER_BASE_FEE_STORAGE_KEY: &str = "transferfee";
-
-struct StorageKey<'a, T>(&'a T);
-impl<'a, T: AddressBytes> std::fmt::Display for StorageKey<'a, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(ACCOUNTS_PREFIX)?;
-        f.write_str("/")?;
-        for byte in self.0.address_bytes() {
-            f.write_fmt(format_args!("{byte:02x}"))?;
-        }
-        Ok(())
-    }
-}
-
-fn balance_storage_key<'a, TAddress, TAsset>(address: &TAddress, asset: &'a TAsset) -> String
-where
-    TAddress: AddressBytes,
-    asset::IbcPrefixed: From<&'a TAsset>,
-{
-    let asset: asset::IbcPrefixed = asset.into();
-    format!(
-        "{}/balance/{}",
-        StorageKey(address),
-        crate::storage_keys::hunks::Asset::from(asset)
-    )
-}
-
-fn nonce_storage_key<T: AddressBytes>(address: &T) -> String {
-    format!("{}/nonce", StorageKey(address))
-}
 
 pin_project! {
     /// A stream of IBC prefixed assets for a given account.
@@ -141,15 +115,6 @@ where
     }
 }
 
-fn extract_asset_from_key(s: &str) -> Result<asset::IbcPrefixed> {
-    Ok(s.strip_prefix("accounts/")
-        .and_then(|s| s.split_once("/balance/").map(|(_, asset)| asset))
-        .ok_or_eyre("failed to strip prefix from account balance key")?
-        .parse::<crate::storage_keys::hunks::Asset>()
-        .context("failed to parse storage key suffix as address hunk")?
-        .get())
-}
-
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     #[instrument(skip_all)]
@@ -157,7 +122,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         &self,
         address: &T,
     ) -> AccountAssetsStream<Self::PrefixKeysStream> {
-        let prefix = format!("{}/balance/", StorageKey(address));
+        let prefix = keys::balance_prefix(address);
         AccountAssetsStream {
             underlying: self.prefix_keys(&prefix),
         }
@@ -168,7 +133,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         &self,
         address: &T,
     ) -> AccountAssetBalancesStream<Self::PrefixRawStream> {
-        let prefix = format!("{}/balance/", StorageKey(address));
+        let prefix = keys::balance_prefix(address);
         AccountAssetBalancesStream {
             underlying: self.prefix_raw(&prefix),
         }
@@ -183,10 +148,10 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     where
         TAddress: AddressBytes,
         TAsset: Sync + Display,
-        asset::IbcPrefixed: From<&'a TAsset> + Send + Sync,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let Some(bytes) = self
-            .get_raw(&balance_storage_key(address, asset))
+            .get_raw(&keys::balance(address, asset))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw account balance from state")?
@@ -201,7 +166,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
     #[instrument(skip_all)]
     async fn get_account_nonce<T: AddressBytes>(&self, address: &T) -> Result<u32> {
         let bytes = self
-            .get_raw(&nonce_storage_key(address))
+            .get_raw(&keys::nonce(address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw account nonce from state")?;
@@ -212,21 +177,6 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::Nonce::try_from(value).map(u32::from))
             .wrap_err("invalid nonce bytes")
-    }
-
-    #[instrument(skip_all)]
-    async fn get_transfer_base_fee(&self) -> Result<u128> {
-        let bytes = self
-            .get_raw(TRANSFER_BASE_FEE_STORAGE_KEY)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw transfer base fee from state")?;
-        let Some(bytes) = bytes else {
-            return Err(eyre!("transfer base fee not set"));
-        };
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::Fee::try_from(value).map(u128::from))
-            .wrap_err("invalid fee bytes")
     }
 }
 
@@ -244,12 +194,12 @@ pub(crate) trait StateWriteExt: StateWrite {
     where
         TAddress: AddressBytes,
         TAsset: Display,
-        asset::IbcPrefixed: From<&'a TAsset> + Send,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let bytes = StoredValue::from(storage::Balance::from(balance))
             .serialize()
             .wrap_err("failed to serialize balance")?;
-        self.put_raw(balance_storage_key(address, asset), bytes);
+        self.put_raw(keys::balance(address, asset), bytes);
         Ok(())
     }
 
@@ -258,7 +208,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::Nonce::from(nonce))
             .serialize()
             .wrap_err("failed to serialize nonce")?;
-        self.put_raw(nonce_storage_key(address), bytes);
+        self.put_raw(keys::nonce(address), bytes);
         Ok(())
     }
 
@@ -272,7 +222,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     where
         TAddress: AddressBytes,
         TAsset: Sync + Display,
-        asset::IbcPrefixed: From<&'a TAsset> + Send,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let balance = self
             .get_account_balance(address, asset)
@@ -299,7 +249,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     where
         TAddress: AddressBytes,
         TAsset: Sync + Display,
-        asset::IbcPrefixed: From<&'a TAsset> + Send,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
     {
         let balance = self
             .get_account_balance(address, asset)
@@ -315,32 +265,16 @@ pub(crate) trait StateWriteExt: StateWrite {
         .wrap_err("failed to store updated account balance in database")?;
         Ok(())
     }
-
-    #[instrument(skip_all)]
-    fn put_transfer_base_fee(&mut self, fee: u128) -> Result<()> {
-        let bytes = StoredValue::from(storage::Fee::from(fee))
-            .serialize()
-            .wrap_err("failed to serialize fee")?;
-        self.put_raw(TRANSFER_BASE_FEE_STORAGE_KEY.to_string(), bytes);
-        Ok(())
-    }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::Address;
     use cnidarium::StateDelta;
     use futures::TryStreamExt as _;
-    use insta::assert_snapshot;
 
-    use super::{
-        balance_storage_key,
-        nonce_storage_key,
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
     use crate::{
         assets::{
             StateReadExt as _,
@@ -352,14 +286,15 @@ mod tests {
         },
     };
 
-    fn asset_0() -> astria_core::primitive::v1::asset::Denom {
+    fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
     }
 
-    fn asset_1() -> astria_core::primitive::v1::asset::Denom {
+    fn asset_1() -> asset::Denom {
         "asset_1".parse().unwrap()
     }
-    fn asset_2() -> astria_core::primitive::v1::asset::Denom {
+
+    fn asset_2() -> asset::Denom {
         "asset_2".parse().unwrap()
     }
 
@@ -822,32 +757,5 @@ mod tests {
             .decrease_balance(&address, &asset, amount_increase + 1)
             .await
             .expect_err("should not be able to subtract larger balance than what existed");
-    }
-
-    #[tokio::test]
-    async fn transfer_base_fee_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_transfer_base_fee(123).unwrap();
-        let retrieved_fee = state.get_transfer_base_fee().await.unwrap();
-        assert_eq!(retrieved_fee, 123);
-    }
-
-    #[test]
-    fn storage_keys_have_not_changed() {
-        let address: Address = "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
-            .parse()
-            .unwrap();
-        let asset = "an/asset/with/a/prefix"
-            .parse::<astria_core::primitive::v1::asset::Denom>()
-            .unwrap();
-        assert_eq!(
-            balance_storage_key(&address, &asset),
-            balance_storage_key(&address, &asset.to_ibc_prefixed())
-        );
-        assert_snapshot!(balance_storage_key(&address, &asset));
-        assert_snapshot!(nonce_storage_key(&address));
     }
 }
