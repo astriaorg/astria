@@ -3,7 +3,7 @@
 //!
 //! The inner state must not be unset after having been set.
 use astria_core::{
-    execution::v1alpha2::{
+    execution::v1::{
         Block,
         CommitmentState,
         GenesisInfo,
@@ -344,7 +344,7 @@ pub(super) fn map_sequencer_height_to_rollup_height(
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        generated::execution::v1alpha2 as raw,
+        generated::execution::v1 as raw,
         Protobuf as _,
     };
     use pbjson_types::Timestamp;

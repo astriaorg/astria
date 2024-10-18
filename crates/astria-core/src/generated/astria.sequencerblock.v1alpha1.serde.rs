@@ -240,7 +240,7 @@ impl serde::Serialize for FilteredSequencerBlock {
             struct_ser.serialize_field("rollupTransactionsProof", v)?;
         }
         if !self.all_rollup_ids.is_empty() {
-            struct_ser.serialize_field("allRollupIds", &self.all_rollup_ids.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
+            struct_ser.serialize_field("allRollupIds", &self.all_rollup_ids)?;
         }
         if let Some(v) = self.rollup_ids_proof.as_ref() {
             struct_ser.serialize_field("rollupIdsProof", v)?;
@@ -360,10 +360,7 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
                             if all_rollup_ids__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("allRollupIds"));
                             }
-                            all_rollup_ids__ = 
-                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
-                                    .into_iter().map(|x| x.0).collect())
-                            ;
+                            all_rollup_ids__ = Some(map_.next_value()?);
                         }
                         GeneratedField::RollupIdsProof => {
                             if rollup_ids_proof__.is_some() {

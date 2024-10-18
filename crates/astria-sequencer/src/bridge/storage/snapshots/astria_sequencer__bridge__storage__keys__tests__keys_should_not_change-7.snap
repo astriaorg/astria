@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/keys.rs
+expression: "deposit(&[1; 32], &RollupId::new([2; 32]))"
+---
+bridge/deposit/AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=/AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=

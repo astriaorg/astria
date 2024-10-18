@@ -10,10 +10,10 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::transaction::v1alpha1::{
-        action::SequenceAction,
+    protocol::transaction::v1::{
+        action::RollupDataSubmission,
         Action,
-        UnsignedTransaction,
+        TransactionBody,
     },
     Protobuf as _,
 };
@@ -29,9 +29,9 @@ mod tests;
 #[derive(Debug, thiserror::Error)]
 enum SizedBundleError {
     #[error("bundle does not have enough space left for the given sequence action")]
-    NotEnoughSpace(SequenceAction),
+    NotEnoughSpace(RollupDataSubmission),
     #[error("sequence action is larger than the max bundle size")]
-    SequenceActionTooLarge(SequenceAction),
+    SequenceActionTooLarge(RollupDataSubmission),
 }
 
 pub(super) struct SizedBundleReport<'a>(pub(super) &'a SizedBundle);
@@ -75,24 +75,21 @@ impl SizedBundle {
         }
     }
 
-    /// Constructs an [`UnsignedTransaction`] from the actions contained in the bundle and `params`.
+    /// Constructs a [`Body`] from the actions contained in the bundle and provided parameters.
+    ///
     /// # Panics
-    /// Method is expected to never panic because only `SequenceActions` are added to the bundle,
-    /// which should produce a valid variant of the `ActionGroup` type.
-    pub(super) fn to_unsigned_transaction(
-        &self,
-        nonce: u32,
-        chain_id: &str,
-    ) -> UnsignedTransaction {
-        UnsignedTransaction::builder()
+    /// Method is expected to never panic because only `Sequence` actions are added to the bundle,
+    /// which should produce a valid variant of the [`action::Group`] type.
+    pub(super) fn to_transaction_body(&self, nonce: u32, chain_id: &str) -> TransactionBody {
+        TransactionBody::builder()
             .actions(self.buffer.clone())
             .chain_id(chain_id)
             .nonce(nonce)
             .try_build()
             .expect(
                 "method is expected to never panic because only `SequenceActions` are added to \
-                 the bundle, which should produce a valid variant of the `ActionGroup` type; this \
-                 is checked by `tests::transaction_construction_should_not_panic",
+                 the bundle, which should produce a valid variant of the `action::Group` type; \
+                 this is checked by `tests::transaction_construction_should_not_panic",
             )
     }
 
@@ -100,7 +97,7 @@ impl SizedBundle {
     /// # Errors
     /// - `seq_action` is beyond the max size allowed for the entire bundle
     /// - `seq_action` does not fit in the remaining space in the bundle
-    fn try_push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
+    fn try_push(&mut self, seq_action: RollupDataSubmission) -> Result<(), SizedBundleError> {
         let seq_action_size = encoded_len(&seq_action);
 
         if seq_action_size > self.max_size {
@@ -117,7 +114,7 @@ impl SizedBundle {
             .entry(seq_action.rollup_id)
             .and_modify(|count| *count = count.saturating_add(1))
             .or_insert(1);
-        self.buffer.push(Action::Sequence(seq_action));
+        self.buffer.push(Action::RollupDataSubmission(seq_action));
         self.curr_size = new_size;
 
         Ok(())
@@ -162,7 +159,7 @@ pub(super) struct FinishedQueueFull {
     curr_bundle_size: usize,
     finished_queue_capacity: usize,
     sequence_action_size: usize,
-    seq_action: SequenceAction,
+    seq_action: RollupDataSubmission,
 }
 
 impl From<FinishedQueueFull> for BundleFactoryError {
@@ -198,7 +195,7 @@ impl BundleFactory {
     /// is at capacity.
     pub(super) fn try_push(
         &mut self,
-        seq_action: SequenceAction,
+        seq_action: RollupDataSubmission,
     ) -> Result<(), BundleFactoryError> {
         let seq_action = with_ibc_prefixed(seq_action);
         let seq_action_size = encoded_len(&seq_action);
@@ -289,14 +286,14 @@ impl<'a> NextFinishedBundle<'a> {
     }
 }
 
-fn with_ibc_prefixed(action: SequenceAction) -> SequenceAction {
-    SequenceAction {
+fn with_ibc_prefixed(action: RollupDataSubmission) -> RollupDataSubmission {
+    RollupDataSubmission {
         fee_asset: action.fee_asset.to_ibc_prefixed().into(),
         ..action
     }
 }
 
-fn encoded_len(action: &SequenceAction) -> usize {
+fn encoded_len(action: &RollupDataSubmission) -> usize {
     use prost::Message as _;
     action.to_raw().encoded_len()
 }
