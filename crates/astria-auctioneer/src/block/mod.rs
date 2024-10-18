@@ -2,10 +2,10 @@ use astria_core::{
     execution,
     generated::{
         bundle::v1alpha1 as raw_bundle,
-        sequencerblock::v1alpha1 as raw_sequencer_block,
+        sequencerblock::v1 as raw_sequencer_block,
     },
     primitive::v1::RollupId,
-    sequencerblock::v1alpha1::block::{
+    sequencerblock::v1::block::{
         FilteredSequencerBlock,
         FilteredSequencerBlockParts,
     },
@@ -98,7 +98,7 @@ impl Optimistic {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Executed {
-    block: execution::v1alpha2::Block,
+    block: execution::v1::Block,
     sequencer_block_hash: [u8; 32],
 }
 
@@ -107,7 +107,7 @@ impl Executed {
         raw: raw_bundle::ExecuteOptimisticBlockStreamResponse,
     ) -> eyre::Result<Self> {
         let block = if let Some(raw_block) = raw.block {
-            execution::v1alpha2::Block::try_from_raw(raw_block).wrap_err("invalid rollup block")?
+            execution::v1::Block::try_from_raw(raw_block).wrap_err("invalid rollup block")?
         } else {
             return Err(eyre!("missing block"));
         };

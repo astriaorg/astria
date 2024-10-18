@@ -1,6 +1,6 @@
 use std::pin::Pin;
 
-use astria_core::generated::sequencerblock::v1alpha1::GetOptimisticBlockStreamResponse;
+use astria_core::generated::sequencerblock::v1::GetOptimisticBlockStreamResponse;
 use astria_eyre::eyre::{
     self,
     eyre,
