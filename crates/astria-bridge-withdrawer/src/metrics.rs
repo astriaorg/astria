@@ -18,7 +18,7 @@ pub struct Metrics {
     nonce_fetch_latency: Histogram,
     sequencer_submission_failure_count: Counter,
     sequencer_submission_latency: Histogram,
-    sequencer_block_settled_value: Gauge,
+    batch_total_settled_value: Gauge,
 }
 
 impl Metrics {
@@ -48,17 +48,16 @@ impl Metrics {
 
     #[expect(
         clippy::cast_precision_loss,
-        reason = "metric with potential loss of precision, noted with a log warning when it occurs"
+        reason = "metric with potential loss of precision, logging when it occurs"
     )]
-    pub(crate) fn set_sequencer_block_settled_value(&self, value: u128) {
-        let max_u32: u128 = u32::MAX.into();
-        if value > max_u32 {
+    pub(crate) fn set_batch_total_settled_value(&self, value: u128) {
+        if value > u128::from(u32::MAX) {
             tracing::warn!(
-                "sequencer_block_settled_value is being set with a value that exceeds u32::MAX, \
-                 precision loss may occur"
+                "{BATCH_TOTAL_SETTLED_VALUE} set with value ({value}) which exceeds u32::MAX, \
+                 precision loss in metric"
             );
         }
-        self.sequencer_block_settled_value.set(value as f64);
+        self.batch_total_settled_value.set(value as f64);
     }
 }
 
@@ -108,9 +107,9 @@ impl metrics::Metrics for Metrics {
             )?
             .register()?;
 
-        let sequencer_block_settled_value = builder
+        let batch_total_settled_value = builder
             .new_gauge_factory(
-                "sequencer_block_settled_value",
+                BATCH_TOTAL_SETTLED_VALUE,
                 "Total value of withdrawals settled in a given sequencer block",
             )?
             .register()?;
@@ -122,7 +121,7 @@ impl metrics::Metrics for Metrics {
             nonce_fetch_latency,
             sequencer_submission_failure_count,
             sequencer_submission_latency,
-            sequencer_block_settled_value,
+            batch_total_settled_value,
         })
     }
 }
@@ -134,7 +133,7 @@ metric_names!(const METRICS_NAMES:
     CURRENT_NONCE,
     SEQUENCER_SUBMISSION_FAILURE_COUNT,
     SEQUENCER_SUBMISSION_LATENCY,
-    SEQUNCER_BLOCK_SETTLED_VALUE,
+    BATCH_TOTAL_SETTLED_VALUE,
 );
 
 #[cfg(test)]
@@ -146,7 +145,7 @@ mod tests {
         NONCE_FETCH_LATENCY,
         SEQUENCER_SUBMISSION_FAILURE_COUNT,
         SEQUENCER_SUBMISSION_LATENCY,
-        SEQUNCER_BLOCK_SETTLED_VALUE,
+        BATCH_TOTAL_SETTLED_VALUE,
     };
 
     #[track_caller]
