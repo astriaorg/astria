@@ -18,6 +18,7 @@ use astria_core::{
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
+            ValidatorUpdateV2,
         },
     },
     Protobuf,
@@ -311,6 +312,22 @@ impl FeeHandler for IbcRelay {
             .get_ibc_relay_fees()
             .await
             .wrap_err("ibc relay fees not found, so this action is disabled")?;
+        Ok(())
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for ValidatorUpdateV2 {
+    #[instrument(skip_all, err)]
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+        state
+            .get_validator_update_v2_fees()
+            .await
+            .wrap_err("validator update (v2) fees not found, so this action is disabled")?;
         Ok(())
     }
 

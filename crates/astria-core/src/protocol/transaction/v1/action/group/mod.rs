@@ -24,6 +24,7 @@ use super::{
     SudoAddressChange,
     Transfer,
     ValidatorUpdate,
+    ValidatorUpdateV2,
 };
 
 trait BelongsToGroup {
@@ -55,6 +56,7 @@ impl_belong_to_group!(
     (FeeAssetChange, Group::BundleableSudo),
     (IbcRelay, Group::BundleableGeneral),
     (IbcSudoChange, Group::UnbundleableSudo),
+    (ValidatorUpdateV2, Group::BundleableGeneral),
 );
 
 impl Action {
@@ -74,6 +76,7 @@ impl Action {
             Action::FeeAssetChange(_) => FeeAssetChange::GROUP,
             Action::Ibc(_) => IbcRelay::GROUP,
             Action::IbcSudoChange(_) => IbcSudoChange::GROUP,
+            Action::ValidatorUpdateV2(_) => ValidatorUpdateV2::GROUP,
         }
     }
 }

@@ -34,7 +34,7 @@ message Action {
   reserved 3 to 10;
   reserved 15 to 20;
   reserved 23 to 30;
-  reserved 57 to 60;
+  reserved 58 to 60;
 
   // deprecated fields
   reserved 54; // deprecated "mint_action"
