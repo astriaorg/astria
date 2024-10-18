@@ -18,11 +18,11 @@ use astria_core::{
         Denom,
     },
     protocol::{
-        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
-        memos::v1alpha1::Ics20WithdrawalFromRollup,
-        transaction::v1alpha1::{
+        bridge::v1::BridgeAccountLastTxHashResponse,
+        memos::v1::Ics20WithdrawalFromRollup,
+        transaction::v1::{
             action::{
-                BridgeUnlockAction,
+                BridgeUnlock,
                 Ics20Withdrawal,
             },
             Action,
@@ -435,7 +435,7 @@ pub fn make_native_bridge_unlock_action(receipt: &TransactionReceipt) -> Action 
     let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
     let event_index = receipt.logs[0].log_index.unwrap().encode_hex();
 
-    let inner = BridgeUnlockAction {
+    let inner = BridgeUnlock {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),
@@ -485,7 +485,7 @@ pub fn make_erc20_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
     // use the second event because the erc20 transfer also emits an event
     let event_index = receipt.logs[1].log_index.unwrap().encode_hex();
 
-    let inner = BridgeUnlockAction {
+    let inner = BridgeUnlock {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),

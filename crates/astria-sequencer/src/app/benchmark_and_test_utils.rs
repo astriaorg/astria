@@ -6,15 +6,32 @@ use astria_core::{
         IbcPrefixed,
     },
     protocol::{
-        genesis::v1alpha1::{
+        fees::v1::{
+            BridgeLockFeeComponents,
+            BridgeSudoChangeFeeComponents,
+            BridgeUnlockFeeComponents,
+            FeeAssetChangeFeeComponents,
+            FeeChangeFeeComponents,
+            IbcRelayFeeComponents,
+            IbcRelayerChangeFeeComponents,
+            IbcSudoChangeFeeComponents,
+            Ics20WithdrawalFeeComponents,
+            InitBridgeAccountFeeComponents,
+            RollupDataSubmissionFeeComponents,
+            SudoAddressChangeFeeComponents,
+            TransferFeeComponents,
+            ValidatorUpdateFeeComponents,
+        },
+        genesis::v1::{
             Account,
             AddressPrefixes,
             GenesisAppState,
         },
-        transaction::v1alpha1::action::ValidatorUpdate,
+        transaction::v1::action::ValidatorUpdate,
     },
     Protobuf,
 };
+use astria_eyre::eyre::WrapErr as _;
 use cnidarium::{
     Snapshot,
     StateDelta,
@@ -30,11 +47,9 @@ use crate::{
         astria_address_from_hex_string,
         nria,
     },
-    bridge::StateWriteExt as _,
-    ibc::StateWriteExt as _,
+    fees::StateWriteExt as _,
     mempool::Mempool,
     metrics::Metrics,
-    sequence::StateWriteExt as _,
 };
 
 pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
@@ -45,7 +60,7 @@ pub(crate) const TED_ADDRESS: &str = "4c4f91d8a918357ab5f6f19c1e179968fc39bb44";
 
 pub(crate) fn address_prefixes() -> AddressPrefixes {
     AddressPrefixes::try_from_raw(
-        astria_core::generated::protocol::genesis::v1alpha1::AddressPrefixes {
+        astria_core::generated::protocol::genesis::v1::AddressPrefixes {
             base: crate::benchmark_and_test_utils::ASTRIA_PREFIX.into(),
             ibc_compat: crate::benchmark_and_test_utils::ASTRIA_COMPAT_PREFIX.into(),
         },
@@ -53,21 +68,70 @@ pub(crate) fn address_prefixes() -> AddressPrefixes {
     .unwrap()
 }
 
-pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1alpha1::Fees {
-    astria_core::protocol::genesis::v1alpha1::Fees {
-        transfer_base_fee: 12,
-        sequence_base_fee: 32,
-        sequence_byte_cost_multiplier: 1,
-        init_bridge_account_base_fee: 48,
-        bridge_lock_byte_cost_multiplier: 1,
-        bridge_sudo_change_fee: 24,
-        ics20_withdrawal_base_fee: 24,
+pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees {
+    astria_core::protocol::genesis::v1::GenesisFees {
+        transfer: TransferFeeComponents {
+            base: 12,
+            multiplier: 0,
+        },
+        rollup_data_submission: RollupDataSubmissionFeeComponents {
+            base: 32,
+            multiplier: 1,
+        },
+        init_bridge_account: InitBridgeAccountFeeComponents {
+            base: 48,
+            multiplier: 0,
+        },
+        bridge_lock: BridgeLockFeeComponents {
+            base: 12, // should reflect transfer fee
+            multiplier: 1,
+        },
+        bridge_sudo_change: BridgeSudoChangeFeeComponents {
+            base: 24,
+            multiplier: 0,
+        },
+        ics20_withdrawal: Ics20WithdrawalFeeComponents {
+            base: 24,
+            multiplier: 0,
+        },
+        bridge_unlock: BridgeUnlockFeeComponents {
+            base: 12, // should reflect transfer fee
+            multiplier: 0,
+        },
+        ibc_relay: IbcRelayFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        validator_update: ValidatorUpdateFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        fee_asset_change: FeeAssetChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        fee_change: FeeChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        ibc_relayer_change: IbcRelayerChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        sudo_address_change: SudoAddressChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
+        ibc_sudo_change: IbcSudoChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        },
     }
 }
 
-pub(crate) fn proto_genesis_state()
--> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
-    use astria_core::generated::protocol::genesis::v1alpha1::{
+pub(crate) fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState
+{
+    use astria_core::generated::protocol::genesis::v1::{
         GenesisAppState,
         IbcParameters,
     };
@@ -104,8 +168,8 @@ pub(crate) async fn initialize_app_with_storage(
         .await
         .expect("failed to create temp storage backing chain state");
     let snapshot = storage.latest_snapshot();
-    let mempool = Mempool::new();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
@@ -159,7 +223,7 @@ pub(crate) fn mock_tx_cost(
 
 pub(crate) const MOCK_SEQUENCE_FEE: u128 = 10;
 pub(crate) fn denom_0() -> Denom {
-    "denom_0".parse().unwrap()
+    nria().into()
 }
 
 pub(crate) fn denom_1() -> Denom {
@@ -223,6 +287,10 @@ pub(crate) fn mock_state_put_account_nonce(
     state.put_account_nonce(address, nonce).unwrap();
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "lines come from necessary fees setup"
+)]
 pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
@@ -252,15 +320,132 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     // setup tx fees
+    // setup tx fees
+    let transfer_fees = TransferFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
     state
-        .put_sequence_action_base_fee(MOCK_SEQUENCE_FEE)
+        .put_transfer_fees(transfer_fees)
+        .wrap_err("failed to initiate transfer fee components")
         .unwrap();
-    state.put_sequence_action_byte_cost_multiplier(0).unwrap();
-    state.put_transfer_base_fee(0).unwrap();
-    state.put_ics20_withdrawal_base_fee(0).unwrap();
-    state.put_init_bridge_account_base_fee(0).unwrap();
-    state.put_bridge_lock_byte_cost_multiplier(0).unwrap();
-    state.put_bridge_sudo_change_base_fee(0).unwrap();
+
+    let rollup_data_submission_fees = RollupDataSubmissionFeeComponents {
+        base: MOCK_SEQUENCE_FEE,
+        multiplier: 0,
+    };
+    state
+        .put_rollup_data_submission_fees(rollup_data_submission_fees)
+        .wrap_err("failed to initiate sequence action fee components")
+        .unwrap();
+
+    let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
+        .wrap_err("failed to initiate ics20 withdrawal fee components")
+        .unwrap();
+
+    let init_bridge_account_fees = InitBridgeAccountFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_init_bridge_account_fees(init_bridge_account_fees)
+        .wrap_err("failed to initiate init bridge account fee components")
+        .unwrap();
+
+    let bridge_lock_fees = BridgeLockFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_bridge_lock_fees(bridge_lock_fees)
+        .wrap_err("failed to initiate bridge lock fee components")
+        .unwrap();
+
+    let bridge_unlock_fees = BridgeUnlockFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_bridge_unlock_fees(bridge_unlock_fees)
+        .wrap_err("failed to initiate bridge unlock fee components")
+        .unwrap();
+
+    let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
+        .wrap_err("failed to initiate bridge sudo change fee components")
+        .unwrap();
+
+    let ibc_relay_fees = IbcRelayFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_ibc_relay_fees(ibc_relay_fees)
+        .wrap_err("failed to initiate ibc relay fee components")
+        .unwrap();
+
+    let validator_update_fees = ValidatorUpdateFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_validator_update_fees(validator_update_fees)
+        .wrap_err("failed to initiate validator update fee components")
+        .unwrap();
+
+    let fee_asset_change_fees = FeeAssetChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_fee_asset_change_fees(fee_asset_change_fees)
+        .wrap_err("failed to initiate fee asset change fee components")
+        .unwrap();
+
+    let fee_change_fees = FeeChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_fee_change_fees(fee_change_fees)
+        .wrap_err("failed to initiate fee change fees fee components")
+        .unwrap();
+
+    let ibc_relayer_change_fees = IbcRelayerChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_ibc_relayer_change_fees(ibc_relayer_change_fees)
+        .wrap_err("failed to initiate ibc relayer change fee components")
+        .unwrap();
+
+    let sudo_address_change_fees = SudoAddressChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_sudo_address_change_fees(sudo_address_change_fees)
+        .wrap_err("failed to initiate sudo address change fee components")
+        .unwrap();
+
+    let ibc_sudo_change_fees = IbcSudoChangeFeeComponents {
+        base: 0,
+        multiplier: 0,
+    };
+    state
+        .put_ibc_sudo_change_fees(ibc_sudo_change_fees)
+        .wrap_err("failed to initiate ibc sudo change fee components")
+        .unwrap();
 
     // put denoms as allowed fee asset
     state.put_allowed_fee_asset(&denom_0()).unwrap();

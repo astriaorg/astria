@@ -4,25 +4,34 @@ use astria_core::{
     crypto::SigningKey,
     primitive::v1::RollupId,
     protocol::{
-        genesis::v1alpha1::GenesisAppState,
-        transaction::v1alpha1::{
+        genesis::v1::GenesisAppState,
+        transaction::v1::{
             action::{
-                SequenceAction,
+                group::Group,
+                FeeAssetChange,
+                InitBridgeAccount,
+                RollupDataSubmission,
+                SudoAddressChange,
                 ValidatorUpdate,
             },
-            SignedTransaction,
-            UnsignedTransaction,
+            Action,
+            Transaction,
+            TransactionBody,
         },
     },
 };
 use bytes::Bytes;
 
-use crate::app::{
-    benchmark_and_test_utils::{
-        denom_0,
-        initialize_app_with_storage,
+use crate::{
+    app::{
+        benchmark_and_test_utils::{
+            denom_0,
+            initialize_app_with_storage,
+            JUDY_ADDRESS,
+        },
+        App,
     },
-    App,
+    benchmark_and_test_utils::astria_address_from_hex_string,
 };
 
 pub(crate) fn get_alice_signing_key() -> SigningKey {
@@ -86,6 +95,7 @@ pub(crate) struct MockTxBuilder {
     nonce: u32,
     signer: SigningKey,
     chain_id: String,
+    group: Group,
 }
 
 impl MockTxBuilder {
@@ -94,6 +104,7 @@ impl MockTxBuilder {
             chain_id: "test".to_string(),
             nonce: 0,
             signer: get_alice_signing_key(),
+            group: Group::BundleableGeneral,
         }
     }
 
@@ -118,21 +129,50 @@ impl MockTxBuilder {
         }
     }
 
-    pub(crate) fn build(self) -> Arc<SignedTransaction> {
-        let tx = UnsignedTransaction::builder()
-            .actions(vec![
-                SequenceAction {
-                    rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
-                    data: Bytes::from_static(&[0x99]),
-                    fee_asset: denom_0(),
-                }
-                .into(),
-            ])
+    pub(crate) fn group(self, group: Group) -> Self {
+        Self {
+            group,
+            ..self
+        }
+    }
+
+    pub(crate) fn build(self) -> Arc<Transaction> {
+        let action: Action = match self.group {
+            Group::BundleableGeneral => RollupDataSubmission {
+                rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
+                data: Bytes::from_static(&[0x99]),
+                fee_asset: denom_0(),
+            }
+            .into(),
+            Group::UnbundleableGeneral => InitBridgeAccount {
+                rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
+                asset: denom_0(),
+                fee_asset: denom_0(),
+                sudo_address: None,
+                withdrawer_address: None,
+            }
+            .into(),
+            Group::BundleableSudo => FeeAssetChange::Addition(denom_0()).into(),
+            Group::UnbundleableSudo => SudoAddressChange {
+                new_address: astria_address_from_hex_string(JUDY_ADDRESS),
+            }
+            .into(),
+        };
+
+        assert!(
+            action.group() == self.group,
+            "action group mismatch: wanted {:?}, got {:?}",
+            self.group,
+            action.group()
+        );
+
+        let tx = TransactionBody::builder()
+            .actions(vec![action])
             .chain_id(self.chain_id)
             .nonce(self.nonce)
             .try_build()
             .unwrap();
 
-        Arc::new(tx.into_signed(&self.signer))
+        Arc::new(tx.sign(&self.signer))
     }
 }

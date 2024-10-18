@@ -1,7 +1,6 @@
 mod address_bytes;
 mod block_height;
 mod deposits;
-mod fee;
 mod ibc_prefixed_denom;
 mod rollup_id;
 mod transaction_id;
@@ -15,7 +14,6 @@ pub(in crate::bridge) use self::{
     address_bytes::AddressBytes,
     block_height::BlockHeight,
     deposits::Deposits,
-    fee::Fee,
     ibc_prefixed_denom::IbcPrefixedDenom,
     rollup_id::RollupId,
     transaction_id::TransactionId,
@@ -31,6 +29,5 @@ enum ValueImpl<'a> {
     AddressBytes(AddressBytes<'a>),
     BlockHeight(BlockHeight),
     Deposits(Deposits<'a>),
-    Fee(Fee),
     TransactionId(TransactionId<'a>),
 }

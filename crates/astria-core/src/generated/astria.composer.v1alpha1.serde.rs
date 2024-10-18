@@ -6,16 +6,15 @@ impl serde::Serialize for SubmitRollupTransactionRequest {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.rollup_id.is_empty() {
+        if self.rollup_id.is_some() {
             len += 1;
         }
         if !self.data.is_empty() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.composer.v1alpha1.SubmitRollupTransactionRequest", len)?;
-        if !self.rollup_id.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollupId", pbjson::private::base64::encode(&self.rollup_id).as_str())?;
+        if let Some(v) = self.rollup_id.as_ref() {
+            struct_ser.serialize_field("rollupId", v)?;
         }
         if !self.data.is_empty() {
             #[allow(clippy::needless_borrow)]
@@ -90,9 +89,7 @@ impl<'de> serde::Deserialize<'de> for SubmitRollupTransactionRequest {
                             if rollup_id__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupId"));
                             }
-                            rollup_id__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            rollup_id__ = map_.next_value()?;
                         }
                         GeneratedField::Data => {
                             if data__.is_some() {
@@ -105,7 +102,7 @@ impl<'de> serde::Deserialize<'de> for SubmitRollupTransactionRequest {
                     }
                 }
                 Ok(SubmitRollupTransactionRequest {
-                    rollup_id: rollup_id__.unwrap_or_default(),
+                    rollup_id: rollup_id__,
                     data: data__.unwrap_or_default(),
                 })
             }

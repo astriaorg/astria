@@ -12,7 +12,7 @@ metadata:
     {{- toYaml .Values.alerting.prometheusRule.additionalLabels | nindent 4 }}
   {{- end }}
 spec:
-{{- if .Values.config.rollup.alerting.prometheusRule.rules }}
+{{- if .Values.alerting.prometheusRule.rules }}
   groups:
   - name: {{ template "rollup.name" . }}
     rules: {{- toYaml .Values.alerting.prometheusRule.rules | nindent 4 }}
