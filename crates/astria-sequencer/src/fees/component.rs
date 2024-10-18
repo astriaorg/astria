@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
+use astria_core::protocol::genesis::v1::GenesisAppState;
 use astria_eyre::eyre::{
     Result,
     WrapErr as _,
@@ -35,11 +35,11 @@ impl Component for FeesComponent {
                 .wrap_err("failed to store transfer fee components")?;
         }
 
-        let sequence_fees = app_state.fees().sequence;
-        if let Some(sequence_fees) = sequence_fees {
+        let rollup_data_submission_fees = app_state.fees().rollup_data_submission;
+        if let Some(rollup_data_submission_fees) = rollup_data_submission_fees {
             state
-                .put_sequence_fees(sequence_fees)
-                .wrap_err("failed to store sequence action fee components")?;
+                .put_rollup_data_submission_fees(rollup_data_submission_fees)
+                .wrap_err("failed to store rollup data submission fee components")?;
         }
 
         let ics20_withdrawal_fees = app_state.fees().ics20_withdrawal;

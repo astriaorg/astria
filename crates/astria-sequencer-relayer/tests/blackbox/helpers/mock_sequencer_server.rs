@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::{
+    generated::sequencerblock::v1::{
         sequencer_service_server::{
             SequencerService,
             SequencerServiceServer,
@@ -18,7 +18,7 @@ use astria_core::{
     },
     primitive::v1::RollupId,
     protocol::test_utils::ConfigureSequencerBlock,
-    sequencerblock::v1alpha1::SequencerBlock,
+    sequencerblock::v1::SequencerBlock,
 };
 use astria_eyre::eyre::{
     self,

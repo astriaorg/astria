@@ -1,4 +1,4 @@
-use astria_core::protocol::transaction::v1alpha1::action::BridgeSudoChange;
+use astria_core::protocol::transaction::v1::action::BridgeSudoChange;
 use astria_eyre::eyre::{
     bail,
     ensure,
@@ -83,7 +83,7 @@ mod tests {
             asset,
             TransactionId,
         },
-        protocol::fees::v1alpha1::BridgeSudoChangeFeeComponents,
+        protocol::fees::v1::BridgeSudoChangeFeeComponents,
     };
     use cnidarium::StateDelta;
 

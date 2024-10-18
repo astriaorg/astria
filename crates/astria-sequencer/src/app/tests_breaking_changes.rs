@@ -17,15 +17,15 @@ use std::{
 use astria_core::{
     primitive::v1::RollupId,
     protocol::{
-        genesis::v1alpha1::Account,
-        transaction::v1alpha1::{
+        genesis::v1::Account,
+        transaction::v1::{
             action::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
                 IbcRelayerChange,
                 IbcSudoChange,
-                Sequence,
+                RollupDataSubmission,
                 Transfer,
                 ValidatorUpdate,
             },
@@ -33,7 +33,7 @@ use astria_core::{
             TransactionBody,
         },
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1::block::Deposit,
     Protobuf,
 };
 use cnidarium::StateDelta;
@@ -108,14 +108,14 @@ async fn app_finalize_block_snapshot() {
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = Sequence {
+    let rollup_data_submission = RollupDataSubmission {
         rollup_id,
         data: Bytes::from_static(b"hello world"),
         fee_asset: nria().into(),
     };
 
     let tx = TransactionBody::builder()
-        .actions(vec![lock_action.into(), sequence_action.into()])
+        .actions(vec![lock_action.into(), rollup_data_submission.into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -164,7 +164,7 @@ async fn app_finalize_block_snapshot() {
 #[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
-    use astria_core::protocol::transaction::v1alpha1::action::{
+    use astria_core::protocol::transaction::v1::action::{
         FeeAssetChange,
         InitBridgeAccount,
         SudoAddressChange,
@@ -184,7 +184,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         });
         acc.into_iter().map(Protobuf::into_raw).collect()
     };
-    let genesis_state = astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+    let genesis_state = astria_core::generated::protocol::genesis::v1::GenesisAppState {
         accounts,
         authority_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
         ibc_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
@@ -211,7 +211,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 fee_asset: nria().into(),
             }
             .into(),
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: Bytes::from_static(b"hello world"),
                 fee_asset: nria().into(),

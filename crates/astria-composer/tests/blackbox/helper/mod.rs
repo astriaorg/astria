@@ -24,7 +24,7 @@ use astria_core::{
     },
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::Transaction,
+        transaction::v1::Transaction,
     },
 };
 use astria_eyre::eyre;
@@ -206,7 +206,7 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
 }
 
 fn signed_tx_from_request(request: &Request) -> Transaction {
-    use astria_core::generated::protocol::transaction::v1alpha1::Transaction as RawTransaction;
+    use astria_core::generated::protocol::transaction::v1::Transaction as RawTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
@@ -226,7 +226,7 @@ fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
     let Some(sent_action) = signed_tx.actions().first() else {
         panic!("received transaction contained no actions");
     };
-    let Some(sequence_action) = sent_action.as_sequence() else {
+    let Some(sequence_action) = sent_action.as_rollup_data_submission() else {
         panic!("mocked sequencer expected a sequence action");
     };
 
@@ -243,16 +243,16 @@ pub async fn mount_matcher_verifying_tx_integrity(
 ) -> MockGuard {
     let matcher = move |request: &Request| {
         let sequencer_tx = signed_tx_from_request(request);
-        let sequence_action = sequencer_tx
+        let rollup_data_submission = sequencer_tx
             .actions()
             .first()
             .unwrap()
-            .as_sequence()
+            .as_rollup_data_submission()
             .unwrap();
 
         let expected_rlp = expected_rlp.rlp().to_vec();
 
-        expected_rlp == sequence_action.data
+        expected_rlp == rollup_data_submission.data
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
