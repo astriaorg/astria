@@ -18,6 +18,7 @@ pub struct Metrics {
     nonce_fetch_latency: Histogram,
     sequencer_submission_failure_count: Counter,
     sequencer_submission_latency: Histogram,
+    sequencer_block_settled_value: Gauge,
 }
 
 impl Metrics {
@@ -43,6 +44,21 @@ impl Metrics {
 
     pub(crate) fn increment_sequencer_submission_failure_count(&self) {
         self.sequencer_submission_failure_count.increment(1);
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "metric with potential loss of precision, noted with a log warning when it occurs"
+    )]
+    pub(crate) fn set_sequencer_block_settled_value(&self, value: u128) {
+        let max_u32: u128 = u32::MAX.into();
+        if value > max_u32 {
+            tracing::warn!(
+                "sequencer_block_settled_value is being set with a value that exceeds u32::MAX, \
+                 precision loss may occur"
+            );
+        }
+        self.sequencer_block_settled_value.set(value as f64);
     }
 }
 
@@ -92,6 +108,13 @@ impl metrics::Metrics for Metrics {
             )?
             .register()?;
 
+        let sequencer_block_settled_value = builder
+            .new_gauge_factory(
+                "sequencer_block_settled_value",
+                "Total value of withdrawals settled in a given sequencer block",
+            )?
+            .register()?;
+
         Ok(Self {
             current_nonce,
             nonce_fetch_count,
@@ -99,6 +122,7 @@ impl metrics::Metrics for Metrics {
             nonce_fetch_latency,
             sequencer_submission_failure_count,
             sequencer_submission_latency,
+            sequencer_block_settled_value,
         })
     }
 }
@@ -109,7 +133,8 @@ metric_names!(const METRICS_NAMES:
     NONCE_FETCH_LATENCY,
     CURRENT_NONCE,
     SEQUENCER_SUBMISSION_FAILURE_COUNT,
-    SEQUENCER_SUBMISSION_LATENCY
+    SEQUENCER_SUBMISSION_LATENCY,
+    SEQUNCER_BLOCK_SETTLED_VALUE,
 );
 
 #[cfg(test)]
@@ -121,6 +146,7 @@ mod tests {
         NONCE_FETCH_LATENCY,
         SEQUENCER_SUBMISSION_FAILURE_COUNT,
         SEQUENCER_SUBMISSION_LATENCY,
+        SEQUNCER_BLOCK_SETTLED_VALUE,
     };
 
     #[track_caller]
