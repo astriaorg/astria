@@ -167,5 +167,6 @@ mod tests {
             "sequencer_submission_failure_count",
         );
         assert_const(SEQUENCER_SUBMISSION_LATENCY, "sequencer_submission_latency");
+        assert_const(BATCH_TOTAL_SETTLED_VALUE, "batch_total_settled_value");
     }
 }
