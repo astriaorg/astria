@@ -4,6 +4,7 @@ use astria_core::{
         abci::AbciErrorCode,
         transaction::v1::TransactionBody,
     },
+    Protobuf as _,
 };
 use cnidarium::Storage;
 use prost::{

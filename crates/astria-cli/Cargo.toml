@@ -19,6 +19,7 @@ frost-ed25519 = { git = "https://github.com/ZcashFoundation/frost.git", rev = "f
 serde_yaml = "0.9.25"
 termion = "4.0.3"
 tracing-subscriber = "0.3.18"
+clap-stdin = "0.5.1"
 
 astria-bridge-contracts = { path = "../astria-bridge-contracts" }
 astria-core = { path = "../astria-core", features = ["serde"] }

@@ -15,6 +15,7 @@ use astria_core::{
         memos,
         transaction::v1::Action,
     },
+    Protobuf as _,
 };
 use astria_eyre::eyre::{
     self,
