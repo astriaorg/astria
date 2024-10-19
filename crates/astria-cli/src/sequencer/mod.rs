@@ -11,6 +11,7 @@ mod init_bridge_account;
 mod submit;
 mod sudo;
 mod transfer;
+mod sign;
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
@@ -31,6 +32,8 @@ impl Command {
             SubCommand::Transfer(transfer) => transfer.run().await,
             SubCommand::Ics20Withdrawal(ics20_withdrawal) => ics20_withdrawal.run().await,
             SubCommand::Submit(submit) => submit.run().await,
+            SubCommand::Sign(sign) => sign.run().await,
+
         }
     }
 }
@@ -59,4 +62,5 @@ enum SubCommand {
     Ics20Withdrawal(ics20_withdrawal::Command),
     /// Command for submitting a presigned message
     Submit(submit::Command),
+    Sign(sign::Command),
 }
