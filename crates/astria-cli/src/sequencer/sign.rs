@@ -1,23 +1,10 @@
-// use prost::message::Message;
-// use astria_core::protocol::transaction::v1::TransactionBody;
 use astria_core::{
     self,
-    generated::protocol::transaction::v1::{
-        Transaction as TransactionProto,
-        TransactionBody as TransactionBodyProto,
-    },
-    protocol::transaction::v1::{
-        Transaction,
-        TransactionBody,
-    },
-};
-use astria_sequencer_client::{
-    HttpClient,
-    SequencerClientExt as _,
+    generated::protocol::transaction::v1::TransactionBody as TransactionBodyProto,
+    protocol::transaction::v1::TransactionBody,
 };
 use color_eyre::eyre::{
     self,
-    ensure,
     WrapErr as _,
 };
 
@@ -28,13 +15,6 @@ pub(super) struct Command {
     /// The pbjson for submission
     #[arg(long)]
     pbjson: String,
-    /// The url of the Sequencer node
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::DEFAULT_SEQUENCER_RPC
-    )]
-    sequencer_url: String,
     // /// The private key of account being sent from
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     // // TODO: https://github.com/astriaorg/astria/issues/594
