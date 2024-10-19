@@ -2,8 +2,6 @@
 
 set -o errexit -o nounset
 
-ls -la "$home_dir"
-
 KEYRING="--keyring-backend=$keyring_backend"
 
 # TODO - move to config?
@@ -14,124 +12,46 @@ TF1_MINTING_DENOM="steeze"
 TF1_MINTING_BASEDENOM="u$TF1_MINTING_DENOM"
 TF2_MINTING_DENOM="rupees"
 TF2_MINTING_BASEDENOM="u$TF2_MINTING_DENOM"
-
-# init chain
+echo "Initializing noble node..."
 nobled --home "$home_dir" \
   init "$chainid" \
   --chain-id "$chainid"
-
-nobled --home "$home_dir" config chain-id "$chainid"
-
+nobled keys add validator --home $home_dir "$KEYRING"
 # add keys and genesis accounts
 # validator
-echo "$validator_mnemonic" | nobled --home "$home_dir" "$KEYRING" \
-  keys add "$validator_key_name" --recover
-# token factory 1 owner
-echo "$tf1_owner_mnemonic" | nobled --home "$home_dir" "$KEYRING" \
-  keys add tf1_owner --recover
-# token factory 1 owner
-echo "$tf2_owner_mnemonic" | nobled --home "$home_dir" "$KEYRING" \
-  keys add tf2_owner --recover
 # ibc account
 echo "$ibc_account_mnemonic" | nobled --home "$home_dir" "$KEYRING" \
   keys add "$ibc_account_key_name" --recover
 # account used for development
 echo "$dev_account_mnemonic" | nobled --home "$home_dir" "$KEYRING" \
   keys add "$dev_account_key_name" --recover
-
-nobled --home "$home_dir" "$KEYRING" \
-  add-genesis-account "$(nobled --home "$home_dir" keys "$KEYRING" show tf1_owner -a)" "$coins"
-nobled --home "$home_dir" "$KEYRING" \
-  add-genesis-account "$(nobled --home "$home_dir" keys "$KEYRING" show "$validator_key_name" -a)" "$coins"
-nobled --home "$home_dir" "$KEYRING" \
+nobled genesis --home "$home_dir" "$KEYRING" \
   add-genesis-account "$(nobled --home "$home_dir" keys "$KEYRING" show "$ibc_account_key_name" -a)" "$coins"
-nobled --home "$home_dir" "$KEYRING" \
+nobled genesis --home "$home_dir" "$KEYRING" \
   add-genesis-account "$(nobled --home "$home_dir" keys "$KEYRING" show "$dev_account_key_name" -a)" "$coins"
 
-nobled --home "$home_dir" "$KEYRING" \
-  gentx "$validator_key_name" "$validator_stake" --chain-id "$chainid"
+nobled genesis add-genesis-account validator 1000000ustake --home $home_dir "$KEYRING"
+AUTHORITY=$(nobled keys add authority --home $home_dir --keyring-backend test --output json | jq .address)
+echo "Authority address: $AUTHORITY"
+nobled genesis add-genesis-account authority 4000000ustake --home $home_dir "$KEYRING"
 
-nobled --home "$home_dir" \
-  collect-gentxs
-
-TF1_OWNER=$(nobled --home "$home_dir" keys "$KEYRING" show tf1_owner -a)
-TF2_OWNER=$(nobled --home "$home_dir" keys "$KEYRING" show tf2_owner -a)
-IBC_ACCOUNT=$(nobled --home "$home_dir" keys "$KEYRING" show "$ibc_account_key_name" -a)
-
-# configuration changes
-echo "updating config.toml with sed"
-# FIXME - use dasel? all the other cosmos apps use sed like this though so it's sort of conventional
+TEMP=$home_dir/genesis.json
+touch $TEMP && jq '.app_state.authority.owner = '$AUTHORITY'' $home_dir/config/genesis.json > $TEMP && mv $TEMP $home_dir/config/genesis.json
+touch $TEMP && jq '.app_state.bank.denom_metadata += [{ "description": "Circle USD Coin", "denom_units": [{ "denom": "uusdc", "exponent": 0, "aliases": ["microusdc"] }, { "denom": "usdc", "exponent": 6 }], "base": "uusdc", "display": "usdc", "name": "Circle USD Coin", "symbol": "USDC" }]' $home_dir/config/genesis.json > $TEMP && mv $TEMP $home_dir/config/genesis.json
+touch $TEMP && jq '.app_state.bank.denom_metadata += [{ "description": "Ondo US Dollar Yield", "denom_units": [{ "denom": "ausdy", "exponent": 0, "aliases": ["attousdy"] }, { "denom": "usdy", "exponent": 18 }], "base": "ausdy", "display": "usdy", "name": "Ondo US Dollar Yield", "symbol": "USDY" }]' $home_dir/config/genesis.json > $TEMP && mv $TEMP $home_dir/config/genesis.json
+touch $TEMP && jq '.app_state.bank.denom_metadata += [{ "description": "Hashnote US Yield Coin", "denom_units": [{ "denom": "uusyc", "exponent": 0, "aliases": ["microusyc"] }, { "denom": "usyc", "exponent": 6 }], "base": "uusyc", "display": "usyc", "name": "Hashnote US Yield Coin", "symbol": "USYC" }]' $home_dir/config/genesis.json > $TEMP && mv $TEMP $home_dir/config/genesis.json
+touch $TEMP && jq '.app_state.bank.denom_metadata += [{ "description": "Monerium EUR emoney", "denom_units": [{ "denom": "ueure", "exponent": 0, "aliases": ["microeure"] }, { "denom": "eure", "exponent": 6 }], "base": "ueure", "display": "eure", "name": "Monerium EUR emoney", "symbol": "EURe" }]' $home_dir/config/genesis.json > $TEMP && mv $TEMP $home_dir/config/genesis.json
+touch $TEMP && jq '.app_state."fiat-tokenfactory".mintingDenom = { "denom": "uusdc" }' $home_dir/config/genesis.json > $TEMP && mv $TEMP $home_dir/config/genesis.json
+touch $TEMP && jq '.app_state.staking.params.bond_denom = "ustake"' $home_dir/config/genesis.json > $TEMP && mv $TEMP $home_dir/config/genesis.json
+sed -i 's/chain-id = ""/chain-id = "noble-local-0"/g' "$home_dir/config/client.toml"
 sed -i 's#"tcp://127.0.0.1:26657"#"tcp://0.0.0.0:'"$noble_rpc_port"'"#g' "$home_dir/config/config.toml"
 sed -i 's#"tcp://0.0.0.0:26656"#"tcp://0.0.0.0:'"$noble_p2p_port"'"#g' "$home_dir/config/config.toml"
 sed -i 's#"localhost:6060"#"localhost:'"$noble_p2p_port"'"#g' "$home_dir/config/config.toml"
 sed -i 's/timeout_commit = "500ms"/timeout_commit = "1s"/g' "$home_dir/config/config.toml"
 sed -i 's/timeout_propose = "3s"/timeout_propose = "1s"/g' "$home_dir/config/config.toml"
-sed -i 's/index_all_keys = false/index_all_keys = true/g' "$home_dir/config/config.toml"
-sed -i 's/"authority": ""/"authority": "'"$TF1_OWNER"'"/g' "$home_dir/config/genesis.json"
-sed -i 's/chain-id = ""/chain-id = "noble-local-0"/g' "$home_dir/config/client.toml"
 
-# FIXME - remove after dev
-cat "$home_dir/config/genesis.json"
+nobled genesis gentx validator 1000000ustake --chain-id "$chainid" --home $home_dir "$KEYRING" &> /dev/null
+nobled genesis collect-gentxs --home $home_dir &> /dev/null
 
-echo "updating genesis.json with jq"
-# cd to home_dir because we have permission here to touch
-cd $home_dir
-TMPGEN=tempGen.json
-# update bond_denom
-jq --arg DENOM "$DENOM" '.app_state.staking.params.bond_denom = $DENOM' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-# update denom_metadata
-jq --arg TF1_MINTING_DENOM "$TF1_MINTING_DENOM" \
-   --arg TF1_MINTING_BASEDENOM "$TF1_MINTING_BASEDENOM" \
-   --arg TF2_MINTING_DENOM "$TF2_MINTING_DENOM" \
-   --arg TF2_MINTING_BASEDENOM "$TF2_MINTING_BASEDENOM" \
-   --arg DENOM "$DENOM" \
-   --arg BASEDENOM "$BASEDENOM" \
-   '.app_state.bank.denom_metadata = [
-     {
-       "display": $DENOM,
-       "base": $BASEDENOM,
-       "name": $DENOM,
-       "symbol": $DENOM,
-       "denom_units": [
-         {"denom": $DENOM, "aliases": ["micro\($DENOM)"], "exponent": "0"},
-         {"denom": "m\($DENOM)", "aliases": ["mili\($DENOM)"], "exponent": "3"},
-         {"denom": $BASEDENOM, "aliases": null, "exponent": "6"}
-       ]
-     },
-     {
-       "display": $TF1_MINTING_DENOM,
-       "base": $TF1_MINTING_BASEDENOM,
-       "name": $TF1_MINTING_DENOM,
-       "symbol": $TF1_MINTING_DENOM,
-       "denom_units": [
-         {"denom": $TF1_MINTING_DENOM, "aliases": ["micro\($TF1_MINTING_DENOM)"], "exponent": "0"},
-         {"denom": "m\($TF1_MINTING_DENOM)", "aliases": ["mili\($TF1_MINTING_DENOM)"], "exponent": "3"},
-         {"denom": $TF1_MINTING_BASEDENOM, "aliases": null, "exponent": "6"}
-       ]
-     },
-     {
-       "display": $TF2_MINTING_DENOM,
-       "base": $TF2_MINTING_BASEDENOM,
-       "name": $TF2_MINTING_DENOM,
-       "symbol": $TF2_MINTING_DENOM,
-       "denom_units": [
-         {"denom": $TF2_MINTING_DENOM, "aliases": ["micro\($TF2_MINTING_DENOM)"], "exponent": "0"},
-         {"denom": "m\($TF2_MINTING_DENOM)", "aliases": ["mili\($TF2_MINTING_DENOM)"], "exponent": "3"},
-         {"denom": $TF2_MINTING_BASEDENOM, "aliases": null, "exponent": "6"}
-       ]
-     }
-   ]' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
+sed -i 's/timeout_commit = "5s"/timeout_commit = "1s"/g' "$home_dir/config/config.toml"
 
-# update all the "authority" values
-jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.mint.minter.authority = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.params.params.authority = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.upgrade.params.authority = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-jq --arg IBC_ACCOUNT "$IBC_ACCOUNT" '.app_state."ibc-authority".params.authority = $IBC_ACCOUNT' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-
-jq --arg TF1_OWNER "$TF1_OWNER" '.app_state.tokenfactory.owner.address = $TF1_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-jq --arg TF1_MINTING_BASEDENOM "$TF1_MINTING_BASEDENOM" '.app_state.tokenfactory.mintingDenom.denom = $TF1_MINTING_BASEDENOM' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-jq '.app_state.tokenfactory.paused.paused = false' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-
-jq --arg TF2_OWNER "$TF2_OWNER" '.app_state."fiat-tokenfactory".owner.address = $TF2_OWNER' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-jq --arg TF1_MINTING_BASEDENOM "$TF1_MINTING_BASEDENOM" '.app_state."fiat-tokenfactory".mintingDenom.denom = $TF1_MINTING_BASEDENOM' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
-jq '.app_state."fiat-tokenfactory".paused.paused = false' "$home_dir/config/genesis.json" > "$TMPGEN" && mv "$TMPGEN" "$home_dir/config/genesis.json"
