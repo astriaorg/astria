@@ -1,4 +1,4 @@
-image: "ghcr.io/astriaorg/hermes:sha-f6189cd"
+image: "ghcr.io/astriaorg/hermes:sha-5ca5730"
 
 createChannels:
   - enabled: true
@@ -68,7 +68,7 @@ chains:
       url: ws://noble-local-service.astria-dev-cluster.svc.cluster.local:26657/websocket
       batchDelay: 200ms
     gasDenom: "uusdc"
-    gasPrice: 0.14260
+    gasPrice: 0
     gasMultiplier: 1.2
     defaultGas: "1000000"
     maxGas: "10000000"

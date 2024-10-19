@@ -12,7 +12,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::asset::IbcPrefixed,
-    protocol::transaction::v1alpha1::{
+    protocol::transaction::v1::{
         action::group::Group,
         Transaction,
     },

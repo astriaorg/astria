@@ -5,14 +5,14 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::genesis::v1alpha1::{
+    generated::protocol::genesis::v1::{
         AddressPrefixes,
         GenesisFees,
         IbcParameters,
     },
     primitive::v1::Address,
     protocol::{
-        fees::v1alpha1::{
+        fees::v1::{
             BridgeLockFeeComponents,
             BridgeSudoChangeFeeComponents,
             BridgeUnlockFeeComponents,
@@ -28,7 +28,7 @@ use astria_core::{
             TransferFeeComponents,
             ValidatorUpdateFeeComponents,
         },
-        genesis::v1alpha1::{
+        genesis::v1::{
             Account,
             GenesisAppState,
         },
@@ -91,8 +91,8 @@ fn address_prefixes() -> AddressPrefixes {
 }
 
 #[expect(clippy::too_many_lines, reason = "all lines reasonably necessary")]
-fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
-    astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState {
+    astria_core::generated::protocol::genesis::v1::GenesisAppState {
         accounts: accounts().into_iter().map(Protobuf::into_raw).collect(),
         address_prefixes: Some(address_prefixes()),
         authority_sudo_address: Some(alice().to_raw()),
