@@ -13,7 +13,6 @@ use crate::utils::signing_key_from_private_key;
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
     /// The pbjson for submission
-    #[arg(long)]
     pbjson: String,
     // /// The private key of account being sent from
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
@@ -39,17 +38,9 @@ impl Command {
             .sign(&sequencer_key);
 
         // Copied code from Jordan's PR to print stuff in JSON
-        println!("Transaction:");
         println!(
             "{}",
             serde_json::to_string_pretty(&tx.to_raw()).wrap_err("failed to json-encode")?
-        );
-        println!();
-        println!("Transaction Body:");
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&tx.unsigned_transaction().to_raw())
-                .wrap_err("failed to json-encode")?
         );
 
         Ok(())

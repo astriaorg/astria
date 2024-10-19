@@ -16,7 +16,6 @@ use color_eyre::eyre::{
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
     /// The pbjson for submission
-    #[arg(long)]
     pbjson: String,
     /// The url of the Sequencer node
     #[arg(
