@@ -32,7 +32,7 @@ impl Command {
             SubCommand::Transfer(transfer) => transfer.run().await,
             SubCommand::Ics20Withdrawal(ics20_withdrawal) => ics20_withdrawal.run().await,
             SubCommand::Submit(submit) => submit.run().await,
-            SubCommand::Sign(sign) => sign.run().await,
+            SubCommand::Sign(sign) => sign.run(),
         }
     }
 }
