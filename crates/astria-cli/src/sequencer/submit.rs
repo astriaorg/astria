@@ -1,15 +1,7 @@
-// use prost::message::Message;
-// use astria_core::protocol::transaction::v1::TransactionBody;
 use astria_core::{
     self,
-    generated::protocol::transaction::v1::{
-        Transaction as TransactionProto,
-        TransactionBody as TransactionBodyProto,
-    },
-    protocol::transaction::v1::{
-        Transaction,
-        TransactionBody,
-    },
+    generated::protocol::transaction::v1::Transaction as TransactionProto,
+    protocol::transaction::v1::Transaction,
 };
 use astria_sequencer_client::{
     HttpClient,
@@ -20,8 +12,6 @@ use color_eyre::eyre::{
     ensure,
     WrapErr as _,
 };
-
-use crate::utils::signing_key_from_private_key;
 
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
@@ -35,35 +25,16 @@ pub(super) struct Command {
         default_value = crate::DEFAULT_SEQUENCER_RPC
     )]
     sequencer_url: String,
-    // /// The private key of account being sent from
-    // #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    // // TODO: https://github.com/astriaorg/astria/issues/594
-    // // Don't use a plain text private, prefer wrapper like from
-    // // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // // that overwrite the key on drop and don't reveal it when printing.
-    // private_key: String,
 }
 
+// The 'submit' command takes a 'Transaction' in pbjson form and submits it to the sequencer
 impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         let sequencer_client = HttpClient::new(self.sequencer_url.as_str())
             .wrap_err("failed constructing http sequencer client")?;
 
-        // let sequencer_key = signing_key_from_private_key(self.private_key.as_str())?;
-
-        // let tx_body: TransactionBodyProto = serde_json::from_str(self.pbjson.as_str())
-        //     .wrap_err("failed to parse pbjson into TransactionBody")?;
-
-        // let tx = TransactionBody::try_from_raw(tx_body.clone())
-        //     .wrap_err("failed to convert to TransactionBody from raw")?
-        //     .sign(&sequencer_key);
-
         let tx_raw: TransactionProto = serde_json::from_str(self.pbjson.as_str())
             .wrap_err("failed to parse pbjson into raw Transaction")?;
-
-        // let tx = TransactionBody::try_from_raw(tx_body.clone())
-        //     .wrap_err("failed to convert to TransactionBody from raw")?
-        //     .sign(&sequencer_key);
 
         let transaction = Transaction::try_from_raw(tx_raw.clone())
             .wrap_err("failed to convert to transaction")?;
