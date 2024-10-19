@@ -27,7 +27,7 @@ pub(super) struct Command {
 // The goal of the `sign` CLI command is to take in a `TransactionBody` and to sign with a private key to create a `Transaction`. 
 // This signed `Transaction` should be printed to the console in pbjson format.
 impl Command {
-    pub(super) async fn run(self) -> eyre::Result<()> {
+    pub(super) fn run(self) -> eyre::Result<()> {
 
         let sequencer_key = signing_key_from_private_key(self.private_key.as_str())?;
 
