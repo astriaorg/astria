@@ -24,11 +24,11 @@ pub(super) struct Command {
     private_key: String,
 }
 
-// The goal of the `sign` CLI command is to take in a `TransactionBody` and to sign with a private key to create a `Transaction`. 
-// This signed `Transaction` should be printed to the console in pbjson format.
+// The goal of the `sign` CLI command is to take in a `TransactionBody` and to sign with a private
+// key to create a `Transaction`. This signed `Transaction` should be printed to the console in
+// pbjson format.
 impl Command {
     pub(super) fn run(self) -> eyre::Result<()> {
-
         let sequencer_key = signing_key_from_private_key(self.private_key.as_str())?;
 
         let tx_body: TransactionBodyProto = serde_json::from_str(self.pbjson.as_str())
@@ -46,7 +46,11 @@ impl Command {
         );
         println!();
         println!("Transaction Body:");
-        println!("{}", serde_json::to_string_pretty(&tx.unsigned_transaction().to_raw()).wrap_err("failed to json-encode")?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&tx.unsigned_transaction().to_raw())
+                .wrap_err("failed to json-encode")?
+        );
 
         Ok(())
     }

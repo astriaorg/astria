@@ -8,10 +8,10 @@ mod block_height;
 mod bridge_lock;
 mod ics20_withdrawal;
 mod init_bridge_account;
+mod sign;
 mod submit;
 mod sudo;
 mod transfer;
-mod sign;
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
@@ -33,7 +33,6 @@ impl Command {
             SubCommand::Ics20Withdrawal(ics20_withdrawal) => ics20_withdrawal.run().await,
             SubCommand::Submit(submit) => submit.run().await,
             SubCommand::Sign(sign) => sign.run().await,
-
         }
     }
 }
