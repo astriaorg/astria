@@ -33,6 +33,7 @@ base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+http = { workspace = true }
 humantime = { workspace = true }
 indexmap = { workspace = true }
 itertools = { workspace = true }
@@ -55,7 +56,6 @@ tryhard = { workspace = true }
 
 async-trait = "0.1.73"
 futures-bounded = "0.2.3"
-http = "0.2.9"
 tokio-stream = "0.1.14"
 moka = { version = "0.12.5", features = ["future"] }
 tower = { version = "0.4.13", features = ["limit"] }
@@ -66,10 +66,10 @@ tower = { version = "0.4.13", features = ["limit"] }
 # (including jsonrpsee).
 # As none of them are reexported it is important to keep these in sync
 # when updating.
-celestia-rpc = "0.1.1"
+celestia-rpc = { git = "https://github.com/eigerco/lumina.git", rev = "520b6788d9f24f87c725a0f18b238c69a77bf36e" }
 celestia-types = { workspace = true }
 celestia-tendermint = { workspace = true }
-jsonrpsee = { version = "0.20", features = ["client-core", "macros"] }
+jsonrpsee = { version = "0.24", features = ["client-core", "macros", "http-client", "ws-client"] }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [

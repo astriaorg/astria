@@ -10,7 +10,6 @@ use astria_eyre::eyre::{
 use axum::{
     routing::IntoMakeService,
     Router,
-    Server,
 };
 use hyper::server::conn::AddrIncoming;
 use tokio::{

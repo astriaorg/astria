@@ -12,11 +12,10 @@ homepage = "https://astria.org"
 name = "astria-bridge-withdrawer"
 
 [dependencies]
-http = "0.2.9"
-
 axum = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+http = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 hyper = { workspace = true }
 humantime = { workspace = true }
