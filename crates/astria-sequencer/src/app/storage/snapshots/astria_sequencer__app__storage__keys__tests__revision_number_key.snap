@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/app/storage/keys.rs
-assertion_line: 21
-expression: REVISION_NUMBER_KEY
+expression: REVISION_NUMBER
 ---
 app/revision_number

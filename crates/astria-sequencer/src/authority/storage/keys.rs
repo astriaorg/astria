@@ -10,9 +10,9 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(SUDO);
-        insta::assert_snapshot!(VALIDATOR_SET);
-        insta::assert_snapshot!(VALIDATOR_UPDATES);
+        insta::assert_snapshot!("sudo_address_key", SUDO);
+        insta::assert_snapshot!("validator_set_key", VALIDATOR_SET);
+        insta::assert_snapshot!("validator_updates_key", VALIDATOR_UPDATES);
     }
 
     #[test]

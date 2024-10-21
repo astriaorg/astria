@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/authority/storage/keys.rs
-assertion_line: 16
-expression: VALIDATOR_SET_STORAGE_KEY
+expression: VALIDATOR_SET
 ---
 authority/validator_set

@@ -16,7 +16,7 @@ mod tests {
             memo: "hello".to_string(),
         };
 
-        insta::assert_json_snapshot!(memo);
+        insta::assert_json_snapshot!("ics20_withdrawal_from_rollup_memo", memo);
     }
 
     #[test]
@@ -25,6 +25,6 @@ mod tests {
             rollup_deposit_address: "an-address-on-the-rollup".to_string(),
         };
 
-        insta::assert_json_snapshot!(memo);
+        insta::assert_json_snapshot!("ics20_transfer_deposit_memo", memo);
     }
 }

@@ -91,14 +91,26 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(DEPOSITS_EPHEMERAL);
-        insta::assert_snapshot!(rollup_id(&address()));
-        insta::assert_snapshot!(asset_id(&address()));
-        insta::assert_snapshot!(bridge_account_sudo_address(&address()));
-        insta::assert_snapshot!(bridge_account_withdrawer_address(&address()));
-        insta::assert_snapshot!(bridge_account_withdrawal_event(&address(), "the-event"));
-        insta::assert_snapshot!(deposit(&[1; 32], &RollupId::new([2; 32])));
-        insta::assert_snapshot!(last_transaction_id_for_bridge_account(&address()));
+        insta::assert_snapshot!("ephemeral_deposits_key", DEPOSITS_EPHEMERAL);
+        insta::assert_snapshot!("rollup_id_key", rollup_id(&address()));
+        insta::assert_snapshot!("asset_id_key", asset_id(&address()));
+        insta::assert_snapshot!(
+            "bridge_sudo_address_key",
+            bridge_account_sudo_address(&address())
+        );
+        insta::assert_snapshot!(
+            "bridge_withdrawer_address_key",
+            bridge_account_withdrawer_address(&address())
+        );
+        insta::assert_snapshot!(
+            "bridge_withdrawal_event_key",
+            bridge_account_withdrawal_event(&address(), "the-event")
+        );
+        insta::assert_snapshot!("deposit_key", deposit(&[1; 32], &RollupId::new([2; 32])));
+        insta::assert_snapshot!(
+            "last_tx_id_for_bridge_acct_key",
+            last_transaction_id_for_bridge_account(&address())
+        );
     }
 
     #[test]
