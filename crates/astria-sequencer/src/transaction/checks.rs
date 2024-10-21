@@ -13,6 +13,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     ensure,
+    OptionExt,
     Result,
     WrapErr as _,
 };
@@ -48,13 +49,29 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     state: &S,
 ) -> Result<HashMap<asset::IbcPrefixed, u128>> {
     let mut fees_by_asset = HashMap::new();
+
+    // Convert each result to an option, since it is okay for the action to not have fees as long as
+    // it isn't part of the transaction.
+    let transfer_fees = state.get_transfer_fees().await.ok();
+    let rollup_data_submission_fees = state.get_rollup_data_submission_fees().await.ok();
+    let ics20_withdrawal_fees = state.get_ics20_withdrawal_fees().await.ok();
+    let init_bridge_account_fees = state.get_init_bridge_account_fees().await.ok();
+    let bridge_lock_fees = state.get_bridge_lock_fees().await.ok();
+    let bridge_unlock_fees = state.get_bridge_unlock_fees().await.ok();
+    let bridge_sudo_change_fees = state.get_bridge_sudo_change_fees().await.ok();
+    let validator_update_fees = state.get_validator_update_fees().await.ok();
+    let sudo_address_change_fees = state.get_sudo_address_change_fees().await.ok();
+    let ibc_sudo_change_fees = state.get_ibc_sudo_change_fees().await.ok();
+    let ibc_relay_fees = state.get_ibc_relay_fees().await.ok();
+    let ibc_relayer_change_fees = state.get_ibc_relayer_change_fees().await.ok();
+    let fee_asset_change_fees = state.get_fee_asset_change_fees().await.ok();
+    let fee_change_fees = state.get_fee_change_fees().await.ok();
+
     for action in tx.actions() {
         match action {
             Action::Transfer(act) => {
-                let transfer_fees = state
-                    .get_transfer_fees()
-                    .await
-                    .wrap_err("fees not found for `Transfer` action, hence it is disabled")?;
+                let transfer_fees = transfer_fees
+                    .ok_or_eyre("fees not found for `Transfer` action, hence it is disabled")?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -64,10 +81,9 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::RollupDataSubmission(act) => {
-                let rollup_data_submission_fees =
-                    state.get_rollup_data_submission_fees().await.wrap_err(
-                        "fees not found for `RollupDataSubmission` action, hence it is disabled",
-                    )?;
+                let rollup_data_submission_fees = rollup_data_submission_fees.ok_or_eyre(
+                    "fees not found for `RollupDataSubmission` action, hence it is disabled",
+                )?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -77,7 +93,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::Ics20Withdrawal(act) => {
-                let ics20_withdrawal_fees = state.get_ics20_withdrawal_fees().await.wrap_err(
+                let ics20_withdrawal_fees = ics20_withdrawal_fees.ok_or_eyre(
                     "fees not found for `Ics20Withdrawal` action, hence it is disabled",
                 )?;
                 calculate_and_add_fees(
@@ -89,10 +105,9 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::InitBridgeAccount(act) => {
-                let init_bridge_account_fees =
-                    state.get_init_bridge_account_fees().await.wrap_err(
-                        "fees not found for `InitBridgeAccount` action, hence it is disabled",
-                    )?;
+                let init_bridge_account_fees = init_bridge_account_fees.ok_or_eyre(
+                    "fees not found for `InitBridgeAccount` action, hence it is disabled",
+                )?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -102,10 +117,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::BridgeLock(act) => {
-                let bridge_lock_fees = state
-                    .get_bridge_lock_fees()
-                    .await
-                    .wrap_err("fees not found for `BridgeLock` action, hence it is disabled")?;
+                let bridge_lock_fees = bridge_lock_fees
+                    .ok_or_eyre("fees not found for `BridgeLock` action, hence it is disabled")?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -115,10 +128,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::BridgeUnlock(act) => {
-                let bridge_unlock_fees = state
-                    .get_bridge_unlock_fees()
-                    .await
-                    .wrap_err("fees not found for `BridgeUnlock` action, hence it is disabled")?;
+                let bridge_unlock_fees = bridge_unlock_fees
+                    .ok_or_eyre("fees not found for `BridgeUnlock` action, hence it is disabled")?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -128,7 +139,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::BridgeSudoChange(act) => {
-                let bridge_sudo_change_fees = state.get_bridge_sudo_change_fees().await.wrap_err(
+                let bridge_sudo_change_fees = bridge_sudo_change_fees.ok_or_eyre(
                     "fees not found for `BridgeSudoChange` action, hence it is disabled",
                 )?;
                 calculate_and_add_fees(
@@ -140,43 +151,36 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::ValidatorUpdate(_) => {
-                state.get_validator_update_fees().await.wrap_err(
+                validator_update_fees.ok_or_eyre(
                     "fees not found for `ValidatorUpdate` action, hence it is disabled",
                 )?;
             }
             Action::SudoAddressChange(_) => {
-                state.get_sudo_address_change_fees().await.wrap_err(
+                sudo_address_change_fees.ok_or_eyre(
                     "fees not found for `SudoAddressChange` action, hence it is disabled",
                 )?;
             }
             Action::IbcSudoChange(_) => {
-                state
-                    .get_ibc_sudo_change_fees()
-                    .await
-                    .wrap_err("fees not found for `IbcSudoChange` action, hence it is disabled")?;
+                ibc_sudo_change_fees.ok_or_eyre(
+                    "fees not found for `IbcSudoChange` action, hence it is disabled",
+                )?;
             }
             Action::Ibc(_) => {
-                state
-                    .get_ibc_relay_fees()
-                    .await
-                    .wrap_err("fees not found for `IbcRelay` action, hence it is disabled")?;
+                ibc_relay_fees
+                    .ok_or_eyre("fees not found for `IbcRelay` action, hence it is disabled")?;
             }
             Action::IbcRelayerChange(_) => {
-                state.get_ibc_relayer_change_fees().await.wrap_err(
+                ibc_relayer_change_fees.ok_or_eyre(
                     "fees not found for `IbcRelayerChange` action, hence it is disabled",
                 )?;
             }
             Action::FeeAssetChange(_) => {
-                state
-                    .get_fee_asset_change_fees()
-                    .await
-                    .wrap_err("fees not found for `FeeAssetChange` action, hence it is disabled")?;
+                fee_asset_change_fees.ok_or_eyre(
+                    "fees not found for `FeeAssetChange` action, hence it is disabled",
+                )?;
             }
             Action::FeeChange(_) => {
-                state
-                    .get_fee_change_fees()
-                    .await
-                    .wrap_err("fees not found for `FeeChange` action")?;
+                fee_change_fees.ok_or_eyre("fees not found for `FeeChange` action")?;
             }
         }
     }
