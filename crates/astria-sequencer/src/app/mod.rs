@@ -292,6 +292,9 @@ impl App {
             state_tx
                 .put_native_asset(native_asset.clone())
                 .wrap_err("failed to write native asset to state")?;
+            state_tx
+                .put_ibc_asset(native_asset.clone())
+                .wrap_err("failed to commit native asset as ibc asset to state")?;
         }
 
         state_tx

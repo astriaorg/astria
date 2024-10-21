@@ -89,8 +89,6 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .context("failed to serialize native asset")?;
         self.put_raw(keys::NATIVE_ASSET.to_string(), bytes);
-        self.put_ibc_asset(asset)
-            .context("failed to store native asset as ibc asset")?;
         Ok(())
     }
 
