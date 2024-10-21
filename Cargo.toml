@@ -108,10 +108,10 @@ which = "4.4.0"
 wiremock = "0.5"
 
 # patch for handling height field in gRPC headers for IBC queries
-# see https://github.com/noot/penumbra/pull/5
+# see https://github.com/astriaorg/penumbra/pull/1
 [patch.'https://github.com/penumbra-zone/penumbra.git']
-penumbra-ibc = { git = "https://github.com/noot/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
-penumbra-proto = { git = "https://github.com/noot/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
-penumbra-tower-trace = { git = "https://github.com/noot/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
-cnidarium = { git = "https://github.com/noot/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
-cnidarium-component = { git = "https://github.com/noot/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
+penumbra-ibc = { git = "https://github.com/astriaorg/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
+penumbra-proto = { git = "https://github.com/astriaorg/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
+penumbra-tower-trace = { git = "https://github.com/astriaorg/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
+cnidarium = { git = "https://github.com/astriaorg/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
+cnidarium-component = { git = "https://github.com/astriaorg/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
