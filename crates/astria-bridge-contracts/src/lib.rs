@@ -9,7 +9,6 @@ use std::{
 use astria_core::{
     primitive::v1::{
         asset,
-        asset::Denom,
         Address,
         AddressError,
     },
@@ -37,7 +36,6 @@ use ethers::{
     },
 };
 pub use generated::*;
-use ibc_types::core::channel::ChannelId;
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -411,7 +409,7 @@ where
         let event = decode_log::<Ics20WithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
 
-        let (denom, source_channel): (Denom, ChannelId) = (
+        let (denom, source_channel) = (
             self.ics20_asset_to_withdraw
                 .clone()
                 .expect("must be set if this method is entered")
