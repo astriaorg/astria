@@ -9,6 +9,7 @@ mod bridge_lock;
 mod ics20_withdrawal;
 mod init_bridge_account;
 mod sudo;
+mod threshold;
 mod transfer;
 
 #[derive(Debug, clap::Args)]
@@ -28,6 +29,7 @@ impl Command {
             SubCommand::InitBridgeAccount(init_bridge_account) => init_bridge_account.run().await,
             SubCommand::Sudo(sudo) => sudo.run().await,
             SubCommand::Transfer(transfer) => transfer.run().await,
+            SubCommand::Threshold(threshold) => threshold.run().await,
             SubCommand::Ics20Withdrawal(ics20_withdrawal) => ics20_withdrawal.run().await,
         }
     }
@@ -53,6 +55,8 @@ enum SubCommand {
     Sudo(sudo::Command),
     /// Command for sending balance between accounts
     Transfer(transfer::Command),
+    /// Commands for threshold signing
+    Threshold(threshold::Command),
     /// Command for withdrawing an ICS20 asset
     Ics20Withdrawal(ics20_withdrawal::Command),
 }
