@@ -276,10 +276,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        assets::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
+        assets::StateWriteExt as _,
         test_utils::{
             astria_address,
             nria,
@@ -592,22 +589,19 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        // native account should work with ibc too
-        state.put_native_asset(nria()).unwrap();
-
-        let asset_0 = state.get_native_asset().await.unwrap();
+        let asset_0 = nria();
         let asset_1 = asset_1();
         let asset_2 = asset_2();
 
         // also need to add assets to the ibc state
         state
-            .put_ibc_asset(asset_0.clone())
+            .put_asset(asset_0.clone())
             .expect("should be able to call other trait method on state object");
         state
-            .put_ibc_asset(asset_1.clone().unwrap_trace_prefixed())
+            .put_asset(asset_1.clone().unwrap_trace_prefixed())
             .expect("should be able to call other trait method on state object");
         state
-            .put_ibc_asset(asset_2.clone().unwrap_trace_prefixed())
+            .put_asset(asset_2.clone().unwrap_trace_prefixed())
             .expect("should be able to call other trait method on state object");
 
         // create needed variables

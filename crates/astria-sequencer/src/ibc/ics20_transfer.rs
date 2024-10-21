@@ -484,12 +484,12 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
     } else {
         // register denomination in global ID -> denom map if it's not already there
         if !state
-            .has_ibc_asset(&asset)
+            .has_asset(&asset)
             .await
             .wrap_err("failed to check if IBC asset exists in state")?
         {
             state
-                .put_ibc_asset(asset.clone())
+                .put_asset(asset.clone())
                 .wrap_err("failed to write IBC asset to state")?;
         }
     }
@@ -905,7 +905,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(state_tx.has_ibc_asset(&sink_asset()).await.expect(
+        assert!(state_tx.has_asset(&sink_asset()).await.expect(
             "a new asset with <sequencer_port>/<sequencer_channel>/<asset> should be registered \
              in the state"
         ));

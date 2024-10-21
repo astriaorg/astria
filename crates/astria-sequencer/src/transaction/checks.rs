@@ -389,7 +389,7 @@ mod tests {
 
         state_tx.put_base_prefix("astria".to_string()).unwrap();
         state_tx
-            .put_native_asset(crate::test_utils::nria())
+            .put_asset(crate::test_utils::nria())
             .unwrap();
         let transfer_fees = TransferFeeComponents {
             base: 12,
@@ -519,7 +519,7 @@ mod tests {
 
         state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         state_tx
-            .put_native_asset(crate::test_utils::nria())
+            .put_asset(crate::test_utils::nria())
             .unwrap();
         let transfer_fees = TransferFeeComponents {
             base: 12,

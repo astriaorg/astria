@@ -16,25 +16,21 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::{
-        genesis::v1::Account,
-        transaction::v1::{
-            action::{
-                BridgeLock,
-                BridgeSudoChange,
-                BridgeUnlock,
-                IbcRelayerChange,
-                IbcSudoChange,
-                RollupDataSubmission,
-                Transfer,
-                ValidatorUpdate,
-            },
-            Action,
-            TransactionBody,
+    protocol::transaction::v1::{
+        action::{
+            BridgeLock,
+            BridgeSudoChange,
+            BridgeUnlock,
+            IbcRelayerChange,
+            IbcSudoChange,
+            RollupDataSubmission,
+            Transfer,
+            ValidatorUpdate,
         },
+        Action,
+        TransactionBody,
     },
     sequencerblock::v1::block::Deposit,
-    Protobuf,
 };
 use cnidarium::StateDelta;
 use prost::{
@@ -51,7 +47,6 @@ use tendermint::{
 
 use crate::{
     app::test_utils::{
-        default_genesis_accounts,
         get_alice_signing_key,
         get_bridge_signing_key,
         initialize_app,
@@ -176,16 +171,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
 
-    let accounts = {
-        let mut acc = default_genesis_accounts();
-        acc.push(Account {
-            address: bridge_address,
-            balance: 1_000_000_000,
-        });
-        acc.into_iter().map(Protobuf::into_raw).collect()
-    };
     let genesis_state = astria_core::generated::protocol::genesis::v1::GenesisAppState {
-        accounts,
         authority_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
         ibc_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
         ..proto_genesis_state()

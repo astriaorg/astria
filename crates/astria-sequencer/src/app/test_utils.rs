@@ -30,7 +30,6 @@ use astria_core::{
             ValidatorUpdateFeeComponents,
         },
         genesis::v1::{
-            Account,
             AddressPrefixes,
             GenesisAppState,
         },
@@ -55,6 +54,7 @@ use bytes::Bytes;
 use cnidarium::{
     Snapshot,
     StateDelta,
+    StateWrite,
     Storage,
 };
 use telemetry::Metrics as _;
@@ -157,21 +157,30 @@ pub(crate) fn get_bridge_signing_key() -> SigningKey {
     SigningKey::from(bridge_secret_bytes)
 }
 
-pub(crate) fn default_genesis_accounts() -> Vec<Account> {
-    vec![
-        Account {
-            address: astria_address_from_hex_string(ALICE_ADDRESS),
-            balance: 10u128.pow(19),
-        },
-        Account {
-            address: astria_address_from_hex_string(BOB_ADDRESS),
-            balance: 10u128.pow(19),
-        },
-        Account {
-            address: astria_address_from_hex_string(CAROL_ADDRESS),
-            balance: 10u128.pow(19),
-        },
-    ]
+pub(crate) fn put_test_asset_and_accounts<S: StateWrite>(mut state: S) {
+    state.put_asset(nria()).unwrap();
+    state.put_allowed_fee_asset(&nria()).unwrap();
+    state
+        .put_account_balance(
+            &astria_address_from_hex_string(ALICE_ADDRESS),
+            &nria(),
+            10u128.pow(19),
+        )
+        .unwrap();
+    state
+        .put_account_balance(
+            &astria_address_from_hex_string(BOB_ADDRESS),
+            &nria(),
+            10u128.pow(19),
+        )
+        .unwrap();
+    state
+        .put_account_balance(
+            &astria_address_from_hex_string(CAROL_ADDRESS),
+            &nria(),
+            10u128.pow(19),
+        )
+        .unwrap();
 }
 
 #[expect(
@@ -259,21 +268,15 @@ pub(crate) fn proto_genesis_state() -> astria_core::generated::protocol::genesis
     };
     GenesisAppState {
         address_prefixes: Some(address_prefixes().to_raw()),
-        accounts: default_genesis_accounts()
-            .into_iter()
-            .map(Protobuf::into_raw)
-            .collect(),
         authority_sudo_address: Some(astria_address_from_hex_string(JUDY_ADDRESS).to_raw()),
         chain_id: "test-1".to_string(),
         ibc_sudo_address: Some(astria_address_from_hex_string(TED_ADDRESS).to_raw()),
         ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: crate::test_utils::nria().to_string(),
         ibc_parameters: Some(IbcParameters {
             ibc_enabled: true,
             inbound_ics20_transfers_enabled: true,
             outbound_ics20_transfers_enabled: true,
         }),
-        allowed_fee_assets: vec![crate::test_utils::nria().to_string()],
         fees: Some(default_fees().to_raw()),
     }
 }
@@ -304,6 +307,7 @@ pub(crate) async fn initialize_app_with_storage(
     )
     .await
     .unwrap();
+
     app.commit(storage.clone()).await;
 
     (app, storage.clone())
@@ -529,27 +533,13 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     let mut state: StateDelta<cnidarium::Snapshot> = StateDelta::new(snapshot);
 
     // setup denoms
-    state
-        .put_ibc_asset(denom_0().unwrap_trace_prefixed())
-        .unwrap();
-    state
-        .put_ibc_asset(denom_1().unwrap_trace_prefixed())
-        .unwrap();
-    state
-        .put_ibc_asset(denom_2().unwrap_trace_prefixed())
-        .unwrap();
-    state
-        .put_ibc_asset(denom_3().unwrap_trace_prefixed())
-        .unwrap();
-    state
-        .put_ibc_asset(denom_4().unwrap_trace_prefixed())
-        .unwrap();
-    state
-        .put_ibc_asset(denom_5().unwrap_trace_prefixed())
-        .unwrap();
-    state
-        .put_ibc_asset(denom_6().unwrap_trace_prefixed())
-        .unwrap();
+    state.put_asset(denom_0().unwrap_trace_prefixed()).unwrap();
+    state.put_asset(denom_1().unwrap_trace_prefixed()).unwrap();
+    state.put_asset(denom_2().unwrap_trace_prefixed()).unwrap();
+    state.put_asset(denom_3().unwrap_trace_prefixed()).unwrap();
+    state.put_asset(denom_4().unwrap_trace_prefixed()).unwrap();
+    state.put_asset(denom_5().unwrap_trace_prefixed()).unwrap();
+    state.put_asset(denom_6().unwrap_trace_prefixed()).unwrap();
 
     // setup tx fees
     let transfer_fees = TransferFeeComponents {

@@ -42,6 +42,7 @@ use crate::{
             get_alice_signing_key,
             get_bridge_signing_key,
             initialize_app_with_storage,
+            put_test_asset_and_accounts,
             BOB_ADDRESS,
         },
         ActionHandler as _,
@@ -75,6 +76,9 @@ async fn ensure_correct_block_fees_transfer() {
     let (_, storage) = initialize_app_with_storage(None, vec![]).await;
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
+
+    put_test_asset_and_accounts(&mut state);
+
     let transfer_base = 1;
     state
         .put_transfer_fees(TransferFeeComponents {
@@ -116,6 +120,9 @@ async fn ensure_correct_block_fees_sequence() {
     let (_, storage) = initialize_app_with_storage(None, vec![]).await;
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
+
+    put_test_asset_and_accounts(&mut state);
+
     state
         .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
             base: 1,
@@ -156,6 +163,9 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
     let (_, storage) = initialize_app_with_storage(None, vec![]).await;
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
+
+    put_test_asset_and_accounts(&mut state);
+
     let init_bridge_account_base = 1;
     state
         .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
@@ -204,6 +214,8 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let (_, storage) = initialize_app_with_storage(None, vec![]).await;
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
+
+    put_test_asset_and_accounts(&mut state);
 
     let transfer_base = 1;
     let bridge_lock_byte_cost_multiplier = 1;
@@ -277,6 +289,8 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
     let (_, storage) = initialize_app_with_storage(None, vec![]).await;
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
+
+    put_test_asset_and_accounts(&mut state);
 
     let sudo_change_base = 1;
     state

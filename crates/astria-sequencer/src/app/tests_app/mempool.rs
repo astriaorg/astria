@@ -1,18 +1,14 @@
 use std::collections::HashMap;
 
-use astria_core::{
-    protocol::{
-        fees::v1::TransferFeeComponents,
-        genesis::v1::Account,
-        transaction::v1::{
-            action::{
-                FeeChange,
-                Transfer,
-            },
-            TransactionBody,
+use astria_core::protocol::{
+    fees::v1::TransferFeeComponents,
+    transaction::v1::{
+        action::{
+            FeeChange,
+            Transfer,
         },
+        TransactionBody,
     },
-    Protobuf,
 };
 use prost::Message as _;
 use tendermint::{
@@ -191,19 +187,6 @@ async fn do_not_trigger_cleaning() {
 async fn maintenance_recosting_promotes() {
     // check that transaction promotion from recosting works
     let mut only_alice_funds_genesis_state = proto_genesis_state();
-    only_alice_funds_genesis_state.accounts = vec![
-        Account {
-            address: astria_address_from_hex_string(ALICE_ADDRESS),
-            balance: 10u128.pow(19),
-        },
-        Account {
-            address: astria_address_from_hex_string(BOB_ADDRESS),
-            balance: 11u128, // transfer fee is 12 at default
-        },
-    ]
-    .into_iter()
-    .map(Protobuf::into_raw)
-    .collect();
 
     let (mut app, storage) = initialize_app_with_storage(
         Some(only_alice_funds_genesis_state.try_into().unwrap()),
@@ -377,14 +360,6 @@ async fn maintenance_recosting_promotes() {
 async fn maintenance_funds_added_promotes() {
     // check that transaction promotion from new funds works
     let mut only_alice_funds_genesis_state = proto_genesis_state();
-    only_alice_funds_genesis_state.accounts = vec![Account {
-        address: astria_address_from_hex_string(ALICE_ADDRESS),
-        balance: 10u128.pow(19),
-    }]
-    .into_iter()
-    .map(Protobuf::into_raw)
-    .collect();
-
     let (mut app, storage) = initialize_app_with_storage(
         Some(only_alice_funds_genesis_state.try_into().unwrap()),
         vec![],

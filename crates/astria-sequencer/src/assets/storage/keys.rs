@@ -4,8 +4,6 @@ use astria_core::primitive::v1::asset::IbcPrefixed;
 
 use crate::storage::keys::Asset;
 
-pub(in crate::assets) const NATIVE_ASSET: &str = "assets/native_asset";
-
 /// Example: `assets/ibc/0101....0101`.
 ///                     |64 hex chars|
 pub(in crate::assets) fn asset<'a, TAsset>(asset: &'a TAsset) -> String
@@ -29,13 +27,11 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(NATIVE_ASSET);
         insta::assert_snapshot!(asset(&test_asset()));
     }
 
     #[test]
     fn keys_should_have_component_prefix() {
-        assert!(NATIVE_ASSET.starts_with(COMPONENT_PREFIX));
         assert!(asset(&test_asset()).starts_with(COMPONENT_PREFIX));
     }
 }

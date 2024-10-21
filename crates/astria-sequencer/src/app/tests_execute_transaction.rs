@@ -534,13 +534,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let genesis_state = {
-        let mut state = proto_genesis_state();
-        state.allowed_fee_assets.push(test_asset().to_string());
-        state
-    }
-    .try_into()
-    .unwrap();
+    let genesis_state = proto_genesis_state().try_into().unwrap();
     let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
     let tx = TransactionBody::builder()

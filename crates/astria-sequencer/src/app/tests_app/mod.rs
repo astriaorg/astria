@@ -4,21 +4,17 @@ use std::collections::HashMap;
 
 use astria_core::{
     primitive::v1::{
-        asset::TracePrefixed,
         RollupId,
         TransactionId,
     },
-    protocol::{
-        genesis::v1::Account,
-        transaction::v1::{
-            action::{
-                BridgeLock,
-                RollupDataSubmission,
-                SudoAddressChange,
-                Transfer,
-            },
-            TransactionBody,
+    protocol::transaction::v1::{
+        action::{
+            BridgeLock,
+            RollupDataSubmission,
+            SudoAddressChange,
+            Transfer,
         },
+        TransactionBody,
     },
     sequencerblock::v1::block::Deposit,
 };
@@ -52,7 +48,6 @@ use super::*;
 use crate::{
     accounts::StateReadExt as _,
     app::test_utils::*,
-    assets::StateReadExt as _,
     authority::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -89,31 +84,6 @@ fn default_tendermint_header() -> Header {
             block: 0,
         },
     }
-}
-
-#[tokio::test]
-async fn app_genesis_and_init_chain() {
-    let app = initialize_app(None, vec![]).await;
-    assert_eq!(app.state.get_block_height().await.unwrap(), 0);
-
-    for Account {
-        address,
-        balance,
-    } in default_genesis_accounts()
-    {
-        assert_eq!(
-            balance,
-            app.state
-                .get_account_balance(&address, &nria())
-                .await
-                .unwrap(),
-        );
-    }
-
-    assert_eq!(
-        app.state.get_native_asset().await.unwrap(),
-        "nria".parse::<TracePrefixed>().unwrap()
-    );
 }
 
 #[tokio::test]
@@ -183,47 +153,6 @@ async fn app_begin_block_remove_byzantine_validators() {
     let validator_set = app.state.get_validator_set().await.unwrap();
     assert_eq!(validator_set.len(), 1);
     assert_eq!(validator_set.get(&verification_key(2)).unwrap().power, 1,);
-}
-
-#[tokio::test]
-async fn app_commit() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-    assert_eq!(app.state.get_block_height().await.unwrap(), 0);
-
-    for Account {
-        address,
-        balance,
-    } in default_genesis_accounts()
-    {
-        assert_eq!(
-            balance,
-            app.state
-                .get_account_balance(&address, &nria())
-                .await
-                .unwrap()
-        );
-    }
-
-    // commit should write the changes to the underlying storage
-    app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
-
-    let snapshot = storage.latest_snapshot();
-    assert_eq!(snapshot.get_block_height().await.unwrap(), 0);
-
-    for Account {
-        address,
-        balance,
-    } in default_genesis_accounts()
-    {
-        assert_eq!(
-            snapshot
-                .get_account_balance(&address, &nria())
-                .await
-                .unwrap(),
-            balance
-        );
-    }
 }
 
 #[tokio::test]

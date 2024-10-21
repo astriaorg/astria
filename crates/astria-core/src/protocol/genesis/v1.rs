@@ -5,11 +5,6 @@ pub use penumbra_ibc::params::IBCParameters;
 use crate::{
     generated::protocol::genesis::v1 as raw,
     primitive::v1::{
-        asset::{
-            self,
-            denom::ParseTracePrefixedError,
-            ParseDenomError,
-        },
         try_construct_dummy_address_from_prefix,
         Address,
         AddressError,
@@ -49,13 +44,10 @@ use crate::{
 pub struct GenesisAppState {
     chain_id: String,
     address_prefixes: AddressPrefixes,
-    accounts: Vec<Account>,
     authority_sudo_address: crate::primitive::v1::Address,
     ibc_sudo_address: crate::primitive::v1::Address,
     ibc_relayer_addresses: Vec<crate::primitive::v1::Address>,
-    native_asset_base_denomination: asset::TracePrefixed,
     ibc_parameters: IBCParameters,
-    allowed_fee_assets: Vec<asset::Denom>,
     fees: GenesisFees,
 }
 
@@ -63,11 +55,6 @@ impl GenesisAppState {
     #[must_use]
     pub fn address_prefixes(&self) -> &AddressPrefixes {
         &self.address_prefixes
-    }
-
-    #[must_use]
-    pub fn accounts(&self) -> &[Account] {
-        &self.accounts
     }
 
     #[must_use]
@@ -91,18 +78,8 @@ impl GenesisAppState {
     }
 
     #[must_use]
-    pub fn native_asset_base_denomination(&self) -> &asset::TracePrefixed {
-        &self.native_asset_base_denomination
-    }
-
-    #[must_use]
     pub fn ibc_parameters(&self) -> &IBCParameters {
         &self.ibc_parameters
-    }
-
-    #[must_use]
-    pub fn allowed_fee_assets(&self) -> &[asset::Denom] {
-        &self.allowed_fee_assets
     }
 
     #[must_use]
@@ -126,12 +103,6 @@ impl GenesisAppState {
     }
 
     fn ensure_all_addresses_have_base_prefix(&self) -> Result<(), Box<AddressDoesNotMatchBase>> {
-        for (i, account) in self.accounts.iter().enumerate() {
-            self.ensure_address_has_base_prefix(
-                &account.address,
-                &format!(".accounts[{i}].address"),
-            )?;
-        }
         self.ensure_address_has_base_prefix(
             &self.authority_sudo_address,
             ".authority_sudo_address",
@@ -148,23 +119,14 @@ impl Protobuf for GenesisAppState {
     type Error = GenesisAppStateError;
     type Raw = raw::GenesisAppState;
 
-    // TODO (https://github.com/astriaorg/astria/issues/1580): remove this once Rust is upgraded to/past 1.83
-    #[expect(
-        clippy::allow_attributes,
-        clippy::allow_attributes_without_reason,
-        reason = "false positive on `allowed_fee_assets` due to \"allow\" in the name"
-    )]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
             address_prefixes,
-            accounts,
             authority_sudo_address,
             chain_id,
             ibc_sudo_address,
             ibc_relayer_addresses,
-            native_asset_base_denomination,
             ibc_parameters,
-            allowed_fee_assets,
             fees,
         } = raw;
         let address_prefixes = address_prefixes
@@ -173,11 +135,6 @@ impl Protobuf for GenesisAppState {
             .and_then(|aps| {
                 AddressPrefixes::try_from_raw_ref(aps).map_err(Self::Error::address_prefixes)
             })?;
-        let accounts = accounts
-            .iter()
-            .map(Account::try_from_raw_ref)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(Self::Error::accounts)?;
 
         let authority_sudo_address = authority_sudo_address
             .as_ref()
@@ -196,22 +153,12 @@ impl Protobuf for GenesisAppState {
             .collect::<Result<_, _>>()
             .map_err(Self::Error::ibc_relayer_addresses)?;
 
-        let native_asset_base_denomination = native_asset_base_denomination
-            .parse()
-            .map_err(Self::Error::native_asset_base_denomination)?;
-
         let ibc_parameters = {
             let params = ibc_parameters
                 .as_ref()
                 .ok_or_else(|| Self::Error::field_not_set("ibc_parameters"))?;
             IBCParameters::try_from_raw_ref(params).expect("conversion is infallible")
         };
-
-        let allowed_fee_assets = allowed_fee_assets
-            .iter()
-            .map(|asset| asset.parse())
-            .collect::<Result<_, _>>()
-            .map_err(Self::Error::allowed_fee_assets)?;
 
         let fees = fees
             .as_ref()
@@ -220,14 +167,11 @@ impl Protobuf for GenesisAppState {
 
         let this = Self {
             address_prefixes,
-            accounts,
             authority_sudo_address,
             chain_id: chain_id.clone(),
             ibc_sudo_address,
             ibc_relayer_addresses,
-            native_asset_base_denomination,
             ibc_parameters,
-            allowed_fee_assets,
             fees,
         };
         this.ensure_all_addresses_have_base_prefix()
@@ -238,26 +182,20 @@ impl Protobuf for GenesisAppState {
     fn to_raw(&self) -> Self::Raw {
         let Self {
             address_prefixes,
-            accounts,
             authority_sudo_address,
             chain_id,
             ibc_sudo_address,
             ibc_relayer_addresses,
-            native_asset_base_denomination,
             ibc_parameters,
-            allowed_fee_assets,
             fees,
         } = self;
         Self::Raw {
             address_prefixes: Some(address_prefixes.to_raw()),
-            accounts: accounts.iter().map(Account::to_raw).collect(),
             authority_sudo_address: Some(authority_sudo_address.to_raw()),
             chain_id: chain_id.clone(),
             ibc_sudo_address: Some(ibc_sudo_address.to_raw()),
             ibc_relayer_addresses: ibc_relayer_addresses.iter().map(Address::to_raw).collect(),
-            native_asset_base_denomination: native_asset_base_denomination.to_string(),
             ibc_parameters: Some(ibc_parameters.to_raw()),
-            allowed_fee_assets: allowed_fee_assets.iter().map(ToString::to_string).collect(),
             fees: Some(fees.to_raw()),
         }
     }
@@ -282,12 +220,6 @@ impl From<GenesisAppState> for raw::GenesisAppState {
 pub struct GenesisAppStateError(GenesisAppStateErrorKind);
 
 impl GenesisAppStateError {
-    fn accounts(source: AccountError) -> Self {
-        Self(GenesisAppStateErrorKind::Accounts {
-            source,
-        })
-    }
-
     fn address_prefixes(source: AddressPrefixesError) -> Self {
         Self(GenesisAppStateErrorKind::AddressPrefixes {
             source,
@@ -296,12 +228,6 @@ impl GenesisAppStateError {
 
     fn address_does_not_match_base(source: Box<AddressDoesNotMatchBase>) -> Self {
         Self(GenesisAppStateErrorKind::AddressDoesNotMatchBase {
-            source,
-        })
-    }
-
-    fn allowed_fee_assets(source: ParseDenomError) -> Self {
-        Self(GenesisAppStateErrorKind::AllowedFeeAssets {
             source,
         })
     }
@@ -335,27 +261,17 @@ impl GenesisAppStateError {
             source,
         })
     }
-
-    fn native_asset_base_denomination(source: ParseTracePrefixedError) -> Self {
-        Self(GenesisAppStateErrorKind::NativeAssetBaseDenomination {
-            source,
-        })
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error("failed ensuring invariants of {}", GenesisAppState::full_name())]
 enum GenesisAppStateErrorKind {
-    #[error("`accounts` field was invalid")]
-    Accounts { source: AccountError },
     #[error("`address_prefixes` field was invalid")]
     AddressPrefixes { source: AddressPrefixesError },
     #[error("one of the provided addresses did not match the provided base prefix")]
     AddressDoesNotMatchBase {
         source: Box<AddressDoesNotMatchBase>,
     },
-    #[error("`allowed_fee_assets` field was invalid")]
-    AllowedFeeAssets { source: ParseDenomError },
     #[error("`authority_sudo_address` field was invalid")]
     AuthoritySudoAddress { source: AddressError },
     #[error("`fees` field was invalid")]
@@ -366,8 +282,6 @@ enum GenesisAppStateErrorKind {
     IbcRelayerAddresses { source: AddressError },
     #[error("field was not set: `{name}`")]
     FieldNotSet { name: &'static str },
-    #[error("`native_asset_base_denomination` field was invalid")]
-    NativeAssetBaseDenomination { source: ParseTracePrefixedError },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -376,73 +290,6 @@ struct AddressDoesNotMatchBase {
     base_prefix: String,
     address: Address,
     field: String,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct Account {
-    pub address: Address,
-    pub balance: u128,
-}
-
-impl Protobuf for Account {
-    type Error = AccountError;
-    type Raw = raw::Account;
-
-    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
-        let Self::Raw {
-            address,
-            balance,
-        } = raw;
-        let address = address
-            .as_ref()
-            .ok_or_else(|| AccountError::field_not_set("address"))
-            .and_then(|addr| Address::try_from_raw(addr).map_err(Self::Error::address))?;
-        let balance = balance
-            .ok_or_else(|| AccountError::field_not_set("balance"))
-            .map(Into::into)?;
-        Ok(Self {
-            address,
-            balance,
-        })
-    }
-
-    fn to_raw(&self) -> Self::Raw {
-        let Self {
-            address,
-            balance,
-        } = self;
-        Self::Raw {
-            address: Some(address.to_raw()),
-            balance: Some((*balance).into()),
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct AccountError(AccountErrorKind);
-
-impl AccountError {
-    fn address(source: AddressError) -> Self {
-        Self(AccountErrorKind::Address {
-            source,
-        })
-    }
-
-    fn field_not_set(name: &'static str) -> Self {
-        Self(AccountErrorKind::FieldNotSet {
-            name,
-        })
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("failed ensuring invariants of {}", Account::full_name())]
-enum AccountErrorKind {
-    #[error("`address` field was invalid")]
-    Address { source: AddressError },
-    #[error("field was not set: `{name}`")]
-    FieldNotSet { name: &'static str },
 }
 
 /// The address prefixes used by the Sequencer.
@@ -794,14 +641,6 @@ mod tests {
             .unwrap()
     }
 
-    fn charlie() -> Address {
-        Address::builder()
-            .prefix(ASTRIA_ADDRESS_PREFIX)
-            .slice(hex::decode("60709e2d391864b732b4f0f51e387abb76743871").unwrap())
-            .try_build()
-            .unwrap()
-    }
-
     fn mallory() -> Address {
         Address::builder()
             .prefix("other")
@@ -813,20 +652,6 @@ mod tests {
     #[expect(clippy::too_many_lines, reason = "for testing purposes")]
     fn proto_genesis_state() -> raw::GenesisAppState {
         raw::GenesisAppState {
-            accounts: vec![
-                raw::Account {
-                    address: Some(alice().to_raw()),
-                    balance: Some(1_000_000_000_000_000_000.into()),
-                },
-                raw::Account {
-                    address: Some(bob().to_raw()),
-                    balance: Some(1_000_000_000_000_000_000.into()),
-                },
-                raw::Account {
-                    address: Some(charlie().to_raw()),
-                    balance: Some(1_000_000_000_000_000_000.into()),
-                },
-            ],
             address_prefixes: Some(raw::AddressPrefixes {
                 base: "astria".into(),
                 ibc_compat: "astriacompat".into(),
@@ -835,13 +660,11 @@ mod tests {
             chain_id: "astria-1".to_string(),
             ibc_sudo_address: Some(alice().to_raw()),
             ibc_relayer_addresses: vec![alice().to_raw(), bob().to_raw()],
-            native_asset_base_denomination: "nria".to_string(),
             ibc_parameters: Some(raw::IbcParameters {
                 ibc_enabled: true,
                 inbound_ics20_transfers_enabled: true,
                 outbound_ics20_transfers_enabled: true,
             }),
-            allowed_fee_assets: vec!["nria".into()],
             fees: Some(raw::GenesisFees {
                 transfer: Some(
                     TransferFeeComponents {
@@ -997,22 +820,6 @@ mod tests {
                 ..proto_genesis_state()
             },
             ".ibc_relayer_addresses[1]",
-        );
-        assert_bad_prefix(
-            raw::GenesisAppState {
-                accounts: vec![
-                    raw::Account {
-                        address: Some(alice().to_raw()),
-                        balance: Some(10.into()),
-                    },
-                    raw::Account {
-                        address: Some(mallory().to_raw()),
-                        balance: Some(10.into()),
-                    },
-                ],
-                ..proto_genesis_state()
-            },
-            ".accounts[1].address",
         );
     }
 
