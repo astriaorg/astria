@@ -1,31 +1,14 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    primitive::v1::asset,
-    protocol::{
-        fees::v1::{
-            BridgeLockFeeComponents,
-            BridgeSudoChangeFeeComponents,
-            BridgeUnlockFeeComponents,
-            Ics20WithdrawalFeeComponents,
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-            TransferFeeComponents,
-        },
-        transaction::v1::{
-            action::{
-                Action,
-                BridgeLock,
-                BridgeSudoChange,
-                BridgeUnlock,
-                Ics20Withdrawal,
-                InitBridgeAccount,
-                RollupDataSubmission,
-                Transfer,
-            },
-            Transaction,
-            TransactionBody,
-        },
+    primitive::v1::asset::{
+        self,
+        IbcPrefixed,
+    },
+    protocol::transaction::v1::{
+        action::Action,
+        Transaction,
+        TransactionBody,
     },
 };
 use astria_eyre::eyre::{
@@ -64,67 +47,136 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     tx: &TransactionBody,
     state: &S,
 ) -> Result<HashMap<asset::IbcPrefixed, u128>> {
-    let transfer_fees = state
-        .get_transfer_fees()
-        .await
-        .wrap_err("failed to get transfer fees")?;
-    let rollup_data_submission_fees = state
-        .get_rollup_data_submission_fees()
-        .await
-        .wrap_err("failed to get sequence fees")?;
-    let ics20_withdrawal_fees = state
-        .get_ics20_withdrawal_fees()
-        .await
-        .wrap_err("failed to get ics20 withdrawal fees")?;
-    let init_bridge_account_fees = state
-        .get_init_bridge_account_fees()
-        .await
-        .wrap_err("failed to get init bridge account fees")?;
-    let bridge_lock_fees = state
-        .get_bridge_lock_fees()
-        .await
-        .wrap_err("failed to get bridge lock fees")?;
-    let bridge_unlock_fees = state
-        .get_bridge_unlock_fees()
-        .await
-        .wrap_err("failed to get bridge unlock fees")?;
-    let bridge_sudo_change_fees = state
-        .get_bridge_sudo_change_fees()
-        .await
-        .wrap_err("failed to get bridge sudo change fees")?;
-
     let mut fees_by_asset = HashMap::new();
     for action in tx.actions() {
         match action {
             Action::Transfer(act) => {
-                transfer_update_fees(act, &mut fees_by_asset, &transfer_fees);
+                let transfer_fees = state
+                    .get_transfer_fees()
+                    .await
+                    .wrap_err("fees not found for `Transfer` action, hence it is disabled")?;
+                calculate_and_add_fees(
+                    act,
+                    act.fee_asset.to_ibc_prefixed(),
+                    &mut fees_by_asset,
+                    transfer_fees.base,
+                    transfer_fees.multiplier,
+                );
             }
             Action::RollupDataSubmission(act) => {
-                sequence_update_fees(act, &mut fees_by_asset, &rollup_data_submission_fees);
+                let rollup_data_submission_fees =
+                    state.get_rollup_data_submission_fees().await.wrap_err(
+                        "fees not found for `RollupDataSubmission` action, hence it is disabled",
+                    )?;
+                calculate_and_add_fees(
+                    act,
+                    act.fee_asset.to_ibc_prefixed(),
+                    &mut fees_by_asset,
+                    rollup_data_submission_fees.base,
+                    rollup_data_submission_fees.multiplier,
+                );
             }
             Action::Ics20Withdrawal(act) => {
-                ics20_withdrawal_updates_fees(act, &mut fees_by_asset, &ics20_withdrawal_fees);
+                let ics20_withdrawal_fees = state.get_ics20_withdrawal_fees().await.wrap_err(
+                    "fees not found for `Ics20Withdrawal` action, hence it is disabled",
+                )?;
+                calculate_and_add_fees(
+                    act,
+                    act.fee_asset.to_ibc_prefixed(),
+                    &mut fees_by_asset,
+                    ics20_withdrawal_fees.base,
+                    ics20_withdrawal_fees.multiplier,
+                );
             }
             Action::InitBridgeAccount(act) => {
-                init_bridge_account_update_fees(act, &mut fees_by_asset, &init_bridge_account_fees);
+                let init_bridge_account_fees =
+                    state.get_init_bridge_account_fees().await.wrap_err(
+                        "fees not found for `InitBridgeAccount` action, hence it is disabled",
+                    )?;
+                calculate_and_add_fees(
+                    act,
+                    act.fee_asset.to_ibc_prefixed(),
+                    &mut fees_by_asset,
+                    init_bridge_account_fees.base,
+                    init_bridge_account_fees.multiplier,
+                );
             }
             Action::BridgeLock(act) => {
-                bridge_lock_update_fees(act, &mut fees_by_asset, &bridge_lock_fees);
+                let bridge_lock_fees = state
+                    .get_bridge_lock_fees()
+                    .await
+                    .wrap_err("fees not found for `BridgeLock` action, hence it is disabled")?;
+                calculate_and_add_fees(
+                    act,
+                    act.fee_asset.to_ibc_prefixed(),
+                    &mut fees_by_asset,
+                    bridge_lock_fees.base,
+                    bridge_lock_fees.multiplier,
+                );
             }
             Action::BridgeUnlock(act) => {
-                bridge_unlock_update_fees(act, &mut fees_by_asset, &bridge_unlock_fees);
+                let bridge_unlock_fees = state
+                    .get_bridge_unlock_fees()
+                    .await
+                    .wrap_err("fees not found for `BridgeUnlock` action, hence it is disabled")?;
+                calculate_and_add_fees(
+                    act,
+                    act.fee_asset.to_ibc_prefixed(),
+                    &mut fees_by_asset,
+                    bridge_unlock_fees.base,
+                    bridge_unlock_fees.multiplier,
+                );
             }
             Action::BridgeSudoChange(act) => {
-                bridge_sudo_change_update_fees(act, &mut fees_by_asset, &bridge_sudo_change_fees);
+                let bridge_sudo_change_fees = state.get_bridge_sudo_change_fees().await.wrap_err(
+                    "fees not found for `BridgeSudoChange` action, hence it is disabled",
+                )?;
+                calculate_and_add_fees(
+                    act,
+                    act.fee_asset.to_ibc_prefixed(),
+                    &mut fees_by_asset,
+                    bridge_sudo_change_fees.base,
+                    bridge_sudo_change_fees.multiplier,
+                );
             }
-            Action::ValidatorUpdate(_)
-            | Action::SudoAddressChange(_)
-            | Action::IbcSudoChange(_)
-            | Action::Ibc(_)
-            | Action::IbcRelayerChange(_)
-            | Action::FeeAssetChange(_)
-            | Action::FeeChange(_) => {
-                continue;
+            Action::ValidatorUpdate(_) => {
+                state.get_validator_update_fees().await.wrap_err(
+                    "fees not found for `ValidatorUpdate` action, hence it is disabled",
+                )?;
+            }
+            Action::SudoAddressChange(_) => {
+                state.get_sudo_address_change_fees().await.wrap_err(
+                    "fees not found for `SudoAddressChange` action, hence it is disabled",
+                )?;
+            }
+            Action::IbcSudoChange(_) => {
+                state
+                    .get_ibc_sudo_change_fees()
+                    .await
+                    .wrap_err("fees not found for `IbcSudoChange` action, hence it is disabled")?;
+            }
+            Action::Ibc(_) => {
+                state
+                    .get_ibc_relay_fees()
+                    .await
+                    .wrap_err("fees not found for `IbcRelay` action, hence it is disabled")?;
+            }
+            Action::IbcRelayerChange(_) => {
+                state.get_ibc_relayer_change_fees().await.wrap_err(
+                    "fees not found for `IbcRelayerChange` action, hence it is disabled",
+                )?;
+            }
+            Action::FeeAssetChange(_) => {
+                state
+                    .get_fee_asset_change_fees()
+                    .await
+                    .wrap_err("fees not found for `FeeAssetChange` action, hence it is disabled")?;
+            }
+            Action::FeeChange(_) => {
+                state
+                    .get_fee_change_fees()
+                    .await
+                    .wrap_err("fees not found for `FeeChange` action")?;
             }
         }
     }
@@ -217,124 +269,18 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
     Ok(cost_by_asset)
 }
 
-fn transfer_update_fees(
-    act: &Transfer,
+fn calculate_and_add_fees<T: FeeHandler>(
+    act: &T,
+    fee_asset: IbcPrefixed,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    transfer_fees: &TransferFeeComponents,
+    base: u128,
+    multiplier: u128,
 ) {
-    let total_fees = calculate_total_fees(
-        transfer_fees.base,
-        transfer_fees.multiplier,
-        act.variable_component(),
-    );
+    let total_fees = base.saturating_add(multiplier.saturating_mul(act.variable_component()));
     fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
+        .entry(fee_asset)
         .and_modify(|amt| *amt = amt.saturating_add(total_fees))
         .or_insert(total_fees);
-}
-
-fn sequence_update_fees(
-    act: &RollupDataSubmission,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    rollup_data_submission_fees: &RollupDataSubmissionFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        rollup_data_submission_fees.base,
-        rollup_data_submission_fees.multiplier,
-        act.variable_component(),
-    );
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn ics20_withdrawal_updates_fees(
-    act: &Ics20Withdrawal,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    ics20_withdrawal_fees: &Ics20WithdrawalFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        ics20_withdrawal_fees.base,
-        ics20_withdrawal_fees.multiplier,
-        act.variable_component(),
-    );
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn bridge_lock_update_fees(
-    act: &BridgeLock,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    bridge_lock_fees: &BridgeLockFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        bridge_lock_fees.base,
-        bridge_lock_fees.multiplier,
-        act.variable_component(),
-    );
-
-    fees_by_asset
-        .entry(act.asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn init_bridge_account_update_fees(
-    act: &InitBridgeAccount,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    init_bridge_account_fees: &InitBridgeAccountFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        init_bridge_account_fees.base,
-        init_bridge_account_fees.multiplier,
-        act.variable_component(),
-    );
-
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn bridge_unlock_update_fees(
-    act: &BridgeUnlock,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    bridge_lock_fees: &BridgeUnlockFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        bridge_lock_fees.base,
-        bridge_lock_fees.multiplier,
-        act.variable_component(),
-    );
-
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn bridge_sudo_change_update_fees(
-    act: &BridgeSudoChange,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    bridge_sudo_change_fees: &BridgeSudoChangeFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        bridge_sudo_change_fees.base,
-        bridge_sudo_change_fees.multiplier,
-        act.variable_component(),
-    );
-
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn calculate_total_fees(base: u128, multiplier: u128, computed_cost_base: u128) -> u128 {
-    base.saturating_add(computed_cost_base.saturating_mul(multiplier))
 }
 
 #[cfg(test)]
