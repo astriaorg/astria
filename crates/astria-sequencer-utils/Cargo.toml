@@ -9,7 +9,7 @@ repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
 [dependencies]
-base64 = { workspace = true }
+base64 = "0.22.1"
 clap = { workspace = true, features = [
   "cargo",
   "deprecated",
@@ -29,6 +29,7 @@ serde_json = { workspace = true }
 astria-core = { path = "../astria-core", features = ["brotli", "serde"] }
 astria-eyre = { path = "../astria-eyre" }
 astria-merkle = { path = "../astria-merkle" }
+astria-core-utils = { path = "../astria-core-utils" }
 
 [dev-dependencies]
 assert_cmd = "2.0.14"

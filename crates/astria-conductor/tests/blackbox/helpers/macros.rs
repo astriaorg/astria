@@ -276,12 +276,12 @@ macro_rules! mount_executed_block {
         hash: $hash:expr,
         parent: $parent:expr $(,)?
     ) => {{
-        use ::base64::prelude::*;
+        use core_utils::base64;
         $test_env.mount_execute_block(
             $mock_name.into(),
             ::serde_json::json!({
-                "prevBlockHash": BASE64_STANDARD.encode($parent),
-                "transactions": [{"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}],
+                "prevBlockHash": base64::encode($parent),
+                "transactions": [{"sequencedData": base64::encode($crate::helpers::data())}],
             }),
             $crate::block!(
                 number: $number,
@@ -406,11 +406,11 @@ macro_rules! mount_execute_block_tonic_code {
         parent: $parent:expr,
         status_code: $status_code:expr $(,)?
     ) => {{
-        use ::base64::prelude::*;
+        use core_utils::base64;
         $test_env.mount_tonic_status_code(
             ::serde_json::json!({
-                "prevBlockHash": BASE64_STANDARD.encode($parent),
-                "transactions": [{"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}],
+                "prevBlockHash": base64::encode($parent),
+                "transactions": [{"sequencedData": base64::encode($crate::helpers::data())}],
             }),
             $status_code
         ).await

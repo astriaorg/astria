@@ -17,11 +17,11 @@ use celestia_types::{
     nmt::Namespace,
     Blob,
 };
+use core_utils::base64;
 use prost::{
     Message as _,
     Name as _,
 };
-use telemetry::display::base64;
 use tracing::{
     info,
     warn,
@@ -46,8 +46,8 @@ pub(super) fn decode_raw_blobs(
             }
         } else {
             warn!(
-                sequencer_namespace = %base64(sequencer_namespace.as_ref()),
-                namespace_in_blob = %base64(blob.namespace.as_ref()),
+                sequencer_namespace = %base64::display(sequencer_namespace.as_ref()),
+                namespace_in_blob = %base64::display(blob.namespace.as_ref()),
                 "blob's namespaces was not the expected sequencer namespace; dropping",
             );
         }
@@ -60,8 +60,8 @@ pub(super) fn decode_raw_blobs(
             }
         } else {
             warn!(
-                rollup_namespace = %base64(rollup_namespace.as_ref()),
-                namespace_in_blob = %base64(blob.namespace.as_ref()),
+                rollup_namespace = %base64::display(rollup_namespace.as_ref()),
+                namespace_in_blob = %base64::display(blob.namespace.as_ref()),
                 "blob's namespaces was not the expected rollup namespace; dropping",
             );
         }

@@ -11,11 +11,11 @@ use celestia_types::{
     nmt::Namespace,
     Blob,
 };
+use core_utils::base64;
 use jsonrpsee::{
     self,
     http_client::HttpClient as CelestiaClient,
 };
-use telemetry::display::base64;
 use tokio::try_join;
 use tracing::{
     instrument,
@@ -50,8 +50,8 @@ impl RawBlobs {
 /// all other cases.
 #[instrument(skip_all, fields(
     celestia_height,
-    sequencer_namespace = %base64(sequencer_namespace.as_ref()),
-    rollup_namespace = %base64(rollup_namespace.as_ref()),
+    sequencer_namespace = %base64::display(sequencer_namespace.as_ref()),
+    rollup_namespace = %base64::display(rollup_namespace.as_ref()),
     err,
 ))]
 pub(super) async fn fetch_new_blobs(

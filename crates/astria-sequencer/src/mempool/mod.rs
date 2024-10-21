@@ -385,7 +385,7 @@ impl Mempool {
                 Ok(res) => res,
                 Err(error) => {
                     error!(
-                        address = %telemetry::display::base64(&address),
+                        address = %core_utils::base64::display(&address),
                         "failed to fetch account nonce when cleaning accounts: {error:#}"
                     );
                     continue;
@@ -395,7 +395,7 @@ impl Mempool {
                 Ok(res) => res,
                 Err(error) => {
                     error!(
-                        address = %telemetry::display::base64(address),
+                        address = %core_utils::base64::display(address),
                         "failed to fetch account balances when cleaning accounts: {error:#}"
                     );
                     continue;
@@ -436,7 +436,7 @@ impl Mempool {
                         self.lock_contained_txs().await.remove(tx_id);
                         self.metrics.increment_internal_logic_error();
                         error!(
-                            address = %telemetry::display::base64(&address),
+                            address = %core_utils::base64::display(&address),
                             current_nonce,
                             tx_hash = %telemetry::display::hex(&tx_id),
                             %error,
@@ -455,7 +455,7 @@ impl Mempool {
                         self.lock_contained_txs().await.remove(tx_id);
                         self.metrics.increment_internal_logic_error();
                         error!(
-                            address = %telemetry::display::base64(&address),
+                            address = %core_utils::base64::display(&address),
                             current_nonce,
                             tx_hash = %telemetry::display::hex(&tx_id),
                             %error,
