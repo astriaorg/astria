@@ -133,6 +133,7 @@ impl ::prost::Name for IbcRelayFeeComponents {
         ::prost::alloc::format!("astria.protocol.fees.v1alpha1.{}", Self::NAME)
     }
 }
+/// Deprecated, use `ValidatorUpdateV2FeeComponents` instead.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ValidatorUpdateFeeComponents {
