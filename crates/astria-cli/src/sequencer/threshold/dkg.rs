@@ -1,5 +1,9 @@
 use std::collections::BTreeMap;
 
+use astria_core::primitive::v1::{
+    Address,
+    Bech32m,
+};
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -42,6 +46,9 @@ pub(super) struct Command {
     /// path to a file with the output public key package from keygen ceremony.
     #[arg(long)]
     public_key_package_path: String,
+
+    #[arg(long, default_value = "astria")]
+    prefix: String,
 }
 
 impl Command {
@@ -58,6 +65,7 @@ impl Command {
             max_signers,
             secret_key_package_path,
             public_key_package_path,
+            prefix,
         } = self;
 
         let id: Identifier = index
@@ -168,9 +176,18 @@ impl Command {
         )
         .wrap_err("failed to write public key package")?;
 
+        let verifying_key_bytes = pubkey_package.verifying_key().serialize()?;
+        let astria_verifying_key =
+            astria_core::crypto::VerificationKey::try_from(verifying_key_bytes.as_slice())?;
+        let address: Address<Bech32m> = Address::builder()
+            .prefix(prefix)
+            .array(*astria_verifying_key.address_bytes())
+            .try_build()?;
+
         println!("DKG completed successfully!");
         println!("Secret key package saved to: {secret_key_package_path}");
         println!("Public key package saved to: {public_key_package_path}");
+        println!("Generated address: {address}");
         Ok(())
     }
 }

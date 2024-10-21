@@ -132,7 +132,7 @@ struct PrepareMessage {
     ///
     /// if true, the message is signed as-is, without re-encoding into protobuf bytes
     #[arg(long)]
-    is_plaintext_message: bool,
+    plaintext: bool,
 
     /// path to the signing package output file
     #[arg(long)]
@@ -143,13 +143,13 @@ impl PrepareMessage {
     async fn run(self) -> eyre::Result<()> {
         let Self {
             message_path,
-            is_plaintext_message,
+            plaintext,
             signing_package_path,
         } = self;
 
         let mut message = std::fs::read(&message_path).wrap_err("failed to read message file")?;
 
-        if !is_plaintext_message {
+        if !plaintext {
             let tx_body = serde_json::from_slice::<TransactionBody>(&message)
                 .wrap_err("failed to deserialize message as TransactionBody")?;
             message = tx_body.encode_to_vec();
@@ -259,10 +259,6 @@ struct SignatureShareWithIdentifier {
     signature_share: frost_ed25519::round2::SignatureShare,
 }
 
-#[expect(
-    clippy::struct_field_names,
-    reason = "it's okay for all the args to end in `_path`"
-)]
 #[derive(Debug, clap::Args)]
 struct Aggregate {
     /// path to the signing package
@@ -281,8 +277,14 @@ struct Aggregate {
     message_path: Option<String>,
 
     /// optionally, path to output the signed message as a sequencer transaction.
-    #[arg(long)]
+    #[arg(long, requires = "message_path")]
     output_path: Option<String>,
+
+    /// whether the message is plaintext (not a `TransactionBody`)
+    ///
+    /// if true, the message is signed as-is, without re-encoding into protobuf bytes
+    #[arg(long, requires = "message_path")]
+    plaintext: bool,
 }
 
 impl Aggregate {
@@ -297,6 +299,7 @@ impl Aggregate {
             public_key_package_path,
             message_path,
             output_path,
+            plaintext,
         } = self;
 
         let mut sig_shares: BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> =
@@ -345,7 +348,13 @@ impl Aggregate {
         );
 
         if let Some(message_path) = message_path {
-            let message = std::fs::read(&message_path).wrap_err("failed to read message file")?;
+            let mut message =
+                std::fs::read(&message_path).wrap_err("failed to read message file")?;
+            if !plaintext {
+                let tx_body = serde_json::from_slice::<TransactionBody>(&message)
+                    .wrap_err("failed to deserialize message as TransactionBody")?;
+                message = tx_body.encode_to_vec();
+            }
             let transaction = Transaction {
                 body: Some(pbjson_types::Any {
                     type_url: TransactionBody::type_url(),
