@@ -288,13 +288,14 @@ impl App {
             .put_ibc_compat_prefix(genesis_state.address_prefixes().ibc_compat().to_string())
             .wrap_err("failed to write ibc-compat prefix to state")?;
 
-        let native_asset = genesis_state.native_asset_base_denomination();
-        state_tx
-            .put_native_asset(native_asset.clone())
-            .wrap_err("failed to write native asset to state")?;
-        state_tx
-            .put_ibc_asset(native_asset.clone())
-            .wrap_err("failed to commit native asset as ibc asset to state")?;
+        if let Some(native_asset) = genesis_state.native_asset_base_denomination() {
+            state_tx
+                .put_native_asset(native_asset.clone())
+                .wrap_err("failed to write native asset to state")?;
+            state_tx
+                .put_ibc_asset(native_asset.clone())
+                .wrap_err("failed to commit native asset as ibc asset to state")?;
+        }
 
         state_tx
             .put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?)
