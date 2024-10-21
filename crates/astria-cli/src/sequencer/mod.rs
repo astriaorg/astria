@@ -59,7 +59,8 @@ enum SubCommand {
     Transfer(transfer::Command),
     /// Command for withdrawing an ICS20 asset
     Ics20Withdrawal(ics20_withdrawal::Command),
-    /// Command for submitting a presigned message
+    /// Submit the signed pbjson formatted Transaction.
     Submit(submit::Command),
+    /// Sign a pbjson formatted TransactionBody to produce a Transaction.
     Sign(sign::Command),
 }
