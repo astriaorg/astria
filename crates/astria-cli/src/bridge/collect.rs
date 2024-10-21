@@ -72,6 +72,9 @@ pub(super) struct Command {
     /// rollup's bridge configuration for that asset.
     #[arg(long)]
     bridge_address: Address,
+    /// Use compat addresses for `Ics20Withdrawal`s.
+    #[arg(long)]
+    use_compat_address: bool,
     /// The path to write the collected withdrawal events converted
     /// to Sequencer actions.
     #[arg(long, short)]
@@ -92,6 +95,7 @@ impl Command {
             ics20_asset_to_withdraw,
             fee_asset,
             bridge_address,
+            use_compat_address,
             output,
             force,
         } = self;
@@ -110,6 +114,7 @@ impl Command {
             .set_ics20_asset_to_withdraw(ics20_asset_to_withdraw)
             .set_sequencer_asset_to_withdraw(sequencer_asset_to_withdraw)
             .bridge_address(bridge_address)
+            .use_compat_address(use_compat_address)
             .try_build()
             .await
             .wrap_err("failed to initialize contract events to sequencer actions converter")?;
