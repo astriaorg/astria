@@ -375,7 +375,7 @@ impl Aggregate {
                 .wrap_err("failed to serialize transaction")?;
             if let Some(output_path) = output_path {
                 println!("Writing transaction to {output_path}");
-                std::fs::write(output_path, serialized_tx.encode_to_vec())
+                std::fs::write(output_path, serialized_tx)
                     .wrap_err("failed to write transaction to file")?;
             } else {
                 println!("Signed transaction:");
