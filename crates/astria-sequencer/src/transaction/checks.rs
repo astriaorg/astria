@@ -50,22 +50,64 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
 ) -> Result<HashMap<asset::IbcPrefixed, u128>> {
     let mut fees_by_asset = HashMap::new();
 
-    // Convert each result to an option, since it is okay for the action to not have fees as long as
-    // it isn't part of the transaction.
-    let transfer_fees = state.get_transfer_fees().await.ok();
-    let rollup_data_submission_fees = state.get_rollup_data_submission_fees().await.ok();
-    let ics20_withdrawal_fees = state.get_ics20_withdrawal_fees().await.ok();
-    let init_bridge_account_fees = state.get_init_bridge_account_fees().await.ok();
-    let bridge_lock_fees = state.get_bridge_lock_fees().await.ok();
-    let bridge_unlock_fees = state.get_bridge_unlock_fees().await.ok();
-    let bridge_sudo_change_fees = state.get_bridge_sudo_change_fees().await.ok();
-    let validator_update_fees = state.get_validator_update_fees().await.ok();
-    let sudo_address_change_fees = state.get_sudo_address_change_fees().await.ok();
-    let ibc_sudo_change_fees = state.get_ibc_sudo_change_fees().await.ok();
-    let ibc_relay_fees = state.get_ibc_relay_fees().await.ok();
-    let ibc_relayer_change_fees = state.get_ibc_relayer_change_fees().await.ok();
-    let fee_asset_change_fees = state.get_fee_asset_change_fees().await.ok();
-    let fee_change_fees = state.get_fee_change_fees().await.ok();
+    // All retrieved fees are optional: it is okay for the action to not have fees as long as it
+    // isn't part of the transaction.
+    let transfer_fees = state
+        .get_transfer_fees()
+        .await
+        .wrap_err("failed to get transfer fees")?;
+    let rollup_data_submission_fees = state
+        .get_rollup_data_submission_fees()
+        .await
+        .wrap_err("failed to get rollup data submission fees")?;
+    let ics20_withdrawal_fees = state
+        .get_ics20_withdrawal_fees()
+        .await
+        .wrap_err("failed to get ics20 withdrawal fees")?;
+    let init_bridge_account_fees = state
+        .get_init_bridge_account_fees()
+        .await
+        .wrap_err("failed to get init bridge account fees")?;
+    let bridge_lock_fees = state
+        .get_bridge_lock_fees()
+        .await
+        .wrap_err("failed to get bridge lock fees")?;
+    let bridge_unlock_fees = state
+        .get_bridge_unlock_fees()
+        .await
+        .wrap_err("failed to get bridge unlock fees")?;
+    let bridge_sudo_change_fees = state
+        .get_bridge_sudo_change_fees()
+        .await
+        .wrap_err("failed to get bridge sudo change fees")?;
+    let validator_update_fees = state
+        .get_validator_update_fees()
+        .await
+        .wrap_err("failed to get validator update fees")?;
+    let sudo_address_change_fees = state
+        .get_sudo_address_change_fees()
+        .await
+        .wrap_err("failed to get sudo address change fees")?;
+    let ibc_sudo_change_fees = state
+        .get_ibc_sudo_change_fees()
+        .await
+        .wrap_err("failed to get ibc sudo change fees")?;
+    let ibc_relay_fees = state
+        .get_ibc_relay_fees()
+        .await
+        .wrap_err("failed to get ibc relay fees")?;
+    let ibc_relayer_change_fees = state
+        .get_ibc_relayer_change_fees()
+        .await
+        .wrap_err("failed to get ibc relayer change fees")?;
+    let fee_asset_change_fees = state
+        .get_fee_asset_change_fees()
+        .await
+        .wrap_err("failed to get fee asset change fees")?;
+    let fee_change_fees = state
+        .get_fee_change_fees()
+        .await
+        .wrap_err("failed to get fee change fees")?;
 
     for action in tx.actions() {
         match action {
@@ -409,7 +451,12 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = state_tx.get_transfer_fees().await.unwrap().base;
+        let transfer_fee = state_tx
+            .get_transfer_fees()
+            .await
+            .expect("should not error fetching transfer fees")
+            .expect("transfer fees should be stored")
+            .base;
         state_tx
             .increase_balance(
                 &state_tx
@@ -539,7 +586,12 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = state_tx.get_transfer_fees().await.unwrap().base;
+        let transfer_fee = state_tx
+            .get_transfer_fees()
+            .await
+            .expect("should not error fetching transfer fees")
+            .expect("transfer fees should be stored")
+            .base;
         state_tx
             .increase_balance(
                 &state_tx
