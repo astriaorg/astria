@@ -226,7 +226,7 @@ mod tests {
             .unwrap();
 
         state.put_base_prefix("astria".to_string()).unwrap();
-        state.put_native_asset(crate::test_utils::nria()).unwrap();
+        state.put_asset(crate::test_utils::nria()).unwrap();
 
         let address = state
             .try_base_prefixed(&hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap())
@@ -285,7 +285,7 @@ mod tests {
         let denom: asset::TracePrefixed = "some/ibc/asset".parse().unwrap();
         let height = 99;
         state.put_block_height(height).unwrap();
-        state.put_ibc_asset(denom.clone()).unwrap();
+        state.put_asset(denom.clone()).unwrap();
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {

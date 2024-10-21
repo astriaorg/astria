@@ -16,25 +16,21 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::{
-        genesis::v1::Account,
-        transaction::v1::{
-            action::{
-                BridgeLock,
-                BridgeSudoChange,
-                BridgeUnlock,
-                IbcRelayerChange,
-                IbcSudoChange,
-                RollupDataSubmission,
-                Transfer,
-                ValidatorUpdate,
-            },
-            Action,
-            TransactionBody,
+    protocol::transaction::v1::{
+        action::{
+            BridgeLock,
+            BridgeSudoChange,
+            BridgeUnlock,
+            IbcRelayerChange,
+            IbcSudoChange,
+            RollupDataSubmission,
+            Transfer,
+            ValidatorUpdate,
         },
+        Action,
+        TransactionBody,
     },
     sequencerblock::v1::block::Deposit,
-    Protobuf,
 };
 use cnidarium::StateDelta;
 use prost::{
@@ -51,12 +47,12 @@ use tendermint::{
 
 use crate::{
     app::test_utils::{
-        default_genesis_accounts,
         get_alice_signing_key,
         get_bridge_signing_key,
+        get_carol_signing_key,
+        get_judy_signing_key,
         initialize_app,
         initialize_app_with_storage,
-        proto_genesis_state,
         BOB_ADDRESS,
         CAROL_ADDRESS,
     },
@@ -67,20 +63,19 @@ use crate::{
         astria_address,
         astria_address_from_hex_string,
         nria,
-        ASTRIA_PREFIX,
     },
 };
 
 #[tokio::test]
 async fn app_genesis_snapshot() {
-    let app = initialize_app(None, vec![]).await;
+    let app = initialize_app(vec![]).await;
     insta::assert_json_snapshot!(app.app_hash.as_bytes());
 }
 
 #[tokio::test]
 async fn app_finalize_block_snapshot() {
     let alice = get_alice_signing_key();
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -170,29 +165,12 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         SudoAddressChange,
     };
 
-    let alice = get_alice_signing_key();
     let bridge = get_bridge_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
 
-    let accounts = {
-        let mut acc = default_genesis_accounts();
-        acc.push(Account {
-            address: bridge_address,
-            balance: 1_000_000_000,
-        });
-        acc.into_iter().map(Protobuf::into_raw).collect()
-    };
-    let genesis_state = astria_core::generated::protocol::genesis::v1::GenesisAppState {
-        accounts,
-        authority_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
-        ibc_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
-        ..proto_genesis_state()
-    }
-    .try_into()
-    .unwrap();
-    let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
 
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
@@ -204,6 +182,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let tx_bundleable_general = TransactionBody::builder()
         .actions(vec![
+            Transfer {
+                to: bridge_address,
+                amount: 333_333,
+                asset: nria().into(),
+                fee_asset: nria().into(),
+            }
+            .into(),
             Transfer {
                 to: bob_address,
                 amount: 333_333,
@@ -223,16 +208,24 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let tx_bundleable_sudo = TransactionBody::builder()
+    let tx_bundleable_fee_asset_sudo = TransactionBody::builder()
         .actions(vec![
-            IbcRelayerChange::Addition(bob_address).into(),
-            IbcRelayerChange::Addition(carol_address).into(),
-            IbcRelayerChange::Removal(bob_address).into(),
             FeeAssetChange::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChange::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChange::Removal("test-0".parse().unwrap()).into(),
         ])
         .nonce(1)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let tx_bundleable_ibc_relayer_sudo = TransactionBody::builder()
+        .actions(vec![
+            IbcRelayerChange::Addition(bob_address).into(),
+            IbcRelayerChange::Addition(carol_address).into(),
+            IbcRelayerChange::Removal(bob_address).into(),
+        ])
+        .nonce(0)
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -261,20 +254,28 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
-    let signed_tx_general_bundleable = Arc::new(tx_bundleable_general.sign(&alice));
+    let signed_tx_general_bundleable =
+        Arc::new(tx_bundleable_general.sign(&get_judy_signing_key()));
     app.execute_transaction(signed_tx_general_bundleable)
         .await
         .unwrap();
 
-    let signed_tx_sudo_bundleable = Arc::new(tx_bundleable_sudo.sign(&alice));
-    app.execute_transaction(signed_tx_sudo_bundleable)
+    let signed_tx_fee_asset_sudo_bundleable =
+        Arc::new(tx_bundleable_fee_asset_sudo.sign(&get_judy_signing_key()));
+    app.execute_transaction(signed_tx_fee_asset_sudo_bundleable)
         .await
         .unwrap();
 
-    let signed_tx_sudo_ibc = Arc::new(tx_sudo_ibc.sign(&alice));
+    let signed_tx_ibc_relayer_sudo_bundleable =
+        Arc::new(tx_bundleable_ibc_relayer_sudo.sign(&get_carol_signing_key()));
+    app.execute_transaction(signed_tx_ibc_relayer_sudo_bundleable)
+        .await
+        .unwrap();
+
+    let signed_tx_sudo_ibc = Arc::new(tx_sudo_ibc.sign(&get_judy_signing_key()));
     app.execute_transaction(signed_tx_sudo_ibc).await.unwrap();
 
-    let signed_tx_sudo = Arc::new(tx_sudo.sign(&alice));
+    let signed_tx_sudo = Arc::new(tx_sudo.sign(&get_judy_signing_key()));
     app.execute_transaction(signed_tx_sudo).await.unwrap();
 
     let tx = TransactionBody::builder()

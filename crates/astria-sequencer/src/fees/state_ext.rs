@@ -555,7 +555,7 @@ mod tests {
 
     #[tokio::test]
     async fn block_fee_read_and_increase() {
-        let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+        let (_, storage) = initialize_app_with_storage(vec![]).await;
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
@@ -587,7 +587,7 @@ mod tests {
 
     #[tokio::test]
     async fn block_fee_read_and_increase_can_delete() {
-        let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+        let (_, storage) = initialize_app_with_storage(vec![]).await;
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 

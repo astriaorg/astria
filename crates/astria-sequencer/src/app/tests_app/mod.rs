@@ -4,21 +4,17 @@ use std::collections::HashMap;
 
 use astria_core::{
     primitive::v1::{
-        asset::TracePrefixed,
         RollupId,
         TransactionId,
     },
-    protocol::{
-        genesis::v1::Account,
-        transaction::v1::{
-            action::{
-                BridgeLock,
-                RollupDataSubmission,
-                SudoAddressChange,
-                Transfer,
-            },
-            TransactionBody,
+    protocol::transaction::v1::{
+        action::{
+            BridgeLock,
+            RollupDataSubmission,
+            SudoAddressChange,
+            Transfer,
         },
+        TransactionBody,
     },
     sequencerblock::v1::block::Deposit,
 };
@@ -52,7 +48,6 @@ use super::*;
 use crate::{
     accounts::StateReadExt as _,
     app::test_utils::*,
-    assets::StateReadExt as _,
     authority::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -92,33 +87,8 @@ fn default_tendermint_header() -> Header {
 }
 
 #[tokio::test]
-async fn app_genesis_and_init_chain() {
-    let app = initialize_app(None, vec![]).await;
-    assert_eq!(app.state.get_block_height().await.unwrap(), 0);
-
-    for Account {
-        address,
-        balance,
-    } in default_genesis_accounts()
-    {
-        assert_eq!(
-            balance,
-            app.state
-                .get_account_balance(&address, &nria())
-                .await
-                .unwrap(),
-        );
-    }
-
-    assert_eq!(
-        app.state.get_native_asset().await.unwrap(),
-        "nria".parse::<TracePrefixed>().unwrap()
-    );
-}
-
-#[tokio::test]
 async fn app_pre_execute_transactions() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(vec![]).await;
 
     let block_data = BlockData {
         misbehavior: vec![],
@@ -153,7 +123,7 @@ async fn app_begin_block_remove_byzantine_validators() {
         },
     ];
 
-    let mut app = initialize_app(None, initial_validator_set.clone()).await;
+    let mut app = initialize_app(initial_validator_set.clone()).await;
 
     let misbehavior = types::Misbehavior {
         kind: types::MisbehaviorKind::Unknown,
@@ -186,49 +156,8 @@ async fn app_begin_block_remove_byzantine_validators() {
 }
 
 #[tokio::test]
-async fn app_commit() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-    assert_eq!(app.state.get_block_height().await.unwrap(), 0);
-
-    for Account {
-        address,
-        balance,
-    } in default_genesis_accounts()
-    {
-        assert_eq!(
-            balance,
-            app.state
-                .get_account_balance(&address, &nria())
-                .await
-                .unwrap()
-        );
-    }
-
-    // commit should write the changes to the underlying storage
-    app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
-
-    let snapshot = storage.latest_snapshot();
-    assert_eq!(snapshot.get_block_height().await.unwrap(), 0);
-
-    for Account {
-        address,
-        balance,
-    } in default_genesis_accounts()
-    {
-        assert_eq!(
-            snapshot
-                .get_account_balance(&address, &nria())
-                .await
-                .unwrap(),
-            balance
-        );
-    }
-}
-
-#[tokio::test]
 async fn app_transfer_block_fees_to_sudo() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
 
     let alice = get_alice_signing_key();
 
@@ -280,7 +209,7 @@ async fn app_transfer_block_fees_to_sudo() {
             .get_account_balance(&astria_address_from_hex_string(JUDY_ADDRESS), &nria())
             .await
             .unwrap(),
-        transfer_base_fee,
+        10u128.pow(19) + transfer_base_fee,
     );
     assert_eq!(app.state.get_block_fees().len(), 0);
 }
@@ -295,7 +224,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     use crate::grpc::StateReadExt as _;
 
     let alice = get_alice_signing_key();
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -403,7 +332,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
 )]
 async fn app_execution_results_match_proposal_vs_after_proposal() {
     let alice = get_alice_signing_key();
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -568,7 +497,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 
 #[tokio::test]
 async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
@@ -658,7 +587,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
 #[tokio::test]
 async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
@@ -747,7 +676,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
 #[tokio::test]
 async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
@@ -813,7 +742,7 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
 
 #[tokio::test]
 async fn app_process_proposal_transaction_fails_to_execute_fails() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
@@ -874,7 +803,7 @@ async fn app_end_block_validator_updates() {
         },
     ];
 
-    let mut app = initialize_app(None, initial_validator_set).await;
+    let mut app = initialize_app(initial_validator_set).await;
     let proposer_address = [0u8; 20];
 
     let validator_updates = vec![

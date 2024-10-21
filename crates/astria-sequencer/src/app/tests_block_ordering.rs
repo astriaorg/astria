@@ -34,7 +34,7 @@ use crate::{
 
 #[tokio::test]
 async fn app_process_proposal_ordering_ok() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
 
     // create transactions that should pass with expected ordering
     let txs: Vec<Transaction> = vec![
@@ -95,7 +95,7 @@ async fn app_process_proposal_ordering_ok() {
 async fn app_process_proposal_ordering_fail() {
     // Tests that process proposal will reject blocks that contain transactions that are out of
     // order.
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
 
     // create transactions that should fail due to incorrect ordering
     let txs: Vec<Transaction> = vec![
@@ -156,7 +156,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     //
     // The block building process should handle this in a way that allows the transactions to
     // both eventually be included.
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
 
     // create transactions that should fail due to incorrect ordering if both are included in the
     // same block

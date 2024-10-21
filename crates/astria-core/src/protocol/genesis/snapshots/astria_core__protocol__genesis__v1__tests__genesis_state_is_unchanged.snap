@@ -1,5 +1,5 @@
 ---
-source: crates/astria-core/src/protocol/genesis/v1alpha1.rs
+source: crates/astria-core/src/protocol/genesis/v1.rs
 expression: genesis_state()
 ---
 {
@@ -8,32 +8,6 @@ expression: genesis_state()
     "base": "astria",
     "ibcCompat": "astriacompat"
   },
-  "accounts": [
-    {
-      "address": {
-        "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
-      },
-      "balance": {
-        "lo": "1000000000000000000"
-      }
-    },
-    {
-      "address": {
-        "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
-      },
-      "balance": {
-        "lo": "1000000000000000000"
-      }
-    },
-    {
-      "address": {
-        "bech32m": "astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny"
-      },
-      "balance": {
-        "lo": "1000000000000000000"
-      }
-    }
-  ],
   "authoritySudoAddress": {
     "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
   },
@@ -48,15 +22,11 @@ expression: genesis_state()
       "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
     }
   ],
-  "nativeAssetBaseDenomination": "nria",
   "ibcParameters": {
     "ibcEnabled": true,
     "inboundIcs20TransfersEnabled": true,
     "outboundIcs20TransfersEnabled": true
   },
-  "allowedFeeAssets": [
-    "nria"
-  ],
   "fees": {
     "bridgeLock": {
       "base": {

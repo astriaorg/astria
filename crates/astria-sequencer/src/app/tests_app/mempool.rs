@@ -1,18 +1,14 @@
 use std::collections::HashMap;
 
-use astria_core::{
-    protocol::{
-        fees::v1::TransferFeeComponents,
-        genesis::v1::Account,
-        transaction::v1::{
-            action::{
-                FeeChange,
-                Transfer,
-            },
-            TransactionBody,
+use astria_core::protocol::{
+    fees::v1::TransferFeeComponents,
+    transaction::v1::{
+        action::{
+            FeeChange,
+            Transfer,
         },
+        TransactionBody,
     },
-    Protobuf,
 };
 use prost::Message as _;
 use tendermint::{
@@ -37,13 +33,14 @@ use crate::{
     test_utils::{
         astria_address_from_hex_string,
         nria,
+        signing_key,
     },
 };
 
 #[tokio::test]
 async fn trigger_cleaning() {
     // check that cleaning is triggered by the prepare, process, and finalize block flows
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
@@ -138,7 +135,7 @@ async fn trigger_cleaning() {
 
 #[tokio::test]
 async fn do_not_trigger_cleaning() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
@@ -189,36 +186,21 @@ async fn do_not_trigger_cleaning() {
 #[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn maintenance_recosting_promotes() {
-    // check that transaction promotion from recosting works
-    let mut only_alice_funds_genesis_state = proto_genesis_state();
-    only_alice_funds_genesis_state.accounts = vec![
-        Account {
-            address: astria_address_from_hex_string(ALICE_ADDRESS),
-            balance: 10u128.pow(19),
-        },
-        Account {
-            address: astria_address_from_hex_string(BOB_ADDRESS),
-            balance: 11u128, // transfer fee is 12 at default
-        },
-    ]
-    .into_iter()
-    .map(Protobuf::into_raw)
-    .collect();
-
     let (mut app, storage) = initialize_app_with_storage(
-        Some(only_alice_funds_genesis_state.try_into().unwrap()),
+        // Some(only_alice_funds_genesis_state.try_into().unwrap()),
         vec![],
     )
     .await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
+    let unknown_address = astria_address(verification_key(0).address_bytes());
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
     let tx_fail_recost_funds = TransactionBody::builder()
         .actions(vec![
             Transfer {
-                to: astria_address_from_hex_string(CAROL_ADDRESS),
+                to: unknown_address,
                 amount: 1u128,
                 asset: nria().into(),
                 fee_asset: nria().into(),
@@ -364,7 +346,7 @@ async fn maintenance_recosting_promotes() {
     // see transfer went through
     assert_eq!(
         app.state
-            .get_account_balance(&astria_address_from_hex_string(CAROL_ADDRESS), &nria())
+            .get_account_balance(&unknown_address, &nria())
             .await
             .unwrap(),
         1,
@@ -375,24 +357,11 @@ async fn maintenance_recosting_promotes() {
 #[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn maintenance_funds_added_promotes() {
-    // check that transaction promotion from new funds works
-    let mut only_alice_funds_genesis_state = proto_genesis_state();
-    only_alice_funds_genesis_state.accounts = vec![Account {
-        address: astria_address_from_hex_string(ALICE_ADDRESS),
-        balance: 10u128.pow(19),
-    }]
-    .into_iter()
-    .map(Protobuf::into_raw)
-    .collect();
-
-    let (mut app, storage) = initialize_app_with_storage(
-        Some(only_alice_funds_genesis_state.try_into().unwrap()),
-        vec![],
-    )
-    .await;
+    let (mut app, storage) = initialize_app_with_storage(vec![]).await;
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
+    let unknown_signing_key = signing_key(0);
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
     let tx_fail_transfer_funds = TransactionBody::builder()
@@ -408,17 +377,17 @@ async fn maintenance_funds_added_promotes() {
         .chain_id("test")
         .try_build()
         .unwrap()
-        .sign(&get_carol_signing_key());
+        .sign(&unknown_signing_key);
 
-    let mut carol_funds = HashMap::new();
-    carol_funds.insert(nria().into(), 0);
+    let mut unknown_funds = HashMap::new();
+    unknown_funds.insert(nria().into(), 0);
     let mut tx_cost = HashMap::new();
     tx_cost.insert(nria().into(), 22);
     app.mempool
         .insert(
             Arc::new(tx_fail_transfer_funds.clone()),
             0,
-            carol_funds,
+            unknown_funds,
             tx_cost,
         )
         .await
@@ -428,7 +397,7 @@ async fn maintenance_funds_added_promotes() {
     let tx_fund = TransactionBody::builder()
         .actions(vec![
             Transfer {
-                to: astria_address_from_hex_string(CAROL_ADDRESS),
+                to: astria_address(&unknown_signing_key.address_bytes()),
                 amount: 22u128,
                 asset: nria().into(),
                 fee_asset: nria().into(),
@@ -560,7 +529,7 @@ async fn maintenance_funds_added_promotes() {
             .get_account_balance(&astria_address_from_hex_string(BOB_ADDRESS), &nria())
             .await
             .unwrap(),
-        10,
+        10u128.pow(19) + 10,
         "transfer should've worked"
     );
 }

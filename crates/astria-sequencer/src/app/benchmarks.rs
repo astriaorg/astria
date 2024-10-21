@@ -6,30 +6,39 @@
 use std::time::Duration;
 
 use astria_core::{
-    protocol::genesis::v1::{
-        Account,
-        GenesisAppState,
-    },
+    primitive::v1::Address,
+    protocol::genesis::v1::GenesisAppState,
     Protobuf,
 };
-use cnidarium::Storage;
+use cnidarium::{
+    StateDelta,
+    Storage,
+};
+use telemetry::Metrics as _;
 
 use crate::{
+    accounts::StateWriteExt,
     app::{
-        test_utils,
         test_utils::{
             mock_balances,
             mock_tx_cost,
         },
         App,
     },
+    assets::StateWriteExt as AssetStateWriteExt,
     benchmark_utils::{
         self,
         TxTypes,
         SIGNER_COUNT,
     },
+    fees::StateWriteExt as _,
+    mempool::Mempool,
+    metrics::Metrics,
     proposal::block_size_constraints::BlockSizeConstraints,
-    test_utils::astria_address,
+    test_utils::{
+        astria_address,
+        nria,
+    },
 };
 
 /// The max time for any benchmark.
@@ -45,6 +54,50 @@ struct Fixture {
     _storage: Storage,
 }
 
+async fn initialize_app_with_storage(accounts: Vec<(Address, u128)>) -> (App, Storage) {
+    let storage = cnidarium::TempStorage::new()
+        .await
+        .expect("failed to create temp storage backing chain state");
+    // XXX: We need to provide accounts, fee assets, asset inside the storage before
+    // initialization because this happens outside of setting genesis.
+    //
+    // This is not ideal and should be fixed by a proper intialization flow that transfers
+    // in funds after genesis.
+    {
+        let mut state = StateDelta::new(storage.latest_snapshot());
+        state.put_asset(nria()).unwrap();
+        state.put_allowed_fee_asset(&nria()).unwrap();
+
+        for (address, balance) in &accounts {
+            state
+                .put_account_balance(address, &nria(), *balance)
+                .unwrap();
+        }
+        storage.commit(state).await.unwrap();
+    }
+    let snapshot = storage.latest_snapshot();
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mempool = Mempool::new(metrics, 100);
+    let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
+
+    let genesis_state = GenesisAppState::try_from_raw(
+        astria_core::generated::protocol::genesis::v1::GenesisAppState {
+            authority_sudo_address: Some(accounts.first().cloned().unwrap().0.into_raw()),
+            ibc_sudo_address: Some(accounts.first().cloned().unwrap().0.into_raw()),
+            ..crate::app::test_utils::proto_genesis_state()
+        },
+    )
+    .unwrap();
+
+    app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
+        .await
+        .unwrap();
+
+    app.commit(storage.clone()).await;
+
+    (app, storage.clone())
+}
+
 impl Fixture {
     /// Initializes a new `App` instance with the genesis accounts derived from the secret keys of
     /// `benchmark_utils::signing_keys()`, and inserts transactions into the app mempool.
@@ -52,27 +105,16 @@ impl Fixture {
         let accounts = benchmark_utils::signing_keys()
             .enumerate()
             .take(usize::from(SIGNER_COUNT))
-            .map(|(index, signing_key)| Account {
-                address: astria_address(&signing_key.address_bytes()),
-                balance: 10u128
+            .map(|(index, signing_key)| {
+                let address = astria_address(&signing_key.address_bytes());
+                let balance = 10u128
                     .pow(19)
-                    .saturating_add(u128::try_from(index).unwrap()),
+                    .saturating_add(u128::try_from(index).unwrap());
+                (address, balance)
             })
-            .map(Protobuf::into_raw)
             .collect::<Vec<_>>();
-        let first_address = accounts.first().cloned().unwrap().address;
-        let genesis_state = GenesisAppState::try_from_raw(
-            astria_core::generated::protocol::genesis::v1::GenesisAppState {
-                accounts,
-                authority_sudo_address: first_address.clone(),
-                ibc_sudo_address: first_address.clone(),
-                ..crate::app::test_utils::proto_genesis_state()
-            },
-        )
-        .unwrap();
 
-        let (app, storage) =
-            test_utils::initialize_app_with_storage(Some(genesis_state), vec![]).await;
+        let (app, storage) = initialize_app_with_storage(accounts).await;
 
         let mock_balances = mock_balances(0, 0);
         let mock_tx_cost = mock_tx_cost(0, 0, 0);

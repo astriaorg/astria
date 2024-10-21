@@ -388,9 +388,7 @@ mod tests {
         let mut state_tx = StateDelta::new(snapshot);
 
         state_tx.put_base_prefix("astria".to_string()).unwrap();
-        state_tx
-            .put_native_asset(crate::test_utils::nria())
-            .unwrap();
+        state_tx.put_asset(crate::test_utils::nria()).unwrap();
         let transfer_fees = TransferFeeComponents {
             base: 12,
             multiplier: 0,
@@ -518,9 +516,7 @@ mod tests {
         let mut state_tx = StateDelta::new(snapshot);
 
         state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
-            .put_native_asset(crate::test_utils::nria())
-            .unwrap();
+        state_tx.put_asset(crate::test_utils::nria()).unwrap();
         let transfer_fees = TransferFeeComponents {
             base: 12,
             multiplier: 0,

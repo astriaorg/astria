@@ -329,7 +329,7 @@ mod tests {
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
         state
-            .put_ibc_asset(asset.as_trace_prefixed().unwrap().clone())
+            .put_asset(asset.as_trace_prefixed().unwrap().clone())
             .unwrap();
         state
             .put_bridge_account_ibc_asset(&bridge_address, &asset)
