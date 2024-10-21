@@ -33,15 +33,6 @@ use std::{
     sync::Arc,
 };
 
-use astria_core::protocol::{
-    asset::v1::AllowedFeeAssetsResponse,
-    bridge::v1::{
-        BridgeAccountInfoResponse,
-        BridgeAccountLastTxHashResponse,
-    },
-    fees::v1::TransactionFeeResponse,
-    transaction::v1::TransactionBody,
-};
 pub use astria_core::{
     primitive::v1::Address,
     protocol::{
@@ -55,6 +46,18 @@ pub use astria_core::{
         block::SequencerBlockError,
         SequencerBlock,
     },
+};
+use astria_core::{
+    protocol::{
+        asset::v1::AllowedFeeAssetsResponse,
+        bridge::v1::{
+            BridgeAccountInfoResponse,
+            BridgeAccountLastTxHashResponse,
+        },
+        fees::v1::TransactionFeeResponse,
+        transaction::v1::TransactionBody,
+    },
+    Protobuf as _,
 };
 use async_trait::async_trait;
 use futures::Stream;
