@@ -50,7 +50,7 @@ Each participant generates the same public key file.
 
 ### Signing
 
-Signing requires two stages from each partipants and two stages from a
+Signing requires two stages from each participant and two stages from a
 "coordinator". Each participant can act as their own coordinator, or one
 party can act as the coordinator and transmit the outputs to the other
 parties. `min-signers` must take part to produce a signature.
@@ -71,7 +71,7 @@ and the commitments from part 1.
 
   Note that by default, the message is expected to be a json-encoded
   `TransactionBody`, which is then re-encoded as a protobuf message.
-  To sign a plaintext message, use the `--is-plaintext-message` flag.
+  To sign a plaintext message, use the `--plaintext` flag.
 
   ```sh
   cargo run -- sequencer threshold sign prepare-message \

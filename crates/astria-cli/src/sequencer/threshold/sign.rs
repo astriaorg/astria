@@ -128,9 +128,8 @@ struct PrepareMessage {
     #[arg(long)]
     message_path: String,
 
-    /// whether the message is plaintext (not a `TransactionBody`)
-    ///
-    /// if true, the message is signed as-is, without re-encoding into protobuf bytes
+    /// if set, the message is treated as plaintext and signed as-is, without re-encoding into
+    /// protobuf bytes
     #[arg(long)]
     plaintext: bool,
 
@@ -164,14 +163,30 @@ impl PrepareMessage {
             if input == "done" {
                 break;
             }
-            let Ok(commitments_with_id) = serde_json::from_str::<CommitmentsWithIdentifier>(&input)
-            else {
-                continue;
-            };
-            commitments.insert(
-                commitments_with_id.identifier,
-                commitments_with_id.commitments,
-            );
+
+            let commitments_with_id =
+                match serde_json::from_str::<CommitmentsWithIdentifier>(&input)
+                    .wrap_err("failed to parse commitment")
+                {
+                    Ok(package) => package,
+                    Err(error) => {
+                        eprintln!("{error:#}");
+                        continue;
+                    }
+                };
+
+            if commitments
+                .insert(
+                    commitments_with_id.identifier,
+                    commitments_with_id.commitments,
+                )
+                .is_some()
+            {
+                eprintln!(
+                    "already added commitment from {}",
+                    hex::encode(commitments_with_id.identifier.serialize())
+                );
+            }
             println!("Received {} commitments", commitments.len());
         }
 
@@ -271,18 +286,24 @@ struct Aggregate {
 
     /// optionally, path to the message bytes that were signed.
     ///
-    /// if this is specified, will output the signed message as
-    /// a sequencer transaction.
+    /// the contents must be a json-formatted `TransactionBody` unless `--plaintext`
+    /// is specified.
+    ///
+    /// it will output the signed message as a sequencer transaction.
     #[arg(long)]
     message_path: Option<String>,
 
     /// optionally, path to output the signed message as a sequencer transaction.
+    ///
+    /// only applicable if `--message-path` is specified.
     #[arg(long, requires = "message_path")]
     output_path: Option<String>,
 
     /// whether the message is plaintext (not a `TransactionBody`)
     ///
-    /// if true, the message is signed as-is, without re-encoding into protobuf bytes
+    /// if true, the message is signed as-is, without re-encoding into protobuf bytes.
+    ///
+    /// only applicable if `--message-path` is specified.
     #[arg(long, requires = "message_path")]
     plaintext: bool,
 }
@@ -310,10 +331,26 @@ impl Aggregate {
             if input == "done" {
                 break;
             }
-            let Ok(sig_share) = serde_json::from_str::<SignatureShareWithIdentifier>(&input) else {
-                continue;
+
+            let sig_share = match serde_json::from_str::<SignatureShareWithIdentifier>(&input)
+                .wrap_err("failed to parse signature share")
+            {
+                Ok(package) => package,
+                Err(error) => {
+                    eprintln!("{error:#}");
+                    continue;
+                }
             };
-            sig_shares.insert(sig_share.identifier, sig_share.signature_share);
+
+            if sig_shares
+                .insert(sig_share.identifier, sig_share.signature_share)
+                .is_some()
+            {
+                eprintln!(
+                    "already added signature share from {}",
+                    hex::encode(sig_share.identifier.serialize())
+                );
+            }
             println!("Received {} signature shares", sig_shares.len());
         }
 
@@ -375,7 +412,7 @@ impl Aggregate {
                 .wrap_err("failed to serialize transaction")?;
             if let Some(output_path) = output_path {
                 println!("Writing transaction to {output_path}");
-                std::fs::write(output_path, serialized_tx.encode_to_vec())
+                std::fs::write(output_path, serialized_tx)
                     .wrap_err("failed to write transaction to file")?;
             } else {
                 println!("Signed transaction:");

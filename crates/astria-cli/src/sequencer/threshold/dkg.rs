@@ -102,17 +102,31 @@ impl Command {
                 max_signers.saturating_sub(1)
             );
             let input = read_line_raw().await.wrap_err("failed to read line")?;
-            let Ok(round1_package) = serde_json::from_str::<Round1PackageWithIdentifier>(&input)
-            else {
-                continue;
+            let round1_package = match serde_json::from_str::<Round1PackageWithIdentifier>(&input)
+                .wrap_err("failed to parse package")
+            {
+                Ok(package) => package,
+                Err(error) => {
+                    eprintln!("{error:#}");
+                    continue;
+                }
             };
 
             // ignore if we accidentally put our own package
             if round1_package.identifier == id {
+                eprintln!("ignoring package that has our own identifier");
                 continue;
             }
 
-            round1_public_packages.insert(round1_package.identifier, round1_package.package);
+            if round1_public_packages
+                .insert(round1_package.identifier, round1_package.package)
+                .is_some()
+            {
+                eprintln!(
+                    "already added package from {}",
+                    hex::encode(round1_package.identifier.serialize())
+                );
+            }
         }
 
         // round 2
@@ -149,16 +163,30 @@ impl Command {
                 max_signers.saturating_sub(1)
             );
             let input = read_line_raw().await.wrap_err("failed to read line")?;
-            let Ok(round2_package) = serde_json::from_str::<Round2PackageWithIdentifier>(&input)
-            else {
-                continue;
+            let round2_package = match serde_json::from_str::<Round2PackageWithIdentifier>(&input)
+                .wrap_err("failed to parse package")
+            {
+                Ok(package) => package,
+                Err(error) => {
+                    eprintln!("{error:#}");
+                    continue;
+                }
             };
 
             if round2_package.identifier == id {
+                eprintln!("ignoring package that has our own identifier");
                 continue;
             }
 
-            round2_public_packages.insert(round2_package.identifier, round2_package.package);
+            if round2_public_packages
+                .insert(round2_package.identifier, round2_package.package)
+                .is_some()
+            {
+                eprintln!(
+                    "already added packaged from {}",
+                    hex::encode(round2_package.identifier.serialize())
+                );
+            }
         }
 
         // round 3 (final)

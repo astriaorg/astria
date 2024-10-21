@@ -13,16 +13,16 @@ pub(super) struct Command {
     #[arg(long)]
     verifying_key: String,
 
-    // path to file with message bytes to verify
+    /// path to file with message bytes to verify
     #[arg(long)]
     message_path: String,
 
-    // hex-encoded signature
+    /// hex-encoded signature
     #[arg(long)]
     signature: String,
 
-    // Set if the incoming message is plaintext, otherwise it is assumed to be TransactionBody in
-    // pbjson format
+    /// Set if the incoming message is plaintext, otherwise it is assumed to be `TransactionBody`
+    /// in pbjson format
     #[arg(long)]
     plaintext: bool,
 }
@@ -53,10 +53,10 @@ impl Command {
         )
         .wrap_err("failed to parse signature")?;
 
-        match verifying_key.verify(&message, &signature) {
-            Ok(()) => println!("Signature is valid"),
-            Err(e) => println!("Signature is invalid: {e}"),
-        }
+        verifying_key
+            .verify(&message, &signature)
+            .wrap_err("signature is invalid")?;
+        println!("Signature is valid");
 
         Ok(())
     }
