@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::{
+    generated::sequencerblock::v1::{
         sequencer_service_server::SequencerService,
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
@@ -223,7 +223,7 @@ impl SequencerService for SequencerServer {
 mod tests {
     use astria_core::{
         protocol::test_utils::ConfigureSequencerBlock,
-        sequencerblock::v1alpha1::SequencerBlock,
+        sequencerblock::v1::SequencerBlock,
     };
     use cnidarium::StateDelta;
     use telemetry::Metrics;
@@ -301,7 +301,7 @@ mod tests {
 
         // insert a transactions one above account nonce (not gapped)
         let sequential_nonce = 1;
-        let tx: Arc<astria_core::protocol::transaction::v1alpha1::Transaction> =
+        let tx: Arc<astria_core::protocol::transaction::v1::Transaction> =
             crate::app::test_utils::MockTxBuilder::new()
                 .nonce(sequential_nonce)
                 .build();

@@ -20,11 +20,11 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1alpha1 as raw,
+    generated::protocol::transaction::v1 as raw,
     protocol::{
         abci::AbciErrorCode,
-        genesis::v1alpha1::GenesisAppState,
-        transaction::v1alpha1::{
+        genesis::v1::GenesisAppState,
+        transaction::v1::{
             action::{
                 group::Group,
                 ValidatorUpdate,
@@ -33,7 +33,7 @@ use astria_core::{
             Transaction,
         },
     },
-    sequencerblock::v1alpha1::block::SequencerBlock,
+    sequencerblock::v1::block::SequencerBlock,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -621,7 +621,7 @@ impl App {
                 .unsigned_transaction()
                 .actions()
                 .iter()
-                .filter_map(Action::as_sequence)
+                .filter_map(Action::as_rollup_data_submission)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
@@ -769,7 +769,7 @@ impl App {
                 .unsigned_transaction()
                 .actions()
                 .iter()
-                .filter_map(Action::as_sequence)
+                .filter_map(Action::as_rollup_data_submission)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {

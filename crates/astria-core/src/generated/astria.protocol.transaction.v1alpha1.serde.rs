@@ -15,8 +15,8 @@ impl serde::Serialize for Action {
                 action::Value::Transfer(v) => {
                     struct_ser.serialize_field("transfer", v)?;
                 }
-                action::Value::Sequence(v) => {
-                    struct_ser.serialize_field("sequence", v)?;
+                action::Value::RollupDataSubmission(v) => {
+                    struct_ser.serialize_field("rollupDataSubmission", v)?;
                 }
                 action::Value::InitBridgeAccount(v) => {
                     struct_ser.serialize_field("initBridgeAccount", v)?;
@@ -67,7 +67,8 @@ impl<'de> serde::Deserialize<'de> for Action {
     {
         const FIELDS: &[&str] = &[
             "transfer",
-            "sequence",
+            "rollup_data_submission",
+            "rollupDataSubmission",
             "init_bridge_account",
             "initBridgeAccount",
             "bridge_lock",
@@ -96,7 +97,7 @@ impl<'de> serde::Deserialize<'de> for Action {
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Transfer,
-            Sequence,
+            RollupDataSubmission,
             InitBridgeAccount,
             BridgeLock,
             BridgeUnlock,
@@ -131,7 +132,7 @@ impl<'de> serde::Deserialize<'de> for Action {
                     {
                         match value {
                             "transfer" => Ok(GeneratedField::Transfer),
-                            "sequence" => Ok(GeneratedField::Sequence),
+                            "rollupDataSubmission" | "rollup_data_submission" => Ok(GeneratedField::RollupDataSubmission),
                             "initBridgeAccount" | "init_bridge_account" => Ok(GeneratedField::InitBridgeAccount),
                             "bridgeLock" | "bridge_lock" => Ok(GeneratedField::BridgeLock),
                             "bridgeUnlock" | "bridge_unlock" => Ok(GeneratedField::BridgeUnlock),
@@ -173,11 +174,11 @@ impl<'de> serde::Deserialize<'de> for Action {
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::Transfer)
 ;
                         }
-                        GeneratedField::Sequence => {
+                        GeneratedField::RollupDataSubmission => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequence"));
+                                return Err(serde::de::Error::duplicate_field("rollupDataSubmission"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::Sequence)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::RollupDataSubmission)
 ;
                         }
                         GeneratedField::InitBridgeAccount => {
@@ -932,8 +933,8 @@ impl serde::Serialize for FeeChange {
                 fee_change::FeeComponents::InitBridgeAccount(v) => {
                     struct_ser.serialize_field("initBridgeAccount", v)?;
                 }
-                fee_change::FeeComponents::Sequence(v) => {
-                    struct_ser.serialize_field("sequence", v)?;
+                fee_change::FeeComponents::RollupDataSubmission(v) => {
+                    struct_ser.serialize_field("rollupDataSubmission", v)?;
                 }
                 fee_change::FeeComponents::SudoAddressChange(v) => {
                     struct_ser.serialize_field("sudoAddressChange", v)?;
@@ -976,7 +977,8 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             "ics20Withdrawal",
             "init_bridge_account",
             "initBridgeAccount",
-            "sequence",
+            "rollup_data_submission",
+            "rollupDataSubmission",
             "sudo_address_change",
             "sudoAddressChange",
             "transfer",
@@ -996,7 +998,7 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            Sequence,
+            RollupDataSubmission,
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
@@ -1031,7 +1033,7 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                             "ibcSudoChange" | "ibc_sudo_change" => Ok(GeneratedField::IbcSudoChange),
                             "ics20Withdrawal" | "ics20_withdrawal" => Ok(GeneratedField::Ics20Withdrawal),
                             "initBridgeAccount" | "init_bridge_account" => Ok(GeneratedField::InitBridgeAccount),
-                            "sequence" => Ok(GeneratedField::Sequence),
+                            "rollupDataSubmission" | "rollup_data_submission" => Ok(GeneratedField::RollupDataSubmission),
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "transfer" => Ok(GeneratedField::Transfer),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
@@ -1127,11 +1129,11 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                             fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::InitBridgeAccount)
 ;
                         }
-                        GeneratedField::Sequence => {
+                        GeneratedField::RollupDataSubmission => {
                             if fee_components__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequence"));
+                                return Err(serde::de::Error::duplicate_field("rollupDataSubmission"));
                             }
-                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::Sequence)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::RollupDataSubmission)
 ;
                         }
                         GeneratedField::SudoAddressChange => {
@@ -1917,7 +1919,7 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccount {
         deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.InitBridgeAccount", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for Sequence {
+impl serde::Serialize for RollupDataSubmission {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -1934,7 +1936,7 @@ impl serde::Serialize for Sequence {
         if !self.fee_asset.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.Sequence", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1alpha1.RollupDataSubmission", len)?;
         if let Some(v) = self.rollup_id.as_ref() {
             struct_ser.serialize_field("rollupId", v)?;
         }
@@ -1948,7 +1950,7 @@ impl serde::Serialize for Sequence {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for Sequence {
+impl<'de> serde::Deserialize<'de> for RollupDataSubmission {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -2000,13 +2002,13 @@ impl<'de> serde::Deserialize<'de> for Sequence {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Sequence;
+            type Value = RollupDataSubmission;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transaction.v1alpha1.Sequence")
+                formatter.write_str("struct astria.protocol.transaction.v1alpha1.RollupDataSubmission")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Sequence, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RollupDataSubmission, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -2037,14 +2039,14 @@ impl<'de> serde::Deserialize<'de> for Sequence {
                         }
                     }
                 }
-                Ok(Sequence {
+                Ok(RollupDataSubmission {
                     rollup_id: rollup_id__,
                     data: data__.unwrap_or_default(),
                     fee_asset: fee_asset__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.Sequence", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1alpha1.RollupDataSubmission", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for SudoAddressChange {

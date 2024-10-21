@@ -30,14 +30,14 @@ impl ::prost::Name for TransferFeeComponents {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SequenceFeeComponents {
+pub struct RollupDataSubmissionFeeComponents {
     #[prost(message, optional, tag = "1")]
     pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
     #[prost(message, optional, tag = "2")]
     pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
 }
-impl ::prost::Name for SequenceFeeComponents {
-    const NAME: &'static str = "SequenceFeeComponents";
+impl ::prost::Name for RollupDataSubmissionFeeComponents {
+    const NAME: &'static str = "RollupDataSubmissionFeeComponents";
     const PACKAGE: &'static str = "astria.protocol.fees.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.fees.v1alpha1.{}", Self::NAME)

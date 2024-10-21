@@ -10,7 +10,7 @@ use std::{
 
 use astria_core::{
     brotli::compress_bytes,
-    generated::sequencerblock::v1alpha1::{
+    generated::sequencerblock::v1::{
         SubmittedMetadata,
         SubmittedMetadataList,
         SubmittedRollupData,
@@ -424,7 +424,7 @@ impl<'a> Future for TakeSubmission<'a> {
 /// # Panics
 /// Panics if the `header.header` field is unset. This is OK because the argument to this
 /// function should only come from a [`SubmittedMetadata`] that was created from its verified
-/// counterpart [`astria_core::sequencerblock::v1alpha1::SubmittedMetadata::into_raw`].
+/// counterpart [`astria_core::sequencerblock::v1::SubmittedMetadata::into_raw`].
 fn sequencer_namespace(metadata: &SubmittedMetadata) -> Namespace {
     use const_format::concatcp;
     use prost::Name;

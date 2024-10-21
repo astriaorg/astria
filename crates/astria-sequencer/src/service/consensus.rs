@@ -1,4 +1,4 @@
-use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
+use astria_core::protocol::genesis::v1::GenesisAppState;
 use astria_eyre::eyre::{
     bail,
     Result,
@@ -209,8 +209,8 @@ mod tests {
             VerificationKey,
         },
         primitive::v1::RollupId,
-        protocol::transaction::v1alpha1::{
-            action::Sequence,
+        protocol::transaction::v1::{
+            action::RollupDataSubmission,
             TransactionBody,
         },
     };
@@ -238,7 +238,7 @@ mod tests {
     fn make_unsigned_tx() -> TransactionBody {
         TransactionBody::builder()
             .actions(vec![
-                Sequence {
+                RollupDataSubmission {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: Bytes::from_static(b"hello world"),
                     fee_asset: crate::test_utils::nria().into(),
@@ -449,14 +449,12 @@ mod tests {
 
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if let Some(funded_key) = funded_key {
-            vec![
-                astria_core::generated::protocol::genesis::v1alpha1::Account {
-                    address: Some(
-                        crate::test_utils::astria_address(funded_key.address_bytes()).to_raw(),
-                    ),
-                    balance: Some(10u128.pow(19).into()),
-                },
-            ]
+            vec![astria_core::generated::protocol::genesis::v1::Account {
+                address: Some(
+                    crate::test_utils::astria_address(funded_key.address_bytes()).to_raw(),
+                ),
+                balance: Some(10u128.pow(19).into()),
+            }]
         } else {
             vec![]
         };

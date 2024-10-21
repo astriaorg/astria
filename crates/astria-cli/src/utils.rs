@@ -1,7 +1,7 @@
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::{
+    protocol::transaction::v1::{
         Action,
         TransactionBody,
     },

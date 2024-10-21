@@ -9,7 +9,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::ADDRESS_LEN,
-    sequencerblock::v1alpha1::block::{
+    sequencerblock::v1::block::{
         SequencerBlockHeader as DomainSequencerBlockHeader,
         SequencerBlockHeaderParts,
     },

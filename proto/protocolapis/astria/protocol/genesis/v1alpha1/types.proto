@@ -52,7 +52,7 @@ message GenesisFees {
   astria.protocol.fees.v1alpha1.IbcSudoChangeFeeComponents ibc_sudo_change = 8;
   astria.protocol.fees.v1alpha1.Ics20WithdrawalFeeComponents ics20_withdrawal = 9;
   astria.protocol.fees.v1alpha1.InitBridgeAccountFeeComponents init_bridge_account = 10;
-  astria.protocol.fees.v1alpha1.SequenceFeeComponents sequence = 11;
+  astria.protocol.fees.v1alpha1.RollupDataSubmissionFeeComponents rollup_data_submission = 11;
   astria.protocol.fees.v1alpha1.SudoAddressChangeFeeComponents sudo_address_change = 12;
   astria.protocol.fees.v1alpha1.TransferFeeComponents transfer = 13;
   astria.protocol.fees.v1alpha1.ValidatorUpdateFeeComponents validator_update = 14;

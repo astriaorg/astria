@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use astria_core::{
     primitive::v1::asset,
-    protocol::bridge::v1alpha1::BridgeAccountLastTxHashResponse,
+    protocol::bridge::v1::BridgeAccountLastTxHashResponse,
 };
 use prost::Message as _;
 use sequencer_client::{
@@ -189,7 +189,7 @@ pub async fn mount_allowed_fee_assets_response_as_scoped(
 fn prepare_allowed_fee_assets_response(fee_assets: Vec<asset::Denom>) -> Mock {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: astria_core::protocol::asset::v1alpha1::AllowedFeeAssetsResponse {
+            value: astria_core::protocol::asset::v1::AllowedFeeAssetsResponse {
                 fee_assets,
                 height: 1,
             }
@@ -331,7 +331,7 @@ fn prepare_broadcast_tx_sync_response(response: tx_sync::Response) -> Mock {
 
 /// Convert a wiremock request to an astria transaction
 pub fn tx_from_request(request: &wiremock::Request) -> Transaction {
-    use astria_core::generated::protocol::transaction::v1alpha1::Transaction as RawTransaction;
+    use astria_core::generated::protocol::transaction::v1::Transaction as RawTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: tendermint_rpc::request::Wrapper<tx_sync::Request> =
