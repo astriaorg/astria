@@ -30,6 +30,7 @@ spec:
             secretName: github-pat
           labels:
             # ALL of the following labels are required to be set on the PR for the app to be created
+            - main
             - preview
             - sequencer
             - docker-build
@@ -156,7 +157,7 @@ spec:
                 local: false
                 entities:
                   celestiaSharedStorage:
-                    size: "1Gi"
+                    size: "5Gi"
                     storageClassName: standard-rwo
                     persistentVolumeName: "celestia-shared-storage"
                     path: "/data/celestia-data"
