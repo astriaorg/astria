@@ -1,12 +1,13 @@
 use astria_core::{
     self,
-    generated::protocol::transaction::v1::Transaction as TransactionProto,
     protocol::transaction::v1::Transaction,
+    Protobuf,
 };
 use astria_sequencer_client::{
     HttpClient,
     SequencerClientExt as _,
 };
+use clap_stdin::FileOrStdin;
 use color_eyre::eyre::{
     self,
     ensure,
@@ -15,8 +16,6 @@ use color_eyre::eyre::{
 
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
-    /// The pbjson for submission
-    pbjson: String,
     /// The url of the Sequencer node
     #[arg(
         long,
@@ -24,6 +23,9 @@ pub(super) struct Command {
         default_value = crate::DEFAULT_SEQUENCER_RPC
     )]
     sequencer_url: String,
+    /// The source to read the pbjson formatted astra.protocol.transaction.v1.Transaction (use `-`
+    /// to pass via STDIN).
+    input: FileOrStdin,
 }
 
 // The 'submit' command takes a 'Transaction' in pbjson form and submits it to the sequencer
@@ -32,17 +34,9 @@ impl Command {
         let sequencer_client = HttpClient::new(self.sequencer_url.as_str())
             .wrap_err("failed constructing http sequencer client")?;
 
-        let tx_raw: TransactionProto = serde_json::from_str(self.pbjson.as_str())
-            .wrap_err("failed to parse pbjson into raw Transaction")?;
-
-        let transaction = Transaction::try_from_raw(tx_raw.clone())
-            .wrap_err("failed to convert to transaction")?;
-
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&tx_raw)
-                .wrap_err("failed to serialize TransactionBody")?
-        );
+        let filename = self.input.filename().to_string();
+        let transaction = read_transaction(self.input)
+            .wrap_err_with(|| format!("to signed transaction from `{filename}`"))?;
 
         let res = sequencer_client
             .submit_transaction_sync(transaction)
@@ -63,4 +57,17 @@ impl Command {
         println!("Included in block: {}", tx_response.height);
         Ok(())
     }
+}
+
+fn read_transaction(input: FileOrStdin) -> eyre::Result<Transaction> {
+    let wire_body: <Transaction as Protobuf>::Raw = serde_json::from_reader(
+        std::io::BufReader::new(input.into_reader()?),
+    )
+    .wrap_err_with(|| {
+        format!(
+            "failed to parse input as json `{}`",
+            Transaction::full_name()
+        )
+    })?;
+    Transaction::try_from_raw(wire_body).wrap_err("failed to validate transaction body")
 }

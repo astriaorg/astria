@@ -1,8 +1,13 @@
-use astria_core::{
-    self,
-    generated::protocol::transaction::v1::TransactionBody as TransactionBodyProto,
-    protocol::transaction::v1::TransactionBody,
+use std::path::{
+    Path,
+    PathBuf,
 };
+
+use astria_core::{
+    protocol::transaction::v1::TransactionBody,
+    Protobuf,
+};
+use clap_stdin::FileOrStdin;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -12,8 +17,6 @@ use crate::utils::signing_key_from_private_key;
 
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
-    /// The pbjson for submission
-    pbjson: String,
     // /// The private key of account being sent from
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     // // TODO: https://github.com/astriaorg/astria/issues/594
@@ -21,6 +24,12 @@ pub(super) struct Command {
     // // the secrecy crate with specialized `Debug` and `Drop` implementations
     // // that overwrite the key on drop and don't reveal it when printing.
     private_key: String,
+    /// Target to to write the signed transaction in pbjson format (omit to write to STDOUT).
+    #[arg(long, short)]
+    output: Option<PathBuf>,
+    /// The source to read the pbjson formatted astra.protocol.transaction.v1.Transaction (use `-`
+    /// to pass via STDIN).
+    input: FileOrStdin,
 }
 
 // The goal of the `sign` CLI command is to take in a `TransactionBody` and to sign with a private
@@ -28,21 +37,40 @@ pub(super) struct Command {
 // pbjson format.
 impl Command {
     pub(super) fn run(self) -> eyre::Result<()> {
-        let sequencer_key = signing_key_from_private_key(self.private_key.as_str())?;
+        let key = signing_key_from_private_key(self.private_key.as_str())?;
 
-        let tx_body: TransactionBodyProto = serde_json::from_str(self.pbjson.as_str())
-            .wrap_err("failed to parse pbjson into TransactionBody")?;
+        let filename = self.input.filename().to_string();
+        let transaction_body = read_transaction_body(self.input)
+            .wrap_err_with(|| format!("failed to read transaction body from `{filename}`"))?;
+        let transaction = transaction_body.sign(&key);
 
-        let tx = TransactionBody::try_from_raw(tx_body.clone())
-            .wrap_err("failed to convert to TransactionBody from raw")?
-            .sign(&sequencer_key);
-
-        // Copied code from Jordan's PR to print stuff in JSON
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&tx.to_raw()).wrap_err("failed to json-encode")?
-        );
-
+        serde_json::to_writer(
+            stdout_or_file(self.output.as_ref()).wrap_err("failed to determine output target")?,
+            &transaction,
+        )
+        .wrap_err("failed to write signed transaction")?;
         Ok(())
+    }
+}
+
+fn read_transaction_body(input: FileOrStdin) -> eyre::Result<TransactionBody> {
+    let wire_body: <TransactionBody as Protobuf>::Raw = serde_json::from_reader(
+        std::io::BufReader::new(input.into_reader()?),
+    )
+    .wrap_err_with(|| {
+        format!(
+            "failed to parse input as json `{}`",
+            TransactionBody::full_name()
+        )
+    })?;
+    TransactionBody::try_from_raw(wire_body).wrap_err("failed to validate transaction body")
+}
+
+fn stdout_or_file<P: AsRef<Path>>(
+    output: Option<P>,
+) -> Result<Box<dyn std::io::Write>, std::io::Error> {
+    match output {
+        Some(path) => std::fs::File::open(path).map(|f| Box::new(f) as Box<dyn std::io::Write>),
+        None => Ok(Box::new(std::io::stdout())),
     }
 }

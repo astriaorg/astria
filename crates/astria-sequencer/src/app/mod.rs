@@ -34,6 +34,7 @@ use astria_core::{
         },
     },
     sequencerblock::v1::block::SequencerBlock,
+    Protobuf as _,
 };
 use astria_eyre::{
     anyhow_to_eyre,
