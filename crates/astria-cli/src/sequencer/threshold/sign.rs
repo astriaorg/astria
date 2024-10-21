@@ -310,11 +310,6 @@ struct Aggregate {
 
 impl Aggregate {
     async fn run(self) -> eyre::Result<()> {
-        use prost::{
-            Message as _,
-            Name as _,
-        };
-
         let Self {
             signing_package_path,
             public_key_package_path,
@@ -385,42 +380,64 @@ impl Aggregate {
         );
 
         if let Some(message_path) = message_path {
-            let mut message =
-                std::fs::read(&message_path).wrap_err("failed to read message file")?;
-            if !plaintext {
-                let tx_body = serde_json::from_slice::<TransactionBody>(&message)
-                    .wrap_err("failed to deserialize message as TransactionBody")?;
-                message = tx_body.encode_to_vec();
-            }
-            let transaction = Transaction {
-                body: Some(pbjson_types::Any {
-                    type_url: TransactionBody::type_url(),
-                    value: message.into(),
-                }),
-                signature: signature
-                    .serialize()
-                    .wrap_err("failed to serialize signature")?
-                    .into(),
-                public_key: public_key_package
-                    .verifying_key()
-                    .serialize()
-                    .wrap_err("failed to serialize verifying key")?
-                    .into(),
-            };
-
-            let serialized_tx = serde_json::to_string_pretty(&transaction)
-                .wrap_err("failed to serialize transaction")?;
-            if let Some(output_path) = output_path {
-                println!("Writing transaction to {output_path}");
-                std::fs::write(output_path, serialized_tx)
-                    .wrap_err("failed to write transaction to file")?;
-            } else {
-                println!("Signed transaction:");
-                print!("{}", color::Fg(color::Green));
-                println!("{serialized_tx}");
-                println!("{}", color::Fg(color::Reset));
-            }
+            output_transaction(
+                &message_path,
+                plaintext,
+                output_path,
+                signature,
+                &public_key_package,
+            )
+            .wrap_err("failed to output transaction")?;
         }
         Ok(())
     }
+}
+
+fn output_transaction(
+    message_path: &str,
+    plaintext: bool,
+    output_path: Option<String>,
+    signature: frost_ed25519::Signature,
+    public_key_package: &frost_ed25519::keys::PublicKeyPackage,
+) -> eyre::Result<()> {
+    use prost::{
+        Message as _,
+        Name as _,
+    };
+
+    let mut message = std::fs::read(message_path).wrap_err("failed to read message file")?;
+    if !plaintext {
+        let tx_body = serde_json::from_slice::<TransactionBody>(&message)
+            .wrap_err("failed to deserialize message as TransactionBody")?;
+        message = tx_body.encode_to_vec();
+    }
+    let transaction = Transaction {
+        body: Some(pbjson_types::Any {
+            type_url: TransactionBody::type_url(),
+            value: message.into(),
+        }),
+        signature: signature
+            .serialize()
+            .wrap_err("failed to serialize signature")?
+            .into(),
+        public_key: public_key_package
+            .verifying_key()
+            .serialize()
+            .wrap_err("failed to serialize verifying key")?
+            .into(),
+    };
+
+    let serialized_tx =
+        serde_json::to_string_pretty(&transaction).wrap_err("failed to serialize transaction")?;
+    if let Some(output_path) = output_path {
+        println!("Writing transaction to {output_path}");
+        std::fs::write(output_path, serialized_tx)
+            .wrap_err("failed to write transaction to file")?;
+    } else {
+        println!("Signed transaction:");
+        print!("{}", color::Fg(color::Green));
+        println!("{serialized_tx}");
+        println!("{}", color::Fg(color::Reset));
+    }
+    Ok(())
 }
