@@ -29,14 +29,16 @@ impl Component for AccountsComponent {
     where
         S: accounts::StateWriteExt + assets::StateReadExt,
     {
-        let native_asset = state
-            .get_native_asset()
-            .await
-            .wrap_err("failed to read native asset from state")?;
-        for account in app_state.accounts() {
-            state
-                .put_account_balance(&account.address, &native_asset, account.balance)
-                .wrap_err("failed writing account balance to state")?;
+        if !app_state.accounts().is_empty() {
+            let native_asset = state
+                .get_native_asset()
+                .await
+                .wrap_err("failed to read native asset from state")?;
+            for account in app_state.accounts() {
+                state
+                    .put_account_balance(&account.address, &native_asset, account.balance)
+                    .wrap_err("failed writing account balance to state")?;
+            }
         }
         Ok(())
     }
