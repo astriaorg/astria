@@ -153,6 +153,15 @@ impl Submitter {
         .wrap_err("failed to get nonce from sequencer")?;
         debug!(nonce, "fetched latest nonce");
 
+        let total_value = actions
+            .iter()
+            .map(|action| match action {
+                Action::BridgeUnlock(withdraw) => withdraw.amount,
+                Action::Ics20Withdrawal(withdraw) => withdraw.amount,
+                _ => 0,
+            })
+            .sum();
+
         let unsigned = TransactionBody::builder()
             .actions(actions)
             .nonce(nonce)
@@ -193,8 +202,10 @@ impl Submitter {
                 sequencer.block = tx_response.height.value(),
                 sequencer.tx_hash = %tx_response.hash,
                 rollup.height = rollup_height,
+                batch.value = total_value,
                 "withdraw batch successfully executed."
             );
+            metrics.set_batch_total_settled_value(total_value);
             state.set_last_rollup_height_submitted(rollup_height);
             state.set_last_sequencer_height(tx_response.height.value());
             state.set_last_sequencer_tx_hash(tx_response.hash);
