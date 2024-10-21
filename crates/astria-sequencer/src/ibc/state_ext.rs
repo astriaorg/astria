@@ -167,11 +167,12 @@ mod tests {
 
     use super::*;
     use crate::{
-        address::StateWriteExt as _,
-        test_utils::{
+        address::StateWriteExt,
+        benchmark_and_test_utils::{
             astria_address,
             ASTRIA_PREFIX,
         },
+        ibc::StateWriteExt as _,
     };
 
     fn asset_0() -> asset::Denom {

@@ -3,6 +3,8 @@ pub(crate) mod address;
 pub(crate) mod app;
 pub(crate) mod assets;
 pub(crate) mod authority;
+#[cfg(any(test, feature = "benchmark"))]
+pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 pub(crate) mod benchmark_utils;
 pub(crate) mod bridge;
@@ -19,7 +21,7 @@ pub(crate) mod rollup_data;
 mod sequencer;
 pub(crate) mod service;
 pub(crate) mod storage;
-#[cfg(any(test, feature = "benchmark"))]
+#[cfg(test)]
 pub(crate) mod test_utils;
 pub(crate) mod transaction;
 mod utils;

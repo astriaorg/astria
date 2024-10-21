@@ -91,11 +91,11 @@ mod tests {
     use crate::{
         accounts::StateWriteExt as _,
         address::StateWriteExt as _,
-        fees::StateWriteExt as _,
-        test_utils::{
+        benchmark_and_test_utils::{
             astria_address,
             ASTRIA_PREFIX,
         },
+        fees::StateWriteExt as _,
         transaction::{
             StateWriteExt as _,
             TransactionContext,
