@@ -21,6 +21,7 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use termion::color;
 
 use super::read_line_raw;
 
@@ -80,8 +81,10 @@ impl Command {
             identifier: id,
             package: round1_public_package,
         };
+        println!("Send our public package to all other participants:");
+        print!("{}", color::Fg(color::Green));
         println!(
-            "Send our public package to all other participants: {}",
+            "{}",
             serde_json::to_string(&round1_public_package_with_id)
                 .wrap_err("failed to serialize round 1 public package")?
         );
@@ -89,7 +92,7 @@ impl Command {
         let mut round1_public_packages: BTreeMap<Identifier, round1::Package> = BTreeMap::new();
         loop {
             // need a package from every other participant
-            if round1_public_packages.len() == (max_signers.saturating_sub(1)) as usize {
+            if round1_public_packages.len() == max_signers.saturating_sub(1) as usize {
                 break;
             }
 
@@ -124,8 +127,12 @@ impl Command {
                 package: round2_package,
             };
             println!(
-                "Send package to participant with id {}: {}",
+                "Send package to participant with id {}:",
                 hex::encode(their_id.serialize()),
+            );
+            print!("{}", color::Fg(color::Green));
+            println!(
+                "{}",
                 serde_json::to_string(&round2_package_with_id)
                     .wrap_err("failed to serialize round 2 package")?
             );
