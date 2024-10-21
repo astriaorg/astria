@@ -1,6 +1,9 @@
-use std::path::{
-    Path,
-    PathBuf,
+use std::{
+    io::Write,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use astria_core::{
@@ -27,6 +30,9 @@ pub(super) struct Command {
     /// Target to to write the signed transaction in pbjson format (omit to write to STDOUT).
     #[arg(long, short)]
     output: Option<PathBuf>,
+    /// Forces an overwrite of `--output` if a file at that location exists.
+    #[arg(long, short)]
+    force: bool,
     /// The source to read the pbjson formatted astra.protocol.transaction.v1.Transaction (use `-`
     /// to pass via STDIN).
     input: FileOrStdin,
@@ -45,7 +51,8 @@ impl Command {
         let transaction = transaction_body.sign(&key);
 
         serde_json::to_writer(
-            stdout_or_file(self.output.as_ref()).wrap_err("failed to determine output target")?,
+            stdout_or_file(self.output.as_ref(), self.force)
+                .wrap_err("failed to determine output target")?,
             &transaction,
         )
         .wrap_err("failed to write signed transaction")?;
@@ -68,9 +75,25 @@ fn read_transaction_body(input: FileOrStdin) -> eyre::Result<TransactionBody> {
 
 fn stdout_or_file<P: AsRef<Path>>(
     output: Option<P>,
-) -> Result<Box<dyn std::io::Write>, std::io::Error> {
-    match output {
-        Some(path) => std::fs::File::open(path).map(|f| Box::new(f) as Box<dyn std::io::Write>),
-        None => Ok(Box::new(std::io::stdout())),
-    }
+    force_overwrite: bool,
+) -> eyre::Result<Box<dyn Write>> {
+    let writer = match output {
+        Some(path) => {
+            let file = if force_overwrite {
+                std::fs::File::options()
+                    .write(true)
+                    .truncate(true)
+                    .open(path)
+            } else {
+                std::fs::File::options()
+                    .create_new(true)
+                    .write(true)
+                    .open(path)
+            }
+            .wrap_err("failed to open file for writing")?;
+            Box::new(file) as Box<dyn Write>
+        }
+        None => Box::new(std::io::stdout()),
+    };
+    Ok(writer)
 }
