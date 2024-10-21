@@ -1,5 +1,5 @@
 name: Lint
-on: 
+on:
   pull_request:
   merge_group:
   push:
@@ -83,6 +83,7 @@ jobs:
           globs: |
             **/*.md
             #.github
+            #**/CHANGELOG.md
 
   charts:
     runs-on: ubuntu-latest
