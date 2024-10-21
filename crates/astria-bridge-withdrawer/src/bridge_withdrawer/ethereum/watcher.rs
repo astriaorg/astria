@@ -61,6 +61,7 @@ pub(crate) struct Builder {
     pub(crate) state: Arc<State>,
     pub(crate) rollup_asset_denom: asset::TracePrefixed,
     pub(crate) bridge_address: Address,
+    pub(crate) use_compat_address: bool,
     pub(crate) submitter_handle: submitter::Handle,
 }
 
@@ -74,6 +75,7 @@ impl Builder {
             state,
             rollup_asset_denom,
             bridge_address,
+            use_compat_address,
             submitter_handle,
         } = self;
 
@@ -85,6 +87,7 @@ impl Builder {
             ethereum_rpc_endpoint: ethereum_rpc_endpoint.to_string(),
             rollup_asset_denom,
             bridge_address,
+            use_compat_address,
             state,
             shutdown_token: shutdown_token.clone(),
             startup_handle,
@@ -102,6 +105,7 @@ pub(crate) struct Watcher {
     ethereum_rpc_endpoint: String,
     rollup_asset_denom: asset::TracePrefixed,
     bridge_address: Address,
+    use_compat_address: bool,
     state: Arc<State>,
 }
 
@@ -145,6 +149,7 @@ impl Watcher {
             ethereum_rpc_endpoint,
             rollup_asset_denom,
             bridge_address,
+            use_compat_address,
             state,
         } = self;
 
@@ -212,6 +217,7 @@ impl Watcher {
             );
             None
         };
+
         let action_fetcher = GetWithdrawalActionsBuilder::new()
             .provider(provider.clone())
             .fee_asset(fee_asset)
@@ -219,6 +225,7 @@ impl Watcher {
             .bridge_address(bridge_address)
             .sequencer_asset_to_withdraw(rollup_asset_denom.clone().into())
             .set_ics20_asset_to_withdraw(ics20_asset_to_withdraw)
+            .use_compat_address(use_compat_address)
             .try_build()
             .await
             .wrap_err("failed to construct contract event to sequencer action fetcher")?;
