@@ -20,7 +20,7 @@ use crate::utils::signing_key_from_private_key;
 
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
-    // /// The private key of account being sent from
+    /// The private key of account being sent from
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     // // TODO: https://github.com/astriaorg/astria/issues/594
     // // Don't use a plain text private, prefer wrapper like from

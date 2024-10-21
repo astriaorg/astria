@@ -16,7 +16,7 @@ use color_eyre::eyre::{
 
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
-    /// The url of the Sequencer node
+    /// The URL at which the Sequencer node is listening for ABCI commands.
     #[arg(
         long,
         env = "SEQUENCER_URL",
