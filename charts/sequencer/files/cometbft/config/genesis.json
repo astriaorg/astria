@@ -11,10 +11,6 @@
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeSudoChange.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeSudoChange.multiplier }}
       },
-      "bridge_unlock": {
-        "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeUnlock.base }},
-        "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeUnlock.multiplier }}
-      },
       "fee_asset_change": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.feeAssetChange.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.feeAssetChange.multiplier }}

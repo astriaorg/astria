@@ -1,11 +1,12 @@
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
+        ADDRESS_LEN,
         Address,
         Bech32m,
-        ADDRESS_LEN,
     },
     protocol::transaction::v1::{
+        Body,
         action::{
             Action,
             BridgeLockAction,
@@ -16,21 +17,20 @@ use astria_core::{
             TransferAction,
             ValidatorUpdate,
         },
-        Body,
     },
 };
 use astria_sequencer_client::{
-    tendermint_rpc::endpoint::tx::Response,
     Client,
     HttpClient,
     SequencerClientExt,
+    tendermint_rpc::endpoint::tx::Response,
 };
 use color_eyre::{
     eyre,
     eyre::{
+        Context,
         ensure,
         eyre,
-        Context,
     },
 };
 use rand::rngs::OsRng;
