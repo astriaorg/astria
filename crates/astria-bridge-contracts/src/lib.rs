@@ -122,6 +122,7 @@ pub struct GetWithdrawalActionsBuilder<TProvider = NoProvider> {
     fee_asset: Option<asset::Denom>,
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
+    use_compat_address: bool,
 }
 
 impl Default for GetWithdrawalActionsBuilder {
@@ -140,6 +141,7 @@ impl GetWithdrawalActionsBuilder {
             fee_asset: None,
             sequencer_asset_to_withdraw: None,
             ics20_asset_to_withdraw: None,
+            use_compat_address: false,
         }
     }
 }
@@ -153,6 +155,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            use_compat_address,
             ..
         } = self;
         GetWithdrawalActionsBuilder {
@@ -162,6 +165,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            use_compat_address,
         }
     }
 
@@ -220,6 +224,14 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             ..self
         }
     }
+
+    #[must_use]
+    pub fn use_compat_address(self, use_compat_address: bool) -> Self {
+        Self {
+            use_compat_address,
+            ..self
+        }
+    }
 }
 
 impl<P> GetWithdrawalActionsBuilder<WithProvider<P>>
@@ -248,6 +260,7 @@ where
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            use_compat_address,
         } = self;
 
         let Some(contract_address) = contract_address else {
@@ -265,7 +278,6 @@ where
         }
 
         let mut ics20_source_channel = None;
-        let mut use_compat_address = false;
         if let Some(ics20_asset_to_withdraw) = &ics20_asset_to_withdraw {
             ics20_source_channel.replace(
                 ics20_asset_to_withdraw
@@ -274,13 +286,6 @@ where
                     .parse()
                     .map_err(BuildError::parse_ics20_asset_source_channel)?,
             );
-
-            // USDC from Noble requires using the bech32 compat address as the sender/return
-            // address.
-            //
-            // since we're always unwrapping the asset (sending back to the originating chain), we
-            // can check that the base denom is USDC, and if it is, we know we're sending to Noble.
-            use_compat_address = ics20_asset_to_withdraw.base_denom() == "usdc";
         };
 
         let contract =
