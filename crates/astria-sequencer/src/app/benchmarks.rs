@@ -82,8 +82,8 @@ async fn initialize_app_with_storage(accounts: Vec<(Address, u128)>) -> (App, St
 
     let genesis_state = GenesisAppState::try_from_raw(
         astria_core::generated::protocol::genesis::v1::GenesisAppState {
-            authority_sudo_address: Some(accounts.first().cloned().unwrap().0.into_raw()),
-            ibc_sudo_address: Some(accounts.first().cloned().unwrap().0.into_raw()),
+            authority_sudo_address: Some(accounts.first().copied().unwrap().0.into_raw()),
+            ibc_sudo_address: Some(accounts.first().copied().unwrap().0.into_raw()),
             ..crate::app::test_utils::proto_genesis_state()
         },
     )
