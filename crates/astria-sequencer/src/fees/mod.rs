@@ -203,8 +203,8 @@ impl FeeHandler for RollupDataSubmission {
         let fees = state
             .get_rollup_data_submission_fees()
             .await
-            .wrap_err("error fetching sequence fees")?
-            .ok_or_eyre("sequence fees not found, so this action is disabled")?;
+            .wrap_err("error fetching rollup data submission fees")?
+            .ok_or_eyre("rollup data submission fees not found, so this action is disabled")?;
         check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
