@@ -48,8 +48,6 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     tx: &TransactionBody,
     state: &S,
 ) -> Result<HashMap<asset::IbcPrefixed, u128>> {
-    let mut fees_by_asset = HashMap::new();
-
     // All retrieved fees are optional: it is okay for the action to not have fees as long as it
     // isn't part of the transaction.
     let transfer_fees = state
@@ -109,6 +107,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .await
         .wrap_err("failed to get fee change fees")?;
 
+    let mut fees_by_asset = HashMap::new();
     for action in tx.actions() {
         match action {
             Action::Transfer(act) => {
