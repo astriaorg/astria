@@ -6,6 +6,7 @@ mod address;
 mod balance;
 mod block_height;
 mod bridge_lock;
+mod change_fees;
 mod ics20_withdrawal;
 mod init_bridge_account;
 mod sudo;
@@ -29,6 +30,7 @@ impl Command {
             SubCommand::Sudo(sudo) => sudo.run().await,
             SubCommand::Transfer(transfer) => transfer.run().await,
             SubCommand::Ics20Withdrawal(ics20_withdrawal) => ics20_withdrawal.run().await,
+            SubCommand::ChangeFees(change_fees) => change_fees.run().await,
         }
     }
 }
@@ -55,4 +57,6 @@ enum SubCommand {
     Transfer(transfer::Command),
     /// Command for withdrawing an ICS20 asset
     Ics20Withdrawal(ics20_withdrawal::Command),
+    /// Command for changing fees
+    ChangeFees(change_fees::Command),
 }

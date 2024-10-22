@@ -3,10 +3,6 @@
   "app_state": {
     "native_asset_base_denomination": "{{ .Values.genesis.nativeAssetBaseDenomination }}",
     "fees": {
-      "bridge_lock": {
-        "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeLock.base }},
-        "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeLock.multiplier }}
-      },
       "bridge_sudo_change": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeSudoChange.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeSudoChange.multiplier }}
@@ -14,10 +10,6 @@
       "bridge_unlock": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeUnlock.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeUnlock.multiplier }}
-      },
-      "fee_asset_change": {
-        "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.feeAssetChange.base }},
-        "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.feeAssetChange.multiplier }}
       },
       "fee_change": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.feeChange.base }},
@@ -27,38 +19,14 @@
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ibcRelay.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ibcRelay.multiplier }}
       },
-      "ibc_relayer_change": {
-        "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ibcRelayerChange.base }},
-        "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ibcRelayerChange.multiplier }}
-      },
       "ibc_sudo_change": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ibcSudoChange.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ibcSudoChange.multiplier }}
-      },
-      "ics20_withdrawal": {
-        "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ics20Withdrawal.base }},
-        "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.ics20Withdrawal.multiplier }}
-      },
-      "init_bridge_account": {
-        "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.initBridgeAccount.base }},
-        "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.initBridgeAccount.multiplier }}
       },
       "rollup_data_submission": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.rollupDataSubmission.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.rollupDataSubmission.multiplier }}
       },
-      "sudo_address_change": {
-        "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.sudoAddressChange.base }},
-        "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.sudoAddressChange.multiplier }}
-      },
-      "transfer": {
-        "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.transfer.base }},
-        "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.transfer.multiplier }}
-      },
-      "validator_update": {
-        "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.validatorUpdate.base }},
-        "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.validatorUpdate.multiplier }}
-      }
     },
     "allowed_fee_assets": [
       {{- range $index, $value := .Values.genesis.allowedFeeAssets }}
