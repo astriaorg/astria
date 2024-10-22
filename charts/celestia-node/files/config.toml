@@ -13,8 +13,8 @@
   GRPCPort = "9090"
 
 [State]
-  KeyringAccName = ""
-  KeyringBackend = "test"
+  DefaultKeyName = "my_celes_key"
+  DefaultBackendName = "test"
 
 [P2P]
   ListenAddresses = ["/ip4/0.0.0.0/udp/2121/quic-v1", "/ip6/::/udp/2121/quic-v1", "/ip4/0.0.0.0/tcp/2121", "/ip6/::/tcp/2121"]
@@ -46,7 +46,10 @@
   Enabled = false
 
 [Share]
+  BlockStoreCacheSize = 128
   UseShareExchange = true
+  [Share.EDSStoreParams]
+    RecentBlocksCacheSize = 10
   [Share.ShrExEDSParams]
     ServerReadTimeout = "5s"
     ServerWriteTimeout = "1m0s"
@@ -103,4 +106,5 @@
   SampleTimeout = "3m0s"  
 {{- end }}
 
-
+[Pruner]
+  EnableService = {{ .Values.config.enablePruner }}
