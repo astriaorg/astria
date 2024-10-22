@@ -66,8 +66,8 @@ pub(crate) struct Actions {
 ```
 
 `Nonce` is an incrementing value that represents how many transactions have been
-previously submitted by the currently submitting account; thus it starts at 0,
-and must strictly increase by 1 for each following transaction.
+previously submitted by the transaction signer; thus it starts at 0, and must strictly
+increase by 1 for each following transaction.
 
 The structure of a (signed) transaction is as follows:
 
@@ -87,7 +87,7 @@ pub struct Transaction {
 The address corresponding to the signer is derived from the
 `ed25519_consensus::VerificationKey` (i.e. the public key).
 
-## Actions
+## [Actions](https://buf.build/astria/protocol-apis/docs/main:astria.protocol.transaction.v1)
 
 The following is an exhaustive list of all user-accessible actions available
 to be submitted as of Sequencer v1.0.0-rc.1.
@@ -120,9 +120,11 @@ These actions deal with transfering funds to/from a bridge account to be used on
 a rollup.
 
 * `InitBridgeAccount`: initializes a bridge account for the given rollup on the
-sequencer chain. The signer of the transaction is the owner of the bridge account,
-and the only actor authorized to transfer out of the account. It is made up of
-the following fields:
+sequencer chain. The `withdrawer_address` is the only actor authorized to transfer
+out of the account. It is set by default to the signer of the transaction, but
+can also be set to a different address within the action itself, or changed later
+via a `BridgeSudoChange` action. `InitBridgeAccount` consists of the following
+fields:
 
   | **Field** | **Type** | **Description** |
   | --------- | -------- | ----------- |
@@ -136,7 +138,8 @@ the following fields:
 
 * `BridgeLock`: transfers funds from a sequencer account to a bridge account.
 It is effectively similar to `Transfer`. Upon execution of a bridge lock action,
-a `Deposit` event will be emitted, containing the information of the transfer.
+a `Deposit` event will be event will be included in the block data for the rollup
+this bridge account is registered to, containing the information of the transfer.
 
   | **Field** | **Type** | **Description** |
   | --------- | -------- | ----------- |
@@ -176,7 +179,7 @@ bridge account. The signer must be the current bridge sudo account.
   ||| If unset, will stay the same. |
   | new_withdrawer_address | `Address` | The new withdrawer address for the bridge|
   ||| account. If unset, will stay the same. |
-  | fee_asset | `string` | The assed with which to pay fees for this action.|
+  | fee_asset | `string` | The asset with which to pay fees for this action.|
 
 ### IBC User Actions
 
@@ -206,7 +209,7 @@ It consists of the following:
   | timeout_time | `uint64` | The unix timestamp (ns) at which this transfer expires.|
   | source_channel | `string` | The source channel used for the withdrawal. |
   | fee_asset | `string` | The asset used to pay fees with. |
-  | memo | `string` | A memo to invlude with the transfer. |
+  | memo | `string` | A memo to include with the transfer. |
 
 ## ABCI Block Lifecycle
 
