@@ -1,9 +1,4 @@
 use std::{
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
     io::Write,
     path::{
         Path,
@@ -23,24 +18,6 @@ use color_eyre::eyre::{
 
 use crate::utils::signing_key_from_private_key;
 
-#[derive(clap::ValueEnum, Clone, Default, Debug)]
-enum JsonFormat {
-    /// Compact format.
-    #[default]
-    Compact,
-    /// Human-readable format.
-    HumanReadable,
-}
-
-impl Display for JsonFormat {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            JsonFormat::Compact => f.write_str("compact"),
-            JsonFormat::HumanReadable => f.write_str("human-readable"),
-        }
-    }
-}
-
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
     /// The private key of account being sent from
@@ -53,9 +30,6 @@ pub(super) struct Command {
     /// Target to write the signed transaction in pbjson format (omit to write to STDOUT).
     #[arg(long, short)]
     output: Option<PathBuf>,
-    /// Format of the output JSON.
-    #[arg(long, default_value_t)]
-    format: JsonFormat,
     /// Forces an overwrite of `--output` if a file at that location exists.
     #[arg(long, short)]
     force: bool,
@@ -76,15 +50,13 @@ impl Command {
             .wrap_err_with(|| format!("failed to read transaction body from `{filename}`"))?;
         let transaction = transaction_body.sign(&key);
 
-        let writer = stdout_or_file(self.output.as_ref(), self.force)
-            .wrap_err("failed to determine output target")?;
-        match self.format {
-            JsonFormat::Compact => serde_json::to_writer(writer, &transaction.to_raw()),
-            JsonFormat::HumanReadable => {
-                serde_json::to_writer_pretty(writer, &transaction.to_raw())
-            }
-        }
-        .wrap_err("failed to write signed transaction")
+        serde_json::to_writer(
+            stdout_or_file(self.output.as_ref(), self.force)
+                .wrap_err("failed to determine output target")?,
+            &transaction.to_raw(),
+        )
+        .wrap_err("failed to write signed transaction")?;
+        Ok(())
     }
 }
 
