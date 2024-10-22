@@ -75,14 +75,9 @@ impl Protobuf for SequencerBlockCommit {
     }
 
     fn to_raw(&self) -> Self::Raw {
-        let Self {
-            height,
-            block_hash,
-        } = self;
-
         raw::SequencerBlockCommit {
-            height: *height,
-            block_hash: Bytes::copy_from_slice(block_hash),
+            height: self.height(),
+            block_hash: Bytes::copy_from_slice(self.block_hash()),
         }
     }
 }
