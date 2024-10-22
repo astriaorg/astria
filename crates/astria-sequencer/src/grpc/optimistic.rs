@@ -56,18 +56,12 @@ impl OptimisticBlockService for OptimisticBlockServer {
         let get_optimistic_block_stream_request = request.into_inner();
 
         let rollup_id = {
-            let rollup_id = if let Some(rollup_id) = get_optimistic_block_stream_request.rollup_id {
-                rollup_id
-            } else {
-                return Err(Status::invalid_argument("rollup id is required"));
-            };
+            let rollup_id = get_optimistic_block_stream_request
+                .rollup_id
+                .ok_or_else(|| Status::invalid_argument("rollup id is required"))?;
 
-            match RollupId::try_from_raw(rollup_id) {
-                Ok(rollup_id) => rollup_id,
-                Err(_) => {
-                    return Err(Status::invalid_argument("invalid rollup id"));
-                }
-            }
+            RollupId::try_from_raw(rollup_id)
+                .map_err(|e| Status::invalid_argument(format!("invalid rollup id: {e}")))?
         };
 
         let (tx, rx) =
@@ -84,7 +78,7 @@ impl OptimisticBlockService for OptimisticBlockServer {
                     let optimistic_block = optimistic_block_receiver
                         .borrow_and_update()
                         .clone()
-                        .expect("received block is none");
+                        .expect("received an invalid optimistic block");
 
                     let filtered_optimistic_block =
                         optimistic_block.to_filtered_block(vec![rollup_id]);
@@ -104,12 +98,12 @@ impl OptimisticBlockService for OptimisticBlockServer {
                             debug!("sent optimistic block");
                         }
                         Err(_item) => {
-                            info!("receiver dropped");
+                            info!("receiver for optimistic block has been dropped");
                             break;
                         }
                     };
                 }
-                debug!("optimistic block receiver changed failed");
+                debug!("optimistic block sender has dropped");
             }
         });
 
@@ -136,7 +130,7 @@ impl OptimisticBlockService for OptimisticBlockServer {
                     let sequencer_block_commit = committed_block_receiver
                         .borrow_and_update()
                         .clone()
-                        .expect("received block is none");
+                        .expect("received an invalid sequencer block commit");
 
                     let get_block_commitment_stream_response = GetBlockCommitmentStreamResponse {
                         commitment: Some(sequencer_block_commit.to_raw()),
@@ -152,12 +146,12 @@ impl OptimisticBlockService for OptimisticBlockServer {
                             debug!("sent block commitment");
                         }
                         Err(_item) => {
-                            info!("receiver dropped");
+                            debug!("receiver for block commitment failed");
                             break;
                         }
                     };
                 }
-                debug!("commited block receiver changed failed");
+                debug!("commited block sender has dropped");
             }
         });
 
