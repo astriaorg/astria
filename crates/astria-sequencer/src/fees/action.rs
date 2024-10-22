@@ -4,11 +4,12 @@ use astria_core::protocol::transaction::v1::action::{
 };
 use astria_eyre::eyre::{
     self,
-    bail,
     ensure,
     WrapErr as _,
 };
 use cnidarium::StateWrite;
+use futures::StreamExt;
+use tokio::pin;
 
 use crate::{
     app::ActionHandler,
@@ -115,14 +116,17 @@ impl ActionHandler for FeeAssetChange {
             FeeAssetChange::Removal(asset) => {
                 state.delete_allowed_fee_asset(asset);
 
-                if state
-                    .get_allowed_fee_assets()
-                    .await
-                    .wrap_err("failed to retrieve allowed fee assets")?
-                    .is_empty()
-                {
-                    bail!("cannot remove last allowed fee asset");
-                }
+                pin!(
+                    let assets = state.allowed_fee_assets();
+                );
+                ensure!(
+                    assets
+                        .filter_map(|item| std::future::ready(item.ok()))
+                        .next()
+                        .await
+                        .is_some(),
+                    "cannot remove last allowed fee asset",
+                );
             }
         }
         Ok(())

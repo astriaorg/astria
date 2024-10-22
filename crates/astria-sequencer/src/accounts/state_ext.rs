@@ -43,13 +43,13 @@ pin_project! {
     /// A stream of IBC prefixed assets for a given account.
     pub(crate) struct AccountAssetsStream<St> {
         #[pin]
-        pub(crate) underlying: St,
+        underlying: St,
     }
 }
 
 impl<St> Stream for AccountAssetsStream<St>
 where
-    St: Stream<Item = Result<String>>,
+    St: Stream<Item = astria_eyre::anyhow::Result<String>>,
 {
     type Item = Result<asset::IbcPrefixed>;
 
@@ -58,7 +58,9 @@ where
         let key = match ready!(this.underlying.as_mut().poll_next(cx)) {
             Some(Ok(key)) => key,
             Some(Err(err)) => {
-                return Poll::Ready(Some(Err(err).wrap_err("failed reading from state")));
+                return Poll::Ready(Some(Err(
+                    anyhow_to_eyre(err).wrap_err("failed reading from state")
+                )));
             }
             None => return Poll::Ready(None),
         };
@@ -78,7 +80,7 @@ pin_project! {
     /// A stream of IBC prefixed assets and their balances for a given account.
     pub(crate) struct AccountAssetBalancesStream<St> {
         #[pin]
-        pub(crate) underlying: St,
+        underlying: St,
     }
 }
 
