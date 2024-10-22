@@ -108,7 +108,6 @@ use crate::{
     component::Component as _,
     fees::{
         component::FeesComponent,
-        construct_tx_fee_event,
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -1232,8 +1231,6 @@ impl App {
                 .increase_balance(fee_recipient, fee.asset(), fee.amount())
                 .await
                 .wrap_err("failed to increase fee recipient balance")?;
-            let fee_event = construct_tx_fee_event(&fee);
-            state_tx.record(fee_event);
         }
 
         let events = self.apply(state_tx);

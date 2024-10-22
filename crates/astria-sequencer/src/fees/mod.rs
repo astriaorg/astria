@@ -30,10 +30,6 @@ use astria_eyre::eyre::{
 };
 use cnidarium::StateWrite;
 use penumbra_ibc::IbcRelay;
-use tendermint::abci::{
-    Event,
-    EventAttributeIndexExt as _,
-};
 use tracing::{
     instrument,
     Level,
@@ -378,18 +374,4 @@ fn base_deposit_fee(asset: &asset::Denom, destination_chain_address: &str) -> u1
     )
     .expect("converting a usize to a u128 should work on any currently existing machine")
     .saturating_add(DEPOSIT_BASE_FEE)
-}
-
-/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
-pub(crate) fn construct_tx_fee_event(fee: &Fee) -> Event {
-    Event::new(
-        "tx.fees",
-        [
-            ("actionName", fee.action_name.to_string()).index(),
-            ("asset", fee.asset.to_string()).index(),
-            ("feeAmount", fee.amount.to_string()).index(),
-            ("sourceTransactionId", fee.source_transaction_id.to_string()).index(),
-            ("sourceActionIndex", fee.source_action_index.to_string()).index(),
-        ],
-    )
 }

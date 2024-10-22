@@ -36,6 +36,10 @@ use cnidarium::{
     StateWrite,
 };
 use futures::StreamExt as _;
+use tendermint::abci::{
+    Event,
+    EventAttributeIndexExt as _,
+};
 use tracing::instrument;
 
 use super::{
@@ -367,6 +371,11 @@ pub(crate) trait StateWriteExt: StateWrite {
             source_transaction_id,
             source_action_index,
         };
+
+        // Fee ABCI event recorded for reporting
+        let fee_event = construct_tx_fee_event(&fee);
+        self.record(fee_event);
+
         let new_fees = if let Some(mut fees) = current_fees {
             fees.push(fee);
             fees
@@ -531,6 +540,20 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
+fn construct_tx_fee_event(fee: &Fee) -> Event {
+    Event::new(
+        "tx.fees",
+        [
+            ("actionName", fee.action_name.to_string()).index(),
+            ("asset", fee.asset.to_string()).index(),
+            ("feeAmount", fee.amount.to_string()).index(),
+            ("sourceTransactionId", fee.source_transaction_id.to_string()).index(),
+            ("sourceActionIndex", fee.source_action_index.to_string()).index(),
+        ],
+    )
+}
 
 #[cfg(test)]
 mod tests {
