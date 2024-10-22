@@ -7,13 +7,14 @@ global:
   replicaCount: 1
 
 # nobleImage: "ghcr.io/noble-assets/noble:v6.0.0"
-nobleImage: "noble-dev:local-v0.0.1"
+nobleImage: "noble-dev:local-v0.0.2"
+# nobleImage: "ghcr.io/noble-assets/noble:v8.0.0-rc.2"
 
 replicaCount: 1
 
 noble:
   chainId: "noble-local-0"
-  homeDir: "/home/noble-test-2"
+  homeDir: ".noble"
   # signer info
   keyringBackend: "test"
   validatorKeyName: "validator"

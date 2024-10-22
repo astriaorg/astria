@@ -43,7 +43,7 @@ chains:
 
   noble-local-0:
     type: CosmosSdk
-    compatMode: "0.34"
+    compatMode: "0.37"
     rpcAddr: http://noble-local-service.astria-dev-cluster.svc.cluster.local:26657
     grpcAddr: http://noble-local-service.astria-dev-cluster.svc.cluster.local:9090
     rpcTimeout: 15s
