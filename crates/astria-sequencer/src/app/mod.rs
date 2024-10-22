@@ -117,10 +117,7 @@ use crate::{
         component::FeesComponent,
         StateReadExt as _,
     },
-    grpc::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
     mempool::{
         Mempool,
@@ -1038,12 +1035,14 @@ impl App {
              rollup IDs commitment"
         );
 
+        let height = finalize_block.height;
+        let block_hash = finalize_block.hash;
+
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
             // convert tendermint id to astria address; this assumes they are
             // the same address, as they are both ed25519 keys
             let proposer_address = finalize_block.proposer_address;
-            let height = finalize_block.height;
             let time = finalize_block.time;
 
             // we haven't executed anything yet, so set up the state for execution.
@@ -1092,7 +1091,7 @@ impl App {
             }
 
             self.post_execute_transactions(
-                finalize_block.hash,
+                block_hash,
                 height,
                 time,
                 proposer_address,
@@ -1130,6 +1129,19 @@ impl App {
             app_hash,
             tx_results: post_transaction_execution_result.tx_results,
         };
+
+        if let Some(obc) = &self.optimistic_block_channels {
+            let Hash::Sha256(block_hash) = block_hash else {
+                bail!("block hash is empty; this should not occur")
+            };
+
+            if let Err(e) = obc
+                .committed_block_sender
+                .send(Some(SequencerBlockCommit::new(height.value(), block_hash)))
+            {
+                error!(error = %e, "failed to send committed block to optimistic block sender");
+            };
+        }
 
         Ok(finalize_block)
     }
@@ -1317,28 +1329,6 @@ impl App {
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
-
-        if let Some(obc) = &self.optimistic_block_channels {
-            let block_height = self
-                .state
-                .get_block_height()
-                .await
-                .expect("failed to get block height");
-            let block_hash = self
-                .state
-                .get_block_hash_by_height(block_height)
-                .await
-                .expect("failed to get block hash");
-
-            let sequencer_block_commit = SequencerBlockCommit::new(block_height, block_hash);
-
-            if let Err(e) = obc
-                .committed_block_sender
-                .send(Some(sequencer_block_commit))
-            {
-                error!(error = %e, "failed to send committed block to optimistic block sender");
-            };
-        }
     }
 
     // StateDelta::apply only works when the StateDelta wraps an underlying
