@@ -21,6 +21,7 @@ config:
   sequencerChainId: ""
   sequencerAddressPrefix: "astria"
   sequencerBridgeAddress: ""
+  useCompatAddress: "false"
   feeAssetDenom: ""
   minExpectedFeeAssetBalance: "1000000"
   rollupAssetDenom: ""

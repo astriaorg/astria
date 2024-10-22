@@ -25,6 +25,7 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     ensure,
+    OptionExt as _,
     WrapErr as _,
 };
 use cnidarium::StateWrite;
@@ -94,7 +95,8 @@ impl FeeHandler for Transfer {
         let fees = state
             .get_transfer_fees()
             .await
-            .wrap_err("transfer fees not found, so this action is disabled")?;
+            .wrap_err("error fetching transfer fees")?
+            .ok_or_eyre("transfer fees not found, so this action is disabled")?;
         check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
@@ -111,7 +113,8 @@ impl FeeHandler for BridgeLock {
         let fees = state
             .get_bridge_lock_fees()
             .await
-            .wrap_err("bridge lock fees not found, so this action is disabled")?;
+            .wrap_err("error fetching bridge lock fees")?
+            .ok_or_eyre("bridge lock fees not found, so this action is disabled")?;
         check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
@@ -128,7 +131,8 @@ impl FeeHandler for BridgeSudoChange {
         let fees = state
             .get_bridge_sudo_change_fees()
             .await
-            .wrap_err("bridge sudo change fees not found, so this action is disabled")?;
+            .wrap_err("error fetching bridge sudo change fees")?
+            .ok_or_eyre("bridge sudo change fees not found, so this action is disabled")?;
         check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
@@ -145,7 +149,8 @@ impl FeeHandler for BridgeUnlock {
         let fees = state
             .get_bridge_unlock_fees()
             .await
-            .wrap_err("bridge unlock fees not found, so this action is disabled")?;
+            .wrap_err("error fetching bridge unlock fees")?
+            .ok_or_eyre("bridge unlock fees not found, so this action is disabled")?;
         check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
@@ -162,7 +167,8 @@ impl FeeHandler for InitBridgeAccount {
         let fees = state
             .get_init_bridge_account_fees()
             .await
-            .wrap_err("init bridge account fees not found, so this action is disabled")?;
+            .wrap_err("error fetching init bridge account fees")?
+            .ok_or_eyre("init bridge account fees not found, so this action is disabled")?;
         check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
@@ -179,7 +185,8 @@ impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
         let fees = state
             .get_ics20_withdrawal_fees()
             .await
-            .wrap_err("ics20 withdrawal fees not found, so this action is disabled")?;
+            .wrap_err("error fetching ics20 withdrawal fees")?
+            .ok_or_eyre("ics20 withdrawal fees not found, so this action is disabled")?;
         check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
@@ -196,7 +203,8 @@ impl FeeHandler for RollupDataSubmission {
         let fees = state
             .get_rollup_data_submission_fees()
             .await
-            .wrap_err("sequence fees not found, so this action is disabled")?;
+            .wrap_err("error fetching rollup data submission fees")?
+            .ok_or_eyre("rollup data submission fees not found, so this action is disabled")?;
         check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
     }
 
@@ -214,7 +222,8 @@ impl FeeHandler for ValidatorUpdate {
         state
             .get_validator_update_fees()
             .await
-            .wrap_err("validator update fees not found, so this action is disabled")?;
+            .wrap_err("error fetching validator update fees")?
+            .ok_or_eyre("validator update fees not found, so this action is disabled")?;
         Ok(())
     }
 
@@ -230,7 +239,8 @@ impl FeeHandler for SudoAddressChange {
         state
             .get_sudo_address_change_fees()
             .await
-            .wrap_err("sudo address change fees not found, so this action is disabled")?;
+            .wrap_err("error fetching sudo address change fees")?
+            .ok_or_eyre("sudo address change fees not found, so this action is disabled")?;
         Ok(())
     }
 
@@ -246,7 +256,8 @@ impl FeeHandler for FeeChange {
         state
             .get_fee_change_fees()
             .await
-            .wrap_err("fee change fees not found, so this action is disabled")?;
+            .wrap_err("error fetching fee change fees")?
+            .ok_or_eyre("fee change fees not found, so this action is disabled")?;
         Ok(())
     }
 
@@ -262,7 +273,8 @@ impl FeeHandler for IbcSudoChange {
         state
             .get_ibc_sudo_change_fees()
             .await
-            .wrap_err("ibc sudo change fees not found, so this action is disabled")?;
+            .wrap_err("error fetching ibc sudo change fees")?
+            .ok_or_eyre("ibc sudo change fees not found, so this action is disabled")?;
         Ok(())
     }
 
@@ -278,7 +290,8 @@ impl FeeHandler for IbcRelayerChange {
         state
             .get_ibc_relayer_change_fees()
             .await
-            .wrap_err("ibc relayer change fees not found, so this action is disabled")?;
+            .wrap_err("error fetching ibc relayer change fees")?
+            .ok_or_eyre("ibc relayer change fees not found, so this action is disabled")?;
         Ok(())
     }
 
@@ -294,7 +307,8 @@ impl FeeHandler for FeeAssetChange {
         state
             .get_fee_asset_change_fees()
             .await
-            .wrap_err("fee asset change fees not found, so this action is disabled")?;
+            .wrap_err("error fetching fee asset change fees")?
+            .ok_or_eyre("fee asset change fees not found, so this action is disabled")?;
         Ok(())
     }
 
@@ -310,7 +324,8 @@ impl FeeHandler for IbcRelay {
         state
             .get_ibc_relay_fees()
             .await
-            .wrap_err("ibc relay fees not found, so this action is disabled")?;
+            .wrap_err("error fetching ibc relay fees")?
+            .ok_or_eyre("ibc relay fees not found, so this action is disabled")?;
         Ok(())
     }
 

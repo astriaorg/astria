@@ -120,6 +120,7 @@ pub struct GetWithdrawalActionsBuilder<TProvider = NoProvider> {
     fee_asset: Option<asset::Denom>,
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
+    use_compat_address: bool,
 }
 
 impl Default for GetWithdrawalActionsBuilder {
@@ -138,6 +139,7 @@ impl GetWithdrawalActionsBuilder {
             fee_asset: None,
             sequencer_asset_to_withdraw: None,
             ics20_asset_to_withdraw: None,
+            use_compat_address: false,
         }
     }
 }
@@ -151,6 +153,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            use_compat_address,
             ..
         } = self;
         GetWithdrawalActionsBuilder {
@@ -160,6 +163,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            use_compat_address,
         }
     }
 
@@ -218,6 +222,14 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             ..self
         }
     }
+
+    #[must_use]
+    pub fn use_compat_address(self, use_compat_address: bool) -> Self {
+        Self {
+            use_compat_address,
+            ..self
+        }
+    }
 }
 
 impl<P> GetWithdrawalActionsBuilder<WithProvider<P>>
@@ -246,6 +258,7 @@ where
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            use_compat_address,
         } = self;
 
         let Some(contract_address) = contract_address else {
@@ -297,6 +310,7 @@ where
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
             ics20_source_channel,
+            use_compat_address,
         })
     }
 }
@@ -310,6 +324,7 @@ pub struct GetWithdrawalActions<P> {
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
     ics20_source_channel: Option<ibc_types::core::channel::ChannelId>,
+    use_compat_address: bool,
 }
 
 impl<P> GetWithdrawalActions<P>
@@ -428,9 +443,7 @@ where
             timeout_time: timeout_in_5_min(),
             source_channel,
             bridge_address: Some(self.bridge_address),
-            // FIXME: this needs a way to determine when to use compat address
-            // https://github.com/astriaorg/astria/issues/1424
-            use_compat_address: false,
+            use_compat_address: self.use_compat_address,
         };
         Ok(Action::Ics20Withdrawal(action))
     }
