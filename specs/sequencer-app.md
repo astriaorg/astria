@@ -138,8 +138,8 @@ fields:
 
 * `BridgeLock`: transfers funds from a sequencer account to a bridge account.
 It is effectively similar to `Transfer`. Upon execution of a bridge lock action,
-a `Deposit` event will be event will be included in the block data for the rollup
-this bridge account is registered to, containing the information of the transfer.
+a `Deposit` event will be included in the block data for the rollup this bridge
+account is registered to, containing the information of the transfer.
 
   | **Field** | **Type** | **Description** |
   | --------- | -------- | ----------- |
