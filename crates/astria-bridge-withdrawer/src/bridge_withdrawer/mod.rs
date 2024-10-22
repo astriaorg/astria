@@ -85,6 +85,7 @@ impl BridgeWithdrawer {
             rollup_asset_denomination,
             sequencer_bridge_address,
             sequencer_grpc_endpoint,
+            use_compat_address,
             ..
         } = cfg;
 
@@ -139,6 +140,7 @@ impl BridgeWithdrawer {
             state: state.clone(),
             rollup_asset_denom: rollup_asset_denomination,
             bridge_address: sequencer_bridge_address,
+            use_compat_address,
             submitter_handle,
         }
         .build()
