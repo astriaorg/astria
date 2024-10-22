@@ -29,7 +29,9 @@ async fn future_nonces_are_accepted() {
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
+    let mut app = App::new(snapshot, mempool.clone(), None, metrics)
+        .await
+        .unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
     app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
@@ -59,7 +61,9 @@ async fn rechecks_pass() {
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
+    let mut app = App::new(snapshot, mempool.clone(), None, metrics)
+        .await
+        .unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
     app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
@@ -97,7 +101,9 @@ async fn can_reinsert_after_recheck_fail() {
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
+    let mut app = App::new(snapshot, mempool.clone(), None, metrics)
+        .await
+        .unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
     app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
@@ -145,7 +151,9 @@ async fn recheck_adds_non_tracked_tx() {
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
+    let mut app = App::new(snapshot, mempool.clone(), None, metrics)
+        .await
+        .unwrap();
     let genesis_state = crate::app::test_utils::genesis_state();
 
     app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
