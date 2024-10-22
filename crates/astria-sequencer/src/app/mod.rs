@@ -179,7 +179,7 @@ impl From<abci::request::ProcessProposal> for ProposalFingerprint {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct OptimisticBlockChannels {
     optimistic_block_sender: tokio::sync::watch::Sender<Option<SequencerBlock>>,
     committed_block_sender: tokio::sync::watch::Sender<Option<SequencerBlockCommit>>,
