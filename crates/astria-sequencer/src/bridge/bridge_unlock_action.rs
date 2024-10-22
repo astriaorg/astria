@@ -150,11 +150,10 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-
         let asset = test_asset();
         let transfer_amount = 100;
 
+        let signer = astria_address(&[1; 20]);
         let to_address = astria_address(&[2; 20]);
         let bridge_address = astria_address(&[3; 20]);
         state
@@ -174,7 +173,7 @@ mod tests {
         // invalid sender, doesn't match action's `from`, should fail
         assert_eyre_error(
             &bridge_unlock
-                .check_authorization(&state, &[1; 20])
+                .check_authorization(&state, &signer)
                 .await
                 .unwrap_err(),
             "bridge account does not have an associated withdrawer address",
@@ -187,13 +186,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-
+        let signer = astria_address(&[1; 20]);
         let asset = test_asset();
         let transfer_amount = 100;
 
@@ -220,7 +213,7 @@ mod tests {
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
         assert_eyre_error(
             &bridge_unlock
-                .check_authorization(&state, &withdrawer_address)
+                .check_authorization(&state, &signer)
                 .await
                 .unwrap_err(),
             "unauthorized to unlock bridge account",

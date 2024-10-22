@@ -118,12 +118,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        let signer = astria_address(&[1; 20]);
 
         let asset = test_asset();
         state.put_allowed_fee_asset(&asset).unwrap();
@@ -143,7 +138,7 @@ mod tests {
 
         assert!(
             action
-                .check_authorization(&state, &sudo_address)
+                .check_authorization(&state, &signer)
                 .await
                 .unwrap_err()
                 .to_string()
