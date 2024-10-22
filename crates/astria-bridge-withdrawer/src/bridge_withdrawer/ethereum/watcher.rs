@@ -61,6 +61,7 @@ pub(crate) struct Builder {
     pub(crate) state: Arc<State>,
     pub(crate) rollup_asset_denom: asset::TracePrefixed,
     pub(crate) bridge_address: Address,
+    pub(crate) timeout_duration: Duration,
     pub(crate) use_compat_address: bool,
     pub(crate) submitter_handle: submitter::Handle,
 }
@@ -75,6 +76,7 @@ impl Builder {
             state,
             rollup_asset_denom,
             bridge_address,
+            timeout_duration,
             use_compat_address,
             submitter_handle,
         } = self;
@@ -87,6 +89,7 @@ impl Builder {
             ethereum_rpc_endpoint: ethereum_rpc_endpoint.to_string(),
             rollup_asset_denom,
             bridge_address,
+            timeout_duration,
             use_compat_address,
             state,
             shutdown_token: shutdown_token.clone(),
@@ -105,6 +108,7 @@ pub(crate) struct Watcher {
     ethereum_rpc_endpoint: String,
     rollup_asset_denom: asset::TracePrefixed,
     bridge_address: Address,
+    timeout_duration: Duration,
     use_compat_address: bool,
     state: Arc<State>,
 }
@@ -149,6 +153,7 @@ impl Watcher {
             ethereum_rpc_endpoint,
             rollup_asset_denom,
             bridge_address,
+            timeout_duration,
             use_compat_address,
             state,
         } = self;
@@ -225,6 +230,7 @@ impl Watcher {
             .bridge_address(bridge_address)
             .sequencer_asset_to_withdraw(rollup_asset_denom.clone().into())
             .set_ics20_asset_to_withdraw(ics20_asset_to_withdraw)
+            .timeout_duration(timeout_duration)
             .use_compat_address(use_compat_address)
             .try_build()
             .await

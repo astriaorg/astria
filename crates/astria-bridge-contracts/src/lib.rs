@@ -4,6 +4,7 @@ mod generated;
 use std::{
     borrow::Cow,
     sync::Arc,
+    time::Duration,
 };
 
 use astria_core::{
@@ -36,6 +37,9 @@ use ethers::{
     },
 };
 pub use generated::*;
+
+// Default duration of the Ics20Withdrawal timeout from when it's created (5 minutes).
+const DEFAULT_TIMEOUT_DURATION: Duration = Duration::from_secs(300);
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -120,6 +124,7 @@ pub struct GetWithdrawalActionsBuilder<TProvider = NoProvider> {
     fee_asset: Option<asset::Denom>,
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
+    timeout_duration: Option<Duration>,
     use_compat_address: bool,
 }
 
@@ -139,6 +144,7 @@ impl GetWithdrawalActionsBuilder {
             fee_asset: None,
             sequencer_asset_to_withdraw: None,
             ics20_asset_to_withdraw: None,
+            timeout_duration: None,
             use_compat_address: false,
         }
     }
@@ -153,6 +159,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            timeout_duration,
             use_compat_address,
             ..
         } = self;
@@ -163,6 +170,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            timeout_duration,
             use_compat_address,
         }
     }
@@ -224,6 +232,19 @@ impl<P> GetWithdrawalActionsBuilder<P> {
     }
 
     #[must_use]
+    pub fn timeout_duration(self, timeout_duration: Duration) -> Self {
+        self.set_timeout_duration(Some(timeout_duration))
+    }
+
+    #[must_use]
+    pub fn set_timeout_duration(self, timeout_duration: Option<Duration>) -> Self {
+        Self {
+            timeout_duration,
+            ..self
+        }
+    }
+
+    #[must_use]
     pub fn use_compat_address(self, use_compat_address: bool) -> Self {
         Self {
             use_compat_address,
@@ -258,6 +279,7 @@ where
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            timeout_duration,
             use_compat_address,
         } = self;
 
@@ -301,6 +323,8 @@ where
 
         let asset_withdrawal_divisor = 10u128.pow(exponent);
 
+        let timeout_duration = timeout_duration.unwrap_or(DEFAULT_TIMEOUT_DURATION);
+
         Ok(GetWithdrawalActions {
             provider,
             contract_address,
@@ -310,6 +334,7 @@ where
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
             ics20_source_channel,
+            timeout_duration,
             use_compat_address,
         })
     }
@@ -324,6 +349,7 @@ pub struct GetWithdrawalActions<P> {
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
     ics20_source_channel: Option<ibc_types::core::channel::ChannelId>,
+    timeout_duration: Duration,
     use_compat_address: bool,
 }
 
@@ -440,7 +466,7 @@ where
             // note: this refers to the timeout on the destination chain, which we are unaware of.
             // thus, we set it to the maximum possible value.
             timeout_height: max_timeout_height(),
-            timeout_time: timeout_in_5_min(),
+            timeout_time: calculate_timeout(self.timeout_duration),
             source_channel,
             bridge_address: Some(self.bridge_address),
             use_compat_address: self.use_compat_address,
@@ -676,11 +702,10 @@ fn parse_destination_chain_as_address(
     event.destination_chain_address.parse().map_err(Into::into)
 }
 
-fn timeout_in_5_min() -> u64 {
-    use std::time::Duration;
+fn calculate_timeout(duration: Duration) -> u64 {
     tendermint::Time::now()
-        .checked_add(Duration::from_secs(300))
-        .expect("adding 5 minutes to the current time should never fail")
+        .checked_add(duration)
+        .expect("adding a duration to the current time should never fail")
         .unix_timestamp_nanos()
         .try_into()
         .expect("timestamp must be positive, so this conversion would only fail if negative")

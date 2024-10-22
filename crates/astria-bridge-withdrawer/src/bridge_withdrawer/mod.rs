@@ -85,6 +85,7 @@ impl BridgeWithdrawer {
             rollup_asset_denomination,
             sequencer_bridge_address,
             sequencer_grpc_endpoint,
+            ics20_withdrawal_timeout_duration,
             use_compat_address,
             ..
         } = cfg;
@@ -141,6 +142,7 @@ impl BridgeWithdrawer {
             rollup_asset_denom: rollup_asset_denomination,
             bridge_address: sequencer_bridge_address,
             use_compat_address,
+            timeout_duration: Duration::from_secs(ics20_withdrawal_timeout_duration),
             submitter_handle,
         }
         .build()

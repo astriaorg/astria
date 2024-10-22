@@ -34,6 +34,7 @@ data:
   {{- if not .Values.global.dev }}
   {{- else }}
   ASTRIA_BRIDGE_WITHDRAWER_USE_COMPAT_ADDRESS: "{{ .Values.config.useCompatAddress }}"
+  ASTRIA_BRIDGE_WITHDRAWER_ICS20_WITHDRAWAL_TIMEOUT_DURATION: "{{ .Values.config.ics20WithdrawalTimeoutDuration }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}
