@@ -12,6 +12,7 @@ data:
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencerAddressPrefix }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_GRPC_ENDPOINT: "{{ tpl .Values.config.sequencerGrpcEndpoint . }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_BRIDGE_ADDRESS: "{{ .Values.config.sequencerBridgeAddress }}"
+  ASTRIA_BRIDGE_WITHDRAWER_USE_COMPAT_ADDRESS: "{{ .Values.config.useCompatAddress }}"
   ASTRIA_BRIDGE_WITHDRAWER_FEE_ASSET_DENOMINATION: "{{ .Values.config.feeAssetDenom }}"
 
   ASTRIA_BRIDGE_WITHDRAWER_ROLLUP_ASSET_DENOMINATION: "{{ .Values.config.rollupAssetDenom }}"
