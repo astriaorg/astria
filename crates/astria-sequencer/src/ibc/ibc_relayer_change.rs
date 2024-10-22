@@ -5,7 +5,10 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use async_trait::async_trait;
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 
 use crate::{
     address::StateReadExt as _,
@@ -23,19 +26,11 @@ impl ActionHandler for IbcRelayerChange {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
         let from = state
             .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
-        match self {
-            IbcRelayerChange::Addition(addr) | IbcRelayerChange::Removal(addr) => {
-                state.ensure_base_prefix(addr).await.wrap_err(
-                    "failed check for base prefix of provided address to be added/removed",
-                )?;
-            }
-        }
-
         let ibc_sudo_address = state
             .get_ibc_sudo_address()
             .await
@@ -44,6 +39,17 @@ impl ActionHandler for IbcRelayerChange {
             ibc_sudo_address == from,
             "unauthorized address for IBC relayer change"
         );
+        Ok(())
+    }
+
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        match self {
+            IbcRelayerChange::Addition(addr) | IbcRelayerChange::Removal(addr) => {
+                state.ensure_base_prefix(addr).await.wrap_err(
+                    "failed check for base prefix of provided address to be added/removed",
+                )?;
+            }
+        }
 
         match self {
             IbcRelayerChange::Addition(address) => {

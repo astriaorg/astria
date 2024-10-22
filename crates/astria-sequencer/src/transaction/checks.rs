@@ -160,6 +160,7 @@ pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
 // transaction).
 #[instrument(skip_all)]
 pub(crate) async fn get_total_transaction_cost<S: StateRead>(
+    // mempool uses
     tx: &Transaction,
     state: &S,
 ) -> Result<HashMap<asset::IbcPrefixed, u128>> {

@@ -179,6 +179,10 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
+    async fn check_authorization<S: StateRead>(&self, _state: &S) -> Result<()> {
+        Ok(())
+    }
+
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

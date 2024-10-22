@@ -5,7 +5,10 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 
 use crate::{
     address::StateReadExt as _,
@@ -22,11 +25,31 @@ impl ActionHandler for BridgeSudoChange {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
         let from = state
             .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
+
+        // check that the sender of this tx is the authorized sudo address for the bridge account
+        let Some(sudo_address) = state
+            .get_bridge_account_sudo_address(&self.bridge_address)
+            .await
+            .wrap_err("failed to get bridge account sudo address")?
+        else {
+            // TODO: if the sudo address is unset, should we still allow this action
+            // if the sender if the bridge address itself?
+            bail!("bridge account does not have an associated sudo address");
+        };
+
+        ensure!(
+            sudo_address == from,
+            "unauthorized for bridge sudo change action"
+        );
+        Ok(())
+    }
+
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         state
             .ensure_base_prefix(&self.bridge_address)
             .await
@@ -43,22 +66,6 @@ impl ActionHandler for BridgeSudoChange {
                 .await
                 .wrap_err("failed check for base prefix of new withdrawer address")?;
         }
-
-        // check that the sender of this tx is the authorized sudo address for the bridge account
-        let Some(sudo_address) = state
-            .get_bridge_account_sudo_address(&self.bridge_address)
-            .await
-            .wrap_err("failed to get bridge account sudo address")?
-        else {
-            // TODO: if the sudo address is unset, should we still allow this action
-            // if the sender if the bridge address itself?
-            bail!("bridge account does not have an associated sudo address");
-        };
-
-        ensure!(
-            sudo_address == from,
-            "unauthorized for bridge sudo change action",
-        );
 
         if let Some(sudo_address) = self.new_sudo_address {
             state
@@ -137,7 +144,7 @@ mod tests {
 
         assert!(
             action
-                .check_and_execute(state)
+                .check_authorization(&state)
                 .await
                 .unwrap_err()
                 .to_string()

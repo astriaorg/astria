@@ -29,6 +29,7 @@ pub struct Metrics {
     check_tx_duration_seconds_fetch_nonce: Histogram,
     check_tx_duration_seconds_check_tracked: Histogram,
     check_tx_duration_seconds_check_chain_id: Histogram,
+    check_tx_duration_seconds_check_authorization: Histogram,
     check_tx_duration_seconds_check_removed: Histogram,
     check_tx_duration_seconds_convert_address: Histogram,
     check_tx_duration_seconds_fetch_balances: Histogram,
@@ -96,6 +97,11 @@ impl Metrics {
 
     pub(crate) fn record_check_tx_duration_seconds_check_stateless(&self, duration: Duration) {
         self.check_tx_duration_seconds_check_stateless
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_check_authorization(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_authorization
             .record(duration);
     }
 
@@ -307,6 +313,8 @@ impl telemetry::Metrics for Metrics {
             .register_with_labels(&[(CHECK_TX_STAGE, "stateless check".to_string())])?;
         let check_tx_duration_seconds_check_chain_id = check_tx_duration_factory
             .register_with_labels(&[(CHECK_TX_STAGE, "chain id check".to_string())])?;
+        let check_tx_duration_seconds_check_authorization = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "authorization check".to_string())])?;
         let check_tx_duration_seconds_check_removed = check_tx_duration_factory
             .register_with_labels(&[(CHECK_TX_STAGE, "check for removal".to_string())])?;
         let check_tx_duration_seconds_insert_to_app_mempool = check_tx_duration_factory
@@ -372,6 +380,7 @@ impl telemetry::Metrics for Metrics {
             check_tx_duration_seconds_fetch_nonce,
             check_tx_duration_seconds_check_tracked,
             check_tx_duration_seconds_check_chain_id,
+            check_tx_duration_seconds_check_authorization,
             check_tx_duration_seconds_check_removed,
             check_tx_duration_seconds_convert_address,
             check_tx_duration_seconds_fetch_balances,

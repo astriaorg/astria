@@ -6,9 +6,13 @@ use astria_eyre::eyre::{
     self,
     bail,
     ensure,
+    Result,
     WrapErr as _,
 };
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 
 use crate::{
     app::ActionHandler,
@@ -28,7 +32,7 @@ impl ActionHandler for FeeChange {
 
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the fee
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
+    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
         let from = state
             .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
@@ -39,7 +43,11 @@ impl ActionHandler for FeeChange {
             .await
             .wrap_err("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
+        Ok(())
+    }
 
+    /// update fees in state
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
         match self {
             Self::Transfer(fees) => state
                 .put_transfer_fees(*fees)
@@ -93,7 +101,7 @@ impl ActionHandler for FeeAssetChange {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
+    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
         let from = state
             .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
@@ -106,6 +114,10 @@ impl ActionHandler for FeeAssetChange {
             authority_sudo_address == from,
             "unauthorized address for fee asset change"
         );
+        Ok(())
+    }
+
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
         match self {
             FeeAssetChange::Addition(asset) => {
                 state

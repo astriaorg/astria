@@ -3,7 +3,10 @@ use astria_eyre::eyre::{
     ensure,
     Result,
 };
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 
 use crate::app::ActionHandler;
 
@@ -16,6 +19,10 @@ impl ActionHandler for RollupDataSubmission {
             !self.data.is_empty(),
             "cannot have empty data for sequence action"
         );
+        Ok(())
+    }
+
+    async fn check_authorization<S: StateRead>(&self, _state: &S) -> Result<()> {
         Ok(())
     }
 

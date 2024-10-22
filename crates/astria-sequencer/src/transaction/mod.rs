@@ -22,7 +22,10 @@ pub(crate) use checks::{
     check_chain_id_mempool,
     get_total_transaction_cost,
 };
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 // Conditional to quiet warnings. This object is used throughout the codebase,
 // but is never explicitly named - hence Rust warns about it being unused.
 #[cfg(test)]
@@ -156,15 +159,88 @@ impl ActionHandler for Transaction {
         Ok(())
     }
 
-    // FIXME (https://github.com/astriaorg/astria/issues/1584): because most lines come from delegating (and error wrapping) to the
-    // individual actions. This could be tidied up by implementing `ActionHandler for Action`
-    // and letting it delegate.
-    #[expect(clippy::too_many_lines, reason = "should be refactored")]
+    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
+        ensure!(!self.actions().is_empty(), "must have at least one action");
+
+        for action in self.actions() {
+            match action {
+                Action::Transfer(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for TransferAction")?,
+                Action::RollupDataSubmission(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for SequenceAction")?,
+                Action::ValidatorUpdate(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for ValidatorUpdateAction")?,
+                Action::SudoAddressChange(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for SudoAddressChangeAction")?,
+                Action::IbcSudoChange(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for IbcSudoChangeAction")?,
+                Action::FeeChange(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for FeeChangeAction")?,
+                Action::Ibc(_) => {
+                    // FIXME: this check should be moved. What's the correct
+                    // ibc AppHandler call to do it? Can we just update one of the trait methods
+                    // of crate::ibc::ics20_transfer::Ics20Transfer?
+                    ensure!(
+                        state
+                            .is_ibc_relayer(self)
+                            .await
+                            .wrap_err("failed to check if address is IBC relayer")?,
+                        "only IBC sudo address can execute IBC actions"
+                    );
+                }
+                Action::Ics20Withdrawal(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for Ics20WithdrawalAction")?,
+                Action::IbcRelayerChange(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for IbcRelayerChangeAction")?,
+                Action::FeeAssetChange(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for FeeAssetChangeAction")?,
+                Action::InitBridgeAccount(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for InitBridgeAccountAction")?,
+                Action::BridgeLock(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for BridgeLockAction")?,
+                Action::BridgeUnlock(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for BridgeUnlockAction")?,
+                Action::BridgeSudoChange(act) => act
+                    .check_authorization(state)
+                    .await
+                    .wrap_err("authorization check failed for BridgeSudoChangeAction")?,
+            }
+        }
+        Ok(())
+    }
+
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         // Add the current signed transaction into the ephemeral state in case
         // downstream actions require access to it.
         // XXX: This must be deleted at the end of `check_stateful`.
         let mut transaction_context = state.put_transaction_context(self);
+
+        // check authorization
+        self.check_authorization(&state).await?;
 
         // Transactions must match the chain id of the node.
         let chain_id = state.get_chain_id().await?;
@@ -236,17 +312,6 @@ impl ActionHandler for Transaction {
                     .await
                     .wrap_err("executing fee change failed")?,
                 Action::Ibc(act) => {
-                    // FIXME: this check should be moved to check_and_execute, as it now has
-                    // access to the the signer through state. However, what's the correct
-                    // ibc AppHandler call to do it? Can we just update one of the trait methods
-                    // of crate::ibc::ics20_transfer::Ics20Transfer?
-                    ensure!(
-                        state
-                            .is_ibc_relayer(self)
-                            .await
-                            .wrap_err("failed to check if address is IBC relayer")?,
-                        "only IBC sudo address can execute IBC actions"
-                    );
                     let action = act
                         .clone()
                         .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();

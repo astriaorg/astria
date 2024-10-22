@@ -9,7 +9,10 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 
 use crate::{
     address::StateReadExt as _,
@@ -28,18 +31,22 @@ impl ActionHandler for ValidatorUpdate {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
         let from = state
             .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
+
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
             .await
             .wrap_err("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
+        Ok(())
+    }
 
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         // ensure that we're not removing the last validator or a validator
         // that doesn't exist, these both cause issues in cometBFT
         if self.power == 0 {
@@ -77,23 +84,29 @@ impl ActionHandler for SudoAddressChange {
         Ok(())
     }
 
-    /// check that the signer of the transaction is the current sudo address,
-    /// as only that address can change the sudo address
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+    /// ensure that the signer is the current sudo address
+    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
         let from = state
             .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
-        state
-            .ensure_base_prefix(&self.new_address)
-            .await
-            .wrap_err("desired new sudo address has an unsupported prefix")?;
+
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
             .await
             .wrap_err("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
+        Ok(())
+    }
+
+    /// ensure that the new sudo address has a supported prefix and update the
+    /// sudo address
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        state
+            .ensure_base_prefix(&self.new_address)
+            .await
+            .wrap_err("desired new sudo address has an unsupported prefix")?;
         state
             .put_sudo_address(self.new_address)
             .wrap_err("failed to put sudo address in state")?;
@@ -107,21 +120,27 @@ impl ActionHandler for IbcSudoChange {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+    /// ensure that the signer is the current sudo address
+    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
         let from = state
             .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
-        state
-            .ensure_base_prefix(&self.new_address)
-            .await
-            .wrap_err("desired new ibc sudo address has an unsupported prefix")?;
+
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
             .await
             .wrap_err("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
+        Ok(())
+    }
+
+    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        state
+            .ensure_base_prefix(&self.new_address)
+            .await
+            .wrap_err("desired new ibc sudo address has an unsupported prefix")?;
         state
             .put_ibc_sudo_address(self.new_address)
             .wrap_err("failed to put ibc sudo address in state")?;
