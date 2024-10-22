@@ -28,6 +28,7 @@ pub struct SequencerBlockCommit {
 }
 
 impl SequencerBlockCommit {
+    #[must_use]
     pub fn new(height: u64, block_hash: [u8; 32]) -> Self {
         Self {
             height,
@@ -35,10 +36,12 @@ impl SequencerBlockCommit {
         }
     }
 
+    #[must_use]
     pub fn height(&self) -> u64 {
         self.height
     }
 
+    #[must_use]
     pub fn block_hash(&self) -> &[u8; 32] {
         &self.block_hash
     }
@@ -66,7 +69,7 @@ impl Protobuf for SequencerBlockCommit {
             .map_err(|_| SequencerBlockCommitError::invalid_block_hash(block_hash.len()))?;
 
         Ok(SequencerBlockCommit {
-            height: height.clone(),
+            height: *height,
             block_hash,
         })
     }
@@ -78,7 +81,7 @@ impl Protobuf for SequencerBlockCommit {
         } = self;
 
         raw::SequencerBlockCommit {
-            height: height.clone(),
+            height: *height,
             block_hash: Bytes::copy_from_slice(block_hash),
         }
     }
