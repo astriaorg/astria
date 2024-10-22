@@ -72,7 +72,8 @@ pub(super) struct Command {
     /// rollup's bridge configuration for that asset.
     #[arg(long)]
     bridge_address: Address,
-    /// Use compat addresses for `Ics20Withdrawal`s.
+    /// Use Astria compat addresses when withdrawing assets to chains that require bech32 addresses
+    /// (like for noble USDC).
     #[arg(long)]
     use_compat_address: bool,
     /// The path to write the collected withdrawal events converted
