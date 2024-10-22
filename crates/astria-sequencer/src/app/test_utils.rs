@@ -182,62 +182,62 @@ pub(crate) fn default_genesis_accounts() -> Vec<Account> {
 #[cfg_attr(feature = "benchmark", allow(dead_code))]
 pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees {
     astria_core::protocol::genesis::v1::GenesisFees {
-        transfer: Some(TransferFeeComponents {
+        transfer: TransferFeeComponents {
             base: 12,
             multiplier: 0,
-        }),
-        rollup_data_submission: Some(RollupDataSubmissionFeeComponents {
+        },
+        rollup_data_submission: RollupDataSubmissionFeeComponents {
             base: 32,
             multiplier: 1,
-        }),
-        init_bridge_account: Some(InitBridgeAccountFeeComponents {
+        },
+        init_bridge_account: InitBridgeAccountFeeComponents {
             base: 48,
             multiplier: 0,
-        }),
-        bridge_lock: Some(BridgeLockFeeComponents {
+        },
+        bridge_lock: BridgeLockFeeComponents {
             base: 12, // should reflect transfer fee
             multiplier: 1,
-        }),
-        bridge_sudo_change: Some(BridgeSudoChangeFeeComponents {
+        },
+        bridge_sudo_change: BridgeSudoChangeFeeComponents {
             base: 24,
             multiplier: 0,
-        }),
-        ics20_withdrawal: Some(Ics20WithdrawalFeeComponents {
+        },
+        ics20_withdrawal: Ics20WithdrawalFeeComponents {
             base: 24,
             multiplier: 0,
-        }),
-        bridge_unlock: Some(BridgeUnlockFeeComponents {
+        },
+        bridge_unlock: BridgeUnlockFeeComponents {
             base: 12, // should reflect transfer fee
             multiplier: 0,
-        }),
-        ibc_relay: Some(IbcRelayFeeComponents {
+        },
+        ibc_relay: IbcRelayFeeComponents {
             base: 0,
             multiplier: 0,
-        }),
-        validator_update: Some(ValidatorUpdateFeeComponents {
+        },
+        validator_update: ValidatorUpdateFeeComponents {
             base: 0,
             multiplier: 0,
-        }),
-        fee_asset_change: Some(FeeAssetChangeFeeComponents {
+        },
+        fee_asset_change: FeeAssetChangeFeeComponents {
             base: 0,
             multiplier: 0,
-        }),
+        },
         fee_change: FeeChangeFeeComponents {
             base: 0,
             multiplier: 0,
         },
-        ibc_relayer_change: Some(IbcRelayerChangeFeeComponents {
+        ibc_relayer_change: IbcRelayerChangeFeeComponents {
             base: 0,
             multiplier: 0,
-        }),
-        sudo_address_change: Some(SudoAddressChangeFeeComponents {
+        },
+        sudo_address_change: SudoAddressChangeFeeComponents {
             base: 0,
             multiplier: 0,
-        }),
-        ibc_sudo_change: Some(IbcSudoChangeFeeComponents {
+        },
+        ibc_sudo_change: IbcSudoChangeFeeComponents {
             base: 0,
             multiplier: 0,
-        }),
+        },
     }
 }
 
