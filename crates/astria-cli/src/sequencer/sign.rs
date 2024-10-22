@@ -53,7 +53,7 @@ impl Command {
         serde_json::to_writer(
             stdout_or_file(self.output.as_ref(), self.force)
                 .wrap_err("failed to determine output target")?,
-            &transaction,
+            &transaction.to_raw(),
         )
         .wrap_err("failed to write signed transaction")?;
         Ok(())

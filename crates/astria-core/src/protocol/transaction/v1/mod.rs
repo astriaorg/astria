@@ -74,11 +74,6 @@ enum TransactionErrorKind {
 /// [`Transaction`] contains an [`Body`] together
 /// with its signature and public key.
 #[derive(Clone, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(try_from = "raw::Transaction", into = "raw::Transaction")
-)]
 pub struct Transaction {
     signature: Signature,
     verification_key: VerificationKey,

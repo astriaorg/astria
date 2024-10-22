@@ -62,5 +62,10 @@ enum SubCommand {
     /// Submit the signed pbjson formatted Transaction.
     Submit(submit::Command),
     /// Sign a pbjson formatted TransactionBody to produce a Transaction.
+    #[expect(
+        clippy::doc_markdown,
+        reason = "doc comments are turned into CLI help strings which currently don't use \
+                  backticks"
+    )]
     Sign(sign::Command),
 }
