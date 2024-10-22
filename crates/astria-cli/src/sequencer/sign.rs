@@ -22,12 +22,12 @@ use crate::utils::signing_key_from_private_key;
 pub(super) struct Command {
     /// The private key of account being sent from
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
-    // // TODO: https://github.com/astriaorg/astria/issues/594
-    // // Don't use a plain text private, prefer wrapper like from
-    // // the secrecy crate with specialized `Debug` and `Drop` implementations
-    // // that overwrite the key on drop and don't reveal it when printing.
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
     private_key: String,
-    /// Target to to write the signed transaction in pbjson format (omit to write to STDOUT).
+    /// Target to write the signed transaction in pbjson format (omit to write to STDOUT).
     #[arg(long, short)]
     output: Option<PathBuf>,
     /// Forces an overwrite of `--output` if a file at that location exists.
