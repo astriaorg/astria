@@ -217,13 +217,8 @@ fn start_grpc_server(
     let sequencer_api = SequencerServer::new(storage.clone(), mempool);
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
-    let optimistic_block_service_server = if let Some(obc) = optimistic_block_channels {
-        Some(OptimisticBlockServiceServer::new(
-            OptimisticBlockServer::new(obc),
-        ))
-    } else {
-        None
-    };
+    let optimistic_block_service_server = optimistic_block_channels
+        .map(|obc| OptimisticBlockServiceServer::new(OptimisticBlockServer::new(obc)));
 
     // TODO: setup HTTPS?
     let grpc_server = tonic::transport::Server::builder()

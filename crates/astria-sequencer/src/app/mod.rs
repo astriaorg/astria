@@ -263,6 +263,11 @@ pub(crate) struct App {
     )]
     app_hash: AppHash,
 
+    // contains the channels to send the optimistically executed block
+    // whenever `process_proposal` is run and the information of the committed
+    // block whenever `finalize_block` is run.
+    // it is set to `None` when optimistic block execution is disabled as per the
+    // `no_optimistic_block` config.
     optimistic_block_channels: Option<OptimisticBlockChannels>,
 
     metrics: &'static Metrics,
