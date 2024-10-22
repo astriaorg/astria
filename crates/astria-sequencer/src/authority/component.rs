@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::action::ValidatorUpdate,
+    protocol::transaction::v1::action::ValidatorUpdate,
 };
 use astria_eyre::eyre::{
     OptionExt as _,

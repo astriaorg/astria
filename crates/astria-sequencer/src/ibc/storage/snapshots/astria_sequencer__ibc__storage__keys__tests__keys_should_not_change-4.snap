@@ -1,6 +1,0 @@
----
-source: crates/astria-sequencer/src/ibc/storage/keys.rs
-assertion_line: 63
-expression: ibc_relayer(&address())
----
-ibc/relayer/HAxJDxtVKNgXPF3kbRMRYOSywMM=

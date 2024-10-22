@@ -34,24 +34,24 @@ use std::{
 };
 
 use astria_core::protocol::{
-    asset::v1alpha1::AllowedFeeAssetsResponse,
-    bridge::v1alpha1::{
+    asset::v1::AllowedFeeAssetsResponse,
+    bridge::v1::{
         BridgeAccountInfoResponse,
         BridgeAccountLastTxHashResponse,
     },
-    fees::v1alpha1::TransactionFeeResponse,
-    transaction::v1alpha1::TransactionBody,
+    fees::v1::TransactionFeeResponse,
+    transaction::v1::TransactionBody,
 };
 pub use astria_core::{
     primitive::v1::Address,
     protocol::{
-        account::v1alpha1::{
+        account::v1::{
             BalanceResponse,
             NonceResponse,
         },
-        transaction::v1alpha1::Transaction,
+        transaction::v1::Transaction,
     },
-    sequencerblock::v1alpha1::{
+    sequencerblock::v1::{
         block::SequencerBlockError,
         SequencerBlock,
     },
@@ -447,7 +447,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::accounts::v1alpha1::BalanceResponse::decode(
+            astria_core::generated::protocol::accounts::v1::BalanceResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
@@ -478,7 +478,7 @@ pub trait SequencerClientExt: Client {
     ///
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be deserialized as an
-    ///  `astria.protocol.asset.v1alpha1.AllowedFeeAssetsResponse`.
+    ///  `astria.protocol.asset.v1.AllowedFeeAssetsResponse`.
     /// - If the raw response cannot be converted to the native type.
     async fn get_allowed_fee_assets(&self) -> Result<AllowedFeeAssetsResponse, Error> {
         let path = "asset/allowed_fee_assets".to_string();
@@ -489,12 +489,12 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::asset::v1alpha1::AllowedFeeAssetsResponse::decode(
+            astria_core::generated::protocol::asset::v1::AllowedFeeAssetsResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
                 Error::abci_query_deserialization(
-                    "astria.protocol.asset.v1alpha1.AllowedFeeAssetsResponse",
+                    "astria.protocol.asset.v1.AllowedFeeAssetsResponse",
                     response,
                     e,
                 )
@@ -529,12 +529,14 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::accounts::v1alpha1::NonceResponse::decode(
-                &*response.value,
-            )
-            .map_err(|e| {
-                Error::abci_query_deserialization("astria.sequencer.v1.NonceResponse", response, e)
-            })?;
+            astria_core::generated::protocol::accounts::v1::NonceResponse::decode(&*response.value)
+                .map_err(|e| {
+                    Error::abci_query_deserialization(
+                        "astria.sequencer.v1.NonceResponse",
+                        response,
+                        e,
+                    )
+                })?;
         Ok(proto_response.to_native())
     }
 
@@ -562,19 +564,19 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::bridge::v1alpha1::BridgeAccountInfoResponse::decode(
+            astria_core::generated::protocol::bridge::v1::BridgeAccountInfoResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
                 Error::abci_query_deserialization(
-                    "astria.protocol.bridge.v1alpha1.BridgeAccountInfoResponse",
+                    "astria.protocol.bridge.v1.BridgeAccountInfoResponse",
                     response,
                     e,
                 )
             })?;
         let native = BridgeAccountInfoResponse::try_from_raw(proto_response).map_err(|e| {
             Error::native_conversion(
-                "astria.protocol.bridge.v1alpha1.BridgeAccountInfoResponse",
+                "astria.protocol.bridge.v1.BridgeAccountInfoResponse",
                 Arc::new(e),
             )
         })?;
@@ -594,19 +596,19 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::bridge::v1alpha1::BridgeAccountLastTxHashResponse::decode(
+            astria_core::generated::protocol::bridge::v1::BridgeAccountLastTxHashResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
                 Error::abci_query_deserialization(
-                    "astria.protocol.bridge.v1alpha1.BridgeAccountLastTxHashResponse",
+                    "astria.protocol.bridge.v1.BridgeAccountLastTxHashResponse",
                     response,
                     e,
                 )
             })?;
         let native = proto_response.try_into_native().map_err(|e| {
             Error::native_conversion(
-                "astria.protocol.bridge.v1alpha1.BridgeAccountLastTxHashResponse",
+                "astria.protocol.bridge.v1.BridgeAccountLastTxHashResponse",
                 Arc::new(e),
             )
         })?;
@@ -626,19 +628,19 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::fees::v1alpha1::TransactionFeeResponse::decode(
+            astria_core::generated::protocol::fees::v1::TransactionFeeResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
                 Error::abci_query_deserialization(
-                    "astria.protocol.transaction.v1alpha1.TransactionFeeResponse",
+                    "astria.protocol.transaction.v1.TransactionFeeResponse",
                     response,
                     e,
                 )
             })?;
         let native = TransactionFeeResponse::try_from_raw(proto_response).map_err(|e| {
             Error::native_conversion(
-                "astria.protocol.transaction.v1alpha1.TransactionFeeResponse",
+                "astria.protocol.transaction.v1.TransactionFeeResponse",
                 Arc::new(e),
             )
         })?;

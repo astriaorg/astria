@@ -5,7 +5,7 @@ use astria_core::{
     },
     protocol::{
         abci::AbciErrorCode,
-        account::v1alpha1::AssetBalance,
+        account::v1::AssetBalance,
     },
 };
 use astria_eyre::eyre::{
@@ -77,18 +77,20 @@ async fn get_trace_prefixed_account_balances<S: StateRead>(
     stream.try_collect::<Vec<_>>().await
 }
 
+/// Returns a list of [`AssetBalance`]s for the provided address. `AssetBalance`s are sorted
+/// alphabetically by [`asset::Denom`].
 pub(crate) async fn balance_request(
     storage: Storage,
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::account::v1alpha1::BalanceResponse;
+    use astria_core::protocol::account::v1::BalanceResponse;
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,
     };
 
-    let balances = match get_trace_prefixed_account_balances(&snapshot, &address).await {
+    let mut balances = match get_trace_prefixed_account_balances(&snapshot, &address).await {
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
@@ -100,6 +102,9 @@ pub(crate) async fn balance_request(
             };
         }
     };
+
+    balances.sort_unstable_by(|a, b| a.denom.cmp(&b.denom));
+
     let payload = BalanceResponse {
         height: height.value(),
         balances,
@@ -121,7 +126,7 @@ pub(crate) async fn nonce_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::account::v1alpha1::NonceResponse;
+    use astria_core::protocol::account::v1::NonceResponse;
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,

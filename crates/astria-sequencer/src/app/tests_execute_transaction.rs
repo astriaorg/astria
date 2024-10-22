@@ -7,18 +7,18 @@ use astria_core::{
         RollupId,
     },
     protocol::{
-        fees::v1alpha1::{
+        fees::v1::{
             InitBridgeAccountFeeComponents,
-            SequenceFeeComponents,
+            RollupDataSubmissionFeeComponents,
         },
-        genesis::v1alpha1::GenesisAppState,
-        transaction::v1alpha1::{
+        genesis::v1::GenesisAppState,
+        transaction::v1::{
             action::{
                 BridgeLock,
                 BridgeUnlock,
                 IbcRelayerChange,
                 IbcSudoChange,
-                Sequence,
+                RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
                 ValidatorUpdate,
@@ -27,7 +27,7 @@ use astria_core::{
             TransactionBody,
         },
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1::block::Deposit,
     Protobuf as _,
 };
 use bytes::Bytes;
@@ -61,7 +61,7 @@ use crate::{
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
-        calculate_sequence_action_fee_from_state,
+        calculate_rollup_data_submission_fee_from_state,
         nria,
         ASTRIA_PREFIX,
     },
@@ -72,8 +72,8 @@ use crate::{
     utils::create_deposit_event,
 };
 
-fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
-    astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState {
+    astria_core::generated::protocol::genesis::v1::GenesisAppState {
         authority_sudo_address: Some(
             get_alice_signing_key()
                 .try_address(ASTRIA_PREFIX)
@@ -260,7 +260,7 @@ async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_sequence_fees(SequenceFeeComponents {
+        .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
             base: 0,
             multiplier: 1,
         })
@@ -270,11 +270,11 @@ async fn app_execute_transaction_sequence() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_sequence_action_fee_from_state(&data, &app.state).await;
+    let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state).await;
 
     let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -310,7 +310,7 @@ async fn app_execute_transaction_invalid_fee_asset() {
 
     let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: test_asset(),
@@ -502,7 +502,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_addition() {
-    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
+    use astria_core::protocol::transaction::v1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -529,7 +529,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_removal() {
-    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
+    use astria_core::protocol::transaction::v1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -563,7 +563,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
 
 #[tokio::test]
 async fn app_execute_transaction_fee_asset_change_invalid() {
-    use astria_core::protocol::transaction::v1alpha1::action::FeeAssetChange;
+    use astria_core::protocol::transaction::v1::action::FeeAssetChange;
 
     let alice = get_alice_signing_key();
 
@@ -589,7 +589,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
 
 #[tokio::test]
 async fn app_execute_transaction_init_bridge_account_ok() {
-    use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccount;
+    use astria_core::protocol::transaction::v1::action::InitBridgeAccount;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -658,7 +658,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
 
 #[tokio::test]
 async fn app_execute_transaction_init_bridge_account_account_already_registered() {
-    use astria_core::protocol::transaction::v1alpha1::action::InitBridgeAccount;
+    use astria_core::protocol::transaction::v1::action::InitBridgeAccount;
 
     let alice = get_alice_signing_key();
     let mut app = initialize_app(None, vec![]).await;
@@ -770,7 +770,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
 
 #[tokio::test]
 async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
-    use astria_core::protocol::transaction::v1alpha1::action::BridgeLock;
+    use astria_core::protocol::transaction::v1::action::BridgeLock;
 
     let alice = get_alice_signing_key();
     let mut app = initialize_app(None, vec![]).await;
@@ -808,7 +808,7 @@ async fn app_execute_transaction_invalid_nonce() {
 
     let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -857,7 +857,7 @@ async fn app_execute_transaction_invalid_chain_id() {
     let data = Bytes::from_static(b"hello world");
     let tx = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),
@@ -907,7 +907,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // figure out needed fee for a single transfer
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_sequence_action_fee_from_state(&data, &app.state.clone()).await;
+    let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state.clone()).await;
 
     // transfer just enough to cover single sequence fee with data
     let signed_tx = TransactionBody::builder()
@@ -929,13 +929,13 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     // build double transfer exceeding balance
     let signed_tx_fail = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: data.clone(),
                 fee_asset: nria().into(),
             }
             .into(),
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data: data.clone(),
                 fee_asset: nria().into(),
@@ -958,7 +958,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
     // build single transfer to see passes
     let signed_tx_pass = TransactionBody::builder()
         .actions(vec![
-            Sequence {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                 data,
                 fee_asset: nria().into(),

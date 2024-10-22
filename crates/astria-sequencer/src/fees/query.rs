@@ -1,6 +1,6 @@
 use astria_core::protocol::{
     abci::AbciErrorCode,
-    asset::v1alpha1::AllowedFeeAssetsResponse,
+    asset::v1::AllowedFeeAssetsResponse,
 };
 use cnidarium::Storage;
 use prost::Message as _;

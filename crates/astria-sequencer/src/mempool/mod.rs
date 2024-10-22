@@ -15,7 +15,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::asset::IbcPrefixed,
-    protocol::transaction::v1alpha1::Transaction,
+    protocol::transaction::v1::Transaction,
 };
 use astria_eyre::eyre::Result;
 pub(crate) use mempool_state::get_account_balances;

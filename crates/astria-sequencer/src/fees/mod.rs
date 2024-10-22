@@ -5,7 +5,7 @@ use astria_core::{
     },
     protocol::transaction::{
         self,
-        v1alpha1::action::{
+        v1::action::{
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
@@ -14,7 +14,7 @@ use astria_core::{
             IbcRelayerChange,
             IbcSudoChange,
             InitBridgeAccount,
-            Sequence,
+            RollupDataSubmission,
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
@@ -195,7 +195,7 @@ impl FeeHandler for InitBridgeAccount {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for transaction::v1alpha1::action::Ics20Withdrawal {
+impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
@@ -212,11 +212,11 @@ impl FeeHandler for transaction::v1alpha1::action::Ics20Withdrawal {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for Sequence {
+impl FeeHandler for RollupDataSubmission {
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
-            .get_sequence_fees()
+            .get_rollup_data_submission_fees()
             .await
             .wrap_err("sequence fees not found, so this action is disabled")?;
         check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await

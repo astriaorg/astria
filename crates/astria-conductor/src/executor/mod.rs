@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    execution::v1alpha2::{
+    execution::v1::{
         Block,
         CommitmentState,
     },
     primitive::v1::RollupId,
-    sequencerblock::v1alpha1::block::{
+    sequencerblock::v1::block::{
         FilteredSequencerBlock,
         FilteredSequencerBlockParts,
     },
