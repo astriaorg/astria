@@ -89,7 +89,7 @@ impl OptimisticBlockService for OptimisticBlockServer {
                     };
 
                     match tx
-                        .send(Result::<_, Status>::Ok(
+                        .send(Ok(
                             get_optimistic_block_stream_response,
                         ))
                         .await
@@ -137,7 +137,7 @@ impl OptimisticBlockService for OptimisticBlockServer {
                     };
 
                     match tx
-                        .send(Result::<_, Status>::Ok(
+                        .send(Ok(
                             get_block_commitment_stream_response,
                         ))
                         .await
