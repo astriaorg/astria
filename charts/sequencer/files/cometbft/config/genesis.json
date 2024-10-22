@@ -26,7 +26,7 @@
       "rollup_data_submission": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.rollupDataSubmission.base }},
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.rollupDataSubmission.multiplier }}
-      },
+      }
     },
     "allowed_fee_assets": [
       {{- range $index, $value := .Values.genesis.allowedFeeAssets }}
