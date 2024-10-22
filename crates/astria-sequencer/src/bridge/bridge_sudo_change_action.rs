@@ -11,13 +11,13 @@ use cnidarium::{
 };
 
 use crate::{
+    accounts::AddressBytes,
     address::StateReadExt as _,
     app::ActionHandler,
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
 };
 #[async_trait::async_trait]
 impl ActionHandler for BridgeSudoChange {
@@ -25,12 +25,11 @@ impl ActionHandler for BridgeSudoChange {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        state: &S,
+        from: &T,
+    ) -> Result<()> {
         // check that the sender of this tx is the authorized sudo address for the bridge account
         let Some(sudo_address) = state
             .get_bridge_account_sudo_address(&self.bridge_address)
@@ -43,7 +42,7 @@ impl ActionHandler for BridgeSudoChange {
         };
 
         ensure!(
-            sudo_address == from,
+            sudo_address == *from.address_bytes(),
             "unauthorized for bridge sudo change action"
         );
         Ok(())
@@ -144,7 +143,7 @@ mod tests {
 
         assert!(
             action
-                .check_authorization(&state)
+                .check_authorization(&state, &sudo_address)
                 .await
                 .unwrap_err()
                 .to_string()

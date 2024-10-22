@@ -13,6 +13,7 @@ use cnidarium::{
 };
 
 use crate::{
+    accounts::AddressBytes,
     address::StateReadExt as _,
     app::ActionHandler,
     bridge::state_ext::{
@@ -28,7 +29,11 @@ impl ActionHandler for InitBridgeAccount {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, _state: &S) -> Result<()> {
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        _state: &S,
+        _from: &T,
+    ) -> Result<()> {
         Ok(())
     }
 

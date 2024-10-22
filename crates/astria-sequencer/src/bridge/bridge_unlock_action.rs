@@ -14,9 +14,12 @@ use cnidarium::{
 };
 
 use crate::{
-    accounts::action::{
-        check_transfer,
-        execute_transfer,
+    accounts::{
+        action::{
+            check_transfer,
+            execute_transfer,
+        },
+        AddressBytes,
     },
     address::StateReadExt as _,
     app::ActionHandler,
@@ -24,7 +27,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
@@ -48,12 +50,11 @@ impl ActionHandler for BridgeUnlock {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        state: &S,
+        from: &T,
+    ) -> Result<()> {
         // check that the sender of this tx is the authorized withdrawer for the bridge account
         let Some(withdrawer_address) = state
             .get_bridge_account_withdrawer_address(&self.bridge_address)
@@ -64,7 +65,7 @@ impl ActionHandler for BridgeUnlock {
         };
 
         ensure!(
-            withdrawer_address == from,
+            withdrawer_address == *from.address_bytes(),
             "unauthorized to unlock bridge account",
         );
         Ok(())
@@ -149,11 +150,6 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
@@ -177,7 +173,10 @@ mod tests {
 
         // invalid sender, doesn't match action's `from`, should fail
         assert_eyre_error(
-            &bridge_unlock.check_authorization(&state).await.unwrap_err(),
+            &bridge_unlock
+                .check_authorization(&state, &[1; 20])
+                .await
+                .unwrap_err(),
             "bridge account does not have an associated withdrawer address",
         );
     }
@@ -220,7 +219,10 @@ mod tests {
 
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
         assert_eyre_error(
-            &bridge_unlock.check_authorization(&state).await.unwrap_err(),
+            &bridge_unlock
+                .check_authorization(&state, &withdrawer_address)
+                .await
+                .unwrap_err(),
             "unauthorized to unlock bridge account",
         );
     }

@@ -8,7 +8,10 @@ use cnidarium::{
     StateWrite,
 };
 
-use crate::app::ActionHandler;
+use crate::{
+    accounts::AddressBytes,
+    app::ActionHandler,
+};
 
 #[async_trait::async_trait]
 impl ActionHandler for RollupDataSubmission {
@@ -22,7 +25,11 @@ impl ActionHandler for RollupDataSubmission {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, _state: &S) -> Result<()> {
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        _state: &S,
+        _from: &T,
+    ) -> Result<()> {
         Ok(())
     }
 

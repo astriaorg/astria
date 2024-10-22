@@ -17,9 +17,12 @@ use cnidarium::{
 };
 
 use crate::{
-    accounts::action::{
-        check_transfer,
-        execute_transfer,
+    accounts::{
+        action::{
+            check_transfer,
+            execute_transfer,
+        },
+        AddressBytes,
     },
     address::StateReadExt as _,
     app::ActionHandler,
@@ -37,7 +40,11 @@ impl ActionHandler for BridgeLock {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, _state: &S) -> Result<()> {
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        _state: &S,
+        _from: &T,
+    ) -> Result<()> {
         Ok(())
     }
 

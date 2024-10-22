@@ -27,7 +27,11 @@ impl ActionHandler for Transfer {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, _state: &S) -> Result<()> {
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        _state: &S,
+        _from: &T,
+    ) -> Result<()> {
         Ok(())
     }
 

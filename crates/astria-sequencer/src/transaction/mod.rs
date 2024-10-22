@@ -37,6 +37,7 @@ pub(crate) use state_ext::{
 
 use crate::{
     accounts::{
+        AddressBytes,
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -159,33 +160,41 @@ impl ActionHandler for Transaction {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        state: &S,
+        from: &T,
+    ) -> Result<()> {
         ensure!(!self.actions().is_empty(), "must have at least one action");
+        ensure!(
+            from.address_bytes() == self.address_bytes(),
+            "from address does not match transaction signer"
+        );
 
         for action in self.actions() {
             match action {
                 Action::Transfer(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for TransferAction")?,
                 Action::RollupDataSubmission(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for SequenceAction")?,
                 Action::ValidatorUpdate(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for ValidatorUpdateAction")?,
                 Action::SudoAddressChange(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for SudoAddressChangeAction")?,
                 Action::IbcSudoChange(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for IbcSudoChangeAction")?,
                 Action::FeeChange(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for FeeChangeAction")?,
                 Action::Ibc(_) => {
@@ -201,31 +210,31 @@ impl ActionHandler for Transaction {
                     );
                 }
                 Action::Ics20Withdrawal(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for Ics20WithdrawalAction")?,
                 Action::IbcRelayerChange(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for IbcRelayerChangeAction")?,
                 Action::FeeAssetChange(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for FeeAssetChangeAction")?,
                 Action::InitBridgeAccount(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for InitBridgeAccountAction")?,
                 Action::BridgeLock(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for BridgeLockAction")?,
                 Action::BridgeUnlock(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for BridgeUnlockAction")?,
                 Action::BridgeSudoChange(act) => act
-                    .check_authorization(state)
+                    .check_authorization(state, from)
                     .await
                     .wrap_err("authorization check failed for BridgeSudoChangeAction")?,
             }
@@ -240,7 +249,8 @@ impl ActionHandler for Transaction {
         let mut transaction_context = state.put_transaction_context(self);
 
         // check authorization
-        self.check_authorization(&state).await?;
+        self.check_authorization(&state, self.address_bytes())
+            .await?;
 
         // Transactions must match the chain id of the node.
         let chain_id = state.get_chain_id().await?;

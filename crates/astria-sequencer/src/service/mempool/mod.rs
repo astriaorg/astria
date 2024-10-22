@@ -379,7 +379,10 @@ async fn transaction_checks<S: StateRead>(
         finished_check_chain_id.saturating_duration_since(finished_check_stateless),
     );
 
-    if let Err(e) = signed_tx.check_authorization(state).await {
+    if let Err(e) = signed_tx
+        .check_authorization(state, signed_tx.address_bytes())
+        .await
+    {
         return Err(error_response(
             AbciErrorCode::INVALID_AUTHORIZATION,
             format!("failed authorization check: {e:#}"),

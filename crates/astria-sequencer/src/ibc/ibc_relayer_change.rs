@@ -11,13 +11,13 @@ use cnidarium::{
 };
 
 use crate::{
+    accounts::AddressBytes,
     address::StateReadExt as _,
     app::ActionHandler,
     ibc::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
 };
 
 #[async_trait]
@@ -26,17 +26,17 @@ impl ActionHandler for IbcRelayerChange {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        state: &S,
+        from: &T,
+    ) -> Result<()> {
         let ibc_sudo_address = state
             .get_ibc_sudo_address()
             .await
             .wrap_err("failed to get IBC sudo address")?;
         ensure!(
-            ibc_sudo_address == from,
+            ibc_sudo_address == *from.address_bytes(),
             "unauthorized address for IBC relayer change"
         );
         Ok(())

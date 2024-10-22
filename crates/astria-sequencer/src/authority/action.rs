@@ -15,6 +15,7 @@ use cnidarium::{
 };
 
 use crate::{
+    accounts::AddressBytes,
     address::StateReadExt as _,
     app::ActionHandler,
     authority::{
@@ -22,7 +23,6 @@ use crate::{
         StateWriteExt as _,
     },
     ibc::StateWriteExt as _,
-    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
@@ -31,18 +31,20 @@ impl ActionHandler for ValidatorUpdate {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        state: &S,
+        from: &T,
+    ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
             .await
             .wrap_err("failed to get sudo address from state")?;
-        ensure!(sudo_address == from, "signer is not the sudo key");
+        ensure!(
+            sudo_address == *from.address_bytes(),
+            "signer is not the sudo key"
+        );
         Ok(())
     }
 
@@ -85,18 +87,20 @@ impl ActionHandler for SudoAddressChange {
     }
 
     /// ensure that the signer is the current sudo address
-    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        state: &S,
+        from: &T,
+    ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
             .await
             .wrap_err("failed to get sudo address from state")?;
-        ensure!(sudo_address == from, "signer is not the sudo key");
+        ensure!(
+            sudo_address == *from.address_bytes(),
+            "signer is not the sudo key"
+        );
         Ok(())
     }
 
@@ -121,18 +125,20 @@ impl ActionHandler for IbcSudoChange {
     }
 
     /// ensure that the signer is the current sudo address
-    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        state: &S,
+        from: &T,
+    ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
             .await
             .wrap_err("failed to get sudo address from state")?;
-        ensure!(sudo_address == from, "signer is not the sudo key");
+        ensure!(
+            sudo_address == *from.address_bytes(),
+            "signer is not the sudo key"
+        );
         Ok(())
     }
 

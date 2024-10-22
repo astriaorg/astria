@@ -37,7 +37,7 @@ use penumbra_proto::core::component::ibc::v1::FungibleTokenPacketData;
 
 use crate::{
     accounts::{
-        AddressBytes as _,
+        AddressBytes,
         StateWriteExt as _,
     },
     address::StateReadExt as _,
@@ -179,7 +179,11 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, _state: &S) -> Result<()> {
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        _state: &S,
+        _from: &T,
+    ) -> Result<()> {
         Ok(())
     }
 

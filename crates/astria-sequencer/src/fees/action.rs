@@ -15,13 +15,13 @@ use cnidarium::{
 };
 
 use crate::{
+    accounts::AddressBytes,
     app::ActionHandler,
     authority::StateReadExt as _,
     fees::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
@@ -32,17 +32,20 @@ impl ActionHandler for FeeChange {
 
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the fee
-    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        state: &S,
+        from: &T,
+    ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
             .await
             .wrap_err("failed to get sudo address from state")?;
-        ensure!(sudo_address == from, "signer is not the sudo key");
+        ensure!(
+            sudo_address == *from.address_bytes(),
+            "signer is not the sudo key"
+        );
         Ok(())
     }
 
@@ -101,17 +104,17 @@ impl ActionHandler for FeeAssetChange {
         Ok(())
     }
 
-    async fn check_authorization<S: StateRead>(&self, state: &S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        state: &S,
+        from: &T,
+    ) -> Result<()> {
         let authority_sudo_address = state
             .get_sudo_address()
             .await
             .wrap_err("failed to get authority sudo address")?;
         ensure!(
-            authority_sudo_address == from,
+            authority_sudo_address == *from.address_bytes(),
             "unauthorized address for fee asset change"
         );
         Ok(())
