@@ -722,8 +722,8 @@ impl Protobuf for GenesisFees {
             ibc_sudo_change,
         } = self;
         Self::Raw {
-            rollup_data_submission: Some(rollup_data_submission.to_raw()),
             transfer: Some(transfer.to_raw()),
+            rollup_data_submission: Some(rollup_data_submission.to_raw()),
             ics20_withdrawal: Some(ics20_withdrawal.to_raw()),
             init_bridge_account: Some(init_bridge_account.to_raw()),
             bridge_lock: Some(bridge_lock.to_raw()),

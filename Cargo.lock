@@ -811,6 +811,7 @@ dependencies = [
  "ibc-types",
  "insta",
  "matchit",
+ "paste",
  "penumbra-ibc",
  "penumbra-proto",
  "penumbra-tower-trace",

@@ -80,6 +80,7 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 insta = { workspace = true, features = ["json"] }
+paste = "1.0.15"
 rand_chacha = "0.3.1"
 tokio = { workspace = true, features = ["test-util"] }
 
