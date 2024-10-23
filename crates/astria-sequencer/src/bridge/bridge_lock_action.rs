@@ -11,12 +11,18 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 
 use crate::{
-    accounts::action::{
-        check_transfer,
-        execute_transfer,
+    accounts::{
+        action::{
+            check_transfer,
+            execute_transfer,
+        },
+        AddressBytes,
     },
     address::StateReadExt as _,
     app::ActionHandler,
@@ -31,6 +37,14 @@ use crate::{
 #[async_trait::async_trait]
 impl ActionHandler for BridgeLock {
     async fn check_stateless(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        _state: &S,
+        _from: &T,
+    ) -> Result<()> {
         Ok(())
     }
 

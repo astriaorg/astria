@@ -1,4 +1,9 @@
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
+
+use crate::accounts::AddressBytes;
 
 /// This trait is a verbatim copy of `cnidarium_component::ActionHandler`.
 ///
@@ -20,6 +25,12 @@ pub(crate) trait ActionHandler {
     // ```
 
     async fn check_stateless(&self) -> astria_eyre::eyre::Result<()>;
+
+    async fn check_authorization<S: StateRead, T: AddressBytes>(
+        &self,
+        state: &S,
+        from: &T,
+    ) -> astria_eyre::eyre::Result<()>;
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S)
     -> astria_eyre::eyre::Result<()>;

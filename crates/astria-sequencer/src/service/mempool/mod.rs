@@ -243,8 +243,8 @@ async fn handle_check_tx<S: StateRead>(
         return response::CheckTx::default();
     }
 
-    // perform stateless checks
-    let signed_tx = match stateless_checks(tx, &state, metrics).await {
+    // perform transaction checks
+    let signed_tx = match transaction_checks(tx, &state, metrics).await {
         Ok(signed_tx) => signed_tx,
         Err(rsp) => return rsp,
     };
@@ -303,11 +303,11 @@ async fn check_removed_comet_bft(
     Ok(())
 }
 
-/// Performs stateless checks on the transaction.
+/// Performs stateless and some stateful checks on the transaction.
 ///
 /// Returns an `Err(response::CheckTx)` if the transaction fails any of the checks.
 /// Otherwise, it returns the [`Transaction`] to be inserted into the mempool.
-async fn stateless_checks<S: StateRead>(
+async fn transaction_checks<S: StateRead>(
     tx: Bytes,
     state: &S,
     metrics: &'static Metrics,
@@ -374,7 +374,22 @@ async fn stateless_checks<S: StateRead>(
         ));
     }
 
-    metrics.record_check_tx_duration_seconds_check_chain_id(finished_check_stateless.elapsed());
+    let finished_check_chain_id = Instant::now();
+    metrics.record_check_tx_duration_seconds_check_chain_id(
+        finished_check_chain_id.saturating_duration_since(finished_check_stateless),
+    );
+
+    if let Err(e) = signed_tx
+        .check_authorization(state, signed_tx.address_bytes())
+        .await
+    {
+        return Err(error_response(
+            AbciErrorCode::INVALID_AUTHORIZATION,
+            format!("failed authorization check: {e:#}"),
+        ));
+    }
+
+    metrics.record_check_tx_duration_seconds_check_authorization(finished_check_chain_id.elapsed());
 
     // NOTE: decide if worth moving to post-insertion, would have to recalculate cost
     metrics.record_transaction_in_mempool_size_bytes(tx_len);
