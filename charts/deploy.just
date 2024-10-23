@@ -106,6 +106,12 @@ deploy-hermes-local:
 delete-hermes-local:
   @just delete chart hermes-local
 
+deploy-noble-local:
+  helm install noble-local-chart ./charts/noble-local \
+    -n astria-dev-cluster
+delete-noble-local:
+  @just delete chart noble-local
+
 delete-sequencer name=validatorName:
   @just delete chart {{name}}-sequencer astria-validator-{{name}}
 delete-sequencers: (delete-sequencer "node0") (delete-sequencer "node1") (delete-sequencer "node2")
@@ -251,6 +257,37 @@ init-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAdd
     --sequencer-url {{sequencer_rpc_url}} \
     --fee-asset=$FEE_ASSET --asset=$ASSET
 
+rollup_micro_multiplier := "1000000"
+[no-cd]
+_do-ibc-transfer-uusdc namespace=defaultNamespace:
+  kubectl exec -it pods/hermes-local-chart-0 hermes -n {{namespace}} -- hermes tx ft-transfer --dst-chain sequencer-test-chain-0 --src-chain noble-local-0 --src-port transfer --src-channel channel-0 --amount 100000000 --timeout-seconds 30 --denom uusdc --receiver astria1qrt4kfc9ggyy548u7rg0d64sgq5c952kzk9tg9
+
+sequencer_noble_bridge_address := "astria1s6u80uqnx3qqn8lswkqpl80qp226l6tjc0hfsk"
+sequencer_noble_bridge_pkey := "089d5092b5ab0baac5ea7c16098515e9fc9491f9b5f7d3563f30dfc07b01283e"
+init-noble-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
+  #!/usr/bin/env bash
+  set -e
+
+  SEQUENCER_FUNDS_PKEY="934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
+  ASSET="transfer/channel-0/uusdc"
+  FEE_ASSET="nria"
+  TRANSFER_AMOUNT=$(echo "{{transferAmount}} * {{rollup_micro_multiplier}}" | bc)
+
+  IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+
+  docker run --rm --network host $IMAGE sequencer init-bridge-account \
+    --rollup-name {{rollupName}} \
+    --private-key {{sequencer_noble_bridge_pkey}} \
+    --sequencer.chain-id {{sequencer_chain_id}} \
+    --sequencer-url {{sequencer_rpc_url}} \
+    --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
+  docker run --rm --network host $IMAGE sequencer bridge-lock {{sequencer_noble_bridge_address}} \
+    --amount $TRANSFER_AMOUNT \
+    --destination-chain-address {{evmDestinationAddress}} \
+    --private-key $SEQUENCER_FUNDS_PKEY \
+    --sequencer.chain-id {{sequencer_chain_id}} \
+    --sequencer-url {{sequencer_rpc_url}} \
+    --fee-asset=$FEE_ASSET --asset=$ASSET
 
 init-ibc-bridge privateKey asset feeAsset tag=defaultTag rollupName=defaultRollupName:
   docker run --rm --network host {{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }} sequencer init-bridge-account \

@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: noble-local-scripts
+  namespace: {{ include "noble-local.namespace" . }}
+data:
+  init-noble.sh: |
+    {{- .Files.Get "files/init-noble.sh" | nindent 4 }}
+  start-noble.sh: |
+    {{- .Files.Get "files/start-noble.sh" | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: noble-local-env
+  namespace: {{ .Values.global.namespace }}
+data:
+  chainid: "{{ .Values.noble.chainId }}"
+  home_dir: "{{ .Values.noble.homeDir }}"
+  keyring_backend: "{{ .Values.noble.keyringBackend }}"
+  validator_key_name: "{{ .Values.noble.validatorKeyName }}"
+  validator_mnemonic: "{{ .Values.noble.validatorMnemonic }}"
+  tf1_owner_mnemonic: "{{ .Values.noble.tf1OwnerMnemonic }}"
+  tf2_owner_mnemonic: "{{ .Values.noble.tf2OwnerMnemonic }}"
+  coins: "{{ .Values.noble.coins }}"
+  validator_stake: "{{ .Values.noble.validatorStake }}"
+  noble_grpc_port: "{{ .Values.ports.nobleGrpcPort }}"
+  noble_grpc_web_port: "{{ .Values.ports.nobleGrpcWebPort }}"
+  noble_rest_port: "{{ .Values.ports.nobleRestPort }}"
+  noble_rpc_port: "{{ .Values.ports.nobleRpcPort }}"
+  noble_p2p_port: "{{ .Values.ports.nobleP2pPort }}"
+  ibc_account_mnemonic: "{{ .Values.noble.ibcAccountMnemonic }}"
+  ibc_account_key_name: "{{ .Values.noble.ibcAccountKeyName }}"
+  dev_account_mnemonic: "{{ .Values.noble.devAccountMnemonic }}"
+  dev_account_key_name: "{{ .Values.noble.devAccountKeyName }}"

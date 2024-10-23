@@ -7,6 +7,14 @@ evm-rollup:
         startHeight: 1
         assetDenom: "transfer/channel-0/utia"
         assetPrecision: 6
+      #      - bridgeAddress: "astria14wyh2u6efndllr8gup29295krc98rqas8d0ans"
+      #        startHeight: 1
+      #        assetDenom: "transfer/channel-1/uusdc"
+      #        # TODO - need to deploy the bridge contracts on evm
+      #        erc20asset:
+      #          contractAddress: ""
+      #          contractPrecision: 18
+      #        assetPrecision: 6
     alloc:
       - address: "0x4e59b44847b379578588920cA78FbF26c0B4956C"
         value:
