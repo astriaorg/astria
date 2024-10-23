@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: auctioneer-service
+  namespace: {{ include "auctioneer.namespace" . }}
+spec:
+  selector:
+    app: auctioneer
+  ports:
+    - name: grpc
+      port: {{ .Values.ports.grpc }}
+      targetPort: grpc
+---
+{{- if .Values.metrics.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: composer-metrics
+  namespace: {{ include "composer.namespace" . }}
+  labels:
+    app: composer
+spec:
+  selector:
+    app: composer
+  ports:
+    - name: composer-metrics
+      port: {{ .Values.ports.metrics }}
+      targetPort: composer-metrics
+{{- end }}
