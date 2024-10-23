@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auctioneer
+  namespace: {{ include "auctioneer.namespace" . }}
+  labels:
+    app: auctioneer
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: auctioneer
+  template:
+    metadata:
+      labels:
+        app: auctioneer
+    spec:
+      containers:
+        - name: auctioneer
+          image: {{ include "auctioneer.image" . }}
+          imagePullPolicy: {{ .Values.images.auctioneer.pullPolicy }}
+          command: ["/usr/local/bin/astria-auctioneer"]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: auctioneer-env
+          volumeMounts:
+            - mountPath: "/var/secrets"
+              name: auctioneer-private-key
+          {{- if .Values.metrics.enabled }}
+          ports:
+            - containerPort: {{ .Values.ports.metrics }}
+              name: auctioneer-metrics
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | trim | nindent 12 }}
+      volumes:
+        - name: auctioneer-private-key
+          {{- if .Values.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: auctioneer-private-key
+          {{- else }}
+          configMap:
+            name: auctioneer-private-key
+              {{- end }}
