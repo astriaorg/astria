@@ -89,6 +89,7 @@ impl Consensus {
                     match self.handle_process_proposal(process_proposal).await {
                         Ok(()) => response::ProcessProposal::Accept,
                         Err(e) => {
+                            println!("{e:?}");
                             warn!(
                                 error = AsRef::<dyn std::error::Error>::as_ref(&e),
                                 "rejecting proposal"
@@ -215,6 +216,7 @@ mod tests {
         },
     };
     use bytes::Bytes;
+    use cnidarium::StateDelta;
     use prost::Message as _;
     use rand::rngs::OsRng;
     use telemetry::Metrics as _;
@@ -226,13 +228,17 @@ mod tests {
 
     use super::*;
     use crate::{
+        accounts::StateWriteExt as _,
         app::test_utils::{
             mock_balances,
             mock_tx_cost,
         },
+        assets::StateWriteExt as _,
+        fees::StateWriteExt,
         mempool::Mempool,
         metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
+        test_utils::nria,
     };
 
     fn make_unsigned_tx() -> TransactionBody {
@@ -309,7 +315,7 @@ mod tests {
             }
         );
 
-        let (mut consensus_service, _) =
+        let (mut consensus_service, ..) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let process_proposal = new_process_proposal_request(prepare_proposal_response.txs);
         consensus_service
@@ -321,7 +327,7 @@ mod tests {
     #[tokio::test]
     async fn process_proposal_ok() {
         let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, _) =
+        let (mut consensus_service, ..) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
         let signed_tx = tx.sign(&signing_key);
@@ -337,7 +343,7 @@ mod tests {
 
     #[tokio::test]
     async fn process_proposal_fail_missing_action_commitment() {
-        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let (mut consensus_service, ..) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![]);
         assert!(
             consensus_service
@@ -352,7 +358,7 @@ mod tests {
 
     #[tokio::test]
     async fn process_proposal_fail_wrong_commitment_length() {
-        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let (mut consensus_service, ..) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
         assert!(
             consensus_service
@@ -367,7 +373,7 @@ mod tests {
 
     #[tokio::test]
     async fn process_proposal_fail_wrong_commitment_value() {
-        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let (mut consensus_service, ..) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![
             [99u8; 32].to_vec().into(),
             [99u8; 32].to_vec().into(),
@@ -385,7 +391,7 @@ mod tests {
 
     #[tokio::test]
     async fn prepare_proposal_empty_block() {
-        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let (mut consensus_service, ..) = new_consensus_service(None).await;
         let txs = vec![];
         let res = generate_rollup_datas_commitment(&txs.clone(), HashMap::new());
         let prepare_proposal = new_prepare_proposal_request();
@@ -404,7 +410,7 @@ mod tests {
 
     #[tokio::test]
     async fn process_proposal_ok_empty_block() {
-        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let (mut consensus_service, ..) = new_consensus_service(None).await;
         let txs = vec![];
         let res = generate_rollup_datas_commitment(&txs, HashMap::new());
         let process_proposal = new_process_proposal_request(res.into_transactions(vec![]));
@@ -448,28 +454,25 @@ mod tests {
     }
 
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
-        let accounts = if let Some(funded_key) = funded_key {
-            vec![astria_core::generated::protocol::genesis::v1::Account {
-                address: Some(
-                    crate::test_utils::astria_address(funded_key.address_bytes()).to_raw(),
-                ),
-                balance: Some(10u128.pow(19).into()),
-            }]
-        } else {
-            vec![]
-        };
-        let genesis_state = {
-            let mut state = crate::app::test_utils::proto_genesis_state();
-            state.accounts = accounts;
-            state
-        }
-        .try_into()
-        .unwrap();
+        let genesis_state = crate::app::test_utils::proto_genesis_state()
+            .try_into()
+            .unwrap();
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);
+        if let Some(funded_key) = funded_key {
+            let mut state = StateDelta::new(storage.latest_snapshot());
+            // put_test_asset_and_accounts(&mut state);
+            state.put_asset(nria()).unwrap();
+            state.put_allowed_fee_asset(&nria()).unwrap();
+            state
+                .put_account_balance(&funded_key, &nria(), 10u128.pow(19))
+                .unwrap();
+            storage.commit(state).await.unwrap();
+        }
+
+        let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await

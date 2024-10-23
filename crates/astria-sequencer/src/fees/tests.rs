@@ -72,9 +72,10 @@ fn test_asset() -> asset::Denom {
 
 #[tokio::test]
 async fn ensure_correct_block_fees_transfer() {
-    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (_, storage) = initialize_app_with_storage(vec![]).await;
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
+
     let transfer_base = 1;
     state
         .put_transfer_fees(TransferFeeComponents {
@@ -113,9 +114,10 @@ async fn ensure_correct_block_fees_transfer() {
 
 #[tokio::test]
 async fn ensure_correct_block_fees_sequence() {
-    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (_, storage) = initialize_app_with_storage(vec![]).await;
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
+
     state
         .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
             base: 1,
@@ -153,9 +155,10 @@ async fn ensure_correct_block_fees_sequence() {
 
 #[tokio::test]
 async fn ensure_correct_block_fees_init_bridge_acct() {
-    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (_, storage) = initialize_app_with_storage(vec![]).await;
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
+
     let init_bridge_account_base = 1;
     state
         .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
@@ -201,7 +204,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let starting_index_of_action = 0;
 
-    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (_, storage) = initialize_app_with_storage(vec![]).await;
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
 
@@ -274,7 +277,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
     let bridge = get_bridge_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
 
-    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (_, storage) = initialize_app_with_storage(vec![]).await;
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
 

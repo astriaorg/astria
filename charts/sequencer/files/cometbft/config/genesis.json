@@ -1,7 +1,6 @@
 {
   "app_hash": "",
   "app_state": {
-    "native_asset_base_denomination": "{{ .Values.genesis.nativeAssetBaseDenomination }}",
     "fees": {
       "bridge_lock": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeLock.base }},
@@ -60,12 +59,6 @@
         "multiplier": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.validatorUpdate.multiplier }}
       }
     },
-    "allowed_fee_assets": [
-      {{- range $index, $value := .Values.genesis.allowedFeeAssets }}
-      {{- if $index }},{{- end }}
-      "{{ $value }}"
-      {{- end }}
-    ],
     "ibc_parameters": {
       "ibc_enabled": {{ .Values.genesis.ibc.enabled }},
       "inbound_ics20_transfers_enabled": {{ .Values.genesis.ibc.inboundEnabled }},
@@ -75,15 +68,6 @@
       "base": "{{ .Values.genesis.addressPrefixes.base }}",
       "ibcCompat": "{{ .Values.genesis.addressPrefixes.ibcCompat }}"
     },
-    "accounts": [
-      {{- range $index, $value := .Values.genesis.genesisAccounts }}
-      {{- if $index }},{{- end }}
-      {
-        "address": {{ include "sequencer.address" $value.address }},
-        "balance": {{ include "sequencer.toUint128Proto" ( toString $value.balance | replace "\"" "" ) }} 
-      }
-      {{- end }}
-    ],
     "authority_sudo_address": {{ include "sequencer.address" .Values.genesis.authoritySudoAddress }},
     "ibc_sudo_address": {{ include "sequencer.address" .Values.genesis.ibc.sudoAddress }},
     "ibc_relayer_addresses": [
@@ -94,6 +78,23 @@
     ]
     {{- if not .Values.global.dev }}
     {{- else }}
+    ,
+    "native_asset_base_denomination": "{{ .Values.genesis.nativeAssetBaseDenomination }}",
+    "allowed_fee_assets": [
+      {{- range $index, $value := .Values.genesis.allowedFeeAssets }}
+      {{- if $index }},{{- end }}
+      "{{ $value }}"
+      {{- end }}
+    ],
+    "accounts": [
+      {{- range $index, $value := .Values.genesis.genesisAccounts }}
+      {{- if $index }},{{- end }}
+      {
+        "address": {{ include "sequencer.address" $value.address }},
+        "balance": {{ include "sequencer.toUint128Proto" ( toString $value.balance | replace "\"" "" ) }} 
+      }
+      {{- end }}
+    ]
     {{- end}}
   },
   "chain_id": "{{ .Values.genesis.chainId }}",

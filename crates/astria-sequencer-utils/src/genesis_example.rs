@@ -28,10 +28,7 @@ use astria_core::{
             TransferFeeComponents,
             ValidatorUpdateFeeComponents,
         },
-        genesis::v1::{
-            Account,
-            GenesisAppState,
-        },
+        genesis::v1::GenesisAppState,
     },
     Protobuf,
 };
@@ -58,31 +55,6 @@ fn bob() -> Address {
         .unwrap()
 }
 
-fn charlie() -> Address {
-    Address::builder()
-        .prefix(ASTRIA_ADDRESS_PREFIX)
-        .slice(hex::decode("60709e2d391864b732b4f0f51e387abb76743871").unwrap())
-        .try_build()
-        .unwrap()
-}
-
-fn accounts() -> Vec<Account> {
-    vec![
-        Account {
-            address: alice(),
-            balance: 1_000_000_000_000_000_000,
-        },
-        Account {
-            address: bob(),
-            balance: 1_000_000_000_000_000_000,
-        },
-        Account {
-            address: charlie(),
-            balance: 1_000_000_000_000_000_000,
-        },
-    ]
-}
-
 fn address_prefixes() -> AddressPrefixes {
     AddressPrefixes {
         base: "astria".into(),
@@ -93,19 +65,16 @@ fn address_prefixes() -> AddressPrefixes {
 #[expect(clippy::too_many_lines, reason = "all lines reasonably necessary")]
 fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState {
     astria_core::generated::protocol::genesis::v1::GenesisAppState {
-        accounts: accounts().into_iter().map(Protobuf::into_raw).collect(),
         address_prefixes: Some(address_prefixes()),
         authority_sudo_address: Some(alice().to_raw()),
         chain_id: "test-1".into(),
         ibc_sudo_address: Some(alice().to_raw()),
         ibc_relayer_addresses: vec![alice().to_raw(), bob().to_raw()],
-        native_asset_base_denomination: "nria".parse().unwrap(),
         ibc_parameters: Some(IbcParameters {
             ibc_enabled: true,
             inbound_ics20_transfers_enabled: true,
             outbound_ics20_transfers_enabled: true,
         }),
-        allowed_fee_assets: vec!["nria".parse().unwrap()],
         fees: Some(GenesisFees {
             transfer: Some(
                 TransferFeeComponents {

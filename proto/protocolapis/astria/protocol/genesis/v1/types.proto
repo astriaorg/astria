@@ -8,19 +8,11 @@ import "astria/protocol/fees/v1/types.proto";
 message GenesisAppState {
   string chain_id = 1;
   AddressPrefixes address_prefixes = 2;
-  repeated Account accounts = 3;
-  astria.primitive.v1.Address authority_sudo_address = 4;
-  astria.primitive.v1.Address ibc_sudo_address = 5;
-  repeated astria.primitive.v1.Address ibc_relayer_addresses = 6;
-  string native_asset_base_denomination = 7;
-  IbcParameters ibc_parameters = 8;
-  repeated string allowed_fee_assets = 9;
-  GenesisFees fees = 10;
-}
-
-message Account {
-  astria.primitive.v1.Address address = 1;
-  astria.primitive.v1.Uint128 balance = 2;
+  astria.primitive.v1.Address authority_sudo_address = 3;
+  astria.primitive.v1.Address ibc_sudo_address = 4;
+  repeated astria.primitive.v1.Address ibc_relayer_addresses = 5;
+  IbcParameters ibc_parameters = 6;
+  GenesisFees fees = 7;
 }
 
 message AddressPrefixes {
