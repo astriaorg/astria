@@ -28,6 +28,12 @@ impl Component for FeesComponent {
     where
         S: fees::StateWriteExt + fees::StateReadExt,
     {
+        for fee_asset in app_state.allowed_fee_assets() {
+            state
+                .put_allowed_fee_asset(fee_asset)
+                .wrap_err("failed to write allowed fee asset to state")?;
+        }
+
         let transfer_fees = app_state.fees().transfer;
         if let Some(transfer_fees) = transfer_fees {
             state

@@ -111,7 +111,6 @@ use crate::{
         component::FeesComponent,
         construct_tx_fee_event,
         StateReadExt as _,
-        StateWriteExt as _,
     },
     grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
@@ -304,12 +303,6 @@ impl App {
         state_tx
             .put_block_height(0)
             .wrap_err("failed to write block height to state")?;
-
-        for fee_asset in genesis_state.allowed_fee_assets() {
-            state_tx
-                .put_allowed_fee_asset(fee_asset)
-                .wrap_err("failed to write allowed fee asset to state")?;
-        }
 
         // call init_chain on all components
         FeesComponent::init_chain(&mut state_tx, &genesis_state)
