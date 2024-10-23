@@ -16,7 +16,7 @@ use crate::{
         TransactionId,
         ADDRESS_LEN,
     },
-    Protobuf as _,
+    Protobuf,
 };
 
 pub mod action;
@@ -81,76 +81,42 @@ pub struct Transaction {
     body_bytes: bytes::Bytes,
 }
 
-impl Transaction {
-    pub fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
-        self.verification_key.address_bytes()
-    }
+impl Protobuf for Transaction {
+    type Error = TransactionError;
+    type Raw = raw::Transaction;
 
-    /// Returns the transaction ID, containing the transaction hash.
-    ///
-    /// The transaction hash is calculated by protobuf-encoding the transaction
-    /// and hashing the resulting bytes with sha256.
-    #[must_use]
-    pub fn id(&self) -> TransactionId {
-        use sha2::{
-            Digest as _,
-            Sha256,
-        };
-        let bytes = self.to_raw().encode_to_vec();
-        TransactionId::new(Sha256::digest(bytes).into())
-    }
-
-    #[must_use]
-    pub fn into_raw(self) -> raw::Transaction {
-        let Self {
-            signature,
-            verification_key,
-            body_bytes: transaction_bytes,
-            ..
-        } = self;
-        raw::Transaction {
-            signature: Bytes::copy_from_slice(&signature.to_bytes()),
-            public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
-            body: Some(pbjson_types::Any {
-                type_url: raw::TransactionBody::type_url(),
-                value: transaction_bytes,
-            }),
-        }
-    }
-
-    #[must_use]
-    pub fn to_raw(&self) -> raw::Transaction {
-        let Self {
-            signature,
-            verification_key,
-            body_bytes: transaction_bytes,
-            ..
-        } = self;
-        raw::Transaction {
-            signature: Bytes::copy_from_slice(&signature.to_bytes()),
-            public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
-            body: Some(pbjson_types::Any {
-                type_url: raw::TransactionBody::type_url(),
-                value: transaction_bytes.clone(),
-            }),
-        }
-    }
-
-    /// Attempt to convert from a raw, unchecked protobuf [`raw::Transaction`].
-    ///
-    /// # Errors
-    ///
-    /// Will return an error if signature or verification key cannot be reconstructed from the bytes
-    /// contained in the raw input, if the transaction field was empty (meaning it was mapped to
-    /// `None`), if the inner transaction could not be verified given the key and signature, or
-    /// if the native [`Body`] could not be created from the inner raw
-    /// [`raw::Body`].
-    pub fn try_from_raw(proto: raw::Transaction) -> Result<Self, TransactionError> {
-        let raw::Transaction {
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
             signature,
             public_key,
             body,
-        } = proto;
+        } = raw;
+        let signature = Signature::try_from(&**signature).map_err(TransactionError::signature)?;
+        let verification_key =
+            VerificationKey::try_from(&**public_key).map_err(TransactionError::verification_key)?;
+        let Some(body) = body else {
+            return Err(TransactionError::unset_body());
+        };
+        let bytes = body.value.clone();
+        verification_key
+            .verify(&signature, &bytes)
+            .map_err(TransactionError::verification)?;
+        let transaction =
+            TransactionBody::try_from_any(body.clone()).map_err(TransactionError::body)?;
+        Ok(Self {
+            signature,
+            verification_key,
+            body: transaction,
+            body_bytes: bytes,
+        })
+    }
+
+    fn try_from_raw(raw: Self::Raw) -> Result<Self, TransactionError> {
+        let Self::Raw {
+            signature,
+            public_key,
+            body,
+        } = raw;
         let signature = Signature::try_from(&*signature).map_err(TransactionError::signature)?;
         let verification_key =
             VerificationKey::try_from(&*public_key).map_err(TransactionError::verification_key)?;
@@ -168,6 +134,60 @@ impl Transaction {
             body: transaction,
             body_bytes: bytes,
         })
+    }
+
+    fn into_raw(self) -> raw::Transaction {
+        let Self {
+            signature,
+            verification_key,
+            body_bytes: transaction_bytes,
+            ..
+        } = self;
+        Self::Raw {
+            signature: Bytes::copy_from_slice(&signature.to_bytes()),
+            public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
+            body: Some(pbjson_types::Any {
+                type_url: raw::TransactionBody::type_url(),
+                value: transaction_bytes,
+            }),
+        }
+    }
+
+    fn to_raw(&self) -> raw::Transaction {
+        let Self {
+            signature,
+            verification_key,
+            body_bytes: transaction_bytes,
+            ..
+        } = self;
+        Self::Raw {
+            signature: Bytes::copy_from_slice(&signature.to_bytes()),
+            public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
+            body: Some(pbjson_types::Any {
+                type_url: raw::TransactionBody::type_url(),
+                value: transaction_bytes.clone(),
+            }),
+        }
+    }
+}
+
+impl Transaction {
+    pub fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
+        self.verification_key.address_bytes()
+    }
+
+    /// Returns the transaction ID, containing the transaction hash.
+    ///
+    /// The transaction hash is calculated by protobuf-encoding the transaction
+    /// and hashing the resulting bytes with sha256.
+    #[must_use]
+    pub fn id(&self) -> TransactionId {
+        use sha2::{
+            Digest as _,
+            Sha256,
+        };
+        let bytes = self.to_raw().encode_to_vec();
+        TransactionId::new(Sha256::digest(bytes).into())
     }
 
     #[must_use]
@@ -215,10 +235,80 @@ impl Transaction {
     }
 }
 
+impl From<Transaction> for raw::Transaction {
+    fn from(value: Transaction) -> Self {
+        value.into_raw()
+    }
+}
+
+impl TryFrom<raw::Transaction> for Transaction {
+    type Error = TransactionError;
+
+    fn try_from(value: raw::Transaction) -> Result<Self, Self::Error> {
+        Self::try_from_raw(value)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct TransactionBody {
     actions: Actions,
     params: TransactionParams,
+}
+
+impl Protobuf for TransactionBody {
+    type Error = TransactionBodyError;
+    type Raw = raw::TransactionBody;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::TransactionBody {
+            actions,
+            params,
+        } = raw;
+
+        let Some(params) = params else {
+            return Err(TransactionBodyError::unset_params());
+        };
+        let params = TransactionParams::from_raw_ref(params);
+        let actions: Vec<_> = actions
+            .iter()
+            .map(Action::try_from_raw_ref)
+            .collect::<Result<_, _>>()
+            .map_err(TransactionBodyError::action)?;
+
+        TransactionBody::builder()
+            .actions(actions)
+            .chain_id(params.chain_id)
+            .nonce(params.nonce)
+            .try_build()
+            .map_err(TransactionBodyError::group)
+    }
+
+    fn try_from_raw(proto: Self::Raw) -> Result<Self, TransactionBodyError> {
+        let raw::TransactionBody {
+            actions,
+            params,
+        } = proto;
+        let Some(params) = params else {
+            return Err(TransactionBodyError::unset_params());
+        };
+        let params = TransactionParams::from_raw(params);
+        let actions: Vec<_> = actions
+            .into_iter()
+            .map(Action::try_from_raw)
+            .collect::<Result<_, _>>()
+            .map_err(TransactionBodyError::action)?;
+
+        TransactionBody::builder()
+            .actions(actions)
+            .chain_id(params.chain_id)
+            .nonce(params.nonce)
+            .try_build()
+            .map_err(TransactionBodyError::group)
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        todo!()
+    }
 }
 
 impl TransactionBody {
@@ -301,35 +391,6 @@ impl TransactionBody {
     #[must_use]
     pub fn to_any(&self) -> pbjson_types::Any {
         self.clone().into_any()
-    }
-
-    /// Attempt to convert from a raw, unchecked protobuf [`raw::Body`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if one of the inner raw actions could not be converted to a native
-    /// [`Action`].
-    pub fn try_from_raw(proto: raw::TransactionBody) -> Result<Self, TransactionBodyError> {
-        let raw::TransactionBody {
-            actions,
-            params,
-        } = proto;
-        let Some(params) = params else {
-            return Err(TransactionBodyError::unset_params());
-        };
-        let params = TransactionParams::from_raw(params);
-        let actions: Vec<_> = actions
-            .into_iter()
-            .map(Action::try_from_raw)
-            .collect::<Result<_, _>>()
-            .map_err(TransactionBodyError::action)?;
-
-        TransactionBody::builder()
-            .actions(actions)
-            .chain_id(params.chain_id)
-            .nonce(params.nonce)
-            .try_build()
-            .map_err(TransactionBodyError::group)
     }
 
     /// Attempt to convert from a protobuf [`pbjson_types::Any`].
@@ -491,6 +552,20 @@ impl TransactionParams {
         Self {
             nonce,
             chain_id,
+        }
+    }
+
+    /// Convert from a raw protobuf [`raw::Body`].
+    #[must_use]
+    pub fn from_raw_ref(proto: &raw::TransactionParams) -> Self {
+        let raw::TransactionParams {
+            nonce,
+            chain_id,
+        } = proto;
+
+        Self {
+            nonce: *nonce,
+            chain_id: chain_id.clone(),
         }
     }
 }
