@@ -1,7 +1,7 @@
 use astria_core::{
-    generated::sequencerblock::{
-        v1::sequencer_service_server::SequencerServiceServer,
-        v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer,
+    generated::sequencerblock::v1::{
+        optimisticblock::v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer,
+        sequencer_service_server::SequencerServiceServer,
     },
     sequencerblock::{
         v1::SequencerBlock,
