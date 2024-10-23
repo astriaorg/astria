@@ -1,6 +1,6 @@
 use astria_core::{
     generated::bundle::v1alpha1 as raw,
-    protocol::transaction::v1alpha1::SignedTransaction,
+    protocol::transaction::v1::Transaction,
 };
 use astria_eyre::eyre::{
     self,
@@ -34,7 +34,7 @@ impl Bundle {
         unimplemented!()
     }
 
-    pub(crate) fn into_transaction(self) -> SignedTransaction {
+    pub(crate) fn into_transaction(self) -> Transaction {
         unimplemented!()
     }
 

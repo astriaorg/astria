@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use astria_core::protocol::transaction::v1alpha1::SignedTransaction;
+use astria_core::protocol::transaction::v1::Transaction;
 use astria_eyre::eyre::{
     self,
     eyre,
@@ -174,7 +174,7 @@ impl Driver {
         submission_result
     }
 
-    async fn submit_transaction(&self, _transaction: SignedTransaction) -> eyre::Result<()> {
+    async fn submit_transaction(&self, _transaction: Transaction) -> eyre::Result<()> {
         unimplemented!()
     }
 }
