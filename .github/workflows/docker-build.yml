@@ -230,6 +230,38 @@ jobs:
           TAG=sha-$(git rev-parse --short HEAD)
           just ibc-test run $TAG
 
+  ibc-no-native-asset-test:
+    needs: [ run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli ]
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install just
+        uses: taiki-e/install-action@just
+      - name: Install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup IBC Bridge Test Environment
+        timeout-minutes: 8
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just deploy cluster
+          kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
+          echo -e "\n\nDeploying with astria images tagged $TAG"
+          just ibc-test deploy-without-native $TAG
+      - name: Run IBC utia as native test
+        timeout-minutes: 3
+        run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just ibc-test run-without-native $TAG
+
   ibc-timeout-refund:
     needs: [ run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli ]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
@@ -264,7 +296,7 @@ jobs:
 
   docker:
     if: ${{ always() && !cancelled() }}
-    needs: [composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli, smoke-test, smoke-cli, ibc-bridge-test, ibc-timeout-refund]
+    needs: [composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli, smoke-test, smoke-cli, ibc-bridge-test, ibc-no-native-asset-test, ibc-timeout-refund]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

@@ -53,7 +53,7 @@ pub struct GenesisAppState {
     authority_sudo_address: crate::primitive::v1::Address,
     ibc_sudo_address: crate::primitive::v1::Address,
     ibc_relayer_addresses: Vec<crate::primitive::v1::Address>,
-    native_asset_base_denomination: asset::TracePrefixed,
+    native_asset_base_denomination: Option<asset::TracePrefixed>,
     ibc_parameters: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
     fees: GenesisFees,
@@ -91,8 +91,8 @@ impl GenesisAppState {
     }
 
     #[must_use]
-    pub fn native_asset_base_denomination(&self) -> &asset::TracePrefixed {
-        &self.native_asset_base_denomination
+    pub fn native_asset_base_denomination(&self) -> Option<&asset::TracePrefixed> {
+        self.native_asset_base_denomination.as_ref()
     }
 
     #[must_use]
@@ -196,9 +196,16 @@ impl Protobuf for GenesisAppState {
             .collect::<Result<_, _>>()
             .map_err(Self::Error::ibc_relayer_addresses)?;
 
-        let native_asset_base_denomination = native_asset_base_denomination
-            .parse()
-            .map_err(Self::Error::native_asset_base_denomination)?;
+        let native_asset_base_denomination = if native_asset_base_denomination.is_empty() {
+            None
+        } else {
+            Some(
+                native_asset_base_denomination
+                    .parse()
+                    .map_err(Self::Error::native_asset_base_denomination),
+            )
+            .transpose()?
+        };
 
         let ibc_parameters = {
             let params = ibc_parameters
@@ -255,7 +262,9 @@ impl Protobuf for GenesisAppState {
             chain_id: chain_id.clone(),
             ibc_sudo_address: Some(ibc_sudo_address.to_raw()),
             ibc_relayer_addresses: ibc_relayer_addresses.iter().map(Address::to_raw).collect(),
-            native_asset_base_denomination: native_asset_base_denomination.to_string(),
+            native_asset_base_denomination: native_asset_base_denomination
+                .as_ref()
+                .map_or(String::new(), ToString::to_string),
             ibc_parameters: Some(ibc_parameters.to_raw()),
             allowed_fee_assets: allowed_fee_assets.iter().map(ToString::to_string).collect(),
             fees: Some(fees.to_raw()),

@@ -34,6 +34,22 @@ delete:
   just deploy hermes-local > /dev/null
   kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=480s
 
+@deploy-without-native tag=defaultTag:
+  echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
+  just wait-for-ingress-controller > /dev/null
+  echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  helm dependency update ./sequencer > /dev/null
+  echo "Setting up single astria sequencer..." && helm install \
+    -n astria-validator-single single-sequencer-chart ./sequencer \
+    -f ../dev/values/validators/all-without-native.yml \
+    -f ../dev/values/validators/single.yml \
+    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
+    --create-namespace > /dev/null
+  just wait-for-sequencer > /dev/null
+  echo "Deploying Hermes"
+  just deploy hermes-local > /dev/null
+  kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=480s
+
 @deploy-timeout tag=defaultTag:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
@@ -60,6 +76,36 @@ delete:
   just deploy hermes-local > /dev/null
   kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=480s
 
+[no-cd]
+run-without-native tag=defaultTag:
+  #!/usr/bin/env bash
+  set -e
+
+  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+
+  # Execute the transfer from Celestia to the Rollup
+  just ibc-test _do-ibc-transfer {{defaultNamespace}} {{sequencer_sudo_address}}
+
+  # Add transfer/channel-0/utia as fee-asset
+  docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer sudo fee-asset add --private-key {{sequencer_sudo_pkey}} --asset transfer/channel-0/utia --sequencer-url {{sequencer_rpc_url}} --sequencer.chain-id {{sequencer_chain_id}}
+  # check that sequencer balance updated correctly
+
+  EXPECTED_BALANCE=$(echo "1 * {{transfer_amount}}" | bc)
+  for i in {1..50}
+  do
+    BALANCE=$(docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer account balance {{sequencer_sudo_address}} --sequencer-url {{sequencer_rpc_url}}  | awk '/transfer\/channel-0\/utia/{print $(NF-1)}')
+    echo "check $i, balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      expected_sequencer_balance_found="1"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $expected_sequencer_balance_found ]]; then
+    echo "expected sequencer balance was not found after IBC transfer; IBC transfer with compat address failed"
+    exit 1
+  fi
 
 [no-cd]
 run tag=defaultTag:
@@ -73,7 +119,7 @@ run tag=defaultTag:
   just init-ibc-bridge {{sequencer_tia_bridge_priv_key}} transfer/channel-0/utia nria {{tag}}
 
   # Execute the transfer from Celestia to the Rollup
-  just ibc-test _do-ibc-transfer
+  just ibc-test _do-rollup-ibc-transfer
 
   # Multiplication factor is 10^-6 (utia to tia) * 10^18 (rollup factor) = 10^12
   let expected_balance="$initial_balance + {{transfer_amount}} * 10**12"
@@ -98,7 +144,7 @@ run tag=defaultTag:
   fi
 
   # Execute the transfer from Celstia to sequencer with compat address
-  just ibc-test _do-compat-ibc-transfer
+  just ibc-test _do-ibc-transfer {{defaultNamespace}} {{compat_address}}
 
   # check that celestia balance updated correctly
   for i in {1..50}
@@ -194,7 +240,6 @@ run tag=defaultTag:
 sequencer_tia_bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
 eth_ws_url := "ws://ws-executor.astria.localdev.me/"
 evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
-sequencer_chain_id := "sequencer-test-chain-0"
 [no-cd]
 run-timeout tag=defaultTag:
   #!/usr/bin/env bash
@@ -207,7 +252,7 @@ run-timeout tag=defaultTag:
   just init-ibc-bridge {{sequencer_tia_bridge_priv_key}} transfer/channel-0/utia nria {{tag}}
 
   # Execute the transfer from Celestia to the Rollup
-  just ibc-test _do-ibc-transfer
+  just ibc-test _do-rollup-ibc-transfer
 
   # Multiplication factor is 10^-6 (utia to tia) * 10^18 (rollup factor) = 10^12
   let expected_balance="$initial_balance + {{transfer_amount}} * 10**12"
@@ -233,7 +278,7 @@ run-timeout tag=defaultTag:
   fi
 
   # Execute the transfer from Celstia to sequencer with compat address
-  just ibc-test _do-compat-ibc-transfer
+  just ibc-test _do-ibc-transfer {{defaultNamespace}} {{compat_address}}
 
   # check that celestia balance updated correctly
   for i in {1..50}
@@ -371,8 +416,11 @@ run-timeout tag=defaultTag:
 
 bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
 sequencer_address := "astria1cewd7alwml4fhx3w3lxq3vgf20cqe0qm650fac"
+sequencer_sudo_pkey := "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+sequencer_sudo_address := "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
 compat_address := "astriacompat1cewd7alwml4fhx3w3lxq3vgf20cqe0qmdzxmvn"
 celestia_dev_account_address := "celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96"
+sequencer_chain_id := "sequencer-test-chain-0"
 celestia_chain_id := "celestia-local-0"
 celestia_node_url := "http://rpc.app.celestia.localdev.me:80"
 sequencer_tia_bridge_priv_key := "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
@@ -403,7 +451,7 @@ transfer_fees := "26000"
 # TODO: move this to deploy.just so that defaultNamespace need not be redefined
 defaultNamespace := "astria-dev-cluster"
 [no-cd]
-_do-ibc-transfer namespace=defaultNamespace:
+_do-rollup-ibc-transfer namespace=defaultNamespace:
   echo "Performing IBC transfer..."
   kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
   'celestia-appd tx ibc-transfer transfer \
@@ -420,13 +468,13 @@ _do-ibc-transfer namespace=defaultNamespace:
     --home /home/celestia \
     --keyring-backend="{{keyring_backend}}"'
 
-_do-compat-ibc-transfer namespace=defaultNamespace:
+_do-ibc-transfer namespace=defaultNamespace toAddress="":
   echo "Performing IBC transfer with compat address..."
   kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
   'celestia-appd tx ibc-transfer transfer \
     transfer \
     channel-0 \
-    {{compat_address}} \
+    {{toAddress}} \
     "{{transfer_amount}}utia" \
     --chain-id="{{celestia_chain_id}}" \
     --from="{{celestia_dev_account_address}}" \
