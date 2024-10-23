@@ -8,9 +8,6 @@ readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
-[[bin]]
-name = "astria-sequencer"
-
 [features]
 benchmark = ["divan"]
 

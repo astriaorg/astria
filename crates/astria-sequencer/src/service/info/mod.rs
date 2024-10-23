@@ -78,7 +78,7 @@ impl Info {
         query_router
             .insert(
                 "transaction/fee",
-                crate::transaction::query::transaction_fee_request,
+                crate::fees::query::transaction_fee_request,
             )
             .wrap_err("invalid path: `transaction/fee`")?;
         query_router

@@ -8,9 +8,6 @@ readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
-[[bin]]
-name = "astria-cli"
-
 [dependencies]
 color-eyre = "0.6"
 # v2.0.0-rc.0 - can be updated once https://github.com/ZcashFoundation/frost/issues/755 is closed
