@@ -11,7 +11,7 @@ use astria_core::{
             TransactionBody,
         },
     },
-    Protobuf::Message as _,
+    Protobuf as _,
 };
 use astria_eyre::eyre::{
     self,
