@@ -12,7 +12,8 @@ delete:
 @deploy tag=defaultTag:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
-  echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  echo "Deploying local celestia instance..."
+  helm install celestia-local-chart ./celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   helm dependency update ./sequencer > /dev/null
   helm dependency update ./evm-stack > /dev/null
   echo "Setting up single astria sequencer..." && helm install \
