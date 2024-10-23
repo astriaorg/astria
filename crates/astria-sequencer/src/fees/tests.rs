@@ -11,17 +11,12 @@ use astria_core::{
         TRANSACTION_ID_LEN,
     },
     protocol::{
-        fees::v1::{
-            BridgeLockFeeComponents,
-            BridgeSudoChangeFeeComponents,
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-            TransferFeeComponents,
-        },
+        fees::v1::*,
         transaction::v1::{
             action::{
                 BridgeLock,
                 BridgeSudoChange,
+                FeeChange,
                 InitBridgeAccount,
                 RollupDataSubmission,
                 Transfer,
@@ -31,7 +26,11 @@ use astria_core::{
     },
     sequencerblock::v1::block::Deposit,
 };
-use cnidarium::StateDelta;
+use cnidarium::{
+    Snapshot,
+    StateDelta,
+    StateWrite,
+};
 
 use super::base_deposit_fee;
 use crate::{
@@ -46,6 +45,7 @@ use crate::{
         },
         ActionHandler as _,
     },
+    authority::StateWriteExt as _,
     bridge::StateWriteExt as _,
     fees::{
         StateReadExt as _,
@@ -68,6 +68,56 @@ use crate::{
 
 fn test_asset() -> asset::Denom {
     "test".parse().unwrap()
+}
+
+async fn setup_and_execute_fee_change<S: StateWrite>(state: &mut S, fee_change: FeeChange) {
+    // Put the context to enable the txs to execute.
+    state.put_transaction_context(TransactionContext {
+        address_bytes: [1; 20],
+        transaction_id: TransactionId::new([0; 32]),
+        source_action_index: 0,
+    });
+    state.put_sudo_address([1; 20]).unwrap();
+
+    fee_change.check_and_execute(state).await.unwrap();
+}
+
+async fn get_initial_state() -> StateDelta<Snapshot> {
+    let storage = cnidarium::TempStorage::new().await.unwrap();
+    let snapshot = storage.latest_snapshot();
+    StateDelta::new(snapshot)
+}
+
+fn reference_deposit() -> Deposit {
+    Deposit {
+        bridge_address: astria_address(&[1; 20]),
+        rollup_id: RollupId::from_unhashed_bytes(b"test_rollup_id"),
+        amount: 0,
+        asset: "test".parse().unwrap(),
+        destination_chain_address: "someaddress".to_string(),
+        source_transaction_id: TransactionId::new([0; 32]),
+        source_action_index: 0,
+    }
+}
+
+macro_rules! get_default_fees_and_fee_change {
+    ($fee_ty:tt) => {
+        paste::item! {
+            {
+                let initial_fees = [< $fee_ty FeeComponents >] {
+                    base: 1,
+                    multiplier: 2,
+                };
+                let initial_fee_change = FeeChange::$fee_ty(initial_fees);
+                let new_fees = [< $fee_ty FeeComponents >] {
+                    base: 3,
+                    multiplier: 4,
+                };
+                let new_fee_change = FeeChange::$fee_ty(new_fees);
+                (initial_fees, initial_fee_change, new_fees, new_fee_change)
+            }
+        }
+    };
 }
 
 #[tokio::test]
@@ -321,9 +371,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
 
 #[tokio::test]
 async fn bridge_lock_fee_calculation_works_as_expected() {
-    let storage = cnidarium::TempStorage::new().await.unwrap();
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
+    let mut state = get_initial_state().await;
     let transfer_fee = 12;
 
     let from_address = astria_address(&[2; 20]);
@@ -454,16 +502,472 @@ fn get_base_deposit_fee() {
     assert_eq!(DEPOSIT_BASE_FEE, raw_deposit.encoded_len() as u128 / 10);
 }
 
-fn reference_deposit() -> Deposit {
-    Deposit {
-        bridge_address: astria_address(&[1; 20]),
-        rollup_id: RollupId::from_unhashed_bytes(b"test_rollup_id"),
-        amount: 0,
-        asset: "test".parse().unwrap(),
-        destination_chain_address: "someaddress".to_string(),
-        source_transaction_id: TransactionId::new([0; 32]),
-        source_action_index: 0,
-    }
+#[tokio::test]
+async fn transfer_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_transfer_fees()
+            .await
+            .expect("should not error fetching transfer fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(Transfer);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn rollup_data_submission_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_rollup_data_submission_fees()
+            .await
+            .expect("should not error fetching transfer fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(RollupDataSubmission);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_rollup_data_submission_fees()
+        .await
+        .expect("should not error fetching rollup data submission fees")
+        .expect("rollup data submission fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_rollup_data_submission_fees()
+        .await
+        .expect("should not error fetching rollup data submission fees")
+        .expect("rollup data submission fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn init_bridge_account_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_init_bridge_account_fees()
+            .await
+            .expect("should not error fetching transfer fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(InitBridgeAccount);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_init_bridge_account_fees()
+        .await
+        .expect("should not error fetching init_bridge_account fees")
+        .expect("init_bridge_account fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_init_bridge_account_fees()
+        .await
+        .expect("should not error fetching init_bridge_account fees")
+        .expect("init_bridge_account fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn bridge_lock_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_bridge_lock_fees()
+            .await
+            .expect("should not error fetching bridge_lock fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(BridgeLock);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_bridge_lock_fees()
+        .await
+        .expect("should not error fetching bridge_lock fees")
+        .expect("bridge_lock fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_bridge_lock_fees()
+        .await
+        .expect("should not error fetching bridge_lock fees")
+        .expect("bridge_lock fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn bridge_unlock_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_bridge_unlock_fees()
+            .await
+            .expect("should not error fetching bridge_unlock fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(BridgeUnlock);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_bridge_unlock_fees()
+        .await
+        .expect("should not error fetching bridge_unlock fees")
+        .expect("bridge_unlock fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_bridge_unlock_fees()
+        .await
+        .expect("should not error fetching bridge_unlock fees")
+        .expect("bridge_unlock fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn bridge_sudo_change_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_bridge_sudo_change_fees()
+            .await
+            .expect("should not error fetching bridge_sudo_change fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(BridgeSudoChange);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_bridge_sudo_change_fees()
+        .await
+        .expect("should not error fetching bridge_sudo_change fees")
+        .expect("bridge_sudo_change fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_bridge_sudo_change_fees()
+        .await
+        .expect("should not error fetching bridge_sudo_change fees")
+        .expect("bridge_sudo_change fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn validator_update_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_validator_update_fees()
+            .await
+            .expect("should not error fetching validator_update fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(ValidatorUpdate);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_validator_update_fees()
+        .await
+        .expect("should not error fetching validator_update fees")
+        .expect("validator_update fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_validator_update_fees()
+        .await
+        .expect("should not error fetching validator_update fees")
+        .expect("validator_update fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn ibc_relayer_change_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_ibc_relayer_change_fees()
+            .await
+            .expect("should not error fetching ibc_relayer_change fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(IbcRelayerChange);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_ibc_relayer_change_fees()
+        .await
+        .expect("should not error fetching ibc_relayer_change fees")
+        .expect("ibc_relayer_change fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_ibc_relayer_change_fees()
+        .await
+        .expect("should not error fetching ibc_relayer_change fees")
+        .expect("ibc_relayer_change fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn ibc_relay_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_ibc_relay_fees()
+            .await
+            .expect("should not error fetching ibc_relay fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(IbcRelay);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_ibc_relay_fees()
+        .await
+        .expect("should not error fetching ibc_relay fees")
+        .expect("ibc_relay fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_ibc_relay_fees()
+        .await
+        .expect("should not error fetching ibc_relay fees")
+        .expect("ibc_relay fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn fee_asset_change_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_fee_asset_change_fees()
+            .await
+            .expect("should not error fetching fee_asset_change fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(FeeAssetChange);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_fee_asset_change_fees()
+        .await
+        .expect("should not error fetching fee_asset_change fees")
+        .expect("fee_asset_change fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_fee_asset_change_fees()
+        .await
+        .expect("should not error fetching fee_asset_change fees")
+        .expect("fee_asset_change fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn fee_change_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_fee_change_fees()
+            .await
+            .expect("should not error fetching fee_change fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(FeeChange);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_fee_change_fees()
+        .await
+        .expect("should not error fetching fee_change fees")
+        .expect("fee_change fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_fee_change_fees()
+        .await
+        .expect("should not error fetching fee_change fees")
+        .expect("fee_change fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn sudo_address_change_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_sudo_address_change_fees()
+            .await
+            .expect("should not error fetching sudo_address_change fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(SudoAddressChange);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_sudo_address_change_fees()
+        .await
+        .expect("should not error fetching sudo_address_change fees")
+        .expect("sudo_address_change fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_sudo_address_change_fees()
+        .await
+        .expect("should not error fetching sudo_address_change fees")
+        .expect("sudo_address_change fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
+}
+
+#[tokio::test]
+async fn ibc_sudo_change_fee_change_executes_as_expected() {
+    let mut state = get_initial_state().await;
+
+    // Ensure fees are not stored initially
+    assert!(
+        state
+            .get_ibc_sudo_change_fees()
+            .await
+            .expect("should not error fetching ibc_sudo_change fees")
+            .is_none()
+    );
+
+    // Generate initial and new fees, along with corresponding fee change actions
+    let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
+        get_default_fees_and_fee_change!(IbcSudoChange);
+
+    // Execute and check fee initial fee change action
+    setup_and_execute_fee_change(&mut state, initial_fee_change).await;
+    let retrieved_fees = state
+        .get_ibc_sudo_change_fees()
+        .await
+        .expect("should not error fetching ibc_sudo_change fees")
+        .expect("ibc_sudo_change fees should be stored");
+    assert_eq!(initial_fees, retrieved_fees);
+
+    // Execute and check new fee change action
+    setup_and_execute_fee_change(&mut state, new_fee_change).await;
+    let retrieved_fees = state
+        .get_ibc_sudo_change_fees()
+        .await
+        .expect("should not error fetching ibc_sudo_change fees")
+        .expect("ibc_sudo_change fees should be stored");
+    assert_eq!(new_fees, retrieved_fees);
 }
 
 // TODO(https://github.com/astriaorg/astria/issues/1382): Add test to ensure correct block fees for ICS20 withdrawal
