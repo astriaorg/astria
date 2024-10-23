@@ -58,7 +58,7 @@ run-without-native tag=defaultTag:
   ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
 
   # Execute the transfer from Celestia to the Rollup
-  just ibc-test _do-compat-ibc-transfer {{defaultNamespace}} {{sequencer_sudo_address}}
+  just ibc-test _do-ibc-transfer {{defaultNamespace}} {{sequencer_sudo_address}}
 
   # Add transfer/channel-0/utia as fee-asset
   docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer sudo fee-asset add --private-key {{sequencer_sudo_pkey}} --asset transfer/channel-0/utia --sequencer-url {{sequencer_rpc_url}} --sequencer.chain-id {{sequencer_chain_id}}
@@ -93,7 +93,7 @@ run tag=defaultTag:
   just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria {{tag}}
 
   # Execute the transfer from Celestia to the Rollup
-  just ibc-test _do-ibc-transfer
+  just ibc-test _do-rollup-ibc-transfer
 
   # Multiplication factor is 10^-6 (utia to tia) * 10^18 (rollup factor) = 10^12
   let expected_balance="$initial_balance + {{transfer_amount}} * 10**12"
@@ -118,7 +118,7 @@ run tag=defaultTag:
   fi
 
   # Execute the transfer from Celstia to sequencer with compat address
-  just ibc-test _do-compat-ibc-transfer {{defaultNamespace}} {{compat_address}}
+  just ibc-test _do-ibc-transfer {{defaultNamespace}} {{compat_address}}
 
   # check that celestia balance updated correctly
   for i in {1..50}
@@ -248,7 +248,7 @@ transfer_fees := "26000"
 # TODO: move this to deploy.just so that defaultNamespace need not be redefined
 defaultNamespace := "astria-dev-cluster"
 [no-cd]
-_do-ibc-transfer namespace=defaultNamespace:
+_do-rollup-ibc-transfer namespace=defaultNamespace:
   echo "Performing IBC transfer..."
   kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
   'celestia-appd tx ibc-transfer transfer \
@@ -265,7 +265,7 @@ _do-ibc-transfer namespace=defaultNamespace:
     --home /home/celestia \
     --keyring-backend="{{keyring_backend}}"'
 
-_do-compat-ibc-transfer namespace=defaultNamespace toAddress="":
+_do-ibc-transfer namespace=defaultNamespace toAddress="":
   echo "Performing IBC transfer with compat address..."
   kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
   'celestia-appd tx ibc-transfer transfer \
