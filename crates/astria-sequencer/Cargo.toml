@@ -8,9 +8,6 @@ readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
-[[bin]]
-name = "astria-sequencer"
-
 [features]
 benchmark = ["divan"]
 
@@ -80,6 +77,7 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 insta = { workspace = true, features = ["json"] }
+paste = "1.0.15"
 rand_chacha = "0.3.1"
 tokio = { workspace = true, features = ["test-util"] }
 

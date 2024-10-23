@@ -133,135 +133,98 @@ impl ActionHandler for FeeAssetChange {
 mod tests {
     use astria_core::{
         primitive::v1::TransactionId,
-        protocol::{
-            fees::v1::{
-                BridgeLockFeeComponents,
-                Ics20WithdrawalFeeComponents,
-                InitBridgeAccountFeeComponents,
-                RollupDataSubmissionFeeComponents,
-                TransferFeeComponents,
-            },
-            transaction::v1::action::FeeChange,
-        },
+        protocol::transaction::v1::action::FeeChange,
     };
-    use cnidarium::StateDelta;
 
     use crate::{
         app::ActionHandler as _,
         authority::StateWriteExt as _,
-        fees::{
-            StateReadExt as _,
-            StateWriteExt as _,
-        },
+        fees::StateReadExt as _,
         transaction::{
             StateWriteExt as _,
             TransactionContext,
         },
     };
 
-    #[tokio::test]
-    async fn fee_change_action_executes() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-        let transfer_fee = 12;
+    /// This macro generates a test named e.g. `transfer_fee_change_action_executes` which asserts
+    /// that executing a `FeeChange` tx for the given action results in the fees being stored for
+    /// the given action.
+    macro_rules! test_fee_change_action {
+        ( $( $fee_name:tt => $fee_ty:tt ),* $(,)?) => {
+            $(
+                paste::item! {
+                    #[tokio::test]
+                    async fn [< $fee_name _fee_change_action_executes >] () {
+                        use astria_core::protocol::fees::v1:: [< $fee_ty FeeComponents >] as Fees;
 
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
-        state.put_sudo_address([1; 20]).unwrap();
+                        let storage = cnidarium::TempStorage::new().await.unwrap();
+                        let snapshot = storage.latest_snapshot();
+                        let mut state = cnidarium::StateDelta::new(snapshot);
 
-        state
-            .put_transfer_fees(TransferFeeComponents {
-                base: transfer_fee,
-                multiplier: 0,
-            })
-            .unwrap();
+                        // Put the context to enable the txs to execute.
+                        state.put_transaction_context(TransactionContext {
+                            address_bytes: [1; 20],
+                            transaction_id: TransactionId::new([0; 32]),
+                            source_action_index: 0,
+                        });
+                        state.put_sudo_address([1; 20]).unwrap();
 
-        let fee_change = FeeChange::Transfer(TransferFeeComponents {
-            base: 10,
-            multiplier: 0,
-        });
+                        assert!(state
+                            .[< get_ $fee_name _fees >] ()
+                            .await
+                            .expect(stringify!(should not error fetching unstored $fee_name fees))
+                            .is_none());
 
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_transfer_fees().await.unwrap().base, 10);
+                        // Execute an initial fee change tx to store the first version of the fees.
+                        let initial_fees = Fees {
+                            base: 1,
+                            multiplier: 2,
+                        };
+                        let fee_change = FeeChange:: $fee_ty (initial_fees);
+                        fee_change.check_and_execute(&mut state).await.unwrap();
 
-        let rollup_data_submission_base = 5;
-        let rollup_data_submission_cost_multiplier = 2;
-        state
-            .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
-                base: rollup_data_submission_base,
-                multiplier: rollup_data_submission_cost_multiplier,
-            })
-            .unwrap();
+                        let retrieved_fees = state
+                            .[< get_ $fee_name _fees >] ()
+                            .await
+                            .expect(stringify!(should not error fetching initial $fee_name fees))
+                            .expect(stringify!(initial $fee_name fees should be stored));
+                        assert_eq!(initial_fees, retrieved_fees);
 
-        let fee_change = FeeChange::RollupDataSubmission(RollupDataSubmissionFeeComponents {
-            base: 3,
-            multiplier: 4,
-        });
+                        // Execute a second fee change tx to overwrite the fees.
+                        let new_fees = Fees {
+                            base: 3,
+                            multiplier: 4,
+                        };
+                        let fee_change = FeeChange:: $fee_ty (new_fees);
+                        fee_change.check_and_execute(&mut state).await.unwrap();
 
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(
-            state.get_rollup_data_submission_fees().await.unwrap().base,
-            3
-        );
-        assert_eq!(
-            state
-                .get_rollup_data_submission_fees()
-                .await
-                .unwrap()
-                .multiplier,
-            4
-        );
-
-        let init_bridge_account_base = 1;
-        state
-            .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
-                base: init_bridge_account_base,
-                multiplier: 0,
-            })
-            .unwrap();
-
-        let fee_change = FeeChange::InitBridgeAccount(InitBridgeAccountFeeComponents {
-            base: 2,
-            multiplier: 0,
-        });
-
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_init_bridge_account_fees().await.unwrap().base, 2);
-
-        let bridge_lock_cost_multiplier = 1;
-        state
-            .put_bridge_lock_fees(BridgeLockFeeComponents {
-                base: 0,
-                multiplier: bridge_lock_cost_multiplier,
-            })
-            .unwrap();
-
-        let fee_change = FeeChange::BridgeLock(BridgeLockFeeComponents {
-            base: 0,
-            multiplier: 2,
-        });
-
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_bridge_lock_fees().await.unwrap().multiplier, 2);
-
-        let ics20_withdrawal_base = 1;
-        state
-            .put_ics20_withdrawal_fees(Ics20WithdrawalFeeComponents {
-                base: ics20_withdrawal_base,
-                multiplier: 0,
-            })
-            .unwrap();
-
-        let fee_change = FeeChange::Ics20Withdrawal(Ics20WithdrawalFeeComponents {
-            base: 2,
-            multiplier: 0,
-        });
-
-        fee_change.check_and_execute(&mut state).await.unwrap();
-        assert_eq!(state.get_ics20_withdrawal_fees().await.unwrap().base, 2);
+                        let retrieved_fees = state
+                            .[< get_ $fee_name _fees >] ()
+                            .await
+                            .expect(stringify!(should not error fetching new $fee_name fees))
+                            .expect(stringify!(new $fee_name fees should be stored));
+                        assert_ne!(initial_fees, retrieved_fees);
+                        assert_eq!(new_fees, retrieved_fees);
+                    }
+               }
+            )*
+        };
     }
+
+    test_fee_change_action!(
+        transfer => Transfer,
+        rollup_data_submission => RollupDataSubmission,
+        ics20_withdrawal => Ics20Withdrawal,
+        init_bridge_account => InitBridgeAccount,
+        bridge_lock => BridgeLock,
+        bridge_unlock => BridgeUnlock,
+        bridge_sudo_change => BridgeSudoChange,
+        validator_update => ValidatorUpdate,
+        ibc_relayer_change => IbcRelayerChange,
+        ibc_relay => IbcRelay,
+        fee_asset_change => FeeAssetChange,
+        fee_change => FeeChange,
+        sudo_address_change => SudoAddressChange,
+        ibc_sudo_change => IbcSudoChange,
+    );
 }
