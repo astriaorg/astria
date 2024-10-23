@@ -34,6 +34,33 @@ delete:
   just deploy hermes-local > /dev/null
   kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=480s
 
+@deploy-timeout tag=defaultTag:
+  echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
+  just wait-for-ingress-controller > /dev/null
+  echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  helm dependency update ./sequencer > /dev/null
+  helm dependency update ./evm-stack > /dev/null
+  echo "Setting up single astria sequencer..." && helm install \
+    -n astria-validator-single single-sequencer-chart ./sequencer \
+    -f ../dev/values/validators/all.yml \
+    -f ../dev/values/validators/single.yml \
+    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
+    --create-namespace > /dev/null
+  just wait-for-sequencer > /dev/null
+  echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./evm-stack \
+    -f ../dev/values/rollup/dev.yaml \
+    -f ../dev/values/rollup/ibc-bridge-test.yaml \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
+    --set blockscout-stack.enabled=false \
+    --set evm-bridge-withdrawer.enabled=false \
+    --set postgresql.enabled=false \
+    --set evm-faucet.enabled=false > /dev/null
+  just wait-for-dev-rollup > /dev/null
+  echo "Deploying Hermes"
+  just deploy hermes-local > /dev/null
+  kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=480s
+
+
 [no-cd]
 run tag=defaultTag:
   #!/usr/bin/env bash
@@ -43,7 +70,7 @@ run tag=defaultTag:
   initial_celestia_balance=$(just ibc-test get-celestia-balance)
 
   # Create a bridge account on the sequencer
-  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria {{tag}}
+  just init-ibc-bridge {{sequencer_tia_bridge_priv_key}} transfer/channel-0/utia nria {{tag}}
 
   # Execute the transfer from Celestia to the Rollup
   just ibc-test _do-ibc-transfer
@@ -110,8 +137,8 @@ run tag=defaultTag:
   fi
 
   # test IBC withdrawal from the EVM to Celestia
-  initial_balance=$(just evm-get-balance {{evm_destination_address}})
-  let expected_evm_balance="$initial_balance - 1000000000000"
+  post_deposit_evm_balance=$(just evm-get-balance {{evm_destination_address}})
+  let expected_evm_balance="$post_deposit_evm_balance - 1000000000000"
 
   initial_celestia_balance=$(just ibc-test get-celestia-balance)
   # `bc` because very large number
@@ -164,13 +191,191 @@ run tag=defaultTag:
     exit 1
   fi
 
+sequencer_tia_bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
+eth_ws_url := "ws://ws-executor.astria.localdev.me/"
+evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
+sequencer_chain_id := "sequencer-test-chain-0"
+[no-cd]
+run-timeout tag=defaultTag:
+  #!/usr/bin/env bash
+  set -e
+
+  initial_balance=$(just evm-get-balance {{evm_destination_address}})
+  initial_celestia_balance=$(just ibc-test get-celestia-balance)
+
+  # Create a bridge account on the sequencer
+  just init-ibc-bridge {{sequencer_tia_bridge_priv_key}} transfer/channel-0/utia nria {{tag}}
+
+  # Execute the transfer from Celestia to the Rollup
+  just ibc-test _do-ibc-transfer
+
+  # Multiplication factor is 10^-6 (utia to tia) * 10^18 (rollup factor) = 10^12
+  let expected_balance="$initial_balance + {{transfer_amount}} * 10**12"
+
+  # `bc` because very large number
+  expected_celestia_balance=$(echo "$initial_celestia_balance - {{transfer_amount}} - {{transfer_fees}}" | bc)
+
+  # check that evm balance updated correctly
+  for i in {1..50}
+  do
+    current_balance=$(just evm-get-balance {{evm_destination_address}})
+    echo "check $i, balance: $current_balance, expected: $expected_balance"
+    if (( expected_balance == $current_balance )); then
+      expected_balance_found="1"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $expected_balance_found ]]; then
+    echo "expected balance was not found; IBC transfer from Celestia to the Rollup failed"
+    exit 1
+  fi
+
+  # Execute the transfer from Celstia to sequencer with compat address
+  just ibc-test _do-compat-ibc-transfer
+
+  # check that celestia balance updated correctly
+  for i in {1..50}
+  do
+    current_celestia_balance=$(just ibc-test get-celestia-balance)
+    echo "check $i, balance: $current_celestia_balance, expected: $expected_celestia_balance"
+    if (( $expected_celestia_balance == $current_celestia_balance )); then
+      expected_celestia_balance_found="1"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $expected_celestia_balance_found ]]; then
+    echo "expected celestia balance was not found after withdraw; IBC transfer from Celestia to the Rollup failed"
+    exit 1
+  fi
+
+  # check that sequencer balance updated correctly
+  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+  EXPECTED_BALANCE=$(echo "1 * {{transfer_amount}}" | bc)
+  for i in {1..50}
+  do
+    BALANCE=$(docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer account balance {{sequencer_address}} --sequencer-url {{sequencer_rpc_url}}  | awk '/transfer\/channel-0\/utia/{print $(NF-1)}')
+    echo "check $i, balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      expected_sequencer_balance_found="1"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $expected_sequencer_balance_found ]]; then
+    echo "expected sequencer balance was not found after IBC transfer; IBC transfer with compat address failed"
+    exit 1
+  fi
+
+  # test IBC withdrawal from the EVM to Celestia
+  post_deposit_evm_balance=$(just evm-get-balance {{evm_destination_address}})
+  let expected_evm_balance="$post_deposit_evm_balance - 1000000000000"
+
+  initial_celestia_balance=$(just ibc-test get-celestia-balance)
+  # `bc` because very large number
+  # WITHDRAW_AMOUNT / 10^(18-6) = 1
+  expected_celestia_balance=$(echo "$initial_celestia_balance + 1" | bc)
+  echo "Initial Celestia balance $initial_celestia_balance"
+
+  echo "Performing IBC withdrawal from the EVM to Celestia..."
+  just evm-send-raw-transaction {{evm_withdraw_tx_raw}}
+
+  # check that evm balance updated correctly
+  for i in {1..50}
+  do
+    tx_receipt=$(just evm-get-transaction-receipt {{evm_withdraw_tx_hash}})
+    if [[ $tx_receipt != "null" ]]; then
+      echo "Transaction receipt found: $tx_receipt"
+      tx_receipt_found="1"
+      current_balance=$(just evm-get-balance {{evm_destination_address}})
+      if (( $expected_evm_balance == $current_balance )); then
+        echo "EVM balance updated correctly - expected: $expected_evm_balance, actual: $current_balance"
+        break
+      else
+        echo "EVM balance not updated correctly - expected: $expected_evm_balance, actual: $current_balance"
+        exit 1
+      fi
+      break
+    else
+      sleep 1
+    fi
+  done
+  if [[ -z $tx_receipt_found ]]; then
+    echo "Transaction receipt not found; IBC transfer from the Rollup to Celestia failed"
+    exit 1
+  fi
+
+  CURRENT_BLOCK_HEX=$(just evm-get-block-by-number latest | jq -r '.number')
+  CURRENT_BLOCK=$(just hex-to-dec $CURRENT_BLOCK_HEX)
+
+  # Using a docker volume to handle both passing in a private key & the output file
+  docker volume create cli-test-withdrawals
+  docker run --rm -v cli-test-withdrawals:/data alpine sh -c "echo '{{sequencer_tia_bridge_priv_key}}' > /data/key"
+  docker run --rm -v cli-test-withdrawals:/astria --network host $ASTRIA_CLI_IMAGE bridge collect-withdrawals \
+    --rollup-endpoint {{eth_ws_url}} \
+    --contract-address {{evm_contract_address}} \
+    --from-rollup-height 1 \
+    --to-rollup-height $CURRENT_BLOCK \
+    --ics20-asset-to-withdraw "transfer/channel-0/utia" \
+    --bridge-address {{sequencer_tia_bridge_address}} \
+    --output "/astria/tempfile" \
+    --force
+
+  # There are some acknowledgements flying back and forth which make creating a height
+  # that is a timeout without being stale with a client update a challenge without
+  # waiting for acknowledgements to settle. This is a hack.
+  echo "Waiting for 30 seconds to allow for acknowledgements to settle..."
+  sleep 30
+
+  # Grabbing the current celestia block height and resetting the timeout height of the withdrawal
+  # to one lower to force an immediate timeout which should create a refund event.
+  CELESTIA_BLOCK_HEIGHT=$(just ibc-test get-celestia-height)
+  docker run --rm -v cli-test-withdrawals:/data alpine sh -c "sed -i 's/\"timeoutHeight\":{\"revisionNumber\":\"18446744073709551615\",\"revisionHeight\":\"18446744073709551615\"}/\"timeoutHeight\":{\"revisionNumber\":\"0\",\"revisionHeight\":\"$(($CELESTIA_BLOCK_HEIGHT - 1))\"}/g' /data/tempfile"
+  # Send the withdrawals
+  docker run --rm -v cli-test-withdrawals:/astria --network host $ASTRIA_CLI_IMAGE bridge submit-withdrawals \
+  --signing-key "/astria/key"  \
+  --sequencer-chain-id {{sequencer_chain_id}} \
+  --sequencer-url {{sequencer_rpc_url}} \
+  --input "/astria/tempfile"
+
+  # Can inspect the file by removing and looking in volume
+  docker volume remove cli-test-withdrawals
+
+  # Validate that the Celestia balance timed out
+  for i in {1..30}
+  do
+    current_celestia_balance=$(just ibc-test get-celestia-balance)
+    echo "check $i, balance: $current_celestia_balance, if failure balance: $expected_celestia_balance"
+    if (( $expected_celestia_balance == $current_celestia_balance )); then
+      echo "Celestia balance changed when timeout should have occured"
+      exit 1
+    else
+      sleep 1
+    fi
+  done
+
+  # check that evm balance was refunded
+  # we have already looped many times so we shouldn't need to wait
+  current_balance=$(just evm-get-balance {{evm_destination_address}})
+  if (( $post_deposit_evm_balance == $current_balance )); then
+    echo "EVM balance refunded correctly - expected: $post_deposit_evm_balance, actual: $current_balance"
+  else
+    echo "EVM balance not refunded correctly - expected: $post_deposit_evm_balance, actual: $current_balance"
+    echo "EVM balance was not refunded; IBC transfer refund on timeout to Celestia failed"
+    exit 1
+  fi
+
 bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
 sequencer_address := "astria1cewd7alwml4fhx3w3lxq3vgf20cqe0qm650fac"
 compat_address := "astriacompat1cewd7alwml4fhx3w3lxq3vgf20cqe0qmdzxmvn"
 celestia_dev_account_address := "celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96"
 celestia_chain_id := "celestia-local-0"
 celestia_node_url := "http://rpc.app.celestia.localdev.me:80"
-sequencer_tia_bridge_pkey := "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
+sequencer_tia_bridge_priv_key := "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
 keyring_backend := "test"
 celestia_desitnation_address := "0x4a58639fb5458e65e4fa917ff951c390292c24a1"
 sequencer_rpc_url := "http://rpc.sequencer.localdev.me"
@@ -239,6 +444,14 @@ get-celestia-balance address=celestia_dev_account_address namespace=defaultNames
   balance=${balance//\"/}
   echo $balance
 
+get-celestia-height namespace=defaultNamespace:
+  #!/usr/bin/env bash
+  height=$(kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
+  'celestia-appd query block' | jq '.block.header.height')
+  # remove quotes
+  height=${height//\"/}
+  echo $height
+
 # helper command to call withdraw smart contract, in aid of getting its raw bytes for the tests.
 _forge-ibc-withdraw:
   #!/usr/bin/env bash
@@ -266,4 +479,4 @@ cb address=celestia_dev_account_address namespace=defaultNamespace:
 
 # init sequencer bridge account
 init-bridge-acct tag=defaultTag:
-  just init-ibc-bridge {{sequencer_tia_bridge_pkey}} transfer/channel-0/utia nria {{tag}}
+  just init-ibc-bridge {{sequencer_tia_bridge_priv_key}} transfer/channel-0/utia nria {{tag}}
