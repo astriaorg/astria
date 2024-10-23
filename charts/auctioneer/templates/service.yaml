@@ -1,0 +1,16 @@
+{{- if .Values.metrics.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: auctioneer-metrics
+  namespace: {{ include "auctioneer.namespace" . }}
+  labels:
+    app: auctioneer
+spec:
+  selector:
+    app: auctioneer
+  ports:
+    - name: auctioneer-metrics
+      port: {{ .Values.ports.metrics }}
+      targetPort: auctioneer-metrics
+{{- end }}
