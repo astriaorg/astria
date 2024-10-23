@@ -213,6 +213,7 @@ mod tests {
             action::RollupDataSubmission,
             TransactionBody,
         },
+        Protobuf as _,
     };
     use bytes::Bytes;
     use prost::Message as _;
