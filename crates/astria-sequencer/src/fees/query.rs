@@ -250,7 +250,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     .get_or_try_init(|| async { state.get_init_bridge_account_fees().await })
                     .await
                     .wrap_err("failed to get init bridge account fees")?
-                    .ok_or_eyre("fees not found for `Transfer` action, hence it is disabled")?;
+                    .ok_or_eyre("fees not found for `InitBridgeAccount` action, hence it is disabled")?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
