@@ -240,7 +240,6 @@ run tag=defaultTag:
 sequencer_tia_bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
 eth_ws_url := "ws://ws-executor.astria.localdev.me/"
 evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
-sequencer_chain_id := "sequencer-test-chain-0"
 [no-cd]
 run-timeout tag=defaultTag:
   #!/usr/bin/env bash
