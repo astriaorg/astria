@@ -133,7 +133,13 @@ async fn app_execute_transaction_transfer() {
             .unwrap(),
         value + 10u128.pow(19)
     );
-    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
+    let transfer_base = app
+        .state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored")
+        .base;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -199,7 +205,13 @@ async fn app_execute_transaction_transfer_not_native_token() {
         value, // transferred amount
     );
 
-    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
+    let transfer_base = app
+        .state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored")
+        .base;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -994,7 +1006,13 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
 
     // give bridge eoa funds so it can pay for the
     // unlock transfer action
-    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
+    let transfer_base = app
+        .state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored")
+        .base;
     state_tx
         .put_account_balance(&bridge_address, &nria(), transfer_base)
         .unwrap();

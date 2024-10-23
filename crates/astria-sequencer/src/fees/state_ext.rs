@@ -27,7 +27,6 @@ use astria_core::{
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        eyre,
         Result,
         WrapErr as _,
     },
@@ -61,272 +60,274 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_transfer_fees(&self) -> Result<TransferFeeComponents> {
+    async fn get_transfer_fees(&self) -> Result<Option<TransferFeeComponents>> {
         let bytes = self
             .get_raw(keys::TRANSFER)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw transfer fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("transfer fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::TransferFeeComponentsStorage::try_from(value)
-                    .map(TransferFeeComponents::from)
+                    .map(|fees| Some(TransferFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_rollup_data_submission_fees(&self) -> Result<RollupDataSubmissionFeeComponents> {
+    async fn get_rollup_data_submission_fees(
+        &self,
+    ) -> Result<Option<RollupDataSubmissionFeeComponents>> {
         let bytes = self
             .get_raw(keys::ROLLUP_DATA_SUBMISSION)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sequence fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("sequence fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::RollupDataSubmissionFeeComponentsStorage::try_from(value)
-                    .map(RollupDataSubmissionFeeComponents::from)
+                    .map(|fees| Some(RollupDataSubmissionFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_ics20_withdrawal_fees(&self) -> Result<Ics20WithdrawalFeeComponents> {
+    async fn get_ics20_withdrawal_fees(&self) -> Result<Option<Ics20WithdrawalFeeComponents>> {
         let bytes = self
             .get_raw(keys::ICS20_WITHDRAWAL)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw ics20 withdrawal fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("ics20 withdrawal fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::Ics20WithdrawalFeeComponentsStorage::try_from(value)
-                    .map(Ics20WithdrawalFeeComponents::from)
+                    .map(|fees| Some(Ics20WithdrawalFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_init_bridge_account_fees(&self) -> Result<InitBridgeAccountFeeComponents> {
+    async fn get_init_bridge_account_fees(&self) -> Result<Option<InitBridgeAccountFeeComponents>> {
         let bytes = self
             .get_raw(keys::INIT_BRIDGE_ACCOUNT)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw init bridge account fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("init bridge account fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::InitBridgeAccountFeeComponentsStorage::try_from(value)
-                    .map(InitBridgeAccountFeeComponents::from)
+                    .map(|fees| Some(InitBridgeAccountFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_bridge_lock_fees(&self) -> Result<BridgeLockFeeComponents> {
+    async fn get_bridge_lock_fees(&self) -> Result<Option<BridgeLockFeeComponents>> {
         let bytes = self
             .get_raw(keys::BRIDGE_LOCK)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge lock fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("bridge lock fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::BridgeLockFeeComponentsStorage::try_from(value)
-                    .map(BridgeLockFeeComponents::from)
+                    .map(|fees| Some(BridgeLockFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_bridge_unlock_fees(&self) -> Result<BridgeUnlockFeeComponents> {
+    async fn get_bridge_unlock_fees(&self) -> Result<Option<BridgeUnlockFeeComponents>> {
         let bytes = self
             .get_raw(keys::BRIDGE_UNLOCK)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge unlock fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("bridge unlock fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::BridgeUnlockFeeComponentsStorage::try_from(value)
-                    .map(BridgeUnlockFeeComponents::from)
+                    .map(|fees| Some(BridgeUnlockFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_bridge_sudo_change_fees(&self) -> Result<BridgeSudoChangeFeeComponents> {
+    async fn get_bridge_sudo_change_fees(&self) -> Result<Option<BridgeSudoChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::BRIDGE_SUDO_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge sudo change fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("bridge sudo change fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::BridgeSudoChangeFeeComponentsStorage::try_from(value)
-                    .map(BridgeSudoChangeFeeComponents::from)
+                    .map(|fees| Some(BridgeSudoChangeFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_ibc_relay_fees(&self) -> Result<IbcRelayFeeComponents> {
+    async fn get_ibc_relay_fees(&self) -> Result<Option<IbcRelayFeeComponents>> {
         let bytes = self
             .get_raw(keys::IBC_RELAY)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw ibc relay fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("ibc relay fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::IbcRelayFeeComponentsStorage::try_from(value)
-                    .map(IbcRelayFeeComponents::from)
+                    .map(|fees| Some(IbcRelayFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     /// **NOTE**: Deprecated. Use [`ValidatorUpdateV2`] action instead.
     #[instrument(skip_all)]
-    async fn get_validator_update_fees(&self) -> Result<ValidatorUpdateFeeComponents> {
+    async fn get_validator_update_fees(&self) -> Result<Option<ValidatorUpdateFeeComponents>> {
         let bytes = self
             .get_raw(keys::VALIDATOR_UPDATE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator update fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("validator update fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::ValidatorUpdateFeeComponentsStorage::try_from(value)
-                    .map(ValidatorUpdateFeeComponents::from)
+                    .map(|fees| Some(ValidatorUpdateFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_fee_asset_change_fees(&self) -> Result<FeeAssetChangeFeeComponents> {
+    async fn get_fee_asset_change_fees(&self) -> Result<Option<FeeAssetChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::FEE_ASSET_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw fee asset change fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("fee asset change fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::FeeAssetChangeFeeComponentsStorage::try_from(value)
-                    .map(FeeAssetChangeFeeComponents::from)
+                    .map(|fees| Some(FeeAssetChangeFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_fee_change_fees(&self) -> Result<FeeChangeFeeComponents> {
+    async fn get_fee_change_fees(&self) -> Result<Option<FeeChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::FEE_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw fee change fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("fee change fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::FeeChangeFeeComponentsStorage::try_from(value)
-                    .map(FeeChangeFeeComponents::from)
+                    .map(|fees| Some(FeeChangeFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_ibc_relayer_change_fees(&self) -> Result<IbcRelayerChangeFeeComponents> {
+    async fn get_ibc_relayer_change_fees(&self) -> Result<Option<IbcRelayerChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::IBC_RELAYER_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw ibc relayer change fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("ibc relayer change fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::IbcRelayerChangeFeeComponentsStorage::try_from(value)
-                    .map(IbcRelayerChangeFeeComponents::from)
+                    .map(|fees| Some(IbcRelayerChangeFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_sudo_address_change_fees(&self) -> Result<SudoAddressChangeFeeComponents> {
+    async fn get_sudo_address_change_fees(&self) -> Result<Option<SudoAddressChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::SUDO_ADDRESS_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw sudo address change fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("sudo address change fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::SudoAddressChangeFeeComponentsStorage::try_from(value)
-                    .map(SudoAddressChangeFeeComponents::from)
+                    .map(|fees| Some(SudoAddressChangeFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_ibc_sudo_change_fees(&self) -> Result<IbcSudoChangeFeeComponents> {
+    async fn get_ibc_sudo_change_fees(&self) -> Result<Option<IbcSudoChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::IBC_SUDO_CHANGE)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw ibc sudo change fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("ibc sudo change fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::IbcSudoChangeFeeComponentsStorage::try_from(value)
-                    .map(IbcSudoChangeFeeComponents::from)
+                    .map(|fees| Some(IbcSudoChangeFeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
 
     #[instrument(skip_all)]
-    async fn get_validator_update_v2_fees(&self) -> Result<ValidatorUpdateV2FeeComponents> {
+    async fn get_validator_update_v2_fees(&self) -> Result<Option<ValidatorUpdateV2FeeComponents>> {
         let bytes = self
             .get_raw(keys::VALIDATOR_UPDATE_V2)
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw validator update (v2) fee components from state")?;
+            .wrap_err("failed reading raw validator update v2 fee components from state")?;
         let Some(bytes) = bytes else {
-            return Err(eyre!("validator update (v2) fee components not set"));
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::ValidatorUpdateV2FeeComponentsStorage::try_from(value)
-                    .map(ValidatorUpdateV2FeeComponents::from)
+                    .map(|fees| Some(ValidatorUpdateV2FeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
@@ -680,7 +681,7 @@ mod tests {
 
         state.put_transfer_fees(fee_components).unwrap();
         let retrieved_fee = state.get_transfer_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -698,7 +699,7 @@ mod tests {
             .put_rollup_data_submission_fees(fee_components)
             .unwrap();
         let retrieved_fee = state.get_rollup_data_submission_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -714,7 +715,7 @@ mod tests {
 
         state.put_ics20_withdrawal_fees(fee_components).unwrap();
         let retrieved_fee = state.get_ics20_withdrawal_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -730,7 +731,7 @@ mod tests {
 
         state.put_init_bridge_account_fees(fee_components).unwrap();
         let retrieved_fee = state.get_init_bridge_account_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -746,7 +747,7 @@ mod tests {
 
         state.put_bridge_lock_fees(fee_components).unwrap();
         let retrieved_fee = state.get_bridge_lock_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -762,7 +763,7 @@ mod tests {
 
         state.put_bridge_unlock_fees(fee_components).unwrap();
         let retrieved_fee = state.get_bridge_unlock_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -778,7 +779,7 @@ mod tests {
 
         state.put_bridge_sudo_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_bridge_sudo_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -794,7 +795,7 @@ mod tests {
 
         state.put_ibc_relay_fees(fee_components).unwrap();
         let retrieved_fee = state.get_ibc_relay_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -810,7 +811,7 @@ mod tests {
 
         state.put_validator_update_fees(fee_components).unwrap();
         let retrieved_fee = state.get_validator_update_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -826,7 +827,7 @@ mod tests {
 
         state.put_fee_asset_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_fee_asset_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -842,7 +843,7 @@ mod tests {
 
         state.put_fee_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_fee_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -858,7 +859,7 @@ mod tests {
 
         state.put_ibc_relayer_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_ibc_relayer_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -874,7 +875,7 @@ mod tests {
 
         state.put_sudo_address_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_sudo_address_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -890,7 +891,7 @@ mod tests {
 
         state.put_ibc_sudo_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_ibc_sudo_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, fee_components);
+        assert_eq!(retrieved_fee, Some(fee_components));
     }
 
     #[tokio::test]
@@ -905,7 +906,7 @@ mod tests {
         };
 
         state.put_validator_update_v2_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_validator_update_v2_fees().await.unwrap();
+        let retrieved_fee = state.get_validator_update_v2_fees().await.unwrap().unwrap();
         assert_eq!(retrieved_fee, fee_components);
     }
 

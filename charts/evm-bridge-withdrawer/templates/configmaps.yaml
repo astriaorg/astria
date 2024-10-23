@@ -33,6 +33,7 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_BRIDGE_WITHDRAWER_USE_COMPAT_ADDRESS: "{{ .Values.config.useCompatAddress }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}

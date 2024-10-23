@@ -8,9 +8,6 @@ readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
-[[bin]]
-name = "astria-conductor"
-
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = [

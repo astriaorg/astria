@@ -36,7 +36,7 @@ impl Component for FeesComponent {
         let rollup_data_submission_fees = app_state.fees().rollup_data_submission;
         state
             .put_rollup_data_submission_fees(rollup_data_submission_fees)
-            .wrap_err("failed to store rollup data submission action fee components")?;
+            .wrap_err("failed to store rollup data submission fee components")?;
 
         let ics20_withdrawal_fees = app_state.fees().ics20_withdrawal;
         state
