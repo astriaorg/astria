@@ -20,6 +20,7 @@ use astria_core::{
         SudoAddressChangeFeeComponents,
         TransferFeeComponents,
         ValidatorUpdateFeeComponents,
+        ValidatorUpdateV2FeeComponents,
     },
     Protobuf,
 };
@@ -204,6 +205,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
+    /// **NOTE**: Deprecated. Use [`ValidatorUpdateV2`] action instead.
     #[instrument(skip_all)]
     async fn get_validator_update_fees(&self) -> Result<Option<ValidatorUpdateFeeComponents>> {
         let bytes = self
@@ -308,6 +310,24 @@ pub(crate) trait StateReadExt: StateRead {
             .and_then(|value| {
                 storage::IbcSudoChangeFeeComponentsStorage::try_from(value)
                     .map(|fees| Some(IbcSudoChangeFeeComponents::from(fees)))
+            })
+            .wrap_err("invalid fees bytes")
+    }
+
+    #[instrument(skip_all)]
+    async fn get_validator_update_v2_fees(&self) -> Result<Option<ValidatorUpdateV2FeeComponents>> {
+        let bytes = self
+            .get_raw(keys::VALIDATOR_UPDATE_V2)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator update v2 fee components from state")?;
+        let Some(bytes) = bytes else {
+            return Ok(None);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::ValidatorUpdateV2FeeComponentsStorage::try_from(value)
+                    .map(|fees| Some(ValidatorUpdateV2FeeComponents::from(fees)))
             })
             .wrap_err("invalid fees bytes")
     }
@@ -455,6 +475,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
+    /// **NOTE**: Deprecated. Use [`ValidatorUpdateV2`] action instead.
     #[instrument(skip_all)]
     fn put_validator_update_fees(&mut self, fees: ValidatorUpdateFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::ValidatorUpdateFeeComponentsStorage::from(fees))
@@ -506,6 +527,15 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .wrap_err("failed to serialize fees")?;
         self.put_raw(keys::IBC_SUDO_CHANGE.to_string(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn put_validator_update_v2_fees(&mut self, fees: ValidatorUpdateV2FeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::ValidatorUpdateV2FeeComponentsStorage::from(fees))
+            .serialize()
+            .wrap_err("failed to serialize fees")?;
+        self.put_raw(keys::VALIDATOR_UPDATE_V2.to_string(), bytes);
         Ok(())
     }
 
@@ -862,6 +892,22 @@ mod tests {
         state.put_ibc_sudo_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_ibc_sudo_change_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
+    }
+
+    #[tokio::test]
+    async fn validator_update_v2_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = ValidatorUpdateV2FeeComponents {
+            base: 123,
+            multiplier: 1,
+        };
+
+        state.put_validator_update_v2_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_validator_update_v2_fees().await.unwrap().unwrap();
+        assert_eq!(retrieved_fee, fee_components);
     }
 
     #[tokio::test]

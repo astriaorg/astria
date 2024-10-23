@@ -82,6 +82,10 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         .get_validator_update_fees()
         .await
         .wrap_err("failed to get validator update fees")?;
+    let validator_update_v2_fees = state
+        .get_validator_update_v2_fees()
+        .await
+        .wrap_err("failed to get validator update fees")?;
     let sudo_address_change_fees = state
         .get_sudo_address_change_fees()
         .await
@@ -196,6 +200,11 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     "fees not found for `ValidatorUpdate` action, hence it is disabled",
                 )?;
             }
+            Action::ValidatorUpdateV2(_) => {
+                validator_update_v2_fees.ok_or_eyre(
+                    "fees not found for `ValidatorUpdateV2` action, hence it is disabled",
+                )?;
+            }
             Action::SudoAddressChange(_) => {
                 sudo_address_change_fees.ok_or_eyre(
                     "fees not found for `SudoAddressChange` action, hence it is disabled",
@@ -297,6 +306,7 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
                     .or_insert(act.amount);
             }
             Action::ValidatorUpdate(_)
+            | Action::ValidatorUpdateV2(_)
             | Action::SudoAddressChange(_)
             | Action::IbcSudoChange(_)
             | Action::RollupDataSubmission(_)
