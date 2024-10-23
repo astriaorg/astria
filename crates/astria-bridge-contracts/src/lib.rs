@@ -420,7 +420,7 @@ where
         );
 
         let memo = memo_to_json(&memos::v1::Ics20WithdrawalFromRollup {
-            memo: event.memo.clone(),
+            memo: std::iter::repeat('z').take(33_000).collect(),
             rollup_block_number,
             rollup_return_address: event.sender.to_string(),
             rollup_withdrawal_event_id,
