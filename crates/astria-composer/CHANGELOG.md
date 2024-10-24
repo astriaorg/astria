@@ -1,3 +1,5 @@
+<!-- markdownlint-disable no-duplicate-heading -->
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -115,7 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update licenses [#706](https://github.com/astriaorg/astria/pull/706).
 - Bundle multiple rollup transactions into a single sequencer transaction [#651](https://github.com/astriaorg/astria/pull/651).
-- Move fee asset from `UnsignedTransaction` to `SequenceAction` and `TransferAction` [#719](https://github.com/astriaorg/astria/pull/719).
+- Move fee asset from `UnsignedTransaction` to `SequenceAction` and
+TransferAction` [#719](https://github.com/astriaorg/astria/pull/719).
 - Bump rust to 1.76, cargo-chef to 0.1.63 [#744](https://github.com/astriaorg/astria/pull/744).
 - Add some information to crates update msrv [#754](https://github.com/astriaorg/astria/pull/754).
 

@@ -1,3 +1,5 @@
+<!-- markdownlint-disable no-duplicate-heading -->
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -39,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update `bytemark` dependency based on cargo audit warning [#1350](https://github.com/astriaorg/astria/pull/1350).
 - Update with support for celestia-node v0.15.0 [#1367](https://github.com/astriaorg/astria/pull/1367).
-- Support disabled celestia auth [#1372](https://github.com/astriaorg/astria/pull/1372). 
+- Support disabled celestia auth [#1372](https://github.com/astriaorg/astria/pull/1372).
 
 ## [0.19.0] - 2024-07-26
 
@@ -108,7 +110,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Update `SequencerBlockHeader` and related proto types to not use cometbft header [#830](https://github.com/astriaorg/astria/pull/830).
+- Update `SequencerBlockHeader` and related proto types to not use cometbft
+header [#830](https://github.com/astriaorg/astria/pull/830).
 - Update execution service to use sequencerblock [#954](https://github.com/astriaorg/astria/pull/954).
 - Fully split `sequencerapis` and remove [#958](https://github.com/astriaorg/astria/pull/958).
 - Fetch blocks pending finalization [#980](https://github.com/astriaorg/astria/pull/980).
@@ -121,7 +124,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add serialization to execution `v1alpha2` compliant with protobuf json mapping [#857](https://github.com/astriaorg/astria/pull/857).
+- Add serialization to execution `v1alpha2` compliant with protobuf json
+mapping [#857](https://github.com/astriaorg/astria/pull/857).
 
 ### Changed
 
@@ -170,11 +174,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add `SignedTransaction::sha256_of_proto_encoding()` method [#687](https://github.com/astriaorg/astria/pull/687).
-- Add `ibc_sudo_address` to genesis, only allow `IbcRelay` actions from this address [#721](https://github.com/astriaorg/astria/pull/721).
+- Add `ibc_sudo_address` to genesis, only allow `IbcRelay` actions from this
+address [#721](https://github.com/astriaorg/astria/pull/721).
 - Add firm block syncing [#691](https://github.com/astriaorg/astria/pull/691).
 - Use opentelemetry [#656](https://github.com/astriaorg/astria/pull/656).
 - Metrics setup [#739](https://github.com/astriaorg/astria/pull/739) and [#750](https://github.com/astriaorg/astria/pull/750).
-- Add `ibc_relayer_addresses` list and allow modifications via `ibc_sudo_address` [#737](https://github.com/astriaorg/astria/pull/737).
+- Add `ibc_relayer_addresses` list and allow modifications via
+`ibc_sudo_address` [#737](https://github.com/astriaorg/astria/pull/737).
 - Add pretty-printing to stdout [#736](https://github.com/astriaorg/astria/pull/736).
 - Print build info in all services [#753](https://github.com/astriaorg/astria/pull/753).
 
@@ -182,7 +188,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Transfer fees to block proposer instead of burning [#690](https://github.com/astriaorg/astria/pull/690).
 - Update licenses [#706](https://github.com/astriaorg/astria/pull/706).
-- Move fee asset from `UnsignedTransaction` to `SequenceAction` and `TransferAction`  [#719](https://github.com/astriaorg/astria/pull/719).
+- Move fee asset from `UnsignedTransaction` to `SequenceAction` and
+`TransferAction` [#719](https://github.com/astriaorg/astria/pull/719).
 - Build all binaries, fix pr title ci [#728](https://github.com/astriaorg/astria/pull/728).
 - Split protos into multiple buf repos [#732](https://github.com/astriaorg/astria/pull/732).
 - Bump rust to 1.76, cargo-chef to 0.1.63 [#744](https://github.com/astriaorg/astria/pull/744).
@@ -266,7 +273,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace formatted error backtraces by value impl [#516](https://github.com/astriaorg/astria/pull/516).
 - `v1alpha2` integration [#528](https://github.com/astriaorg/astria/pull/528).
 - Define service configs in terms of a central crate [#537](https://github.com/astriaorg/astria/pull/537).
-- Verify current block commit in conductor; remove `last_commit` from `SequencerBlockData` [#560](https://github.com/astriaorg/astria/pull/560).
+- Verify current block commit in conductor; remove `last_commit` from
+`SequencerBlockData` [#560](https://github.com/astriaorg/astria/pull/560).
 
 ### Removed
 

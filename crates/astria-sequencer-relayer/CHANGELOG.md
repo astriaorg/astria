@@ -1,3 +1,5 @@
+<!-- markdownlint-disable no-duplicate-heading -->
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -51,7 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Remove functionality to restrict relaying blocks to only those proposed by a given validator [#1168](https://github.com/astriaorg/astria/pull/1168).
+- Remove functionality to restrict relaying blocks to only those proposed by a
+given validator [#1168](https://github.com/astriaorg/astria/pull/1168).
 
 ### Fixed
 
@@ -86,10 +89,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Brotli compress data blobs [#1006](https://github.com/astriaorg/astria/pull/1006).
 
 ### Changed
- 
+
 - Generate pbjon impls for sequencer types needed to mock conductor [#905](https://github.com/astriaorg/astria/pull/905).
 - Replace hex by base64 for display formatting, emitting tracing events [#908](https://github.com/astriaorg/astria/pull/908).
-- Update `SequencerBlockHeader` and related proto types to not use cometbft header [#830](https://github.com/astriaorg/astria/pull/830).
+- Update `SequencerBlockHeader` and related proto types to not use cometbft
+header [#830](https://github.com/astriaorg/astria/pull/830).
 - Update to ABCI v0.38 [#831](https://github.com/astriaorg/astria/pull/831).
 - Submit blobs directly to celestia app [#963](https://github.com/astriaorg/astria/pull/963).
 
@@ -131,11 +135,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add `ibc_sudo_address` to genesis, only allow `IbcRelay` actions from this address [#721](https://github.com/astriaorg/astria/pull/721).
+- Add `ibc_sudo_address` to genesis, only allow `IbcRelay` actions from this
+address [#721](https://github.com/astriaorg/astria/pull/721).
 - Use opentelemetry [#656](https://github.com/astriaorg/astria/pull/656).
 - Allow specific assets for fee payment [#730](https://github.com/astriaorg/astria/pull/730).
 - Metrics setup [#739](https://github.com/astriaorg/astria/pull/739) and [#750](https://github.com/astriaorg/astria/pull/750).
-- Add `ibc_relayer_addresses` list and allow modifications via `ibc_sudo_address` [#737](https://github.com/astriaorg/astria/pull/737).
+- Add `ibc_relayer_addresses` list and allow modifications via
+`ibc_sudo_address` [#737](https://github.com/astriaorg/astria/pull/737).
 - Add pretty-printing to stdout [#736](https://github.com/astriaorg/astria/pull/736).
 - Set permitted commitment spread from rollup genesis [#743](https://github.com/astriaorg/astria/pull/743).
 - Implement ability to update fee assets using sudo key [#752](https://github.com/astriaorg/astria/pull/752).
@@ -147,7 +153,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update licenses [#706](https://github.com/astriaorg/astria/pull/706).
 - Update balance queries to return every asset owned by account [#683](https://github.com/astriaorg/astria/pull/683).
 - Use `IbcComponent` and penumbra `HostInterface`  [#700](https://github.com/astriaorg/astria/pull/700).
-- Move fee asset from `UnsignedTransaction` to `SequenceAction` and `TransferAction`  [#719](https://github.com/astriaorg/astria/pull/719).
+- Move fee asset from `UnsignedTransaction` to `SequenceAction` and
+`TransferAction` [#719](https://github.com/astriaorg/astria/pull/719).
 - Split protos into multiple buf repos [#732](https://github.com/astriaorg/astria/pull/732).
 - Add fee for `Ics20Withdrawal` action [#733](https://github.com/astriaorg/astria/pull/733).
 - Bump rust to 1.76, cargo-chef to 0.1.63 [#744](https://github.com/astriaorg/astria/pull/744).
@@ -199,7 +206,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - update `wait_for_sequencer` log to be correct [#586](https://github.com/astriaorg/astria/pull/586).
 
-
 ## [0.8.0] - 2023-11-18
 
 ## Added
@@ -230,7 +236,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Celestia-client: use eiger's version [#486](https://github.com/astriaorg/astria/pull/486).
 - Define service configs in terms of a central crate [#537](https://github.com/astriaorg/astria/pull/537).
 - Remove signing and signature verification of data posted to DA [#538](https://github.com/astriaorg/astria/pull/538).
-- Verify current block commit in conductor; remove `last_commit` from `SequencerBlockData` [#560](https://github.com/astriaorg/astria/pull/560).
+- Verify current block commit in conductor; remove `last_commit` from
+`SequencerBlockData` [#560](https://github.com/astriaorg/astria/pull/560).
 
 ### Fixed
 

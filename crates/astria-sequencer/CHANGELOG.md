@@ -1,3 +1,5 @@
+<!-- markdownlint-disable no-duplicate-heading -->
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -121,7 +123,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update asset query path [#1141](https://github.com/astriaorg/astria/pull/1141).
 
-
 ## [0.14.0] - 2024-06-27
 
 ### Added
@@ -132,7 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement refund to rollup logic upon ics20 transfer refund [#1161](https://github.com/astriaorg/astria/pull/1161).
 - Implement bridge sudo and withdrawer addresses [#1142](https://github.com/astriaorg/astria/pull/1142).
 - Add ttl and invalid cache to app mempool [#1138](https://github.com/astriaorg/astria/pull/1138).
-- Implement `Ics20TransferDepositMemo` format for incoming ics20 transfers to bridge accounts [#1202](https://github.com/astriaorg/astria/pull/1202).
+- Implement `Ics20TransferDepositMemo` format for incoming ics20 transfers to
+bridge accounts [#1202](https://github.com/astriaorg/astria/pull/1202).
 - Add ibc memo type snapshot tests [#1205](https://github.com/astriaorg/astria/pull/1205).
 - Allow configuring base address prefix [#1201](https://github.com/astriaorg/astria/pull/1201).
 
@@ -205,7 +207,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Generate names for protobuf rust types [#904](https://github.com/astriaorg/astria/pull/904).
 - Replace hex by base64 for display formatting, emitting tracing events [#908](https://github.com/astriaorg/astria/pull/908).
 - Set revision number from chain id in `init_chain` [#935](https://github.com/astriaorg/astria/pull/935).
-- Update `SequencerBlockHeader` and related proto types to not use cometbft header [#830](https://github.com/astriaorg/astria/pull/830).
+- Update `SequencerBlockHeader` and related proto types to not use cometbft
+header [#830](https://github.com/astriaorg/astria/pull/830).
 - Update to ABCI v0.38 [#831](https://github.com/astriaorg/astria/pull/831).
 - Fully split `sequencerapis` and remove [#958](https://github.com/astriaorg/astria/pull/958).
 - Require chain id in transactions [#973](https://github.com/astriaorg/astria/pull/973).
@@ -231,8 +234,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Implement bridge deposits for incoming ICS20 transfers [#843](https://github.com/astriaorg/astria/pull/843).
-- Add serialization to execution `v1alpha2` compliant with protobuf json mapping [#857](https://github.com/astriaorg/astria/pull/857).
-- Add unit tests for state extension traits [#858](https://github.com/astriaorg/astria/pull/858), [#871](https://github.com/astriaorg/astria/pull/871), [#874](https://github.com/astriaorg/astria/pull/874), [#875](https://github.com/astriaorg/astria/pull/875), [#876](https://github.com/astriaorg/astria/pull/876) and [#878](https://github.com/astriaorg/astria/pull/878).
+- Add serialization to execution `v1alpha2` compliant with protobuf json
+mapping [#857](https://github.com/astriaorg/astria/pull/857).
+- Add unit tests for state extension traits
+[#858](https://github.com/astriaorg/astria/pull/858),
+[#871](https://github.com/astriaorg/astria/pull/871),
+[#874](https://github.com/astriaorg/astria/pull/874),
+[#875](https://github.com/astriaorg/astria/pull/875),
+[#876](https://github.com/astriaorg/astria/pull/876) and
+[#878](https://github.com/astriaorg/astria/pull/878).
 
 ### Changed
 
@@ -271,11 +281,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add `SignedTransaction::sha256_of_proto_encoding()` method [#687](https://github.com/astriaorg/astria/pull/687).
-- Add `ibc_sudo_address` to genesis, only allow `IbcRelay` actions from this address [#721](https://github.com/astriaorg/astria/pull/721).
+- Add `ibc_sudo_address` to genesis, only allow `IbcRelay` actions from this
+address [#721](https://github.com/astriaorg/astria/pull/721).
 - Use opentelemetry [#656](https://github.com/astriaorg/astria/pull/656).
 - Allow specific assets for fee payment [#730](https://github.com/astriaorg/astria/pull/730).
 - Metrics setup [#739](https://github.com/astriaorg/astria/pull/739) and [#750](https://github.com/astriaorg/astria/pull/750).
-- Add `ibc_relayer_addresses` list and allow modifications via `ibc_sudo_address` [#737](https://github.com/astriaorg/astria/pull/737).
+- Add `ibc_relayer_addresses` list and allow modifications via
+`ibc_sudo_address` [#737](https://github.com/astriaorg/astria/pull/737).
 - Add pretty-printing to stdout [#736](https://github.com/astriaorg/astria/pull/736).
 - Implement ability to update fee assets using sudo key [#752](https://github.com/astriaorg/astria/pull/752).
 - Print build info in all services [#753](https://github.com/astriaorg/astria/pull/753).
@@ -286,7 +298,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update licenses [#706](https://github.com/astriaorg/astria/pull/706).
 - Update balance queries to return every asset owned by account [#683](https://github.com/astriaorg/astria/pull/683).
 - Use `IbcComponent` and penumbra `HostInterface` [#700](https://github.com/astriaorg/astria/pull/700).
-- Move fee asset from `UnsignedTransaction` to `SequenceAction` and `TransferAction` [#719](https://github.com/astriaorg/astria/pull/719).
+- Move fee asset from `UnsignedTransaction` to `SequenceAction` and
+`TransferAction` [#719](https://github.com/astriaorg/astria/pull/719).
 - Relax size requirements of hash buffers [#709](https://github.com/astriaorg/astria/pull/709).
 - Split protos into multiple buf repos [#732](https://github.com/astriaorg/astria/pull/732).
 - Add fee for `Ics20Withdrawal` action [#733](https://github.com/astriaorg/astria/pull/733).
