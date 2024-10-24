@@ -7,7 +7,7 @@ dependencies:
   version: 0.28.1
 - name: composer
   repository: file://../composer
-  version: 1.0.0-rc.1
+  version: 1.0.0-rc.2
 - name: evm-faucet
   repository: file://../evm-faucet
   version: 0.1.2
@@ -20,5 +20,5 @@ dependencies:
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.2
-digest: sha256:bbb5436bef71e57402482f74e2d2deabec5e4d957845bcb743b710ca49e2dc78
-generated: "2024-10-22T10:51:25.483623794-04:00"
+digest: sha256:cbef2e78861e88ca4396d44dc1d96a7b27c32c691896ed16097a1081d63c6d91
+generated: "2024-10-24T14:29:08.887894+03:00"
