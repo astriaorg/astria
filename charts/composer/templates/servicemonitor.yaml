@@ -16,7 +16,7 @@ spec:
     matchLabels:
       app: composer
   endpoints:
-    - port: composer-metrics
+    - port: composer-metric
       path: /
       {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}

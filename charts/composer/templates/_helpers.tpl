@@ -16,14 +16,14 @@ composer
 Common labels
 */}}
 {{- define "composer.labels" -}}
-{{ include "rollup.selectorLabels" . }}
+{{ include "composer.selectorLabels" . }}
 {{- end }}
 
 {{/*
 Selector labels
 */}}
 {{- define "composer.selectorLabels" -}}
-app: {{ include "rollup.appName" . }}
+app: {{ include "composer.appName" . }}
 {{- end }}
 
 {{/*

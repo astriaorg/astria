@@ -1,5 +1,4 @@
 mod checks;
-pub(crate) mod query;
 mod state_ext;
 
 use std::fmt;

@@ -55,21 +55,12 @@ async fn get_trace_prefixed_account_balances<S: StateRead>(
     let stream = state
         .account_asset_balances(address)
         .map_ok(|asset_balance| async move {
-            let native_asset = state
-                .get_native_asset()
+            let denom = ibc_to_trace(state, &asset_balance.asset)
                 .await
-                .context("failed to read native asset from state")?;
-
-            let result_denom = if asset_balance.asset == native_asset.to_ibc_prefixed() {
-                native_asset.into()
-            } else {
-                ibc_to_trace(state, &asset_balance.asset)
-                    .await
-                    .context("failed to map ibc prefixed asset to trace prefixed")?
-                    .into()
-            };
+                .context("failed to map ibc prefixed asset to trace prefixed")?
+                .into();
             Ok(AssetBalance {
-                denom: result_denom,
+                denom,
                 balance: asset_balance.balance,
             })
         })

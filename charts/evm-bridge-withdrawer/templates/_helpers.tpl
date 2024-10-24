@@ -13,7 +13,7 @@ Namepsace to deploy elements into.
 application name to deploy elements into.
 */}}
 {{- define "evm-bridge-withdrawer.appName" -}}
-evm-bridge-withdrawer
+evm-bridge-withdrawer-{{ .Values.global.serviceName }}
 {{- end }}
 
 {{/*

@@ -422,7 +422,7 @@ where
         let memo = memo_to_json(&memos::v1::Ics20WithdrawalFromRollup {
             memo: event.memo.clone(),
             rollup_block_number,
-            rollup_return_address: event.sender.to_string(),
+            rollup_return_address: event.sender.encode_hex(),
             rollup_withdrawal_event_id,
         })
         .map_err(GetWithdrawalActionsError::encode_memo)?;

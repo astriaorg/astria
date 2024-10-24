@@ -3,9 +3,12 @@ use std::{
     ops::Deref,
 };
 
-use astria_core::protocol::transaction::v1::{
-    action::group::Group,
-    Transaction,
+use astria_core::{
+    protocol::transaction::v1::{
+        action::group::Group,
+        Transaction,
+    },
+    Protobuf as _,
 };
 use bytes::Bytes;
 use prost::Message;

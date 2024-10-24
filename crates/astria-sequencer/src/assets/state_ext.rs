@@ -4,7 +4,6 @@ use astria_core::primitive::v1::asset;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
         Result,
         WrapErr as _,
     },
@@ -27,20 +26,21 @@ use crate::storage::StoredValue;
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
-    async fn get_native_asset(&self) -> Result<asset::TracePrefixed> {
+    async fn get_native_asset(&self) -> Result<Option<asset::TracePrefixed>> {
         let Some(bytes) = self
             .get_raw(keys::NATIVE_ASSET)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw native asset from state")?
         else {
-            bail!("native asset denom not found in state");
+            return Ok(None);
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::TracePrefixedDenom::try_from(value).map(asset::TracePrefixed::from)
             })
             .wrap_err("invalid native asset bytes")
+            .map(Option::Some)
     }
 
     #[instrument(skip_all)]
@@ -129,16 +129,16 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        let _ = state
-            .get_native_asset()
-            .await
-            .expect_err("no native asset denom should exist at first");
+        assert!(
+            state.get_native_asset().await.unwrap().is_none(),
+            "no native asset denom should exist at first"
+        );
 
         // can write
         let denom_orig: asset::TracePrefixed = "denom_orig".parse().unwrap();
         state.put_native_asset(denom_orig.clone()).unwrap();
         assert_eq!(
-            state.get_native_asset().await.expect(
+            state.get_native_asset().await.unwrap().expect(
                 "a native asset denomination was written and must exist inside the database"
             ),
             denom_orig,
@@ -149,7 +149,7 @@ mod tests {
         let denom_update: asset::TracePrefixed = "denom_update".parse().unwrap();
         state.put_native_asset(denom_update.clone()).unwrap();
         assert_eq!(
-            state.get_native_asset().await.expect(
+            state.get_native_asset().await.unwrap().expect(
                 "a native asset denomination update was written and must exist inside the database"
             ),
             denom_update,
