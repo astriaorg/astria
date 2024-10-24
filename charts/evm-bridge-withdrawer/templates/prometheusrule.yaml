@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: evm-bridge-withdrawer-alerting
+  name: {{ include "evm-bridge-withdrawer.appName" . }}-alerting
 {{- if .Values.alerting.prometheusRule.namespace }}
   namespace: {{ .Values.alerting.prometheusRule.namespace | quote }}
 {{- end }}
