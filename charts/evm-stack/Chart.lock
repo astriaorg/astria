@@ -13,7 +13,7 @@ dependencies:
   version: 0.1.2
 - name: evm-bridge-withdrawer
   repository: file://../evm-bridge-withdrawer
-  version: 1.0.0-rc.2
+  version: 1.0.0-rc.3
 - name: postgresql
   repository: https://charts.bitnami.com/bitnami
   version: 15.2.4
