@@ -21,6 +21,7 @@ config:
   sequencerChainId: ""
   sequencerAddressPrefix: "astria"
   sequencerBridgeAddress: ""
+  ics20WithdrawalTimeoutDuration: "300"
   useCompatAddress: "false"
   feeAssetDenom: ""
   minExpectedFeeAssetBalance: "1000000"

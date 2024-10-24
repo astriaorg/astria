@@ -275,6 +275,7 @@ impl TestBridgeWithdrawerConfig {
             fee_asset_denomination: asset_denom.clone(),
             rollup_asset_denomination: asset_denom.as_trace_prefixed().unwrap().clone(),
             sequencer_bridge_address: default_bridge_address().to_string(),
+            ics20_withdrawal_timeout_duration: 300,
             use_compat_address: false,
             ethereum_contract_address: ethereum.contract_address(),
             ethereum_rpc_endpoint: ethereum.ws_endpoint(),
