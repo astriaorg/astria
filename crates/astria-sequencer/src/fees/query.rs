@@ -1,8 +1,14 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    future::ready,
+};
 
 use astria_core::{
     generated::protocol::transaction::v1::TransactionBody as RawBody,
-    primitive::v1::asset,
+    primitive::v1::asset::{
+        self,
+        Denom,
+    },
     protocol::{
         abci::AbciErrorCode,
         asset::v1::AllowedFeeAssetsResponse,
@@ -22,6 +28,10 @@ use cnidarium::{
     StateRead,
     Storage,
 };
+use futures::{
+    FutureExt as _,
+    StreamExt as _,
+};
 use prost::{
     Message as _,
     Name as _,
@@ -31,8 +41,14 @@ use tendermint::abci::{
     response,
     Code,
 };
-use tokio::sync::OnceCell;
-use tracing::instrument;
+use tokio::{
+    sync::OnceCell,
+    try_join,
+};
+use tracing::{
+    instrument,
+    warn,
+};
 
 use super::{
     FeeHandler,
@@ -43,6 +59,36 @@ use crate::{
     assets::StateReadExt as _,
 };
 
+async fn find_trace_prefixed_or_return_ibc<S: StateRead>(
+    state: S,
+    asset: asset::IbcPrefixed,
+) -> asset::Denom {
+    state
+        .map_ibc_to_trace_prefixed_asset(&asset)
+        .await
+        .wrap_err("failed to get ibc asset denom")
+        .and_then(|maybe_asset| {
+            maybe_asset.ok_or_eyre("ibc-prefixed asset did not have an entry in state")
+        })
+        .map_or_else(|_| asset.into(), Into::into)
+}
+
+#[instrument(skip_all)]
+async fn get_allowed_fee_assets<S: StateRead>(state: &S) -> Vec<Denom> {
+    let stream = state
+        .allowed_fee_assets()
+        .filter_map(|asset| {
+            ready(
+                asset
+                    .inspect_err(|error| warn!(%error, "encountered issue reading allowed assets"))
+                    .ok(),
+            )
+        })
+        .map(|asset| find_trace_prefixed_or_return_ibc(state, asset))
+        .buffered(16);
+    stream.collect::<Vec<_>>().await
+}
+
 pub(crate) async fn allowed_fee_assets_request(
     storage: Storage,
     request: request::Query,
@@ -51,27 +97,20 @@ pub(crate) async fn allowed_fee_assets_request(
     // get last snapshot
     let snapshot = storage.latest_snapshot();
 
-    // get height from snapshot
-    let height = match snapshot.get_block_height().await {
-        Ok(height) => height,
-        Err(err) => {
-            return response::Query {
-                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                info: AbciErrorCode::INTERNAL_ERROR.info(),
-                log: format!("failed getting block height: {err:#}"),
-                ..response::Query::default()
-            };
-        }
+    let height = async {
+        snapshot
+            .get_block_height()
+            .await
+            .wrap_err("failed getting block height")
     };
-
-    // get ids from snapshot at height
-    let fee_assets = match snapshot.get_allowed_fee_assets().await {
-        Ok(fee_assets) => fee_assets,
+    let fee_assets = get_allowed_fee_assets(&snapshot).map(Ok);
+    let (height, fee_assets) = match try_join!(height, fee_assets) {
+        Ok(vals) => vals,
         Err(err) => {
             return response::Query {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 info: AbciErrorCode::INTERNAL_ERROR.info(),
-                log: format!("failed to retrieve allowed fee assets: {err:#}"),
+                log: format!("{err:#}"),
                 ..response::Query::default()
             };
         }
