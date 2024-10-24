@@ -89,6 +89,8 @@ async fn get_allowed_fee_assets<S: StateRead>(state: &S) -> Vec<Denom> {
     stream.collect::<Vec<_>>().await
 }
 
+/// Returns a query response containing a `Vec` of all the currently allowed fee assets in their
+/// `IbcPrefixed` form.
 pub(crate) async fn allowed_fee_assets_request(
     storage: Storage,
     request: request::Query,
