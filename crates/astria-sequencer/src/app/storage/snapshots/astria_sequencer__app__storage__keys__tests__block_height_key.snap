@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/app/storage/keys.rs
-assertion_line: 22
-expression: BLOCK_HEIGHT_KEY
+expression: BLOCK_HEIGHT
 ---
 app/block_height

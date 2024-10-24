@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/ibc/storage/keys.rs
-assertion_line: 63
-expression: IBC_SUDO_KEY
+expression: IBC_SUDO
 ---
 ibc/sudo
