@@ -110,8 +110,8 @@ wiremock = "0.5"
 # patch for handling height field in gRPC headers for IBC queries
 # see https://github.com/astriaorg/penumbra/pull/1
 [patch.'https://github.com/penumbra-zone/penumbra.git']
-penumbra-ibc = { git = "https://github.com/astriaorg/penumbra.git", rev = "998434fce8c1d7ad36b1420bce195f0a62f70c1b" }
-penumbra-proto = { git = "https://github.com/astriaorg/penumbra.git", rev = "998434fce8c1d7ad36b1420bce195f0a62f70c1b" }
-penumbra-tower-trace = { git = "https://github.com/astriaorg/penumbra.git", rev = "998434fce8c1d7ad36b1420bce195f0a62f70c1b" }
-cnidarium = { git = "https://github.com/astriaorg/penumbra.git", rev = "998434fce8c1d7ad36b1420bce195f0a62f70c1b" }
-cnidarium-component = { git = "https://github.com/astriaorg/penumbra.git", rev = "998434fce8c1d7ad36b1420bce195f0a62f70c1b" }
+penumbra-ibc = { git = "https://github.com/astriaorg/penumbra.git", rev = "1607f78dbe8bd14989551dec16ed30f95b3367c7" }
+penumbra-proto = { git = "https://github.com/astriaorg/penumbra.git", rev = "1607f78dbe8bd14989551dec16ed30f95b3367c7" }
+penumbra-tower-trace = { git = "https://github.com/astriaorg/penumbra.git", rev = "1607f78dbe8bd14989551dec16ed30f95b3367c7" }
+cnidarium = { git = "https://github.com/astriaorg/penumbra.git", rev = "1607f78dbe8bd14989551dec16ed30f95b3367c7" }
+cnidarium-component = { git = "https://github.com/astriaorg/penumbra.git", rev = "1607f78dbe8bd14989551dec16ed30f95b3367c7" }
