@@ -1,0 +1,10 @@
+{
+  "globs": [
+    "**/*.md"
+  ],
+  "ignores": [
+    "target",
+    ".github",
+    "**/*/astria-bridge-contracts/lib/**/*.md"
+  ]
+}

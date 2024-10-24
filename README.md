@@ -115,7 +115,7 @@ npm install markdownlint-cli2 --global
 just lint md
 
 # Run with docker
-docker run -v $PWD:/workdir davidanson/markdownlint-cli2:v0.8.1 "**/*.md" "#.github"
+docker run -v $PWD:/workdir davidanson/markdownlint-cli2:v0.8.1
 ```
 
 ## Contributing
