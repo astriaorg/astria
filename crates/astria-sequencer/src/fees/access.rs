@@ -20,142 +20,35 @@ pub(crate) trait FeeComponents {
     fn multiplier(&self) -> u128;
 }
 
-impl FeeComponents for TransferFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
+macro_rules! impl_fee_components {
+    ($($fee_components:tt),* $(,)?) => {
+        $(
+            impl FeeComponents for $fee_components {
+                fn base(&self) -> u128 {
+                    self.base
+                }
 
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
+                fn multiplier(&self) -> u128 {
+                    self.multiplier
+                }
+            }
+        )*
+    };
 }
 
-impl FeeComponents for RollupDataSubmissionFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for Ics20WithdrawalFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for InitBridgeAccountFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for BridgeLockFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for BridgeUnlockFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for BridgeSudoChangeFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for ValidatorUpdateFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for IbcRelayerChangeFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for IbcRelayFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for FeeAssetChangeFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for FeeChangeFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for SudoAddressChangeFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
-
-impl FeeComponents for IbcSudoChangeFeeComponents {
-    fn base(&self) -> u128 {
-        self.base
-    }
-
-    fn multiplier(&self) -> u128 {
-        self.multiplier
-    }
-}
+impl_fee_components!(
+    TransferFeeComponents,
+    RollupDataSubmissionFeeComponents,
+    Ics20WithdrawalFeeComponents,
+    InitBridgeAccountFeeComponents,
+    BridgeLockFeeComponents,
+    BridgeUnlockFeeComponents,
+    BridgeSudoChangeFeeComponents,
+    ValidatorUpdateFeeComponents,
+    IbcRelayerChangeFeeComponents,
+    IbcRelayFeeComponents,
+    FeeAssetChangeFeeComponents,
+    FeeChangeFeeComponents,
+    SudoAddressChangeFeeComponents,
+    IbcSudoChangeFeeComponents,
+);
