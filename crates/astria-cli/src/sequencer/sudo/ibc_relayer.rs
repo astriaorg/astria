@@ -42,12 +42,21 @@ struct Add {
 impl Add {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
+        let action = Action::IbcRelayerChange(IbcRelayerChange::Addition(args.address));
+        if args.generate_only {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&action)
+                    .wrap_err("failed to serialize IbcRelayerChangeAction::Addition action")?
+            );
+            return Ok(());
+        }
         let res = submit_transaction(
             args.sequencer_url.as_str(),
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::IbcRelayerChange(IbcRelayerChange::Addition(args.address)),
+            action,
         )
         .await
         .wrap_err("failed to submit IbcRelayerChangeAction::Addition transaction")?;
@@ -67,12 +76,21 @@ struct Remove {
 impl Remove {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
+        let action = Action::IbcRelayerChange(IbcRelayerChange::Removal(args.address));
+        if args.generate_only {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&action)
+                    .wrap_err("failed to serialize IbcRelayerChangeAction::Removal action")?
+            );
+            return Ok(());
+        }
         let res = submit_transaction(
             args.sequencer_url.as_str(),
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::IbcRelayerChange(IbcRelayerChange::Removal(args.address)),
+            action,
         )
         .await
         .wrap_err("failed to submit IbcRelayerChangeAction::Removal transaction")?;
@@ -111,4 +129,8 @@ struct ArgsInner {
     /// The address to add or remove as an IBC relayer
     #[arg(long)]
     address: Address,
+    /// If set this will only generate the transaction body and print out
+    /// in pbjson format. Will not sign or send the transaction.
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    generate_only: bool,
 }

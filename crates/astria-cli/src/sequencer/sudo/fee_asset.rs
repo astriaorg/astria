@@ -45,12 +45,21 @@ struct Add {
 impl Add {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
+        let action = Action::FeeAssetChange(FeeAssetChange::Addition(args.asset.clone()));
+        if args.generate_only {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&action)
+                    .wrap_err("failed to serialize FeeAssetChangeAction::Addition action")?
+            );
+            return Ok(());
+        }
         let res = submit_transaction(
             args.sequencer_url.as_str(),
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeAssetChange(FeeAssetChange::Addition(args.asset.clone())),
+            action,
         )
         .await
         .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
@@ -70,12 +79,21 @@ struct Remove {
 impl Remove {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
+        let action = Action::FeeAssetChange(FeeAssetChange::Removal(args.asset.clone()));
+        if args.generate_only {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&action)
+                    .wrap_err("failed to serialize FeeAssetChangeAction::Removal action")?
+            );
+            return Ok(());
+        }
         let res = submit_transaction(
             args.sequencer_url.as_str(),
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeAssetChange(FeeAssetChange::Removal(args.asset.clone())),
+            action,
         )
         .await
         .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
@@ -114,4 +132,8 @@ struct ArgsInner {
     /// Asset's denomination string
     #[arg(long)]
     asset: asset::Denom,
+    /// If set this will only generate the transaction body and print out
+    /// in pbjson format. Will not sign or send the transaction.
+    #[arg(long)]
+    generate_only: bool,
 }
