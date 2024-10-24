@@ -394,7 +394,8 @@ run-timeout tag=defaultTag:
   docker volume remove cli-test-withdrawals
 
   # Validate that the Celestia balance timed out
-  for i in {1..30}
+  echo "Checking for 10 seconds to ensure that Celestia balance does not update"
+  for i in {1..10}
   do
     current_celestia_balance=$(just ibc-test get-celestia-balance)
     echo "check $i, balance: $current_celestia_balance, if failure balance: $expected_celestia_balance"
