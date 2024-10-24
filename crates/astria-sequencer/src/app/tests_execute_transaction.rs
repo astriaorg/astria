@@ -1266,17 +1266,12 @@ async fn transaction_execution_records_fee_event() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    let events = app.execute_transaction(signed_tx).await.unwrap();
 
-    let sudo_address = app.state.get_sudo_address().await.unwrap();
-    let end_block = app.end_block(1, &sudo_address).await.unwrap();
-
-    let events = end_block.events;
     let event = events.first().unwrap();
     assert_eq!(event.kind, "tx.fees");
     assert_eq!(event.attributes[0].key, "actionName");
     assert_eq!(event.attributes[1].key, "asset");
     assert_eq!(event.attributes[2].key, "feeAmount");
-    assert_eq!(event.attributes[3].key, "sourceTransactionId");
-    assert_eq!(event.attributes[4].key, "sourceActionIndex");
+    assert_eq!(event.attributes[3].key, "positionInTransaction");
 }

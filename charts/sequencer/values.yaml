@@ -55,6 +55,9 @@ genesis:
     maxBytes: "1048576"
 
   fees:
+    feeChange:
+      base: "0"
+      multiplier: "0"
     bridgeLock:
       base: "0"
       multiplier: "1"
@@ -65,9 +68,6 @@ genesis:
       base: "0"
       multiplier: "0"
     feeAssetChange:
-      base: "0"
-      multiplier: "0"
-    feeChange:
       base: "0"
       multiplier: "0"
     ibcRelay:
