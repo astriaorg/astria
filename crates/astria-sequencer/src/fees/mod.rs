@@ -1,8 +1,5 @@
 use astria_core::{
-    primitive::v1::{
-        asset,
-        TransactionId,
-    },
+    primitive::v1::asset,
     protocol::transaction::{
         self,
         v1::action::{
@@ -30,10 +27,6 @@ use astria_eyre::eyre::{
 };
 use cnidarium::StateWrite;
 use penumbra_ibc::IbcRelay;
-use tendermint::abci::{
-    Event,
-    EventAttributeIndexExt as _,
-};
 use tracing::{
     instrument,
     Level,
@@ -74,7 +67,6 @@ pub(crate) struct Fee {
     action_name: String,
     asset: asset::Denom,
     amount: u128,
-    source_transaction_id: TransactionId,
     source_action_index: u64,
 }
 
@@ -347,7 +339,6 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
         .get_transaction_context()
         .expect("transaction source must be present in state when executing an action");
     let from = transaction_context.address_bytes();
-    let transaction_id = transaction_context.transaction_id;
     let source_action_index = transaction_context.source_action_index;
 
     ensure!(
@@ -358,7 +349,7 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
         "invalid fee asset",
     );
     state
-        .add_fee_to_block_fees::<_, T>(fee_asset, total_fees, transaction_id, source_action_index)
+        .add_fee_to_block_fees::<_, T>(fee_asset, total_fees, source_action_index)
         .wrap_err("failed to add to block fees")?;
     state
         .decrease_balance(&from, fee_asset, total_fees)
@@ -378,18 +369,4 @@ fn base_deposit_fee(asset: &asset::Denom, destination_chain_address: &str) -> u1
     )
     .expect("converting a usize to a u128 should work on any currently existing machine")
     .saturating_add(DEPOSIT_BASE_FEE)
-}
-
-/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
-pub(crate) fn construct_tx_fee_event(fee: &Fee) -> Event {
-    Event::new(
-        "tx.fees",
-        [
-            ("actionName", fee.action_name.to_string()).index(),
-            ("asset", fee.asset.to_string()).index(),
-            ("feeAmount", fee.amount.to_string()).index(),
-            ("sourceTransactionId", fee.source_transaction_id.to_string()).index(),
-            ("sourceActionIndex", fee.source_action_index.to_string()).index(),
-        ],
-    )
 }

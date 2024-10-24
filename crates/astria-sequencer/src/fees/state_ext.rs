@@ -9,10 +9,7 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::{
-        asset,
-        TransactionId,
-    },
+    primitive::v1::asset,
     protocol::fees::v1::{
         BridgeLockFeeComponents,
         BridgeSudoChangeFeeComponents,
@@ -45,6 +42,10 @@ use cnidarium::{
 };
 use futures::Stream;
 use pin_project_lite::pin_project;
+use tendermint::abci::{
+    Event,
+    EventAttributeIndexExt as _,
+};
 use tracing::instrument;
 
 use super::{
@@ -384,7 +385,6 @@ pub(crate) trait StateWriteExt: StateWrite {
         &mut self,
         asset: &'a TAsset,
         amount: u128,
-        source_transaction_id: TransactionId,
         source_action_index: u64,
     ) -> Result<()>
     where
@@ -397,9 +397,13 @@ pub(crate) trait StateWriteExt: StateWrite {
             action_name: T::full_name(),
             asset: asset::IbcPrefixed::from(asset).into(),
             amount,
-            source_transaction_id,
             source_action_index,
         };
+
+        // Fee ABCI event recorded for reporting
+        let fee_event = construct_tx_fee_event(&fee);
+        self.record(fee_event);
+
         let new_fees = if let Some(mut fees) = current_fees {
             fees.push(fee);
             fees
@@ -565,6 +569,19 @@ pub(crate) trait StateWriteExt: StateWrite {
 
 impl<T: StateWrite> StateWriteExt for T {}
 
+/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
+fn construct_tx_fee_event(fee: &Fee) -> Event {
+    Event::new(
+        "tx.fees",
+        [
+            ("actionName", fee.action_name.to_string()).index(),
+            ("asset", fee.asset.to_string()).index(),
+            ("feeAmount", fee.amount.to_string()).index(),
+            ("positionInTransaction", fee.source_action_index.to_string()).index(),
+        ],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -606,7 +623,7 @@ mod tests {
         let asset = asset_0();
         let amount = 100u128;
         state
-            .add_fee_to_block_fees::<_, Transfer>(&asset, amount, TransactionId::new([0; 32]), 0)
+            .add_fee_to_block_fees::<_, Transfer>(&asset, amount, 0)
             .unwrap();
 
         // holds expected
@@ -617,7 +634,6 @@ mod tests {
                 action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                 asset: asset.to_ibc_prefixed().into(),
                 amount,
-                source_transaction_id: TransactionId::new([0; 32]),
                 source_action_index: 0
             },
             "fee balances are not what they were expected to be"
@@ -637,20 +653,10 @@ mod tests {
         let amount_second = 200u128;
 
         state
-            .add_fee_to_block_fees::<_, Transfer>(
-                &asset_first,
-                amount_first,
-                TransactionId::new([0; 32]),
-                0,
-            )
+            .add_fee_to_block_fees::<_, Transfer>(&asset_first, amount_first, 0)
             .unwrap();
         state
-            .add_fee_to_block_fees::<_, Transfer>(
-                &asset_second,
-                amount_second,
-                TransactionId::new([0; 32]),
-                1,
-            )
+            .add_fee_to_block_fees::<_, Transfer>(&asset_second, amount_second, 1)
             .unwrap();
         // holds expected
         let fee_balances = HashSet::<_>::from_iter(state.get_block_fees());
@@ -661,14 +667,12 @@ mod tests {
                     action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                     asset: asset_first.to_ibc_prefixed().into(),
                     amount: amount_first,
-                    source_transaction_id: TransactionId::new([0; 32]),
                     source_action_index: 0
                 },
                 Fee {
                     action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                     asset: asset_second.to_ibc_prefixed().into(),
                     amount: amount_second,
-                    source_transaction_id: TransactionId::new([0; 32]),
                     source_action_index: 1
                 },
             ]),
