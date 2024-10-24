@@ -39,7 +39,7 @@ spec:
           ports:
             {{- if .Values.metrics.enabled }}
             - containerPort: {{ .Values.ports.metrics }}
-              name: composer-metrics
+              name: composer-metric
             {{- end }}
             - containerPort: {{ .Values.ports.healthApi }}
               name: health-api
