@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use astria_core::protocol::genesis::v1::GenesisAppState;
 use astria_eyre::eyre::{
+    OptionExt as _,
     Result,
     WrapErr as _,
 };
@@ -33,7 +34,11 @@ impl Component for AccountsComponent {
             let native_asset = state
                 .get_native_asset()
                 .await
-                .wrap_err("failed to read native asset from state")?;
+                .wrap_err("failed to read native asset from state")?
+                .ok_or_eyre(
+                    "native asset does not exist in state but is required to set genesis account \
+                     balances",
+                )?;
             for account in app_state.accounts() {
                 state
                     .put_account_balance(&account.address, &native_asset, account.balance)

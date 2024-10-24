@@ -597,7 +597,7 @@ mod tests {
         // native account should work with ibc too
         state.put_native_asset(nria()).unwrap();
 
-        let asset_0 = state.get_native_asset().await.unwrap();
+        let asset_0 = state.get_native_asset().await.unwrap().unwrap();
         let asset_1 = asset_1();
         let asset_2 = asset_2();
 
