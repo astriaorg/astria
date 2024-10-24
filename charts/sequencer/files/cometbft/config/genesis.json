@@ -1,7 +1,9 @@
 {
   "app_hash": "",
   "app_state": {
+    {{- if .Values.genesis.nativeAssetBaseDenomination }}
     "native_asset_base_denomination": "{{ .Values.genesis.nativeAssetBaseDenomination }}",
+    {{- end }}
     "fees": {
       "bridge_lock": {
         "base": {{ include "sequencer.toUint128Proto" .Values.genesis.fees.bridgeLock.base }},
