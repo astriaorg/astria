@@ -176,13 +176,14 @@ postgresql:
 blockscout-stack:
   enabled: true
   config:
-    id: 1337
-    name: Astria
-    shortname: Astria
-    currency:
-      name: RIA
-      symbol: RIA
-      decimals: 18
+    network:
+      id: 1337
+      name: Astria
+      shortname: Astria
+      currency:
+        name: RIA
+        symbol: RIA
+        decimals: 18
     testnet: true
     prometheus:
       enabled: false
@@ -212,19 +213,28 @@ blockscout-stack:
         value: "byzantium,constantinople,petersburg,istanbul,berlin,paris,shanghai,default"
       - name: DISABLE_EXCHANGE_RATES
         value: "true"
-      - name: COIN
-        value: "RIA"
 
     ingress:
       enabled: true
       hostname: explorer.astria.localdev.me
+      paths:
+        - path: /api
+          pathType: Prefix
+        - path: /socket
+          pathType: Prefix
+        - path: /sitemap.xml
+          pathType: ImplementationSpecific
+        - path: /public-metrics
+          pathType: Prefix
+        - path: /auth/auth0
+          pathType: Exact
+        - path: /auth/auth0/callback
+          pathType: Exact
+        - path: /auth/logout
+          pathType: Exact
 
   frontend:
     extraEnv:
-      - name: NEXT_PUBLIC_NETWORK_NAME
-        value: "Astria Flame"
-      - name: NEXT_PUBLIC_NETWORK_SHORT_NAME
-        value: "Flame"
       - name: NEXT_PUBLIC_NETWORK_VERIFICATION_TYPE
         value: "validation"
       - name: NEXT_PUBLIC_AD_BANNER_PROVIDER
@@ -233,12 +243,8 @@ blockscout-stack:
         value: "http"
       - name: NEXT_PUBLIC_API_WEBSOCKET_PROTOCOL
         value: "ws"
-      - name: NEXT_PUBLIC_NETWORK_CURRENCY_NAME
-        value: "Ria"
       - name: NEXT_PUBLIC_NETWORK_CURRENCY_WEI_NAME
         value: "aRia"
-      - name: NEXT_PUBLIC_NETWORK_CURRENCY_SYMBOL
-        value: "RIA"
       - name: NEXT_PUBLIC_AD_TEXT_PROVIDER
         value: "none"
     ingress:

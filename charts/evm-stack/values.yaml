@@ -83,11 +83,10 @@ evm-bridge-withdrawer:
     traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
 
 blockscout-stack:
+  enabled: false
   frontend:
     image:
-      tag: v1.32.0
-  enabled: false
-
+      tag: v1.35.2
 
 postgresql:
   enabled: false
