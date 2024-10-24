@@ -15,7 +15,7 @@ spec:
       - {{ include "evm-bridge-withdrawer.namespace" . }}
   selector:
     matchLabels:
-    {{- include "evm-bridge-withdrawer.labels" . | nindent 4 }}
+      {{ include "evm-bridge-withdrawer.selectorLabels" . }}
   endpoints:
     - port: metrics
       path: /
