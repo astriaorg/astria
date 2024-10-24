@@ -514,7 +514,7 @@ dependencies = [
 
 [[package]]
 name = "astria-bridge-withdrawer"
-version = "1.0.0-rc.1"
+version = "1.0.0-rc.2"
 dependencies = [
  "astria-bridge-contracts",
  "astria-build-info",
@@ -560,12 +560,13 @@ dependencies = [
 
 [[package]]
 name = "astria-cli"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "astria-bridge-contracts",
  "astria-core",
  "astria-sequencer-client",
  "clap",
+ "clap-stdin",
  "color-eyre",
  "ethers",
  "frost-ed25519",
@@ -591,7 +592,7 @@ dependencies = [
 
 [[package]]
 name = "astria-composer"
-version = "1.0.0-rc.1"
+version = "1.0.0-rc.2"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -635,7 +636,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "1.0.0-rc.1"
+version = "1.0.0-rc.2"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -791,7 +792,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "1.0.0-rc.1"
+version = "1.0.0-rc.2"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -810,6 +811,7 @@ dependencies = [
  "ibc-proto",
  "ibc-types",
  "insta",
+ "maplit",
  "matchit",
  "paste",
  "penumbra-ibc",
@@ -865,7 +867,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "1.0.0-rc.1"
+version = "1.0.0-rc.2"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",
@@ -1777,6 +1779,15 @@ checksum = "ed6719fffa43d0d87e5fd8caeab59be1554fb028cd30edc88fc4369b17971019"
 dependencies = [
  "clap_builder",
  "clap_derive",
+]
+
+[[package]]
+name = "clap-stdin"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "471df7896633bfc1e7d3da5b598422891e4cb8931210168ec63ea586e285803f"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
@@ -4999,6 +5010,12 @@ dependencies = [
  "cc",
  "libc",
 ]
+
+[[package]]
+name = "maplit"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "matchers"

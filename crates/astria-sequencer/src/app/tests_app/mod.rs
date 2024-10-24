@@ -112,7 +112,7 @@ async fn app_genesis_and_init_chain() {
 
     assert_eq!(
         app.state.get_native_asset().await.unwrap(),
-        "nria".parse::<TracePrefixed>().unwrap()
+        Some("nria".parse::<TracePrefixed>().unwrap()),
     );
 }
 

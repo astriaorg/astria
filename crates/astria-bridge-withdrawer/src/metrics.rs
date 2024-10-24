@@ -18,6 +18,7 @@ pub struct Metrics {
     nonce_fetch_latency: Histogram,
     sequencer_submission_failure_count: Counter,
     sequencer_submission_latency: Histogram,
+    batch_total_settled_value: Gauge,
 }
 
 impl Metrics {
@@ -43,6 +44,20 @@ impl Metrics {
 
     pub(crate) fn increment_sequencer_submission_failure_count(&self) {
         self.sequencer_submission_failure_count.increment(1);
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "metric with potential loss of precision, logging when it occurs"
+    )]
+    pub(crate) fn set_batch_total_settled_value(&self, value: u128) {
+        if value > u128::from(u32::MAX) {
+            tracing::warn!(
+                "{BATCH_TOTAL_SETTLED_VALUE} set with {value} which exceeds u32::MAX, precision \
+                 loss in metric"
+            );
+        }
+        self.batch_total_settled_value.set(value as f64);
     }
 }
 
@@ -92,6 +107,13 @@ impl metrics::Metrics for Metrics {
             )?
             .register()?;
 
+        let batch_total_settled_value = builder
+            .new_gauge_factory(
+                BATCH_TOTAL_SETTLED_VALUE,
+                "Total value of withdrawals settled in a given sequencer block",
+            )?
+            .register()?;
+
         Ok(Self {
             current_nonce,
             nonce_fetch_count,
@@ -99,6 +121,7 @@ impl metrics::Metrics for Metrics {
             nonce_fetch_latency,
             sequencer_submission_failure_count,
             sequencer_submission_latency,
+            batch_total_settled_value,
         })
     }
 }
@@ -109,12 +132,14 @@ metric_names!(const METRICS_NAMES:
     NONCE_FETCH_LATENCY,
     CURRENT_NONCE,
     SEQUENCER_SUBMISSION_FAILURE_COUNT,
-    SEQUENCER_SUBMISSION_LATENCY
+    SEQUENCER_SUBMISSION_LATENCY,
+    BATCH_TOTAL_SETTLED_VALUE,
 );
 
 #[cfg(test)]
 mod tests {
     use super::{
+        BATCH_TOTAL_SETTLED_VALUE,
         CURRENT_NONCE,
         NONCE_FETCH_COUNT,
         NONCE_FETCH_FAILURE_COUNT,
@@ -142,5 +167,6 @@ mod tests {
             "sequencer_submission_failure_count",
         );
         assert_const(SEQUENCER_SUBMISSION_LATENCY, "sequencer_submission_latency");
+        assert_const(BATCH_TOTAL_SETTLED_VALUE, "batch_total_settled_value");
     }
 }

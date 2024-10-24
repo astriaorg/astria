@@ -1,6 +1,6 @@
 [package]
 name = "astria-cli"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 rust-version = "1.81.0"
 license = "MIT OR Apache-2.0"
@@ -13,6 +13,7 @@ name = "astria-cli"
 
 [dependencies]
 color-eyre = "0.6"
+clap-stdin = "0.5.1"
 # v2.0.0-rc.0 - can be updated once https://github.com/ZcashFoundation/frost/issues/755 is closed
 frost-ed25519 = { version = "2.0.0-rc.0", features = [] }
 serde_yaml = "0.9.25"

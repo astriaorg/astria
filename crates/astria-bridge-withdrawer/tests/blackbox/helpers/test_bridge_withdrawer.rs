@@ -463,7 +463,7 @@ pub fn make_native_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Acti
         amount: 1_000_000u128,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollup {
             memo: "nootwashere".to_string(),
-            rollup_return_address: receipt.from.to_string(),
+            rollup_return_address: receipt.from.encode_hex(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
             rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
         })
@@ -514,7 +514,7 @@ pub fn make_erc20_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Actio
         amount: 1_000_000u128,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollup {
             memo: "nootwashere".to_string(),
-            rollup_return_address: receipt.from.to_string(),
+            rollup_return_address: receipt.from.encode_hex(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
             rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
         })
