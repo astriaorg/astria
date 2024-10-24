@@ -1,9 +1,24 @@
-use astria_core::protocol::transaction::v1alpha1::{
-    action::{
-        FeeChange,
-        FeeChangeAction,
+use astria_core::protocol::{
+    fees::v1::{
+        BridgeLockFeeComponents,
+        BridgeSudoChangeFeeComponents,
+        BridgeUnlockFeeComponents,
+        FeeAssetChangeFeeComponents,
+        FeeChangeFeeComponents,
+        IbcRelayFeeComponents,
+        IbcRelayerChangeFeeComponents,
+        IbcSudoChangeFeeComponents,
+        Ics20WithdrawalFeeComponents,
+        InitBridgeAccountFeeComponents,
+        RollupDataSubmissionFeeComponents,
+        SudoAddressChangeFeeComponents,
+        TransferFeeComponents,
+        ValidatorUpdateFeeComponents,
     },
-    Action,
+    transaction::v1::{
+        action::FeeChange,
+        Action,
+    },
 };
 use clap::Subcommand;
 use color_eyre::eyre::{
@@ -22,39 +37,255 @@ pub(super) struct Command {
 impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         match self.command {
-            SubCommand::TransferBaseFee(transfer) => transfer.run().await,
-            SubCommand::InitBridgeBaseFee(bridge_init) => bridge_init.run().await,
-            SubCommand::SequenceBaseFee(sequence_base) => sequence_base.run().await,
-            SubCommand::SequenceByteCostMul(sequence_byte_cost_mul) => {
-                sequence_byte_cost_mul.run().await
+            SubCommand::TransferFee(transfer) => transfer.run().await,
+            SubCommand::InitBridgeFee(bridge_init) => bridge_init.run().await,
+            SubCommand::RollupDataSubmissionFee(rollup_data) => rollup_data.run().await,
+            SubCommand::BridgeLockFee(bridge_lock) => bridge_lock.run().await,
+            SubCommand::BridgeUnlockFee(bridge_unlock) => bridge_unlock.run().await,
+            SubCommand::BridgeSudoChangeFee(bridge_sudo_change) => bridge_sudo_change.run().await,
+            SubCommand::Ics20WithdrawalFee(ics20_withdrawal) => ics20_withdrawal.run().await,
+            SubCommand::IbcRelaeyFee(ibc_relay) => ibc_relay.run().await,
+            SubCommand::IbcRelayerChangeFee(ibc_relayer_change) => ibc_relayer_change.run().await,
+            SubCommand::IbcSudoChangeFee(ics_sudo_change) => ics_sudo_change.run().await,
+            SubCommand::FeeAssetChangeFee(fee_asset_change) => fee_asset_change.run().await,
+            SubCommand::FeeChangeFee(fee_change) => fee_change.run().await,
+            SubCommand::SudoAddressChangeFee(sudo_address_change) => {
+                sudo_address_change.run().await
             }
-            SubCommand::BridgeLockByteCostMul(bridge_lock_byte_cost_mul) => {
-                bridge_lock_byte_cost_mul.run().await
-            }
-            SubCommand::BridgeSudoChangeBaseFee(bridge_sudo_change) => {
-                bridge_sudo_change.run().await
-            }
-            SubCommand::Ics20WithdrawalBaseFee(ics20_withdrawal) => ics20_withdrawal.run().await,
+            SubCommand::ValidatorUpdateFee(validator_update) => validator_update.run().await,
         }
     }
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Subcommand)]
 enum SubCommand {
-    /// Chnage Transfer Base Fee
-    TransferBaseFee(Transfer),
-    /// Change Init Bridge Account Base Fee
-    InitBridgeBaseFee(BridgeInit),
-    /// Change Sequence Base Fee
-    SequenceBaseFee(SequenceBaseFee),
-    /// Change Sequence Byte Cost Multiplier
-    SequenceByteCostMul(SequenceByteCostMul),
-    /// Change Bridge Lock Byte Cost Multiplier
-    BridgeLockByteCostMul(BridgeLockByteCostMul),
-    /// Change Bridge Sudo Change Base Fee
-    BridgeSudoChangeBaseFee(BridgeSudoChange),
-    /// Change ICS20 Withdrawal Base Fee
-    Ics20WithdrawalBaseFee(Ics20Withdrawal),
+    /// Chnage Transfer Fee
+    TransferFee(Transfer),
+    /// Change Init Bridge Account Fee
+    InitBridgeFee(BridgeInit),
+    /// Change Sequence Fee
+    RollupDataSubmissionFee(RollupDataSubmission),
+    /// Change Bridge Lock Fee
+    BridgeLockFee(BridgeLock),
+    /// Change Bridge Unlock Fee
+    BridgeUnlockFee(BridgeUnlock),
+    /// Change Bridge Sudo Change Fee
+    BridgeSudoChangeFee(BridgeSudoChange),
+    /// Change ICS20 Withdrawal Fee
+    Ics20WithdrawalFee(Ics20Withdrawal),
+    /// Change IBC Relay Fee
+    IbcRelaeyFee(IbcRelay),
+    /// Change IBC Relayer Change Fee
+    IbcRelayerChangeFee(IbcRelayerChange),
+    /// Change IBC Sudo Change Fee
+    IbcSudoChangeFee(IbcSudoChange),
+    /// Change Fee Asset Change Fee
+    FeeAssetChangeFee(FeeAssetChange),
+    /// Change Fee Change Fee
+    FeeChangeFee(FeeChangeFee),
+    /// Change Sudo Address Change Fee
+    SudoAddressChangeFee(SudoAddressChange),
+    /// Change Validator Update Fee
+    ValidatorUpdateFee(ValidatorUpdate),
+}
+
+#[derive(Clone, Debug, clap::Args)]
+struct SudoAddressChange {
+    #[command(flatten)]
+    inner: ArgsInner,
+}
+
+impl SudoAddressChange {
+    async fn run(self) -> eyre::Result<()> {
+        let args = self.inner;
+        let res = submit_transaction(
+            args.sequencer_url.as_str(),
+            args.sequencer_chain_id.clone(),
+            &args.prefix,
+            args.private_key.as_str(),
+            Action::FeeChange(FeeChange::SudoAddressChange(
+                SudoAddressChangeFeeComponents {
+                    base: args.fee,
+                    multiplier: args.multiplier,
+                },
+            )),
+        )
+        .await
+        .wrap_err("failed to submit FeeChange::SudoAddressChange transaction")?;
+
+        println!("FeeChangeAction completed!");
+        println!("Included in block: {}", res.height);
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, clap::Args)]
+struct IbcRelay {
+    #[command(flatten)]
+    inner: ArgsInner,
+}
+
+impl IbcRelay {
+    async fn run(self) -> eyre::Result<()> {
+        let args = self.inner;
+        let res = submit_transaction(
+            args.sequencer_url.as_str(),
+            args.sequencer_chain_id.clone(),
+            &args.prefix,
+            args.private_key.as_str(),
+            Action::FeeChange(FeeChange::IbcRelay(IbcRelayFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
+        )
+        .await
+        .wrap_err("failed to submit FeeChange::IbcRelay transaction")?;
+
+        println!("FeeChangeAction completed!");
+        println!("Included in block: {}", res.height);
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, clap::Args)]
+struct IbcRelayerChange {
+    #[command(flatten)]
+    inner: ArgsInner,
+}
+
+impl IbcRelayerChange {
+    async fn run(self) -> eyre::Result<()> {
+        let args = self.inner;
+        let res = submit_transaction(
+            args.sequencer_url.as_str(),
+            args.sequencer_chain_id.clone(),
+            &args.prefix,
+            args.private_key.as_str(),
+            Action::FeeChange(FeeChange::IbcRelayerChange(IbcRelayerChangeFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
+        )
+        .await
+        .wrap_err("failed to submit FeeChange::IbcRelayerChange transaction")?;
+
+        println!("FeeChangeAction completed!");
+        println!("Included in block: {}", res.height);
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, clap::Args)]
+struct IbcSudoChange {
+    #[command(flatten)]
+    inner: ArgsInner,
+}
+
+impl IbcSudoChange {
+    async fn run(self) -> eyre::Result<()> {
+        let args = self.inner;
+        let res = submit_transaction(
+            args.sequencer_url.as_str(),
+            args.sequencer_chain_id.clone(),
+            &args.prefix,
+            args.private_key.as_str(),
+            Action::FeeChange(FeeChange::IbcSudoChange(IbcSudoChangeFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
+        )
+        .await
+        .wrap_err("failed to submit FeeChange::IbcSudoChange transaction")?;
+
+        println!("FeeChangeAction completed!");
+        println!("Included in block: {}", res.height);
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, clap::Args)]
+struct FeeAssetChange {
+    #[command(flatten)]
+    inner: ArgsInner,
+}
+
+impl FeeAssetChange {
+    async fn run(self) -> eyre::Result<()> {
+        let args = self.inner;
+        let res = submit_transaction(
+            args.sequencer_url.as_str(),
+            args.sequencer_chain_id.clone(),
+            &args.prefix,
+            args.private_key.as_str(),
+            Action::FeeChange(FeeChange::FeeAssetChange(FeeAssetChangeFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
+        )
+        .await
+        .wrap_err("failed to submit FeeChange::FeeAssetChange transaction")?;
+
+        println!("FeeChangeAction completed!");
+        println!("Included in block: {}", res.height);
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, clap::Args)]
+struct FeeChangeFee {
+    #[command(flatten)]
+    inner: ArgsInner,
+}
+
+impl FeeChangeFee {
+    async fn run(self) -> eyre::Result<()> {
+        let args = self.inner;
+        let res = submit_transaction(
+            args.sequencer_url.as_str(),
+            args.sequencer_chain_id.clone(),
+            &args.prefix,
+            args.private_key.as_str(),
+            Action::FeeChange(FeeChange::FeeChange(FeeChangeFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
+        )
+        .await
+        .wrap_err("failed to submit FeeChange::FeeChangeFee transaction")?;
+
+        println!("FeeChangeAction completed!");
+        println!("Included in block: {}", res.height);
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, clap::Args)]
+struct ValidatorUpdate {
+    #[command(flatten)]
+    inner: ArgsInner,
+}
+
+impl ValidatorUpdate {
+    async fn run(self) -> eyre::Result<()> {
+        let args = self.inner;
+        let res = submit_transaction(
+            args.sequencer_url.as_str(),
+            args.sequencer_chain_id.clone(),
+            &args.prefix,
+            args.private_key.as_str(),
+            Action::FeeChange(FeeChange::ValidatorUpdate(ValidatorUpdateFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
+        )
+        .await
+        .wrap_err("failed to submit FeeChange::ValidatorUpdate transaction")?;
+
+        println!("FeeChangeAction completed!");
+        println!("Included in block: {}", res.height);
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, clap::Args)]
@@ -71,13 +302,13 @@ impl Transfer {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeChange(FeeChangeAction {
-                fee_change: FeeChange::TransferBaseFee,
-                new_value: args.fee,
-            }),
+            Action::FeeChange(FeeChange::Transfer(TransferFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
         )
         .await
-        .wrap_err("failed to submit FeeChangeAction::TransferBaseFee transaction")?;
+        .wrap_err("failed to submit FeeChange::Transfer transaction")?;
 
         println!("FeeChangeAction completed!");
         println!("Included in block: {}", res.height);
@@ -99,13 +330,15 @@ impl BridgeInit {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeChange(FeeChangeAction {
-                fee_change: FeeChange::InitBridgeAccountBaseFee,
-                new_value: args.fee,
-            }),
+            Action::FeeChange(FeeChange::InitBridgeAccount(
+                InitBridgeAccountFeeComponents {
+                    base: args.fee,
+                    multiplier: args.multiplier,
+                },
+            )),
         )
         .await
-        .wrap_err("failed to submit FeeChangeAction::InitBridgeAccountBaseFee transaction")?;
+        .wrap_err("failed to submit FeeChange::InitBridgeAccount transaction")?;
 
         println!("FeeChangeAction completed!");
         println!("Included in block: {}", res.height);
@@ -114,12 +347,12 @@ impl BridgeInit {
 }
 
 #[derive(Clone, Debug, clap::Args)]
-struct SequenceBaseFee {
+struct RollupDataSubmission {
     #[command(flatten)]
     inner: ArgsInner,
 }
 
-impl SequenceBaseFee {
+impl RollupDataSubmission {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
         let res = submit_transaction(
@@ -127,13 +360,15 @@ impl SequenceBaseFee {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeChange(FeeChangeAction {
-                fee_change: FeeChange::SequenceBaseFee,
-                new_value: args.fee,
-            }),
+            Action::FeeChange(FeeChange::RollupDataSubmission(
+                RollupDataSubmissionFeeComponents {
+                    base: args.fee,
+                    multiplier: args.multiplier,
+                },
+            )),
         )
         .await
-        .wrap_err("failed to submit FeeChangeAction::SequenceBaseFee transaction")?;
+        .wrap_err("failed to submit FeeChange::RollupDataSubmission")?;
 
         println!("FeeChangeAction completed!");
         println!("Included in block: {}", res.height);
@@ -142,12 +377,12 @@ impl SequenceBaseFee {
 }
 
 #[derive(Clone, Debug, clap::Args)]
-struct SequenceByteCostMul {
+struct BridgeLock {
     #[command(flatten)]
     inner: ArgsInner,
 }
 
-impl SequenceByteCostMul {
+impl BridgeLock {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
         let res = submit_transaction(
@@ -155,13 +390,13 @@ impl SequenceByteCostMul {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeChange(FeeChangeAction {
-                fee_change: FeeChange::SequenceByteCostMultiplier,
-                new_value: args.fee,
-            }),
+            Action::FeeChange(FeeChange::BridgeLock(BridgeLockFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
         )
         .await
-        .wrap_err("failed to submit FeeChangeAction::SequenceByteCostMultiplier transaction")?;
+        .wrap_err("failed to submit FeeChange::BridgeLock transaction")?;
 
         println!("FeeChangeAction completed!");
         println!("Included in block: {}", res.height);
@@ -170,12 +405,12 @@ impl SequenceByteCostMul {
 }
 
 #[derive(Clone, Debug, clap::Args)]
-struct BridgeLockByteCostMul {
+struct BridgeUnlock {
     #[command(flatten)]
     inner: ArgsInner,
 }
 
-impl BridgeLockByteCostMul {
+impl BridgeUnlock {
     async fn run(self) -> eyre::Result<()> {
         let args = self.inner;
         let res = submit_transaction(
@@ -183,13 +418,13 @@ impl BridgeLockByteCostMul {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeChange(FeeChangeAction {
-                fee_change: FeeChange::BridgeLockByteCostMultiplier,
-                new_value: args.fee,
-            }),
+            Action::FeeChange(FeeChange::BridgeUnlock(BridgeUnlockFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
         )
         .await
-        .wrap_err("failed to submit FeeChangeAction::BridgeLockByteCostMultiplier transaction")?;
+        .wrap_err("failed to submit FeeChange:BridgeUnlock transaction")?;
 
         println!("FeeChangeAction completed!");
         println!("Included in block: {}", res.height);
@@ -211,13 +446,13 @@ impl BridgeSudoChange {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeChange(FeeChangeAction {
-                fee_change: FeeChange::BridgeSudoChangeBaseFee,
-                new_value: args.fee,
-            }),
+            Action::FeeChange(FeeChange::BridgeSudoChange(BridgeSudoChangeFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
         )
         .await
-        .wrap_err("failed to submit FeeChangeAction::BridgeSudoChangeBaseFee transaction")?;
+        .wrap_err("failed to submit FeeChange::BridgeSudoChange transaction")?;
 
         println!("FeeChangeAction completed!");
         println!("Included in block: {}", res.height);
@@ -239,13 +474,13 @@ impl Ics20Withdrawal {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::FeeChange(FeeChangeAction {
-                fee_change: FeeChange::Ics20WithdrawalBaseFee,
-                new_value: args.fee,
-            }),
+            Action::FeeChange(FeeChange::Ics20Withdrawal(Ics20WithdrawalFeeComponents {
+                base: args.fee,
+                multiplier: args.multiplier,
+            })),
         )
         .await
-        .wrap_err("failed to submit FeeChangeAction::Ics20WithdrawalBaseFee transaction")?;
+        .wrap_err("failed to submit FeeChange::Ics20Withdrawal transaction")?;
 
         println!("FeeChangeAction completed!");
         println!("Included in block: {}", res.height);
@@ -278,7 +513,10 @@ struct ArgsInner {
         default_value = crate::DEFAULT_SEQUENCER_CHAIN_ID
     )]
     sequencer_chain_id: String,
-    /// The new fee value
+    /// The new base fee
     #[arg(long)]
     pub(crate) fee: u128,
+    /// The new multiplier fee
+    #[arg(long)]
+    pub(crate) multiplier: u128,
 }
