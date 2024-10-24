@@ -5,7 +5,9 @@ mod account;
 mod address;
 mod balance;
 mod block_height;
+mod bridge_account;
 mod bridge_lock;
+mod bridge_sudo_change;
 mod ics20_withdrawal;
 mod init_bridge_account;
 mod sign;
@@ -35,6 +37,8 @@ impl Command {
             SubCommand::Ics20Withdrawal(ics20_withdrawal) => ics20_withdrawal.run().await,
             SubCommand::Submit(submit) => submit.run().await,
             SubCommand::Sign(sign) => sign.run(),
+            SubCommand::BridgeSudoChange(bridge_sudo_change) => bridge_sudo_change.run().await,
+            SubCommand::BridgeAccount(bridge_account) => bridge_account.run().await,
         }
     }
 }
@@ -72,4 +76,8 @@ enum SubCommand {
                   backticks"
     )]
     Sign(sign::Command),
+    /// Command for changing sudo and withdrawer addresses
+    BridgeSudoChange(bridge_sudo_change::Command),
+    /// Commands for interacting with the bridge account
+    BridgeAccount(bridge_account::Command),
 }
