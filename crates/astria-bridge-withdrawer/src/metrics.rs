@@ -46,18 +46,8 @@ impl Metrics {
         self.sequencer_submission_failure_count.increment(1);
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "metric with potential loss of precision, logging when it occurs"
-    )]
     pub(crate) fn set_batch_total_settled_value(&self, value: u128) {
-        if value > u128::from(u32::MAX) {
-            tracing::warn!(
-                "{BATCH_TOTAL_SETTLED_VALUE} set with {value} which exceeds u32::MAX, precision \
-                 loss in metric"
-            );
-        }
-        self.batch_total_settled_value.set(value as f64);
+        self.batch_total_settled_value.set(value);
     }
 }
 

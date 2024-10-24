@@ -154,7 +154,7 @@ impl CelestiaClient {
         &mut self,
         blobs: Arc<Vec<Blob>>,
         maybe_last_error: Option<TrySubmitError>,
-    ) -> Result<BlobTx, TrySubmitError> {
+    ) -> Result<BlobTxAndFee, TrySubmitError> {
         info!("fetching cost params and account info from celestia app");
         let (blob_params, auth_params, min_gas_price, base_account) = tokio::try_join!(
             self.fetch_blob_params(),
@@ -196,7 +196,7 @@ impl CelestiaClient {
             "prepared blob transaction for celestia app"
         );
 
-        Ok(new_blob_tx(&signed_tx, blobs.iter()))
+        Ok(BlobTxAndFee::new(&signed_tx, blobs.iter(), fee))
     }
 
     #[instrument(skip_all, err(level = Level::WARN))]
@@ -775,22 +775,34 @@ fn new_signed_tx(
     }
 }
 
-fn new_blob_tx<'a>(signed_tx: &Tx, blobs: impl Iterator<Item = &'a Blob>) -> BlobTx {
-    // From https://github.com/celestiaorg/celestia-core/blob/v1.29.0-tm-v0.34.29/pkg/consts/consts.go#L19
-    const BLOB_TX_TYPE_ID: &str = "BLOB";
+pub(in crate::relayer) struct BlobTxAndFee {
+    pub(in crate::relayer) tx: BlobTx,
+    pub(in crate::relayer) fee: u64,
+}
 
-    let blobs = blobs
-        .map(|blob| PbBlob {
-            namespace_id: Bytes::from(blob.namespace.id().to_vec()),
-            namespace_version: u32::from(blob.namespace.version()),
-            data: Bytes::from(blob.data.clone()),
-            share_version: u32::from(blob.share_version),
-        })
-        .collect();
-    BlobTx {
-        tx: Bytes::from(signed_tx.encode_to_vec()),
-        blobs,
-        type_id: BLOB_TX_TYPE_ID.to_string(),
+impl BlobTxAndFee {
+    fn new<'a>(signed_tx: &Tx, blobs: impl Iterator<Item = &'a Blob>, fee: u64) -> Self {
+        // From https://github.com/celestiaorg/celestia-core/blob/v1.29.0-tm-v0.34.29/pkg/consts/consts.go#L19
+        const BLOB_TX_TYPE_ID: &str = "BLOB";
+
+        let blobs = blobs
+            .map(|blob| PbBlob {
+                namespace_id: Bytes::from(blob.namespace.id().to_vec()),
+                namespace_version: u32::from(blob.namespace.version()),
+                data: Bytes::from(blob.data.clone()),
+                share_version: u32::from(blob.share_version),
+            })
+            .collect();
+        let tx = BlobTx {
+            tx: Bytes::from(signed_tx.encode_to_vec()),
+            blobs,
+            type_id: BLOB_TX_TYPE_ID.to_string(),
+        };
+
+        Self {
+            tx,
+            fee,
+        }
     }
 }
 
