@@ -1273,5 +1273,5 @@ async fn transaction_execution_records_fee_event() {
     assert_eq!(event.attributes[0].key, "actionName");
     assert_eq!(event.attributes[1].key, "asset");
     assert_eq!(event.attributes[2].key, "feeAmount");
-    assert_eq!(event.attributes[3].key, "sourceActionIndex");
+    assert_eq!(event.attributes[3].key, "positionInTransaction");
 }

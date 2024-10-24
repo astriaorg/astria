@@ -577,7 +577,7 @@ fn construct_tx_fee_event(fee: &Fee) -> Event {
             ("actionName", fee.action_name.to_string()).index(),
             ("asset", fee.asset.to_string()).index(),
             ("feeAmount", fee.amount.to_string()).index(),
-            ("sourceActionIndex", fee.source_action_index.to_string()).index(),
+            ("positionInTransaction", fee.source_action_index.to_string()).index(),
         ],
     )
 }
