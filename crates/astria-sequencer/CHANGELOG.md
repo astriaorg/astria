@@ -9,7 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-[1.0.0-rc.1] - 2024-10-17
+## [1.0.0-rc.2] - 2024-10-23
+
+### Changed
+
+- Make ABCI response for account balances deterministic [#1574](https://github.com/astriaorg/astria/pull/1574).
+- Move and improve transaction fee estimation [#1722](https://github.com/astriaorg/astria/pull/1722).
+- Make fees optional at genesis [#1664](https://github.com/astriaorg/astria/pull/1664).
+- Add test for rollup refund in [#1728](https://github.com/astriaorg/astria/pull/1728).
+- Make native asset optional [#1703](https://github.com/astriaorg/astria/pull/1703).
+
+### Removed
+
+- Remove unused asset storage variant [#1704](https://github.com/astriaorg/astria/pull/1704).
+
+### Fixed
+
+- Fix fee estimation [#1701](https://github.com/astriaorg/astria/pull/1701).
+
+## [1.0.0-rc.1] - 2024-10-17
 
 ### Added
 
@@ -60,7 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allow compat prefixed addresses when receiving ics20 transfers [#1655](https://github.com/astriaorg/astria/pull/1655).
 - Remove enable mint entry from example env config [#1674](https://github.com/astriaorg/astria/pull/1674).
 
-[0.17.0] - 2024-09-06
+## [0.17.0] - 2024-09-06
 
 ### Changed
 
@@ -68,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - BREAKING: Permit bech32 compatible addresses [#1425](https://github.com/astriaorg/astria/pull/1425).
 - Memoize `address_bytes` of verification key [#1444](https://github.com/astriaorg/astria/pull/1444).
 
-[0.16.0] - 2024-08-22
+## [0.16.0] - 2024-08-22
 
 ### Added
 
@@ -92,7 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix block fee collection [#1343](https://github.com/astriaorg/astria/pull/1343).
 - Bump penumbra dep to fix ibc state access bug [#1389](https://github.com/astriaorg/astria/pull/1389).
 
-[0.15.0] - 2024-07-26
+## [0.15.0] - 2024-07-26
 
 ### Added
 
@@ -113,7 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Disambiguate return addresses [#1266](https://github.com/astriaorg/astria/pull/1266).
 - Improve and fix instrumentation [#1255](https://github.com/astriaorg/astria/pull/1255).
 
-[0.14.1] - 2024-07-03
+## [0.14.1] - 2024-07-03
 
 ### Added
 
@@ -417,7 +435,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0-rc.1...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0-rc.1...sequencer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v0.17.0...sequencer-v1.0.0-rc.1
 [0.17.0]: https://github.com/astriaorg/astria/compare/cli-v0.4.0...sequencer-v0.17.0
 [0.16.0]: https://github.com/astriaorg/astria/compare/sequencer-v0.15.0...sequencer-v0.16.0

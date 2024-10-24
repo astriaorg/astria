@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2024-10-23
+
+### Changed
+
+- Make native asset optional [#1703](https://github.com/astriaorg/astria/pull/1703).
+
 ## [1.0.0-rc.1] - 2024-10-17
 
 ### Changed
@@ -255,7 +261,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.0-rc.1...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.0-rc.1...sequencer-relayer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v0.16.2...sequencer-relayer-v1.0.0-rc.1
 [0.16.2]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v0.16.1...sequencer-relayer-v0.16.2
 [0.16.1]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v0.16.0...sequencer-relayer-v0.16.1

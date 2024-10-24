@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2024-10-23
+
+### Added
+
+- Implement frost_ed25519 threshold signing CLI [#1654](https://github.com/astriaorg/astria/pull/1654).
+- Add `sign` and `submit` subcommands to `sequencer` CLI [#1696](https://github.com/astriaorg/astria/pull/1696).
+
+### Changed
+
+- Return Bech32m Prefixed Address [#1621](https://github.com/astriaorg/astria/pull/1621).
+
 ## [0.5.0] - 2024-10-17
 
 ### Added
@@ -83,7 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dusk 1 CLI release
 
-[unreleased]: https://github.com/astriaorg/astria/compare/cli-v0.5.0...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/cli-v0.5.1...HEAD
+[0.5.1]: https://github.com/astriaorg/astria/compare/cli-v0.5.0...cli-v0.5.1
 [0.5.0]: https://github.com/astriaorg/astria/compare/cli-v0.4.1...cli-v0.5.0
 [0.4.1]: https://github.com/astriaorg/astria/compare/cli-v0.4.0...cli-v0.4.1
 [0.3.1]: https://github.com/astriaorg/astria/compare/cli-v0.3.0...cli-v0.3.1

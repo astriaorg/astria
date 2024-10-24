@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2024-10-23
+
+### Added
+
+- Add `use_compat_address` configuration value [#1671](https://github.com/astriaorg/astria/pull/1671).
+- Metric to track total settled funds [#1693](https://github.com/astriaorg/astria/pull/1693).
+
+### Fixed
+
+- Correctly identify rollup return address in ics20 withdrawal actions [#1714](https://github.com/astriaorg/astria/pull/1714).
+
 ## [1.0.0-rc.1] - 2024-10-17
 
 ### Added
@@ -76,7 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release of EVM Withdrawer.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.1...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.1...bridge-withdrawer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v0.3.0...bridge-withdrawer-v1.0.0-rc.1
 [0.3.0]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v0.2.1...bridge-withdrawer-v0.3.0
 [0.2.1]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v0.2.0...bridge-withdrawer-v0.2.1
