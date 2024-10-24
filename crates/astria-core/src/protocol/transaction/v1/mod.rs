@@ -306,8 +306,33 @@ impl Protobuf for TransactionBody {
             .map_err(TransactionBodyError::group)
     }
 
+    fn into_raw(self) -> raw::TransactionBody {
+        let Self {
+            actions,
+            params,
+        } = self;
+        let actions = actions
+            .into_actions()
+            .into_iter()
+            .map(Action::into_raw)
+            .collect();
+        raw::TransactionBody {
+            actions,
+            params: Some(params.into_raw()),
+        }
+    }
+
     fn to_raw(&self) -> Self::Raw {
-        todo!()
+        let Self {
+            actions,
+            params,
+        } = self;
+        let actions = actions.actions().iter().map(Action::to_raw).collect();
+        let params = params.clone().into_raw();
+        raw::TransactionBody {
+            actions,
+            params: Some(params),
+        }
     }
 }
 
@@ -350,41 +375,12 @@ impl TransactionBody {
         }
     }
 
-    pub fn into_raw(self) -> raw::TransactionBody {
-        let Self {
-            actions,
-            params,
-        } = self;
-        let actions = actions
-            .into_actions()
-            .into_iter()
-            .map(Action::into_raw)
-            .collect();
-        raw::TransactionBody {
-            actions,
-            params: Some(params.into_raw()),
-        }
-    }
-
     #[must_use]
     pub fn into_any(self) -> pbjson_types::Any {
         let raw = self.into_raw();
         pbjson_types::Any {
             type_url: raw::TransactionBody::type_url(),
             value: raw.encode_to_vec().into(),
-        }
-    }
-
-    pub fn to_raw(&self) -> raw::TransactionBody {
-        let Self {
-            actions,
-            params,
-        } = self;
-        let actions = actions.actions().iter().map(Action::to_raw).collect();
-        let params = params.clone().into_raw();
-        raw::TransactionBody {
-            actions,
-            params: Some(params),
         }
     }
 
