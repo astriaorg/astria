@@ -1,4 +1,4 @@
-use astria_core::protocol::transaction::v1alpha1::Action;
+use astria_core::protocol::transaction::v1::Action;
 
 #[derive(Debug)]
 pub(crate) struct Batch {

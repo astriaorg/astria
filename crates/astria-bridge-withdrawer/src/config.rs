@@ -26,6 +26,8 @@ pub struct Config {
     pub rollup_asset_denomination: asset::denom::TracePrefixed,
     // The bridge address corresponding to the bridged rollup asset on the sequencer.
     pub sequencer_bridge_address: String,
+    // Whether to use compat addresses for `Ics20Withdrawal`s.
+    pub use_compat_address: bool,
     // The address of the AstriaWithdrawer contract on the evm rollup.
     pub ethereum_contract_address: String,
     // The rpc endpoint of the evm rollup.

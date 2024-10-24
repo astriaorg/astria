@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/keys.rs
+expression: bridge_account_sudo_address(&address())
+---
+bridge/sudo/HAxJDxtVKNgXPF3kbRMRYOSywMM=

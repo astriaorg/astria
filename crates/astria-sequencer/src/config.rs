@@ -18,9 +18,6 @@ pub struct Config {
     pub db_filepath: PathBuf,
     /// Log level: debug, info, warn, or error
     pub log: String,
-    /// Set to true to enable the mint component
-    /// Only used if the "mint" feature is enabled
-    pub enable_mint: bool,
     /// The gRPC endpoint
     pub grpc_addr: String,
     /// Forces writing trace data to stdout no matter if connected to a tty or not.
@@ -33,6 +30,8 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
+    /// The maximum number of transactions that can be parked in the mempool.
+    pub mempool_parked_max_tx_count: usize,
 }
 
 impl config::Config for Config {

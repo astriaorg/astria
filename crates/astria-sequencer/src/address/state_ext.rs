@@ -18,11 +18,11 @@ use cnidarium::{
 };
 use tracing::instrument;
 
-use super::storage;
+use super::storage::{
+    self,
+    keys,
+};
 use crate::storage::StoredValue;
-
-const BASE_PREFIX_KEY: &str = "prefixes/base";
-const IBC_COMPAT_PREFIX_KEY: &str = "prefixes/ibc-compat";
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -54,7 +54,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all, err)]
     async fn get_base_prefix(&self) -> Result<String> {
         let Some(bytes) = self
-            .get_raw(BASE_PREFIX_KEY)
+            .get_raw(keys::BASE_PREFIX)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading address base prefix from state")?
@@ -69,7 +69,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all, err)]
     async fn get_ibc_compat_prefix(&self) -> Result<String> {
         let Some(bytes) = self
-            .get_raw(IBC_COMPAT_PREFIX_KEY)
+            .get_raw(keys::IBC_COMPAT_PREFIX)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading address ibc compat prefix from state")?
@@ -91,7 +91,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::AddressPrefix::from(prefix.as_str()))
             .serialize()
             .context("failed to serialize base prefix")?;
-        self.put_raw(BASE_PREFIX_KEY.to_string(), bytes);
+        self.put_raw(keys::BASE_PREFIX.to_string(), bytes);
         Ok(())
     }
 
@@ -100,7 +100,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::AddressPrefix::from(prefix.as_str()))
             .serialize()
             .context("failed to serialize ibc-compat prefix")?;
-        self.put_raw(IBC_COMPAT_PREFIX_KEY.to_string(), bytes);
+        self.put_raw(keys::IBC_COMPAT_PREFIX.to_string(), bytes);
         Ok(())
     }
 }
@@ -111,10 +111,7 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use cnidarium::StateDelta;
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    };
+    use super::*;
 
     #[tokio::test]
     async fn put_and_get_base_prefix() {

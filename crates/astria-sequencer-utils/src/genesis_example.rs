@@ -5,15 +5,33 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::genesis::v1alpha1::{
+    generated::protocol::genesis::v1::{
         AddressPrefixes,
+        GenesisFees,
         IbcParameters,
     },
     primitive::v1::Address,
-    protocol::genesis::v1alpha1::{
-        Account,
-        Fees,
-        GenesisAppState,
+    protocol::{
+        fees::v1::{
+            BridgeLockFeeComponents,
+            BridgeSudoChangeFeeComponents,
+            BridgeUnlockFeeComponents,
+            FeeAssetChangeFeeComponents,
+            FeeChangeFeeComponents,
+            IbcRelayFeeComponents,
+            IbcRelayerChangeFeeComponents,
+            IbcSudoChangeFeeComponents,
+            Ics20WithdrawalFeeComponents,
+            InitBridgeAccountFeeComponents,
+            RollupDataSubmissionFeeComponents,
+            SudoAddressChangeFeeComponents,
+            TransferFeeComponents,
+            ValidatorUpdateFeeComponents,
+        },
+        genesis::v1::{
+            Account,
+            GenesisAppState,
+        },
     },
     Protobuf,
 };
@@ -72,8 +90,9 @@ fn address_prefixes() -> AddressPrefixes {
     }
 }
 
-fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
-    astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+#[expect(clippy::too_many_lines, reason = "all lines reasonably necessary")]
+fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState {
+    astria_core::generated::protocol::genesis::v1::GenesisAppState {
         accounts: accounts().into_iter().map(Protobuf::into_raw).collect(),
         address_prefixes: Some(address_prefixes()),
         authority_sudo_address: Some(alice().to_raw()),
@@ -87,18 +106,106 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1alpha1:
             outbound_ics20_transfers_enabled: true,
         }),
         allowed_fee_assets: vec!["nria".parse().unwrap()],
-        fees: Some(
-            Fees {
-                transfer_base_fee: 12,
-                sequence_base_fee: 32,
-                sequence_byte_cost_multiplier: 1,
-                init_bridge_account_base_fee: 48,
-                bridge_lock_byte_cost_multiplier: 1,
-                bridge_sudo_change_fee: 24,
-                ics20_withdrawal_base_fee: 24,
-            }
-            .into_raw(),
-        ),
+        fees: Some(GenesisFees {
+            transfer: Some(
+                TransferFeeComponents {
+                    base: 12,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            rollup_data_submission: Some(
+                RollupDataSubmissionFeeComponents {
+                    base: 32,
+                    multiplier: 1,
+                }
+                .to_raw(),
+            ),
+            init_bridge_account: Some(
+                InitBridgeAccountFeeComponents {
+                    base: 48,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            bridge_lock: Some(
+                BridgeLockFeeComponents {
+                    base: 12,
+                    multiplier: 1,
+                }
+                .to_raw(),
+            ),
+            bridge_unlock: Some(
+                BridgeUnlockFeeComponents {
+                    base: 12,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            bridge_sudo_change: Some(
+                BridgeSudoChangeFeeComponents {
+                    base: 24,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            ics20_withdrawal: Some(
+                Ics20WithdrawalFeeComponents {
+                    base: 24,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            ibc_relay: Some(
+                IbcRelayFeeComponents {
+                    base: 0,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            validator_update: Some(
+                ValidatorUpdateFeeComponents {
+                    base: 0,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            fee_asset_change: Some(
+                FeeAssetChangeFeeComponents {
+                    base: 0,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            fee_change: Some(
+                FeeChangeFeeComponents {
+                    base: 0,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            ibc_relayer_change: Some(
+                IbcRelayerChangeFeeComponents {
+                    base: 0,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            sudo_address_change: Some(
+                SudoAddressChangeFeeComponents {
+                    base: 0,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            ibc_sudo_change: Some(
+                IbcSudoChangeFeeComponents {
+                    base: 0,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+        }),
     }
 }
 

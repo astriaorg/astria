@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::generated::{
-    execution::v1alpha2::{
+    execution::v1::{
         execution_service_server::{
             ExecutionService,
             ExecutionServiceServer,
@@ -20,7 +20,7 @@ use astria_core::generated::{
         GetGenesisInfoRequest,
         UpdateCommitmentStateRequest,
     },
-    sequencerblock::v1alpha1::{
+    sequencerblock::v1::{
         sequencer_service_server::{
             SequencerService,
             SequencerServiceServer,

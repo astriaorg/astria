@@ -15,7 +15,7 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: metrics
+  name: composer-metrics
   namespace: {{ include "composer.namespace" . }}
   labels:
     app: composer
@@ -23,7 +23,7 @@ spec:
   selector:
     app: composer
   ports:
-    - name: metrics
+    - name: composer-metrics
       port: {{ .Values.ports.metrics }}
-      targetPort: geth-metr
+      targetPort: composer-metrics
 {{- end }}

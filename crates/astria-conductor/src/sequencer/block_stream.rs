@@ -6,7 +6,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1alpha1::block::FilteredSequencerBlock,
+    sequencerblock::v1::block::FilteredSequencerBlock,
 };
 use astria_eyre::eyre::{
     self,

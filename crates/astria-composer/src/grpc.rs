@@ -9,7 +9,7 @@
 use std::net::SocketAddr;
 
 use astria_core::{
-    generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer,
+    generated::composer::v1::grpc_collector_service_server::GrpcCollectorServiceServer,
     primitive::v1::asset,
 };
 use astria_eyre::{

@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/fees/storage/keys.rs
+expression: SUDO_ADDRESS_CHANGE
+---
+fees/sudo_address_change

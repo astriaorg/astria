@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/ibc/state_ext.rs
-expression: "super::ibc_relayer_key(&address)"
----
-ibc-relayer/1c0c490f1b5528d8173c5de46d131160e4b2c0c3

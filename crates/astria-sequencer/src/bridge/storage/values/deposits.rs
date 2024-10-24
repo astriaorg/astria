@@ -8,7 +8,7 @@ use astria_core::{
         },
         Address as DomainAddress,
     },
-    sequencerblock::v1alpha1::block::Deposit as DomainDeposit,
+    sequencerblock::v1::block::Deposit as DomainDeposit,
 };
 use astria_eyre::eyre::bail;
 use borsh::{

@@ -4,16 +4,16 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::{
+    generated::sequencerblock::v1::{
         sequencer_service_client::{
             self,
             SequencerServiceClient,
         },
         GetPendingNonceRequest,
     },
-    protocol::transaction::v1alpha1::{
+    protocol::transaction::v1::{
         Action,
-        UnsignedTransaction,
+        TransactionBody,
     },
 };
 use astria_eyre::eyre::{
@@ -31,7 +31,7 @@ use sequencer_client::{
     },
     Address,
     SequencerClientExt,
-    SignedTransaction,
+    Transaction,
 };
 use signer::SequencerKey;
 use state::State;
@@ -153,7 +153,16 @@ impl Submitter {
         .wrap_err("failed to get nonce from sequencer")?;
         debug!(nonce, "fetched latest nonce");
 
-        let unsigned = UnsignedTransaction::builder()
+        let total_value = actions
+            .iter()
+            .map(|action| match action {
+                Action::BridgeUnlock(withdraw) => withdraw.amount,
+                Action::Ics20Withdrawal(withdraw) => withdraw.amount,
+                _ => 0,
+            })
+            .sum();
+
+        let unsigned = TransactionBody::builder()
             .actions(actions)
             .nonce(nonce)
             .chain_id(sequencer_chain_id)
@@ -161,7 +170,7 @@ impl Submitter {
             .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        let signed = unsigned.into_signed(signer.signing_key());
+        let signed = unsigned.sign(signer.signing_key());
         debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response
@@ -193,8 +202,10 @@ impl Submitter {
                 sequencer.block = tx_response.height.value(),
                 sequencer.tx_hash = %tx_response.hash,
                 rollup.height = rollup_height,
+                batch.value = total_value,
                 "withdraw batch successfully executed."
             );
+            metrics.set_batch_total_settled_value(total_value);
             state.set_last_rollup_height_submitted(rollup_height);
             state.set_last_sequencer_height(tx_response.height.value());
             state.set_last_sequencer_tx_hash(tx_response.hash);
@@ -213,7 +224,7 @@ fn report_exit(reason: eyre::Result<&str>) {
     }
 }
 
-/// Submits a `SignedTransaction` to the sequencer with an exponential backoff
+/// Submits a transaction to the sequencer with exponential backoff.
 #[instrument(
     name = "submit_tx",
     skip_all,
@@ -225,7 +236,7 @@ fn report_exit(reason: eyre::Result<&str>) {
 )]
 async fn submit_tx(
     client: sequencer_client::HttpClient,
-    tx: SignedTransaction,
+    tx: Transaction,
     state: Arc<State>,
     metrics: &'static Metrics,
 ) -> eyre::Result<(tx_sync::Response, tx::Response)> {

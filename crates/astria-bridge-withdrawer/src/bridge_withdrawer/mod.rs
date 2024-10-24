@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient;
+use astria_core::generated::sequencerblock::v1::sequencer_service_client::SequencerServiceClient;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -85,6 +85,7 @@ impl BridgeWithdrawer {
             rollup_asset_denomination,
             sequencer_bridge_address,
             sequencer_grpc_endpoint,
+            use_compat_address,
             ..
         } = cfg;
 
@@ -139,6 +140,7 @@ impl BridgeWithdrawer {
             state: state.clone(),
             rollup_asset_denom: rollup_asset_denomination,
             bridge_address: sequencer_bridge_address,
+            use_compat_address,
             submitter_handle,
         }
         .build()

@@ -1,3 +1,3 @@
-pub mod v1alpha1;
+pub mod v1;
 
-use crate::generated::protocol::bridge::v1alpha1 as raw;
+use crate::generated::protocol::bridge::v1 as raw;

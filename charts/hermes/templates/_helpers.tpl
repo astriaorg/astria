@@ -23,6 +23,20 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end -}}
 
 {{/*
+Common labels
+*/}}
+{{- define "hermes.labels" -}}
+{{ include "hermes.selectorLabels" . }}
+{{- end }}
+
+{{/*
+Selector labels
+*/}}
+{{- define "hermes.selectorLabels" -}}
+app: {{ include "hermes.fullname" . }}
+{{- end }}
+
+{{/*
 Return if ingress is stable.
 */}}
 {{- define "hermes.ingress.isStable" -}}

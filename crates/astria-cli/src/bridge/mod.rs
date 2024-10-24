@@ -9,7 +9,7 @@ use std::{
     },
 };
 
-use astria_core::protocol::transaction::v1alpha1::Action;
+use astria_core::protocol::transaction::v1::Action;
 use clap::Subcommand;
 use color_eyre::eyre::{
     self,

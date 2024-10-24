@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package astria.protocol.transaction.v1;
+
+import "astria/protocol/transaction/v1/action.proto";
+import "google/protobuf/any.proto";
+
+// `Transaction` is a transaction `TransactionBody` together with a public
+// ket and a signature.
+message Transaction {
+  bytes signature = 1;
+  bytes public_key = 2;
+  google.protobuf.Any body = 3;
+}
+
+// The `TransactionBody` of the `Transaction` that is being signed over.
+// It contains transaction `TransactionParams` and `Actions`.
+message TransactionBody {
+  TransactionParams params = 1;
+  repeated Action actions = 2;
+}
+
+// The `TransactionParams` of the transaction that define the
+// validity of the `Transaction`.
+message TransactionParams {
+  uint32 nonce = 1;
+  string chain_id = 2;
+}

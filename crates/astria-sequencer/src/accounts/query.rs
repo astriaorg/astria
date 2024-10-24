@@ -5,7 +5,7 @@ use astria_core::{
     },
     protocol::{
         abci::AbciErrorCode,
-        account::v1alpha1::AssetBalance,
+        account::v1::AssetBalance,
     },
 };
 use astria_eyre::eyre::{
@@ -55,21 +55,12 @@ async fn get_trace_prefixed_account_balances<S: StateRead>(
     let stream = state
         .account_asset_balances(address)
         .map_ok(|asset_balance| async move {
-            let native_asset = state
-                .get_native_asset()
+            let denom = ibc_to_trace(state, &asset_balance.asset)
                 .await
-                .context("failed to read native asset from state")?;
-
-            let result_denom = if asset_balance.asset == native_asset.to_ibc_prefixed() {
-                native_asset.into()
-            } else {
-                ibc_to_trace(state, &asset_balance.asset)
-                    .await
-                    .context("failed to map ibc prefixed asset to trace prefixed")?
-                    .into()
-            };
+                .context("failed to map ibc prefixed asset to trace prefixed")?
+                .into();
             Ok(AssetBalance {
-                denom: result_denom,
+                denom,
                 balance: asset_balance.balance,
             })
         })
@@ -77,18 +68,20 @@ async fn get_trace_prefixed_account_balances<S: StateRead>(
     stream.try_collect::<Vec<_>>().await
 }
 
+/// Returns a list of [`AssetBalance`]s for the provided address. `AssetBalance`s are sorted
+/// alphabetically by [`asset::Denom`].
 pub(crate) async fn balance_request(
     storage: Storage,
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::account::v1alpha1::BalanceResponse;
+    use astria_core::protocol::account::v1::BalanceResponse;
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,
     };
 
-    let balances = match get_trace_prefixed_account_balances(&snapshot, &address).await {
+    let mut balances = match get_trace_prefixed_account_balances(&snapshot, &address).await {
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
@@ -100,6 +93,9 @@ pub(crate) async fn balance_request(
             };
         }
     };
+
+    balances.sort_unstable_by(|a, b| a.denom.cmp(&b.denom));
+
     let payload = BalanceResponse {
         height: height.value(),
         balances,
@@ -121,7 +117,7 @@ pub(crate) async fn nonce_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_core::protocol::account::v1alpha1::NonceResponse;
+    use astria_core::protocol::account::v1::NonceResponse;
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,

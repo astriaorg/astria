@@ -1,17 +1,17 @@
 use std::time::Duration;
 
 use astria_core::{
-    execution::v1alpha2::{
+    execution::v1::{
         Block,
         CommitmentState,
         GenesisInfo,
     },
     generated::{
         execution::{
-            v1alpha2 as raw,
-            v1alpha2::execution_service_client::ExecutionServiceClient,
+            v1 as raw,
+            v1::execution_service_client::ExecutionServiceClient,
         },
-        sequencerblock::v1alpha1::RollupData,
+        sequencerblock::v1::RollupData,
     },
     Protobuf as _,
 };
@@ -59,7 +59,7 @@ impl Client {
         })
     }
 
-    /// Calls RPC astria.execution.v1alpha2.GetBlock
+    /// Calls RPC astria.execution.v1.GetBlock
     #[instrument(skip_all, fields(block_number, uri = %self.uri), err)]
     pub(crate) async fn get_block_with_retry(&mut self, block_number: u32) -> eyre::Result<Block> {
         let raw_block = tryhard::retry_fn(|| {
@@ -73,8 +73,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1alpha2.GetBlocks RPC because of gRPC status \
-             code or because number of retries were exhausted",
+            "failed to execute astria.execution.v1.GetBlocks RPC because of gRPC status code or \
+             because number of retries were exhausted",
         )?
         .into_inner();
         ensure!(
@@ -85,7 +85,7 @@ impl Client {
         Block::try_from_raw(raw_block).wrap_err("failed validating received block")
     }
 
-    /// Calls remote procedure `astria.execution.v1alpha2.GetGenesisInfo`
+    /// Calls remote procedure `astria.execution.v1.GetGenesisInfo`
     #[instrument(skip_all, fields(uri = %self.uri), err)]
     pub(crate) async fn get_genesis_info_with_retry(&mut self) -> eyre::Result<GenesisInfo> {
         let response = tryhard::retry_fn(|| {
@@ -97,8 +97,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1alpha2.GetGenesisInfo RPC because of gRPC \
-             status code or because number of retries were exhausted",
+            "failed to execute astria.execution.v1.GetGenesisInfo RPC because of gRPC status code \
+             or because number of retries were exhausted",
         )?
         .into_inner();
         let genesis_info = GenesisInfo::try_from_raw(response)
@@ -106,7 +106,7 @@ impl Client {
         Ok(genesis_info)
     }
 
-    /// Calls remote procedure `astria.execution.v1alpha2.ExecuteBlock`
+    /// Calls remote procedure `astria.execution.v1.ExecuteBlock`
     ///
     /// # Arguments
     ///
@@ -142,8 +142,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1alpha2.ExecuteBlock RPC because of gRPC status \
-             code or because number of retries were exhausted",
+            "failed to execute astria.execution.v1.ExecuteBlock RPC because of gRPC status code \
+             or because number of retries were exhausted",
         )?
         .into_inner();
         let block = Block::try_from_raw(response)
@@ -151,7 +151,7 @@ impl Client {
         Ok(block)
     }
 
-    /// Calls remote procedure `astria.execution.v1alpha2.GetCommitmentState`
+    /// Calls remote procedure `astria.execution.v1.GetCommitmentState`
     #[instrument(skip_all, fields(uri = %self.uri), err)]
     pub(crate) async fn get_commitment_state_with_retry(
         &mut self,
@@ -167,8 +167,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1alpha2.GetCommitmentState RPC because of gRPC \
-             status code or because number of retries were exhausted",
+            "failed to execute astria.execution.v1.GetCommitmentState RPC because of gRPC status \
+             code or because number of retries were exhausted",
         )?
         .into_inner();
         let commitment_state = CommitmentState::try_from_raw(response)
@@ -176,7 +176,7 @@ impl Client {
         Ok(commitment_state)
     }
 
-    /// Calls remote procedure `astria.execution.v1alpha2.UpdateCommitmentState`
+    /// Calls remote procedure `astria.execution.v1.UpdateCommitmentState`
     ///
     /// # Arguments
     ///
@@ -199,8 +199,8 @@ impl Client {
         .in_current_span()
         .await
         .wrap_err(
-            "failed to execute astria.execution.v1alpha2.UpdateCommitmentState RPC because of \
-             gRPC status code or because number of retries were exhausted",
+            "failed to execute astria.execution.v1.UpdateCommitmentState RPC because of gRPC \
+             status code or because number of retries were exhausted",
         )?
         .into_inner();
         let commitment_state = CommitmentState::try_from_raw(response)
@@ -209,7 +209,7 @@ impl Client {
     }
 }
 
-/// Utility function to construct a `astria.execution.v1alpha2.BlockIdentifier` from `number`
+/// Utility function to construct a `astria.execution.v1.BlockIdentifier` from `number`
 /// to use in RPC requests.
 fn block_identifier(number: u32) -> raw::BlockIdentifier {
     raw::BlockIdentifier {

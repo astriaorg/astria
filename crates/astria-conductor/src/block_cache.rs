@@ -4,7 +4,7 @@ use std::{
     future::Future,
 };
 
-use astria_core::sequencerblock::v1alpha1::{
+use astria_core::sequencerblock::v1::{
     block::FilteredSequencerBlock,
     SubmittedMetadata,
 };

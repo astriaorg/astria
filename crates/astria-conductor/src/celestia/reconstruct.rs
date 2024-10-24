@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1alpha1::{
+    sequencerblock::v1::{
         celestia::UncheckedSubmittedMetadata,
         SubmittedMetadata,
         SubmittedRollupData,

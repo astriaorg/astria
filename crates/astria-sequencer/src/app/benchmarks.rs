@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use astria_core::{
-    protocol::genesis::v1alpha1::{
+    protocol::genesis::v1::{
         Account,
         GenesisAppState,
     },
@@ -62,7 +62,7 @@ impl Fixture {
             .collect::<Vec<_>>();
         let first_address = accounts.first().cloned().unwrap().address;
         let genesis_state = GenesisAppState::try_from_raw(
-            astria_core::generated::protocol::genesis::v1alpha1::GenesisAppState {
+            astria_core::generated::protocol::genesis::v1::GenesisAppState {
                 accounts,
                 authority_sudo_address: first_address.clone(),
                 ibc_sudo_address: first_address.clone(),

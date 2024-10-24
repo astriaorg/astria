@@ -14,7 +14,7 @@ modules:
       disallow_comment_ignores: true
     breaking:
       use:
-        - WIRE_JSON
+        - PACKAGE
       ignore_unstable_packages: true
   - path: proto/executionapis
     name: buf.build/astria/execution-apis
@@ -30,7 +30,7 @@ modules:
       disallow_comment_ignores: true
     breaking:
       use:
-        - WIRE_JSON
+        - PACKAGE
       ignore_unstable_packages: true
   - path: proto/primitives
     name: buf.build/astria/primitives

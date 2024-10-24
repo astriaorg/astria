@@ -1,3 +1,3 @@
-pub mod v1alpha1;
+pub mod v1;
 
-use crate::generated::protocol::asset::v1alpha1 as raw;
+use crate::generated::protocol::asset::v1 as raw;

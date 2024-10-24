@@ -1,4 +1,4 @@
-use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer;
+use astria_core::generated::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -84,7 +84,7 @@ impl Sequencer {
         .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
 
-        let mempool = Mempool::new();
+        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
         let app = App::new(snapshot, mempool.clone(), metrics)
             .await
             .wrap_err("failed to initialize app")?;

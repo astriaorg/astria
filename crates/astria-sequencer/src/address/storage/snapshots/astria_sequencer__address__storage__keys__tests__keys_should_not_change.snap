@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/address/storage/keys.rs
+assertion_line: 10
+expression: BASE_PREFIX_KEY
+---
+address/prefixes/base

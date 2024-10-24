@@ -3,18 +3,18 @@ kind: Deployment
 metadata:
   name: {{ include "hermes.fullname" . }}
   labels:
-    app: astria-dev-cluster
+    app: {{ include "hermes.fullname" . }}
   namespace: {{ include "hermes.namespace" . }}
 spec:
   replicas: {{ .Values.global.replicaCount }}
   selector:
     matchLabels:
-      app: astria-dev-cluster
+      app: {{ include "hermes.fullname" . }}
   template:
     metadata:
       name: {{ include "hermes.fullname" . }}
       labels:
-        app: astria-dev-cluster
+        app: {{ include "hermes.fullname" . }}
     spec:
       {{- if .Values.createChannel.enabled }}
       initContainers:

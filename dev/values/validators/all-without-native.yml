@@ -1,0 +1,39 @@
+global:
+  dev: true
+
+genesis:
+  chainId: 'sequencer-test-chain-0'
+  genesisTime: '2023-09-22T17:22:35.092832Z'
+  addressPrefixes:
+    base: "astria"
+  authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+  ibc:
+    enabled: true
+    inboundEnabled: true
+    outboundEnabled: true
+    sudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+    relayerAddresses:
+      - astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+      - astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
+  # Note large balances must be strings support templating with the u128 size
+  # account balances
+  genesisAccounts: []
+
+resources:
+  cometbft:
+    requests:
+      cpu: 1000m
+      memory: 500Mi
+    limits:
+      cpu: 1000m
+      memory: 500Mi
+  sequencer:
+    requests:
+      cpu: 1000m
+      memory: 500Mi
+    limits:
+      cpu: 1000m
+      memory: 500Mi
+
+storage:
+  enabled: false

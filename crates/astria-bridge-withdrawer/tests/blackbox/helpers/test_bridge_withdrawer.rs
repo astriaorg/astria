@@ -18,11 +18,11 @@ use astria_core::{
         Denom,
     },
     protocol::{
-        bridge::v1alpha1::BridgeAccountLastTxHashResponse,
-        memos::v1alpha1::Ics20WithdrawalFromRollup,
-        transaction::v1alpha1::{
+        bridge::v1::BridgeAccountLastTxHashResponse,
+        memos::v1::Ics20WithdrawalFromRollup,
+        transaction::v1::{
             action::{
-                BridgeUnlockAction,
+                BridgeUnlock,
                 Ics20Withdrawal,
             },
             Action,
@@ -275,6 +275,7 @@ impl TestBridgeWithdrawerConfig {
             fee_asset_denomination: asset_denom.clone(),
             rollup_asset_denomination: asset_denom.as_trace_prefixed().unwrap().clone(),
             sequencer_bridge_address: default_bridge_address().to_string(),
+            use_compat_address: false,
             ethereum_contract_address: ethereum.contract_address(),
             ethereum_rpc_endpoint: ethereum.ws_endpoint(),
             sequencer_address_prefix: ASTRIA_ADDRESS_PREFIX.into(),
@@ -435,7 +436,7 @@ pub fn make_native_bridge_unlock_action(receipt: &TransactionReceipt) -> Action 
     let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
     let event_index = receipt.logs[0].log_index.unwrap().encode_hex();
 
-    let inner = BridgeUnlockAction {
+    let inner = BridgeUnlock {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),
@@ -462,7 +463,7 @@ pub fn make_native_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Acti
         amount: 1_000_000u128,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollup {
             memo: "nootwashere".to_string(),
-            rollup_return_address: receipt.from.to_string(),
+            rollup_return_address: receipt.from.encode_hex(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
             rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
         })
@@ -485,7 +486,7 @@ pub fn make_erc20_bridge_unlock_action(receipt: &TransactionReceipt) -> Action {
     // use the second event because the erc20 transfer also emits an event
     let event_index = receipt.logs[1].log_index.unwrap().encode_hex();
 
-    let inner = BridgeUnlockAction {
+    let inner = BridgeUnlock {
         to: default_sequencer_address(),
         amount: 1_000_000u128,
         rollup_block_number: receipt.block_number.unwrap().as_u64(),
@@ -513,7 +514,7 @@ pub fn make_erc20_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Actio
         amount: 1_000_000u128,
         memo: serde_json::to_string(&Ics20WithdrawalFromRollup {
             memo: "nootwashere".to_string(),
-            rollup_return_address: receipt.from.to_string(),
+            rollup_return_address: receipt.from.encode_hex(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
             rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
         })

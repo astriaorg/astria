@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use astria_core::sequencerblock::v1alpha1::{
+use astria_core::sequencerblock::v1::{
     block::RollupTransactionsParts,
     RollupTransactions as DomainRollupTransactions,
 };

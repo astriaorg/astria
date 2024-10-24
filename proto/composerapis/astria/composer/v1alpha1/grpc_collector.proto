@@ -2,11 +2,13 @@ syntax = 'proto3';
 
 package astria.composer.v1alpha1;
 
+import "astria/primitive/v1/types.proto";
+
 // SubmitRollupTransactionRequest contains a rollup transaction to be submitted to the Shared Sequencer Network
 // via the Composer
 message SubmitRollupTransactionRequest {
   // the unhashed rollup id
-  bytes rollup_id = 1;
+  astria.primitive.v1.RollupId rollup_id = 1;
   // the raw data bytes of the rollup transaction
   bytes data = 2;
 }

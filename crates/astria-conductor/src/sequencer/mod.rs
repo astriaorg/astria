@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use astria_core::sequencerblock::v1alpha1::block::FilteredSequencerBlock;
+use astria_core::sequencerblock::v1::block::FilteredSequencerBlock;
 use astria_eyre::eyre::{
     self,
     bail,
