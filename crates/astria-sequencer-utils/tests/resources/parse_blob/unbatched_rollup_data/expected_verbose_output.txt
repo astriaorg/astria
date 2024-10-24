@@ -6,7 +6,7 @@ rollup data 0:
         unknown rollup transaction type: AQ==
     item count: 1
     proof:
-        audit path: MNlZ2hLiZd70dUCLZo/iiZDbKE0DJb7iZ5NPUxTNbNt5fK7sp/9p267ADmDS86KtdasicQtPuLgp9swLgYFiny012CwZFMloQHQ9b68pC9PSiZjlYvcN04ar7rU7r5yw93fxRRyRBsaIaEHDdKuIUhESjEaDCrhCnNbMsDrgQmg=
+        audit path: MNlZ2hLiZd70dUCLZo_iiZDbKE0DJb7iZ5NPUxTNbNt5fK7sp_9p267ADmDS86KtdasicQtPuLgp9swLgYFiny012CwZFMloQHQ9b68pC9PSiZjlYvcN04ar7rU7r5yw93fxRRyRBsaIaEHDdKuIUhESjEaDCrhCnNbMsDrgQmg=
         leaf index: 0
         tree size: 19
 

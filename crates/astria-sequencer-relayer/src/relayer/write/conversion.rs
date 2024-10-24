@@ -451,7 +451,7 @@ where
     use serde::ser::Serialize as _;
     namespace
         .as_ref()
-        .map(|ns| telemetry::display::base64(ns.as_bytes()))
+        .map(|ns| core_utils::base64::display(ns.as_bytes()))
         .serialize(serializer)
 }
 
@@ -471,7 +471,7 @@ where
     serializer.collect_map(
         rollups
             .into_iter()
-            .map(|(id, ns)| (id, telemetry::display::base64(ns.as_bytes()))),
+            .map(|(id, ns)| (id, core_utils::base64::display(ns.as_bytes()))),
     )
 }
 

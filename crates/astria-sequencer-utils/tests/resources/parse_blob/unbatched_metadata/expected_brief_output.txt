@@ -1,12 +1,12 @@
 
 sequencer metadata 0:
-    sequencer block hash: HwCCO2EcW7AX0Cck/z9kl9qu9h3gnb0mpfEOGG+UWZA=
+    sequencer block hash: HwCCO2EcW7AX0Cck_z9kl9qu9h3gnb0mpfEOGG-UWZA=
     sequencer block header:
         chain id: astria-dusk-5
         height: 103623
         time: 2024-04-29T21:39:24.47424482Z
-        rollup transactions root: 47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=
-        data hash: 7P54CyIFJkHEJOCs+wvzRlhEqN7zh03qLi3wIKP1T3g=
+        rollup transactions root: 47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU=
+        data hash: 7P54CyIFJkHEJOCs-wvzRlhEqN7zh03qLi3wIKP1T3g=
         proposer address: yPrVsmT31bVEaXjpauw1SeQfE1M=
     rollup ids:
 

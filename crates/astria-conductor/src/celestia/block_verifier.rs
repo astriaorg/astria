@@ -482,10 +482,6 @@ mod tests {
 
     #[test]
     fn ensure_commit_has_quorum_not_ok() {
-        use base64::engine::{
-            general_purpose::STANDARD,
-            Engine as _,
-        };
         let validator_set = validators::Response::new(
             78u32.into(),
             vec![Validator {
@@ -494,8 +490,7 @@ mod tests {
                     .parse::<tendermint::account::Id>()
                     .unwrap(),
                 pub_key: tendermint::PublicKey::from_raw_ed25519(
-                    &STANDARD
-                        .decode("tyPnz5GGblrx3PBjQRxZOHbzsPEI1E8lOh62QoPSWLw=")
+                    &core_utils::base64::decode("tyPnz5GGblrx3PBjQRxZOHbzsPEI1E8lOh62QoPSWLw=")
                         .unwrap(),
                 )
                 .unwrap(),

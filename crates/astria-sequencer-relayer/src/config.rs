@@ -9,10 +9,7 @@ use astria_eyre::eyre::{
     self,
     WrapErr,
 };
-use base64::{
-    prelude::BASE64_STANDARD,
-    Engine as _,
-};
+use core_utils::base64;
 use serde::{
     Deserialize,
     Serialize,
@@ -90,8 +87,7 @@ impl IncludeRollup {
             .split(',')
             .filter(|base64_encoded_id| !base64_encoded_id.is_empty())
             .map(|base64_encoded_id| {
-                BASE64_STANDARD
-                    .decode(base64_encoded_id.trim())
+                base64::decode(base64_encoded_id.trim())
                     .wrap_err_with(|| {
                         format!(
                             "failed to base64-decode rollup id `{base64_encoded_id}` in \
@@ -170,7 +166,7 @@ mod tests {
         let _ = IncludeRollup::parse(input).unwrap_err();
 
         // Invalid decoded length (31 bytes).
-        let input = BASE64_STANDARD.encode([0; 31]);
+        let input = base64::encode([0; 31]);
         let _ = IncludeRollup::parse(&input).unwrap_err();
     }
 }
