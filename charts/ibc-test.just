@@ -9,21 +9,6 @@ delete:
   -just delete hermes-local
   -just delete rollup
 
-_base-deploy tag=defaultTag:
-  echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
-  just wait-for-ingress-controller > /dev/null
-  echo "Deploying local celestia instance..."
-  helm install celestia-local-chart ./celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
-  helm dependency update ./sequencer > /dev/null
-  helm dependency update ./evm-stack > /dev/null
-  echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart ./sequencer \
-    -f ../dev/values/validators/all.yml \
-    -f ../dev/values/validators/single.yml \
-    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
-    --create-namespace > /dev/null
-  just wait-for-sequencer > /dev/null
-
 @deploy tag=defaultTag:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
@@ -392,7 +377,7 @@ run-timeout tag=defaultTag:
   # that is a timeout without being stale with a client update a challenge without
   # waiting for acknowledgements to settle. This is a hack.
   echo "Waiting for 5 seconds to allow for acknowledgements to settle..."
-  sleep 15
+  sleep 5
 
   # Grabbing the current celestia block height and resetting the timeout height of the withdrawal
   # to one lower to force an immediate timeout which should create a refund event.
