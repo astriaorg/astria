@@ -21,6 +21,7 @@ data:
   ibc_account_key_name: "{{ .Values.ibcAccountKeyName }}"
   dev_account_mnemonic: "{{ .Values.devAccountMnemonic }}"
   dev_account_key_name: "{{ .Values.devAccountName }}"
+  fast: "{{ .Values.fast }}"
 ---
 apiVersion: v1
 kind: ConfigMap
