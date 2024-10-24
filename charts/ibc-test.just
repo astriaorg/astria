@@ -9,6 +9,21 @@ delete:
   -just delete hermes-local
   -just delete rollup
 
+_base-deploy tag=defaultTag:
+  echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
+  just wait-for-ingress-controller > /dev/null
+  echo "Deploying local celestia instance..."
+  helm install celestia-local-chart ./celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
+  helm dependency update ./sequencer > /dev/null
+  helm dependency update ./evm-stack > /dev/null
+  echo "Setting up single astria sequencer..." && helm install \
+    -n astria-validator-single single-sequencer-chart ./sequencer \
+    -f ../dev/values/validators/all.yml \
+    -f ../dev/values/validators/single.yml \
+    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
+    --create-namespace > /dev/null
+  just wait-for-sequencer > /dev/null
+
 @deploy tag=defaultTag:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
@@ -38,7 +53,8 @@ delete:
 @deploy-without-native tag=defaultTag:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
-  echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  echo "Deploying local celestia instance..."
+  helm install celestia-local-chart ./celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   helm dependency update ./sequencer > /dev/null
   echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./sequencer \
@@ -54,7 +70,8 @@ delete:
 @deploy-timeout tag=defaultTag:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
-  echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  echo "Deploying local celestia instance..." > /dev/null
+  helm install celestia-local-chart ./celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   helm dependency update ./sequencer > /dev/null
   helm dependency update ./evm-stack > /dev/null
   echo "Setting up single astria sequencer..." && helm install \
@@ -374,8 +391,8 @@ run-timeout tag=defaultTag:
   # There are some acknowledgements flying back and forth which make creating a height
   # that is a timeout without being stale with a client update a challenge without
   # waiting for acknowledgements to settle. This is a hack.
-  echo "Waiting for 30 seconds to allow for acknowledgements to settle..."
-  sleep 30
+  echo "Waiting for 5 seconds to allow for acknowledgements to settle..."
+  sleep 15
 
   # Grabbing the current celestia block height and resetting the timeout height of the withdrawal
   # to one lower to force an immediate timeout which should create a refund event.
