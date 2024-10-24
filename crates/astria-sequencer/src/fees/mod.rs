@@ -1,23 +1,42 @@
+use access::FeeComponents;
 use astria_core::{
     primitive::v1::{
         asset,
         TransactionId,
     },
-    protocol::transaction::{
-        self,
-        v1::action::{
-            BridgeLock,
-            BridgeSudoChange,
-            BridgeUnlock,
-            FeeAssetChange,
-            FeeChange,
-            IbcRelayerChange,
-            IbcSudoChange,
-            InitBridgeAccount,
-            RollupDataSubmission,
-            SudoAddressChange,
-            Transfer,
-            ValidatorUpdate,
+    protocol::{
+        fees::v1::{
+            BridgeLockFeeComponents,
+            BridgeSudoChangeFeeComponents,
+            BridgeUnlockFeeComponents,
+            FeeAssetChangeFeeComponents,
+            FeeChangeFeeComponents,
+            IbcRelayFeeComponents,
+            IbcRelayerChangeFeeComponents,
+            IbcSudoChangeFeeComponents,
+            Ics20WithdrawalFeeComponents,
+            InitBridgeAccountFeeComponents,
+            RollupDataSubmissionFeeComponents,
+            SudoAddressChangeFeeComponents,
+            TransferFeeComponents,
+            ValidatorUpdateFeeComponents,
+        },
+        transaction::{
+            self,
+            v1::action::{
+                BridgeLock,
+                BridgeSudoChange,
+                BridgeUnlock,
+                FeeAssetChange,
+                FeeChange,
+                IbcRelayerChange,
+                IbcSudoChange,
+                InitBridgeAccount,
+                RollupDataSubmission,
+                SudoAddressChange,
+                Transfer,
+                ValidatorUpdate,
+            },
         },
     },
     Protobuf,
@@ -28,7 +47,10 @@ use astria_eyre::eyre::{
     OptionExt as _,
     WrapErr as _,
 };
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 use penumbra_ibc::IbcRelay;
 use tendermint::abci::{
     Event,
@@ -44,6 +66,7 @@ use crate::{
     transaction::StateReadExt as _,
 };
 
+pub(crate) mod access;
 pub(crate) mod action;
 pub(crate) mod component;
 pub(crate) mod query;
@@ -64,9 +87,13 @@ const DEPOSIT_BASE_FEE: u128 = 16;
 
 #[async_trait::async_trait]
 pub(crate) trait FeeHandler {
+    type FeeComponents: FeeComponents;
+
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()>;
 
     fn variable_component(&self) -> u128;
+
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -90,6 +117,8 @@ impl Fee {
 
 #[async_trait::async_trait]
 impl FeeHandler for Transfer {
+    type FeeComponents = TransferFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
@@ -104,10 +133,17 @@ impl FeeHandler for Transfer {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_transfer_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeLock {
+    type FeeComponents = BridgeLockFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
@@ -122,10 +158,17 @@ impl FeeHandler for BridgeLock {
     fn variable_component(&self) -> u128 {
         base_deposit_fee(&self.asset, &self.destination_chain_address)
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_bridge_lock_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeSudoChange {
+    type FeeComponents = BridgeSudoChangeFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
@@ -140,10 +183,17 @@ impl FeeHandler for BridgeSudoChange {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_bridge_sudo_change_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeUnlock {
+    type FeeComponents = BridgeUnlockFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
@@ -158,10 +208,17 @@ impl FeeHandler for BridgeUnlock {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_bridge_unlock_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for InitBridgeAccount {
+    type FeeComponents = InitBridgeAccountFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
@@ -176,10 +233,17 @@ impl FeeHandler for InitBridgeAccount {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_init_bridge_account_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
+    type FeeComponents = Ics20WithdrawalFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
@@ -194,10 +258,17 @@ impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_ics20_withdrawal_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for RollupDataSubmission {
+    type FeeComponents = RollupDataSubmissionFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
@@ -213,10 +284,17 @@ impl FeeHandler for RollupDataSubmission {
         u128::try_from(self.data.len())
             .expect("converting a usize to a u128 should work on any currently existing machine")
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_rollup_data_submission_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for ValidatorUpdate {
+    type FeeComponents = ValidatorUpdateFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
@@ -230,10 +308,17 @@ impl FeeHandler for ValidatorUpdate {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_validator_update_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for SudoAddressChange {
+    type FeeComponents = SudoAddressChangeFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
@@ -247,10 +332,17 @@ impl FeeHandler for SudoAddressChange {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_sudo_address_change_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for FeeChange {
+    type FeeComponents = FeeChangeFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
@@ -264,10 +356,17 @@ impl FeeHandler for FeeChange {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_fee_change_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcSudoChange {
+    type FeeComponents = IbcSudoChangeFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
@@ -281,10 +380,17 @@ impl FeeHandler for IbcSudoChange {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_ibc_sudo_change_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelayerChange {
+    type FeeComponents = IbcRelayerChangeFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
@@ -298,10 +404,17 @@ impl FeeHandler for IbcRelayerChange {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_ibc_relayer_change_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for FeeAssetChange {
+    type FeeComponents = FeeAssetChangeFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
@@ -315,10 +428,17 @@ impl FeeHandler for FeeAssetChange {
     fn variable_component(&self) -> u128 {
         0
     }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_fee_asset_change_fees().await
+    }
 }
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelay {
+    type FeeComponents = IbcRelayFeeComponents;
+
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
@@ -331,6 +451,11 @@ impl FeeHandler for IbcRelay {
 
     fn variable_component(&self) -> u128 {
         0
+    }
+
+    #[instrument(skip_all)]
+    async fn fee_components<S: StateRead>(state: S) -> eyre::Result<Option<Self::FeeComponents>> {
+        state.get_ibc_relay_fees().await
     }
 }
 
