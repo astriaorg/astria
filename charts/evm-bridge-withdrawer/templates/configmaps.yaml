@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: evm-bridge-withdrawer-env
+  name: {{ include "evm-bridge-withdrawer.appName" . }}-env
   namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
 data:
   ASTRIA_BRIDGE_WITHDRAWER_LOG: "astria_bridge_withdrawer=debug"
@@ -40,7 +40,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: evm-bridge-withdrawer-private-key
+  name: {{ include "evm-bridge-withdrawer.appName" . }}-private-key
   namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
 data:
   {{ .Values.config.sequencerPrivateKey.secret.filename }}: |
