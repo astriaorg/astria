@@ -96,10 +96,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: DavidAnson/markdownlint-cli2-action@v11
-        with:
-          globs: |
-            **/*.md
-            #.github
 
   charts:
     runs-on: ubuntu-latest
