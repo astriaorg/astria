@@ -66,7 +66,7 @@ impl ActionHandler for BridgeLock {
         let source_action_index = state
             .get_transaction_context()
             .expect("current source should be set before executing action")
-            .source_action_index;
+            .position_in_transaction;
 
         let deposit = Deposit {
             bridge_address: self.to,

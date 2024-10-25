@@ -385,7 +385,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         &mut self,
         asset: &'a TAsset,
         amount: u128,
-        source_action_index: u64,
+        position_in_transaction: u64,
     ) -> Result<()>
     where
         TAsset: Sync + std::fmt::Display,
@@ -397,7 +397,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             action_name: T::full_name(),
             asset: asset::IbcPrefixed::from(asset).into(),
             amount,
-            source_action_index,
+            position_in_transaction,
         };
 
         // Fee ABCI event recorded for reporting
@@ -577,7 +577,11 @@ fn construct_tx_fee_event(fee: &Fee) -> Event {
             ("actionName", fee.action_name.to_string()).index(),
             ("asset", fee.asset.to_string()).index(),
             ("feeAmount", fee.amount.to_string()).index(),
-            ("positionInTransaction", fee.source_action_index.to_string()).index(),
+            (
+                "positionInTransaction",
+                fee.position_in_transaction.to_string(),
+            )
+                .index(),
         ],
     )
 }
@@ -634,7 +638,7 @@ mod tests {
                 action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                 asset: asset.to_ibc_prefixed().into(),
                 amount,
-                source_action_index: 0
+                position_in_transaction: 0
             },
             "fee balances are not what they were expected to be"
         );
@@ -667,13 +671,13 @@ mod tests {
                     action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                     asset: asset_first.to_ibc_prefixed().into(),
                     amount: amount_first,
-                    source_action_index: 0
+                    position_in_transaction: 0
                 },
                 Fee {
                     action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                     asset: asset_second.to_ibc_prefixed().into(),
                     amount: amount_second,
-                    source_action_index: 1
+                    position_in_transaction: 1
                 },
             ]),
             "returned fee balance vector not what was expected"

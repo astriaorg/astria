@@ -134,7 +134,7 @@ pub struct Deposit {
     >,
     /// index of the deposit's source action within its transaction
     #[prost(uint64, tag = "7")]
-    pub source_action_index: u64,
+    pub position_in_transaction: u64,
 }
 impl ::prost::Name for Deposit {
     const NAME: &'static str = "Deposit";

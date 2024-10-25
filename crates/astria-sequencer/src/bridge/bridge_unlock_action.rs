@@ -145,7 +145,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
@@ -184,7 +184,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
@@ -228,7 +228,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
