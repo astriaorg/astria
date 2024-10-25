@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2024-10-25
+
+### Changed
+
+- Bump penumbra dependencies [#1740](https://github.com/astriaorg/astria/pull/1740).
+
 ## [1.0.0-rc.2] - 2024-10-23
 
 ### Added
@@ -87,7 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release of EVM Withdrawer.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.2...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0...HEAD
+[1.0.0]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.2...bridge-withdrawer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.1...bridge-withdrawer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v0.3.0...bridge-withdrawer-v1.0.0-rc.1
 [0.3.0]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v0.2.1...bridge-withdrawer-v0.3.0

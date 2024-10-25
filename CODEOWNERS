@@ -27,3 +27,4 @@ rust-toolchain @astriaorg/rust-reviewers
 .cargo/ @astriaorg/rust-reviewers
 nextest.toml @astriaorg/rust-reviewers
 rusfmt.toml @astriaorg/rust-reviewers
+crates/src/*/CHANGELOG.md @astriaorg/rust-reviewers

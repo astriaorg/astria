@@ -9,9 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2024-10-25
+
 ### Changed
 
-- Update sequencer-app docs [#1682](https://github.com/astriaorg/astria/pull/1682).
+- Bump penumbra dependencies [#1740](https://github.com/astriaorg/astria/pull/1740).
+- Move fee event recording to transaction from block [#1718](https://github.com/astriaorg/astria/pull/1718).
 
 ## [1.0.0-rc.2] - 2024-10-23
 
@@ -439,7 +442,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0-rc.2...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0...HEAD
+[1.0.0]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0-rc.2...sequencer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0-rc.1...sequencer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v0.17.0...sequencer-v1.0.0-rc.1
 [0.17.0]: https://github.com/astriaorg/astria/compare/cli-v0.4.0...sequencer-v0.17.0
