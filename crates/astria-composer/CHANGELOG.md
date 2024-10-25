@@ -209,7 +209,8 @@ TransferAction` [#719](https://github.com/astriaorg/astria/pull/719).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/composer-v1.0.0-rc.2...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/composer-v1.0.0...HEAD
+[1.0.0]: https://github.com/astriaorg/astria/compare/composer-v1.0.0-rc.2...composer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/composer-v1.0.0-rc.1...composer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/composer-v0.8.3...composer-v1.0.0-rc.1
 [0.8.3]: https://github.com/astriaorg/astria/compare/composer-v0.8.2...composer-v0.8.3
