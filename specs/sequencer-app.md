@@ -90,7 +90,7 @@ The address corresponding to the signer is derived from the
 ## [Actions](https://buf.build/astria/protocol-apis/docs/main:astria.protocol.transaction.v1)
 
 The following is an exhaustive list of all user-accessible actions available
-to be submitted as of Sequencer v1.0.0-rc.1.
+to be submitted.
 
 ### Core Protocol Actions
 
@@ -99,7 +99,7 @@ of the following fields:
 
   | **Field** | **Type** | **Description** |
   | --------- | -------- | ----------- |
-  | to        | `Address`| The account to transfer to. The "from" address is assumed|
+  | to        | `Address`| The recipient of the transfer. The "from" address is assumed|
   ||| to be the signer of the transaction. |
   | amount    | `uint128`| The amount to transfer. |
   | asset     | `string` | The asset to transfer. |
@@ -130,7 +130,7 @@ fields:
   | --------- | -------- | ----------- |
   | rollup_id | `RollupId` | The rollup ID with which to register the bridge account.|
   | asset     | `string`   | The asset ID that will be accepted by the account.|
-  | fee_asset | `string`   | The asset with which to pay fees. |
+  | fee_asset | `string`   | The asset with which to pay fees for this action. |
   | sudo_address | `Address` | The address which has authority over the bridge|
   ||| account. If empty, assigned to the signer. |
   | withdrawer_address | `Address` | The address which is allowed to withdraw funds|
@@ -165,8 +165,8 @@ Effectively similar to `Transfer`, it contains the following fields:
   ||| from. |
   | rollup_block_number | `uint64` | The block number on the rollup which triggered|
   ||| the transaction underlying the bridge unlock. |
-  | rollup_withdrawal_event_id | `string` | An identifier of the original rollup|
-  ||| can be used to trace distinct rollup events from the bridge. |
+  | rollup_withdrawal_event_id | `string` | An identifier of the rollup withrawal transaction|
+  ||| which can be used to trace distinct rollup events from the bridge. |
 
 * `BridgeSudoChange`: changes the sudo and/or withdrawer address for the given
 bridge account. The signer must be the current bridge sudo account.
@@ -183,8 +183,7 @@ bridge account. The signer must be the current bridge sudo account.
 
 ### IBC User Actions
 
-Actions which deal with transfering funds between the sequencer and a separate
-chain.
+Actions which deal with the IBC protocol.
 
 * `IbcRelay`: transmits data packets between the sequencer chain and another
 chain using the [IBC](https://www.ibcprotocol.dev/) protocol. It has one field:
@@ -205,7 +204,7 @@ It consists of the following:
   ||| to send the transfer to. Not validated by Astria. |
   | return_address | `Address` | The sequencer chain address to return funds to|
   ||| in case the withdrawal fails. |
-  | timeout_height | `IbcHeight` | The sequencer height at which this action expires.|
+  | timeout_height | `IbcHeight` | The counterparty height at which this action expires.|
   | timeout_time | `uint64` | The unix timestamp (ns) at which this transfer expires.|
   | source_channel | `string` | The source channel used for the withdrawal. |
   | fee_asset | `string` | The asset used to pay fees with. |
@@ -226,7 +225,7 @@ follows:
     * [PrepareProposal](https://docs.cometbft.com/v0.38/spec/abci/abci++_methods#prepareproposal)
    (if the node is a proposer),
     * [ProcessProposal](https://docs.cometbft.com/v0.38/spec/abci/abci++_methods#processproposal)
-   (if the node is a validator but not a proposer)
+   (if the node is not a proposer)
 2. [FinalizeBlock](https://docs.cometbft.com/v0.38/spec/abci/abci++_methods#finalizeblock)
 3. [Commit](https://docs.cometbft.com/v0.38/spec/abci/abci++_methods#commit)
 
@@ -240,8 +239,7 @@ for more details.
 
 ### ProcessProposal
 
-If the given node is a validator, but not the proposer for this round,
-`ProcessProposal` is called. This checks if the commitment to the rollup data is
+For all nodes,`ProcessProposal` is called. However, only validator nodes need to validate and vote on the proposal. This checks if the commitment to the rollup data is
 correct. If it is not correct, the validator rejects the block.
 
 ### FinalizeBlock
@@ -278,10 +276,7 @@ The lifecycle of a sequencer transaction is as follows:
   broadcasted throughout the network; otherwise, the transaction is discarded.
 * The transaction will live in the mempool until it is included in a block
   proposal by a proposer.
-* Once inside a proposed block, the transaction will be executed by `FinalizeBlock`
-  during that block's lifecycle. At this point, the transaction will either
-  execute successfully or fail. If the transaction fails, it will still be included
-  in the block, but with a failure result, and will not have made any state changes.
+* During the proposal phase, the proposer executes the transactions it wishes to include, and only includes ones which succeed. Any transactions which fails execution are removed from the mempool. Other nodes only accept blocks where all transactions succeed.
 
 ## ABCI Queries
 
