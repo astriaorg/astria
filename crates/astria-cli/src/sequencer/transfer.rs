@@ -42,7 +42,7 @@ pub(super) struct Command {
     /// The chain id of the sequencing chain being used
     #[arg(
         long = "sequencer.chain-id",
-        env = "ROLLUP_SEQUENCER_CHAIN_ID",
+        env = "SEQUENCER_CHAIN_ID",
         default_value = crate::DEFAULT_SEQUENCER_CHAIN_ID
     )]
     sequencer_chain_id: String,
