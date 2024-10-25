@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changes
+
 - Default to dusk-11 network [#1755](https://github.com/astriaorg/astria/pull/1755)
 - Change env var for sequencer chain id [#1755](https://github.com/astriaorg/astria/pull/1755)
 
