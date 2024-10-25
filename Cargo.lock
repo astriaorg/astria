@@ -505,6 +505,7 @@ dependencies = [
  "ethers",
  "futures",
  "ibc-types",
+ "insta",
  "prost",
  "serde",
  "serde_json",

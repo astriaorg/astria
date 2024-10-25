@@ -1,0 +1,5 @@
+---
+source: crates/astria-bridge-contracts/src/lib.rs
+expression: "memo_to_json(&event, rollup_block_number, rollup_withdrawal_event_id).unwrap()"
+---
+{"rollupBlockNumber":"999","rollupWithdrawalEventId":"event ID","rollupReturnAddress":"0x00000000000000000000000000000000000000000000000000000000000003e7","memo":"a memo"}

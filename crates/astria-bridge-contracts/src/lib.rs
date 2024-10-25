@@ -419,13 +419,8 @@ where
                 .expect("must be set if this method is entered"),
         );
 
-        let memo = memo_to_json(&memos::v1::Ics20WithdrawalFromRollup {
-            memo: event.memo.clone(),
-            rollup_block_number,
-            rollup_return_address: event.sender.encode_hex(),
-            rollup_withdrawal_event_id,
-        })
-        .map_err(GetWithdrawalActionsError::encode_memo)?;
+        let memo = memo_to_json(&event, rollup_block_number, rollup_withdrawal_event_id)
+            .map_err(GetWithdrawalActionsError::encode_memo)?;
 
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
@@ -663,9 +658,22 @@ struct EncodeMemoError {
     source: serde_json::Error,
 }
 
-fn memo_to_json<T: prost::Name + serde::Serialize>(memo: &T) -> Result<String, EncodeMemoError> {
-    serde_json::to_string(memo).map_err(|source| EncodeMemoError {
-        proto_message: T::full_name(),
+fn memo_to_json(
+    event: &Ics20WithdrawalFilter,
+    rollup_block_number: u64,
+    rollup_withdrawal_event_id: String,
+) -> Result<String, EncodeMemoError> {
+    use prost::Name as _;
+    type Memo = memos::v1::Ics20WithdrawalFromRollup;
+
+    let withdrawal = Memo {
+        memo: event.memo.clone(),
+        rollup_block_number,
+        rollup_return_address: event.sender.encode_hex(),
+        rollup_withdrawal_event_id,
+    };
+    serde_json::to_string(&withdrawal).map_err(|source| EncodeMemoError {
+        proto_message: Memo::full_name(),
         source,
     })
 }
@@ -688,9 +696,22 @@ fn timeout_in_5_min() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::max_timeout_height;
+    use super::*;
+
     #[test]
     fn max_timeout_height_does_not_panic() {
         max_timeout_height();
+    }
+
+    #[test]
+    fn memo_snapshot() {
+        let event = Ics20WithdrawalFilter {
+            sender: ethers::core::types::Address::from_low_u64_be(999),
+            amount: ethers::core::types::U256::one(),
+            destination_chain_address: "destination address".to_string(),
+            memo: "a memo".to_string(),
+        };
+        let json_encoded_memo = memo_to_json(&event, 999, "event ID".to_string()).unwrap();
+        insta::assert_snapshot!("memo_snapshot", json_encoded_memo);
     }
 }
