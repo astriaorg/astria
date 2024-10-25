@@ -73,13 +73,14 @@ The structure of a (signed) transaction is as follows:
 
 ```rust
 pub struct Transaction {
-    /// transaction signature
+    /// The transaction signature.
     signature: ed25519_consensus::Signature,
-    /// the verification key of the signer
+    /// The verification key of the signer.
     verification_key: ed25519_consensus::VerificationKey,
-    /// the transaction body which is signed
+    /// The transaction body which is signed.
     body: TransactionBody,
-    /// a bytes representation of the transaction body
+    /// A bytes representation of the transaction body that was signed. Re-encoding
+    /// the body with protobuf may not be deterministic.
     body_bytes: Bytes,
 }
 ```
@@ -152,6 +153,7 @@ account is registered to, containing the information of the transfer.
   ||| which will receive the bridged funds. |
 
 * `BridgeUnlock`: transfers funds from a bridge account to a sequencer account.
+The signer of this transaciton *must* be the authorized withdrawer for this `bridge_address`.
 Effectively similar to `Transfer`, it contains the following fields:
 
   | **Field** | **Type** | **Description** |
@@ -165,8 +167,8 @@ Effectively similar to `Transfer`, it contains the following fields:
   ||| from. |
   | rollup_block_number | `uint64` | The block number on the rollup which triggered|
   ||| the transaction underlying the bridge unlock. |
-  | rollup_withdrawal_event_id | `string` | An identifier of the rollup withrawal transaction|
-  ||| which can be used to trace distinct rollup events from the bridge. |
+  | rollup_withdrawal_event_id | `string` | An identifier of the rollup withrawal|
+  ||| transaction which can be used to trace distinct rollup events from the bridge.|
 
 * `BridgeSudoChange`: changes the sudo and/or withdrawer address for the given
 bridge account. The signer must be the current bridge sudo account.
@@ -186,11 +188,13 @@ bridge account. The signer must be the current bridge sudo account.
 Actions which deal with the IBC protocol.
 
 * `IbcRelay`: transmits data packets between the sequencer chain and another
-chain using the [IBC](https://www.ibcprotocol.dev/) protocol. It has one field:
+chain using the [IBC](https://www.ibcprotocol.dev/) protocol. This is a permissioned
+action, and only authorized accounts can relay. It has one field:
 
   | **Field** | **Type** | **Description** |
   | --------- | -------- | ----------- |
-  | raw_action | `google.protobuf.Any` | The raw IBC Relay action. |
+  | raw_action | `google.protobuf.Any` | The raw IBC action. Can be any of |
+  ||| [these types](https://github.com/penumbra-zone/penumbra/blob/c23270bd3610f0b6b139d4c2e13c8a4a5bb16f07/crates/core/component/ibc/src/ibc_action.rs#L41).|
 
 * `Ics20Withdrawal`: transfers tokens from a sequencer account to a different
 chain via [ICS-20 protocol](https://github.com/cosmos/ibc/blob/main/spec/app/ics-020-fungible-token-transfer/README.md).
@@ -239,8 +243,9 @@ for more details.
 
 ### ProcessProposal
 
-For all nodes,`ProcessProposal` is called. However, only validator nodes need to validate and vote on the proposal. This checks if the commitment to the rollup data is
-correct. If it is not correct, the validator rejects the block.
+For all nodes,`ProcessProposal` is called. However, only validator nodes need to
+validate and vote on the proposal. This checks if the commitment to the rollup
+data is correct. If it is not correct, the validator rejects the block.
 
 ### FinalizeBlock
 
@@ -276,7 +281,10 @@ The lifecycle of a sequencer transaction is as follows:
   broadcasted throughout the network; otherwise, the transaction is discarded.
 * The transaction will live in the mempool until it is included in a block
   proposal by a proposer.
-* During the proposal phase, the proposer executes the transactions it wishes to include, and only includes ones which succeed. Any transactions which fails execution are removed from the mempool. Other nodes only accept blocks where all transactions succeed.
+* During the proposal phase, the proposer executes the transactions it wishes to
+include, and only includes ones which succeed. Any transactions which fails execution
+are removed from the mempool. Other nodes only accept blocks where all transactions
+succeed.
 
 ## ABCI Queries
 
