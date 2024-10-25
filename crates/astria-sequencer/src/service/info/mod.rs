@@ -435,59 +435,59 @@ mod tests {
 
     fn expected_fees() -> serde_json::Value {
         serde_json::json!({
-              "bridge_lock_fees": {
+              "bridge_lock": {
                 "base": 1,
                 "multiplier": 1
               },
-              "bridge_sudo_change_fees": {
+              "bridge_sudo_change": {
                 "base": 3,
                 "multiplier": 3
               },
-              "bridge_unlock_fees": {
+              "bridge_unlock": {
                 "base": 2,
                 "multiplier": 2
               },
-              "fee_asset_change_fees": {
+              "fee_asset_change": {
                 "base": 4,
                 "multiplier": 4
               },
-              "fee_change_fees": {
+              "fee_change": {
                 "base": 5,
                 "multiplier": 5
               },
-              "ibc_relay_fees": {
+              "ibc_relay": {
                 "base": 7,
                 "multiplier": 7
               },
-              "ibc_relayer_change_fees": {
+              "ibc_relayer_change": {
                 "base": 8,
                 "multiplier": 8
               },
-              "ibc_sudo_change_fees": {
+              "ibc_sudo_change": {
                 "base": 9,
                 "multiplier": 9
               },
-              "ics20_withdrawal_fees": {
+              "ics20_withdrawal": {
                 "base": 10,
                 "multiplier": 10
               },
-              "init_bridge_account_fees": {
+              "init_bridge_account": {
                 "base": 6,
                 "multiplier": 6
               },
-              "rollup_data_submission_fees": {
+              "rollup_data_submission": {
                 "base": 11,
                 "multiplier": 11
               },
-              "sudo_address_change_fees": {
+              "sudo_address_change": {
                 "base": 12,
                 "multiplier": 12
               },
-              "transfer_fees": {
+              "transfer": {
                 "base": 13,
                 "multiplier": 13
               },
-              "validator_update_fees": {
+              "validator_update": {
                 "base": 14,
                 "multiplier": 14
             }
