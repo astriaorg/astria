@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2024-10-25
+
+### Changed
+
+- Bump penumbra dependencies [#1740](https://github.com/astriaorg/astria/pull/1740).
+
 ## [1.0.0-rc.2] - 2024-10-23
 
 ### Changed
