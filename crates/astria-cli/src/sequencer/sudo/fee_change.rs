@@ -44,7 +44,7 @@ impl Command {
             SubCommand::BridgeUnlockFee(bridge_unlock) => bridge_unlock.run().await,
             SubCommand::BridgeSudoChangeFee(bridge_sudo_change) => bridge_sudo_change.run().await,
             SubCommand::Ics20WithdrawalFee(ics20_withdrawal) => ics20_withdrawal.run().await,
-            SubCommand::IbcRelaeyFee(ibc_relay) => ibc_relay.run().await,
+            SubCommand::IbcRelayFee(ibc_relay) => ibc_relay.run().await,
             SubCommand::IbcRelayerChangeFee(ibc_relayer_change) => ibc_relayer_change.run().await,
             SubCommand::IbcSudoChangeFee(ics_sudo_change) => ics_sudo_change.run().await,
             SubCommand::FeeAssetChangeFee(fee_asset_change) => fee_asset_change.run().await,
@@ -57,14 +57,14 @@ impl Command {
     }
 }
 
-#[allow(clippy::enum_variant_names)]
+#[expect(clippy::enum_variant_names)]
 #[derive(Debug, Subcommand)]
 enum SubCommand {
-    /// Chnage Transfer Fee
+    /// Change Transfer Fee
     TransferFee(Transfer),
     /// Change Init Bridge Account Fee
     InitBridgeFee(BridgeInit),
-    /// Change Sequence Fee
+    /// Change Rollup Data Submission Fee
     RollupDataSubmissionFee(RollupDataSubmission),
     /// Change Bridge Lock Fee
     BridgeLockFee(BridgeLock),
@@ -75,7 +75,7 @@ enum SubCommand {
     /// Change ICS20 Withdrawal Fee
     Ics20WithdrawalFee(Ics20Withdrawal),
     /// Change IBC Relay Fee
-    IbcRelaeyFee(IbcRelay),
+    IbcRelayFee(IbcRelay),
     /// Change IBC Relayer Change Fee
     IbcRelayerChangeFee(IbcRelayerChange),
     /// Change IBC Sudo Change Fee
