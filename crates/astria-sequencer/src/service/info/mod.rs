@@ -55,6 +55,8 @@ const BRIDGE_ACCOUNT_INFO: &str = "bridge/account_info/:address";
 
 const TRANSACTION_FEE: &str = "transaction/fee";
 
+const FEES_COMPONENTS: &str = "fees/components";
+
 impl Info {
     pub(crate) fn new(storage: Storage) -> Result<Self> {
         let mut query_router = abci_query_router::Router::new();
@@ -76,6 +78,7 @@ impl Info {
             crate::bridge::query::bridge_account_info_request,
         )?;
         query_router.insert(TRANSACTION_FEE, crate::fees::query::transaction_fee_request)?;
+        query_router.insert(FEES_COMPONENTS, crate::fees::query::components)?;
         Ok(Self {
             storage,
             query_router,
@@ -172,9 +175,28 @@ mod tests {
         protocol::{
             account::v1::BalanceResponse,
             asset::v1::DenomResponse,
+            fees::v1::{
+                BridgeLockFeeComponents,
+                BridgeSudoChangeFeeComponents,
+                BridgeUnlockFeeComponents,
+                FeeAssetChangeFeeComponents,
+                FeeChangeFeeComponents,
+                IbcRelayFeeComponents,
+                IbcRelayerChangeFeeComponents,
+                IbcSudoChangeFeeComponents,
+                Ics20WithdrawalFeeComponents,
+                InitBridgeAccountFeeComponents,
+                RollupDataSubmissionFeeComponents,
+                SudoAddressChangeFeeComponents,
+                TransferFeeComponents,
+                ValidatorUpdateFeeComponents,
+            },
         },
     };
-    use cnidarium::StateDelta;
+    use cnidarium::{
+        StateDelta,
+        StateWrite,
+    };
     use prost::Message as _;
     use tendermint::v0_38::abci::{
         request,
@@ -371,5 +393,191 @@ mod tests {
                 "expected asset_id to be in allowed fee assets"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn handle_fee_components() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let mut state = StateDelta::new(storage.latest_snapshot());
+
+        let height = 99;
+
+        state.put_block_height(height).unwrap();
+        write_all_the_fees(&mut state);
+        storage.commit(state).await.unwrap();
+
+        let info_request = InfoRequest::Query(request::Query {
+            path: "fees/components".to_string(),
+            data: vec![].into(),
+            height: u32::try_from(height).unwrap().into(),
+            prove: false,
+        });
+
+        let response = {
+            let storage = (*storage).clone();
+            let info_service = Info::new(storage).unwrap();
+            info_service
+                .handle_info_request(info_request)
+                .await
+                .unwrap()
+        };
+        let query_response = match response {
+            InfoResponse::Query(query) => query,
+            other => panic!("expected InfoResponse::Query, got {other:?}"),
+        };
+        assert!(query_response.code.is_ok(), "{query_response:?}");
+
+        let actual_fees =
+            serde_json::from_slice::<serde_json::Value>(&query_response.value).unwrap();
+
+        assert_json_diff::assert_json_eq!(expected_fees(), actual_fees);
+    }
+
+    fn expected_fees() -> serde_json::Value {
+        serde_json::json!({
+              "bridge_lock_fees": {
+                "base": 1,
+                "multiplier": 1
+              },
+              "bridge_sudo_change_fees": {
+                "base": 3,
+                "multiplier": 3
+              },
+              "bridge_unlock_fees": {
+                "base": 2,
+                "multiplier": 2
+              },
+              "fee_asset_change_fees": {
+                "base": 4,
+                "multiplier": 4
+              },
+              "fee_change_fees": {
+                "base": 5,
+                "multiplier": 5
+              },
+              "ibc_relay_fees": {
+                "base": 7,
+                "multiplier": 7
+              },
+              "ibc_relayer_change_fees": {
+                "base": 8,
+                "multiplier": 8
+              },
+              "ibc_sudo_change_fees": {
+                "base": 9,
+                "multiplier": 9
+              },
+              "ics20_withdrawal_fees": {
+                "base": 10,
+                "multiplier": 10
+              },
+              "init_bridge_account_fees": {
+                "base": 6,
+                "multiplier": 6
+              },
+              "rollup_data_submission_fees": {
+                "base": 11,
+                "multiplier": 11
+              },
+              "sudo_address_change_fees": {
+                "base": 12,
+                "multiplier": 12
+              },
+              "transfer_fees": {
+                "base": 13,
+                "multiplier": 13
+              },
+              "validator_update_fees": {
+                "base": 14,
+                "multiplier": 14
+            }
+        })
+    }
+
+    fn write_all_the_fees<S: StateWrite>(mut state: S) {
+        state
+            .put_bridge_lock_fees(BridgeLockFeeComponents {
+                base: 1,
+                multiplier: 1,
+            })
+            .unwrap();
+        state
+            .put_bridge_unlock_fees(BridgeUnlockFeeComponents {
+                base: 2,
+                multiplier: 2,
+            })
+            .unwrap();
+        state
+            .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
+                base: 3,
+                multiplier: 3,
+            })
+            .unwrap();
+        state
+            .put_fee_asset_change_fees(FeeAssetChangeFeeComponents {
+                base: 4,
+                multiplier: 4,
+            })
+            .unwrap();
+        state
+            .put_fee_change_fees(FeeChangeFeeComponents {
+                base: 5,
+                multiplier: 5,
+            })
+            .unwrap();
+        state
+            .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
+                base: 6,
+                multiplier: 6,
+            })
+            .unwrap();
+        state
+            .put_ibc_relay_fees(IbcRelayFeeComponents {
+                base: 7,
+                multiplier: 7,
+            })
+            .unwrap();
+        state
+            .put_ibc_relayer_change_fees(IbcRelayerChangeFeeComponents {
+                base: 8,
+                multiplier: 8,
+            })
+            .unwrap();
+        state
+            .put_ibc_sudo_change_fees(IbcSudoChangeFeeComponents {
+                base: 9,
+                multiplier: 9,
+            })
+            .unwrap();
+        state
+            .put_ics20_withdrawal_fees(Ics20WithdrawalFeeComponents {
+                base: 10,
+                multiplier: 10,
+            })
+            .unwrap();
+        state
+            .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
+                base: 11,
+                multiplier: 11,
+            })
+            .unwrap();
+        state
+            .put_sudo_address_change_fees(SudoAddressChangeFeeComponents {
+                base: 12,
+                multiplier: 12,
+            })
+            .unwrap();
+        state
+            .put_transfer_fees(TransferFeeComponents {
+                base: 13,
+                multiplier: 13,
+            })
+            .unwrap();
+        state
+            .put_validator_update_fees(ValidatorUpdateFeeComponents {
+                base: 14,
+                multiplier: 14,
+            })
+            .unwrap();
     }
 }

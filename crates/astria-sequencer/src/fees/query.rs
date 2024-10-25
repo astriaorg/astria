@@ -42,6 +42,7 @@ use tendermint::abci::{
     Code,
 };
 use tokio::{
+    join,
     sync::OnceCell,
     try_join,
 };
@@ -129,6 +130,44 @@ pub(crate) async fn allowed_fee_assets_request(
         code: tendermint::abci::Code::Ok,
         key: request.path.into_bytes().into(),
         value: payload,
+        height,
+        ..response::Query::default()
+    }
+}
+
+pub(crate) async fn components(
+    storage: Storage,
+    request: request::Query,
+    _params: Vec<(String, String)>,
+) -> response::Query {
+    let snapshot = storage.latest_snapshot();
+
+    let height = async {
+        snapshot
+            .get_block_height()
+            .await
+            .wrap_err("failed getting block height")
+    };
+    let fee_components = get_all_fee_components(&snapshot).map(Ok);
+    let (height, fee_components) = match try_join!(height, fee_components) {
+        Ok(vals) => vals,
+        Err(err) => {
+            return response::Query {
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
+                log: format!("{err:#}"),
+                ..response::Query::default()
+            };
+        }
+    };
+
+    let height = tendermint::block::Height::try_from(height).expect("height must fit into an i64");
+    response::Query {
+        code: tendermint::abci::Code::Ok,
+        key: request.path.into_bytes().into(),
+        value: serde_json::to_vec(&fee_components)
+            .expect("object does not contain keys that don't map to json keys")
+            .into(),
         height,
         ..response::Query::default()
     }
@@ -458,3 +497,138 @@ fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, 
 
     Ok(tx)
 }
+
+#[derive(serde::Serialize)]
+struct AllFeeComponents {
+    transfer_fees: FetchResult,
+    rollup_data_submission_fees: FetchResult,
+    ics20_withdrawal_fees: FetchResult,
+    init_bridge_account_fees: FetchResult,
+    bridge_lock_fees: FetchResult,
+    bridge_unlock_fees: FetchResult,
+    bridge_sudo_change_fees: FetchResult,
+    ibc_relay_fees: FetchResult,
+    validator_update_fees: FetchResult,
+    fee_asset_change_fees: FetchResult,
+    fee_change_fees: FetchResult,
+    ibc_relayer_change_fees: FetchResult,
+    sudo_address_change_fees: FetchResult,
+    ibc_sudo_change_fees: FetchResult,
+}
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum FetchResult {
+    Err(String),
+    Missing(&'static str),
+    Component(FeeComponent),
+}
+
+impl<T> From<eyre::Result<Option<T>>> for FetchResult
+where
+    FeeComponent: From<T>,
+{
+    fn from(value: eyre::Result<Option<T>>) -> Self {
+        match value {
+            Ok(Some(val)) => Self::Component(val.into()),
+            Ok(None) => Self::Missing("not set"),
+            Err(err) => Self::Err(err.to_string()),
+        }
+    }
+}
+
+async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
+    let (
+        transfer_fees,
+        rollup_data_submission_fees,
+        ics20_withdrawal_fees,
+        init_bridge_account_fees,
+        bridge_lock_fees,
+        bridge_unlock_fees,
+        bridge_sudo_change_fees,
+        ibc_relay_fees,
+        validator_update_fees,
+        fee_asset_change_fees,
+        fee_change_fees,
+        ibc_relayer_change_fees,
+        sudo_address_change_fees,
+        ibc_sudo_change_fees,
+    ) = join!(
+        state.get_transfer_fees().map(fetch_to_response),
+        state
+            .get_rollup_data_submission_fees()
+            .map(fetch_to_response),
+        state.get_ics20_withdrawal_fees().map(fetch_to_response),
+        state.get_init_bridge_account_fees().map(fetch_to_response),
+        state.get_bridge_lock_fees().map(fetch_to_response),
+        state.get_bridge_unlock_fees().map(fetch_to_response),
+        state.get_bridge_sudo_change_fees().map(fetch_to_response),
+        state.get_ibc_relay_fees().map(fetch_to_response),
+        state.get_validator_update_fees().map(fetch_to_response),
+        state.get_fee_asset_change_fees().map(fetch_to_response),
+        state.get_fee_change_fees().map(fetch_to_response),
+        state.get_ibc_relayer_change_fees().map(fetch_to_response),
+        state.get_sudo_address_change_fees().map(fetch_to_response),
+        state.get_ibc_sudo_change_fees().map(fetch_to_response),
+    );
+    AllFeeComponents {
+        transfer_fees,
+        rollup_data_submission_fees,
+        ics20_withdrawal_fees,
+        init_bridge_account_fees,
+        bridge_lock_fees,
+        bridge_unlock_fees,
+        bridge_sudo_change_fees,
+        ibc_relay_fees,
+        validator_update_fees,
+        fee_asset_change_fees,
+        fee_change_fees,
+        ibc_relayer_change_fees,
+        sudo_address_change_fees,
+        ibc_sudo_change_fees,
+    }
+}
+
+fn fetch_to_response<T>(value: eyre::Result<Option<T>>) -> FetchResult
+where
+    FeeComponent: From<T>,
+{
+    value.into()
+}
+
+#[derive(serde::Serialize)]
+struct FeeComponent {
+    base: u128,
+    multiplier: u128,
+}
+
+macro_rules! impl_from_domain_fee_component {
+    ( $($dt:ty ),* $(,)?) => {
+        $(
+            impl From<$dt> for FeeComponent {
+                fn from(val: $dt) -> Self {
+                    Self {
+                        base: val.base,
+                        multiplier: val.multiplier,
+                    }
+                }
+            }
+        )*
+    }
+}
+impl_from_domain_fee_component!(
+    astria_core::protocol::fees::v1::BridgeLockFeeComponents,
+    astria_core::protocol::fees::v1::BridgeSudoChangeFeeComponents,
+    astria_core::protocol::fees::v1::BridgeUnlockFeeComponents,
+    astria_core::protocol::fees::v1::FeeAssetChangeFeeComponents,
+    astria_core::protocol::fees::v1::FeeChangeFeeComponents,
+    astria_core::protocol::fees::v1::IbcRelayFeeComponents,
+    astria_core::protocol::fees::v1::IbcRelayerChangeFeeComponents,
+    astria_core::protocol::fees::v1::IbcSudoChangeFeeComponents,
+    astria_core::protocol::fees::v1::Ics20WithdrawalFeeComponents,
+    astria_core::protocol::fees::v1::InitBridgeAccountFeeComponents,
+    astria_core::protocol::fees::v1::RollupDataSubmissionFeeComponents,
+    astria_core::protocol::fees::v1::SudoAddressChangeFeeComponents,
+    astria_core::protocol::fees::v1::TransferFeeComponents,
+    astria_core::protocol::fees::v1::ValidatorUpdateFeeComponents,
+);
