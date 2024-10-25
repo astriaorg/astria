@@ -584,18 +584,28 @@ fn construct_tx_fee_event(fee: &Fee) -> Event {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::{
+        collections::HashSet,
+        fmt::Debug,
+    };
 
-    use astria_core::protocol::transaction::v1::action::Transfer;
-    use cnidarium::StateDelta;
+    use astria_core::protocol::transaction::v1::action::*;
+    use cnidarium::{
+        Snapshot,
+        StateDelta,
+    };
     use futures::{
         StreamExt as _,
         TryStreamExt as _,
     };
+    use penumbra_ibc::IbcRelay;
     use tokio::pin;
 
     use super::*;
-    use crate::app::test_utils::initialize_app_with_storage;
+    use crate::{
+        app::test_utils::initialize_app_with_storage,
+        fees::access::FeeComponents,
+    };
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
@@ -607,6 +617,17 @@ mod tests {
 
     fn asset_2() -> asset::Denom {
         "asset_2".parse().unwrap()
+    }
+
+    macro_rules! get_fee_components {
+        ($fee_ty:tt) => {
+            paste::item! {
+                [< $fee_ty FeeComponents>] {
+                    base: 123,
+                    multiplier: 1,
+                }
+            }
+        };
     }
 
     #[tokio::test]
@@ -682,228 +703,116 @@ mod tests {
 
     #[tokio::test]
     async fn transfer_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = TransferFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(Transfer);
         state.put_transfer_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_transfer_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<Transfer, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn rollup_data_submission_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = RollupDataSubmissionFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(RollupDataSubmission);
         state
             .put_rollup_data_submission_fees(fee_components)
             .unwrap();
-        let retrieved_fee = state.get_rollup_data_submission_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<RollupDataSubmission, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn ics20_withdrawal_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = Ics20WithdrawalFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(Ics20Withdrawal);
         state.put_ics20_withdrawal_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_ics20_withdrawal_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<Ics20Withdrawal, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn init_bridge_account_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = InitBridgeAccountFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(InitBridgeAccount);
         state.put_init_bridge_account_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_init_bridge_account_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<InitBridgeAccount, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn bridge_lock_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = BridgeLockFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(BridgeLock);
         state.put_bridge_lock_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_bridge_lock_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<BridgeLock, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn bridge_unlock_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = BridgeUnlockFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(BridgeUnlock);
         state.put_bridge_unlock_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_bridge_unlock_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<BridgeUnlock, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn bridge_sudo_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = BridgeSudoChangeFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(BridgeSudoChange);
         state.put_bridge_sudo_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_bridge_sudo_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<BridgeSudoChange, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn ibc_relay_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = IbcRelayFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(IbcRelay);
         state.put_ibc_relay_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_ibc_relay_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<IbcRelay, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn validator_update_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = ValidatorUpdateFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(ValidatorUpdate);
         state.put_validator_update_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_validator_update_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<ValidatorUpdate, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn fee_asset_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = FeeAssetChangeFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(FeeAssetChange);
         state.put_fee_asset_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_fee_asset_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<FeeAssetChange, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn fee_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = FeeChangeFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(FeeChange);
         state.put_fee_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_fee_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<FeeChange, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn ibc_relayer_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = IbcRelayerChangeFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(IbcRelayerChange);
         state.put_ibc_relayer_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_ibc_relayer_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<IbcRelayerChange, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn sudo_address_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = SudoAddressChangeFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(SudoAddressChange);
         state.put_sudo_address_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_sudo_address_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<SudoAddressChange, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
     async fn ibc_sudo_change_fees_round_trip() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let fee_components = IbcSudoChangeFeeComponents {
-            base: 123,
-            multiplier: 1,
-        };
-
+        let mut state = get_default_state().await;
+        let fee_components = get_fee_components!(IbcSudoChange);
         state.put_ibc_sudo_change_fees(fee_components).unwrap();
-        let retrieved_fee = state.get_ibc_sudo_change_fees().await.unwrap();
-        assert_eq!(retrieved_fee, Some(fee_components));
+        assert_correct_fees::<IbcSudoChange, _, _>(state, fee_components).await;
     }
 
     #[tokio::test]
@@ -1023,5 +932,21 @@ mod tests {
             maplit::hashset!(asset_first.to_ibc_prefixed(), asset_third.to_ibc_prefixed()),
             "delete for allowed fee asset did not behave as expected"
         );
+    }
+
+    async fn get_default_state() -> StateDelta<Snapshot> {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        StateDelta::new(snapshot)
+    }
+
+    async fn assert_correct_fees<Act, F, S>(state: S, fee_components: F)
+    where
+        Act: FeeHandler<FeeComponents = F>,
+        F: FeeComponents + PartialEq + Debug,
+        S: StateRead,
+    {
+        let retrieved_fees = Act::fee_components(state).await.unwrap();
+        assert_eq!(retrieved_fees, Some(fee_components));
     }
 }
