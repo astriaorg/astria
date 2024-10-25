@@ -32,7 +32,7 @@ use astria_core::{
             TransactionBody,
         },
     },
-    Protobuf,
+    Protobuf as _,
 };
 use astria_eyre::eyre::{
     self,
@@ -66,14 +66,14 @@ use tracing::{
     warn,
 };
 
-use super::{
-    access::FeeComponents,
-    FeeHandler,
-    StateReadExt as _,
-};
 use crate::{
     app::StateReadExt as _,
     assets::StateReadExt as _,
+    fees::{
+        access::FeeComponents,
+        FeeHandler,
+        StateReadExt as _,
+    },
 };
 
 async fn find_trace_prefixed_or_return_ibc<S: StateRead>(

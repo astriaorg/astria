@@ -139,21 +139,7 @@ mod tests {
         primitive::v1::TransactionId,
         protocol::{
             fees::v1::*,
-            transaction::v1::action::{
-                BridgeLock,
-                BridgeSudoChange,
-                BridgeUnlock,
-                FeeAssetChange,
-                FeeChange,
-                IbcRelayerChange,
-                IbcSudoChange,
-                Ics20Withdrawal,
-                InitBridgeAccount,
-                RollupDataSubmission,
-                SudoAddressChange,
-                Transfer,
-                ValidatorUpdate,
-            },
+            transaction::v1::action::*,
         },
     };
     use penumbra_ibc::IbcRelay;
@@ -171,7 +157,7 @@ mod tests {
         },
     };
 
-    macro_rules! get_default_fees_and_fee_change {
+    macro_rules! get_default_fees_and_fee_changes {
         ($fee_ty:tt) => {
             paste::item! {
                 {
@@ -194,7 +180,7 @@ mod tests {
     #[tokio::test]
     async fn transfer_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(Transfer);
+            get_default_fees_and_fee_changes!(Transfer);
         test_fee_change_action::<Transfer, _>(
             initial_fees,
             initial_fee_change,
@@ -208,7 +194,7 @@ mod tests {
     #[tokio::test]
     async fn rollup_data_submission_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(RollupDataSubmission);
+            get_default_fees_and_fee_changes!(RollupDataSubmission);
         test_fee_change_action::<RollupDataSubmission, _>(
             initial_fees,
             initial_fee_change,
@@ -222,7 +208,7 @@ mod tests {
     #[tokio::test]
     async fn ics_20_withdrawal_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(Ics20Withdrawal);
+            get_default_fees_and_fee_changes!(Ics20Withdrawal);
         test_fee_change_action::<Ics20Withdrawal, _>(
             initial_fees,
             initial_fee_change,
@@ -236,7 +222,7 @@ mod tests {
     #[tokio::test]
     async fn init_bridge_account_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(InitBridgeAccount);
+            get_default_fees_and_fee_changes!(InitBridgeAccount);
         test_fee_change_action::<InitBridgeAccount, _>(
             initial_fees,
             initial_fee_change,
@@ -250,7 +236,7 @@ mod tests {
     #[tokio::test]
     async fn bridge_lock_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(BridgeLock);
+            get_default_fees_and_fee_changes!(BridgeLock);
         test_fee_change_action::<BridgeLock, _>(
             initial_fees,
             initial_fee_change,
@@ -264,7 +250,7 @@ mod tests {
     #[tokio::test]
     async fn bridge_unlock_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(BridgeUnlock);
+            get_default_fees_and_fee_changes!(BridgeUnlock);
         test_fee_change_action::<BridgeUnlock, _>(
             initial_fees,
             initial_fee_change,
@@ -278,7 +264,7 @@ mod tests {
     #[tokio::test]
     async fn bridge_sudo_change_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(BridgeSudoChange);
+            get_default_fees_and_fee_changes!(BridgeSudoChange);
         test_fee_change_action::<BridgeSudoChange, _>(
             initial_fees,
             initial_fee_change,
@@ -292,7 +278,7 @@ mod tests {
     #[tokio::test]
     async fn validator_update_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(ValidatorUpdate);
+            get_default_fees_and_fee_changes!(ValidatorUpdate);
         test_fee_change_action::<ValidatorUpdate, _>(
             initial_fees,
             initial_fee_change,
@@ -306,7 +292,7 @@ mod tests {
     #[tokio::test]
     async fn ibc_relay_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(IbcRelay);
+            get_default_fees_and_fee_changes!(IbcRelay);
         test_fee_change_action::<IbcRelay, _>(
             initial_fees,
             initial_fee_change,
@@ -320,7 +306,7 @@ mod tests {
     #[tokio::test]
     async fn ibc_relayer_change_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(IbcRelayerChange);
+            get_default_fees_and_fee_changes!(IbcRelayerChange);
         test_fee_change_action::<IbcRelayerChange, _>(
             initial_fees,
             initial_fee_change,
@@ -334,7 +320,7 @@ mod tests {
     #[tokio::test]
     async fn fee_asset_change_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(FeeAssetChange);
+            get_default_fees_and_fee_changes!(FeeAssetChange);
         test_fee_change_action::<FeeAssetChange, _>(
             initial_fees,
             initial_fee_change,
@@ -348,7 +334,7 @@ mod tests {
     #[tokio::test]
     async fn fee_change_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(FeeChange);
+            get_default_fees_and_fee_changes!(FeeChange);
         test_fee_change_action::<FeeChange, _>(
             initial_fees,
             initial_fee_change,
@@ -362,7 +348,7 @@ mod tests {
     #[tokio::test]
     async fn sudo_address_change_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(SudoAddressChange);
+            get_default_fees_and_fee_changes!(SudoAddressChange);
         test_fee_change_action::<SudoAddressChange, _>(
             initial_fees,
             initial_fee_change,
@@ -376,7 +362,7 @@ mod tests {
     #[tokio::test]
     async fn ibc_sudo_change_fee_change_action_executes_as_expected() {
         let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_change!(IbcSudoChange);
+            get_default_fees_and_fee_changes!(IbcSudoChange);
         test_fee_change_action::<IbcSudoChange, _>(
             initial_fees,
             initial_fee_change,
