@@ -45,48 +45,37 @@ pub(crate) struct Info {
     query_router: abci_query_router::Router,
 }
 
+const ACCOUNT_BALANCE: &str = "accounts/balance/:account";
+const ACCOUNT_NONCE: &str = "accounts/nonce/:account";
+const ASSET_DENOM: &str = "asset/denom/:id";
+const FEE_ALLOWED_ASSETS: &str = "asset/allowed_fee_assets";
+
+const BRIDGE_ACCOUNT_LAST_TX_ID: &str = "bridge/account_last_tx_hash/:address";
+const BRIDGE_ACCOUNT_INFO: &str = "bridge/account_info/:address";
+
+const TRANSACTION_FEE: &str = "transaction/fee";
+
 impl Info {
     pub(crate) fn new(storage: Storage) -> Result<Self> {
         let mut query_router = abci_query_router::Router::new();
-        query_router
-            .insert(
-                "accounts/balance/:account",
-                crate::accounts::query::balance_request,
-            )
-            .wrap_err("invalid path: `accounts/balance/:account`")?;
-        query_router
-            .insert(
-                "accounts/nonce/:account",
-                crate::accounts::query::nonce_request,
-            )
-            .wrap_err("invalid path: `accounts/nonce/:account`")?;
-        query_router
-            .insert("asset/denom/:id", crate::assets::query::denom_request)
-            .wrap_err("invalid path: `asset/denom/:id`")?;
-        query_router
-            .insert(
-                "asset/allowed_fee_assets",
-                crate::fees::query::allowed_fee_assets_request,
-            )
-            .wrap_err("invalid path: `asset/allowed_fee_asset_ids`")?;
-        query_router
-            .insert(
-                "bridge/account_last_tx_hash/:address",
-                crate::bridge::query::bridge_account_last_tx_hash_request,
-            )
-            .wrap_err("invalid path: `bridge/account_last_tx_hash/:address`")?;
-        query_router
-            .insert(
-                "transaction/fee",
-                crate::fees::query::transaction_fee_request,
-            )
-            .wrap_err("invalid path: `transaction/fee`")?;
-        query_router
-            .insert(
-                "bridge/account_info/:address",
-                crate::bridge::query::bridge_account_info_request,
-            )
-            .wrap_err("invalid path: `bridge/account_info/:address`")?;
+
+        // NOTE: Skipping error context because `InsertError` contains all required information.
+        query_router.insert(ACCOUNT_BALANCE, crate::accounts::query::balance_request)?;
+        query_router.insert(ACCOUNT_NONCE, crate::accounts::query::nonce_request)?;
+        query_router.insert(ASSET_DENOM, crate::assets::query::denom_request)?;
+        query_router.insert(
+            FEE_ALLOWED_ASSETS,
+            crate::fees::query::allowed_fee_assets_request,
+        )?;
+        query_router.insert(
+            BRIDGE_ACCOUNT_LAST_TX_ID,
+            crate::bridge::query::bridge_account_last_tx_hash_request,
+        )?;
+        query_router.insert(
+            BRIDGE_ACCOUNT_INFO,
+            crate::bridge::query::bridge_account_info_request,
+        )?;
+        query_router.insert(TRANSACTION_FEE, crate::fees::query::transaction_fee_request)?;
         Ok(Self {
             storage,
             query_router,
@@ -366,7 +355,7 @@ mod tests {
             InfoResponse::Query(query) => query,
             other => panic!("expected InfoResponse::Query, got {other:?}"),
         };
-        assert!(query_response.code.is_ok());
+        assert!(query_response.code.is_ok(), "{query_response:?}");
 
         let allowed_fee_assets_resp = raw::AllowedFeeAssetsResponse::decode(query_response.value)
             .unwrap()
