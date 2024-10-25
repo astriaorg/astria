@@ -60,6 +60,7 @@ impl Auctioneer {
             rollup_id,
             optimistic_execution_grpc_endpoint: todo!(),
             bundle_grpc_endpoint: todo!(),
+            latency_margin: todo!(),
         }
         .build()
         .wrap_err("failed to initialize the optimistic executor")?;

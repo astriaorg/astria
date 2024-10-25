@@ -34,13 +34,12 @@ impl Bundle {
         unimplemented!()
     }
 
-    pub(crate) fn into_transaction(self) -> Transaction {
+    pub(crate) fn into_transaction(self, _nonce: u64) -> Transaction {
         unimplemented!()
     }
 
-    pub(crate) fn bid(&self) -> Bid {
-        let bundle = self.clone();
-        Bid::from_bundle(bundle)
+    pub(crate) fn into_bid(self) -> Bid {
+        Bid::from_bundle(self)
     }
 }
 

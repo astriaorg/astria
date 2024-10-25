@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre;
 use tokio_util::sync::CancellationToken;
@@ -16,6 +18,8 @@ pub(crate) struct Builder {
     pub(crate) optimistic_execution_grpc_endpoint: String,
     /// The endpoint for the rollup's bundle gRPC service
     pub(crate) bundle_grpc_endpoint: String,
+    /// The amount of time to wait after a commit before closing the auction
+    pub(crate) latency_margin: Duration,
 }
 
 impl Builder {
@@ -27,6 +31,7 @@ impl Builder {
             rollup_id,
             optimistic_execution_grpc_endpoint,
             bundle_grpc_endpoint,
+            latency_margin,
         } = self;
 
         let rollup_id = RollupId::from_unhashed_bytes(&rollup_id);
@@ -38,6 +43,7 @@ impl Builder {
             rollup_id,
             optimistic_execution_grpc_endpoint,
             bundle_grpc_endpoint,
+            latency_margin,
         })
     }
 }

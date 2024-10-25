@@ -45,9 +45,11 @@ pub(crate) struct OptimisticExecutor {
     metrics: &'static crate::Metrics,
     shutdown_token: CancellationToken,
     sequencer_grpc_endpoint: String,
+    sequencer_abci_endpoint: String,
     rollup_id: RollupId,
     optimistic_execution_grpc_endpoint: String,
     bundle_grpc_endpoint: String,
+    latency_margin: Duration,
 }
 
 impl OptimisticExecutor {
@@ -78,7 +80,10 @@ impl OptimisticExecutor {
 
         // maybe just make this a fused future `auction_fut`
         let mut auction_futs: JoinMap<auction::Id, eyre::Result<()>> = JoinMap::new();
-        let mut auction_handles: HashMap<auction::Id, auction::Handle> = HashMap::new();
+        let mut auction_oe_handles: HashMap<auction::Id, auction::OptimisticExecutionHandle> =
+            HashMap::new();
+        let mut auction_bundle_handles: HashMap<auction::Id, auction::BundlesHandle> =
+            HashMap::new();
 
         let mut curr_block: Option<CurrentBlock> = None;
 
@@ -107,31 +112,43 @@ impl OptimisticExecutor {
                         };
                         let opt = block::Optimistic::try_from_raw(rsp.block.unwrap()).wrap_err("failed to parse incoming optimistic block")?;
 
+                        // 1. reorg by shutting down current auction fut, dumping the oneshot (this is the
+                        //    state transition)
+                        if let Some(block) = curr_block {
+                            let hash = block.sequencer_block_hash();
+                            let auction_id = auction::Id::from_sequencer_block_hash(hash);
+                            let handle = auction_oe_handles.get_mut(&auction_id).ok_or_eyre("unable to get handle for current auction")?;
+                            handle.reorg()?;
+                        };
                         // TODO: should i have an if/let statement that logs if its none, instead?
                         // - this will probably only change once - might want to move that into startup instead of having the option<currentblock>
                         // - if the stream.next() returns the opt after sending it to the opt exec api (see note below), we don't need to clone here
-                        let next_block = CurrentBlock::opt(opt.clone());
+                        // TODO: log the dumping of curr block?
+                        curr_block = Some(CurrentBlock::opt(opt.clone()));
 
-                        // 1. reorg by shutting down current auction fut, dumping the oneshot (this is the
-                        //    state transition)
-                        if let Some(hash) = curr_block.as_ref().map(|block| block.sequencer_block_hash()) {
-                            let auction_id = auction::Id::from_sequencer_block_hash(hash);
-                            let handle = auction_handles.get_mut(&auction_id).ok_or_eyre("unable to get handle for current auction")?;
-                            handle.reorg()?;
-                        };
+                        // create and run the auction fut and save the its handles
+                        // TODO: get rid of this expect, probably by getting rid of the option on curr block.
+                        let block_hash = curr_block.take().expect("set this to Some already").sequencer_block_hash();
+                        let auction_id = auction::Id::from_sequencer_block_hash(block_hash);
+                        let (auction_driver, optimistic_execution_handle, bundles_handle) = auction::Builder {
+                            metrics: self.metrics,
+                            shutdown_token: self.shutdown_token.clone(),
+                            sequencer_grpc_endpoint: self.sequencer_grpc_endpoint.clone(),
+                            sequencer_abci_endpoint: self.sequencer_abci_endpoint.clone(),
+                            latency_margin: self.latency_margin,
+                            auction_id,
+                        }.build().wrap_err("failed to build auction")?;
 
-                        // 2. start new auction fut in the joinmap with the sequencer block hash as key
-                        // TODO:
-                        // 1. make new auction and save the handle
-                        // 2. add the handle.run() to the joinmap?
+                        auction_futs.spawn(auction_id, auction_driver.run());
+                        auction_oe_handles.insert(auction_id, optimistic_execution_handle);
+                        auction_bundle_handles.insert(auction_id, bundles_handle);
+
 
                         // 3. send new opt to the optimistic execution stream
                         // TODO: move this into stream domain type
                         // - this should just be part of the stream.next future probably, then we dont need the mpsc channel
                         let _ = opts_to_exec_tx.send_timeout(opt, Duration::from_millis(100));
 
-                        // TODO: log the dumpingh of curr block?
-                        curr_block = Some(next_block);
                     },
 
                     //      2. executed block stream
@@ -148,15 +165,15 @@ impl OptimisticExecutor {
                         let commit = block::Committed::try_from_raw(raw).wrap_err("failed to parse incoming block commitment")?;
 
 
-                        let next_block = curr_block
-                            .map(|block| block.commit(commit).wrap_err("state transition failure"))
-                            .expect("should only receive block commitment after optimistic block")?;
-                        curr_block = Some(next_block);
+                        if let Some(block) = curr_block {
+                            curr_block = Some(block.commit(commit).wrap_err("state transition failure")?);
+                        }
+
 
                         // 2. send commit signal to the auction so it will start the timer
-                            if let Some(hash) = curr_block.as_ref().map(|block| block.sequencer_block_hash()) {
+                        if let Some(hash) = curr_block.as_ref().map(|block| block.sequencer_block_hash()) {
                             let auction_id = auction::Id::from_sequencer_block_hash(hash);
-                            let handle = auction_handles.get_mut(&auction_id).ok_or_eyre("unable to get handle for current auction")?;
+                            let handle = auction_oe_handles.get_mut(&auction_id).ok_or_eyre("unable to get handle for current auction")?;
                             handle.block_commitment()?;
                         }
                     },
@@ -179,7 +196,7 @@ impl OptimisticExecutor {
                         // 2. send executed signal to the auction so it will start pulling bundles
                         if let Some(hash) = curr_block.as_ref().map(|block| block.sequencer_block_hash()) {
                             let auction_id = auction::Id::from_sequencer_block_hash(hash);
-                            let handle = auction_handles.get_mut(&auction_id).ok_or_eyre("unable to get handle for current auction")?;
+                            let handle = auction_oe_handles.get_mut(&auction_id).ok_or_eyre("unable to get handle for current auction")?;
                             handle.executed_block()?;
                         }
                     }
@@ -191,8 +208,6 @@ impl OptimisticExecutor {
                     //        before execution, we can decide how to react here.
                     //        for example, we can drop all the bundles that are stuck in the channel and log a warning,
                     //        or we can kill the auction for that given block
-
-                    // 3. execute the execute_fut if not terminated?
                 }
             }
         };
