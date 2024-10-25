@@ -145,7 +145,7 @@ delete-bridge-withdrawer:
   @just delete chart evm-bridge-withdrawer astria-dev-cluster
 
 wait-for-bridge-withdrawer:
-  kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer --for=condition=Available=True --timeout=600s
+  kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer-local --for=condition=Available=True --timeout=600s
 
 defaultHypAgentConfig         := ""
 defaultHypRelayerPrivateKey   := ""

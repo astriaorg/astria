@@ -3,6 +3,7 @@
 # Declare variables to be passed into your templates.
 global:
   namespaceOverride: ""
+  serviceName: "local"
   replicaCount: 1
   useTTY: true
   dev: false

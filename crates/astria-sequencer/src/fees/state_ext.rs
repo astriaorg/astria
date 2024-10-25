@@ -1,10 +1,15 @@
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    pin::Pin,
+    task::{
+        ready,
+        Context,
+        Poll,
+    },
+};
 
 use astria_core::{
-    primitive::v1::{
-        asset,
-        TransactionId,
-    },
+    primitive::v1::asset,
     protocol::fees::v1::{
         BridgeLockFeeComponents,
         BridgeSudoChangeFeeComponents,
@@ -36,7 +41,12 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use futures::StreamExt as _;
+use futures::Stream;
+use pin_project_lite::pin_project;
+use tendermint::abci::{
+    Event,
+    EventAttributeIndexExt as _,
+};
 use tracing::instrument;
 
 use super::{
@@ -51,6 +61,37 @@ use super::{
     FeeHandler,
 };
 use crate::storage::StoredValue;
+pin_project! {
+    /// A stream of all allowed fee assets for a given state.
+    pub(crate) struct AllowedFeeAssetsStream<S> {
+        #[pin]
+        underlying: S,
+    }
+}
+
+impl<St> Stream for AllowedFeeAssetsStream<St>
+where
+    St: Stream<Item = astria_eyre::anyhow::Result<String>>,
+{
+    type Item = Result<asset::IbcPrefixed>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        let key = match ready!(this.underlying.as_mut().poll_next(cx)) {
+            Some(Ok(key)) => key,
+            Some(Err(err)) => {
+                return Poll::Ready(Some(Err(
+                    anyhow_to_eyre(err).wrap_err("failed reading from state")
+                )));
+            }
+            None => return Poll::Ready(None),
+        };
+        Poll::Ready(Some(
+            extract_asset_from_allowed_asset_key(&key)
+                .with_context(|| format!("failed to extract IBC prefixed asset from key `{key}`")),
+        ))
+    }
+}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -347,17 +388,10 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_allowed_fee_assets(&self) -> Result<Vec<asset::IbcPrefixed>> {
-        let mut assets = Vec::new();
-
-        let mut stream = std::pin::pin!(self.prefix_raw(keys::ALLOWED_ASSET_PREFIX));
-        while let Some(Ok((key, _))) = stream.next().await {
-            let asset =
-                extract_asset_from_allowed_asset_key(&key).wrap_err("failed to extract asset")?;
-            assets.push(asset);
+    fn allowed_fee_assets(&self) -> AllowedFeeAssetsStream<Self::PrefixKeysStream> {
+        AllowedFeeAssetsStream {
+            underlying: self.prefix_keys(keys::ALLOWED_ASSET_PREFIX),
         }
-
-        Ok(assets)
     }
 }
 
@@ -371,7 +405,6 @@ pub(crate) trait StateWriteExt: StateWrite {
         &mut self,
         asset: &'a TAsset,
         amount: u128,
-        source_transaction_id: TransactionId,
         source_action_index: u64,
     ) -> Result<()>
     where
@@ -384,9 +417,13 @@ pub(crate) trait StateWriteExt: StateWrite {
             action_name: T::full_name(),
             asset: asset::IbcPrefixed::from(asset).into(),
             amount,
-            source_transaction_id,
             source_action_index,
         };
+
+        // Fee ABCI event recorded for reporting
+        let fee_event = construct_tx_fee_event(&fee);
+        self.record(fee_event);
+
         let new_fees = if let Some(mut fees) = current_fees {
             fees.push(fee);
             fees
@@ -562,12 +599,30 @@ pub(crate) trait StateWriteExt: StateWrite {
 
 impl<T: StateWrite> StateWriteExt for T {}
 
+/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
+fn construct_tx_fee_event(fee: &Fee) -> Event {
+    Event::new(
+        "tx.fees",
+        [
+            ("actionName", fee.action_name.to_string()).index(),
+            ("asset", fee.asset.to_string()).index(),
+            ("feeAmount", fee.amount.to_string()).index(),
+            ("positionInTransaction", fee.source_action_index.to_string()).index(),
+        ],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
     use astria_core::protocol::transaction::v1::action::Transfer;
     use cnidarium::StateDelta;
+    use futures::{
+        StreamExt as _,
+        TryStreamExt as _,
+    };
+    use tokio::pin;
 
     use super::*;
     use crate::app::test_utils::initialize_app_with_storage;
@@ -598,7 +653,7 @@ mod tests {
         let asset = asset_0();
         let amount = 100u128;
         state
-            .add_fee_to_block_fees::<_, Transfer>(&asset, amount, TransactionId::new([0; 32]), 0)
+            .add_fee_to_block_fees::<_, Transfer>(&asset, amount, 0)
             .unwrap();
 
         // holds expected
@@ -609,7 +664,6 @@ mod tests {
                 action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                 asset: asset.to_ibc_prefixed().into(),
                 amount,
-                source_transaction_id: TransactionId::new([0; 32]),
                 source_action_index: 0
             },
             "fee balances are not what they were expected to be"
@@ -629,20 +683,10 @@ mod tests {
         let amount_second = 200u128;
 
         state
-            .add_fee_to_block_fees::<_, Transfer>(
-                &asset_first,
-                amount_first,
-                TransactionId::new([0; 32]),
-                0,
-            )
+            .add_fee_to_block_fees::<_, Transfer>(&asset_first, amount_first, 0)
             .unwrap();
         state
-            .add_fee_to_block_fees::<_, Transfer>(
-                &asset_second,
-                amount_second,
-                TransactionId::new([0; 32]),
-                1,
-            )
+            .add_fee_to_block_fees::<_, Transfer>(&asset_second, amount_second, 1)
             .unwrap();
         // holds expected
         let fee_balances = HashSet::<_>::from_iter(state.get_block_fees());
@@ -653,14 +697,12 @@ mod tests {
                     action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                     asset: asset_first.to_ibc_prefixed().into(),
                     amount: amount_first,
-                    source_transaction_id: TransactionId::new([0; 32]),
                     source_action_index: 0
                 },
                 Fee {
                     action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                     asset: asset_second.to_ibc_prefixed().into(),
                     amount: amount_second,
-                    source_transaction_id: TransactionId::new([0; 32]),
                     source_action_index: 1
                 },
             ]),
@@ -955,10 +997,12 @@ mod tests {
         );
 
         // see can get fee asset
-        let assets = state.get_allowed_fee_assets().await.unwrap();
+        pin!(
+            let assets = state.allowed_fee_assets();
+        );
         assert_eq!(
-            assets,
-            vec![asset.to_ibc_prefixed()],
+            assets.next().await.transpose().unwrap(),
+            Some(asset.to_ibc_prefixed()),
             "expected returned allowed fee assets to match what was written in"
         );
 
@@ -966,8 +1010,14 @@ mod tests {
         state.delete_allowed_fee_asset(&asset);
 
         // see is deleted
-        let assets = state.get_allowed_fee_assets().await.unwrap();
-        assert!(assets.is_empty(), "fee assets should be empty post delete");
+        pin!(
+            let assets = state.allowed_fee_assets();
+        );
+        assert_eq!(
+            assets.next().await.transpose().unwrap(),
+            None,
+            "fee assets should be empty post delete"
+        );
     }
 
     #[tokio::test]
@@ -1009,13 +1059,14 @@ mod tests {
         state.delete_allowed_fee_asset(&asset_second);
 
         // see is deleted
-        let assets = HashSet::<_>::from_iter(state.get_allowed_fee_assets().await.unwrap());
+        let assets = state
+            .allowed_fee_assets()
+            .try_collect::<HashSet<_>>()
+            .await
+            .unwrap();
         assert_eq!(
             assets,
-            HashSet::from_iter(vec![
-                asset_first.to_ibc_prefixed(),
-                asset_third.to_ibc_prefixed()
-            ]),
+            maplit::hashset!(asset_first.to_ibc_prefixed(), asset_third.to_ibc_prefixed()),
             "delete for allowed fee asset did not behave as expected"
         );
     }

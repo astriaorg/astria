@@ -78,7 +78,7 @@ impl Info {
         query_router
             .insert(
                 "transaction/fee",
-                crate::transaction::query::transaction_fee_request,
+                crate::fees::query::transaction_fee_request,
             )
             .wrap_err("invalid path: `transaction/fee`")?;
         query_router
@@ -245,6 +245,7 @@ mod tests {
 
         state.put_base_prefix("astria".to_string()).unwrap();
         state.put_native_asset(crate::test_utils::nria()).unwrap();
+        state.put_ibc_asset(crate::test_utils::nria()).unwrap();
 
         let address = state
             .try_base_prefixed(&hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap())

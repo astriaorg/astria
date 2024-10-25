@@ -35,14 +35,6 @@ message Action {
     // Deprecated
     astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51; // Prefer `ValidatorUpdateV2` instead.
   }
-  reserved 3 to 10;
-  reserved 15 to 20;
-  reserved 23 to 30;
-  reserved 58 to 60;
-
-  // deprecated fields
-  reserved 54; // deprecated "mint_action"
-  reserved "mint_action";
 }
 
 // `TransferAction` represents a value transfer transaction.

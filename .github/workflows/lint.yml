@@ -1,6 +1,12 @@
 name: Lint
-on: 
+on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+      - unlabeled
   merge_group:
   push:
     branches:
@@ -22,25 +28,36 @@ jobs:
           github_token: ${{ github.token }}
       - uses: bufbuild/buf-lint-action@v1
       - run: buf format -d --exit-code
+        if: always()
       # Run breaking changes against each module, running against whole workspace
       # fails if new packages are added
       - uses: bufbuild/buf-breaking-action@v1
+        if: always()
+        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name, 'allow-breaking-proto') }}
         with:
           input: "proto/primitives"
           against: "buf.build/astria/primitives"
       - uses: bufbuild/buf-breaking-action@v1
+        if: always()
+        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name, 'allow-breaking-proto') }}
         with:
           input: "proto/executionapis"
           against: "buf.build/astria/execution-apis"
       - uses: bufbuild/buf-breaking-action@v1
+        if: always()
+        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name, 'allow-breaking-proto') }}
         with:
           input: "proto/sequencerblockapis"
           against: "buf.build/astria/sequencerblock-apis"
       - uses: bufbuild/buf-breaking-action@v1
+        if: always()
+        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name, 'allow-breaking-proto') }}
         with:
           input: "proto/protocolapis"
           against: "buf.build/astria/protocol-apis"
       - uses: bufbuild/buf-breaking-action@v1
+        if: always()
+        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name, 'allow-breaking-proto') }}
         with:
           input: "proto/composerapis"
           against: "buf.build/astria/composer-apis"
