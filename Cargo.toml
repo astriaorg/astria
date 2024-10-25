@@ -75,10 +75,9 @@ itoa = "1.0.10"
 jsonrpsee = { version = "0.20" }
 pbjson-types = "0.6"
 # Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
-# can update to a tagged release when https://github.com/penumbra-zone/penumbra/pull/4822 is included
-penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6", default-features = false }
-penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "87adc8d6b15f6081c1adf169daed4ca8873bd9f6" }
+penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.7", default-features = false }
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.7" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.7" }
 pin-project-lite = "0.2.13"
 prost = "0.12"
 rand = "0.8.5"
@@ -108,10 +107,10 @@ which = "4.4.0"
 wiremock = "0.5"
 
 # patch for handling height field in gRPC headers for IBC queries
-# see https://github.com/astriaorg/penumbra/pull/1
+# see https://github.com/astriaorg/penumbra/pull/2
 [patch.'https://github.com/penumbra-zone/penumbra.git']
-penumbra-ibc = { git = "https://github.com/astriaorg/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
-penumbra-proto = { git = "https://github.com/astriaorg/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
-penumbra-tower-trace = { git = "https://github.com/astriaorg/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
-cnidarium = { git = "https://github.com/astriaorg/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
-cnidarium-component = { git = "https://github.com/astriaorg/penumbra.git", rev = "d8de56920a7a7de169a88fd1b5fc505ec9d0685a" }
+penumbra-ibc = { git = "https://github.com/astriaorg/penumbra.git", rev = "291567004f40d0760dfaf5a042135a1801805b73" }
+penumbra-proto = { git = "https://github.com/astriaorg/penumbra.git", rev = "291567004f40d0760dfaf5a042135a1801805b73" }
+penumbra-tower-trace = { git = "https://github.com/astriaorg/penumbra.git", rev = "291567004f40d0760dfaf5a042135a1801805b73" }
+cnidarium = { git = "https://github.com/astriaorg/penumbra.git", rev = "291567004f40d0760dfaf5a042135a1801805b73" }
+cnidarium-component = { git = "https://github.com/astriaorg/penumbra.git", rev = "291567004f40d0760dfaf5a042135a1801805b73" }

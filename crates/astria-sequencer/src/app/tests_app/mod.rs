@@ -112,7 +112,7 @@ async fn app_genesis_and_init_chain() {
 
     assert_eq!(
         app.state.get_native_asset().await.unwrap(),
-        "nria".parse::<TracePrefixed>().unwrap()
+        Some("nria".parse::<TracePrefixed>().unwrap()),
     );
 }
 
@@ -274,7 +274,13 @@ async fn app_transfer_block_fees_to_sudo() {
     app.commit(storage).await;
 
     // assert that transaction fees were transferred to the block proposer
-    let transfer_base_fee = app.state.get_transfer_fees().await.unwrap().base;
+    let transfer_base_fee = app
+        .state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored")
+        .base;
     assert_eq!(
         app.state
             .get_account_balance(&astria_address_from_hex_string(JUDY_ADDRESS), &nria())

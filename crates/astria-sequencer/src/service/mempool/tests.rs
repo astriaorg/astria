@@ -1,5 +1,6 @@
 use std::num::NonZeroU32;
 
+use astria_core::Protobuf as _;
 use prost::Message as _;
 use telemetry::Metrics;
 use tendermint::{
