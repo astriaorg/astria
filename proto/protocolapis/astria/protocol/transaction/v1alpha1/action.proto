@@ -82,7 +82,7 @@ message Ics20Withdrawal {
   // an Astria address to use to return funds from this withdrawal
   // in the case it fails.
   astria.primitive.v1.Address return_address = 4;
-  // the height (on Astria) at which this transfer expires.
+  // the height (on the counterparty chain) at which this transfer expires.
   IbcHeight timeout_height = 5;
   // the unix timestamp (in nanoseconds) at which this transfer expires.
   uint64 timeout_time = 6;
