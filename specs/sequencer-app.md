@@ -189,7 +189,8 @@ Actions which deal with the IBC protocol.
 
 * `IbcRelay`: transmits data packets between the sequencer chain and another
 chain using the [IBC](https://www.ibcprotocol.dev/) protocol. This is a permissioned
-action, and only authorized accounts can relay. It has one field:
+action, and only authorized accounts can relay. As a result, this action is also
+free to submit. It has one field:
 
   | **Field** | **Type** | **Description** |
   | --------- | -------- | ----------- |
