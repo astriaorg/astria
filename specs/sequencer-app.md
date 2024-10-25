@@ -167,7 +167,7 @@ Effectively similar to `Transfer`, it contains the following fields:
   ||| from. |
   | rollup_block_number | `uint64` | The block number on the rollup which triggered|
   ||| the transaction underlying the bridge unlock. |
-  | rollup_withdrawal_event_id | `string` | An identifier of the rollup withrawal|
+  | rollup_withdrawal_event_id | `string` | An identifier of the rollup withdrawal|
   ||| transaction which can be used to trace distinct rollup events from the bridge.|
 
 * `BridgeSudoChange`: changes the sudo and/or withdrawer address for the given
@@ -283,7 +283,7 @@ The lifecycle of a sequencer transaction is as follows:
 * The transaction will live in the mempool until it is included in a block
   proposal by a proposer.
 * During the proposal phase, the proposer executes the transactions it wishes to
-include, and only includes ones which succeed. Any transactions which fails execution
+include, and only includes ones which succeed. Any transactions which fail execution
 are removed from the mempool. Other nodes only accept blocks where all transactions
 succeed.
 
