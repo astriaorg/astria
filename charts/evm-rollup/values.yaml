@@ -157,6 +157,8 @@ config:
       - name: metrics.port
         value: "{{ .Values.ports.metrics }}"
         condition: .Values.metrics.enabled
+      - name: txpool.nolocals
+        value: "true"
 
 
   conductor:
