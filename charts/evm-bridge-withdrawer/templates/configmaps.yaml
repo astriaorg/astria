@@ -13,6 +13,7 @@ data:
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_GRPC_ENDPOINT: "{{ tpl .Values.config.sequencerGrpcEndpoint . }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_BRIDGE_ADDRESS: "{{ .Values.config.sequencerBridgeAddress }}"
   ASTRIA_BRIDGE_WITHDRAWER_FEE_ASSET_DENOMINATION: "{{ .Values.config.feeAssetDenom }}"
+  ASTRIA_BRIDGE_WITHDRAWER_USE_COMPAT_ADDRESS: "{{ .Values.config.useCompatAddress }}"
 
   ASTRIA_BRIDGE_WITHDRAWER_ROLLUP_ASSET_DENOMINATION: "{{ .Values.config.rollupAssetDenom }}"
   ASTRIA_BRIDGE_WITHDRAWER_ETHEREUM_CONTRACT_ADDRESS: "{{ .Values.config.evmContractAddress }}"
@@ -33,7 +34,6 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
   {{- else }}
-  ASTRIA_BRIDGE_WITHDRAWER_USE_COMPAT_ADDRESS: "{{ .Values.config.useCompatAddress }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}
