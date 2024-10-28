@@ -119,16 +119,13 @@ pub mod astria {
 
     #[path = ""]
     pub mod execution {
-        #[path = "astria.execution.v1alpha1.rs"]
-        pub mod v1alpha1;
-
-        pub mod v1alpha2 {
-            include!("astria.execution.v1alpha2.rs");
-
+        pub mod v1 {
+            include!("astria.execution.v1.rs");
+    
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("astria.execution.v1alpha2.serde.rs");
+                include!("astria.execution.v1.serde.rs");
             }
         }
     }
@@ -150,52 +147,65 @@ pub mod astria {
     pub mod protocol {
         #[path = ""]
         pub mod accounts {
-            #[path = "astria.protocol.accounts.v1alpha1.rs"]
-            pub mod v1alpha1;
+            #[path = "astria.protocol.accounts.v1.rs"]
+            pub mod v1;
         }
         #[path = ""]
         pub mod asset {
-            #[path = "astria.protocol.asset.v1alpha1.rs"]
-            pub mod v1alpha1;
+            #[path = "astria.protocol.asset.v1.rs"]
+            pub mod v1;
         }
         #[path = ""]
         pub mod bridge {
-            #[path = "astria.protocol.bridge.v1alpha1.rs"]
-            pub mod v1alpha1;
+            #[path = "astria.protocol.bridge.v1.rs"]
+            pub mod v1;
         }
         #[path = ""]
-        pub mod genesis {
-            pub mod v1alpha1 {
-                include!("astria.protocol.genesis.v1alpha1.rs");
-
+        pub mod fees {
+            #[path = "astria.protocol.fees.v1.rs"]
+            pub mod v1 {
+                include!("astria.protocol.fees.v1.rs");
+    
                 #[cfg(feature = "serde")]
                 mod _serde_impls {
                     use super::*;
-                    include!("astria.protocol.genesis.v1alpha1.serde.rs");
+                    include!("astria.protocol.fees.v1.serde.rs");
+                }
+            }
+        }
+        #[path = ""]
+        pub mod genesis {
+            pub mod v1 {
+                include!("astria.protocol.genesis.v1.rs");
+    
+                #[cfg(feature = "serde")]
+                mod _serde_impls {
+                    use super::*;
+                    include!("astria.protocol.genesis.v1.serde.rs");
                 }
             }
         }
         #[path = ""]
         pub mod memos {
-            pub mod v1alpha1 {
-                include!("astria.protocol.memos.v1alpha1.rs");
-
+            pub mod v1 {
+                include!("astria.protocol.memos.v1.rs");
+    
                 #[cfg(feature = "serde")]
                 mod _serde_impls {
                     use super::*;
-                    include!("astria.protocol.memos.v1alpha1.serde.rs");
+                    include!("astria.protocol.memos.v1.serde.rs");
                 }
             }
         }
         #[path = ""]
-        pub mod transactions {
-            pub mod v1alpha1 {
-                include!("astria.protocol.transactions.v1alpha1.rs");
+        pub mod transaction {
+            pub mod v1 {
+                include!("astria.protocol.transaction.v1.rs");
 
                 #[cfg(feature = "serde")]
                 mod _serde_impl {
                     use super::*;
-                    include!("astria.protocol.transactions.v1alpha1.serde.rs");
+                    include!("astria.protocol.transaction.v1.serde.rs");
                 }
             }
         }
@@ -203,21 +213,21 @@ pub mod astria {
 
     #[path = ""]
     pub mod sequencerblock {
-        pub mod v1alpha1 {
-            include!("astria.sequencerblock.v1alpha1.rs");
+        pub mod v1 {
+            include!("astria.sequencerblock.v1.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("astria.sequencerblock.v1alpha1.serde.rs");
+                include!("astria.sequencerblock.v1.serde.rs");
             }
         }
     }
 
     #[path = ""]
     pub mod composer {
-        #[path = "astria.composer.v1alpha1.rs"]
-        pub mod v1alpha1;
+        #[path = "astria.composer.v1.rs"]
+        pub mod v1;
     }
 }
 

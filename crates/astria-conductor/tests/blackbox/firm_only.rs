@@ -5,7 +5,7 @@ use astria_conductor::{
     Conductor,
     Config,
 };
-use astria_core::generated::execution::v1alpha2::{
+use astria_core::generated::execution::v1::{
     GetCommitmentStateRequest,
     GetGenesisInfoRequest,
 };

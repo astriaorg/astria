@@ -555,7 +555,7 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
 mod test {
     use astria_core::{
         crypto::SigningKey,
-        protocol::transaction::v1alpha1::action::ValidatorUpdate,
+        protocol::transaction::v1::action::ValidatorUpdate,
     };
     use cnidarium::StateDelta;
     use tendermint::abci::types::{

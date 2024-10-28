@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use astria_core::{
-    protocol::genesis::v1alpha1::GenesisAppState,
+    protocol::genesis::v1::GenesisAppState,
     slinky::oracle::v1::CurrencyPairState,
 };
 use astria_eyre::eyre::{

@@ -1,0 +1,188 @@
+---
+source: crates/astria-core/src/protocol/genesis/v1alpha1.rs
+expression: genesis_state()
+---
+{
+  "chainId": "astria-1",
+  "addressPrefixes": {
+    "base": "astria",
+    "ibcCompat": "astriacompat"
+  },
+  "accounts": [
+    {
+      "address": {
+        "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+      },
+      "balance": {
+        "lo": "1000000000000000000"
+      }
+    },
+    {
+      "address": {
+        "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+      },
+      "balance": {
+        "lo": "1000000000000000000"
+      }
+    },
+    {
+      "address": {
+        "bech32m": "astria1vpcfutferpjtwv457r63uwr6hdm8gwr3pxt5ny"
+      },
+      "balance": {
+        "lo": "1000000000000000000"
+      }
+    }
+  ],
+  "authoritySudoAddress": {
+    "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+  },
+  "ibcSudoAddress": {
+    "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+  },
+  "ibcRelayerAddresses": [
+    {
+      "bech32m": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+    },
+    {
+      "bech32m": "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+    }
+  ],
+  "nativeAssetBaseDenomination": "nria",
+  "ibcParameters": {
+    "ibcEnabled": true,
+    "inboundIcs20TransfersEnabled": true,
+    "outboundIcs20TransfersEnabled": true
+  },
+  "allowedFeeAssets": [
+    "nria"
+  ],
+  "fees": {
+    "bridgeLock": {
+      "base": {
+        "lo": "12"
+      },
+      "multiplier": {
+        "lo": "1"
+      }
+    },
+    "bridgeSudoChange": {
+      "base": {
+        "lo": "24"
+      },
+      "multiplier": {}
+    },
+    "bridgeUnlock": {
+      "base": {
+        "lo": "12"
+      },
+      "multiplier": {}
+    },
+    "feeAssetChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "feeChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "ibcRelay": {
+      "base": {},
+      "multiplier": {}
+    },
+    "ibcRelayerChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "ibcSudoChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "ics20Withdrawal": {
+      "base": {
+        "lo": "24"
+      },
+      "multiplier": {}
+    },
+    "initBridgeAccount": {
+      "base": {
+        "lo": "48"
+      },
+      "multiplier": {}
+    },
+    "rollupDataSubmission": {
+      "base": {
+        "lo": "32"
+      },
+      "multiplier": {
+        "lo": "1"
+      }
+    },
+    "sudoAddressChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "transfer": {
+      "base": {
+        "lo": "12"
+      },
+      "multiplier": {}
+    },
+    "validatorUpdate": {
+      "base": {},
+      "multiplier": {}
+    }
+  },
+  "slinky": {
+    "marketMap": {
+      "marketMap": {
+        "markets": {
+          "ETH/USD": {
+            "ticker": {
+              "currencyPair": {
+                "Base": "ETH",
+                "Quote": "USD"
+              },
+              "decimals": "8",
+              "minProviderCount": "3",
+              "enabled": true
+            },
+            "providerConfigs": [
+              {
+                "name": "coingecko_api",
+                "offChainTicker": "ethereum/usd",
+                "normalizeByPair": {
+                  "Base": "USDT",
+                  "Quote": "USD"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "params": {
+        "marketAuthorities": [
+          "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm",
+          "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+        ],
+        "admin": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+      }
+    },
+    "oracle": {
+      "currencyPairGenesis": [
+        {
+          "currencyPair": {
+            "Base": "ETH",
+            "Quote": "USD"
+          },
+          "currencyPairPrice": {
+            "price": "3138872234",
+            "blockTimestamp": "2024-07-04T19:46:35+00:00"
+          },
+          "id": "1"
+        }
+      ],
+      "nextId": "1"
+    }
+  }
+}

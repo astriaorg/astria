@@ -76,7 +76,7 @@ fn main() {
         .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
         .type_attribute(
-            ".astria.protocol.genesis.v1alpha1.IbcParameters",
+            ".astria.protocol.genesis.v1.IbcParameters",
             "#[derive(Copy)]",
         )
         .use_arc_self(true)

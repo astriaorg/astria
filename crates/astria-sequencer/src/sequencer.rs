@@ -7,7 +7,7 @@ use astria_core::generated::{
             QueryPricesRequest,
         },
     },
-    sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer,
+    sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -143,7 +143,7 @@ impl Sequencer {
             Some(oracle_client)
         };
 
-        let mempool = Mempool::new();
+        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
         let app = App::new(
             snapshot,
             mempool.clone(),

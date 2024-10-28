@@ -8,7 +8,7 @@ use std::{
 
 use base64::{
     display::Base64Display,
-    prelude::BASE64_STANDARD,
+    prelude::BASE64_URL_SAFE,
 };
 use bytes::Bytes;
 use sha2::{
@@ -196,7 +196,20 @@ impl RollupId {
     /// # Errors
     ///
     /// Returns an error if the byte slice was not 32 bytes long.
-    pub fn try_from_raw(raw: &raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "for symmetry with other domain type conversions"
+    )]
+    pub fn try_from_raw(raw: raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
+        Self::try_from_raw_ref(&raw)
+    }
+
+    /// Converts from protobuf type to rust type for a rollup ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the byte slice was not 32 bytes long.
+    pub fn try_from_raw_ref(raw: &raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
         Self::try_from_slice(&raw.inner)
     }
 }
@@ -231,7 +244,7 @@ impl From<&RollupId> for RollupId {
 
 impl std::fmt::Display for RollupId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Base64Display::new(self.as_ref(), &BASE64_STANDARD).fmt(f)
+        Base64Display::new(self.as_ref(), &BASE64_URL_SAFE).fmt(f)
     }
 }
 
