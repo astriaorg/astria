@@ -1,4 +1,3 @@
-mod action_handler;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 mod state_ext;
@@ -80,17 +79,18 @@ use tracing::{
     instrument,
 };
 
-pub(crate) use self::{
-    action_handler::ActionHandler,
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+pub(crate) use self::state_ext::{
+    StateReadExt,
+    StateWriteExt,
 };
 use crate::{
     accounts::{
         component::AccountsComponent,
         StateWriteExt as _,
+    },
+    action_handler::{
+        transaction::InvalidNonce,
+        ActionHandler as _,
     },
     address::StateWriteExt as _,
     assets::StateWriteExt as _,
@@ -125,7 +125,6 @@ use crate::{
             GeneratedCommitments,
         },
     },
-    transaction::InvalidNonce,
 };
 
 // ephemeral store key for the cache of results of executing of transactions in `prepare_proposal`.

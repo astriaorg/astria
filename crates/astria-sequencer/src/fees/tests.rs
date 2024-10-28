@@ -35,35 +35,26 @@ use cnidarium::StateDelta;
 
 use super::base_deposit_fee;
 use crate::{
-    accounts::StateWriteExt as _,
-    address::StateWriteExt as _,
-    app::{
-        test_utils::{
+    accounts::StateWriteExt as _, action_handler::ActionHandler as _, address::StateWriteExt as _, app::test_utils::{
             get_alice_signing_key,
             get_bridge_signing_key,
             initialize_app_with_storage,
             BOB_ADDRESS,
-        },
-        ActionHandler as _,
-    },
-    bridge::StateWriteExt as _,
-    fees::{
+        }, bridge::StateWriteExt as _, fees::{
         StateReadExt as _,
         StateWriteExt as _,
         DEPOSIT_BASE_FEE,
-    },
-    test_utils::{
+    }, test_utils::{
         assert_eyre_error,
         astria_address,
         astria_address_from_hex_string,
         calculate_rollup_data_submission_fee_from_state,
         nria,
         ASTRIA_PREFIX,
-    },
-    transaction::{
+    }, transaction::{
         StateWriteExt as _,
         TransactionContext,
-    },
+    }
 };
 
 fn test_asset() -> asset::Denom {

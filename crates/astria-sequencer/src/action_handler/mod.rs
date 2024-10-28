@@ -1,5 +1,10 @@
 use cnidarium::StateWrite;
 
+pub(crate) mod actions;
+#[cfg(test)]
+mod tests;
+pub(crate) mod transaction;
+
 /// This trait is a verbatim copy of `cnidarium_component::ActionHandler`.
 ///
 /// It's duplicated here because all actions are foreign types, forbidding

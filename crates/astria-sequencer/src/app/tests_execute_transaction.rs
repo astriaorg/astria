@@ -39,15 +39,13 @@ use cnidarium::{
 use super::test_utils::get_alice_signing_key;
 use crate::{
     accounts::StateReadExt as _,
-    app::{
-        test_utils::{
-            get_bridge_signing_key,
-            initialize_app,
-            BOB_ADDRESS,
-            CAROL_ADDRESS,
-        },
-        ActionHandler as _,
-    },
+    action_handler::{transaction::InvalidChainId, ActionHandler as _},
+    app::{test_utils::{
+        get_bridge_signing_key,
+        initialize_app,
+        BOB_ADDRESS,
+        CAROL_ADDRESS,
+    }, InvalidNonce},
     authority::StateReadExt as _,
     bridge::{
         StateReadExt as _,
@@ -64,10 +62,6 @@ use crate::{
         calculate_rollup_data_submission_fee_from_state,
         nria,
         ASTRIA_PREFIX,
-    },
-    transaction::{
-        InvalidChainId,
-        InvalidNonce,
     },
     utils::create_deposit_event,
 };
