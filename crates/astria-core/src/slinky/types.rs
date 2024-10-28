@@ -205,7 +205,7 @@ pub mod v1 {
         /// + The `.base` field could not be parsed as a [`Base`].
         /// + The `.quote` field could not be parsed as [`Quote`].
         // allow  reason: symmetry with all other `try_from_raw` methods that take ownership
-        #[allow(clippy::needless_pass_by_value)]
+        #[expect(clippy::needless_pass_by_value, reason = "symmetry with other types")]
         pub fn try_from_raw(raw: raw::CurrencyPair) -> Result<Self, CurrencyPairError> {
             let base = raw
                 .base
