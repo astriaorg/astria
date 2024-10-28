@@ -39,13 +39,19 @@ use cnidarium::{
 use super::test_utils::get_alice_signing_key;
 use crate::{
     accounts::StateReadExt as _,
-    action_handler::{transaction::InvalidChainId, ActionHandler as _},
-    app::{test_utils::{
-        get_bridge_signing_key,
-        initialize_app,
-        BOB_ADDRESS,
-        CAROL_ADDRESS,
-    }, InvalidNonce},
+    action_handler::{
+        transaction::InvalidChainId,
+        ActionHandler as _,
+    },
+    app::{
+        test_utils::{
+            get_bridge_signing_key,
+            initialize_app,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+        },
+        InvalidNonce,
+    },
     authority::StateReadExt as _,
     bridge::{
         StateReadExt as _,
