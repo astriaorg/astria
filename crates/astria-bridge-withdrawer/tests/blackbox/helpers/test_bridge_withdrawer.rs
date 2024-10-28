@@ -279,6 +279,7 @@ impl TestBridgeWithdrawerConfig {
             ethereum_contract_address: ethereum.contract_address(),
             ethereum_rpc_endpoint: ethereum.ws_endpoint(),
             sequencer_address_prefix: ASTRIA_ADDRESS_PREFIX.into(),
+            contract_decimals: 18,
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
             force_stdout: false,
