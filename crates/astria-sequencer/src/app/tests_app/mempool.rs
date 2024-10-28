@@ -14,7 +14,6 @@ use astria_core::{
     },
     Protobuf,
 };
-use prost::Message as _;
 use tendermint::{
     abci::{
         self,
@@ -33,7 +32,6 @@ use super::*;
 use crate::{
     accounts::StateReadExt as _,
     app::test_utils::*,
-    proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
         astria_address_from_hex_string,
         nria,
@@ -98,29 +96,14 @@ async fn trigger_cleaning() {
     assert!(!app.recost_mempool, "flag should start out false");
 
     // trigger with process_proposal
-    let commitments = generate_rollup_datas_commitment(&[tx_trigger.clone()], HashMap::new());
-    let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
-        tendermint::abci::types::ExtendedCommitInfo {
-            round: 0u16.into(),
-            votes: vec![],
-        }
-        .into();
-    let txs_with_commit_info: Vec<Bytes> =
-        std::iter::once(extended_commit_info.encode_to_vec().into())
-            .chain(
-                commitments
-                    .into_iter()
-                    .chain(vec![tx_trigger.to_raw().encode_to_vec().into()]),
-            )
-            .collect();
-
+    let txs = transactions_with_extended_commit_info_and_commitments(&vec![tx_trigger], None);
     let process_proposal = abci::request::ProcessProposal {
         hash: Hash::try_from([99u8; 32].to_vec()).unwrap(),
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: txs_with_commit_info.clone(),
+        txs: txs.clone(),
         proposed_last_commit: Some(CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -143,7 +126,7 @@ async fn trigger_cleaning() {
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: txs_with_commit_info,
+        txs,
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -332,7 +315,10 @@ async fn maintenance_recosting_promotes() {
         next_validators_hash: Hash::default(),
         proposer_address: [1u8; 20].to_vec().try_into().unwrap(),
         txs: res.txs.clone(),
-        proposed_last_commit: None,
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
     app.process_proposal(process_proposal, storage.clone())
@@ -512,7 +498,10 @@ async fn maintenance_funds_added_promotes() {
         next_validators_hash: Hash::default(),
         proposer_address: [1u8; 20].to_vec().try_into().unwrap(),
         txs: res.txs.clone(),
-        proposed_last_commit: None,
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
     app.process_proposal(process_proposal, storage.clone())

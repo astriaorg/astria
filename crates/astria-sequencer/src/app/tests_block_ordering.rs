@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    ops::Deref,
-};
+use std::ops::Deref;
 
 use astria_core::{
     protocol::transaction::v1::{
@@ -13,9 +10,15 @@ use astria_core::{
 use bytes::Bytes;
 use prost::Message;
 use tendermint::{
-    abci::request::{
-        PrepareProposal,
-        ProcessProposal,
+    abci::{
+        request::{
+            PrepareProposal,
+            ProcessProposal,
+        },
+        types::{
+            CommitInfo,
+            ExtendedCommitInfo,
+        },
     },
     block::Height,
     Hash,
@@ -23,16 +26,14 @@ use tendermint::{
 };
 
 use super::test_utils::get_alice_signing_key;
-use crate::{
-    app::test_utils::{
-        get_bob_signing_key,
-        get_judy_signing_key,
-        initialize_app_with_storage,
-        mock_balances,
-        mock_tx_cost,
-        MockTxBuilder,
-    },
-    proposal::commitment::generate_rollup_datas_commitment,
+use crate::app::test_utils::{
+    get_bob_signing_key,
+    get_judy_signing_key,
+    initialize_app_with_storage,
+    mock_balances,
+    mock_tx_cost,
+    transactions_with_extended_commit_info_and_commitments,
+    MockTxBuilder,
 };
 
 #[tokio::test]
@@ -68,20 +69,17 @@ async fn app_process_proposal_ordering_ok() {
             .clone(),
     ];
 
-    let generated_commitments = generate_rollup_datas_commitment(&txs, HashMap::new());
-    let txs = generated_commitments
-        .into_iter()
-        .chain(txs.into_iter().map(|tx| tx.to_raw().encode_to_vec().into()))
-        .collect();
-
     let process_proposal = ProcessProposal {
         hash: Hash::Sha256([1; 32]),
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs,
-        proposed_last_commit: None,
+        txs: transactions_with_extended_commit_info_and_commitments(&txs, None),
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
 
@@ -115,20 +113,17 @@ async fn app_process_proposal_ordering_fail() {
             .clone(),
     ];
 
-    let generated_commitments = generate_rollup_datas_commitment(&txs, HashMap::new());
-    let txs = generated_commitments
-        .into_iter()
-        .chain(txs.into_iter().map(|tx| tx.to_raw().encode_to_vec().into()))
-        .collect();
-
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs,
-        proposed_last_commit: None,
+        txs: transactions_with_extended_commit_info_and_commitments(&txs, None),
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
 
@@ -184,7 +179,10 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     let prepare_args = PrepareProposal {
         max_tx_bytes: 600_000,
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: Height::default(),
         time: Time::now(),
@@ -198,8 +196,8 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         .expect("incorrect account ordering shouldn't cause blocks to fail");
 
     assert_eq!(
-        prepare_proposal_result.txs[2],
-        Into::<Bytes>::into(tx_0.to_raw().encode_to_vec()),
+        prepare_proposal_result.txs.last().unwrap(),
+        &Into::<Bytes>::into(tx_0.to_raw().encode_to_vec()),
         "expected to contain first transaction"
     );
 
@@ -217,7 +215,10 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     let prepare_args = PrepareProposal {
         max_tx_bytes: 600_000,
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: 1u32.into(),
         time: Time::now(),
@@ -230,8 +231,8 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         .expect("incorrect account ordering shouldn't cause blocks to fail");
 
     assert_eq!(
-        prepare_proposal_result.txs[2],
-        Into::<Bytes>::into(tx_1.to_raw().encode_to_vec()),
+        prepare_proposal_result.txs.last().unwrap(),
+        &Into::<Bytes>::into(tx_1.to_raw().encode_to_vec()),
         "expected to contain second transaction"
     );
 

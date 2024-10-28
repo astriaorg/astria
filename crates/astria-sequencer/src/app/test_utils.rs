@@ -48,6 +48,7 @@ use astria_core::{
             TransactionBody,
         },
     },
+    sequencerblock::v1::block::Deposit,
     Protobuf,
 };
 use astria_eyre::eyre::WrapErr as _;
@@ -722,4 +723,36 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     state.put_allowed_fee_asset(&denom_0()).unwrap();
 
     state
+}
+
+#[expect(
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    reason = "allow is only necessary when benchmark isn't enabled"
+)]
+#[cfg_attr(feature = "benchmark", allow(dead_code))]
+pub(crate) fn transactions_with_extended_commit_info_and_commitments(
+    txs: &[Transaction],
+    deposits: Option<HashMap<RollupId, Vec<Deposit>>>,
+) -> Vec<Bytes> {
+    use prost::Message as _;
+    use tendermint::abci::types::ExtendedCommitInfo;
+
+    use crate::proposal::commitment::generate_rollup_datas_commitment;
+
+    let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
+        round: 0u16.into(),
+        votes: vec![],
+    }
+    .into();
+    let commitments = generate_rollup_datas_commitment(txs, deposits.unwrap_or_default());
+    let txs_with_commit_info: Vec<Bytes> =
+        std::iter::once(extended_commit_info.encode_to_vec().into())
+            .chain(
+                commitments
+                    .into_iter()
+                    .chain(txs.iter().map(|tx| tx.to_raw().encode_to_vec().into())),
+            )
+            .collect();
+    txs_with_commit_info
 }

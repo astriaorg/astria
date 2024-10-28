@@ -63,7 +63,6 @@ use crate::{
     },
     bridge::StateWriteExt as _,
     fees::StateReadExt as _,
-    proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -255,30 +254,13 @@ async fn app_transfer_block_fees_to_sudo() {
     let signed_tx = tx.sign(&alice);
 
     let proposer_address: tendermint::account::Id = [99u8; 20].to_vec().try_into().unwrap();
-
-    let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], HashMap::new());
-    let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
-        round: 0u16.into(),
-        votes: vec![],
-    }
-    .into();
-
-    let txs_with_commit_info: Vec<Bytes> =
-        std::iter::once(extended_commit_info.encode_to_vec().into())
-            .chain(
-                commitments
-                    .into_iter()
-                    .chain(vec![signed_tx.to_raw().encode_to_vec().into()]),
-            )
-            .collect();
-
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address,
-        txs: txs_with_commit_info,
+        txs: transactions_with_extended_commit_info_and_commitments(&vec![signed_tx], None),
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -385,20 +367,6 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         source_action_index: starting_index_of_action,
     };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
-    let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
-    let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
-        round: 0u16.into(),
-        votes: vec![],
-    }
-    .into();
-    let txs_with_commit_info: Vec<Bytes> =
-        std::iter::once(extended_commit_info.encode_to_vec().into())
-            .chain(
-                commitments
-                    .into_iter()
-                    .chain(vec![signed_tx.to_raw().encode_to_vec().into()]),
-            )
-            .collect();
 
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
@@ -406,7 +374,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: txs_with_commit_info,
+        txs: transactions_with_extended_commit_info_and_commitments(&[signed_tx], Some(deposits)),
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -490,20 +458,6 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         source_action_index: starting_index_of_action,
     };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
-    let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
-    let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
-        round: 0u16.into(),
-        votes: vec![],
-    }
-    .into();
-    let txs_with_commit_info: Vec<Bytes> =
-        std::iter::once(extended_commit_info.encode_to_vec().into())
-            .chain(
-                commitments
-                    .into_iter()
-                    .chain(vec![signed_tx.to_raw().encode_to_vec().into()]),
-            )
-            .collect();
 
     let timestamp = Time::now();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
@@ -513,7 +467,10 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: txs_with_commit_info,
+        txs: transactions_with_extended_commit_info_and_commitments(
+            &[signed_tx.clone()],
+            Some(deposits),
+        ),
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -844,11 +801,6 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
         .sign(&alice);
 
     let txs: Vec<Transaction> = vec![tx_pass, tx_overflow];
-    let generated_commitments = generate_rollup_datas_commitment(&txs, HashMap::new());
-    let txs = generated_commitments
-        .into_iter()
-        .chain(txs.into_iter().map(|tx| tx.to_raw().encode_to_vec().into()))
-        .collect();
 
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
@@ -856,8 +808,11 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs,
-        proposed_last_commit: None,
+        txs: transactions_with_extended_commit_info_and_commitments(&txs, None),
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
 
@@ -893,11 +848,6 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
         .sign(&alice);
 
     let txs: Vec<Transaction> = vec![tx_fail];
-    let generated_commitments = generate_rollup_datas_commitment(&txs, HashMap::new());
-    let txs = generated_commitments
-        .into_iter()
-        .chain(txs.into_iter().map(|tx| tx.to_raw().encode_to_vec().into()))
-        .collect();
 
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
@@ -905,8 +855,11 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs,
-        proposed_last_commit: None,
+        txs: transactions_with_extended_commit_info_and_commitments(&txs, None),
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
 
