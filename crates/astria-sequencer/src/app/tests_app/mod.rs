@@ -290,7 +290,6 @@ async fn app_transfer_block_fees_to_sudo() {
     assert_eq!(app.state.get_block_fees().len(), 0);
 }
 
-#[allow(clippy::too_many_lines)]
 #[tokio::test]
 async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     use astria_core::{

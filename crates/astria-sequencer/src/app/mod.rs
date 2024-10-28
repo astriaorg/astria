@@ -146,6 +146,14 @@ const EXECUTION_RESULTS_KEY: &str = "execution_results";
 // cleared at the end of the block.
 const POST_TRANSACTION_EXECUTION_RESULT_KEY: &str = "post_transaction_execution_result";
 
+// the number of non-external transactions expected at the start of the block.
+//
+// currently consists of:
+// 1. encoded `ExtendedCommitInfo` for the previous block
+// 2. rollup data root
+// 3. rollup IDs root
+const INHERENT_TRANSACTIONS_COUNT: usize = 3;
+
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
@@ -1031,9 +1039,9 @@ impl App {
         // tx result for the commitments, even though they're not actually user txs.
         //
         // the tx_results passed to this function only contain results for every user
-        // transaction, not the commitment, so its length is len(txs) - 2.
+        // transaction, not the commitment, so its length is len(txs) - 3.
         let mut finalize_block_tx_results: Vec<ExecTxResult> = Vec::with_capacity(txs.len());
-        finalize_block_tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
+        finalize_block_tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(INHERENT_TRANSACTIONS_COUNT));
         finalize_block_tx_results.extend(tx_results);
 
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
@@ -1085,7 +1093,7 @@ impl App {
         }
 
         ensure!(
-            finalize_block.txs.len() >= 3,
+            finalize_block.txs.len() >= INHERENT_TRANSACTIONS_COUNT,
             "block must contain at least three transactions: the extended commit info, the rollup \
              transactions commitment and rollup IDs commitment"
         );
@@ -1106,11 +1114,6 @@ impl App {
         .await
         .wrap_err("failed to apply prices from vote extensions")?;
         let _ = self.apply(state_tx);
-
-        // cometbft expects a result for every tx in the block, so we need to return a
-        // tx result for the commitments, even though they're not actually user txs.
-        let mut tx_results: Vec<ExecTxResult> = Vec::with_capacity(finalize_block.txs.len());
-        tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(3));
 
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
@@ -1135,7 +1138,7 @@ impl App {
 
             let mut tx_results = Vec::with_capacity(finalize_block.txs.len());
             // skip the first three transactions, as they are injected transactions
-            for tx in finalize_block.txs.iter().skip(3) {
+            for tx in finalize_block.txs.iter().skip(INHERENT_TRANSACTIONS_COUNT) {
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .wrap_err("protocol error; only valid txs should be finalized")?;
 

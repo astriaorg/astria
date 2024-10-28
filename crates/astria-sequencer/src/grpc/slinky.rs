@@ -94,7 +94,7 @@ impl MarketMapQueryService for SequencerServer {
         Ok(Response::new(MarketMapResponse {
             market_map: market_map.map(astria_core::slinky::market_map::v1::MarketMap::into_raw),
             last_updated,
-            chain_id: chain_id.to_string(), // TODO: is this the right chain id?
+            chain_id: chain_id.to_string(),
         }))
     }
 

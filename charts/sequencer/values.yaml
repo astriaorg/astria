@@ -35,7 +35,6 @@ genesis:
     ibcCompat: "astriacompat"
   authoritySudoAddress: ""
   marketAdminAddress: ""
-  # nativeAssetBaseDenomination: nria
   allowedFeeAssets: []
     # - nria
   ibc:
