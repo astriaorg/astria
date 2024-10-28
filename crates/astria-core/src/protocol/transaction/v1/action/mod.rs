@@ -897,7 +897,7 @@ pub struct Ics20Withdrawal {
     // an Astria address to use to return funds from this withdrawal
     // in the case it fails.
     pub return_address: Address,
-    // the height (on Astria) at which this transfer expires.
+    // the height (on the counterparty chain) at which this transfer expires.
     pub timeout_height: IbcHeight,
     // the unix timestamp (in nanoseconds) at which this transfer expires.
     pub timeout_time: u64,
@@ -1360,7 +1360,7 @@ enum FeeAssetChangeErrorKind {
 pub struct InitBridgeAccount {
     // the rollup ID to register for the sender of this action
     pub rollup_id: RollupId,
-    // the assets accepted by the bridge account
+    // the asset accepted by the bridge account
     pub asset: asset::Denom,
     // the fee asset which to pay this action's fees with
     pub fee_asset: asset::Denom,

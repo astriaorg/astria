@@ -3,6 +3,7 @@
 # Declare variables to be passed into your templates.
 global:
   namespaceOverride: ""
+  serviceName: "local"
   replicaCount: 1
   useTTY: true
   dev: false
@@ -12,7 +13,7 @@ images:
   evmBridgeWithdrawer:
     repo: ghcr.io/astriaorg/evm-bridge-withdrawer
     pullPolicy: IfNotPresent
-    tag: 1.0.0-rc.1
+    tag: 1.0.0
     devTag: latest
 
 config:
@@ -21,6 +22,7 @@ config:
   sequencerChainId: ""
   sequencerAddressPrefix: "astria"
   sequencerBridgeAddress: ""
+  useCompatAddress: "false"
   feeAssetDenom: ""
   minExpectedFeeAssetBalance: "1000000"
   rollupAssetDenom: ""

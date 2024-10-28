@@ -73,7 +73,11 @@ pub(crate) async fn calculate_rollup_data_submission_fee_from_state<
     let RollupDataSubmissionFeeComponents {
         base,
         multiplier,
-    } = state.get_rollup_data_submission_fees().await.unwrap();
+    } = state
+        .get_rollup_data_submission_fees()
+        .await
+        .expect("should not error fetching rollup data submission fees")
+        .expect("rollup data submission fees should be stored");
     base.checked_add(
         multiplier
             .checked_mul(
