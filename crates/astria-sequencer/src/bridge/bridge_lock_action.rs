@@ -12,6 +12,10 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::action::{
@@ -34,6 +38,7 @@ impl ActionHandler for BridgeLock {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

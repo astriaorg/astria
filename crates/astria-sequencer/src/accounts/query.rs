@@ -36,6 +36,7 @@ use crate::{
     assets::StateReadExt as _,
 };
 
+#[instrument(skip_all, fields(%asset), err)]
 async fn ibc_to_trace<S: StateRead>(
     state: S,
     asset: &asset::IbcPrefixed,
@@ -47,7 +48,7 @@ async fn ibc_to_trace<S: StateRead>(
         .ok_or_eyre("asset not found when user has balance of it; this is a bug")
 }
 
-#[instrument(skip_all, fields(%address))]
+#[instrument(skip_all, fields(%address), err)]
 async fn get_trace_prefixed_account_balances<S: StateRead>(
     state: &S,
     address: &Address,
@@ -70,6 +71,7 @@ async fn get_trace_prefixed_account_balances<S: StateRead>(
 
 /// Returns a list of [`AssetBalance`]s for the provided address. `AssetBalance`s are sorted
 /// alphabetically by [`asset::Denom`].
+#[instrument(skip_all)]
 pub(crate) async fn balance_request(
     storage: Storage,
     request: request::Query,
@@ -112,6 +114,7 @@ pub(crate) async fn balance_request(
     }
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn nonce_request(
     storage: Storage,
     request: request::Query,
@@ -150,6 +153,7 @@ pub(crate) async fn nonce_request(
     }
 }
 
+#[instrument(skip_all, fields(%height), err)]
 async fn get_snapshot_and_height(storage: &Storage, height: Height) -> Result<(Snapshot, Height)> {
     let snapshot = match height.value() {
         0 => storage.latest_snapshot(),
@@ -173,6 +177,7 @@ async fn get_snapshot_and_height(storage: &Storage, height: Height) -> Result<(S
     Ok((snapshot, height))
 }
 
+#[instrument(skip_all)]
 async fn preprocess_request(
     storage: &Storage,
     request: &request::Query,

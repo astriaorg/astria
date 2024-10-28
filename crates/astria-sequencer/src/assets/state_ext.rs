@@ -25,7 +25,7 @@ use crate::storage::StoredValue;
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_native_asset(&self) -> Result<Option<asset::TracePrefixed>> {
         let Some(bytes) = self
             .get_raw(keys::NATIVE_ASSET)
@@ -43,7 +43,7 @@ pub(crate) trait StateReadExt: StateRead {
             .map(Option::Some)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn has_ibc_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
         TAsset: Sync,

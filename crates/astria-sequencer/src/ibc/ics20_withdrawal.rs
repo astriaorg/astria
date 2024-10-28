@@ -34,6 +34,10 @@ use penumbra_ibc::component::packet::{
     Unchecked,
 };
 use penumbra_proto::core::component::ibc::v1::FungibleTokenPacketData;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::{
@@ -56,6 +60,7 @@ use crate::{
     transaction::StateReadExt as _,
 };
 
+#[instrument(skip_all, err)]
 async fn create_ibc_packet_from_withdrawal<S: StateRead>(
     withdrawal: &action::Ics20Withdrawal,
     state: S,
@@ -105,6 +110,7 @@ async fn create_ibc_packet_from_withdrawal<S: StateRead>(
 /// 1. Errors reading from DB
 /// 2. `action.bridge_address` is set, but `from` is not the withdrawer address.
 /// 3. `action.bridge_address` is unset, but `from` is a bridge account.
+#[instrument(skip_all, fields(from_address = %hex::encode(from)), err)]
 async fn establish_withdrawal_target<'a, S: StateRead>(
     action: &'a action::Ics20Withdrawal,
     state: &S,
@@ -144,6 +150,7 @@ async fn establish_withdrawal_target<'a, S: StateRead>(
 #[async_trait::async_trait]
 impl ActionHandler for action::Ics20Withdrawal {
     // TODO(https://github.com/astriaorg/astria/issues/1430): move checks to the `Ics20Withdrawal` parsing.
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
         ensure!(self.amount() > 0, "amount must be greater than zero",);
@@ -179,6 +186,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

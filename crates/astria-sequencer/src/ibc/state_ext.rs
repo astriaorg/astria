@@ -62,7 +62,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid ibc channel balance bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
             .get_raw(keys::IBC_SUDO)
@@ -78,7 +78,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid ibc sudo address bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn is_ibc_relayer<T: AddressBytes>(&self, address: T) -> Result<bool> {
         Ok(self
             .get_raw(&keys::ibc_relayer(&address))

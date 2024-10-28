@@ -40,7 +40,7 @@ use crate::{
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn is_a_bridge_account<T: AddressBytes>(&self, address: &T) -> Result<bool> {
         let maybe_id = self.get_bridge_account_rollup_id(address).await?;
         Ok(maybe_id.is_some())
@@ -86,7 +86,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .wrap_err("invalid bridge account asset ID bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(bridge_address = %bridge_address.display_address()), err)]
     async fn get_bridge_account_sudo_address<T: AddressBytes>(
         &self,
         bridge_address: &T,
@@ -109,7 +109,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .wrap_err("invalid bridge account sudo address bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(bridge_address = %bridge_address.display_address()), err)]
     async fn get_bridge_account_withdrawer_address<T: AddressBytes>(
         &self,
         bridge_address: &T,
@@ -138,7 +138,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .unwrap_or_default()
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(block_hash = %hex::encode(block_hash), %rollup_id), err)]
     async fn get_deposits(
         &self,
         block_hash: &[u8; 32],
@@ -157,7 +157,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .context("invalid deposits bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address()), err)]
     async fn get_last_transaction_id_for_bridge_account<T: AddressBytes>(
         &self,
         address: &T,
@@ -249,7 +249,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(block_hash = %address.display_address(), withdrawal_event_id, block_num), err)]
     async fn check_and_set_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
         &mut self,
         address: &T,

@@ -26,7 +26,10 @@ use tokio::time::{
     Duration,
     Instant,
 };
-use tracing::error;
+use tracing::{
+    error,
+    instrument,
+};
 
 use super::RemovalReason;
 use crate::{
@@ -569,6 +572,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     /// Recosts transactions for an account.
     ///
     /// Logs an error if fails to recost a transaction.
+    #[instrument(skip_all, fields(address = %hex::encode(address)))]
     async fn recost_transactions<S: accounts::StateReadExt>(
         &mut self,
         address: &[u8; 20],
@@ -770,6 +774,7 @@ impl PendingTransactions {
 
     /// Returns a copy of transactions and their hashes sorted by nonce difference and then time
     /// first seen.
+    #[instrument(skip_all, err)]
     pub(super) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
         state: &S,

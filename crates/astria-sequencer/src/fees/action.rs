@@ -10,6 +10,10 @@ use astria_eyre::eyre::{
 use cnidarium::StateWrite;
 use futures::StreamExt;
 use tokio::pin;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     app::ActionHandler,
@@ -29,6 +33,7 @@ impl ActionHandler for FeeChange {
 
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the fee
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
         let from = state
             .get_transaction_context()
@@ -94,6 +99,7 @@ impl ActionHandler for FeeAssetChange {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
         let from = state
             .get_transaction_context()

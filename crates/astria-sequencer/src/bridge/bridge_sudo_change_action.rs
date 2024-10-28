@@ -6,6 +6,10 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     address::StateReadExt as _,
@@ -22,6 +26,7 @@ impl ActionHandler for BridgeSudoChange {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

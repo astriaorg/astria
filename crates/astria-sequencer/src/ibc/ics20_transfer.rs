@@ -179,6 +179,7 @@ pub(crate) struct Ics20Transfer;
 
 #[async_trait::async_trait]
 impl AppHandlerCheck for Ics20Transfer {
+    #[instrument(skip_all)]
     async fn chan_open_init_check<S: StateRead>(
         _: S,
         msg: &MsgChannelOpenInit,
@@ -194,6 +195,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn chan_open_try_check<S: StateRead>(
         _: S,
         msg: &MsgChannelOpenTry,
@@ -209,6 +211,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn chan_open_ack_check<S: StateRead>(
         _: S,
         msg: &MsgChannelOpenAck,
@@ -220,6 +223,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn chan_open_confirm_check<S: StateRead>(
         _: S,
         _: &MsgChannelOpenConfirm,
@@ -229,6 +233,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn chan_close_init_check<S: StateRead>(
         _: S,
         _: &MsgChannelCloseInit,
@@ -236,6 +241,7 @@ impl AppHandlerCheck for Ics20Transfer {
         anyhow::bail!("ics20 always aborts on chan_close_init");
     }
 
+    #[instrument(skip_all)]
     async fn chan_close_confirm_check<S: StateRead>(
         _: S,
         _: &MsgChannelCloseConfirm,
@@ -244,6 +250,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn recv_packet_check<S: StateRead>(_: S, msg: &MsgRecvPacket) -> anyhow::Result<()> {
         // most checks performed in `execute`
         // perform stateless checks here
@@ -258,6 +265,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn timeout_packet_check<S: StateRead>(state: S, msg: &MsgTimeout) -> anyhow::Result<()> {
         refund_tokens_check(
             state,
@@ -269,6 +277,7 @@ impl AppHandlerCheck for Ics20Transfer {
         .map_err(eyre_to_anyhow)
     }
 
+    #[instrument(skip_all)]
     async fn acknowledge_packet_check<S: StateRead>(
         state: S,
         msg: &MsgAcknowledgement,
@@ -293,6 +302,7 @@ impl AppHandlerCheck for Ics20Transfer {
     }
 }
 
+#[instrument(skip_all, fields(%source_port, %source_channel), err)]
 async fn refund_tokens_check<S: StateRead>(
     state: S,
     data: &[u8],

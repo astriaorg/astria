@@ -59,6 +59,7 @@ use crate::{
     assets::StateReadExt as _,
 };
 
+#[instrument(skip_all, fields(%asset))]
 async fn find_trace_prefixed_or_return_ibc<S: StateRead>(
     state: S,
     asset: asset::IbcPrefixed,
@@ -89,6 +90,7 @@ async fn get_allowed_fee_assets<S: StateRead>(state: &S) -> Vec<Denom> {
     stream.collect::<Vec<_>>().await
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn allowed_fee_assets_request(
     storage: Storage,
     request: request::Query,
@@ -134,6 +136,7 @@ pub(crate) async fn allowed_fee_assets_request(
     }
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn transaction_fee_request(
     storage: Storage,
     request: request::Query,
@@ -216,7 +219,7 @@ pub(crate) async fn transaction_fee_request(
     }
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, err)]
 pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     tx: &TransactionBody,
     state: &S,

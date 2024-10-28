@@ -30,6 +30,10 @@ pub(crate) use state_ext::{
     StateReadExt,
     StateWriteExt,
 };
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::{
@@ -83,6 +87,7 @@ impl std::error::Error for InvalidNonce {}
 
 #[async_trait::async_trait]
 impl ActionHandler for Transaction {
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_stateless(&self) -> Result<()> {
         ensure!(!self.actions().is_empty(), "must have at least one action");
 
@@ -158,7 +163,7 @@ impl ActionHandler for Transaction {
     // FIXME (https://github.com/astriaorg/astria/issues/1584): because most lines come from delegating (and error wrapping) to the
     // individual actions. This could be tidied up by implementing `ActionHandler for Action`
     // and letting it delegate.
-    #[expect(clippy::too_many_lines, reason = "should be refactored")]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         // Add the current signed transaction into the ephemeral state in case
         // downstream actions require access to it.

@@ -165,7 +165,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
             .wrap_err("invalid balance bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_account_nonce<T: AddressBytes>(&self, address: &T) -> Result<u32> {
         let bytes = self
             .get_raw(&keys::nonce(address))
@@ -205,7 +205,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address(), nonce), err)]
     fn put_account_nonce<T: AddressBytes>(&mut self, address: &T, nonce: u32) -> Result<()> {
         let bytes = StoredValue::from(storage::Nonce::from(nonce))
             .serialize()
@@ -241,7 +241,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount))]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount), err)]
     async fn decrease_balance<'a, TAddress, TAsset>(
         &mut self,
         address: &TAddress,
