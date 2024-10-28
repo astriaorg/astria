@@ -1,6 +1,6 @@
-# Astria-GRPC-Mock
+# Astria-gRPC-Mock
 
-A lightweight crate for mounting mock GRPC responses to a mock server, for use
+A lightweight crate for mounting mock gRPC responses to a mock server, for use
 in local testing. Heavily influenced by [Wiremock](https://docs.rs/wiremock/latest/wiremock/).
 
 ## Components
@@ -12,13 +12,13 @@ in local testing. Heavily influenced by [Wiremock](https://docs.rs/wiremock/late
 
 ## Usage
 
-The GRPC mock crate works by providing the functionality to mount `Mock`s to `MockServer`s.
+The gRPC mock crate works by providing the functionality to mount `Mock`s to `MockServer`s.
 A `Mock`, among other fields, contains a `Matcher` and a `ResponseTemplate`. Upon
 being mounted to the server, the `Mock` will check incoming requests to the server
 for a match using the `Matcher`. If the criteria is met, it will respond with
 `ResponseTemplate::respond()`.
 
-To use the GRPC mock functionality, you first need to instantiate a `MockServer`
+To use the gRPC mock functionality, you first need to instantiate a `MockServer`
 with `MockServer::new()`.
 
 To create a `Mock`, a typical flow is the following:

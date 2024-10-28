@@ -118,16 +118,16 @@ impl MockServer {
     }
 
     /// Mounts a [`Mock`] to the server. Once mounted, the server will respond to calls to
-    /// [`MockServer::handle_request`] that match one of the mounted mocks. See [`MockServer`]
-    /// docs for example usage.
+    /// [`handle_request`](`MockServer::handle_request`) that match one of the mounted mocks. See
+    /// [`MockServer`] docs for example usage.
     pub async fn register(&self, mock: Mock) {
         self.state.write().await.mock_set.register(mock);
     }
 
     /// Mounts a [`Mock`] to the server, returning a [`MockGuard`] that can be evaluated for
     /// satisfaction of the mock. Once mounted, the server will respond to calls to
-    /// [`MockServer::handle_request`] that match one of the mounted mocks. See [`MockServer`]
-    /// docs for example usage.
+    /// [`handle_request`](`MockServer::handle_request`) that match one of the mounted mocks. See
+    /// [`MockServer`] docs for example usage.
     pub async fn register_as_scoped(&self, mock: Mock) -> MockGuard {
         let (notify, mock_id) = self.state.write().await.mock_set.register(mock);
         MockGuard {
@@ -206,9 +206,11 @@ impl Drop for MockServer {
     }
 }
 
-/// A guard returned by [`MockServer::register_as_scoped`] and [`Mock::mount_as_scoped`] that can be
-/// evaluated for satisfaction of the mock. If [`MockGuard::wait_until_satisfied`] is not called,
-/// the guard will be evaluated when it is dropped.
+/// A guard which can be evaluated for satisfation of a [`Mock`].
+///
+/// Returned by [`MockServer::register_as_scoped`] and [`Mock::mount_as_scoped`], it can be
+/// evaluated by calling [`wait_until_satisfied`](`MockGuard::wait_until_satisfied`). If
+/// this method is not called, the guard will be evaluated when it is dropped.
 pub struct MockGuard {
     notify: Arc<(Notify, AtomicBool)>,
     mock_id: MockId,
@@ -216,7 +218,7 @@ pub struct MockGuard {
 }
 
 impl MockGuard {
-    /// Awaits satisfaction of the associated [`Mock`]. which will occur when it has
+    /// Awaits satisfaction of the associated [`Mock`], which will occur when it has
     /// received the expected number of matching requests. If the mock expects 0 requests, this
     /// method will return immediately, so it is best practice to instead wait until the guard
     /// is dropped so that it can be ensured no matching requests were made.

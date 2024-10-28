@@ -1,3 +1,5 @@
+//! Contains the logic for constructing responses for a [`Mock`](`crate::Mock`).
+
 use std::{
     marker::PhantomData,
     time::Duration,
@@ -9,7 +11,7 @@ use super::{
 };
 use crate::erase_response;
 
-/// Constructs a [`ResponseTemplate`] that will respond every with [`tonic::Response<T>`]
+/// Constructs a [`ResponseTemplate`] that will respond with [`tonic::Response<T>`]
 /// where `T` is the type of `value` and the `message` of the response is `value`.
 ///
 /// # Examples
@@ -333,9 +335,9 @@ impl Clone for MockResponse {
     }
 }
 
-/// A template for response that is used to construct a [`Mock`]. When a request is made
-/// which satisfies the mock matcher, the template's `Respond` implementation is called.
-/// There is an optional delay that can be set on the response.
+/// A template for response that is used to construct a [`Mock`](`crate::Mock`). When a request is
+/// made which satisfies the mock's matcher, the template's [`Respond`] implementation is called.
+/// There is an optional delay that can be set on the response as well.
 pub struct ResponseTemplate {
     response: Box<dyn Respond>,
     delay: Option<Duration>,
@@ -372,11 +374,14 @@ impl ResponseTemplate {
     }
 }
 
-/// The trait which houses the logic for responding to a request. It is implemented for
-/// the following response types, but can be implemented for custom response types as well:
-/// * [`ConstantResponse`]
-/// * [`DynamicResponse`]
-/// * [`ErrorResponse`]
+/// The trait which houses the logic for responding to a request.
+///
+/// It is already implemented for the following response types:
+/// * [`constant_response`]
+/// * [`dynamic_response`]
+/// * [`error_response`]
+///
+/// This trait can also be implemented to use custom response logic.
 pub trait Respond: Send + Sync {
     fn respond(&self, req: &tonic::Request<AnyMessage>) -> ResponseResult;
 }

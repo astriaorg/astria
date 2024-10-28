@@ -15,11 +15,14 @@ use crate::{
     MockServer,
 };
 
-/// A trait for matching requests. This trait is implemented for the following types,
-/// but can be implemented for custom matchers as well:
-/// * [`MessagePartialJsonMatcher`]
-/// * [`MessageExactMatcher`]
-/// * [`MessageTypeMatcher`]
+/// Provides the method for determining whether a message matches the given matcher.
+///
+/// It is implemented for the following types:
+/// * [`crate::matcher::MessagePartialJsonMatcher`]
+/// * [`crate::matcher::MessageExactMatcher`]
+/// * [`crate::matcher::MessageTypeMatcher`]
+///
+/// This trait can also be implemented to use custom matchers.
 pub trait Match: Send + Sync {
     /// Returns true if the given request fulfills the matcher's criteria, false if otherwise.
     fn matches(&self, req: &tonic::Request<AnyMessage>) -> bool;
@@ -33,12 +36,12 @@ impl Match for Matcher {
     }
 }
 
-/// A mock that can be mounted on a [`MockServer`]. Given
-/// an `rpc` whose request fulfills all `matchers`, it will respond with
-/// `response::respond()` up to `max_n_matches` times (if it is `Some`, otherwise will
-/// continue responding until dropped). It can be set to expect a range in
-/// number of requests `expectation_range` and can also be given a name,
-/// which is best practice.
+/// A mock that can be mounted on a [`MockServer`] which will respond to matching requests with a
+/// gRPC response.
+///
+/// Given an rpc whose request fulfills all the mock's matchers, it will respond with
+/// `response::respond()` up to `n` times (if it has been set). The mock can be set to expect a
+/// range in number of requests and can also be given a name, which is best practice.
 ///
 /// # Examples
 /// ```rust
@@ -70,8 +73,8 @@ pub struct Mock {
 }
 
 impl Mock {
-    /// Creates a new [`MockBuilder`] for the given `rpc` with a given `Matcher`. See [`Mock`] docs
-    /// for example usage.
+    /// Creates a mock builder for the given `rpc` with a given `Matcher`. See
+    /// [`Mock`] docs for example usage.
     pub fn for_rpc_given(rpc: &'static str, matcher: impl Match + 'static) -> MockBuilder {
         MockBuilder {
             rpc,
@@ -89,8 +92,8 @@ impl Mock {
     }
 
     /// Sets the range of times that the [`Mock`] should expect to receive a matching
-    /// request. If the mock is mounted via [`Mock::mount_as_scoped`], this range will
-    /// be verified either upon calling [`MockGuard::wait_until_satisfied`] or when the
+    /// request. If the mock is mounted via [`mount_as_scoped`](`Mock::mount_as_scoped`), this range
+    /// will be verified either upon calling [`MockGuard::wait_until_satisfied`] or when the
     /// guard is dropped. See [`Mock`] docs for example usage.
     #[must_use = "a mock must be mounted on a server to be useful"]
     pub fn expect<T: Into<Times>>(mut self, r: T) -> Self {

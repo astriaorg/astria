@@ -1,3 +1,6 @@
+//! Houses the matchers that are used to determine whether gRPC requests match the expected request
+//! for a given [`Mock`](`crate::Mock`).
+
 use std::any::TypeId;
 
 use assert_json_diff::{
@@ -8,9 +11,11 @@ use serde_json::Value;
 
 use crate::mock::Match;
 
+/// Creates a matcher which will match on partially equal JSON messages.
+///
 /// Returns a [`MessagePartialJsonMatcher`] to be passed as an argument to
-/// [`Mock::for_rpc_given`]. Matcher will return true if the given request's message contains
-/// the expected message.
+/// [`Mock::for_rpc_given`](`crate::Mock::for_rpc_given`). Matcher will return true if the given
+/// request's message contains the expected message.
 ///
 /// # Examples
 ///
@@ -44,9 +49,11 @@ impl Match for MessagePartialJsonMatcher {
     }
 }
 
-/// Returns a [`MessageExactMatcher`] to be passed as an argument to [`Mock::for_rpc_given`].
-/// Matcher will return true only if the given request's message exactly matches the expected
-/// message.
+/// Creates a matcher which will match on exactly equal JSON messages.
+///
+/// Returns a [`MessageExactMatcher`] to be passed as an argument to
+/// [`Mock::for_rpc_given`](`crate::Mock::for_rpc_given`). Matcher will return true only if the
+/// given request's message exactly matches the expected message.
 ///
 /// # Examples
 ///
@@ -86,9 +93,11 @@ impl Match for MessageExactMatcher {
     }
 }
 
-/// Returns a [`MessageTypeMatcher`] to be passed as an argument to [`Mock::for_rpc_given`].
-/// Matcher will return true if the given request's message is of the same type as the expected
-/// message.
+/// Creates a matcher which will match on messages of the same type.
+///
+/// Returns a [`MessageTypeMatcher`] to be passed as an argument to
+/// [`Mock::for_rpc_given`](`crate::Mock::for_rpc_given`). Matcher will return true if the given
+/// request's message is of the same type as the expected message.
 ///
 /// # Examples
 ///
