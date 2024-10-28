@@ -1041,7 +1041,8 @@ impl App {
         // the tx_results passed to this function only contain results for every user
         // transaction, not the commitment, so its length is len(txs) - 3.
         let mut finalize_block_tx_results: Vec<ExecTxResult> = Vec::with_capacity(txs.len());
-        finalize_block_tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(INHERENT_TRANSACTIONS_COUNT));
+        finalize_block_tx_results
+            .extend(std::iter::repeat(ExecTxResult::default()).take(INHERENT_TRANSACTIONS_COUNT));
         finalize_block_tx_results.extend(tx_results);
 
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
