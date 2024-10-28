@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Add `contract_decimals` configuration value
+
 ## [1.0.0] - 2024-10-25
 
 ### Changed

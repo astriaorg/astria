@@ -86,6 +86,7 @@ impl BridgeWithdrawer {
             sequencer_bridge_address,
             sequencer_grpc_endpoint,
             use_compat_address,
+            contract_decimals,
             ..
         } = cfg;
 
@@ -142,6 +143,7 @@ impl BridgeWithdrawer {
             bridge_address: sequencer_bridge_address,
             use_compat_address,
             submitter_handle,
+            contract_decimals,
         }
         .build()
         .wrap_err("failed to build ethereum watcher")?;

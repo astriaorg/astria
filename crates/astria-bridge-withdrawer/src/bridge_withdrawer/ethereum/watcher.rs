@@ -63,6 +63,7 @@ pub(crate) struct Builder {
     pub(crate) bridge_address: Address,
     pub(crate) use_compat_address: bool,
     pub(crate) submitter_handle: submitter::Handle,
+    pub(crate) contract_decimals: u32,
 }
 
 impl Builder {
@@ -77,6 +78,7 @@ impl Builder {
             bridge_address,
             use_compat_address,
             submitter_handle,
+            contract_decimals,
         } = self;
 
         let contract_address = address_from_string(&ethereum_contract_address)
@@ -92,6 +94,7 @@ impl Builder {
             shutdown_token: shutdown_token.clone(),
             startup_handle,
             submitter_handle,
+            contract_decimals,
         })
     }
 }
@@ -106,6 +109,7 @@ pub(crate) struct Watcher {
     rollup_asset_denom: asset::TracePrefixed,
     bridge_address: Address,
     use_compat_address: bool,
+    contract_decimals: u32,
     state: Arc<State>,
 }
 
@@ -150,6 +154,7 @@ impl Watcher {
             rollup_asset_denom,
             bridge_address,
             use_compat_address,
+            contract_decimals,
             state,
         } = self;
 
@@ -226,6 +231,7 @@ impl Watcher {
             .sequencer_asset_to_withdraw(rollup_asset_denom.clone().into())
             .set_ics20_asset_to_withdraw(ics20_asset_to_withdraw)
             .use_compat_address(use_compat_address)
+            .set_contract_decimals(contract_decimals)
             .try_build()
             .await
             .wrap_err("failed to construct contract event to sequencer action fetcher")?;

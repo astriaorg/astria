@@ -76,6 +76,8 @@ pub(super) struct Command {
     /// (like for noble USDC).
     #[arg(long)]
     use_compat_address: bool,
+    #[arg(long)]
+    contract_decimals: u32,
     /// The path to write the collected withdrawal events converted
     /// to Sequencer actions.
     #[arg(long, short)]
@@ -97,9 +99,14 @@ impl Command {
             fee_asset,
             bridge_address,
             use_compat_address,
+            contract_decimals,
             output,
             force,
         } = self;
+        
+        if contract_decimals == 0 {
+            bail!("contract decimals must be greater than 0");
+        }
 
         let output =
             super::open_output(&output, force).wrap_err("failed to open output for writing")?;
@@ -116,6 +123,7 @@ impl Command {
             .set_sequencer_asset_to_withdraw(sequencer_asset_to_withdraw)
             .bridge_address(bridge_address)
             .use_compat_address(use_compat_address)
+            .set_contract_decimals(contract_decimals)
             .try_build()
             .await
             .wrap_err("failed to initialize contract events to sequencer actions converter")?;

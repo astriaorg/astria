@@ -121,6 +121,7 @@ pub struct GetWithdrawalActionsBuilder<TProvider = NoProvider> {
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
     use_compat_address: bool,
+    contract_decimals: Option<u32>,
 }
 
 impl Default for GetWithdrawalActionsBuilder {
@@ -140,6 +141,7 @@ impl GetWithdrawalActionsBuilder {
             sequencer_asset_to_withdraw: None,
             ics20_asset_to_withdraw: None,
             use_compat_address: false,
+            contract_decimals: None,
         }
     }
 }
@@ -154,6 +156,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
             use_compat_address,
+            contract_decimals,
             ..
         } = self;
         GetWithdrawalActionsBuilder {
@@ -164,6 +167,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
             use_compat_address,
+            contract_decimals
         }
     }
 
@@ -230,6 +234,14 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             ..self
         }
     }
+    
+    #[must_use]
+    pub fn set_contract_decimals(self, contract_decimals: u32) -> Self {
+        Self {
+            contract_decimals: Some(contract_decimals),
+            ..self
+        }
+    }
 }
 
 impl<P> GetWithdrawalActionsBuilder<WithProvider<P>>
@@ -259,6 +271,7 @@ where
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
             use_compat_address,
+            contract_decimals,
         } = self;
 
         let Some(contract_address) = contract_address else {
@@ -270,6 +283,12 @@ where
         let Some(fee_asset) = fee_asset else {
             return Err(BuildError::not_set("fee_asset"));
         };
+        let Some(contract_decimals) = contract_decimals else {
+            return Err(BuildError::not_set("contract_decimals"));
+        };
+        if contract_decimals == 0 {
+            return Err(BuildError::bad_divisor(0));
+        }
 
         if sequencer_asset_to_withdraw.is_none() && ics20_asset_to_withdraw.is_none() {
             return Err(BuildError::no_withdraws_configured());
@@ -295,7 +314,7 @@ where
             .await
             .map_err(BuildError::call_base_chain_asset_precision)?;
 
-        let exponent = 18u32
+        let exponent = contract_decimals
             .checked_sub(base_chain_asset_precision)
             .ok_or_else(|| BuildError::bad_divisor(base_chain_asset_precision))?;
 

@@ -34,6 +34,8 @@ pub struct Config {
     pub ethereum_rpc_endpoint: String,
     // The address prefix to use when constructing sequencer addresses using the signing key.
     pub sequencer_address_prefix: String,
+    // The number of decimals used by the contract for the rollup asset.
+    pub contract_decimals: u32,
     // The socket address at which the bridge service will server healthz, readyz, and status
     // calls.
     pub api_addr: String,
