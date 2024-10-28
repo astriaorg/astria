@@ -103,7 +103,7 @@ impl Command {
             output,
             force,
         } = self;
-        
+
         if contract_decimals == 0 {
             bail!("contract decimals must be greater than 0");
         }

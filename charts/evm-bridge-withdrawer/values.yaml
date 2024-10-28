@@ -27,6 +27,7 @@ config:
   minExpectedFeeAssetBalance: "1000000"
   rollupAssetDenom: ""
   evmContractAddress: "0x"
+  evmContractDecimals: 18
   evmRpcEndpoint: ""
   sequencerPrivateKey:
     devContent: ""

@@ -167,7 +167,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
             use_compat_address,
-            contract_decimals
+            contract_decimals,
         }
     }
 
@@ -234,7 +234,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             ..self
         }
     }
-    
+
     #[must_use]
     pub fn set_contract_decimals(self, contract_decimals: u32) -> Self {
         Self {

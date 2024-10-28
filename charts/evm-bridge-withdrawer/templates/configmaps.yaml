@@ -33,6 +33,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders . }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
+  ASTRIA_BRIDGE_WITHDRAWER_CONTRACT_DECIMALS: "{{ .Values.config.evmContractDecimals }}"
   {{- else }}
   {{- end }}
 ---
