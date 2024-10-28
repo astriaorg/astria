@@ -454,7 +454,7 @@ run-smoke-cli tag=defaultTag:
     --input "/astria/tempfile"
 
   # Can inspect the file by removing and looking in volume
-  # docker volume remove cli-test-withdrawals
+  docker volume remove cli-test-withdrawals
 
   CHECKS=0
   EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
