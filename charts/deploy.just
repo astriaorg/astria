@@ -445,6 +445,7 @@ run-smoke-cli tag=defaultTag:
     --to-rollup-height $CURRENT_BLOCK \
     --sequencer-asset-to-withdraw nria \
     --bridge-address {{sequencer_bridge_address}} \
+    --contract-decimals 18 \
     --output "/astria/tempfile" \
     --force
    docker run --rm -v cli-test-withdrawals:/astria --network host $ASTRIA_CLI_IMAGE bridge submit-withdrawals \
