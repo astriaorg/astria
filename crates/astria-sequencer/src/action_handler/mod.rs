@@ -1,3 +1,6 @@
+//! Contains the `ActionHandler` trait, which houses all stateless/stateful checks and execution, as
+//! well as all of its implementations.
+
 use cnidarium::StateWrite;
 
 pub(crate) mod actions;
