@@ -367,6 +367,7 @@ run-timeout tag=defaultTag:
     --to-rollup-height $CURRENT_BLOCK \
     --ics20-asset-to-withdraw "transfer/channel-0/utia" \
     --bridge-address {{sequencer_tia_bridge_address}} \
+    --contract-decimals 18 \
     --output "/astria/tempfile" \
     --force
 
