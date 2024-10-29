@@ -34,6 +34,7 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_BRIDGE_WITHDRAWER_ETHEREUM_CONTRACT_IS_ERC20: "{{ .Values.config.evmContractIsERC20 }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}

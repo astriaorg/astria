@@ -30,6 +30,8 @@ pub struct Config {
     pub use_compat_address: bool,
     // The address of the AstriaWithdrawer contract on the evm rollup.
     pub ethereum_contract_address: String,
+    // Whether the IAstriaWithdrawer contract is an ERC20 contract.
+    pub ethereum_contract_is_erc20: bool,
     // The rpc endpoint of the evm rollup.
     pub ethereum_rpc_endpoint: String,
     // The address prefix to use when constructing sequencer addresses using the signing key.

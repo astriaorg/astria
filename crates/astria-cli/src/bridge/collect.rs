@@ -50,6 +50,9 @@ pub(super) struct Command {
     /// The eth address of the astria bridge contracts.
     #[arg(long)]
     contract_address: ethers::types::Address,
+    /// Whether the contract is an ERC20 contract.
+    #[arg(long)]
+    contract_is_erc20: bool,
     /// The start rollup height from which blocks will be checked for withdrawal events.
     #[arg(long)]
     from_rollup_height: u64,
@@ -90,6 +93,7 @@ impl Command {
         let Self {
             rollup_endpoint,
             contract_address,
+            contract_is_erc20,
             from_rollup_height,
             to_rollup_height,
             sequencer_asset_to_withdraw,
@@ -111,6 +115,7 @@ impl Command {
         let actions_fetcher = GetWithdrawalActionsBuilder::new()
             .provider(block_provider.clone())
             .contract_address(contract_address)
+            .contract_is_erc20(contract_is_erc20)
             .fee_asset(fee_asset)
             .set_ics20_asset_to_withdraw(ics20_asset_to_withdraw)
             .set_sequencer_asset_to_withdraw(sequencer_asset_to_withdraw)

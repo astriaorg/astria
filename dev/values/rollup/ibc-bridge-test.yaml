@@ -26,5 +26,6 @@ evm-bridge-withdrawer:
     feeAssetDenom: "nria"
     rollupAssetDenom: "transfer/channel-0/utia"
     evmContractAddress: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
+    evmContractIsERC20: "false"
     sequencerPrivateKey:
       devContent: "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
