@@ -14,15 +14,15 @@ use crate::{
         ActionHandler as _,
     },
     address::StateWriteExt as _,
+    benchmark_and_test_utils::{
+        astria_address,
+        ASTRIA_PREFIX,
+    },
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
     },
     fees::StateWriteExt as _,
-    test_utils::{
-        astria_address,
-        ASTRIA_PREFIX,
-    },
     transaction::{
         StateWriteExt as _,
         TransactionContext,

@@ -38,11 +38,22 @@ use crate::{
     accounts::StateWriteExt as _,
     action_handler::ActionHandler as _,
     address::StateWriteExt as _,
-    app::test_utils::{
-        get_alice_signing_key,
-        get_bridge_signing_key,
-        initialize_app_with_storage,
-        BOB_ADDRESS,
+    app::{
+        benchmark_and_test_utils::{
+            initialize_app_with_storage,
+            BOB_ADDRESS,
+        },
+        test_utils::{
+            get_alice_signing_key,
+            get_bridge_signing_key,
+        },
+    },
+    benchmark_and_test_utils::{
+        assert_eyre_error,
+        astria_address,
+        astria_address_from_hex_string,
+        nria,
+        ASTRIA_PREFIX,
     },
     bridge::StateWriteExt as _,
     fees::{
@@ -50,14 +61,7 @@ use crate::{
         StateWriteExt as _,
         DEPOSIT_BASE_FEE,
     },
-    test_utils::{
-        assert_eyre_error,
-        astria_address,
-        astria_address_from_hex_string,
-        calculate_rollup_data_submission_fee_from_state,
-        nria,
-        ASTRIA_PREFIX,
-    },
+    test_utils::calculate_rollup_data_submission_fee_from_state,
     transaction::{
         StateWriteExt as _,
         TransactionContext,
