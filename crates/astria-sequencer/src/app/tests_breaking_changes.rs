@@ -52,26 +52,31 @@ use tendermint::{
 };
 
 use crate::{
-    app::test_utils::{
-        default_genesis_accounts,
-        get_alice_signing_key,
-        get_bridge_signing_key,
-        initialize_app,
-        initialize_app_with_storage,
-        proto_genesis_state,
-        BOB_ADDRESS,
-        CAROL_ADDRESS,
+    app::{
+        benchmark_and_test_utils::{
+            default_genesis_accounts,
+            initialize_app_with_storage,
+            proto_genesis_state,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+        },
+        test_utils::{
+            get_alice_signing_key,
+            get_bridge_signing_key,
+            initialize_app,
+        },
     },
     authority::StateReadExt as _,
-    bridge::StateWriteExt as _,
-    fees::StateWriteExt as _,
-    proposal::commitment::generate_rollup_datas_commitment,
-    test_utils::{
+    benchmark_and_test_utils::{
         astria_address,
         astria_address_from_hex_string,
         nria,
+        verification_key,
         ASTRIA_PREFIX,
     },
+    bridge::StateWriteExt as _,
+    fees::StateWriteExt as _,
+    proposal::commitment::generate_rollup_datas_commitment,
 };
 
 #[tokio::test]
@@ -209,13 +214,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
         power: 100,
-        verification_key: crate::test_utils::verification_key(1),
+        verification_key: verification_key(1),
     };
 
     let update_with_name = ValidatorUpdateV2 {
         name: "test_validator".to_string(),
         power: 100,
-        verification_key: crate::test_utils::verification_key(2),
+        verification_key: verification_key(2),
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");

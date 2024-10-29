@@ -136,7 +136,7 @@ mod tests {
             StateWriteExt,
             ValidatorSet,
         },
-        test_utils::{
+        benchmark_and_test_utils::{
             astria_address,
             verification_key,
         },
