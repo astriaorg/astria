@@ -108,33 +108,35 @@ impl Handler {
         &self,
         state: &S,
         vote: abci::request::VerifyVoteExtension,
-    ) -> abci::response::VerifyVoteExtension {
+    ) -> Result<abci::response::VerifyVoteExtension> {
         if vote.vote_extension.is_empty() {
-            return abci::response::VerifyVoteExtension::Accept;
+            return Ok(abci::response::VerifyVoteExtension::Accept);
         }
 
-        match verify_vote_extension(state, vote.vote_extension, false).await {
-            Ok(()) => abci::response::VerifyVoteExtension::Accept,
-            Err(e) => {
-                tracing::warn!(error = %e, "failed to verify vote extension");
-                abci::response::VerifyVoteExtension::Reject
-            }
-        }
+        let max_num_currency_pairs =
+            DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, false)
+                .await
+                .wrap_err("failed to get max number of currency pairs")?;
+
+        let response =
+            match verify_vote_extension(vote.vote_extension, max_num_currency_pairs).await {
+                Ok(()) => abci::response::VerifyVoteExtension::Accept,
+                Err(e) => {
+                    tracing::warn!(error = %e, "failed to verify vote extension");
+                    abci::response::VerifyVoteExtension::Reject
+                }
+            };
+        Ok(response)
     }
 }
 
 // see https://github.com/skip-mev/slinky/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L24
-async fn verify_vote_extension<S: StateReadExt>(
-    state: &S,
+async fn verify_vote_extension(
     oracle_vote_extension_bytes: bytes::Bytes,
-    is_proposal_phase: bool,
+    max_num_currency_pairs: u64,
 ) -> Result<()> {
     let oracle_vote_extension = RawOracleVoteExtension::decode(oracle_vote_extension_bytes)
         .wrap_err("failed to decode oracle vote extension")?;
-    let max_num_currency_pairs =
-        DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, is_proposal_phase)
-            .await
-            .wrap_err("failed to get max number of currency pairs")?;
 
     ensure!(
         u64::try_from(oracle_vote_extension.prices.len()).ok() <= Some(max_num_currency_pairs),
@@ -224,11 +226,16 @@ impl ProposalHandler {
             return Ok(ValidatedExtendedCommitInfo(extended_commit_info));
         }
 
+        let max_num_currency_pairs =
+            DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, true)
+                .await
+                .wrap_err("failed to get max number of currency pairs")?;
+
         let mut futures = futures::stream::FuturesUnordered::new();
         for vote in &mut extended_commit_info.votes {
             futures.push(async move {
                 if let Err(e) =
-                    verify_vote_extension(state, vote.vote_extension.clone(), true).await
+                    verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs).await
                 {
                     let address = state
                         .try_base_prefixed(vote.validator.address.as_slice())
@@ -283,10 +290,15 @@ impl ProposalHandler {
             .await
             .wrap_err("failed to validate vote extensions in validate_extended_commit_info")?;
 
+        let max_num_currency_pairs =
+            DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, true)
+                .await
+                .wrap_err("failed to get max number of currency pairs")?;
+
         let mut futures = futures::stream::FuturesUnordered::new();
         for vote in &extended_commit_info.votes {
             futures.push(async move {
-                verify_vote_extension(state, vote.vote_extension.clone(), true).await
+                verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs).await
             });
         }
 
@@ -587,21 +599,8 @@ mod test {
     };
 
     #[tokio::test]
-    async fn verify_vote_extension_proposal_phase_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        verify_vote_extension(&snapshot, vec![].into(), true)
-            .await
-            .unwrap();
-    }
-
-    #[tokio::test]
-    async fn verify_vote_extension_not_proposal_phase_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        verify_vote_extension(&snapshot, vec![].into(), true)
-            .await
-            .unwrap();
+    async fn verify_vote_extension_empty_ok() {
+        verify_vote_extension(vec![].into(), 100).await.unwrap();
     }
 
     #[tokio::test]

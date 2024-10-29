@@ -114,7 +114,9 @@ impl Consensus {
             }
             ConsensusRequest::VerifyVoteExtension(vote_extension) => {
                 ConsensusResponse::VerifyVoteExtension(
-                    self.handle_verify_vote_extension(vote_extension).await,
+                    self.handle_verify_vote_extension(vote_extension)
+                        .await
+                        .wrap_err("failed to verify vote extension")?,
                 )
             }
             ConsensusRequest::FinalizeBlock(finalize_block) => ConsensusResponse::FinalizeBlock(
@@ -199,7 +201,7 @@ impl Consensus {
     async fn handle_verify_vote_extension(
         &mut self,
         vote_extension: request::VerifyVoteExtension,
-    ) -> response::VerifyVoteExtension {
+    ) -> Result<response::VerifyVoteExtension> {
         self.app.verify_vote_extension(vote_extension).await
     }
 
