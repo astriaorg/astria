@@ -39,7 +39,9 @@ use telemetry::metrics;
 #[macro_use]
 mod macros;
 mod mock_grpc;
-use astria_eyre;
+use astria_eyre::{
+    self,
+};
 pub use mock_grpc::MockGrpc;
 use serde_json::json;
 use tracing::debug;
@@ -450,7 +452,7 @@ impl TestConductor {
     }
 }
 
-pub async fn mount_genesis(mock_http: &MockServer, chain_id: &str) {
+async fn mount_genesis(mock_http: &MockServer, chain_id: &str) {
     use tendermint::{
         consensus::{
             params::{

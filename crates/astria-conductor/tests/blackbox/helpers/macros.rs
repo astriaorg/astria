@@ -157,14 +157,25 @@ macro_rules! mount_celestia_blobs {
 macro_rules! mount_celestia_header_network_head {
     (
         $test_env:ident,
-        height: $height:expr $(,)?
+        height: $height:expr,
+        chain_id: $chain_id:expr $(,)?
     ) => {
         $test_env
             .mount_celestia_header_network_head(
-                $crate::celestia_network_head!(height: $height, chain_id: $crate::helpers::CELESTIA_CHAIN_ID),
+                $crate::celestia_network_head!(height: $height, chain_id: $chain_id),
             )
             .await;
-    }
+    };
+    (
+        $test_env:ident,
+        height: $height:expr $(,)?
+    ) => {
+        mount_celestia_header_network_head!(
+            $test_env,
+            height: $height,
+            chain_id: $crate::helpers::CELESTIA_CHAIN_ID,
+        )
+    };
 }
 
 #[macro_export]
@@ -367,8 +378,11 @@ macro_rules! mount_sequencer_validator_set {
 
 #[macro_export]
 macro_rules! mount_sequencer_genesis {
+    ($test_env:ident, chain_id: $chain_id:expr $(,)?) => {
+        $test_env.mount_genesis($chain_id).await;
+    };
     ($test_env:ident) => {
-        $test_env.mount_genesis(SEQUENCER_CHAIN_ID).await;
+        mount_sequencer_genesis!($test_env, chain_id: SEQUENCER_CHAIN_ID)
     };
 }
 
