@@ -37,7 +37,7 @@ use ethers::{
 };
 pub use generated::*;
 
-const FALLBACK_CONTRACT_DECIMALS: u32 = 18u32;
+const NON_ERC20_CONTRACT_DECIMALS: u32 = 18u32;
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -308,10 +308,10 @@ where
                     #[cfg(feature = "tracing")]
                     tracing::warn!(
                         error = &_err as &dyn std::error::Error,
-                        "failed reading decimals from contract; falling back to \
-                         `{FALLBACK_CONTRACT_DECIMALS}`"
+                        "failed reading decimals from contract; assuming it is not an ERC20 \
+                         contract and falling back to `{NON_ERC20_CONTRACT_DECIMALS}`"
                     );
-                    FALLBACK_CONTRACT_DECIMALS
+                    NON_ERC20_CONTRACT_DECIMALS
                 }
             }
         };
