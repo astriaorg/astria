@@ -39,6 +39,21 @@ pub use generated::*;
 
 const NON_ERC20_CONTRACT_DECIMALS: u32 = 18u32;
 
+macro_rules! warn {
+    ($($tt:tt)*) => {
+        #[cfg(feature = "tracing")]
+        {
+            #![cfg_attr(
+                feature = "tracing",
+                expect(
+                    clippy::used_underscore_binding,
+                    reason = "underscore is needed to quiet `unused-variables` warning if `tracing` feature is not set",
+            ))]
+            ::tracing::warn!($($tt)*);
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct BuildError(BuildErrorKind);
@@ -304,10 +319,9 @@ where
             );
             match erc_20_contract.decimals().call().await {
                 Ok(decimals) => decimals.into(),
-                Err(_err) => {
-                    #[cfg(feature = "tracing")]
-                    tracing::warn!(
-                        error = &_err as &dyn std::error::Error,
+                Err(_error) => {
+                    warn!(
+                        error = &_error as &dyn std::error::Error,
                         "failed reading decimals from contract; assuming it is not an ERC20 \
                          contract and falling back to `{NON_ERC20_CONTRACT_DECIMALS}`"
                     );
