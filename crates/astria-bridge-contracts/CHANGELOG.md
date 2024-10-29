@@ -11,7 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `contract_is_erc20` setting for watcher [#1762](https://github.com/astriaorg/astria/pull/1762)
 
-
 ### Added
 
 - Initial release.
