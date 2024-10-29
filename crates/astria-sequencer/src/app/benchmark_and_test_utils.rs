@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    generated::protocol::genesis::v1::SlinkyGenesis,
+    connect::market_map::v2::{
+        MarketMap,
+        Params,
+    },
+    generated::protocol::genesis::v1::ConnectGenesis,
     primitive::v1::asset::{
         Denom,
         IbcPrefixed,
@@ -29,10 +33,6 @@ use astria_core::{
             GenesisAppState,
         },
         transaction::v1::action::ValidatorUpdate,
-    },
-    slinky::market_map::v1::{
-        MarketMap,
-        Params,
     },
     Protobuf,
 };
@@ -158,9 +158,9 @@ pub(crate) fn proto_genesis_state() -> astria_core::generated::protocol::genesis
         }),
         allowed_fee_assets: vec![nria().to_string()],
         fees: Some(default_fees().to_raw()),
-        slinky: Some(SlinkyGenesis {
+        connect: Some(ConnectGenesis {
             market_map: Some(
-                astria_core::slinky::market_map::v1::GenesisState {
+                astria_core::connect::market_map::v2::GenesisState {
                     market_map: MarketMap {
                         markets: indexmap::IndexMap::new(),
                     },
@@ -173,7 +173,7 @@ pub(crate) fn proto_genesis_state() -> astria_core::generated::protocol::genesis
                 .into_raw(),
             ),
             oracle: Some(
-                astria_core::generated::astria_vendored::slinky::oracle::v1::GenesisState {
+                astria_core::generated::astria_vendored::connect::oracle::v2::GenesisState {
                     currency_pair_genesis: vec![],
                     next_id: 0,
                 },

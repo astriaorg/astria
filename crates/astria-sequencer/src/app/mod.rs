@@ -115,6 +115,10 @@ use crate::{
         StateWriteExt as _,
     },
     component::Component as _,
+    connect::{
+        marketmap::component::MarketMapComponent,
+        oracle::component::OracleComponent,
+    },
     fees::{
         component::FeesComponent,
         StateReadExt as _,
@@ -132,10 +136,6 @@ use crate::{
             generate_rollup_datas_commitment,
             GeneratedCommitments,
         },
-    },
-    slinky::{
-        marketmap::component::MarketMapComponent,
-        oracle::component::OracleComponent,
     },
     transaction::InvalidNonce,
 };

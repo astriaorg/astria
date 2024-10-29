@@ -120,7 +120,7 @@
       {{ include "sequencer.address" $value }}
       {{- end }}
     ],
-    "slinky": {
+    "connect": {
       "marketMap": {
         "marketMap": {
           "markets": {}

@@ -63,11 +63,11 @@ modules:
         PACKAGE_VERSION_SUFFIX:
           - proto/protocolapis/astria_vendored/tendermint
         FIELD_LOWER_SNAKE_CASE:
-          - proto/protocolapis/astria_vendored/slinky
+          - proto/protocolapis/astria_vendored/connect
         SERVICE_SUFFIX:
-          - proto/protocolapis/astria_vendored/slinky
+          - proto/protocolapis/astria_vendored/connect
         RPC_REQUEST_STANDARD_NAME:
-          - proto/protocolapis/astria_vendored/slinky
+          - proto/protocolapis/astria_vendored/connect
       disallow_comment_ignores: true
     breaking:
       use:

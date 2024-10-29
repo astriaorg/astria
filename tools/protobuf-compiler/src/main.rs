@@ -63,10 +63,10 @@ fn main() {
         .build_client(true)
         .build_server(true)
         .emit_rerun_if_changed(false)
-        .btree_map([".astria_vendored.slinky"])
+        .btree_map([".astria_vendored.connect"])
         .bytes([
             ".astria",
-            ".astria_vendored.slinky",
+            ".astria_vendored.connect",
             ".celestia",
             ".cosmos",
             ".tendermint",
@@ -95,7 +95,7 @@ fn main() {
     pbjson_build::Builder::new()
         .register_descriptors(&descriptor_set)
         .unwrap()
-        .btree_map([".astria_vendored.slinky"])
+        .btree_map([".astria_vendored.connect"])
         .out_dir(&out_dir)
         .build(&[
             ".astria",

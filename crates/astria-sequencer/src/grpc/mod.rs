@@ -1,5 +1,5 @@
+pub(crate) mod connect;
 pub(crate) mod sequencer;
-pub(crate) mod slinky;
 mod state_ext;
 pub(crate) mod storage;
 

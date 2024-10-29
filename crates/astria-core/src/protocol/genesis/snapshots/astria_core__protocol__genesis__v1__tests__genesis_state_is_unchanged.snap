@@ -133,7 +133,7 @@ expression: genesis_state()
       "multiplier": {}
     }
   },
-  "slinky": {
+  "connect": {
     "marketMap": {
       "marketMap": {
         "markets": {

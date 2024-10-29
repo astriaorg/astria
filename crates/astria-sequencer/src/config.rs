@@ -30,11 +30,11 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
-    /// If the oracle is disabled. If false, the `slinky_grpc_addr` must be set.
+    /// If the oracle is disabled. If false, the `connect_grpc_addr` must be set.
     /// Should be false for validator nodes and true for non-validator nodes.
     pub no_oracle: bool,
     /// The gRPC endpoint for the oracle sidecar.
-    pub slinky_grpc_addr: String,
+    pub connect_grpc_addr: String,
     /// The timeout for the responses from the oracle sidecar in milliseconds.
     pub oracle_client_timeout_milliseconds: u64,
     /// The maximum number of transactions that can be parked in the mempool.

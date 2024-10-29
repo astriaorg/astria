@@ -1,8 +1,8 @@
 use astria_core::generated::{
-    astria_vendored::slinky::{
-        marketmap::v1::query_server::QueryServer as MarketMapQueryServer,
-        oracle::v1::query_server::QueryServer as OracleQueryServer,
-        service::v1::{
+    astria_vendored::connect::{
+        marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
+        oracle::v2::query_server::QueryServer as OracleQueryServer,
+        service::v2::{
             oracle_client::OracleClient,
             QueryPricesRequest,
         },
@@ -121,13 +121,18 @@ impl Sequencer {
             None
         } else {
             let uri: Uri = config
-                .slinky_grpc_addr
+                .connect_grpc_addr
                 .parse()
                 .context("failed parsing oracle grpc address as Uri")?;
             let endpoint = Endpoint::from(uri.clone()).timeout(std::time::Duration::from_millis(
                 config.oracle_client_timeout_milliseconds,
             ));
-            let mut oracle_client = OracleClient::new(endpoint.connect_lazy());
+            let mut oracle_client = OracleClient::new(
+                endpoint
+                    .connect()
+                    .await
+                    .wrap_err("failed to connect to oracle sidecar")?,
+            );
 
             // ensure the oracle sidecar is reachable
             // TODO: allow this to retry in case the oracle sidecar is not ready yet
@@ -236,8 +241,8 @@ fn start_grpc_server(
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
     let sequencer_api = SequencerServer::new(storage.clone(), mempool);
-    let market_map_api = crate::grpc::slinky::SequencerServer::new(storage.clone());
-    let oracle_api = crate::grpc::slinky::SequencerServer::new(storage.clone());
+    let market_map_api = crate::grpc::connect::SequencerServer::new(storage.clone());
+    let oracle_api = crate::grpc::connect::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?

@@ -39,63 +39,63 @@ pub mod astria_vendored {
     }
 
     #[path = ""]
-    pub mod slinky {
+    pub mod connect {
         pub mod abci {
-            pub mod v1 {
-                include!("astria_vendored.slinky.abci.v1.rs");
+            pub mod v2 {
+                include!("astria_vendored.connect.abci.v2.rs");
 
                 #[cfg(feature = "serde")]
                 mod _serde_impl {
                     use super::*;
-                    include!("astria_vendored.slinky.abci.v1.serde.rs");
+                    include!("astria_vendored.connect.abci.v2.serde.rs");
                 }
             }
         }
 
         pub mod marketmap {
-            pub mod v1 {
-                include!("astria_vendored.slinky.marketmap.v1.rs");
+            pub mod v2 {
+                include!("astria_vendored.connect.marketmap.v2.rs");
 
                 #[cfg(feature = "serde")]
                 mod _serde_impl {
                     use super::*;
-                    include!("astria_vendored.slinky.marketmap.v1.serde.rs");
+                    include!("astria_vendored.connect.marketmap.v2.serde.rs");
                 }
             }
         }
 
         pub mod oracle {
-            pub mod v1 {
-                include!("astria_vendored.slinky.oracle.v1.rs");
+            pub mod v2 {
+                include!("astria_vendored.connect.oracle.v2.rs");
 
                 #[cfg(feature = "serde")]
                 mod _serde_impl {
                     use super::*;
-                    include!("astria_vendored.slinky.oracle.v1.serde.rs");
+                    include!("astria_vendored.connect.oracle.v2.serde.rs");
                 }
             }
         }
 
         pub mod service {
-            pub mod v1 {
-                include!("astria_vendored.slinky.service.v1.rs");
+            pub mod v2 {
+                include!("astria_vendored.connect.service.v2.rs");
 
                 #[cfg(feature = "serde")]
                 mod _serde_impl {
                     use super::*;
-                    include!("astria_vendored.slinky.service.v1.serde.rs");
+                    include!("astria_vendored.connect.service.v2.serde.rs");
                 }
             }
         }
 
         pub mod types {
-            pub mod v1 {
-                include!("astria_vendored.slinky.types.v1.rs");
+            pub mod v2 {
+                include!("astria_vendored.connect.types.v2.rs");
 
                 #[cfg(feature = "serde")]
                 mod _serde_impl {
                     use super::*;
-                    include!("astria_vendored.slinky.types.v1.serde.rs");
+                    include!("astria_vendored.connect.types.v2.serde.rs");
                 }
             }
         }

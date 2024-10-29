@@ -1,21 +1,21 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    crypto::Signature,
-    generated::astria_vendored::slinky::{
-        abci::v1::OracleVoteExtension as RawOracleVoteExtension,
-        service::v1::{
-            oracle_client::OracleClient,
-            QueryPricesRequest,
-        },
-    },
-    slinky::{
-        abci::v1::OracleVoteExtension,
-        oracle::v1::QuotePrice,
-        service::v1::QueryPricesResponse,
-        types::v1::{
+    connect::{
+        abci::v2::OracleVoteExtension,
+        oracle::v2::QuotePrice,
+        service::v2::QueryPricesResponse,
+        types::v2::{
             CurrencyPair,
             Price,
+        },
+    },
+    crypto::Signature,
+    generated::astria_vendored::connect::{
+        abci::v2::OracleVoteExtension as RawOracleVoteExtension,
+        service::v2::{
+            oracle_client::OracleClient,
+            QueryPricesRequest,
         },
     },
 };
@@ -49,17 +49,17 @@ use crate::{
     address::StateReadExt as _,
     app::state_ext::StateReadExt,
     authority::StateReadExt as _,
-    slinky::oracle::{
+    connect::oracle::{
         currency_pair_strategy::DefaultCurrencyPairStrategy,
         state_ext::StateWriteExt,
     },
 };
 
-// https://github.com/skip-mev/slinky/blob/793b2e874d6e720bd288e82e782502e41cf06f8c/abci/types/constants.go#L6
+// https://github.com/skip-mev/connect/blob/793b2e874d6e720bd288e82e782502e41cf06f8c/abci/types/constants.go#L6
 const MAXIMUM_PRICE_BYTE_LEN: usize = 33;
 
 pub(crate) struct Handler {
-    // gRPC client for the slinky oracle sidecar.
+    // gRPC client for the connect oracle sidecar.
     oracle_client: Option<OracleClient<Channel>>,
 }
 
@@ -92,7 +92,7 @@ impl Handler {
         };
 
         let query_prices_response =
-            astria_core::slinky::service::v1::QueryPricesResponse::try_from_raw(rsp)
+            astria_core::connect::service::v2::QueryPricesResponse::try_from_raw(rsp)
                 .wrap_err("failed to validate prices server response")?;
         let oracle_vote_extension = transform_oracle_service_prices(state, query_prices_response)
             .await
@@ -128,7 +128,7 @@ impl Handler {
     }
 }
 
-// see https://github.com/skip-mev/slinky/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L24
+// see https://github.com/skip-mev/connect/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L24
 fn verify_vote_extension(
     oracle_vote_extension_bytes: bytes::Bytes,
     max_num_currency_pairs: u64,
@@ -151,13 +151,13 @@ fn verify_vote_extension(
     Ok(())
 }
 
-// see https://github.com/skip-mev/slinky/blob/158cde8a4b774ac4eec5c6d1a2c16de6a8c6abb5/abci/ve/vote_extension.go#L290
+// see https://github.com/skip-mev/connect/blob/158cde8a4b774ac4eec5c6d1a2c16de6a8c6abb5/abci/ve/vote_extension.go#L290
 #[instrument(skip_all)]
 async fn transform_oracle_service_prices<S: StateReadExt>(
     state: &S,
     rsp: QueryPricesResponse,
 ) -> Result<OracleVoteExtension> {
-    use astria_core::slinky::types::v1::CurrencyPairId;
+    use astria_core::connect::types::v2::CurrencyPairId;
     use futures::StreamExt as _;
 
     let futures = futures::stream::FuturesUnordered::new();
@@ -293,7 +293,7 @@ impl ProposalHandler {
     }
 }
 
-// see https://github.com/skip-mev/slinky/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L111
+// see https://github.com/skip-mev/connect/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L111
 async fn validate_vote_extensions<S: StateReadExt>(
     state: &S,
     height: u64,
@@ -510,7 +510,7 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
     // validators are not weighted right now, so we just take the median price for each currency
     // pair
     //
-    // skip uses a stake-weighted median: https://github.com/skip-mev/slinky/blob/19a916122110cfd0e98d93978107d7ada1586918/pkg/math/voteweighted/voteweighted.go#L59
+    // skip uses a stake-weighted median: https://github.com/skip-mev/connect/blob/19a916122110cfd0e98d93978107d7ada1586918/pkg/math/voteweighted/voteweighted.go#L59
     // we can implement this later, when we have stake weighting.
     let mut currency_pair_to_price_list = HashMap::new();
     for vote in votes {

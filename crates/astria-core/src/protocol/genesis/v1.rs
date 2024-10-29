@@ -3,6 +3,10 @@ use std::convert::Infallible;
 pub use penumbra_ibc::params::IBCParameters;
 
 use crate::{
+    connect::{
+        market_map,
+        oracle,
+    },
     generated::protocol::genesis::v1 as raw,
     primitive::v1::{
         asset::{
@@ -33,10 +37,6 @@ use crate::{
         TransferFeeComponents,
         ValidatorUpdateFeeComponents,
     },
-    slinky::{
-        market_map,
-        oracle,
-    },
     Protobuf,
 };
 
@@ -44,28 +44,28 @@ use crate::{
 #[cfg_attr(
     feature = "serde",
     derive(serde::Deserialize, serde::Serialize),
-    serde(try_from = "raw::SlinkyGenesis", into = "raw::SlinkyGenesis")
+    serde(try_from = "raw::ConnectGenesis", into = "raw::ConnectGenesis")
 )]
-pub struct SlinkyGenesis {
-    market_map: market_map::v1::GenesisState,
-    oracle: oracle::v1::GenesisState,
+pub struct ConnectGenesis {
+    market_map: market_map::v2::GenesisState,
+    oracle: oracle::v2::GenesisState,
 }
 
-impl SlinkyGenesis {
+impl ConnectGenesis {
     #[must_use]
-    pub fn market_map(&self) -> &market_map::v1::GenesisState {
+    pub fn market_map(&self) -> &market_map::v2::GenesisState {
         &self.market_map
     }
 
     #[must_use]
-    pub fn oracle(&self) -> &oracle::v1::GenesisState {
+    pub fn oracle(&self) -> &oracle::v2::GenesisState {
         &self.oracle
     }
 }
 
-impl Protobuf for SlinkyGenesis {
-    type Error = SlinkyGenesisError;
-    type Raw = raw::SlinkyGenesis;
+impl Protobuf for ConnectGenesis {
+    type Error = ConnectGenesisError;
+    type Raw = raw::ConnectGenesis;
 
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
@@ -76,14 +76,14 @@ impl Protobuf for SlinkyGenesis {
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("market_map"))
             .and_then(|market_map| {
-                market_map::v1::GenesisState::try_from_raw_ref(market_map)
+                market_map::v2::GenesisState::try_from_raw_ref(market_map)
                     .map_err(Self::Error::market_map)
             })?;
         let oracle = oracle
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("oracle"))
             .and_then(|oracle| {
-                oracle::v1::GenesisState::try_from_raw_ref(oracle).map_err(Self::Error::oracle)
+                oracle::v2::GenesisState::try_from_raw_ref(oracle).map_err(Self::Error::oracle)
             })?;
         Ok(Self {
             market_map,
@@ -103,56 +103,56 @@ impl Protobuf for SlinkyGenesis {
     }
 }
 
-impl TryFrom<raw::SlinkyGenesis> for SlinkyGenesis {
+impl TryFrom<raw::ConnectGenesis> for ConnectGenesis {
     type Error = <Self as Protobuf>::Error;
 
-    fn try_from(value: raw::SlinkyGenesis) -> Result<Self, Self::Error> {
+    fn try_from(value: raw::ConnectGenesis) -> Result<Self, Self::Error> {
         Self::try_from_raw(value)
     }
 }
 
-impl From<SlinkyGenesis> for raw::SlinkyGenesis {
-    fn from(value: SlinkyGenesis) -> Self {
+impl From<ConnectGenesis> for raw::ConnectGenesis {
+    fn from(value: ConnectGenesis) -> Self {
         value.into_raw()
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct SlinkyGenesisError(SlinkyGenesisErrorKind);
+pub struct ConnectGenesisError(ConnectGenesisErrorKind);
 
-impl SlinkyGenesisError {
+impl ConnectGenesisError {
     fn field_not_set(name: &'static str) -> Self {
-        Self(SlinkyGenesisErrorKind::FieldNotSet {
+        Self(ConnectGenesisErrorKind::FieldNotSet {
             name,
         })
     }
 
-    fn market_map(source: market_map::v1::GenesisStateError) -> Self {
-        Self(SlinkyGenesisErrorKind::MarketMap {
+    fn market_map(source: market_map::v2::GenesisStateError) -> Self {
+        Self(ConnectGenesisErrorKind::MarketMap {
             source,
         })
     }
 
-    fn oracle(source: oracle::v1::GenesisStateError) -> Self {
-        Self(SlinkyGenesisErrorKind::Oracle {
+    fn oracle(source: oracle::v2::GenesisStateError) -> Self {
+        Self(ConnectGenesisErrorKind::Oracle {
             source,
         })
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("failed ensuring invariants of {}", SlinkyGenesis::full_name())]
-enum SlinkyGenesisErrorKind {
+#[error("failed ensuring invariants of {}", ConnectGenesis::full_name())]
+enum ConnectGenesisErrorKind {
     #[error("field was not set: `{name}`")]
     FieldNotSet { name: &'static str },
     #[error("`market_map` field was invalid")]
     MarketMap {
-        source: market_map::v1::GenesisStateError,
+        source: market_map::v2::GenesisStateError,
     },
     #[error("`oracle` field was invalid")]
     Oracle {
-        source: oracle::v1::GenesisStateError,
+        source: oracle::v2::GenesisStateError,
     },
 }
 
@@ -177,7 +177,7 @@ pub struct GenesisAppState {
     ibc_parameters: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
     fees: GenesisFees,
-    slinky: SlinkyGenesis,
+    connect: ConnectGenesis,
 }
 
 impl GenesisAppState {
@@ -232,8 +232,8 @@ impl GenesisAppState {
     }
 
     #[must_use]
-    pub fn slinky(&self) -> &SlinkyGenesis {
-        &self.slinky
+    pub fn connect(&self) -> &ConnectGenesis {
+        &self.connect
     }
 
     fn ensure_address_has_base_prefix(
@@ -268,7 +268,7 @@ impl GenesisAppState {
         }
 
         for (i, address) in self
-            .slinky
+            .connect
             .market_map
             .params
             .market_authorities
@@ -281,7 +281,7 @@ impl GenesisAppState {
             )?;
         }
         self.ensure_address_has_base_prefix(
-            &self.slinky.market_map.params.admin,
+            &self.connect.market_map.params.admin,
             ".market_map.params.admin",
         )?;
 
@@ -312,7 +312,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
-            slinky,
+            connect,
         } = raw;
         let address_prefixes = address_prefixes
             .as_ref()
@@ -372,25 +372,25 @@ impl Protobuf for GenesisAppState {
             .ok_or_else(|| Self::Error::field_not_set("fees"))
             .and_then(|fees| GenesisFees::try_from_raw_ref(fees).map_err(Self::Error::fees))?;
 
-        let slinky = slinky
+        let connect = connect
             .as_ref()
-            .ok_or_else(|| Self::Error::field_not_set("slinky"))?;
+            .ok_or_else(|| Self::Error::field_not_set("connect"))?;
 
-        let market_map = slinky
+        let market_map = connect
             .market_map
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("market_map"))
             .and_then(|market_map| {
-                market_map::v1::GenesisState::try_from_raw(market_map.clone())
+                market_map::v2::GenesisState::try_from_raw(market_map.clone())
                     .map_err(Self::Error::market_map)
             })?;
 
-        let oracle = slinky
+        let oracle = connect
             .oracle
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("oracle"))
             .and_then(|oracle| {
-                oracle::v1::GenesisState::try_from_raw(oracle.clone()).map_err(Self::Error::oracle)
+                oracle::v2::GenesisState::try_from_raw(oracle.clone()).map_err(Self::Error::oracle)
             })?;
 
         let this = Self {
@@ -404,7 +404,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
-            slinky: SlinkyGenesis {
+            connect: ConnectGenesis {
                 market_map,
                 oracle,
             },
@@ -426,7 +426,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
-            slinky,
+            connect,
         } = self;
         Self::Raw {
             address_prefixes: Some(address_prefixes.to_raw()),
@@ -441,7 +441,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters: Some(ibc_parameters.to_raw()),
             allowed_fee_assets: allowed_fee_assets.iter().map(ToString::to_string).collect(),
             fees: Some(fees.to_raw()),
-            slinky: Some(slinky.to_raw()),
+            connect: Some(connect.to_raw()),
         }
     }
 }
@@ -525,13 +525,13 @@ impl GenesisAppStateError {
         })
     }
 
-    fn market_map(source: market_map::v1::GenesisStateError) -> Self {
+    fn market_map(source: market_map::v2::GenesisStateError) -> Self {
         Self(GenesisAppStateErrorKind::MarketMap {
             source,
         })
     }
 
-    fn oracle(source: oracle::v1::GenesisStateError) -> Self {
+    fn oracle(source: oracle::v2::GenesisStateError) -> Self {
         Self(GenesisAppStateErrorKind::Oracle {
             source,
         })
@@ -565,11 +565,11 @@ enum GenesisAppStateErrorKind {
     NativeAssetBaseDenomination { source: ParseTracePrefixedError },
     #[error("`market_map` field was invalid")]
     MarketMap {
-        source: market_map::v1::GenesisStateError,
+        source: market_map::v2::GenesisStateError,
     },
     #[error("`oracle` field was invalid")]
     Oracle {
-        source: oracle::v1::GenesisStateError,
+        source: oracle::v2::GenesisStateError,
     },
 }
 
@@ -987,14 +987,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        primitive::v1::Address,
-        slinky::{
-            market_map::v1::{
+        connect::{
+            market_map::v2::{
                 MarketMap,
                 Params,
             },
-            types::v1::CurrencyPairId,
+            types::v2::CurrencyPairId,
         },
+        primitive::v1::Address,
     };
 
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
@@ -1032,14 +1032,14 @@ mod tests {
     }
 
     fn genesis_state_markets() -> MarketMap {
-        use crate::slinky::{
-            market_map::v1::{
+        use crate::connect::{
+            market_map::v2::{
                 Market,
                 MarketMap,
                 ProviderConfig,
                 Ticker,
             },
-            types::v1::CurrencyPair,
+            types::v2::CurrencyPair,
         };
 
         let markets = indexmap! {
@@ -1074,12 +1074,12 @@ mod tests {
 
     #[expect(clippy::too_many_lines, reason = "for testing purposes")]
     fn proto_genesis_state() -> raw::GenesisAppState {
-        use crate::slinky::{
-            oracle::v1::{
+        use crate::connect::{
+            oracle::v2::{
                 CurrencyPairGenesis,
                 QuotePrice,
             },
-            types::v1::{
+            types::v2::{
                 CurrencyPair,
                 CurrencyPairNonce,
                 Price,
@@ -1216,9 +1216,9 @@ mod tests {
                     .to_raw(),
                 ),
             }),
-            slinky: Some(
-                SlinkyGenesis {
-                    market_map: market_map::v1::GenesisState {
+            connect: Some(
+                ConnectGenesis {
+                    market_map: market_map::v2::GenesisState {
                         market_map: genesis_state_markets(),
                         last_updated: 0,
                         params: Params {
@@ -1226,7 +1226,7 @@ mod tests {
                             admin: alice(),
                         },
                     },
-                    oracle: oracle::v1::GenesisState {
+                    oracle: oracle::v2::GenesisState {
                         currency_pair_genesis: vec![CurrencyPairGenesis {
                             id: CurrencyPairId::new(1),
                             nonce: CurrencyPairNonce::new(0),
@@ -1306,9 +1306,9 @@ mod tests {
         );
         assert_bad_prefix(
             raw::GenesisAppState {
-                slinky: {
-                    let mut slinky = proto_genesis_state().slinky;
-                    slinky
+                connect: {
+                    let mut connect = proto_genesis_state().connect;
+                    connect
                         .as_mut()
                         .unwrap()
                         .market_map
@@ -1318,7 +1318,7 @@ mod tests {
                         .as_mut()
                         .unwrap()
                         .market_authorities[0] = mallory().to_string();
-                    slinky
+                    connect
                 },
                 ..proto_genesis_state()
             },
