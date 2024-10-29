@@ -282,6 +282,18 @@ impl ProposalHandler {
         validate_vote_extensions(state, height, extended_commit_info)
             .await
             .wrap_err("failed to validate vote extensions in validate_extended_commit_info")?;
+
+        let mut futures = futures::stream::FuturesUnordered::new();
+        for vote in &extended_commit_info.votes {
+            futures.push(async move {
+                verify_vote_extension(state, vote.vote_extension.clone(), true).await
+            });
+        }
+
+        while let Some(result) = futures.next().await {
+            result.wrap_err("failed to verify vote extension in validate_proposal")?;
+        }
+
         Ok(())
     }
 }
