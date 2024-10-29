@@ -35,8 +35,10 @@ use astria_core::{
             Transaction,
         },
     },
-    sequencerblock::v1::block::SequencerBlock,
-    Protobuf as _,
+    sequencerblock::{
+        v1::block::SequencerBlock,
+        v1alpha1::optimistic_block::SequencerBlockCommit,
+    },
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -76,8 +78,10 @@ use tendermint::{
     AppHash,
     Hash,
 };
+use tokio::sync::watch::Sender;
 use tracing::{
     debug,
+    error,
     info,
     instrument,
 };
@@ -113,7 +117,10 @@ use crate::{
         component::FeesComponent,
         StateReadExt as _,
     },
-    grpc::StateWriteExt as _,
+    grpc::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     ibc::component::IbcComponent,
     mempool::{
         Mempool,
@@ -175,6 +182,32 @@ impl From<abci::request::ProcessProposal> for ProposalFingerprint {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct OptimisticBlockChannels {
+    optimistic_block_sender: tokio::sync::watch::Sender<Option<SequencerBlock>>,
+    committed_block_sender: tokio::sync::watch::Sender<Option<SequencerBlockCommit>>,
+}
+
+impl OptimisticBlockChannels {
+    pub(crate) fn new(
+        optimistic_block_sender: tokio::sync::watch::Sender<Option<SequencerBlock>>,
+        committed_block_sender: tokio::sync::watch::Sender<Option<SequencerBlockCommit>>,
+    ) -> Self {
+        Self {
+            optimistic_block_sender,
+            committed_block_sender,
+        }
+    }
+
+    pub(crate) fn optimistic_block_sender(&self) -> Sender<Option<SequencerBlock>> {
+        self.optimistic_block_sender.clone()
+    }
+
+    pub(crate) fn committed_block_sender(&self) -> Sender<Option<SequencerBlockCommit>> {
+        self.committed_block_sender.clone()
+    }
+}
+
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
 /// Note: this is called `App` because this is a Tendermint ABCI application,
@@ -232,6 +265,8 @@ pub(crate) struct App {
     )]
     app_hash: AppHash,
 
+    optimistic_block_channels: Option<OptimisticBlockChannels>,
+
     metrics: &'static Metrics,
 }
 
@@ -239,6 +274,7 @@ impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
+        optimistic_block_channels: Option<OptimisticBlockChannels>,
         metrics: &'static Metrics,
     ) -> Result<Self> {
         debug!("initializing App instance");
@@ -265,6 +301,7 @@ impl App {
             recost_mempool: false,
             write_batch: None,
             app_hash,
+            optimistic_block_channels,
             metrics,
         })
     }
@@ -433,16 +470,26 @@ impl App {
                     bail!("execution results must be present after executing transactions")
                 };
 
-                self.post_execute_transactions(
-                    process_proposal.hash,
-                    process_proposal.height,
-                    process_proposal.time,
-                    process_proposal.proposer_address,
-                    process_proposal.txs,
-                    tx_results,
-                )
-                .await
-                .wrap_err("failed to run post execute transactions handler")?;
+                let sequencer_block = self
+                    .post_execute_transactions(
+                        process_proposal.hash,
+                        process_proposal.height,
+                        process_proposal.time,
+                        process_proposal.proposer_address,
+                        process_proposal.txs,
+                        tx_results,
+                    )
+                    .await
+                    .wrap_err("failed to run post execute transactions handler")?;
+
+                if let Some(optimistic_block_channels) = &self.optimistic_block_channels {
+                    if let Err(e) = optimistic_block_channels
+                        .optimistic_block_sender()
+                        .send(Some(sequencer_block))
+                    {
+                        error!(error = %e, "failed to send sequencer block to optimistic block sender");
+                    }
+                }
 
                 return Ok(());
             }
@@ -533,16 +580,26 @@ impl App {
         );
 
         self.executed_proposal_hash = process_proposal.hash;
-        self.post_execute_transactions(
-            process_proposal.hash,
-            process_proposal.height,
-            process_proposal.time,
-            process_proposal.proposer_address,
-            process_proposal.txs,
-            tx_results,
-        )
-        .await
-        .wrap_err("failed to run post execute transactions handler")?;
+        let sequencer_block = self
+            .post_execute_transactions(
+                process_proposal.hash,
+                process_proposal.height,
+                process_proposal.time,
+                process_proposal.proposer_address,
+                process_proposal.txs,
+                tx_results,
+            )
+            .await
+            .wrap_err("failed to run post execute transactions handler")?;
+
+        if let Some(optimistic_block_channels) = &self.optimistic_block_channels {
+            if let Err(e) = optimistic_block_channels
+                .optimistic_block_sender()
+                .send(Some(sequencer_block))
+            {
+                error!(error = %e, "failed to send sequencer block to optimistic block sender");
+            }
+        }
 
         Ok(())
     }
@@ -888,7 +945,7 @@ impl App {
         proposer_address: account::Id,
         txs: Vec<bytes::Bytes>,
         tx_results: Vec<ExecTxResult>,
-    ) -> Result<()> {
+    ) -> Result<SequencerBlock> {
         let Hash::Sha256(block_hash) = block_hash else {
             bail!("block hash is empty; this should not occur")
         };
@@ -938,7 +995,7 @@ impl App {
         )
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
-            .put_sequencer_block(sequencer_block)
+            .put_sequencer_block(sequencer_block.clone())
             .wrap_err("failed to write sequencer block to state")?;
 
         let result = PostTransactionExecutionResult {
@@ -954,7 +1011,7 @@ impl App {
         // there should be none anyways.
         let _ = self.apply(state_tx);
 
-        Ok(())
+        Ok(sequencer_block)
     }
 
     /// Executes the given block, but does not write it to disk.
@@ -1260,6 +1317,28 @@ impl App {
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+
+        if let Some(obc) = &self.optimistic_block_channels {
+            let block_height = self
+                .state
+                .get_block_height()
+                .await
+                .expect("failed to get block height");
+            let block_hash = self
+                .state
+                .get_block_hash_by_height(block_height)
+                .await
+                .expect("failed to get block hash");
+
+            let sequencer_block_commit = SequencerBlockCommit::new(block_height, block_hash);
+
+            if let Err(e) = obc
+                .committed_block_sender
+                .send(Some(sequencer_block_commit))
+            {
+                error!(error = %e, "failed to send committed block to optimistic block sender");
+            };
+        }
     }
 
     // StateDelta::apply only works when the StateDelta wraps an underlying
