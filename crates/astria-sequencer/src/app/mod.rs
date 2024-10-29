@@ -1,9 +1,11 @@
 mod action_handler;
+#[cfg(any(test, feature = "benchmark"))]
+pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 mod state_ext;
 pub(crate) mod storage;
-#[cfg(any(test, feature = "benchmark"))]
+#[cfg(test)]
 pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
@@ -34,6 +36,7 @@ use astria_core::{
         },
     },
     sequencerblock::v1::block::SequencerBlock,
+    Protobuf as _,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -108,9 +111,7 @@ use crate::{
     component::Component as _,
     fees::{
         component::FeesComponent,
-        construct_tx_fee_event,
         StateReadExt as _,
-        StateWriteExt as _,
     },
     grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
@@ -288,13 +289,14 @@ impl App {
             .put_ibc_compat_prefix(genesis_state.address_prefixes().ibc_compat().to_string())
             .wrap_err("failed to write ibc-compat prefix to state")?;
 
-        let native_asset = genesis_state.native_asset_base_denomination();
-        state_tx
-            .put_native_asset(native_asset.clone())
-            .wrap_err("failed to write native asset to state")?;
-        state_tx
-            .put_ibc_asset(native_asset.clone())
-            .wrap_err("failed to commit native asset as ibc asset to state")?;
+        if let Some(native_asset) = genesis_state.native_asset_base_denomination() {
+            state_tx
+                .put_native_asset(native_asset.clone())
+                .wrap_err("failed to write native asset to state")?;
+            state_tx
+                .put_ibc_asset(native_asset.clone())
+                .wrap_err("failed to commit native asset as ibc asset to state")?;
+        }
 
         state_tx
             .put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?)
@@ -302,12 +304,6 @@ impl App {
         state_tx
             .put_block_height(0)
             .wrap_err("failed to write block height to state")?;
-
-        for fee_asset in genesis_state.allowed_fee_assets() {
-            state_tx
-                .put_allowed_fee_asset(fee_asset)
-                .wrap_err("failed to write allowed fee asset to state")?;
-        }
 
         // call init_chain on all components
         FeesComponent::init_chain(&mut state_tx, &genesis_state)
@@ -812,7 +808,7 @@ impl App {
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "transaction error: failed to execute transaction"
                     );
-                    bail!("transaction failed to execute");
+                    return Err(e.wrap_err("transaction failed to execute"));
                 }
             }
 
@@ -1232,8 +1228,6 @@ impl App {
                 .increase_balance(fee_recipient, fee.asset(), fee.amount())
                 .await
                 .wrap_err("failed to increase fee recipient balance")?;
-            let fee_event = construct_tx_fee_event(&fee);
-            state_tx.record(fee_event);
         }
 
         let events = self.apply(state_tx);

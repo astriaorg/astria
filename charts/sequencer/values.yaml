@@ -23,7 +23,7 @@ images:
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
-    tag: 1.0.0-rc.1
+    tag: 1.0.0
     devTag: latest
 
 moniker: ""
@@ -34,7 +34,6 @@ genesis:
     base: "astria"
     ibcCompat: "astriacompat"
   authoritySudoAddress: ""
-  nativeAssetBaseDenomination: nria
   allowedFeeAssets: []
     # - nria
   ibc:
@@ -56,6 +55,9 @@ genesis:
     maxBytes: "1048576"
 
   fees:
+    feeChange:
+      base: "0"
+      multiplier: "0"
     bridgeLock:
       base: "0"
       multiplier: "1"
@@ -66,9 +68,6 @@ genesis:
       base: "0"
       multiplier: "0"
     feeAssetChange:
-      base: "0"
-      multiplier: "0"
-    feeChange:
       base: "0"
       multiplier: "0"
     ibcRelay:

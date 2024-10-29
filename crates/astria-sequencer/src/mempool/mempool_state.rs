@@ -41,7 +41,7 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
-        test_utils::{
+        benchmark_and_test_utils::{
             astria_address,
             nria,
         },
@@ -56,7 +56,7 @@ mod tests {
         // native account should work with ibc too
         state.put_native_asset(nria()).unwrap();
 
-        let asset_0 = state.get_native_asset().await.unwrap();
+        let asset_0 = state.get_native_asset().await.unwrap().unwrap();
         let asset_1: Denom = "asset_0".parse().unwrap();
         let asset_2: Denom = "asset_1".parse().unwrap();
 

@@ -26,6 +26,7 @@ use astria_core::{
         abci::AbciErrorCode,
         transaction::v1::Transaction,
     },
+    Protobuf as _,
 };
 use astria_eyre::eyre;
 use ethers::prelude::Transaction as EthersTransaction;

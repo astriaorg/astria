@@ -16,20 +16,19 @@ use cnidarium::Storage;
 
 use crate::{
     app::{
-        test_utils,
-        test_utils::{
+        benchmark_and_test_utils::{
             mock_balances,
             mock_tx_cost,
         },
         App,
     },
+    benchmark_and_test_utils::astria_address,
     benchmark_utils::{
         self,
         TxTypes,
         SIGNER_COUNT,
     },
     proposal::block_size_constraints::BlockSizeConstraints,
-    test_utils::astria_address,
 };
 
 /// The max time for any benchmark.
@@ -66,13 +65,16 @@ impl Fixture {
                 accounts,
                 authority_sudo_address: first_address.clone(),
                 ibc_sudo_address: first_address.clone(),
-                ..crate::app::test_utils::proto_genesis_state()
+                ..crate::app::benchmark_and_test_utils::proto_genesis_state()
             },
         )
         .unwrap();
 
-        let (app, storage) =
-            test_utils::initialize_app_with_storage(Some(genesis_state), vec![]).await;
+        let (app, storage) = crate::app::benchmark_and_test_utils::initialize_app_with_storage(
+            Some(genesis_state),
+            vec![],
+        )
+        .await;
 
         let mock_balances = mock_balances(0, 0);
         let mock_tx_cost = mock_tx_cost(0, 0, 0);
