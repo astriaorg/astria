@@ -22,6 +22,14 @@ use astria_core::{
     },
     sequencerblock::v1::block::Deposit,
 };
+use benchmark_and_test_utils::{
+    default_genesis_accounts,
+    initialize_app_with_storage,
+    mock_balances,
+    mock_tx_cost,
+    BOB_ADDRESS,
+    JUDY_ADDRESS,
+};
 use cnidarium::StateDelta;
 use prost::{
     bytes::Bytes,
@@ -61,14 +69,14 @@ use crate::{
         StateWriteExt as _,
         ValidatorSet,
     },
-    bridge::StateWriteExt as _,
-    fees::StateReadExt as _,
-    test_utils::{
+    benchmark_and_test_utils::{
         astria_address,
         astria_address_from_hex_string,
         nria,
         verification_key,
     },
+    bridge::StateWriteExt as _,
+    fees::StateReadExt as _,
 };
 
 fn default_tendermint_header() -> Header {
@@ -160,7 +168,7 @@ async fn app_begin_block_remove_byzantine_validators() {
     let misbehavior = types::Misbehavior {
         kind: types::MisbehaviorKind::Unknown,
         validator: types::Validator {
-            address: *crate::test_utils::verification_key(1).address_bytes(),
+            address: *verification_key(1).address_bytes(),
             power: 0u32.into(),
         },
         height: Height::default(),
@@ -878,11 +886,11 @@ async fn app_end_block_validator_updates() {
     let initial_validator_set = vec![
         ValidatorUpdate {
             power: 100,
-            verification_key: crate::test_utils::verification_key(1),
+            verification_key: verification_key(1),
         },
         ValidatorUpdate {
             power: 1,
-            verification_key: crate::test_utils::verification_key(2),
+            verification_key: verification_key(2),
         },
     ];
 

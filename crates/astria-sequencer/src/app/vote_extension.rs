@@ -26,7 +26,6 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use futures::StreamExt;
 use indexmap::IndexMap;
 use prost::Message as _;
 use tendermint::{
@@ -118,20 +117,19 @@ impl Handler {
                 .await
                 .wrap_err("failed to get max number of currency pairs")?;
 
-        let response =
-            match verify_vote_extension(vote.vote_extension, max_num_currency_pairs).await {
-                Ok(()) => abci::response::VerifyVoteExtension::Accept,
-                Err(e) => {
-                    tracing::warn!(error = %e, "failed to verify vote extension");
-                    abci::response::VerifyVoteExtension::Reject
-                }
-            };
+        let response = match verify_vote_extension(vote.vote_extension, max_num_currency_pairs) {
+            Ok(()) => abci::response::VerifyVoteExtension::Accept,
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to verify vote extension");
+                abci::response::VerifyVoteExtension::Reject
+            }
+        };
         Ok(response)
     }
 }
 
 // see https://github.com/skip-mev/slinky/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L24
-async fn verify_vote_extension(
+fn verify_vote_extension(
     oracle_vote_extension_bytes: bytes::Bytes,
     max_num_currency_pairs: u64,
 ) -> Result<()> {
@@ -231,33 +229,24 @@ impl ProposalHandler {
                 .await
                 .wrap_err("failed to get max number of currency pairs")?;
 
-        let mut futures = futures::stream::FuturesUnordered::new();
         for vote in &mut extended_commit_info.votes {
-            futures.push(async move {
-                if let Err(e) =
-                    verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs).await
-                {
-                    let address = state
-                        .try_base_prefixed(vote.validator.address.as_slice())
-                        .await
-                        .wrap_err("failed to construct validator address with base prefix")?;
-                    debug!(
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        validator = address.to_string(),
-                        "failed to verify vote extension; pruning from proposal"
-                    );
-                    vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
-                    vote.extension_signature = None;
-                    vote.vote_extension.clear();
-                }
-                Ok::<(), astria_eyre::eyre::Report>(())
-            });
+            if let Err(e) =
+                verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs)
+            {
+                let address = state
+                    .try_base_prefixed(vote.validator.address.as_slice())
+                    .await
+                    .wrap_err("failed to construct validator address with base prefix")?;
+                debug!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    validator = address.to_string(),
+                    "failed to verify vote extension; pruning from proposal"
+                );
+                vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
+                vote.extension_signature = None;
+                vote.vote_extension.clear();
+            }
         }
-
-        while let Some(result) = futures.next().await {
-            result?;
-        }
-        drop(futures);
 
         validate_vote_extensions(state, height, &extended_commit_info)
             .await
@@ -295,15 +284,9 @@ impl ProposalHandler {
                 .await
                 .wrap_err("failed to get max number of currency pairs")?;
 
-        let mut futures = futures::stream::FuturesUnordered::new();
         for vote in &extended_commit_info.votes {
-            futures.push(async move {
-                verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs).await
-            });
-        }
-
-        while let Some(result) = futures.next().await {
-            result.wrap_err("failed to verify vote extension in validate_proposal")?;
+            verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs)
+                .wrap_err("failed to verify vote extension in validate_proposal")?;
         }
 
         Ok(())
@@ -598,9 +581,9 @@ mod test {
         },
     };
 
-    #[tokio::test]
-    async fn verify_vote_extension_empty_ok() {
-        verify_vote_extension(vec![].into(), 100).await.unwrap();
+    #[test]
+    fn verify_vote_extension_empty_ok() {
+        verify_vote_extension(vec![].into(), 100).unwrap();
     }
 
     #[tokio::test]

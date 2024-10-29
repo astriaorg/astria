@@ -13,6 +13,7 @@ use tendermint::{
 
 use crate::{
     app::{
+        benchmark_and_test_utils::genesis_state,
         test_utils::MockTxBuilder,
         App,
     },
@@ -34,9 +35,8 @@ async fn future_nonces_are_accepted() {
     let mut app = App::new(snapshot, mempool.clone(), ve_handler, metrics)
         .await
         .unwrap();
-    let genesis_state = crate::app::test_utils::genesis_state();
 
-    app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
+    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string())
         .await
         .unwrap();
     app.commit(storage.clone()).await;
@@ -67,9 +67,8 @@ async fn rechecks_pass() {
     let mut app = App::new(snapshot, mempool.clone(), ve_handler, metrics)
         .await
         .unwrap();
-    let genesis_state = crate::app::test_utils::genesis_state();
 
-    app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
+    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string())
         .await
         .unwrap();
     app.commit(storage.clone()).await;
@@ -108,9 +107,8 @@ async fn can_reinsert_after_recheck_fail() {
     let mut app = App::new(snapshot, mempool.clone(), ve_handler, metrics)
         .await
         .unwrap();
-    let genesis_state = crate::app::test_utils::genesis_state();
 
-    app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
+    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string())
         .await
         .unwrap();
     app.commit(storage.clone()).await;
@@ -159,9 +157,8 @@ async fn recheck_adds_non_tracked_tx() {
     let mut app = App::new(snapshot, mempool.clone(), ve_handler, metrics)
         .await
         .unwrap();
-    let genesis_state = crate::app::test_utils::genesis_state();
 
-    app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
+    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string())
         .await
         .unwrap();
     app.commit(storage.clone()).await;

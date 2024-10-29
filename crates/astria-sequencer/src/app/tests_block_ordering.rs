@@ -26,14 +26,18 @@ use tendermint::{
 };
 
 use super::test_utils::get_alice_signing_key;
-use crate::app::test_utils::{
-    get_bob_signing_key,
-    get_judy_signing_key,
-    initialize_app_with_storage,
-    mock_balances,
-    mock_tx_cost,
-    transactions_with_extended_commit_info_and_commitments,
-    MockTxBuilder,
+use crate::app::{
+    benchmark_and_test_utils::{
+        initialize_app_with_storage,
+        mock_balances,
+        mock_tx_cost,
+    },
+    test_utils::{
+        get_bob_signing_key,
+        get_judy_signing_key,
+        transactions_with_extended_commit_info_and_commitments,
+        MockTxBuilder,
+    },
 };
 
 #[tokio::test]
@@ -131,7 +135,6 @@ async fn app_process_proposal_ordering_fail() {
         .process_proposal(process_proposal.clone(), storage.clone())
         .await
         .expect_err("expected ordering error");
-
     assert!(
         format!("{result:?}").contains("transactions have incorrect transaction group ordering"),
         "process proposal should fail due to incorrect ordering"
