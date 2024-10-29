@@ -114,18 +114,17 @@ impl Sequencer {
 
         let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
 
-        let optimistic_block_channels = if config.no_optimistic_block {
+        let mut optimistic_block_channels: Option<OptimisticBlockChannels> = None;
+        if !config.no_optimistic_block {
             let (optimistic_block_sender, _) =
                 tokio::sync::watch::channel::<Option<SequencerBlock>>(None);
             let (committed_block_sender, _) =
                 tokio::sync::watch::channel::<Option<SequencerBlockCommit>>(None);
 
-            Some(OptimisticBlockChannels::new(
+            optimistic_block_channels = Some(OptimisticBlockChannels::new(
                 optimistic_block_sender,
                 committed_block_sender,
-            ))
-        } else {
-            None
+            ));
         };
 
         let app = App::new(

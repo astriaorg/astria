@@ -39,6 +39,7 @@ use astria_core::{
         v1::block::SequencerBlock,
         v1alpha1::optimistic_block::SequencerBlockCommit,
     },
+    Protobuf as _,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -203,6 +204,22 @@ impl OptimisticBlockChannels {
 
     pub(crate) fn committed_block_sender(&self) -> Sender<Option<SequencerBlockCommit>> {
         self.committed_block_sender.clone()
+    }
+
+    pub(crate) fn send_optimistic_block(&self, block: Option<SequencerBlock>) {
+        if self.optimistic_block_sender.receiver_count() > 0 {
+            if let Err(e) = self.optimistic_block_sender.send(block) {
+                error!(error = %e, "failed to send optimistic block");
+            }
+        }
+    }
+
+    pub(crate) fn send_committed_block(&self, block: Option<SequencerBlockCommit>) {
+        if self.committed_block_sender.receiver_count() > 0 {
+            if let Err(e) = self.committed_block_sender.send(block) {
+                error!(error = %e, "failed to send committed block");
+            }
+        }
     }
 }
 
@@ -487,12 +504,7 @@ impl App {
                     .wrap_err("failed to run post execute transactions handler")?;
 
                 if let Some(optimistic_block_channels) = &self.optimistic_block_channels {
-                    if let Err(e) = optimistic_block_channels
-                        .optimistic_block_sender()
-                        .send(Some(sequencer_block))
-                    {
-                        error!(error = %e, "failed to send sequencer block to optimistic block sender");
-                    }
+                    optimistic_block_channels.send_optimistic_block(Some(sequencer_block));
                 }
 
                 return Ok(());
@@ -597,12 +609,7 @@ impl App {
             .wrap_err("failed to run post execute transactions handler")?;
 
         if let Some(optimistic_block_channels) = &self.optimistic_block_channels {
-            if let Err(e) = optimistic_block_channels
-                .optimistic_block_sender()
-                .send(Some(sequencer_block))
-            {
-                error!(error = %e, "failed to send sequencer block to optimistic block sender");
-            }
+            optimistic_block_channels.send_optimistic_block(Some(sequencer_block));
         }
 
         Ok(())
@@ -1008,17 +1015,13 @@ impl App {
             tx_results: post_transaction_execution_result.tx_results,
         };
 
-        if let Some(obc) = &self.optimistic_block_channels {
+        if let Some(optimistic_block_channels) = &self.optimistic_block_channels {
             let Hash::Sha256(block_hash) = block_hash else {
                 bail!("block hash is empty; this should not occur")
             };
 
-            if let Err(e) = obc
-                .committed_block_sender
-                .send(Some(SequencerBlockCommit::new(height.value(), block_hash)))
-            {
-                error!(error = %e, "failed to send committed block to optimistic block sender");
-            };
+            optimistic_block_channels
+                .send_committed_block(Some(SequencerBlockCommit::new(height.value(), block_hash)));
         }
 
         Ok(finalize_block)
