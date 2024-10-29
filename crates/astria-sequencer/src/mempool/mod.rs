@@ -548,25 +548,6 @@ mod tests {
             "already present"
         );
 
-        // try to replace nonce
-        let tx1_replacement = MockTxBuilder::new()
-            .nonce(1)
-            .chain_id("test-chain-id")
-            .build();
-        assert_eq!(
-            mempool
-                .insert(
-                    tx1_replacement.clone(),
-                    0,
-                    account_balances.clone(),
-                    tx_cost.clone(),
-                )
-                .await
-                .unwrap_err(),
-            InsertionError::NonceTaken,
-            "nonce replace not allowed"
-        );
-
         // add too low nonce
         let tx0 = MockTxBuilder::new().nonce(0).build();
         assert_eq!(
