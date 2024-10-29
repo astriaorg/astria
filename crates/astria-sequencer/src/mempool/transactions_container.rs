@@ -430,7 +430,9 @@ pub(super) trait TransactionsForAccount: Default {
         current_account_balance: &HashMap<IbcPrefixed, u128>,
     ) -> bool;
 
-    /// Adds transaction to the container. Note: does NOT allow for nonce replacement.
+    /// Adds transaction to the container.
+    ///
+    /// Returns the hash of the replaced transaction if a nonce replacement occured.
     ///
     /// Will fail if in `SequentialNonces` mode and adding the transaction would create a nonce gap.
     /// Will fail if adding the transaction would exceed balance constraints.
@@ -445,7 +447,7 @@ pub(super) trait TransactionsForAccount: Default {
         ttx: TimemarkedTransaction,
         current_account_nonce: u32,
         current_account_balances: &HashMap<IbcPrefixed, u128>,
-    ) -> Result<(), InsertionError> {
+    ) -> Result<Option<[u8; 32]>, InsertionError> {
         if self.is_at_tx_limit() {
             return Err(InsertionError::AccountSizeLimit);
         }
@@ -454,12 +456,25 @@ pub(super) trait TransactionsForAccount: Default {
             return Err(InsertionError::NonceTooLow);
         }
 
+        // check if the nonce is already taken
         if let Some(existing_ttx) = self.txs().get(&ttx.signed_tx.nonce()) {
             return if existing_ttx.tx_hash == ttx.tx_hash {
                 Err(InsertionError::AlreadyPresent)
             } else if self.nonce_replacement_enabled() {
-                self.txs_mut().insert(ttx.signed_tx.nonce(), ttx);
-                Ok(())
+                let existing_hash = existing_ttx.tx_hash;
+
+                // replace the existing transaction and return the replaced hash for removal
+                let removed = self.txs_mut().insert(ttx.signed_tx.nonce(), ttx);
+                if let Some(removed) = removed {
+                    Ok(Some(removed.tx_hash))
+                } else {
+                    // this should never happen
+                    error!(
+                        tx_hash = %telemetry::display::hex(&existing_hash),
+                        "transaction replacement not found during 2nd lookup"
+                    );
+                    Ok(None)
+                }
             } else {
                 Err(InsertionError::NonceTaken)
             };
@@ -475,7 +490,7 @@ pub(super) trait TransactionsForAccount: Default {
 
         self.txs_mut().insert(ttx.signed_tx.nonce(), ttx);
 
-        Ok(())
+        Ok(None)
     }
 
     /// Removes transactions with the given nonce and higher.
@@ -612,6 +627,8 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
 
     /// Adds the transaction to the container.
     ///
+    /// Returns the hash of the replaced transaction if a nonce replacement occured.
+    ///
     /// `current_account_nonce` should be the current nonce of the account associated with the
     /// transaction. If this ever decreases, the `TransactionsContainer` containers could become
     /// invalid.
@@ -620,22 +637,23 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         ttx: TimemarkedTransaction,
         current_account_nonce: u32,
         current_account_balances: &HashMap<IbcPrefixed, u128>,
-    ) -> Result<(), InsertionError> {
+    ) -> Result<Option<[u8; 32]>, InsertionError> {
         self.check_total_tx_count()?;
 
         match self.txs_mut().entry(*ttx.address()) {
             hash_map::Entry::Occupied(entry) => {
-                entry
+                return entry
                     .into_mut()
-                    .add(ttx, current_account_nonce, current_account_balances)?;
+                    .add(ttx, current_account_nonce, current_account_balances);
             }
             hash_map::Entry::Vacant(entry) => {
                 let mut txs = T::new();
+                // replacement shouldn't occur since container is empty
                 txs.add(ttx, current_account_nonce, current_account_balances)?;
                 entry.insert(txs);
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     /// Removes the given transaction and any transactions with higher nonces for the relevant
@@ -1590,9 +1608,13 @@ mod tests {
         // add first transaction
         parked_txs.add(tx_0.clone(), 0, &account_balances).unwrap();
 
-        // replacing transaction should be ok
+        // replacing transaction should return the replaced tx hash
         let res = parked_txs.add(tx_1.clone(), 0, &account_balances);
-        assert!(res.is_ok(), "nonce replacement for parked should be ok");
+        assert_eq!(
+            res.unwrap(),
+            Some(tx_0.tx_hash),
+            "nonce replacement for parked should return the replaced tx hash"
+        );
 
         // a single transaction should be in the parked txs
         assert_eq!(

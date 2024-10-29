@@ -99,6 +99,15 @@ impl IntoCheckTxResponse for RemovalReason {
                     .into(),
                 ..response::CheckTx::default()
             },
+            RemovalReason::NonceReplacement(replacing_hash) => response::CheckTx {
+                code: Code::Err(AbciErrorCode::NONCE_REPLACEMENT.value()),
+                info: AbciErrorCode::NONCE_REPLACEMENT.to_string(),
+                log: format!(
+                    "transaction replaced by a parked transaction with a lower nonce: \
+                     {replacing_hash:#?}"
+                ),
+                ..response::CheckTx::default()
+            },
         }
     }
 }
@@ -293,6 +302,10 @@ async fn check_removed_comet_bft(
             }
             RemovalReason::FailedPrepareProposal(_) => {
                 metrics.increment_check_tx_removed_failed_execution();
+                return Err(removal_reason.into_check_tx_response());
+            }
+            RemovalReason::NonceReplacement(_) => {
+                metrics.increment_mempool_nonce_replacement();
                 return Err(removal_reason.into_check_tx_response());
             }
             _ => return Err(removal_reason.into_check_tx_response()),

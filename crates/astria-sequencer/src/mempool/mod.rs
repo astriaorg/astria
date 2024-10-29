@@ -49,6 +49,7 @@ pub(crate) enum RemovalReason {
     NonceStale,
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
+    NonceReplacement([u8; 32]),
 }
 
 /// How long transactions are considered valid in the mempool.
@@ -143,11 +144,12 @@ impl<'a> ContainedTxLock<'a> {
 ///
 /// The mempool exposes the pending transactions through `builder_queue()`, which returns a copy of
 /// all pending transactions sorted in the order in which they should be executed. The sort order
-/// is firstly by the difference between the transaction nonce and the account's current nonce
-/// (ascending), and then by time first seen (ascending).
+/// is first by the transaction group (derived from the contained actions), then by the difference
+/// between the transaction nonce and the account's current nonce (ascending), and then by time
+/// first seen (ascending).
 ///
 /// The mempool implements the following policies:
-/// 1. Nonce replacement is not allowed.
+/// 1. Nonce replacement is only allowed for transactions in the parked queue.
 /// 2. Accounts cannot have more than `MAX_PARKED_TXS_PER_ACCOUNT` transactions in their parked
 ///    queues.
 /// 3. There is no account limit on pending transactions.
@@ -156,10 +158,7 @@ impl<'a> ContainedTxLock<'a> {
 ///    that account with a higher nonce will be removed as well. This is due to the fact that we do
 ///    not execute failing transactions, so a transaction 'failing' will mean that further account
 ///    nonces will not be able to execute either.
-///
-/// Future extensions to this mempool can include:
-/// - maximum mempool size
-/// - account balance aware pending queue
+/// 6. Parked transactions are globally limited to a configured amount.
 #[derive(Clone)]
 pub(crate) struct Mempool {
     pending: Arc<RwLock<PendingTransactions>>,
@@ -201,8 +200,8 @@ impl Mempool {
         }
     }
 
-    /// Inserts a transaction into the mempool and does not allow for transaction replacement.
-    /// Will return the reason for insertion failure if failure occurs.
+    /// Inserts a transaction into the mempool. Allows for transaction replacement of parked
+    /// transactions. Will return the reason for insertion failure if failure occurs.
     #[instrument(skip_all)]
     pub(crate) async fn insert(
         &self,
@@ -230,26 +229,28 @@ impl Mempool {
                     current_account_nonce,
                     &current_account_balances,
                 ) {
-                    Ok(()) => {
+                    Ok(hash) => {
                         // log current size of parked
                         self.metrics
                             .set_transactions_in_mempool_parked(parked.len());
 
                         // track in contained txs
                         self.lock_contained_txs().await.add(id);
+
+                        // remove the replaced transaction
+                        if let Some(replaced_hash) = hash {
+                            self.lock_contained_txs().await.remove(replaced_hash);
+                            self.comet_bft_removal_cache
+                                .write()
+                                .await
+                                .add(replaced_hash, RemovalReason::NonceReplacement(id));
+                        }
                         Ok(())
                     }
                     Err(err) => Err(err),
                 }
             }
-            error @ Err(
-                InsertionError::AlreadyPresent
-                | InsertionError::NonceTooLow
-                | InsertionError::NonceTaken
-                | InsertionError::AccountSizeLimit
-                | InsertionError::ParkedSizeLimit,
-            ) => error,
-            Ok(()) => {
+            Ok(_) => {
                 // check parked for txs able to be promoted
                 let to_promote = parked.find_promotables(
                     timemarked_tx.address(),
@@ -285,6 +286,7 @@ impl Mempool {
 
                 Ok(())
             }
+            Err(err) => Err(err),
         }
     }
 
@@ -1146,6 +1148,33 @@ mod tests {
         // check that the transactions are not in the tracked set
         assert!(!mempool.is_tracked(tx0.id().get()).await);
         assert!(!mempool.is_tracked(tx1.id().get()).await);
+    }
+
+    #[tokio::test]
+    async fn tx_tracked_nonce_replacement_removed() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+
+        let tx1_0 = MockTxBuilder::new().nonce(1).chain_id("test-0").build();
+        let tx1_1 = MockTxBuilder::new().nonce(1).chain_id("test-1").build();
+
+        // insert initial transaction into parked
+        mempool
+            .insert(tx1_0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        // replace with different transaction
+        mempool
+            .insert(tx1_1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // check that the first transaction was removed and the replacement
+        // is tracked
+        assert!(!mempool.is_tracked(tx1_0.id().get()).await);
+        assert!(mempool.is_tracked(tx1_1.id().get()).await);
     }
 
     #[tokio::test]
