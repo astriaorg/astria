@@ -44,6 +44,8 @@ use crate::{
 
 pub mod group;
 
+const MAX_VALIDATOR_NAME_LENGTH: usize = 32;
+
 #[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "serde",
@@ -635,7 +637,10 @@ enum ValidatorUpdateErrorKind {
     Secp256k1NotSupported,
     #[error("bytes stored in the .pub_key field could not be read as an ed25519 verification key")]
     VerificationKey { source: crate::crypto::Error },
-    #[error("validator name was {length} characters long, but must be 32 at most")]
+    #[error(
+        "validator name was {length} characters long, but must be {MAX_VALIDATOR_NAME_LENGTH} at \
+         most"
+    )]
     NameTooLong { length: usize },
 }
 
@@ -783,7 +788,7 @@ impl Protobuf for ValidatorUpdateV2 {
             power,
             name,
         } = value;
-        if name.len() > 32 {
+        if name.len() > MAX_VALIDATOR_NAME_LENGTH {
             return Err(Self::Error::name_too_long(name.len()));
         }
         let power = power
