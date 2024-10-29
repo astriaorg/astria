@@ -1,9 +1,11 @@
 mod action_handler;
+#[cfg(any(test, feature = "benchmark"))]
+pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 mod state_ext;
 pub(crate) mod storage;
-#[cfg(any(test, feature = "benchmark"))]
+#[cfg(test)]
 pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
@@ -806,7 +808,7 @@ impl App {
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "transaction error: failed to execute transaction"
                     );
-                    bail!("transaction failed to execute");
+                    return Err(e.wrap_err("transaction failed to execute"));
                 }
             }
 
