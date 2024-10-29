@@ -9,8 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Add `contract_is_erc20` flag on bridge collect command [#1762](https://github.com/astriaorg/astria/pull/1762)
-
 ## [0.5.1] - 2024-10-23
 
 ### Added

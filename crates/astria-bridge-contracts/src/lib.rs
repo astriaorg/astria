@@ -37,20 +37,13 @@ use ethers::{
 };
 pub use generated::*;
 
+const FALLBACK_CONTRACT_DECIMALS: u32 = 18u32;
+
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct BuildError(BuildErrorKind);
 
 impl BuildError {
-    #[must_use]
-    fn no_decimals_configured_erc20<T: Into<Box<dyn std::error::Error + Send + Sync + 'static>>>(
-        source: T,
-    ) -> Self {
-        Self(BuildErrorKind::NoDecimalsConfiguredERC20 {
-            source: source.into(),
-        })
-    }
-
     #[must_use]
     fn bad_divisor(base_chain_asset_precision: u32) -> Self {
         Self(BuildErrorKind::BadDivisor {
@@ -65,6 +58,15 @@ impl BuildError {
         source: T,
     ) -> Self {
         Self(BuildErrorKind::CallBaseChainAssetPrecision {
+            source: source.into(),
+        })
+    }
+
+    #[must_use]
+    fn call_decimals<T: Into<Box<dyn std::error::Error + Send + Sync + 'static>>>(
+        source: T,
+    ) -> Self {
+        Self(BuildErrorKind::CallDecimals {
             source: source.into(),
         })
     }
@@ -96,10 +98,6 @@ impl BuildError {
 
 #[derive(Debug, thiserror::Error)]
 enum BuildErrorKind {
-    #[error("no decimals are configured for the ERC20 contract, check that is an ERC20 contract")]
-    NoDecimalsConfiguredERC20 {
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
     #[error(
         "failed calculating asset divisor. The base chain asset precision should be <= 18 as \
          that's enforced by the contract, so the construction should work. Did the precision \
@@ -117,6 +115,13 @@ enum BuildErrorKind {
     CallBaseChainAssetPrecision {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
+    #[error(
+        "failed to call the contract's `decimals` function, which must exist for an ERC20 \
+         contract; check that the provided contract is an ERC20"
+    )]
+    CallDecimals {
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
     #[error("ics20 asset must have a channel to be withdrawn via IBC")]
     Ics20AssetWithoutChannel,
     #[error("could not parse ics20 asset channel as channel ID")]
@@ -129,7 +134,6 @@ pub struct WithProvider<P>(Arc<P>);
 pub struct GetWithdrawalActionsBuilder<TProvider = NoProvider> {
     provider: TProvider,
     contract_address: Option<ethers::types::Address>,
-    contract_is_erc20: bool,
     bridge_address: Option<Address>,
     fee_asset: Option<asset::Denom>,
     sequencer_asset_to_withdraw: Option<asset::Denom>,
@@ -149,7 +153,6 @@ impl GetWithdrawalActionsBuilder {
         Self {
             provider: NoProvider,
             contract_address: None,
-            contract_is_erc20: false,
             bridge_address: None,
             fee_asset: None,
             sequencer_asset_to_withdraw: None,
@@ -164,7 +167,6 @@ impl<P> GetWithdrawalActionsBuilder<P> {
     pub fn provider<Q>(self, provider: Arc<Q>) -> GetWithdrawalActionsBuilder<WithProvider<Q>> {
         let Self {
             contract_address,
-            contract_is_erc20,
             bridge_address,
             fee_asset,
             sequencer_asset_to_withdraw,
@@ -175,7 +177,6 @@ impl<P> GetWithdrawalActionsBuilder<P> {
         GetWithdrawalActionsBuilder {
             provider: WithProvider(provider),
             contract_address,
-            contract_is_erc20,
             bridge_address,
             fee_asset,
             sequencer_asset_to_withdraw,
@@ -188,14 +189,6 @@ impl<P> GetWithdrawalActionsBuilder<P> {
     pub fn contract_address(self, contract_address: ethers::types::Address) -> Self {
         Self {
             contract_address: Some(contract_address),
-            ..self
-        }
-    }
-
-    #[must_use]
-    pub fn contract_is_erc20(self, contract_is_erc20: bool) -> Self {
-        Self {
-            contract_is_erc20,
             ..self
         }
     }
@@ -279,7 +272,6 @@ where
         let Self {
             provider: WithProvider(provider),
             contract_address,
-            contract_is_erc20,
             bridge_address,
             fee_asset,
             sequencer_asset_to_withdraw,
@@ -321,19 +313,24 @@ where
             .await
             .map_err(BuildError::call_base_chain_asset_precision)?;
 
-        let mut contract_decimals = 18u32;
-        if contract_is_erc20 {
+        let contract_decimals = {
             let erc_20_contract = astria_bridgeable_erc20::AstriaBridgeableERC20::new(
                 contract_address,
                 provider.clone(),
             );
-            contract_decimals = erc_20_contract
-                .decimals()
-                .call()
-                .await
-                .map_err(BuildError::no_decimals_configured_erc20)?
-                .into();
-        }
+            match erc_20_contract.decimals().call().await {
+                Ok(decimals) => decimals.into(),
+                Err(_err) => {
+                    #[cfg(feature = "tracing")]
+                    tracing::warn!(
+                        error = &_err as &dyn std::error::Error,
+                        "failed reading decimals from contract; falling back to \
+                         `{FALLBACK_CONTRACT_DECIMALS}`"
+                    );
+                    FALLBACK_CONTRACT_DECIMALS
+                }
+            }
+        };
 
         let exponent = contract_decimals
             .checked_sub(base_chain_asset_precision)

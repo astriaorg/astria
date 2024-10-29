@@ -27,7 +27,6 @@ config:
   minExpectedFeeAssetBalance: "1000000"
   rollupAssetDenom: ""
   evmContractAddress: "0x"
-  evmContractIsERC20: "true"
   evmRpcEndpoint: ""
   sequencerPrivateKey:
     devContent: ""

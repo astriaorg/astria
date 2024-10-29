@@ -57,7 +57,6 @@ pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
     pub(crate) startup_handle: startup::InfoHandle,
     pub(crate) ethereum_contract_address: String,
-    pub(crate) ethereum_contract_is_erc20: bool,
     pub(crate) ethereum_rpc_endpoint: String,
     pub(crate) state: Arc<State>,
     pub(crate) rollup_asset_denom: asset::TracePrefixed,
@@ -70,7 +69,6 @@ impl Builder {
     pub(crate) fn build(self) -> Result<Watcher> {
         let Builder {
             ethereum_contract_address,
-            ethereum_contract_is_erc20,
             ethereum_rpc_endpoint,
             shutdown_token,
             startup_handle,
@@ -86,7 +84,6 @@ impl Builder {
 
         Ok(Watcher {
             contract_address,
-            contract_is_erc20: ethereum_contract_is_erc20,
             ethereum_rpc_endpoint: ethereum_rpc_endpoint.to_string(),
             rollup_asset_denom,
             bridge_address,
@@ -105,7 +102,6 @@ pub(crate) struct Watcher {
     startup_handle: startup::InfoHandle,
     submitter_handle: submitter::Handle,
     contract_address: ethers::types::Address,
-    contract_is_erc20: bool,
     ethereum_rpc_endpoint: String,
     rollup_asset_denom: asset::TracePrefixed,
     bridge_address: Address,
@@ -150,7 +146,6 @@ impl Watcher {
             mut startup_handle,
             submitter_handle,
             contract_address,
-            contract_is_erc20,
             ethereum_rpc_endpoint,
             rollup_asset_denom,
             bridge_address,
@@ -227,7 +222,6 @@ impl Watcher {
             .provider(provider.clone())
             .fee_asset(fee_asset)
             .contract_address(contract_address)
-            .contract_is_erc20(contract_is_erc20)
             .bridge_address(bridge_address)
             .sequencer_asset_to_withdraw(rollup_asset_denom.clone().into())
             .set_ics20_asset_to_withdraw(ics20_asset_to_withdraw)

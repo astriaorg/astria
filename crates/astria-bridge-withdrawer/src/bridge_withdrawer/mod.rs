@@ -81,7 +81,6 @@ impl BridgeWithdrawer {
             sequencer_address_prefix,
             fee_asset_denomination,
             ethereum_contract_address,
-            ethereum_contract_is_erc20,
             ethereum_rpc_endpoint,
             rollup_asset_denomination,
             sequencer_bridge_address,
@@ -135,7 +134,6 @@ impl BridgeWithdrawer {
 
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
-            ethereum_contract_is_erc20,
             ethereum_rpc_endpoint,
             startup_handle,
             shutdown_token: shutdown_handle.token(),
