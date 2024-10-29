@@ -157,7 +157,7 @@ mod tests {
     use super::*;
     use crate::{
         address::StateWriteExt as _,
-        test_utils::{
+        benchmark_and_test_utils::{
             verification_key,
             ASTRIA_PREFIX,
         },

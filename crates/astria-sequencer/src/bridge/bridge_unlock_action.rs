@@ -119,13 +119,13 @@ mod tests {
         accounts::StateWriteExt as _,
         address::StateWriteExt as _,
         app::ActionHandler as _,
-        bridge::StateWriteExt as _,
-        fees::StateWriteExt as _,
-        test_utils::{
+        benchmark_and_test_utils::{
             assert_eyre_error,
             astria_address,
             ASTRIA_PREFIX,
         },
+        bridge::StateWriteExt as _,
+        fees::StateWriteExt as _,
         transaction::{
             StateWriteExt as _,
             TransactionContext,

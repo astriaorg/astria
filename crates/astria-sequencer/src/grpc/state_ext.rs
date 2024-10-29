@@ -342,7 +342,7 @@ mod tests {
     use rand::Rng;
 
     use super::*;
-    use crate::test_utils::astria_address;
+    use crate::benchmark_and_test_utils::astria_address;
 
     // creates new sequencer block, optionally shifting all values except the height by 1
     fn make_test_sequencer_block(height: u32) -> SequencerBlock {

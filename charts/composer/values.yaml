@@ -9,7 +9,7 @@ images:
   composer:
     repo: ghcr.io/astriaorg/composer
     pullPolicy: IfNotPresent
-    tag: 1.0.0-rc.1
+    tag: 1.0.0
     devTag: latest
 
 config:
