@@ -191,7 +191,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             ..self
         }
     }
-    
+
     #[must_use]
     pub fn contract_is_erc20(self, contract_is_erc20: bool) -> Self {
         Self {
