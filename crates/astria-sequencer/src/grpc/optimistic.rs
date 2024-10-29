@@ -23,10 +23,7 @@ use tonic::{
     Response,
     Status,
 };
-use tracing::{
-    debug,
-    info,
-};
+use tracing::error;
 
 use crate::app::OptimisticBlockChannels;
 
@@ -74,31 +71,32 @@ impl OptimisticBlockService for OptimisticBlockServer {
 
         tokio::spawn(async move {
             loop {
-                while let Ok(()) = optimistic_block_receiver.changed().await {
-                    let optimistic_block = optimistic_block_receiver
-                        .borrow_and_update()
-                        .clone()
-                        .expect("received an invalid optimistic block");
+                match optimistic_block_receiver.changed().await {
+                    Ok(()) => {
+                        let optimistic_block = optimistic_block_receiver
+                            .borrow_and_update()
+                            .clone()
+                            .expect("received an invalid optimistic block");
 
-                    let filtered_optimistic_block =
-                        optimistic_block.to_filtered_block(vec![rollup_id]);
-                    let raw_filtered_optimistic_block = filtered_optimistic_block.into_raw();
+                        let filtered_optimistic_block =
+                            optimistic_block.to_filtered_block(vec![rollup_id]);
+                        let raw_filtered_optimistic_block = filtered_optimistic_block.into_raw();
 
-                    let get_optimistic_block_stream_response = GetOptimisticBlockStreamResponse {
-                        block: Some(raw_filtered_optimistic_block),
-                    };
+                        let get_optimistic_block_stream_response =
+                            GetOptimisticBlockStreamResponse {
+                                block: Some(raw_filtered_optimistic_block),
+                            };
 
-                    match tx.send(Ok(get_optimistic_block_stream_response)).await {
-                        Ok(()) => {
-                            debug!("sent optimistic block");
-                        }
-                        Err(_item) => {
-                            info!("receiver for optimistic block has been dropped");
+                        if let Err(e) = tx.send(Ok(get_optimistic_block_stream_response)).await {
+                            error!(error = %e, "receiver for optimistic block has been dropped");
                             break;
-                        }
-                    };
+                        };
+                    }
+                    Err(e) => {
+                        error!(error = %e, "optimistic block sender has been dropped");
+                        break;
+                    }
                 }
-                debug!("optimistic block sender has dropped");
             }
         });
 
@@ -121,27 +119,28 @@ impl OptimisticBlockService for OptimisticBlockServer {
 
         tokio::spawn(async move {
             loop {
-                while let Ok(()) = committed_block_receiver.changed().await {
-                    let sequencer_block_commit = committed_block_receiver
-                        .borrow_and_update()
-                        .clone()
-                        .expect("received an invalid sequencer block commit");
+                match committed_block_receiver.changed().await {
+                    Ok(()) => {
+                        let sequencer_block_commit = committed_block_receiver
+                            .borrow_and_update()
+                            .clone()
+                            .expect("received an invalid sequencer block commit");
 
-                    let get_block_commitment_stream_response = GetBlockCommitmentStreamResponse {
-                        commitment: Some(sequencer_block_commit.to_raw()),
-                    };
+                        let get_block_commitment_stream_response =
+                            GetBlockCommitmentStreamResponse {
+                                commitment: Some(sequencer_block_commit.to_raw()),
+                            };
 
-                    match tx.send(Ok(get_block_commitment_stream_response)).await {
-                        Ok(()) => {
-                            debug!("sent block commitment");
-                        }
-                        Err(_item) => {
-                            debug!("receiver for block commitment failed");
+                        if let Err(e) = tx.send(Ok(get_block_commitment_stream_response)).await {
+                            error!(error = %e, "receiver for block commitment failed");
                             break;
-                        }
-                    };
+                        };
+                    }
+                    Err(e) => {
+                        error!(error = %e, "committed block sender has been dropped");
+                        break;
+                    }
                 }
-                debug!("commited block sender has dropped");
             }
         });
 
