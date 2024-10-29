@@ -110,6 +110,15 @@ trust_threshold = '{{ $chain.trustThreshold }}'
 {{- if $chain.memoPrefix }}
 memo_prefix = '{{ $chain.memoPrefix }}'
 {{- end }}
+{{- if $chain.feeGranter }}
+fee_granter = '{{ $chain.feeGranter }}'
+{{- end }}
+{{- if $chain.compatMode }}
+compat_mode = '{{ $chain.compatMode }}'
+{{- end }}
+{{- if $chain.clearInterval }}
+clear_interval = '{{ $chain.clearInterval }}'
+{{- end }}
 
 {{- if $chain.packetFilter }}
 {{- if $chain.packetFilter.policy }}
@@ -132,14 +141,4 @@ recv = [
   {{- end }}
 {{- end }}
 {{- end }}
-{{- if $chain.feeGranter }}
-fee_granter = '{{ $chain.feeGranter }}'
-{{- end }}
-{{- if $chain.compatMode }}
-compat_mode = '{{ $chain.compatMode }}'
-{{- end }}
-{{- if $chain.clearInterval }}
-clear_interval = '{{ $chain.clearInterval }}'
-{{- end }}
-
 {{ end }}
