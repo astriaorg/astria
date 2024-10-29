@@ -1612,14 +1612,8 @@ mod tests {
         let account_balances = mock_balances(1, 1);
 
         // create two transactions with same nonce but different hash
-        let tx_0 = MockTTXBuilder::new()
-            .nonce(0)
-            .group(Group::UnbundleableSudo)
-            .build();
-        let tx_1 = MockTTXBuilder::new()
-            .nonce(0)
-            .group(Group::UnbundleableGeneral)
-            .build();
+        let tx_0 = MockTTXBuilder::new().nonce(0).chain_id("test-0").build();
+        let tx_1 = MockTTXBuilder::new().nonce(0).chain_id("test-1").build();
 
         // add first transaction
         pending_txs.add(tx_0.clone(), 0, &account_balances).unwrap();
