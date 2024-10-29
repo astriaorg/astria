@@ -1,9 +1,9 @@
 syntax = "proto3";
 package astria_vendored.connect.service.v2;
 
+import "astria_vendored/connect/marketmap/v2/market.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
-import "astria_vendored/connect/marketmap/v2/market.proto";
 
 option go_package = "github.com/skip-mev/connect/v2/service/servers/oracle/types";
 
@@ -11,25 +11,19 @@ option go_package = "github.com/skip-mev/connect/v2/service/servers/oracle/types
 service Oracle {
   // Prices defines a method for fetching the latest prices.
   rpc Prices(QueryPricesRequest) returns (QueryPricesResponse) {
-    option (google.api.http) = {
-      get : "/connect/oracle/v2/prices"
-    };
+    option (google.api.http) = {get: "/connect/oracle/v2/prices"};
   }
 
   // MarketMap defines a method for fetching the latest market map
   // configuration.
   rpc MarketMap(QueryMarketMapRequest) returns (QueryMarketMapResponse) {
-    option (google.api.http) = {
-      get : "/connect/oracle/v2/marketmap"
-    };
+    option (google.api.http) = {get: "/connect/oracle/v2/marketmap"};
   }
 
   // Version defines a method for fetching the current version of the oracle
   // service.
   rpc Version(QueryVersionRequest) returns (QueryVersionResponse) {
-    option (google.api.http) = {
-      get : "/connect/oracle/v2/version"
-    };
+    option (google.api.http) = {get: "/connect/oracle/v2/version"};
   }
 }
 
@@ -43,7 +37,7 @@ message QueryPricesResponse {
 
   // Timestamp defines the timestamp of the prices.
   google.protobuf.Timestamp timestamp = 2;
-  
+
   // Version defines the version of the oracle service that provided the prices.
   string version = 3;
 }

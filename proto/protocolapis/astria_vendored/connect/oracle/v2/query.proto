@@ -1,44 +1,36 @@
 syntax = "proto3";
 package astria_vendored.connect.oracle.v2;
 
-import "google/api/annotations.proto";
 import "astria_vendored/connect/oracle/v2/genesis.proto";
 import "astria_vendored/connect/types/v2/currency_pair.proto";
+import "google/api/annotations.proto";
 
 option go_package = "github.com/skip-mev/connect/v2/x/oracle/types";
 
 // Query is the query service for the x/oracle module.
 service Query {
   // Get all the currency pairs the x/oracle module is tracking price-data for.
-  rpc GetAllCurrencyPairs(GetAllCurrencyPairsRequest)
-      returns (GetAllCurrencyPairsResponse) {
-    option (google.api.http) = {
-      get : "/connect/oracle/v2/get_all_tickers"
-    };
-  };
+  rpc GetAllCurrencyPairs(GetAllCurrencyPairsRequest) returns (GetAllCurrencyPairsResponse) {
+    option (google.api.http) = {get: "/connect/oracle/v2/get_all_tickers"};
+  }
 
   // Given a CurrencyPair (or its identifier) return the latest QuotePrice for
   // that CurrencyPair.
   rpc GetPrice(GetPriceRequest) returns (GetPriceResponse) {
-    option (google.api.http) = {
-      get : "/connect/oracle/v2/get_price"
-    };
-  };
+    option (google.api.http) = {get: "/connect/oracle/v2/get_price"};
+  }
 
   rpc GetPrices(GetPricesRequest) returns (GetPricesResponse) {
-    option (google.api.http) = {
-      get : "/connect/oracle/v2/get_prices"
-    };
+    option (google.api.http) = {get: "/connect/oracle/v2/get_prices"};
   }
 
   // Get the mapping of currency pair ID -> currency pair. This is useful for
   // indexers that have access to the ID of a currency pair, but no way to get
   // the underlying currency pair from it.
-  rpc GetCurrencyPairMapping(GetCurrencyPairMappingRequest)
-      returns (GetCurrencyPairMappingResponse) {
+  rpc GetCurrencyPairMapping(GetCurrencyPairMappingRequest) returns (GetCurrencyPairMappingResponse) {
     option (google.api.http) = {
-      get : "/connect/oracle/v2/get_currency_pair_mapping"
-      additional_bindings : []
+      get: "/connect/oracle/v2/get_currency_pair_mapping"
+      additional_bindings: []
     };
   }
 }
@@ -48,8 +40,7 @@ message GetAllCurrencyPairsRequest {}
 // GetAllCurrencyPairsResponse returns all CurrencyPairs that the module is
 // currently tracking.
 message GetAllCurrencyPairsResponse {
-  repeated astria_vendored.connect.types.v2.CurrencyPair currency_pairs = 1
-     ;
+  repeated astria_vendored.connect.types.v2.CurrencyPair currency_pairs = 1;
 }
 
 // GetPriceRequest takes an identifier for the
@@ -76,7 +67,9 @@ message GetPriceResponse {
 
 // GetPricesRequest takes an identifier for the CurrencyPair
 // in the format base/quote.
-message GetPricesRequest { repeated string currency_pair_ids = 1; }
+message GetPricesRequest {
+  repeated string currency_pair_ids = 1;
+}
 
 // GetPricesResponse is the response from the GetPrices grpc method exposed from
 // the x/oracle query service.

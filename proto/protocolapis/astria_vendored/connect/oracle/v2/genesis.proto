@@ -1,10 +1,10 @@
 syntax = "proto3";
 package astria_vendored.connect.oracle.v2;
 
-option go_package = "github.com/skip-mev/connect/v2/x/oracle/types";
-
-import "google/protobuf/timestamp.proto";
 import "astria_vendored/connect/types/v2/currency_pair.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/skip-mev/connect/v2/x/oracle/types";
 
 // QuotePrice is the representation of the aggregated prices for a CurrencyPair,
 // where price represents the price of Base in terms of Quote
@@ -15,7 +15,7 @@ message QuotePrice {
   // We include block timestamp alongside the price to ensure that smart
   // contracts and applications are not utilizing stale oracle prices
   google.protobuf.Timestamp block_timestamp = 2;
-  
+
   // BlockHeight is height of block mentioned above
   uint64 block_height = 3;
 }

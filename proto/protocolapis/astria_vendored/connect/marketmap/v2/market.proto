@@ -1,9 +1,9 @@
 syntax = "proto3";
 package astria_vendored.connect.marketmap.v2;
 
-option go_package = "github.com/skip-mev/connect/v2/x/marketmap/types";
-
 import "astria_vendored/connect/types/v2/currency_pair.proto";
+
+option go_package = "github.com/skip-mev/connect/v2/x/marketmap/types";
 
 // Market encapsulates a Ticker and its provider-specific configuration.
 message Market {

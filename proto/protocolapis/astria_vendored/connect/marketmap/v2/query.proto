@@ -1,10 +1,10 @@
 syntax = "proto3";
 package astria_vendored.connect.marketmap.v2;
 
-import "google/api/annotations.proto";
-import "astria_vendored/connect/types/v2/currency_pair.proto";
 import "astria_vendored/connect/marketmap/v2/market.proto";
 import "astria_vendored/connect/marketmap/v2/params.proto";
+import "astria_vendored/connect/types/v2/currency_pair.proto";
+import "google/api/annotations.proto";
 
 option go_package = "github.com/skip-mev/connect/v2/x/marketmap/types";
 
@@ -13,31 +13,23 @@ service Query {
   // MarketMap returns the full market map stored in the x/marketmap
   // module.
   rpc MarketMap(MarketMapRequest) returns (MarketMapResponse) {
-    option (google.api.http) = {
-      get : "/connect/marketmap/v2/marketmap"
-    };
+    option (google.api.http) = {get: "/connect/marketmap/v2/marketmap"};
   }
 
   // Market returns a market stored in the x/marketmap
   // module.
   rpc Market(MarketRequest) returns (MarketResponse) {
-    option (google.api.http) = {
-      get : "/connect/marketmap/v2/market"
-    };
+    option (google.api.http) = {get: "/connect/marketmap/v2/market"};
   }
 
   // LastUpdated returns the last height the market map was updated at.
   rpc LastUpdated(LastUpdatedRequest) returns (LastUpdatedResponse) {
-    option (google.api.http) = {
-      get : "/connect/marketmap/v2/last_updated"
-    };
+    option (google.api.http) = {get: "/connect/marketmap/v2/last_updated"};
   }
 
   // Params returns the current x/marketmap module parameters.
   rpc Params(ParamsRequest) returns (ParamsResponse) {
-    option (google.api.http) = {
-      get : "/connect/marketmap/v2/params"
-    };
+    option (google.api.http) = {get: "/connect/marketmap/v2/params"};
   }
 }
 
@@ -78,7 +70,9 @@ message MarketResponse {
 message ParamsRequest {}
 
 // ParamsResponse is the response type for the Query/Params RPC method.
-message ParamsResponse { Params params = 1; }
+message ParamsResponse {
+  Params params = 1;
+}
 
 // LastUpdatedRequest is the request type for the Query/LastUpdated RPC
 // method.
@@ -86,4 +80,6 @@ message LastUpdatedRequest {}
 
 // LastUpdatedResponse is the response type for the Query/LastUpdated RPC
 // method.
-message LastUpdatedResponse { uint64 last_updated = 1; }
+message LastUpdatedResponse {
+  uint64 last_updated = 1;
+}
