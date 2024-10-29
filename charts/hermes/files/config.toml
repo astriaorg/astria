@@ -2,7 +2,6 @@
 log_level = '{{ .Values.global.logLevel }}'
 
 [rest]
-
 # Whether or not to enable the REST service. Default: false
 enabled = {{ .Values.rest.enabled }}
 
