@@ -306,8 +306,8 @@ impl TracePrefixed {
     }
 
     #[must_use]
-    pub fn last_channel(&self) -> Option<&str> {
-        self.trace.last_channel()
+    pub fn leading_channel(&self) -> Option<&str> {
+        self.trace.leading_channel()
     }
 
     pub fn pop_leading_port_and_channel(&mut self) -> Option<PortAndChannel> {
@@ -433,10 +433,6 @@ impl TraceSegments {
 
     fn pop(&mut self) -> Option<PortAndChannel> {
         self.inner.pop_front()
-    }
-
-    fn last_channel(&self) -> Option<&str> {
-        self.inner.back().map(|segment| &*segment.channel)
     }
 
     fn is_empty(&self) -> bool {
