@@ -22,6 +22,7 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
+use astria_eyre;
 use astria_grpc_mock::response::error_response;
 use bytes::Bytes;
 use celestia_types::{
@@ -34,18 +35,15 @@ use sequencer_client::{
     tendermint_proto,
     tendermint_rpc,
 };
+use serde_json::json;
 use telemetry::metrics;
+use tracing::debug;
+use wiremock::MockServer;
 
 #[macro_use]
 mod macros;
 mod mock_grpc;
-use astria_eyre::{
-    self,
-};
 pub use mock_grpc::MockGrpc;
-use serde_json::json;
-use tracing::debug;
-use wiremock::MockServer;
 
 pub const CELESTIA_BEARER_TOKEN: &str = "ABCDEFGH";
 
