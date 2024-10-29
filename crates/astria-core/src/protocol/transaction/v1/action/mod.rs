@@ -617,6 +617,12 @@ impl ValidatorUpdateError {
             source,
         })
     }
+
+    fn name_too_long(length: usize) -> Self {
+        Self(ValidatorUpdateErrorKind::NameTooLong {
+            length,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -629,6 +635,8 @@ enum ValidatorUpdateErrorKind {
     Secp256k1NotSupported,
     #[error("bytes stored in the .pub_key field could not be read as an ed25519 verification key")]
     VerificationKey { source: crate::crypto::Error },
+    #[error("validator name was {length} characters long, but must be 32 at most")]
+    NameTooLong { length: usize },
 }
 
 /// **NOTE**: This action is deprecated. Use [`ValidatorUpdateV2`] instead.
@@ -747,14 +755,6 @@ impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdat
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serde",
-    derive(::serde::Deserialize, ::serde::Serialize),
-    serde(
-        into = "crate::generated::protocol::transaction::v1::ValidatorUpdateV2",
-        try_from = "crate::generated::protocol::transaction::v1::ValidatorUpdateV2",
-    )
-)]
 pub struct ValidatorUpdateV2 {
     pub power: u32,
     pub verification_key: crate::crypto::VerificationKey,
@@ -783,6 +783,9 @@ impl Protobuf for ValidatorUpdateV2 {
             power,
             name,
         } = value;
+        if name.len() > 32 {
+            return Err(Self::Error::name_too_long(name.len()));
+        }
         let power = power
             .try_into()
             .map_err(|_| Self::Error::negative_power(power))?;

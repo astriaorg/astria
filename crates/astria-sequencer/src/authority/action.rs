@@ -64,7 +64,7 @@ impl ActionHandler for ValidatorUpdate {
             .get_validator_updates()
             .await
             .wrap_err("failed getting validator updates from state")?;
-        validator_updates.push_update(self.clone());
+        validator_updates.insert(self.clone());
         state
             .put_validator_updates(validator_updates)
             .wrap_err("failed to put validator updates in state")?;
@@ -154,7 +154,7 @@ impl ActionHandler for ValidatorUpdateV2 {
                 validator_names.remove(&self.verification_key);
             }
             _ => {
-                validator_names.push_name(&self.verification_key, self.name.clone());
+                validator_names.insert(&self.verification_key, self.name.clone());
             }
         }
         state

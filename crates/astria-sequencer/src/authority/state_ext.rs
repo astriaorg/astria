@@ -476,7 +476,7 @@ mod tests {
         );
 
         // can update
-        validator_names.push_name(&[0; ADDRESS_LEN], "test".to_string());
+        validator_names.insert(&[0; ADDRESS_LEN], "test".to_string());
         state
             .put_validator_names(validator_names.clone())
             .expect("writing update validator set should not fail");

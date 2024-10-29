@@ -223,7 +223,10 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
-        test_utils::verification_key,
+        test_utils::{
+            astria_address,
+            verification_key,
+        },
     };
 
     #[tokio::test]
@@ -422,20 +425,20 @@ mod tests {
         };
 
         let mut validator_names = ValidatorNames::new(BTreeMap::new());
-        validator_names.push_name(
+        validator_names.insert(
             &validator_update.verification_key,
             validator_update.name.clone(),
         );
         state.put_validator_names(validator_names).unwrap();
         let mut validator_set = ValidatorSet::new(BTreeMap::new());
-        validator_set.push_update(inner_validator_update);
+        validator_set.insert(inner_validator_update);
         state.put_validator_set(validator_set).unwrap();
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
             path: format!(
                 "authority/validator_name/{}",
-                hex::encode(verification_key.address_bytes())
+                astria_address(verification_key.address_bytes())
             ),
             data: vec![].into(),
             height: height.into(),

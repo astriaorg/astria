@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 52, 53, 55, 56, 57, 51"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 52, 53, 54, 55, 56, 51"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -38,12 +38,12 @@ pub mod action {
         IbcRelayerChange(super::IbcRelayerChange),
         #[prost(message, tag = "53")]
         FeeAssetChange(super::FeeAssetChange),
+        #[prost(message, tag = "54")]
+        ValidatorUpdateV2(super::ValidatorUpdateV2),
         #[prost(message, tag = "55")]
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
-        #[prost(message, tag = "57")]
-        ValidatorUpdateV2(super::ValidatorUpdateV2),
         /// Deprecated
         ///
         /// Prefer `ValidatorUpdateV2` instead.

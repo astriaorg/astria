@@ -28,9 +28,9 @@ message Action {
     SudoAddressChange sudo_address_change = 50;
     IbcRelayerChange ibc_relayer_change = 52;
     FeeAssetChange fee_asset_change = 53;
+    ValidatorUpdateV2 validator_update_v2 = 54;
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
-    ValidatorUpdateV2 validator_update_v2 = 57;
 
     // Deprecated
     astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51; // Prefer `ValidatorUpdateV2` instead.

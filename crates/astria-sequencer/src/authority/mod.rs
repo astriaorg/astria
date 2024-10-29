@@ -52,7 +52,7 @@ impl ValidatorSet {
         self.0.get(address.address_bytes())
     }
 
-    pub(super) fn push_update(&mut self, update: ValidatorUpdate) {
+    pub(super) fn insert(&mut self, update: ValidatorUpdate) {
         self.0
             .insert(*update.verification_key.address_bytes(), update);
     }
@@ -96,7 +96,7 @@ impl ValidatorNames {
         self.0.iter()
     }
 
-    pub(super) fn push_name<T: AddressBytes>(&mut self, address: &T, name: String) {
+    pub(super) fn insert<T: AddressBytes>(&mut self, address: &T, name: String) {
         self.0.insert(*address.address_bytes(), name);
     }
 

@@ -45,14 +45,14 @@ impl serde::Serialize for Action {
                 action::Value::FeeAssetChange(v) => {
                     struct_ser.serialize_field("feeAssetChange", v)?;
                 }
+                action::Value::ValidatorUpdateV2(v) => {
+                    struct_ser.serialize_field("validatorUpdateV2", v)?;
+                }
                 action::Value::FeeChange(v) => {
                     struct_ser.serialize_field("feeChange", v)?;
                 }
                 action::Value::IbcSudoChange(v) => {
                     struct_ser.serialize_field("ibcSudoChange", v)?;
-                }
-                action::Value::ValidatorUpdateV2(v) => {
-                    struct_ser.serialize_field("validatorUpdateV2", v)?;
                 }
                 action::Value::ValidatorUpdate(v) => {
                     struct_ser.serialize_field("validatorUpdate", v)?;
@@ -89,12 +89,12 @@ impl<'de> serde::Deserialize<'de> for Action {
             "ibcRelayerChange",
             "fee_asset_change",
             "feeAssetChange",
+            "validator_update_v2",
+            "validatorUpdateV2",
             "fee_change",
             "feeChange",
             "ibc_sudo_change",
             "ibcSudoChange",
-            "validator_update_v2",
-            "validatorUpdateV2",
             "validator_update",
             "validatorUpdate",
         ];
@@ -112,9 +112,9 @@ impl<'de> serde::Deserialize<'de> for Action {
             SudoAddressChange,
             IbcRelayerChange,
             FeeAssetChange,
+            ValidatorUpdateV2,
             FeeChange,
             IbcSudoChange,
-            ValidatorUpdateV2,
             ValidatorUpdate,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -148,9 +148,9 @@ impl<'de> serde::Deserialize<'de> for Action {
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "ibcRelayerChange" | "ibc_relayer_change" => Ok(GeneratedField::IbcRelayerChange),
                             "feeAssetChange" | "fee_asset_change" => Ok(GeneratedField::FeeAssetChange),
+                            "validatorUpdateV2" | "validator_update_v2" => Ok(GeneratedField::ValidatorUpdateV2),
                             "feeChange" | "fee_change" => Ok(GeneratedField::FeeChange),
                             "ibcSudoChange" | "ibc_sudo_change" => Ok(GeneratedField::IbcSudoChange),
-                            "validatorUpdateV2" | "validator_update_v2" => Ok(GeneratedField::ValidatorUpdateV2),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -251,6 +251,13 @@ impl<'de> serde::Deserialize<'de> for Action {
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::FeeAssetChange)
 ;
                         }
+                        GeneratedField::ValidatorUpdateV2 => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("validatorUpdateV2"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::ValidatorUpdateV2)
+;
+                        }
                         GeneratedField::FeeChange => {
                             if value__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("feeChange"));
@@ -263,13 +270,6 @@ impl<'de> serde::Deserialize<'de> for Action {
                                 return Err(serde::de::Error::duplicate_field("ibcSudoChange"));
                             }
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcSudoChange)
-;
-                        }
-                        GeneratedField::ValidatorUpdateV2 => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("validatorUpdateV2"));
-                            }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::ValidatorUpdateV2)
 ;
                         }
                         GeneratedField::ValidatorUpdate => {

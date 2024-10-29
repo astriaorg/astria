@@ -1,7 +1,8 @@
 use astria_core::{
-    primitive::v1::ADDRESS_LEN,
+    primitive::v1::Address,
     protocol::abci::AbciErrorCode,
 };
+use astria_eyre::eyre::Context as _;
 use cnidarium::Storage;
 use tendermint::abci::{
     request,
@@ -71,7 +72,7 @@ pub(crate) async fn validator_name_request(
     }
 }
 
-fn preprocess_request(params: &[(String, String)]) -> Result<[u8; ADDRESS_LEN], response::Query> {
+fn preprocess_request(params: &[(String, String)]) -> Result<Address, response::Query> {
     let Some(address) = params
         .iter()
         .find_map(|(k, v)| (k == "address").then_some(v))
@@ -82,30 +83,16 @@ fn preprocess_request(params: &[(String, String)]) -> Result<[u8; ADDRESS_LEN], 
             "path did not contain address parameter",
         ));
     };
-
-    let address_bytes_vec = match hex::decode(address) {
-        Ok(address_bytes) => address_bytes,
-        Err(err) => {
-            return Err(error_query_response(
-                Some(err.into()),
-                AbciErrorCode::INTERNAL_ERROR,
-                "failed to decode address from hex",
-            ));
-        }
-    };
-
-    let address_bytes: [u8; ADDRESS_LEN] = match address_bytes_vec.try_into() {
-        Ok(address_bytes) => address_bytes,
-        Err(_) => {
-            return Err(error_query_response(
-                None,
-                AbciErrorCode::INVALID_PARAMETER,
-                "address was not the correct length",
-            ));
-        }
-    };
-
-    Ok(address_bytes)
+    let address = address
+        .parse()
+        .wrap_err("failed to parse argument as address")
+        .map_err(|err| response::Query {
+            code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
+            info: AbciErrorCode::INVALID_PARAMETER.info(),
+            log: format!("address could not be constructed from provided parameter: {err:#}"),
+            ..response::Query::default()
+        })?;
+    Ok(address)
 }
 
 fn error_query_response(
@@ -132,9 +119,12 @@ mod tests {
         vec,
     };
 
-    use astria_core::protocol::transaction::v1::action::{
-        ValidatorUpdate,
-        ValidatorUpdateV2,
+    use astria_core::protocol::{
+        abci::AbciErrorCode,
+        transaction::v1::action::{
+            ValidatorUpdate,
+            ValidatorUpdateV2,
+        },
     };
     use cnidarium::StateDelta;
     use tendermint::abci::request;
@@ -146,7 +136,10 @@ mod tests {
             StateWriteExt,
             ValidatorSet,
         },
-        test_utils::verification_key,
+        test_utils::{
+            astria_address,
+            verification_key,
+        },
     };
 
     #[tokio::test]
@@ -156,7 +149,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let verification_key = verification_key(1);
-        let key_address = *verification_key.clone().address_bytes();
+        let key_address_bytes = *verification_key.clone().address_bytes();
         let validator_name = "test".to_string();
         let inner_update = ValidatorUpdate {
             power: 100,
@@ -175,8 +168,8 @@ mod tests {
         let mut validator_set = ValidatorSet::new(inner_validator_map);
         assert_eq!(validator_set.len(), 0);
 
-        validator_names.push_name(&key_address, update_with_name.name.clone());
-        validator_set.push_update(inner_update);
+        validator_names.insert(&key_address_bytes, update_with_name.name.clone());
+        validator_set.insert(inner_update);
 
         state.put_validator_names(validator_names).unwrap();
         state.put_validator_set(validator_set).unwrap();
@@ -188,7 +181,10 @@ mod tests {
             height: 0u32.into(),
             prove: false,
         };
-        let params = vec![("address".to_string(), hex::encode(key_address))];
+        let params = vec![(
+            "address".to_string(),
+            astria_address(&key_address_bytes).to_string(),
+        )];
 
         let rsp = validator_name_request(storage.clone(), query, params).await;
         assert_eq!(rsp.code, 0.into(), "{}", rsp.log);
@@ -212,7 +208,10 @@ mod tests {
         };
 
         // Use a different address than the one submitted to the validator set
-        let params = vec![("address".to_string(), hex::encode([0u8; 20]))];
+        let params = vec![(
+            "address".to_string(),
+            astria_address(&[0u8; 20]).to_string(),
+        )];
 
         let inner_update = ValidatorUpdate {
             power: 100,
@@ -220,19 +219,29 @@ mod tests {
         };
 
         let rsp = validator_name_request(storage.clone(), query.clone(), params.clone()).await;
-        assert_eq!(rsp.code, 3.into(), "{}", rsp.log); // AbciErrorCode::INTERNAL_ERROR
+        assert_eq!(
+            rsp.code.value(),
+            u32::from(AbciErrorCode::INTERNAL_ERROR.value()),
+            "{}",
+            rsp.log
+        );
         let err_msg = "failed to get validator set: validator set not found";
         assert_eq!(rsp.log, err_msg);
 
         let inner_validator_map = BTreeMap::new();
         let mut validator_set = ValidatorSet::new(inner_validator_map);
         assert_eq!(validator_set.len(), 0);
-        validator_set.push_update(inner_update);
+        validator_set.insert(inner_update);
         state.put_validator_set(validator_set).unwrap();
         storage.commit(state).await.unwrap();
 
         let rsp = validator_name_request(storage.clone(), query, params).await;
-        assert_eq!(rsp.code, 8.into(), "{}", rsp.log); // AbciErrorCode::VALUE_NOT_FOUND
+        assert_eq!(
+            rsp.code.value(),
+            u32::from(AbciErrorCode::VALUE_NOT_FOUND.value()),
+            "{}",
+            rsp.log
+        );
         let err_msg = "validator address not found in validator set";
         assert_eq!(rsp.log, err_msg);
     }
@@ -244,7 +253,7 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let verification_key = verification_key(1);
-        let key_address = *verification_key.clone().address_bytes();
+        let key_address_bytes = *verification_key.clone().address_bytes();
         let inner_update = ValidatorUpdate {
             power: 100,
             verification_key,
@@ -253,7 +262,7 @@ mod tests {
         let inner_validator_map = BTreeMap::new();
         let mut validator_set = ValidatorSet::new(inner_validator_map);
         assert_eq!(validator_set.len(), 0);
-        validator_set.push_update(inner_update);
+        validator_set.insert(inner_update);
         state.put_validator_set(validator_set).unwrap();
         storage.commit(state).await.unwrap();
 
@@ -264,9 +273,17 @@ mod tests {
             prove: false,
         };
 
-        let params = vec![("address".to_string(), hex::encode(key_address))];
+        let params = vec![(
+            "address".to_string(),
+            astria_address(&key_address_bytes).to_string(),
+        )];
         let rsp = validator_name_request(storage.clone(), query, params).await;
-        assert_eq!(rsp.code, 8.into(), "{}", rsp.log); // AbciErrorCode::VALUE_NOT_FOUND
+        assert_eq!(
+            rsp.code.value(),
+            u32::from(AbciErrorCode::VALUE_NOT_FOUND.value()),
+            "{}",
+            rsp.log
+        );
         let err_msg = "validator address exists but does not have a name";
         assert_eq!(rsp.log, err_msg);
     }
