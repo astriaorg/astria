@@ -40,19 +40,18 @@ enum SubCommand {
 }
 
 #[derive(Debug, clap::Args)]
-struct Create;
+struct Create {
+    /// The address prefix
+    #[arg(long, default_value = "astria")]
+    prefix: String,
+}
 
 impl Create {
-    #[expect(
-        clippy::unused_self,
-        clippy::unnecessary_wraps,
-        reason = "for consistency with all the other commands"
-    )]
     fn run(self) -> eyre::Result<()> {
         let signing_key = SigningKey::new(OsRng);
         let pretty_signing_key = hex::encode(signing_key.as_bytes());
         let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
-        let pretty_address = hex::encode(signing_key.address_bytes());
+        let pretty_address = SigningKey::try_address(&signing_key, &self.prefix)?;
         println!("Create Sequencer Account");
         println!();
         // TODO: don't print private keys to CLI, prefer writing to file:

@@ -134,7 +134,13 @@ async fn app_execute_transaction_transfer() {
             .unwrap(),
         value + 10u128.pow(19)
     );
-    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
+    let transfer_base = app
+        .state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored")
+        .base;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -200,7 +206,13 @@ async fn app_execute_transaction_transfer_not_native_token() {
         value, // transferred amount
     );
 
-    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
+    let transfer_base = app
+        .state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored")
+        .base;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -995,7 +1007,13 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
 
     // give bridge eoa funds so it can pay for the
     // unlock transfer action
-    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
+    let transfer_base = app
+        .state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored")
+        .base;
     state_tx
         .put_account_balance(&bridge_address, &nria(), transfer_base)
         .unwrap();
@@ -1251,17 +1269,12 @@ async fn transaction_execution_records_fee_event() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    let events = app.execute_transaction(signed_tx).await.unwrap();
 
-    let sudo_address = app.state.get_sudo_address().await.unwrap();
-    let end_block = app.end_block(1, &sudo_address).await.unwrap();
-
-    let events = end_block.events;
     let event = events.first().unwrap();
     assert_eq!(event.kind, "tx.fees");
     assert_eq!(event.attributes[0].key, "actionName");
     assert_eq!(event.attributes[1].key, "asset");
     assert_eq!(event.attributes[2].key, "feeAmount");
-    assert_eq!(event.attributes[3].key, "sourceTransactionId");
-    assert_eq!(event.attributes[4].key, "sourceActionIndex");
+    assert_eq!(event.attributes[3].key, "positionInTransaction");
 }
