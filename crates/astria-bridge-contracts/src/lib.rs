@@ -63,15 +63,6 @@ impl BuildError {
     }
 
     #[must_use]
-    fn call_decimals<T: Into<Box<dyn std::error::Error + Send + Sync + 'static>>>(
-        source: T,
-    ) -> Self {
-        Self(BuildErrorKind::CallDecimals {
-            source: source.into(),
-        })
-    }
-
-    #[must_use]
     pub fn no_withdraws_configured() -> Self {
         Self(BuildErrorKind::NoWithdrawsConfigured)
     }
@@ -113,13 +104,6 @@ enum BuildErrorKind {
     NoWithdrawsConfigured,
     #[error("failed to call the `BASE_CHAIN_ASSET_PRECISION` of the provided contract")]
     CallBaseChainAssetPrecision {
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
-    #[error(
-        "failed to call the contract's `decimals` function, which must exist for an ERC20 \
-         contract; check that the provided contract is an ERC20"
-    )]
-    CallDecimals {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
     #[error("ics20 asset must have a channel to be withdrawn via IBC")]
