@@ -706,7 +706,7 @@ mod tests {
     #[test]
     fn memo_snapshot() {
         let event = Ics20WithdrawalFilter {
-            sender: ethers::core::types::Address::from_low_u64_be(999),
+            sender: "14cbd075f796969cf5dbd853da492d86071f97ed".parse().unwrap(),
             amount: ethers::core::types::U256::one(),
             destination_chain_address: "destination address".to_string(),
             memo: "a memo".to_string(),
