@@ -200,7 +200,7 @@ impl Mempool {
         }
     }
 
-    /// Inserts a transaction into the mempool. Allows for transaction replacement of parked
+    /// Inserts a transaction into the mempool. Allows for nonce replacement of parked
     /// transactions. Will return the reason for insertion failure if failure occurs.
     #[instrument(skip_all)]
     pub(crate) async fn insert(
