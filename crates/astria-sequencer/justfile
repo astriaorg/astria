@@ -15,6 +15,7 @@ run-cometbft:
   #!/usr/bin/env bash
   set -e
   app_state_genesis="$(mktemp)"
+  genesis="$(mktemp)"
 
   cometbft init
 
@@ -27,6 +28,7 @@ run-cometbft:
     --genesis-app-state-file="${app_state_genesis}" \
     --destination-genesis-file="$HOME/.cometbft/config/genesis.json" \
     --chain-id=astria
+  jq ".consensus_params.abci.vote_extensions_enable_height = \"1\"" $HOME/.cometbft/config/genesis.json > "$genesis" && mv "$genesis" $HOME/.cometbft/config/genesis.json
 
   sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
   cometbft node
