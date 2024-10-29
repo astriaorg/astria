@@ -603,7 +603,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::test_utils::initialize_app_with_storage,
+        app::benchmark_and_test_utils::initialize_app_with_storage,
         fees::access::FeeComponents,
     };
 

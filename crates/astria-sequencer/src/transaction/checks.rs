@@ -162,14 +162,15 @@ mod tests {
         },
         app::test_utils::*,
         assets::StateWriteExt as _,
+        benchmark_and_test_utils::{
+            nria,
+            ASTRIA_PREFIX,
+        },
         fees::{
             StateReadExt as _,
             StateWriteExt as _,
         },
-        test_utils::{
-            calculate_rollup_data_submission_fee_from_state,
-            ASTRIA_PREFIX,
-        },
+        test_utils::calculate_rollup_data_submission_fee_from_state,
     };
 
     #[tokio::test]
@@ -180,9 +181,7 @@ mod tests {
         let mut state_tx = StateDelta::new(snapshot);
 
         state_tx.put_base_prefix("astria".to_string()).unwrap();
-        state_tx
-            .put_native_asset(crate::test_utils::nria())
-            .unwrap();
+        state_tx.put_native_asset(nria()).unwrap();
         let transfer_fees = TransferFeeComponents {
             base: 12,
             multiplier: 0,
@@ -263,7 +262,7 @@ mod tests {
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
-                &crate::test_utils::nria(),
+                &nria(),
                 transfer_fee
                     + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
             )
@@ -285,13 +284,13 @@ mod tests {
             Action::Transfer(Transfer {
                 asset: other_asset.clone(),
                 amount,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
             Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
             }),
         ];
 
@@ -315,9 +314,7 @@ mod tests {
         let mut state_tx = StateDelta::new(snapshot);
 
         state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
-            .put_native_asset(crate::test_utils::nria())
-            .unwrap();
+        state_tx.put_native_asset(nria()).unwrap();
         let transfer_fees = TransferFeeComponents {
             base: 12,
             multiplier: 0,
@@ -398,7 +395,7 @@ mod tests {
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
-                &crate::test_utils::nria(),
+                &nria(),
                 transfer_fee
                     + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
             )
@@ -409,13 +406,13 @@ mod tests {
             Action::Transfer(Transfer {
                 asset: other_asset.clone(),
                 amount,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
             Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
             }),
         ];
 

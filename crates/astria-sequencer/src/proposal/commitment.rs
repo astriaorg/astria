@@ -104,19 +104,23 @@ mod tests {
     use rand::rngs::OsRng;
 
     use super::*;
+    use crate::benchmark_and_test_utils::{
+        astria_address,
+        nria,
+    };
 
     #[test]
     fn generate_rollup_datas_commitment_should_ignore_transfers() {
         let rollup_data_submission = RollupDataSubmission {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: Bytes::from_static(b"hello world"),
-            fee_asset: crate::test_utils::nria().into(),
+            fee_asset: nria().into(),
         };
         let transfer_action = Transfer {
-            to: crate::test_utils::astria_address(&[0u8; 20]),
+            to: astria_address(&[0u8; 20]),
             amount: 1,
-            asset: crate::test_utils::nria().into(),
-            fee_asset: crate::test_utils::nria().into(),
+            asset: nria().into(),
+            fee_asset: nria().into(),
         };
 
         let signing_key = SigningKey::new(OsRng);
@@ -145,6 +149,7 @@ mod tests {
             .unwrap();
 
         let signed_tx = tx.sign(&signing_key);
+
         let txs = vec![signed_tx];
         let GeneratedCommitments {
             rollup_datas_root: commitment_1,
@@ -164,13 +169,13 @@ mod tests {
         let rollup_data_submission = RollupDataSubmission {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec().into(),
-            fee_asset: crate::test_utils::nria().into(),
+            fee_asset: nria().into(),
         };
         let transfer_action = Transfer {
-            to: crate::test_utils::astria_address(&[0u8; 20]),
+            to: astria_address(&[0u8; 20]),
             amount: 1,
-            asset: crate::test_utils::nria().into(),
-            fee_asset: crate::test_utils::nria().into(),
+            asset: nria().into(),
+            fee_asset: nria().into(),
         };
 
         let signing_key = SigningKey::new(OsRng);

@@ -40,15 +40,24 @@ use super::test_utils::get_alice_signing_key;
 use crate::{
     accounts::StateReadExt as _,
     app::{
+        benchmark_and_test_utils::{
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+        },
         test_utils::{
             get_bridge_signing_key,
             initialize_app,
-            BOB_ADDRESS,
-            CAROL_ADDRESS,
         },
         ActionHandler as _,
     },
     authority::StateReadExt as _,
+    benchmark_and_test_utils::{
+        astria_address,
+        astria_address_from_hex_string,
+        nria,
+        verification_key,
+        ASTRIA_PREFIX,
+    },
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -58,13 +67,7 @@ use crate::{
         StateWriteExt as _,
     },
     ibc::StateReadExt as _,
-    test_utils::{
-        astria_address,
-        astria_address_from_hex_string,
-        calculate_rollup_data_submission_fee_from_state,
-        nria,
-        ASTRIA_PREFIX,
-    },
+    test_utils::calculate_rollup_data_submission_fee_from_state,
     transaction::{
         InvalidChainId,
         InvalidNonce,
@@ -86,7 +89,7 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::Genes
                 .unwrap()
                 .to_raw(),
         ),
-        ..crate::app::test_utils::proto_genesis_state()
+        ..crate::app::benchmark_and_test_utils::proto_genesis_state()
     }
 }
 
@@ -112,8 +115,8 @@ async fn app_execute_transaction_transfer() {
             Transfer {
                 to: bob_address,
                 amount: value,
-                asset: crate::test_utils::nria().into(),
-                fee_asset: crate::test_utils::nria().into(),
+                asset: nria().into(),
+                fee_asset: nria().into(),
             }
             .into(),
         ])
@@ -346,7 +349,7 @@ async fn app_execute_transaction_validator_update() {
 
     let update = ValidatorUpdate {
         power: 100,
-        verification_key: crate::test_utils::verification_key(1),
+        verification_key: verification_key(1),
     };
 
     let tx = TransactionBody::builder()
@@ -365,7 +368,7 @@ async fn app_execute_transaction_validator_update() {
     let validator_updates = app.state.get_validator_updates().await.unwrap();
     assert_eq!(validator_updates.len(), 1);
     assert_eq!(
-        validator_updates.get(crate::test_utils::verification_key(1).address_bytes()),
+        validator_updates.get(verification_key(1).address_bytes()),
         Some(&update)
     );
 }
