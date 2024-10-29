@@ -253,9 +253,6 @@ impl serde::Serialize for GenesisAppState {
         if self.fees.is_some() {
             len += 1;
         }
-        if self.slinky.is_some() {
-            len += 1;
-        }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1alpha1.GenesisAppState", len)?;
         if !self.chain_id.is_empty() {
             struct_ser.serialize_field("chainId", &self.chain_id)?;
@@ -287,9 +284,6 @@ impl serde::Serialize for GenesisAppState {
         if let Some(v) = self.fees.as_ref() {
             struct_ser.serialize_field("fees", v)?;
         }
-        if let Some(v) = self.slinky.as_ref() {
-            struct_ser.serialize_field("slinky", v)?;
-        }
         struct_ser.end()
     }
 }
@@ -318,7 +312,6 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
             "allowed_fee_assets",
             "allowedFeeAssets",
             "fees",
-            "slinky",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -333,7 +326,6 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
             IbcParameters,
             AllowedFeeAssets,
             Fees,
-            Slinky,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -365,7 +357,6 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                             "ibcParameters" | "ibc_parameters" => Ok(GeneratedField::IbcParameters),
                             "allowedFeeAssets" | "allowed_fee_assets" => Ok(GeneratedField::AllowedFeeAssets),
                             "fees" => Ok(GeneratedField::Fees),
-                            "slinky" => Ok(GeneratedField::Slinky),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -395,7 +386,6 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                 let mut ibc_parameters__ = None;
                 let mut allowed_fee_assets__ = None;
                 let mut fees__ = None;
-                let mut slinky__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::ChainId => {
@@ -458,12 +448,6 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                             }
                             fees__ = map_.next_value()?;
                         }
-                        GeneratedField::Slinky => {
-                            if slinky__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("slinky"));
-                            }
-                            slinky__ = map_.next_value()?;
-                        }
                     }
                 }
                 Ok(GenesisAppState {
@@ -477,7 +461,6 @@ impl<'de> serde::Deserialize<'de> for GenesisAppState {
                     ibc_parameters: ibc_parameters__,
                     allowed_fee_assets: allowed_fee_assets__.unwrap_or_default(),
                     fees: fees__,
-                    slinky: slinky__,
                 })
             }
         }
@@ -935,114 +918,5 @@ impl<'de> serde::Deserialize<'de> for IbcParameters {
             }
         }
         deserializer.deserialize_struct("astria.protocol.genesis.v1alpha1.IbcParameters", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for SlinkyGenesis {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if self.market_map.is_some() {
-            len += 1;
-        }
-        if self.oracle.is_some() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1alpha1.SlinkyGenesis", len)?;
-        if let Some(v) = self.market_map.as_ref() {
-            struct_ser.serialize_field("marketMap", v)?;
-        }
-        if let Some(v) = self.oracle.as_ref() {
-            struct_ser.serialize_field("oracle", v)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for SlinkyGenesis {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "market_map",
-            "marketMap",
-            "oracle",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            MarketMap,
-            Oracle,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "marketMap" | "market_map" => Ok(GeneratedField::MarketMap),
-                            "oracle" => Ok(GeneratedField::Oracle),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = SlinkyGenesis;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.genesis.v1alpha1.SlinkyGenesis")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SlinkyGenesis, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut market_map__ = None;
-                let mut oracle__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::MarketMap => {
-                            if market_map__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("marketMap"));
-                            }
-                            market_map__ = map_.next_value()?;
-                        }
-                        GeneratedField::Oracle => {
-                            if oracle__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("oracle"));
-                            }
-                            oracle__ = map_.next_value()?;
-                        }
-                    }
-                }
-                Ok(SlinkyGenesis {
-                    market_map: market_map__,
-                    oracle: oracle__,
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.protocol.genesis.v1alpha1.SlinkyGenesis", FIELDS, GeneratedVisitor)
     }
 }
