@@ -27,6 +27,26 @@ pub(crate) async fn validator_name_request(
 
     let snapshot = storage.latest_snapshot();
 
+    let validator_names = match snapshot.get_validator_names().await {
+        Ok(names) => names,
+        Err(err) => {
+            return error_query_response(
+                Some(err),
+                AbciErrorCode::INTERNAL_ERROR,
+                "failed to get validator names",
+            );
+        }
+    };
+
+    if let Some(name) = validator_names.get(&address) {
+        return response::Query {
+            code: Code::Ok,
+            key: request.path.clone().into_bytes().into(),
+            value: name.clone().into_bytes().into(),
+            ..response::Query::default()
+        };
+    }
+
     let validator_set = match snapshot.get_validator_set().await {
         Ok(validator_set) => validator_set,
         Err(err) => {
@@ -39,36 +59,17 @@ pub(crate) async fn validator_name_request(
     };
 
     if validator_set.get(address.address_bytes()).is_none() {
-        return error_query_response(
+        error_query_response(
             None,
             AbciErrorCode::VALUE_NOT_FOUND,
             "validator address not found in validator set",
-        );
-    }
-
-    let validator_names = match snapshot.get_validator_names().await {
-        Ok(names) => names,
-        Err(err) => {
-            return error_query_response(
-                Some(err),
-                AbciErrorCode::INTERNAL_ERROR,
-                "failed to get validator names",
-            );
-        }
-    };
-
-    match validator_names.get(&address) {
-        Some(name) => response::Query {
-            code: Code::Ok,
-            key: request.path.clone().into_bytes().into(),
-            value: name.clone().into_bytes().into(),
-            ..response::Query::default()
-        },
-        None => error_query_response(
+        )
+    } else {
+        error_query_response(
             None,
             AbciErrorCode::VALUE_NOT_FOUND,
             "validator address exists but does not have a name",
-        ),
+        )
     }
 }
 
@@ -187,7 +188,7 @@ mod tests {
         )];
 
         let rsp = validator_name_request(storage.clone(), query, params).await;
-        assert_eq!(rsp.code, 0.into(), "{}", rsp.log);
+        assert!(rsp.code.is_ok(), "code: {:?}, log: {}", rsp.code, rsp.log);
         assert_eq!(rsp.key, "path".as_bytes());
         assert_eq!(rsp.value, validator_name);
     }
