@@ -21,7 +21,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
@@ -45,11 +44,12 @@ impl ActionHandler for BridgeUnlock {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+    async fn check_and_execute<S: StateWrite>(
+        &self,
+        mut state: S,
+        context: crate::transaction::Context,
+    ) -> Result<()> {
+        let from = context.address_bytes;
         state
             .ensure_base_prefix(&self.to)
             .await
@@ -126,10 +126,6 @@ mod tests {
         },
         bridge::StateWriteExt as _,
         fees::StateWriteExt as _,
-        transaction::{
-            StateWriteExt as _,
-            TransactionContext,
-        },
     };
 
     fn test_asset() -> asset::Denom {
@@ -142,11 +138,6 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
@@ -168,9 +159,17 @@ mod tests {
             rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
         };
 
+        let context = crate::transaction::Context {
+            address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
         // invalid sender, doesn't match action's `from`, should fail
         assert_eyre_error(
-            &bridge_unlock.check_and_execute(state).await.unwrap_err(),
+            &bridge_unlock
+                .check_and_execute(state, context)
+                .await
+                .unwrap_err(),
             "bridge account does not have an associated withdrawer address",
         );
     }
@@ -181,11 +180,6 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
@@ -211,9 +205,17 @@ mod tests {
             rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
         };
 
+        let context = crate::transaction::Context {
+            address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
         assert_eyre_error(
-            &bridge_unlock.check_and_execute(state).await.unwrap_err(),
+            &bridge_unlock
+                .check_and_execute(state, context)
+                .await
+                .unwrap_err(),
             "unauthorized to unlock bridge account",
         );
     }
@@ -225,11 +227,6 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let bridge_address = astria_address(&[1; 20]);
-        state.put_transaction_context(TransactionContext {
-            address_bytes: bridge_address.bytes(),
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
@@ -274,14 +271,19 @@ mod tests {
             ..bridge_unlock_first.clone()
         };
 
+        let context = crate::transaction::Context {
+            address_bytes: bridge_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
         // first should succeed, next should fail due to duplicate event.
         bridge_unlock_first
-            .check_and_execute(&mut state)
+            .check_and_execute(&mut state, context)
             .await
             .unwrap();
         assert_eyre_error(
             &bridge_unlock_second
-                .check_and_execute(&mut state)
+                .check_and_execute(&mut state, context)
                 .await
                 .unwrap_err(),
             "withdrawal event already processed",

@@ -791,10 +791,7 @@ mod tests {
             StateWriteExt,
         },
         test_utils::astria_compat_address,
-        transaction::{
-            StateWriteExt as _,
-            TransactionContext,
-        },
+        transaction::StateWriteExt as _,
     };
 
     fn packet() -> Packet {
@@ -931,7 +928,8 @@ mod tests {
         state_tx
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
-        state_tx.put_transaction_context(TransactionContext {
+
+        state_tx.put_transaction_context(crate::transaction::Context {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
@@ -1013,7 +1011,7 @@ mod tests {
         state_tx
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
-        state_tx.put_transaction_context(TransactionContext {
+        state_tx.put_transaction_context(crate::transaction::Context {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
@@ -1263,7 +1261,7 @@ mod tests {
 
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_transaction_context(TransactionContext {
+        state_tx.put_transaction_context(crate::transaction::Context {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
@@ -1347,7 +1345,7 @@ mod tests {
         let destination_chain_address = "rollup-defined";
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_transaction_context(TransactionContext {
+        state_tx.put_transaction_context(crate::transaction::Context {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,
@@ -1452,7 +1450,7 @@ mod tests {
             .unwrap(),
         };
 
-        let transaction_context = TransactionContext {
+        let transaction_context = crate::transaction::Context {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             source_action_index: 0,

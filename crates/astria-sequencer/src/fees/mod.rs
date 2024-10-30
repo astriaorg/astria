@@ -32,10 +32,7 @@ use tracing::{
     Level,
 };
 
-use crate::{
-    accounts::StateWriteExt as _,
-    transaction::StateReadExt as _,
-};
+use crate::accounts::StateWriteExt as _;
 
 pub(crate) mod action;
 pub(crate) mod component;
@@ -57,7 +54,11 @@ const DEPOSIT_BASE_FEE: u128 = 16;
 
 #[async_trait::async_trait]
 pub(crate) trait FeeHandler {
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()>;
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()>;
 
     fn variable_component(&self) -> u128;
 }
@@ -83,13 +84,25 @@ impl Fee {
 #[async_trait::async_trait]
 impl FeeHandler for Transfer {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         let fees = state
             .get_transfer_fees()
             .await
             .wrap_err("error fetching transfer fees")?
             .ok_or_eyre("transfer fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+        check_and_pay_fees(
+            self,
+            fees.base,
+            fees.multiplier,
+            state,
+            &self.fee_asset,
+            context,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -101,13 +114,25 @@ impl FeeHandler for Transfer {
 #[async_trait::async_trait]
 impl FeeHandler for BridgeLock {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         let fees = state
             .get_bridge_lock_fees()
             .await
             .wrap_err("error fetching bridge lock fees")?
             .ok_or_eyre("bridge lock fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+        check_and_pay_fees(
+            self,
+            fees.base,
+            fees.multiplier,
+            state,
+            &self.fee_asset,
+            context,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -119,13 +144,25 @@ impl FeeHandler for BridgeLock {
 #[async_trait::async_trait]
 impl FeeHandler for BridgeSudoChange {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         let fees = state
             .get_bridge_sudo_change_fees()
             .await
             .wrap_err("error fetching bridge sudo change fees")?
             .ok_or_eyre("bridge sudo change fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+        check_and_pay_fees(
+            self,
+            fees.base,
+            fees.multiplier,
+            state,
+            &self.fee_asset,
+            context,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -137,13 +174,25 @@ impl FeeHandler for BridgeSudoChange {
 #[async_trait::async_trait]
 impl FeeHandler for BridgeUnlock {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         let fees = state
             .get_bridge_unlock_fees()
             .await
             .wrap_err("error fetching bridge unlock fees")?
             .ok_or_eyre("bridge unlock fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+        check_and_pay_fees(
+            self,
+            fees.base,
+            fees.multiplier,
+            state,
+            &self.fee_asset,
+            context,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -155,13 +204,25 @@ impl FeeHandler for BridgeUnlock {
 #[async_trait::async_trait]
 impl FeeHandler for InitBridgeAccount {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         let fees = state
             .get_init_bridge_account_fees()
             .await
             .wrap_err("error fetching init bridge account fees")?
             .ok_or_eyre("init bridge account fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+        check_and_pay_fees(
+            self,
+            fees.base,
+            fees.multiplier,
+            state,
+            &self.fee_asset,
+            context,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -173,13 +234,25 @@ impl FeeHandler for InitBridgeAccount {
 #[async_trait::async_trait]
 impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         let fees = state
             .get_ics20_withdrawal_fees()
             .await
             .wrap_err("error fetching ics20 withdrawal fees")?
             .ok_or_eyre("ics20 withdrawal fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+        check_and_pay_fees(
+            self,
+            fees.base,
+            fees.multiplier,
+            state,
+            &self.fee_asset,
+            context,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -191,13 +264,25 @@ impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
 #[async_trait::async_trait]
 impl FeeHandler for RollupDataSubmission {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         let fees = state
             .get_rollup_data_submission_fees()
             .await
             .wrap_err("error fetching rollup data submission fees")?
             .ok_or_eyre("rollup data submission fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+        check_and_pay_fees(
+            self,
+            fees.base,
+            fees.multiplier,
+            state,
+            &self.fee_asset,
+            context,
+        )
+        .await
     }
 
     #[instrument(skip_all)]
@@ -210,7 +295,11 @@ impl FeeHandler for RollupDataSubmission {
 #[async_trait::async_trait]
 impl FeeHandler for ValidatorUpdate {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        _context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         state
             .get_validator_update_fees()
             .await
@@ -227,7 +316,11 @@ impl FeeHandler for ValidatorUpdate {
 #[async_trait::async_trait]
 impl FeeHandler for SudoAddressChange {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        _context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         state
             .get_sudo_address_change_fees()
             .await
@@ -244,7 +337,11 @@ impl FeeHandler for SudoAddressChange {
 #[async_trait::async_trait]
 impl FeeHandler for FeeChange {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        _context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         state
             .get_fee_change_fees()
             .await
@@ -261,7 +358,11 @@ impl FeeHandler for FeeChange {
 #[async_trait::async_trait]
 impl FeeHandler for IbcSudoChange {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        _context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         state
             .get_ibc_sudo_change_fees()
             .await
@@ -278,7 +379,11 @@ impl FeeHandler for IbcSudoChange {
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelayerChange {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        _context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         state
             .get_ibc_relayer_change_fees()
             .await
@@ -295,7 +400,11 @@ impl FeeHandler for IbcRelayerChange {
 #[async_trait::async_trait]
 impl FeeHandler for FeeAssetChange {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        _context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         state
             .get_fee_asset_change_fees()
             .await
@@ -312,7 +421,11 @@ impl FeeHandler for FeeAssetChange {
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelay {
     #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        _context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
         state
             .get_ibc_relay_fees()
             .await
@@ -333,13 +446,9 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
     multiplier: u128,
     mut state: S,
     fee_asset: &asset::Denom,
+    context: crate::transaction::Context,
 ) -> eyre::Result<()> {
     let total_fees = base.saturating_add(act.variable_component().saturating_mul(multiplier));
-    let transaction_context = state
-        .get_transaction_context()
-        .expect("transaction source must be present in state when executing an action");
-    let from = transaction_context.address_bytes();
-    let source_action_index = transaction_context.source_action_index;
 
     ensure!(
         state
@@ -349,10 +458,10 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
         "invalid fee asset",
     );
     state
-        .add_fee_to_block_fees::<_, T>(fee_asset, total_fees, source_action_index)
+        .add_fee_to_block_fees::<_, T>(fee_asset, total_fees, context.source_action_index)
         .wrap_err("failed to add to block fees")?;
     state
-        .decrease_balance(&from, fee_asset, total_fees)
+        .decrease_balance(&context.address_bytes, fee_asset, total_fees)
         .await
         .wrap_err("failed to decrease balance for fee payment")?;
     Ok(())

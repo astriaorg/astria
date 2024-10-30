@@ -18,7 +18,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
@@ -29,11 +28,13 @@ impl ActionHandler for FeeChange {
 
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the fee
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+    async fn check_and_execute<S: StateWrite>(
+        &self,
+        mut state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
+        let from = context.address_bytes;
+
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
@@ -94,11 +95,12 @@ impl ActionHandler for FeeAssetChange {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+    async fn check_and_execute<S: StateWrite>(
+        &self,
+        mut state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
+        let from = context.address_bytes;
         let authority_sudo_address = state
             .get_sudo_address()
             .await
@@ -144,10 +146,6 @@ mod tests {
         app::ActionHandler as _,
         authority::StateWriteExt as _,
         fees::StateReadExt as _,
-        transaction::{
-            StateWriteExt as _,
-            TransactionContext,
-        },
     };
 
     /// This macro generates a test named e.g. `transfer_fee_change_action_executes` which asserts
@@ -165,12 +163,11 @@ mod tests {
                         let snapshot = storage.latest_snapshot();
                         let mut state = cnidarium::StateDelta::new(snapshot);
 
-                        // Put the context to enable the txs to execute.
-                        state.put_transaction_context(TransactionContext {
+                        let context = crate::transaction::Context {
                             address_bytes: [1; 20],
                             transaction_id: TransactionId::new([0; 32]),
                             source_action_index: 0,
-                        });
+                        };
                         state.put_sudo_address([1; 20]).unwrap();
 
                         assert!(state
@@ -185,7 +182,7 @@ mod tests {
                             multiplier: 2,
                         };
                         let fee_change = FeeChange:: $fee_ty (initial_fees);
-                        fee_change.check_and_execute(&mut state).await.unwrap();
+                        fee_change.check_and_execute(&mut state, context).await.unwrap();
 
                         let retrieved_fees = state
                             .[< get_ $fee_name _fees >] ()
@@ -200,7 +197,7 @@ mod tests {
                             multiplier: 4,
                         };
                         let fee_change = FeeChange:: $fee_ty (new_fees);
-                        fee_change.check_and_execute(&mut state).await.unwrap();
+                        fee_change.check_and_execute(&mut state, context).await.unwrap();
 
                         let retrieved_fees = state
                             .[< get_ $fee_name _fees >] ()

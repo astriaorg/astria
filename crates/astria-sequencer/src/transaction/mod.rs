@@ -1,11 +1,14 @@
-mod checks;
-mod state_ext;
-
 use std::fmt;
 
-use astria_core::protocol::transaction::v1::{
-    action::Action,
-    Transaction,
+use astria_core::{
+    primitive::v1::{
+        TransactionId,
+        ADDRESS_LEN,
+    },
+    protocol::transaction::v1::{
+        action::Action,
+        Transaction,
+    },
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -23,10 +26,10 @@ pub(crate) use checks::{
     get_total_transaction_cost,
 };
 use cnidarium::StateWrite;
-// Conditional to quiet warnings. This object is used throughout the codebase,
-// but is never explicitly named - hence Rust warns about it being unused.
-#[cfg(test)]
-pub(crate) use state_ext::TransactionContext;
+
+mod checks;
+mod state_ext;
+
 pub(crate) use state_ext::{
     StateReadExt,
     StateWriteExt,
@@ -39,11 +42,6 @@ pub(crate) async fn check_and_execute<S>(
 where
     S: StateWrite,
 {
-    // Add the current signed transaction into the ephemeral state in case
-    // downstream actions require access to it.
-    // XXX: This must be deleted at the end of `check_stateful`.
-    let mut transaction_context = state.put_transaction_context(transaction);
-
     // Transactions must match the chain id of the node.
     let chain_id = state.get_chain_id().await?;
     ensure!(
@@ -74,10 +72,7 @@ where
         .is_some()
     {
         state
-            .put_last_transaction_id_for_bridge_account(
-                transaction,
-                transaction_context.transaction_id,
-            )
+            .put_last_transaction_id_for_bridge_account(transaction, transaction.id())
             .wrap_err("failed to put last transaction id for bridge account")?;
     }
 
@@ -94,33 +89,34 @@ where
 
     // FIXME: this should create one span per `check_and_execute`
     for (i, action) in (0..).zip(transaction.actions().iter()) {
-        transaction_context.source_action_index = i;
-        state.put_transaction_context(transaction_context);
-
+        let context = Context {
+            address_bytes: *transaction.address_bytes(),
+            transaction_id: transaction.id(),
+            source_action_index: i,
+        };
         match action {
-            Action::Transfer(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::Transfer(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("executing transfer action failed")?,
-            Action::RollupDataSubmission(act) => check_execute_and_pay_fees(act, &mut state)
-                .await
-                .wrap_err("executing sequence action failed")?,
-            Action::ValidatorUpdate(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::RollupDataSubmission(act) => {
+                check_execute_and_pay_fees(act, &mut state, context)
+                    .await
+                    .wrap_err("executing sequence action failed")?
+            }
+            Action::ValidatorUpdate(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("executing validor update")?,
-            Action::SudoAddressChange(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::SudoAddressChange(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("executing sudo address change failed")?,
-            Action::IbcSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::IbcSudoChange(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("executing ibc sudo change failed")?,
-            Action::FeeChange(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::FeeChange(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("executing fee change failed")?,
             Action::Ibc(act) => {
-                // FIXME: this check should be moved to check_and_execute, as it now has
-                // access to the the signer through state. However, what's the correct
-                // ibc AppHandler call to do it? Can we just update one of the trait methods
-                // of crate::ibc::ics20_transfer::Ics20Transfer?
+                state.put_transaction_context(context);
                 ensure!(
                     state
                         .is_ibc_relayer(transaction.address_bytes())
@@ -136,33 +132,32 @@ where
                     .await
                     .map_err(anyhow_to_eyre)
                     .wrap_err("failed executing ibc action")?;
+                state.delete_current_transaction_context();
             }
-            Action::Ics20Withdrawal(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::Ics20Withdrawal(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("failed executing ics20 withdrawal")?,
-            Action::IbcRelayerChange(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::IbcRelayerChange(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("failed executing ibc relayer change")?,
-            Action::FeeAssetChange(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::FeeAssetChange(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("failed executing fee asseet change")?,
-            Action::InitBridgeAccount(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::InitBridgeAccount(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("failed executing init bridge account")?,
-            Action::BridgeLock(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::BridgeLock(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("failed executing bridge lock")?,
-            Action::BridgeUnlock(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::BridgeUnlock(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("failed executing bridge unlock")?,
-            Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
+            Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("failed executing bridge sudo change")?,
         }
     }
 
-    // XXX: Delete the current transaction data from the ephemeral state.
-    state.delete_current_transaction_context();
     Ok(())
 }
 
@@ -294,8 +289,16 @@ impl std::error::Error for InvalidNonce {}
 async fn check_execute_and_pay_fees<T: ActionHandler + FeeHandler + Sync, S: StateWrite>(
     action: &T,
     mut state: S,
+    context: Context,
 ) -> Result<()> {
-    action.check_and_execute(&mut state).await?;
-    action.check_and_pay_fees(&mut state).await?;
+    action.check_and_execute(&mut state, context).await?;
+    action.check_and_pay_fees(&mut state, context).await?;
     Ok(())
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct Context {
+    pub(crate) address_bytes: [u8; ADDRESS_LEN],
+    pub(crate) transaction_id: TransactionId,
+    pub(crate) source_action_index: u64,
 }

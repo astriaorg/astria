@@ -35,7 +35,10 @@ use cnidarium::StateDelta;
 
 use super::base_deposit_fee;
 use crate::{
-    accounts::StateWriteExt as _,
+    accounts::{
+        AddressBytes,
+        StateWriteExt as _,
+    },
     address::StateWriteExt as _,
     app::{
         benchmark_and_test_utils::{
@@ -62,10 +65,6 @@ use crate::{
         DEPOSIT_BASE_FEE,
     },
     test_utils::calculate_rollup_data_submission_fee_from_state,
-    transaction::{
-        StateWriteExt as _,
-        TransactionContext,
-    },
 };
 
 fn test_asset() -> asset::Denom {
@@ -342,11 +341,6 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
 
     let from_address = astria_address(&[2; 20]);
     let transaction_id = TransactionId::new([0; 32]);
-    state.put_transaction_context(TransactionContext {
-        address_bytes: from_address.bytes(),
-        transaction_id,
-        source_action_index: 0,
-    });
     state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
     let transfer_fees = TransferFeeComponents {
@@ -384,8 +378,17 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
     state
         .put_account_balance(&from_address, &asset, transfer_fee)
         .unwrap();
+
+    let context = crate::transaction::Context {
+        address_bytes: from_address.bytes(),
+        transaction_id,
+        source_action_index: 0,
+    };
     assert_eyre_error(
-        &bridge_lock.check_and_execute(&mut state).await.unwrap_err(),
+        &bridge_lock
+            .check_and_execute(&mut state, context)
+            .await
+            .unwrap_err(),
         "insufficient funds for transfer",
     );
 
@@ -394,7 +397,17 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
     state
         .put_account_balance(&from_address, &asset, 100 + expected_deposit_fee)
         .unwrap();
-    bridge_lock.check_and_execute(&mut state).await.unwrap();
+    bridge_lock
+        .check_and_execute(
+            &mut state,
+            crate::transaction::Context {
+                address_bytes: *from_address.address_bytes(),
+                transaction_id: TransactionId::new([0; TRANSACTION_ID_LEN]),
+                source_action_index: 0,
+            },
+        )
+        .await
+        .unwrap();
 }
 
 #[test]

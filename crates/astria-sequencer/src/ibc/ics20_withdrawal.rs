@@ -53,7 +53,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
 };
 
 async fn create_ibc_packet_from_withdrawal<S: StateRead>(
@@ -179,11 +178,12 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+    async fn check_and_execute<S: StateWrite>(
+        &self,
+        mut state: S,
+        context: crate::transaction::Context,
+    ) -> Result<()> {
+        let from = context.address_bytes;
 
         state
             .ensure_base_prefix(&self.return_address)

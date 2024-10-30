@@ -18,7 +18,6 @@ use crate::{
     address::StateReadExt as _,
     app::ActionHandler,
     bridge::StateReadExt as _,
-    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
@@ -27,12 +26,12 @@ impl ActionHandler for Transfer {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, state: S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-
+    async fn check_and_execute<S: StateWrite>(
+        &self,
+        state: S,
+        context: crate::transaction::Context,
+    ) -> Result<()> {
+        let from = context.address_bytes;
         ensure!(
             state
                 .get_bridge_account_rollup_id(&from)

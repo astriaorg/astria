@@ -24,7 +24,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
     utils::create_deposit_event,
 };
 
@@ -34,11 +33,12 @@ impl ActionHandler for BridgeLock {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+    async fn check_and_execute<S: StateWrite>(
+        &self,
+        mut state: S,
+        context: crate::transaction::Context,
+    ) -> Result<()> {
+        let from = context.address_bytes;
         state
             .ensure_base_prefix(&self.to)
             .await
@@ -59,23 +59,14 @@ impl ActionHandler for BridgeLock {
             "asset ID is not authorized for transfer to bridge account",
         );
 
-        let source_transaction_id = state
-            .get_transaction_context()
-            .expect("current source should be set before executing action")
-            .transaction_id;
-        let source_action_index = state
-            .get_transaction_context()
-            .expect("current source should be set before executing action")
-            .source_action_index;
-
         let deposit = Deposit {
             bridge_address: self.to,
             rollup_id,
             amount: self.amount,
             asset: self.asset.clone(),
             destination_chain_address: self.destination_chain_address.clone(),
-            source_transaction_id,
-            source_action_index,
+            source_transaction_id: context.transaction_id,
+            source_action_index: context.source_action_index,
         };
         let deposit_abci_event = create_deposit_event(&deposit);
 

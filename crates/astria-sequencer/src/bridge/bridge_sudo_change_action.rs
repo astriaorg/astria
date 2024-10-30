@@ -14,7 +14,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
 };
 #[async_trait::async_trait]
 impl ActionHandler for BridgeSudoChange {
@@ -22,11 +21,12 @@ impl ActionHandler for BridgeSudoChange {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+    async fn check_and_execute<S: StateWrite>(
+        &self,
+        mut state: S,
+        context: crate::transaction::Context,
+    ) -> Result<()> {
+        let from = context.address_bytes;
         state
             .ensure_base_prefix(&self.bridge_address)
             .await
@@ -96,10 +96,6 @@ mod tests {
             ASTRIA_PREFIX,
         },
         fees::StateWriteExt as _,
-        transaction::{
-            StateWriteExt as _,
-            TransactionContext,
-        },
     };
 
     fn test_asset() -> asset::Denom {
@@ -112,11 +108,6 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
@@ -135,9 +126,14 @@ mod tests {
             fee_asset: asset.clone(),
         };
 
+        let context = crate::transaction::Context {
+            address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
         assert!(
             action
-                .check_and_execute(state)
+                .check_and_execute(state, context)
                 .await
                 .unwrap_err()
                 .to_string()
@@ -152,11 +148,6 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         let sudo_address = astria_address(&[98; 20]);
-        state.put_transaction_context(TransactionContext {
-            address_bytes: sudo_address.bytes(),
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         state
             .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
@@ -187,7 +178,12 @@ mod tests {
             fee_asset,
         };
 
-        action.check_and_execute(&mut state).await.unwrap();
+        let context = crate::transaction::Context {
+            address_bytes: sudo_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        };
+        action.check_and_execute(&mut state, context).await.unwrap();
 
         assert_eq!(
             state

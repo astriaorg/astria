@@ -19,7 +19,11 @@ impl ActionHandler for RollupDataSubmission {
         Ok(())
     }
 
-    async fn check_and_execute<S: StateWrite>(&self, _state: S) -> Result<()> {
+    async fn check_and_execute<S: StateWrite>(
+        &self,
+        _state: S,
+        _context: crate::transaction::Context,
+    ) -> Result<()> {
         Ok(())
     }
 }

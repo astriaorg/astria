@@ -1,10 +1,3 @@
-use astria_core::{
-    primitive::v1::{
-        TransactionId,
-        ADDRESS_LEN,
-    },
-    protocol::transaction::v1::Transaction,
-};
 use cnidarium::{
     StateRead,
     StateWrite,
@@ -14,37 +7,10 @@ fn transaction_context() -> &'static str {
     "transaction/context"
 }
 
-#[derive(Clone, Copy)]
-pub(crate) struct TransactionContext {
-    pub(crate) address_bytes: [u8; ADDRESS_LEN],
-    pub(crate) transaction_id: TransactionId,
-    pub(crate) source_action_index: u64,
-}
-
-impl TransactionContext {
-    pub(crate) fn address_bytes(self) -> [u8; ADDRESS_LEN] {
-        self.address_bytes
-    }
-}
-
-impl From<&Transaction> for TransactionContext {
-    fn from(value: &Transaction) -> Self {
-        Self {
-            address_bytes: *value.address_bytes(),
-            transaction_id: value.id(),
-            source_action_index: 0,
-        }
-    }
-}
-
+/// Extension trait to write transaction context to the ephemeral store.
 pub(crate) trait StateWriteExt: StateWrite {
-    fn put_transaction_context(
-        &mut self,
-        transaction: impl Into<TransactionContext>,
-    ) -> TransactionContext {
-        let context: TransactionContext = transaction.into();
+    fn put_transaction_context(&mut self, context: super::Context) {
         self.object_put(transaction_context(), context);
-        context
     }
 
     fn delete_current_transaction_context(&mut self) {
@@ -53,7 +19,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 pub(crate) trait StateReadExt: StateRead {
-    fn get_transaction_context(&self) -> Option<TransactionContext> {
+    fn get_transaction_context(&self) -> Option<super::Context> {
         self.object_get(transaction_context())
     }
 }
