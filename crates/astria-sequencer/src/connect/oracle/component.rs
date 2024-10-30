@@ -26,26 +26,31 @@ impl Component for OracleComponent {
 
     #[instrument(name = "OracleComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
-        for currency_pair in &app_state.connect().oracle().currency_pair_genesis {
-            let currency_pair_state = CurrencyPairState {
-                id: currency_pair.id(),
-                nonce: currency_pair.nonce(),
-                price: currency_pair.currency_pair_price().clone(),
-            };
-            state
-                .put_currency_pair_state(currency_pair.currency_pair().clone(), currency_pair_state)
-                .wrap_err("failed to write currency pair to state")?;
-        }
+        if let Some(connect) = app_state.connect() {
+            for currency_pair in &connect.oracle().currency_pair_genesis {
+                let currency_pair_state = CurrencyPairState {
+                    id: currency_pair.id(),
+                    nonce: currency_pair.nonce(),
+                    price: currency_pair.currency_pair_price().clone(),
+                };
+                state
+                    .put_currency_pair_state(
+                        currency_pair.currency_pair().clone(),
+                        currency_pair_state,
+                    )
+                    .wrap_err("failed to write currency pair to state")?;
+            }
 
-        state
-            .put_next_currency_pair_id(app_state.connect().oracle().next_id)
-            .wrap_err("failed to put next currency pair id")?;
-        state
-            .put_num_currency_pairs(app_state.connect().oracle().currency_pair_genesis.len() as u64)
-            .wrap_err("failed to put number of currency pairs")?;
-        state
-            .put_num_removed_currency_pairs(0)
-            .wrap_err("failed to put number of removed currency pairs")?;
+            state
+                .put_next_currency_pair_id(connect.oracle().next_id)
+                .wrap_err("failed to put next currency pair id")?;
+            state
+                .put_num_currency_pairs(connect.oracle().currency_pair_genesis.len() as u64)
+                .wrap_err("failed to put number of currency pairs")?;
+            state
+                .put_num_removed_currency_pairs(0)
+                .wrap_err("failed to put number of removed currency pairs")?;
+        }
         Ok(())
     }
 

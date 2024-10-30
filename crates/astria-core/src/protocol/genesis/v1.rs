@@ -177,7 +177,7 @@ pub struct GenesisAppState {
     ibc_parameters: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
     fees: GenesisFees,
-    connect: ConnectGenesis,
+    connect: Option<ConnectGenesis>,
 }
 
 impl GenesisAppState {
@@ -232,7 +232,7 @@ impl GenesisAppState {
     }
 
     #[must_use]
-    pub fn connect(&self) -> &ConnectGenesis {
+    pub fn connect(&self) -> &Option<ConnectGenesis> {
         &self.connect
     }
 
@@ -267,23 +267,24 @@ impl GenesisAppState {
             self.ensure_address_has_base_prefix(address, &format!(".ibc_relayer_addresses[{i}]"))?;
         }
 
-        for (i, address) in self
-            .connect
-            .market_map
-            .params
-            .market_authorities
-            .iter()
-            .enumerate()
-        {
+        if let Some(connect) = &self.connect {
+            for (i, address) in connect
+                .market_map
+                .params
+                .market_authorities
+                .iter()
+                .enumerate()
+            {
+                self.ensure_address_has_base_prefix(
+                    address,
+                    &format!(".market_map.params.market_authorities[{i}]"),
+                )?;
+            }
             self.ensure_address_has_base_prefix(
-                address,
-                &format!(".market_map.params.market_authorities[{i}]"),
+                &connect.market_map.params.admin,
+                ".market_map.params.admin",
             )?;
         }
-        self.ensure_address_has_base_prefix(
-            &self.connect.market_map.params.admin,
-            ".market_map.params.admin",
-        )?;
 
         Ok(())
     }
@@ -297,7 +298,6 @@ impl Protobuf for GenesisAppState {
     #[expect(
         clippy::allow_attributes,
         clippy::allow_attributes_without_reason,
-        clippy::too_many_lines,
         reason = "false positive on `allowed_fee_assets` due to \"allow\" in the name"
     )]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
@@ -372,26 +372,11 @@ impl Protobuf for GenesisAppState {
             .ok_or_else(|| Self::Error::field_not_set("fees"))
             .and_then(|fees| GenesisFees::try_from_raw_ref(fees).map_err(Self::Error::fees))?;
 
-        let connect = connect
-            .as_ref()
-            .ok_or_else(|| Self::Error::field_not_set("connect"))?;
-
-        let market_map = connect
-            .market_map
-            .as_ref()
-            .ok_or_else(|| Self::Error::field_not_set("market_map"))
-            .and_then(|market_map| {
-                market_map::v2::GenesisState::try_from_raw(market_map.clone())
-                    .map_err(Self::Error::market_map)
-            })?;
-
-        let oracle = connect
-            .oracle
-            .as_ref()
-            .ok_or_else(|| Self::Error::field_not_set("oracle"))
-            .and_then(|oracle| {
-                oracle::v2::GenesisState::try_from_raw(oracle.clone()).map_err(Self::Error::oracle)
-            })?;
+        let connect = if let Some(connect) = connect {
+            Some(ConnectGenesis::try_from_raw_ref(connect).map_err(Self::Error::connect)?)
+        } else {
+            None
+        };
 
         let this = Self {
             address_prefixes,
@@ -404,10 +389,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
-            connect: ConnectGenesis {
-                market_map,
-                oracle,
-            },
+            connect,
         };
         this.ensure_all_addresses_have_base_prefix()
             .map_err(Self::Error::address_does_not_match_base)?;
@@ -441,7 +423,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters: Some(ibc_parameters.to_raw()),
             allowed_fee_assets: allowed_fee_assets.iter().map(ToString::to_string).collect(),
             fees: Some(fees.to_raw()),
-            connect: Some(connect.to_raw()),
+            connect: connect.as_ref().map(ConnectGenesis::to_raw),
         }
     }
 }
@@ -525,14 +507,8 @@ impl GenesisAppStateError {
         })
     }
 
-    fn market_map(source: market_map::v2::GenesisStateError) -> Self {
-        Self(GenesisAppStateErrorKind::MarketMap {
-            source,
-        })
-    }
-
-    fn oracle(source: oracle::v2::GenesisStateError) -> Self {
-        Self(GenesisAppStateErrorKind::Oracle {
+    fn connect(source: ConnectGenesisError) -> Self {
+        Self(GenesisAppStateErrorKind::Connect {
             source,
         })
     }
@@ -563,14 +539,8 @@ enum GenesisAppStateErrorKind {
     FieldNotSet { name: &'static str },
     #[error("`native_asset_base_denomination` field was invalid")]
     NativeAssetBaseDenomination { source: ParseTracePrefixedError },
-    #[error("`market_map` field was invalid")]
-    MarketMap {
-        source: market_map::v2::GenesisStateError,
-    },
-    #[error("`oracle` field was invalid")]
-    Oracle {
-        source: oracle::v2::GenesisStateError,
-    },
+    #[error("`connect` field was invalid")]
+    Connect { source: ConnectGenesisError },
 }
 
 #[derive(Debug, thiserror::Error)]
