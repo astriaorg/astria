@@ -21,22 +21,25 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
-    protocol::fees::v1::{
-        BridgeLockFeeComponents,
-        BridgeSudoChangeFeeComponents,
-        BridgeUnlockFeeComponents,
-        FeeAssetChangeFeeComponents,
-        FeeChangeFeeComponents,
-        FeeComponentError,
-        IbcRelayFeeComponents,
-        IbcRelayerChangeFeeComponents,
-        IbcSudoChangeFeeComponents,
-        Ics20WithdrawalFeeComponents,
-        InitBridgeAccountFeeComponents,
-        RollupDataSubmissionFeeComponents,
-        SudoAddressChangeFeeComponents,
-        TransferFeeComponents,
-        ValidatorUpdateFeeComponents,
+    protocol::{
+        fees::v1::{
+            BridgeLockFeeComponents,
+            BridgeSudoChangeFeeComponents,
+            BridgeUnlockFeeComponents,
+            FeeAssetChangeFeeComponents,
+            FeeChangeFeeComponents,
+            FeeComponentError,
+            IbcRelayFeeComponents,
+            IbcRelayerChangeFeeComponents,
+            IbcSudoChangeFeeComponents,
+            Ics20WithdrawalFeeComponents,
+            InitBridgeAccountFeeComponents,
+            RollupDataSubmissionFeeComponents,
+            SudoAddressChangeFeeComponents,
+            TransferFeeComponents,
+            ValidatorUpdateFeeComponents,
+        },
+        memos::v1::Ics20WithdrawalFromRollup,
     },
     Protobuf,
 };
@@ -887,7 +890,7 @@ enum IbcSudoChangeErrorKind {
 ///
 /// It also contains a `return_address` field which may or may not be the same as the signer
 /// of the packet. The funds will be returned to the `return_address` in the case of a timeout.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Ics20Withdrawal {
     // a transparent value consisting of an amount and a denom.
     pub amount: u128,
@@ -1032,11 +1035,18 @@ impl Protobuf for Ics20Withdrawal {
             bridge_address,
             use_compat_address,
         } = proto;
-        let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
+        let amount = u128::from(amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?);
         let return_address = Address::try_from_raw(
             &return_address.ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
         )
         .map_err(Ics20WithdrawalError::return_address)?;
+
+        if timeout_time == 0 {
+            return Err(Ics20WithdrawalError::invalid_timeout_time());
+        }
+        if amount == 0 {
+            return Err(Ics20WithdrawalError::invalid_amount());
+        }
 
         let timeout_height = timeout_height
             .ok_or(Ics20WithdrawalError::field_not_set("timeout_height"))?
@@ -1047,8 +1057,20 @@ impl Protobuf for Ics20Withdrawal {
             .transpose()
             .map_err(Ics20WithdrawalError::invalid_bridge_address)?;
 
+        if bridge_address.is_some() {
+            let parsed_withdrawal: Ics20WithdrawalFromRollup =
+                serde_json::from_str(&memo).map_err(Ics20WithdrawalError::parse_memo)?;
+            validate_rollup_return_address(&parsed_withdrawal.rollup_return_address)
+                .map_err(Ics20WithdrawalError::rollup_withdrawal)?;
+            validate_withdrawal_event_id_and_block_number(
+                &parsed_withdrawal.rollup_withdrawal_event_id,
+                parsed_withdrawal.rollup_block_number,
+            )
+            .map_err(Ics20WithdrawalError::rollup_withdrawal)?;
+        }
+
         Ok(Self {
-            amount: amount.into(),
+            amount,
             denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
             destination_chain_address,
             return_address,
@@ -1089,13 +1111,20 @@ impl Protobuf for Ics20Withdrawal {
             bridge_address,
             use_compat_address,
         } = proto;
-        let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
+        let amount = u128::from(amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?);
         let return_address = Address::try_from_raw(
             return_address
                 .as_ref()
                 .ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
         )
         .map_err(Ics20WithdrawalError::return_address)?;
+
+        if *timeout_time == 0 {
+            return Err(Ics20WithdrawalError::invalid_timeout_time());
+        }
+        if amount == 0 {
+            return Err(Ics20WithdrawalError::invalid_amount());
+        }
 
         let timeout_height = timeout_height
             .clone()
@@ -1107,8 +1136,20 @@ impl Protobuf for Ics20Withdrawal {
             .transpose()
             .map_err(Ics20WithdrawalError::invalid_bridge_address)?;
 
+        if bridge_address.is_some() {
+            let parsed_withdrawal: Ics20WithdrawalFromRollup =
+                serde_json::from_str(memo).map_err(Ics20WithdrawalError::parse_memo)?;
+            validate_rollup_return_address(&parsed_withdrawal.rollup_return_address)
+                .map_err(Ics20WithdrawalError::rollup_withdrawal)?;
+            validate_withdrawal_event_id_and_block_number(
+                &parsed_withdrawal.rollup_withdrawal_event_id,
+                parsed_withdrawal.rollup_block_number,
+            )
+            .map_err(Ics20WithdrawalError::rollup_withdrawal)?;
+        }
+
         Ok(Self {
-            amount: amount.into(),
+            amount,
             denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
             destination_chain_address: destination_chain_address.clone(),
             return_address,
@@ -1189,10 +1230,31 @@ impl Ics20WithdrawalError {
         Self(Ics20WithdrawalErrorKind::InvalidBridgeAddress(err))
     }
 
+    #[must_use]
     fn invalid_denom(source: asset::ParseDenomError) -> Self {
         Self(Ics20WithdrawalErrorKind::InvalidDenom {
             source,
         })
+    }
+
+    #[must_use]
+    fn invalid_timeout_time() -> Self {
+        Self(Ics20WithdrawalErrorKind::InvalidTimeoutTime)
+    }
+
+    #[must_use]
+    fn invalid_amount() -> Self {
+        Self(Ics20WithdrawalErrorKind::InvalidAmount)
+    }
+
+    #[must_use]
+    fn parse_memo(err: serde_json::Error) -> Self {
+        Self(Ics20WithdrawalErrorKind::ParseMemo(err))
+    }
+
+    #[must_use]
+    fn rollup_withdrawal(err: RollupWithdrawalError) -> Self {
+        Self(Ics20WithdrawalErrorKind::RollupWithdrawal(err))
     }
 }
 
@@ -1210,6 +1272,14 @@ enum Ics20WithdrawalErrorKind {
     InvalidBridgeAddress(#[source] AddressError),
     #[error("`denom` field was invalid")]
     InvalidDenom { source: asset::ParseDenomError },
+    #[error("`timeout_time` must be non-zero")]
+    InvalidTimeoutTime,
+    #[error("`amount` must be greater than zero")]
+    InvalidAmount,
+    #[error("failed to parse memo for ICS bound bridge withdrawal")]
+    ParseMemo(#[source] serde_json::Error),
+    #[error("rollup withdrawal information was invalid")]
+    RollupWithdrawal(#[source] RollupWithdrawalError),
 }
 
 #[derive(Debug, Clone)]
@@ -1705,18 +1775,30 @@ impl Protobuf for BridgeUnlock {
         let to = to
             .ok_or_else(|| BridgeUnlockError::field_not_set("to"))
             .and_then(|to| Address::try_from_raw(&to).map_err(BridgeUnlockError::address))?;
-        let amount = amount.ok_or_else(|| BridgeUnlockError::field_not_set("amount"))?;
+        let amount = u128::from(amount.ok_or_else(|| BridgeUnlockError::field_not_set("amount"))?);
+        if amount == 0 {
+            return Err(BridgeUnlockError::invalid_amount());
+        }
+        if memo.len() > 64 {
+            return Err(BridgeUnlockError::invalid_memo());
+        }
         let fee_asset = fee_asset.parse().map_err(BridgeUnlockError::fee_asset)?;
+
+        validate_withdrawal_event_id_and_block_number(
+            &rollup_withdrawal_event_id,
+            rollup_block_number,
+        )
+        .map_err(BridgeUnlockError::rollup_withdrawal)?;
 
         let bridge_address = bridge_address
             .ok_or_else(|| BridgeUnlockError::field_not_set("bridge_address"))
             .and_then(|to| Address::try_from_raw(&to).map_err(BridgeUnlockError::bridge_address))?;
         Ok(Self {
             to,
-            amount: amount.into(),
+            amount,
             fee_asset,
-            memo,
             bridge_address,
+            memo,
             rollup_block_number,
             rollup_withdrawal_event_id,
         })
@@ -1766,6 +1848,21 @@ impl BridgeUnlockError {
             source,
         })
     }
+
+    #[must_use]
+    fn invalid_amount() -> Self {
+        Self(BridgeUnlockErrorKind::InvalidAmount)
+    }
+
+    #[must_use]
+    fn invalid_memo() -> Self {
+        Self(BridgeUnlockErrorKind::InvalidMemo)
+    }
+
+    #[must_use]
+    fn rollup_withdrawal(err: RollupWithdrawalError) -> Self {
+        Self(BridgeUnlockErrorKind::RollupWithdrawal(err))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1778,6 +1875,12 @@ enum BridgeUnlockErrorKind {
     FeeAsset { source: asset::ParseDenomError },
     #[error("the `bridge_address` field was invalid")]
     BridgeAddress { source: AddressError },
+    #[error("`amount` must be greater than zero")]
+    InvalidAmount,
+    #[error("`memo` muse be no longer than 64 bytes")]
+    InvalidMemo,
+    #[error("rollup withdrawal information was invalid")]
+    RollupWithdrawal(#[source] RollupWithdrawalError),
 }
 
 #[derive(Debug, Clone)]
@@ -2075,4 +2178,42 @@ impl Protobuf for FeeChange {
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum RollupWithdrawalError {
+    #[error("rollup return address must be non-empty")]
+    EmptyRollupReturnAddress,
+    #[error("rollup return address must be no more than 256 bytes")]
+    InvalidRollupReturnAddress,
+    #[error("rollup withdrawal event id must be non-empty")]
+    EmptyRollupEventId,
+    #[error("rollup withdrawal event id must be no more than 256 bytes")]
+    InvalidRollupEventId,
+    #[error("rollup block number must be non-zero")]
+    InvalidRollupBlockNumber,
+}
+
+fn validate_rollup_return_address(address: &str) -> Result<(), RollupWithdrawalError> {
+    if address.is_empty() {
+        return Err(RollupWithdrawalError::EmptyRollupReturnAddress);
+    } else if address.len() > 256 {
+        return Err(RollupWithdrawalError::InvalidRollupReturnAddress);
+    }
+    Ok(())
+}
+
+fn validate_withdrawal_event_id_and_block_number(
+    id: &str,
+    block: u64,
+) -> Result<(), RollupWithdrawalError> {
+    if id.is_empty() {
+        return Err(RollupWithdrawalError::EmptyRollupEventId);
+    } else if id.len() > 256 {
+        return Err(RollupWithdrawalError::InvalidRollupEventId);
+    }
+    if block == 0 {
+        return Err(RollupWithdrawalError::InvalidRollupBlockNumber);
+    }
+    Ok(())
 }

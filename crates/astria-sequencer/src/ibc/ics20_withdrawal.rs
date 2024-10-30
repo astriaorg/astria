@@ -143,36 +143,7 @@ async fn establish_withdrawal_target<'a, S: StateRead>(
 
 #[async_trait::async_trait]
 impl ActionHandler for action::Ics20Withdrawal {
-    // TODO(https://github.com/astriaorg/astria/issues/1430): move checks to the `Ics20Withdrawal` parsing.
     async fn check_stateless(&self) -> Result<()> {
-        ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
-        ensure!(self.amount() > 0, "amount must be greater than zero",);
-        if self.bridge_address.is_some() {
-            let parsed_bridge_memo: Ics20WithdrawalFromRollup = serde_json::from_str(&self.memo)
-                .context("failed to parse memo for ICS bound bridge withdrawal")?;
-
-            ensure!(
-                !parsed_bridge_memo.rollup_return_address.is_empty(),
-                "rollup return address must be non-empty",
-            );
-            ensure!(
-                parsed_bridge_memo.rollup_return_address.len() <= 256,
-                "rollup return address must be no more than 256 bytes",
-            );
-            ensure!(
-                !parsed_bridge_memo.rollup_withdrawal_event_id.is_empty(),
-                "rollup withdrawal event id must be non-empty",
-            );
-            ensure!(
-                parsed_bridge_memo.rollup_withdrawal_event_id.len() <= 256,
-                "rollup withdrawal event id must be no more than 256 bytes",
-            );
-            ensure!(
-                parsed_bridge_memo.rollup_block_number != 0,
-                "rollup block number must be non-zero",
-            );
-        }
-
         // NOTE (from penumbra): we could validate the destination chain address as bech32 to
         // prevent mistyped addresses, but this would preclude sending to chains that don't
         // use bech32 addresses.
