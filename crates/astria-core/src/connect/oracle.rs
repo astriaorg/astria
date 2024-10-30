@@ -14,11 +14,6 @@ pub mod v2 {
         Protobuf,
     };
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(try_from = "raw::QuotePrice", into = "raw::QuotePrice")
-    )]
     #[derive(Debug, Clone)]
     pub struct QuotePrice {
         pub price: Price,
@@ -97,11 +92,6 @@ pub mod v2 {
         MissingBlockTimestamp,
     }
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(try_from = "raw::CurrencyPairState", into = "raw::CurrencyPairState")
-    )]
     #[derive(Debug, Clone)]
     pub struct CurrencyPairState {
         pub price: QuotePrice,
@@ -182,14 +172,6 @@ pub mod v2 {
         QuotePriceParseError(#[source] QuotePriceError),
     }
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(
-            try_from = "raw::CurrencyPairGenesis",
-            into = "raw::CurrencyPairGenesis"
-        )
-    )]
     #[derive(Debug, Clone)]
     pub struct CurrencyPairGenesis {
         pub currency_pair: CurrencyPair,
@@ -315,11 +297,6 @@ pub mod v2 {
         CurrencyPairPrice(#[source] QuotePriceError),
     }
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(try_from = "raw::GenesisState", into = "raw::GenesisState")
-    )]
     #[derive(Debug, Clone)]
     pub struct GenesisState {
         pub currency_pair_genesis: Vec<CurrencyPairGenesis>,

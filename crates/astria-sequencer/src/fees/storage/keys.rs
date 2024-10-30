@@ -64,7 +64,6 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        // NOTE: This helper struct is just to avoid having 14 snapshot files to contend with.
         // NOTE: `BLOCK` is only used in the ephemeral store, so isn't included here.
         assert_snapshot!("bridge_lock_fees_key", BRIDGE_LOCK);
         assert_snapshot!("bridge_sudo_change_fees_key", BRIDGE_SUDO_CHANGE);

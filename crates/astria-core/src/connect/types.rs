@@ -73,6 +73,20 @@ pub mod v2 {
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Base(String);
 
+    impl Base {
+        /// This should only be used where the inputs have been provided by a trusted entity, e.g.
+        /// read from our own state store.
+        ///
+        /// Note that this function is not considered part of the public API and is subject to
+        /// breaking change at any time.
+        #[cfg(feature = "unchecked-constructors")]
+        #[doc(hidden)]
+        #[must_use]
+        pub fn unchecked_from_parts(value: String) -> Self {
+            Self(value)
+        }
+    }
+
     impl Display for Base {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             self.0.fmt(f)
@@ -111,6 +125,20 @@ pub mod v2 {
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Quote(String);
+
+    impl Quote {
+        /// This should only be used where the inputs have been provided by a trusted entity, e.g.
+        /// read from our own state store.
+        ///
+        /// Note that this function is not considered part of the public API and is subject to
+        /// breaking change at any time.
+        #[cfg(feature = "unchecked-constructors")]
+        #[doc(hidden)]
+        #[must_use]
+        pub fn unchecked_from_parts(value: String) -> Self {
+            Self(value)
+        }
+    }
 
     impl Display for Quote {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -161,11 +189,6 @@ pub mod v2 {
         ParseQuote { source: ParseQuoteError },
     }
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(try_from = "raw::CurrencyPair", into = "raw::CurrencyPair")
-    )]
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub struct CurrencyPair {
         base: Base,
@@ -200,11 +223,10 @@ pub mod v2 {
         /// Converts a on-wire [`raw::CurrencyPair`] to a validated domain type [`CurrencyPair`].
         ///
         /// # Errors
-
+        ///
         /// Returns an error if:
-        /// + The `.base` field could not be parsed as a [`Base`].
-        /// + The `.quote` field could not be parsed as [`Quote`].
-        // allow  reason: symmetry with all other `try_from_raw` methods that take ownership
+        /// - The `.base` field could not be parsed as a [`Base`].
+        /// - The `.quote` field could not be parsed as a [`Quote`].
         #[expect(clippy::needless_pass_by_value, reason = "symmetry with other types")]
         pub fn try_from_raw(raw: raw::CurrencyPair) -> Result<Self, CurrencyPairError> {
             let base = raw
@@ -365,7 +387,7 @@ mod test {
     }
 
     #[test]
-    fn invalid_curreny_pair_is_rejected() {
+    fn invalid_currency_pair_is_rejected() {
         let currency_pair = "ETHUSD".parse::<CurrencyPair>();
         assert!(currency_pair.is_err());
     }

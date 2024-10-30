@@ -815,6 +815,7 @@ dependencies = [
  "indexmap 2.4.0",
  "insta",
  "is_sorted",
+ "itertools 0.12.1",
  "maplit",
  "matchit",
  "paste",
