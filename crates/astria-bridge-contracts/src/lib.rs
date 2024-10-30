@@ -37,6 +37,23 @@ use ethers::{
 };
 pub use generated::*;
 
+const NON_ERC20_CONTRACT_DECIMALS: u32 = 18u32;
+
+macro_rules! warn {
+    ($($tt:tt)*) => {
+        #[cfg(feature = "tracing")]
+        {
+            #![cfg_attr(
+                feature = "tracing",
+                expect(
+                    clippy::used_underscore_binding,
+                    reason = "underscore is needed to quiet `unused-variables` warning if `tracing` feature is not set",
+            ))]
+            ::tracing::warn!($($tt)*);
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct BuildError(BuildErrorKind);
@@ -295,7 +312,25 @@ where
             .await
             .map_err(BuildError::call_base_chain_asset_precision)?;
 
-        let exponent = 18u32
+        let contract_decimals = {
+            let erc_20_contract = astria_bridgeable_erc20::AstriaBridgeableERC20::new(
+                contract_address,
+                provider.clone(),
+            );
+            match erc_20_contract.decimals().call().await {
+                Ok(decimals) => decimals.into(),
+                Err(_error) => {
+                    warn!(
+                        error = &_error as &dyn std::error::Error,
+                        "failed reading decimals from contract; assuming it is not an ERC20 \
+                         contract and falling back to `{NON_ERC20_CONTRACT_DECIMALS}`"
+                    );
+                    NON_ERC20_CONTRACT_DECIMALS
+                }
+            }
+        };
+
+        let exponent = contract_decimals
             .checked_sub(base_chain_asset_precision)
             .ok_or_else(|| BuildError::bad_divisor(base_chain_asset_precision))?;
 

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Read the provided contract's `decimals` function, falling back to a hardcoded
+  value of 18 if the call fails.
+  [#1762](https://github.com/astriaorg/astria/pull/1762)
+
 ### Added
 
 - Initial release.
