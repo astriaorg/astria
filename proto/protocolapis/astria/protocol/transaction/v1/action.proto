@@ -33,7 +33,7 @@ message Action {
     IbcSudoChange ibc_sudo_change = 56;
 
     // Prefer `ValidatorUpdateV2` instead.
-    astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51 [deprecated = true]; 
+    astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51 [deprecated = true];
   }
 }
 
