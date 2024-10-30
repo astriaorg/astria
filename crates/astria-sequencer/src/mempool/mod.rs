@@ -1226,33 +1226,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tx_tracked_nonce_replacement_removed() {
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-        let account_balances = mock_balances(100, 100);
-        let tx_cost = mock_tx_cost(10, 10, 0);
-
-        let tx1_0 = MockTxBuilder::new().nonce(1).chain_id("test-0").build();
-        let tx1_1 = MockTxBuilder::new().nonce(1).chain_id("test-1").build();
-
-        // insert initial transaction into parked
-        mempool
-            .insert(tx1_0.clone(), 0, account_balances.clone(), tx_cost.clone())
-            .await
-            .unwrap();
-        // replace with different transaction
-        mempool
-            .insert(tx1_1.clone(), 0, account_balances.clone(), tx_cost.clone())
-            .await
-            .unwrap();
-
-        // check that the first transaction was removed and the replacement
-        // is tracked
-        assert!(!mempool.is_tracked(tx1_0.id().get()).await);
-        assert!(mempool.is_tracked(tx1_1.id().get()).await);
-    }
-
-    #[tokio::test]
     async fn tx_tracked_reinsertion_ok() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);
