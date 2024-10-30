@@ -35,9 +35,9 @@ use astria_core::{
             Transaction,
         },
     },
-    sequencerblock::{
-        v1::block::SequencerBlock,
-        v1alpha1::optimistic_block::SequencerBlockCommit,
+    sequencerblock::v1::{
+        block::SequencerBlock,
+        optimistic_block::SequencerBlockCommit,
     },
     Protobuf as _,
 };
@@ -206,7 +206,7 @@ impl OptimisticBlockChannels {
     }
 
     pub(crate) fn send_optimistic_block(&self, block: Option<SequencerBlock>) {
-        if self.optimistic_block_sender.receiver_count() > 0 {
+        if self.optimistic_block_sender().receiver_count() > 0 {
             if let Err(e) = self.optimistic_block_sender.send(block) {
                 error!(error = %e, "failed to send optimistic block");
             }
@@ -214,7 +214,7 @@ impl OptimisticBlockChannels {
     }
 
     pub(crate) fn send_committed_block(&self, block: Option<SequencerBlockCommit>) {
-        if self.committed_block_sender.receiver_count() > 0 {
+        if self.committed_block_sender().receiver_count() > 0 {
             if let Err(e) = self.committed_block_sender.send(block) {
                 error!(error = %e, "failed to send committed block");
             }
@@ -279,7 +279,7 @@ pub(crate) struct App {
     )]
     app_hash: AppHash,
 
-    // contains the channels to send the optimistically executed block
+    // This contains the channels to send the optimistically executed block
     // whenever `process_proposal` is run and the information of the committed
     // block whenever `finalize_block` is run.
     // it is set to `None` when optimistic block execution is disabled as per the

@@ -88,7 +88,7 @@ impl OptimisticBlockService for OptimisticBlockServer {
                             };
 
                         if let Err(e) = tx.send(Ok(get_optimistic_block_stream_response)).await {
-                            error!(error = %e, "receiver for optimistic block has been dropped");
+                            error!(error = %e, "grpc stream receiver for optimistic block has been dropped");
                             break;
                         };
                     }
@@ -132,7 +132,7 @@ impl OptimisticBlockService for OptimisticBlockServer {
                             };
 
                         if let Err(e) = tx.send(Ok(get_block_commitment_stream_response)).await {
-                            error!(error = %e, "receiver for block commitment failed");
+                            error!(error = %e, "grpc stream receiver for block commitment failed");
                             break;
                         };
                     }
