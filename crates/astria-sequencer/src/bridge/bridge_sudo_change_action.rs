@@ -1,7 +1,5 @@
 use astria_core::protocol::transaction::v1::action::BridgeSudoChange;
 use astria_eyre::eyre::{
-    bail,
-    ensure,
     Result,
     WrapErr as _,
 };
@@ -10,11 +8,7 @@ use cnidarium::StateWrite;
 use crate::{
     address::StateReadExt as _,
     app::ActionHandler,
-    bridge::state_ext::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
-    transaction::StateReadExt as _,
+    bridge::state_ext::StateWriteExt as _,
 };
 #[async_trait::async_trait]
 impl ActionHandler for BridgeSudoChange {
@@ -23,10 +17,6 @@ impl ActionHandler for BridgeSudoChange {
     }
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
         state
             .ensure_base_prefix(&self.bridge_address)
             .await
@@ -43,22 +33,6 @@ impl ActionHandler for BridgeSudoChange {
                 .await
                 .wrap_err("failed check for base prefix of new withdrawer address")?;
         }
-
-        // check that the sender of this tx is the authorized sudo address for the bridge account
-        let Some(sudo_address) = state
-            .get_bridge_account_sudo_address(&self.bridge_address)
-            .await
-            .wrap_err("failed to get bridge account sudo address")?
-        else {
-            // TODO: if the sudo address is unset, should we still allow this action
-            // if the sender if the bridge address itself?
-            bail!("bridge account does not have an associated sudo address");
-        };
-
-        ensure!(
-            sudo_address == from,
-            "unauthorized for bridge sudo change action",
-        );
 
         if let Some(sudo_address) = self.new_sudo_address {
             state
@@ -95,6 +69,7 @@ mod tests {
             astria_address,
             ASTRIA_PREFIX,
         },
+        bridge::StateReadExt as _,
         fees::StateWriteExt as _,
         transaction::{
             StateWriteExt as _,
@@ -104,45 +79,6 @@ mod tests {
 
     fn test_asset() -> asset::Denom {
         "test".parse().unwrap()
-    }
-
-    #[tokio::test]
-    async fn fails_with_unauthorized_if_signer_is_not_sudo_address() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
-        });
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-
-        let asset = test_asset();
-        state.put_allowed_fee_asset(&asset).unwrap();
-
-        let bridge_address = astria_address(&[99; 20]);
-        let sudo_address = astria_address(&[98; 20]);
-        state
-            .put_bridge_account_sudo_address(&bridge_address, sudo_address)
-            .unwrap();
-
-        let action = BridgeSudoChange {
-            bridge_address,
-            new_sudo_address: None,
-            new_withdrawer_address: None,
-            fee_asset: asset.clone(),
-        };
-
-        assert!(
-            action
-                .check_and_execute(state)
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("unauthorized for bridge sudo change action")
-        );
     }
 
     #[tokio::test]
