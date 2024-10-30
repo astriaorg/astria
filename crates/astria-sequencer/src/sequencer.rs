@@ -6,9 +6,9 @@ use astria_core::{
         optimisticblock::v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer,
         sequencer_service_server::SequencerServiceServer,
     },
-    sequencerblock::{
-        v1::SequencerBlock,
-        v1alpha1::optimistic_block::SequencerBlockCommit,
+    sequencerblock::v1::{
+        optimistic_block::SequencerBlockCommit,
+        SequencerBlock,
     },
 };
 >>>>>>> 27c789b0 (update optimistic block imports)
