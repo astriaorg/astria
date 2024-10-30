@@ -1,8 +1,8 @@
 syntax = "proto3";
-package astria_vendored.connect.oracle.v2;
+package connect.oracle.v2;
 
-import "astria_vendored/connect/oracle/v2/genesis.proto";
-import "astria_vendored/connect/types/v2/currency_pair.proto";
+import "connect/oracle/v2/genesis.proto";
+import "connect/types/v2/currency_pair.proto";
 import "google/api/annotations.proto";
 
 option go_package = "github.com/skip-mev/connect/v2/x/oracle/types";
@@ -40,7 +40,7 @@ message GetAllCurrencyPairsRequest {}
 // GetAllCurrencyPairsResponse returns all CurrencyPairs that the module is
 // currently tracking.
 message GetAllCurrencyPairsResponse {
-  repeated astria_vendored.connect.types.v2.CurrencyPair currency_pairs = 1;
+  repeated connect.types.v2.CurrencyPair currency_pairs = 1;
 }
 
 // GetPriceRequest takes an identifier for the
@@ -84,5 +84,5 @@ message GetCurrencyPairMappingRequest {}
 message GetCurrencyPairMappingResponse {
   // currency_pair_mapping is a mapping of the id representing the currency pair
   // to the currency pair itself.
-  map<uint64, astria_vendored.connect.types.v2.CurrencyPair> currency_pair_mapping = 1;
+  map<uint64, connect.types.v2.CurrencyPair> currency_pair_mapping = 1;
 }

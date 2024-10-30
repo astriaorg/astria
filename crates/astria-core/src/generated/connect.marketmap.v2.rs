@@ -13,9 +13,9 @@ pub struct Market {
 }
 impl ::prost::Name for Market {
     const NAME: &'static str = "Market";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// Ticker represents a price feed for a given asset pair i.e. BTC/USD. The price
@@ -46,9 +46,9 @@ pub struct Ticker {
 }
 impl ::prost::Name for Ticker {
     const NAME: &'static str = "Ticker";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -80,9 +80,9 @@ pub struct ProviderConfig {
 }
 impl ::prost::Name for ProviderConfig {
     const NAME: &'static str = "ProviderConfig";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// MarketMap maps ticker strings to their Markets.
@@ -99,9 +99,9 @@ pub struct MarketMap {
 }
 impl ::prost::Name for MarketMap {
     const NAME: &'static str = "MarketMap";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// Params defines the parameters for the x/marketmap module.
@@ -119,9 +119,9 @@ pub struct Params {
 }
 impl ::prost::Name for Params {
     const NAME: &'static str = "Params";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// GenesisState defines the x/marketmap module's genesis state.
@@ -143,9 +143,9 @@ pub struct GenesisState {
 }
 impl ::prost::Name for GenesisState {
     const NAME: &'static str = "GenesisState";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// MarketMapRequest is the query request for the MarketMap query.
@@ -155,9 +155,9 @@ impl ::prost::Name for GenesisState {
 pub struct MarketMapRequest {}
 impl ::prost::Name for MarketMapRequest {
     const NAME: &'static str = "MarketMapRequest";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// MarketMapResponse is the query response for the MarketMap query.
@@ -179,9 +179,9 @@ pub struct MarketMapResponse {
 }
 impl ::prost::Name for MarketMapResponse {
     const NAME: &'static str = "MarketMapResponse";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// MarketRequest is the query request for the Market query.
@@ -196,9 +196,9 @@ pub struct MarketRequest {
 }
 impl ::prost::Name for MarketRequest {
     const NAME: &'static str = "MarketRequest";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// MarketResponse is the query response for the Market query.
@@ -211,9 +211,9 @@ pub struct MarketResponse {
 }
 impl ::prost::Name for MarketResponse {
     const NAME: &'static str = "MarketResponse";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// ParamsRequest is the request type for the Query/Params RPC method.
@@ -222,9 +222,9 @@ impl ::prost::Name for MarketResponse {
 pub struct ParamsRequest {}
 impl ::prost::Name for ParamsRequest {
     const NAME: &'static str = "ParamsRequest";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// ParamsResponse is the response type for the Query/Params RPC method.
@@ -236,9 +236,9 @@ pub struct ParamsResponse {
 }
 impl ::prost::Name for ParamsResponse {
     const NAME: &'static str = "ParamsResponse";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// LastUpdatedRequest is the request type for the Query/LastUpdated RPC
@@ -248,9 +248,9 @@ impl ::prost::Name for ParamsResponse {
 pub struct LastUpdatedRequest {}
 impl ::prost::Name for LastUpdatedRequest {
     const NAME: &'static str = "LastUpdatedRequest";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// LastUpdatedResponse is the response type for the Query/LastUpdated RPC
@@ -263,9 +263,9 @@ pub struct LastUpdatedResponse {
 }
 impl ::prost::Name for LastUpdatedResponse {
     const NAME: &'static str = "LastUpdatedResponse";
-    const PACKAGE: &'static str = "astria_vendored.connect.marketmap.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.marketmap.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// Generated client implementations.
@@ -375,16 +375,11 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria_vendored.connect.marketmap.v2.Query/MarketMap",
+                "/connect.marketmap.v2.Query/MarketMap",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "astria_vendored.connect.marketmap.v2.Query",
-                        "MarketMap",
-                    ),
-                );
+                .insert(GrpcMethod::new("connect.marketmap.v2.Query", "MarketMap"));
             self.inner.unary(req, path, codec).await
         }
         /// Market returns a market stored in the x/marketmap
@@ -404,16 +399,11 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria_vendored.connect.marketmap.v2.Query/Market",
+                "/connect.marketmap.v2.Query/Market",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "astria_vendored.connect.marketmap.v2.Query",
-                        "Market",
-                    ),
-                );
+                .insert(GrpcMethod::new("connect.marketmap.v2.Query", "Market"));
             self.inner.unary(req, path, codec).await
         }
         /// LastUpdated returns the last height the market map was updated at.
@@ -435,16 +425,11 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria_vendored.connect.marketmap.v2.Query/LastUpdated",
+                "/connect.marketmap.v2.Query/LastUpdated",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "astria_vendored.connect.marketmap.v2.Query",
-                        "LastUpdated",
-                    ),
-                );
+                .insert(GrpcMethod::new("connect.marketmap.v2.Query", "LastUpdated"));
             self.inner.unary(req, path, codec).await
         }
         /// Params returns the current x/marketmap module parameters.
@@ -463,16 +448,11 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria_vendored.connect.marketmap.v2.Query/Params",
+                "/connect.marketmap.v2.Query/Params",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "astria_vendored.connect.marketmap.v2.Query",
-                        "Params",
-                    ),
-                );
+                .insert(GrpcMethod::new("connect.marketmap.v2.Query", "Params"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -594,7 +574,7 @@ pub mod query_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria_vendored.connect.marketmap.v2.Query/MarketMap" => {
+                "/connect.marketmap.v2.Query/MarketMap" => {
                     #[allow(non_camel_case_types)]
                     struct MarketMapSvc<T: Query>(pub Arc<T>);
                     impl<T: Query> tonic::server::UnaryService<super::MarketMapRequest>
@@ -638,7 +618,7 @@ pub mod query_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria_vendored.connect.marketmap.v2.Query/Market" => {
+                "/connect.marketmap.v2.Query/Market" => {
                     #[allow(non_camel_case_types)]
                     struct MarketSvc<T: Query>(pub Arc<T>);
                     impl<T: Query> tonic::server::UnaryService<super::MarketRequest>
@@ -682,7 +662,7 @@ pub mod query_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria_vendored.connect.marketmap.v2.Query/LastUpdated" => {
+                "/connect.marketmap.v2.Query/LastUpdated" => {
                     #[allow(non_camel_case_types)]
                     struct LastUpdatedSvc<T: Query>(pub Arc<T>);
                     impl<T: Query> tonic::server::UnaryService<super::LastUpdatedRequest>
@@ -726,7 +706,7 @@ pub mod query_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria_vendored.connect.marketmap.v2.Query/Params" => {
+                "/connect.marketmap.v2.Query/Params" => {
                     #[allow(non_camel_case_types)]
                     struct ParamsSvc<T: Query>(pub Arc<T>);
                     impl<T: Query> tonic::server::UnaryService<super::ParamsRequest>
@@ -808,6 +788,6 @@ pub mod query_server {
         }
     }
     impl<T: Query> tonic::server::NamedService for QueryServer<T> {
-        const NAME: &'static str = "astria_vendored.connect.marketmap.v2.Query";
+        const NAME: &'static str = "connect.marketmap.v2.Query";
     }
 }

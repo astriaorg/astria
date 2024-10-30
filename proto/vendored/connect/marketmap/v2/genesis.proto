@@ -1,8 +1,8 @@
 syntax = "proto3";
-package astria_vendored.connect.marketmap.v2;
+package connect.marketmap.v2;
 
-import "astria_vendored/connect/marketmap/v2/market.proto";
-import "astria_vendored/connect/marketmap/v2/params.proto";
+import "connect/marketmap/v2/market.proto";
+import "connect/marketmap/v2/params.proto";
 
 option go_package = "github.com/skip-mev/connect/v2/x/marketmap/types";
 

@@ -10,7 +10,7 @@ pub mod v2 {
             ParsePriceError,
             Price,
         },
-        generated::astria_vendored::connect::oracle::v2 as raw,
+        generated::connect::oracle::v2 as raw,
         Protobuf,
     };
 

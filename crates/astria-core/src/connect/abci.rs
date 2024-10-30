@@ -7,7 +7,7 @@ pub mod v2 {
             CurrencyPairId,
             Price,
         },
-        generated::astria_vendored::connect::abci::v2 as raw,
+        generated::connect::abci::v2 as raw,
     };
 
     #[derive(Debug, thiserror::Error)]
@@ -15,7 +15,7 @@ pub mod v2 {
     pub struct OracleVoteExtensionError(#[from] OracleVoteExtensionErrorKind);
 
     #[derive(Debug, thiserror::Error)]
-    #[error("failed to validate astria_vendored.connect.abci.v1.OracleVoteExtension")]
+    #[error("failed to validate connect.abci.v2.OracleVoteExtension")]
     enum OracleVoteExtensionErrorKind {
         #[error("failed decoding price value in .prices field for key `{id}`")]
         DecodePrice {

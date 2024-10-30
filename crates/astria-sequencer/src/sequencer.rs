@@ -1,5 +1,5 @@
 use astria_core::generated::{
-    astria_vendored::connect::{
+    connect::{
         marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
         oracle::v2::query_server::QueryServer as OracleQueryServer,
         service::v2::{
@@ -136,12 +136,8 @@ impl Sequencer {
 
             // ensure the oracle sidecar is reachable
             // TODO: allow this to retry in case the oracle sidecar is not ready yet
-            if oracle_client
-                .prices(QueryPricesRequest::default())
-                .await
-                .is_err()
-            {
-                warn!(uri = %uri, "oracle sidecar is unreachable");
+            if let Err(e) = oracle_client.prices(QueryPricesRequest::default()).await {
+                warn!(uri = %uri, error = %e, "oracle sidecar is unreachable");
             } else {
                 debug!(uri = %uri, "oracle sidecar is reachable");
             };

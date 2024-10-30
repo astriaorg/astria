@@ -9,7 +9,7 @@ impl serde::Serialize for OracleVoteExtension {
         if !self.prices.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.abci.v2.OracleVoteExtension", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.abci.v2.OracleVoteExtension", len)?;
         if !self.prices.is_empty() {
             let v: std::collections::HashMap<_, _> = self.prices.iter()
                 .map(|(k, v)| (k, pbjson::private::base64::encode(v))).collect();
@@ -65,7 +65,7 @@ impl<'de> serde::Deserialize<'de> for OracleVoteExtension {
             type Value = OracleVoteExtension;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.abci.v2.OracleVoteExtension")
+                formatter.write_str("struct connect.abci.v2.OracleVoteExtension")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<OracleVoteExtension, V::Error>
@@ -91,6 +91,6 @@ impl<'de> serde::Deserialize<'de> for OracleVoteExtension {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.abci.v2.OracleVoteExtension", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.abci.v2.OracleVoteExtension", FIELDS, GeneratedVisitor)
     }
 }

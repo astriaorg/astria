@@ -12,7 +12,7 @@ impl serde::Serialize for CurrencyPair {
         if !self.quote.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.types.v2.CurrencyPair", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.types.v2.CurrencyPair", len)?;
         if !self.base.is_empty() {
             struct_ser.serialize_field("Base", &self.base)?;
         }
@@ -72,7 +72,7 @@ impl<'de> serde::Deserialize<'de> for CurrencyPair {
             type Value = CurrencyPair;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.types.v2.CurrencyPair")
+                formatter.write_str("struct connect.types.v2.CurrencyPair")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<CurrencyPair, V::Error>
@@ -103,6 +103,6 @@ impl<'de> serde::Deserialize<'de> for CurrencyPair {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.types.v2.CurrencyPair", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.types.v2.CurrencyPair", FIELDS, GeneratedVisitor)
     }
 }

@@ -7,7 +7,7 @@ pub mod v2 {
 
     use bytes::Bytes;
 
-    use crate::generated::astria_vendored::connect::types::v2 as raw;
+    use crate::generated::connect::types::v2 as raw;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     pub struct Price(u128);

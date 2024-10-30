@@ -1,7 +1,7 @@
 syntax = "proto3";
-package astria_vendored.connect.oracle.v2;
+package connect.oracle.v2;
 
-import "astria_vendored/connect/types/v2/currency_pair.proto";
+import "connect/types/v2/currency_pair.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/skip-mev/connect/v2/x/oracle/types";
@@ -38,7 +38,7 @@ message CurrencyPairState {
 // CurrencyPair.
 message CurrencyPairGenesis {
   // The CurrencyPair to be added to module state
-  astria_vendored.connect.types.v2.CurrencyPair currency_pair = 1;
+  connect.types.v2.CurrencyPair currency_pair = 1;
   // A genesis price if one exists (note this will be empty, unless it results
   // from forking the state of this module)
   QuotePrice currency_pair_price = 2;

@@ -16,9 +16,9 @@ pub struct QuotePrice {
 }
 impl ::prost::Name for QuotePrice {
     const NAME: &'static str = "QuotePrice";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// CurrencyPairState represents the stateful information tracked by the x/oracle
@@ -39,9 +39,9 @@ pub struct CurrencyPairState {
 }
 impl ::prost::Name for CurrencyPairState {
     const NAME: &'static str = "CurrencyPairState";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// CurrencyPairGenesis is the information necessary for initialization of a
@@ -66,9 +66,9 @@ pub struct CurrencyPairGenesis {
 }
 impl ::prost::Name for CurrencyPairGenesis {
     const NAME: &'static str = "CurrencyPairGenesis";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// GenesisState is the genesis-state for the x/oracle module, it takes a set of
@@ -87,9 +87,9 @@ pub struct GenesisState {
 }
 impl ::prost::Name for GenesisState {
     const NAME: &'static str = "GenesisState";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -97,9 +97,9 @@ impl ::prost::Name for GenesisState {
 pub struct GetAllCurrencyPairsRequest {}
 impl ::prost::Name for GetAllCurrencyPairsRequest {
     const NAME: &'static str = "GetAllCurrencyPairsRequest";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// GetAllCurrencyPairsResponse returns all CurrencyPairs that the module is
@@ -112,9 +112,9 @@ pub struct GetAllCurrencyPairsResponse {
 }
 impl ::prost::Name for GetAllCurrencyPairsResponse {
     const NAME: &'static str = "GetAllCurrencyPairsResponse";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// GetPriceRequest takes an identifier for the
@@ -128,9 +128,9 @@ pub struct GetPriceRequest {
 }
 impl ::prost::Name for GetPriceRequest {
     const NAME: &'static str = "GetPriceRequest";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// GetPriceResponse is the response from the GetPrice grpc method exposed from
@@ -155,9 +155,9 @@ pub struct GetPriceResponse {
 }
 impl ::prost::Name for GetPriceResponse {
     const NAME: &'static str = "GetPriceResponse";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// GetPricesRequest takes an identifier for the CurrencyPair
@@ -170,9 +170,9 @@ pub struct GetPricesRequest {
 }
 impl ::prost::Name for GetPricesRequest {
     const NAME: &'static str = "GetPricesRequest";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// GetPricesResponse is the response from the GetPrices grpc method exposed from
@@ -185,9 +185,9 @@ pub struct GetPricesResponse {
 }
 impl ::prost::Name for GetPricesResponse {
     const NAME: &'static str = "GetPricesResponse";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// GetCurrencyPairMappingRequest is the GetCurrencyPairMapping request type.
@@ -196,9 +196,9 @@ impl ::prost::Name for GetPricesResponse {
 pub struct GetCurrencyPairMappingRequest {}
 impl ::prost::Name for GetCurrencyPairMappingRequest {
     const NAME: &'static str = "GetCurrencyPairMappingRequest";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// GetCurrencyPairMappingResponse is the GetCurrencyPairMapping response type.
@@ -215,9 +215,9 @@ pub struct GetCurrencyPairMappingResponse {
 }
 impl ::prost::Name for GetCurrencyPairMappingResponse {
     const NAME: &'static str = "GetCurrencyPairMappingResponse";
-    const PACKAGE: &'static str = "astria_vendored.connect.oracle.v2";
+    const PACKAGE: &'static str = "connect.oracle.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria_vendored.connect.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.oracle.v2.{}", Self::NAME)
     }
 }
 /// Generated client implementations.
@@ -326,15 +326,12 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria_vendored.connect.oracle.v2.Query/GetAllCurrencyPairs",
+                "/connect.oracle.v2.Query/GetAllCurrencyPairs",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new(
-                        "astria_vendored.connect.oracle.v2.Query",
-                        "GetAllCurrencyPairs",
-                    ),
+                    GrpcMethod::new("connect.oracle.v2.Query", "GetAllCurrencyPairs"),
                 );
             self.inner.unary(req, path, codec).await
         }
@@ -358,16 +355,11 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria_vendored.connect.oracle.v2.Query/GetPrice",
+                "/connect.oracle.v2.Query/GetPrice",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "astria_vendored.connect.oracle.v2.Query",
-                        "GetPrice",
-                    ),
-                );
+                .insert(GrpcMethod::new("connect.oracle.v2.Query", "GetPrice"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_prices(
@@ -388,16 +380,11 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria_vendored.connect.oracle.v2.Query/GetPrices",
+                "/connect.oracle.v2.Query/GetPrices",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "astria_vendored.connect.oracle.v2.Query",
-                        "GetPrices",
-                    ),
-                );
+                .insert(GrpcMethod::new("connect.oracle.v2.Query", "GetPrices"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the mapping of currency pair ID -> currency pair. This is useful for
@@ -421,15 +408,12 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria_vendored.connect.oracle.v2.Query/GetCurrencyPairMapping",
+                "/connect.oracle.v2.Query/GetCurrencyPairMapping",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new(
-                        "astria_vendored.connect.oracle.v2.Query",
-                        "GetCurrencyPairMapping",
-                    ),
+                    GrpcMethod::new("connect.oracle.v2.Query", "GetCurrencyPairMapping"),
                 );
             self.inner.unary(req, path, codec).await
         }
@@ -558,7 +542,7 @@ pub mod query_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria_vendored.connect.oracle.v2.Query/GetAllCurrencyPairs" => {
+                "/connect.oracle.v2.Query/GetAllCurrencyPairs" => {
                     #[allow(non_camel_case_types)]
                     struct GetAllCurrencyPairsSvc<T: Query>(pub Arc<T>);
                     impl<
@@ -604,7 +588,7 @@ pub mod query_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria_vendored.connect.oracle.v2.Query/GetPrice" => {
+                "/connect.oracle.v2.Query/GetPrice" => {
                     #[allow(non_camel_case_types)]
                     struct GetPriceSvc<T: Query>(pub Arc<T>);
                     impl<T: Query> tonic::server::UnaryService<super::GetPriceRequest>
@@ -648,7 +632,7 @@ pub mod query_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria_vendored.connect.oracle.v2.Query/GetPrices" => {
+                "/connect.oracle.v2.Query/GetPrices" => {
                     #[allow(non_camel_case_types)]
                     struct GetPricesSvc<T: Query>(pub Arc<T>);
                     impl<T: Query> tonic::server::UnaryService<super::GetPricesRequest>
@@ -692,7 +676,7 @@ pub mod query_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria_vendored.connect.oracle.v2.Query/GetCurrencyPairMapping" => {
+                "/connect.oracle.v2.Query/GetCurrencyPairMapping" => {
                     #[allow(non_camel_case_types)]
                     struct GetCurrencyPairMappingSvc<T: Query>(pub Arc<T>);
                     impl<
@@ -777,6 +761,6 @@ pub mod query_server {
         }
     }
     impl<T: Query> tonic::server::NamedService for QueryServer<T> {
-        const NAME: &'static str = "astria_vendored.connect.oracle.v2.Query";
+        const NAME: &'static str = "connect.oracle.v2.Query";
     }
 }

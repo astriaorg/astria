@@ -63,11 +63,12 @@ fn main() {
         .build_client(true)
         .build_server(true)
         .emit_rerun_if_changed(false)
-        .btree_map([".astria_vendored.connect"])
+        .btree_map([".connect"])
         .bytes([
             ".astria",
-            ".astria_vendored.connect",
+            ".connect",
             ".celestia",
+            ".connect",
             ".cosmos",
             ".tendermint",
         ])
@@ -95,12 +96,13 @@ fn main() {
     pbjson_build::Builder::new()
         .register_descriptors(&descriptor_set)
         .unwrap()
-        .btree_map([".astria_vendored.connect"])
+        .btree_map([".connect"])
         .out_dir(&out_dir)
         .build(&[
             ".astria",
             ".astria_vendored",
             ".celestia",
+            ".connect",
             ".cosmos",
             ".tendermint",
         ])
@@ -140,6 +142,7 @@ fn clean_non_astria_code(generated: &mut ContentMap) {
             !name.starts_with("astria.")
                 && !name.starts_with("astria_vendored.")
                 && !name.starts_with("celestia.")
+                && !name.starts_with("connect.")
                 && !name.starts_with("cosmos.")
                 && !name.starts_with("tendermint.")
         })

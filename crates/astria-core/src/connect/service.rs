@@ -8,7 +8,7 @@ pub mod v2 {
             ParsePriceError,
             Price,
         },
-        generated::astria_vendored::connect::service::v2 as raw,
+        generated::connect::service::v2 as raw,
     };
 
     #[derive(Debug, thiserror::Error)]

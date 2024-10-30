@@ -1,7 +1,7 @@
 syntax = "proto3";
-package astria_vendored.connect.marketmap.v2;
+package connect.marketmap.v2;
 
-import "astria_vendored/connect/types/v2/currency_pair.proto";
+import "connect/types/v2/currency_pair.proto";
 
 option go_package = "github.com/skip-mev/connect/v2/x/marketmap/types";
 
@@ -21,7 +21,7 @@ message Market {
 // providers required to consider the ticker valid.
 message Ticker {
   // CurrencyPair is the currency pair for this ticker.
-  astria_vendored.connect.types.v2.CurrencyPair currency_pair = 1;
+  connect.types.v2.CurrencyPair currency_pair = 1;
 
   // Decimals is the number of decimal places for the ticker. The number of
   // decimal places is used to convert the price to a human-readable format.
@@ -54,7 +54,7 @@ message ProviderConfig {
   // For example, if the desired Ticker is BTC/USD, this market could be reached
   // using: OffChainTicker = BTC/USDT NormalizeByPair = USDT/USD This field is
   // optional and nullable.
-  astria_vendored.connect.types.v2.CurrencyPair normalize_by_pair = 3;
+  connect.types.v2.CurrencyPair normalize_by_pair = 3;
 
   // Invert is a boolean indicating if the BASE and QUOTE of the market should
   // be inverted. i.e. BASE -> QUOTE, QUOTE -> BASE

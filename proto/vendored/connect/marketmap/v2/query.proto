@@ -1,9 +1,9 @@
 syntax = "proto3";
-package astria_vendored.connect.marketmap.v2;
+package connect.marketmap.v2;
 
-import "astria_vendored/connect/marketmap/v2/market.proto";
-import "astria_vendored/connect/marketmap/v2/params.proto";
-import "astria_vendored/connect/types/v2/currency_pair.proto";
+import "connect/marketmap/v2/market.proto";
+import "connect/marketmap/v2/params.proto";
+import "connect/types/v2/currency_pair.proto";
 import "google/api/annotations.proto";
 
 option go_package = "github.com/skip-mev/connect/v2/x/marketmap/types";
@@ -57,7 +57,7 @@ message MarketMapResponse {
 message MarketRequest {
   // CurrencyPair is the currency pair associated with the market being
   // requested.
-  astria_vendored.connect.types.v2.CurrencyPair currency_pair = 1;
+  connect.types.v2.CurrencyPair currency_pair = 1;
 }
 
 // MarketResponse is the query response for the Market query.

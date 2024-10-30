@@ -8,7 +8,7 @@ pub mod v2 {
             CurrencyPair,
             CurrencyPairError,
         },
-        generated::astria_vendored::connect::marketmap::v2 as raw,
+        generated::connect::marketmap::v2 as raw,
         primitive::v1::{
             Address,
             AddressError,

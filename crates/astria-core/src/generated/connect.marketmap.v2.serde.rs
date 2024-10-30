@@ -15,7 +15,7 @@ impl serde::Serialize for GenesisState {
         if self.params.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.GenesisState", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.GenesisState", len)?;
         if let Some(v) = self.market_map.as_ref() {
             struct_ser.serialize_field("marketMap", v)?;
         }
@@ -84,7 +84,7 @@ impl<'de> serde::Deserialize<'de> for GenesisState {
             type Value = GenesisState;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.GenesisState")
+                formatter.write_str("struct connect.marketmap.v2.GenesisState")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GenesisState, V::Error>
@@ -125,7 +125,7 @@ impl<'de> serde::Deserialize<'de> for GenesisState {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.GenesisState", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.GenesisState", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for LastUpdatedRequest {
@@ -136,7 +136,7 @@ impl serde::Serialize for LastUpdatedRequest {
     {
         use serde::ser::SerializeStruct;
         let len = 0;
-        let struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.LastUpdatedRequest", len)?;
+        let struct_ser = serializer.serialize_struct("connect.marketmap.v2.LastUpdatedRequest", len)?;
         struct_ser.end()
     }
 }
@@ -182,7 +182,7 @@ impl<'de> serde::Deserialize<'de> for LastUpdatedRequest {
             type Value = LastUpdatedRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.LastUpdatedRequest")
+                formatter.write_str("struct connect.marketmap.v2.LastUpdatedRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<LastUpdatedRequest, V::Error>
@@ -196,7 +196,7 @@ impl<'de> serde::Deserialize<'de> for LastUpdatedRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.LastUpdatedRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.LastUpdatedRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for LastUpdatedResponse {
@@ -210,7 +210,7 @@ impl serde::Serialize for LastUpdatedResponse {
         if self.last_updated != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.LastUpdatedResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.LastUpdatedResponse", len)?;
         if self.last_updated != 0 {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("lastUpdated", ToString::to_string(&self.last_updated).as_str())?;
@@ -266,7 +266,7 @@ impl<'de> serde::Deserialize<'de> for LastUpdatedResponse {
             type Value = LastUpdatedResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.LastUpdatedResponse")
+                formatter.write_str("struct connect.marketmap.v2.LastUpdatedResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<LastUpdatedResponse, V::Error>
@@ -291,7 +291,7 @@ impl<'de> serde::Deserialize<'de> for LastUpdatedResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.LastUpdatedResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.LastUpdatedResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for Market {
@@ -308,7 +308,7 @@ impl serde::Serialize for Market {
         if !self.provider_configs.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.Market", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.Market", len)?;
         if let Some(v) = self.ticker.as_ref() {
             struct_ser.serialize_field("ticker", v)?;
         }
@@ -369,7 +369,7 @@ impl<'de> serde::Deserialize<'de> for Market {
             type Value = Market;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.Market")
+                formatter.write_str("struct connect.marketmap.v2.Market")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<Market, V::Error>
@@ -400,7 +400,7 @@ impl<'de> serde::Deserialize<'de> for Market {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.Market", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.Market", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for MarketMap {
@@ -414,7 +414,7 @@ impl serde::Serialize for MarketMap {
         if !self.markets.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.MarketMap", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.MarketMap", len)?;
         if !self.markets.is_empty() {
             struct_ser.serialize_field("markets", &self.markets)?;
         }
@@ -468,7 +468,7 @@ impl<'de> serde::Deserialize<'de> for MarketMap {
             type Value = MarketMap;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.MarketMap")
+                formatter.write_str("struct connect.marketmap.v2.MarketMap")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<MarketMap, V::Error>
@@ -493,7 +493,7 @@ impl<'de> serde::Deserialize<'de> for MarketMap {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.MarketMap", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.MarketMap", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for MarketMapRequest {
@@ -504,7 +504,7 @@ impl serde::Serialize for MarketMapRequest {
     {
         use serde::ser::SerializeStruct;
         let len = 0;
-        let struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.MarketMapRequest", len)?;
+        let struct_ser = serializer.serialize_struct("connect.marketmap.v2.MarketMapRequest", len)?;
         struct_ser.end()
     }
 }
@@ -550,7 +550,7 @@ impl<'de> serde::Deserialize<'de> for MarketMapRequest {
             type Value = MarketMapRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.MarketMapRequest")
+                formatter.write_str("struct connect.marketmap.v2.MarketMapRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<MarketMapRequest, V::Error>
@@ -564,7 +564,7 @@ impl<'de> serde::Deserialize<'de> for MarketMapRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.MarketMapRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.MarketMapRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for MarketMapResponse {
@@ -584,7 +584,7 @@ impl serde::Serialize for MarketMapResponse {
         if !self.chain_id.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.MarketMapResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.MarketMapResponse", len)?;
         if let Some(v) = self.market_map.as_ref() {
             struct_ser.serialize_field("marketMap", v)?;
         }
@@ -654,7 +654,7 @@ impl<'de> serde::Deserialize<'de> for MarketMapResponse {
             type Value = MarketMapResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.MarketMapResponse")
+                formatter.write_str("struct connect.marketmap.v2.MarketMapResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<MarketMapResponse, V::Error>
@@ -695,7 +695,7 @@ impl<'de> serde::Deserialize<'de> for MarketMapResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.MarketMapResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.MarketMapResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for MarketRequest {
@@ -709,7 +709,7 @@ impl serde::Serialize for MarketRequest {
         if self.currency_pair.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.MarketRequest", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.MarketRequest", len)?;
         if let Some(v) = self.currency_pair.as_ref() {
             struct_ser.serialize_field("currencyPair", v)?;
         }
@@ -764,7 +764,7 @@ impl<'de> serde::Deserialize<'de> for MarketRequest {
             type Value = MarketRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.MarketRequest")
+                formatter.write_str("struct connect.marketmap.v2.MarketRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<MarketRequest, V::Error>
@@ -787,7 +787,7 @@ impl<'de> serde::Deserialize<'de> for MarketRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.MarketRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.MarketRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for MarketResponse {
@@ -801,7 +801,7 @@ impl serde::Serialize for MarketResponse {
         if self.market.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.MarketResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.MarketResponse", len)?;
         if let Some(v) = self.market.as_ref() {
             struct_ser.serialize_field("market", v)?;
         }
@@ -855,7 +855,7 @@ impl<'de> serde::Deserialize<'de> for MarketResponse {
             type Value = MarketResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.MarketResponse")
+                formatter.write_str("struct connect.marketmap.v2.MarketResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<MarketResponse, V::Error>
@@ -878,7 +878,7 @@ impl<'de> serde::Deserialize<'de> for MarketResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.MarketResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.MarketResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for Params {
@@ -895,7 +895,7 @@ impl serde::Serialize for Params {
         if !self.admin.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.Params", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.Params", len)?;
         if !self.market_authorities.is_empty() {
             struct_ser.serialize_field("marketAuthorities", &self.market_authorities)?;
         }
@@ -956,7 +956,7 @@ impl<'de> serde::Deserialize<'de> for Params {
             type Value = Params;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.Params")
+                formatter.write_str("struct connect.marketmap.v2.Params")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<Params, V::Error>
@@ -987,7 +987,7 @@ impl<'de> serde::Deserialize<'de> for Params {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.Params", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.Params", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for ParamsRequest {
@@ -998,7 +998,7 @@ impl serde::Serialize for ParamsRequest {
     {
         use serde::ser::SerializeStruct;
         let len = 0;
-        let struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.ParamsRequest", len)?;
+        let struct_ser = serializer.serialize_struct("connect.marketmap.v2.ParamsRequest", len)?;
         struct_ser.end()
     }
 }
@@ -1044,7 +1044,7 @@ impl<'de> serde::Deserialize<'de> for ParamsRequest {
             type Value = ParamsRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.ParamsRequest")
+                formatter.write_str("struct connect.marketmap.v2.ParamsRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<ParamsRequest, V::Error>
@@ -1058,7 +1058,7 @@ impl<'de> serde::Deserialize<'de> for ParamsRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.ParamsRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.ParamsRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for ParamsResponse {
@@ -1072,7 +1072,7 @@ impl serde::Serialize for ParamsResponse {
         if self.params.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.ParamsResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.ParamsResponse", len)?;
         if let Some(v) = self.params.as_ref() {
             struct_ser.serialize_field("params", v)?;
         }
@@ -1126,7 +1126,7 @@ impl<'de> serde::Deserialize<'de> for ParamsResponse {
             type Value = ParamsResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.ParamsResponse")
+                formatter.write_str("struct connect.marketmap.v2.ParamsResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<ParamsResponse, V::Error>
@@ -1149,7 +1149,7 @@ impl<'de> serde::Deserialize<'de> for ParamsResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.ParamsResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.ParamsResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for ProviderConfig {
@@ -1175,7 +1175,7 @@ impl serde::Serialize for ProviderConfig {
         if !self.metadata_json.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.ProviderConfig", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.ProviderConfig", len)?;
         if !self.name.is_empty() {
             struct_ser.serialize_field("name", &self.name)?;
         }
@@ -1256,7 +1256,7 @@ impl<'de> serde::Deserialize<'de> for ProviderConfig {
             type Value = ProviderConfig;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.ProviderConfig")
+                formatter.write_str("struct connect.marketmap.v2.ProviderConfig")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<ProviderConfig, V::Error>
@@ -1311,7 +1311,7 @@ impl<'de> serde::Deserialize<'de> for ProviderConfig {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.ProviderConfig", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.ProviderConfig", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for Ticker {
@@ -1337,7 +1337,7 @@ impl serde::Serialize for Ticker {
         if !self.metadata_json.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria_vendored.connect.marketmap.v2.Ticker", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.Ticker", len)?;
         if let Some(v) = self.currency_pair.as_ref() {
             struct_ser.serialize_field("currencyPair", v)?;
         }
@@ -1420,7 +1420,7 @@ impl<'de> serde::Deserialize<'de> for Ticker {
             type Value = Ticker;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria_vendored.connect.marketmap.v2.Ticker")
+                formatter.write_str("struct connect.marketmap.v2.Ticker")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<Ticker, V::Error>
@@ -1479,6 +1479,6 @@ impl<'de> serde::Deserialize<'de> for Ticker {
                 })
             }
         }
-        deserializer.deserialize_struct("astria_vendored.connect.marketmap.v2.Ticker", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.marketmap.v2.Ticker", FIELDS, GeneratedVisitor)
     }
 }

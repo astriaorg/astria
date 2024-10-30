@@ -11,7 +11,7 @@ use astria_core::{
         },
     },
     crypto::Signature,
-    generated::astria_vendored::connect::{
+    generated::connect::{
         abci::v2::OracleVoteExtension as RawOracleVoteExtension,
         service::v2::{
             oracle_client::OracleClient,

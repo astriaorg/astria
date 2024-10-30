@@ -4,8 +4,8 @@ package astria.protocol.genesis.v1;
 
 import "astria/primitive/v1/types.proto";
 import "astria/protocol/fees/v1/types.proto";
-import "astria_vendored/connect/marketmap/v2/genesis.proto";
-import "astria_vendored/connect/oracle/v2/genesis.proto";
+import "connect/marketmap/v2/genesis.proto";
+import "connect/oracle/v2/genesis.proto";
 
 message GenesisAppState {
   string chain_id = 1;
@@ -62,6 +62,6 @@ message GenesisFees {
 }
 
 message ConnectGenesis {
-  astria_vendored.connect.marketmap.v2.GenesisState market_map = 1;
-  astria_vendored.connect.oracle.v2.GenesisState oracle = 2;
+  connect.marketmap.v2.GenesisState market_map = 1;
+  connect.oracle.v2.GenesisState oracle = 2;
 }

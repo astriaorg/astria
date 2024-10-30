@@ -5,7 +5,7 @@ use std::{
 
 use astria_core::{
     connect::types::v2::CurrencyPair,
-    generated::astria_vendored::connect::{
+    generated::connect::{
         marketmap::v2::{
             query_server::Query as MarketMapQueryService,
             LastUpdatedRequest,

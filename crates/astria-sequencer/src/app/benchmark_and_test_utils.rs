@@ -172,12 +172,10 @@ pub(crate) fn proto_genesis_state() -> astria_core::generated::protocol::genesis
                 }
                 .into_raw(),
             ),
-            oracle: Some(
-                astria_core::generated::astria_vendored::connect::oracle::v2::GenesisState {
-                    currency_pair_genesis: vec![],
-                    next_id: 0,
-                },
-            ),
+            oracle: Some(astria_core::generated::connect::oracle::v2::GenesisState {
+                currency_pair_genesis: vec![],
+                next_id: 0,
+            }),
         }),
     }
 }

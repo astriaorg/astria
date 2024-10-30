@@ -1,5 +1,5 @@
 syntax = "proto3";
-package astria_vendored.connect.abci.v2;
+package connect.abci.v2;
 
 option go_package = "github.com/skip-mev/connect/v2/abci/ve/types";
 

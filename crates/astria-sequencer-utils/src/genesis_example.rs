@@ -6,7 +6,7 @@ use std::{
 
 use astria_core::{
     generated::{
-        astria_vendored::connect::{
+        connect::{
             marketmap,
             marketmap::v2::{
                 Market,
@@ -82,7 +82,7 @@ fn charlie() -> Address {
 }
 
 fn genesis_state_markets() -> MarketMap {
-    use astria_core::generated::astria_vendored::connect::marketmap::v2::{
+    use astria_core::generated::connect::marketmap::v2::{
         ProviderConfig,
         Ticker,
     };
@@ -184,7 +184,7 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::Genes
         connect: Some(
             astria_core::generated::protocol::genesis::v1::ConnectGenesis {
                 market_map: Some(
-                    astria_core::generated::astria_vendored::connect::marketmap::v2::GenesisState {
+                    astria_core::generated::connect::marketmap::v2::GenesisState {
                         market_map: Some(genesis_state_markets()),
                         last_updated: 0,
                         params: Some(marketmap::v2::Params {
