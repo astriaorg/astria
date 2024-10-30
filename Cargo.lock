@@ -510,6 +510,7 @@ dependencies = [
  "serde_json",
  "tendermint",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

@@ -30,7 +30,9 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true }
 tonic = { workspace = true }
 
-astria-bridge-contracts = { path = "../astria-bridge-contracts" }
+astria-bridge-contracts = { path = "../astria-bridge-contracts", features = [
+  "tracing",
+] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = [
   "serde",
