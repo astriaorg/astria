@@ -1681,7 +1681,7 @@ mod tests {
         assert_eq!(
             res,
             Err(InsertionError::NonceTaken),
-            "nonce replacement for parked should return false"
+            "nonce replacement for pending should fail"
         );
 
         // the transaction should not have been replaced

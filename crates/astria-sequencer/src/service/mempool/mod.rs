@@ -102,10 +102,7 @@ impl IntoCheckTxResponse for RemovalReason {
             RemovalReason::NonceReplacement(replacing_hash) => response::CheckTx {
                 code: Code::Err(AbciErrorCode::NONCE_REPLACEMENT.value()),
                 info: AbciErrorCode::NONCE_REPLACEMENT.to_string(),
-                log: format!(
-                    "transaction replaced by a parked transaction with a lower nonce: \
-                     {replacing_hash:#?}"
-                ),
+                log: format!("nonce replacement;transaction replaced with: {replacing_hash:#?}"),
                 ..response::CheckTx::default()
             },
         }
