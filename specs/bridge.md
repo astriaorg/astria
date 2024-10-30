@@ -11,15 +11,39 @@ Since the sequencer can support multiple assets via IBC, the bridging protocol
 also has support for deposits and withdrawals via IBC, as well as support for
 various assets to be bridged to the rollup.
 
+## High-Level Overview
+
+### Sequencer-to-Rollup
+
+1. The bridge account is initialized on the sequencer with an associated
+rollup ID.
+2. The rollup modifies its consensus to register the sequencer-side bridge account
+for use in its state transition logic.
+3. Users then send sequencer-side transfers to the bridge account (either natively
+or using IBC), which are included in the rollup's block data as `Deposit` events.
+4. Mints to the user's rollup-side account are derived from the `Deposit`s included
+in the rollup block data.
+
+### Rollup-to-Sequencer
+
+1. The bridge withdrawer is registered with the sequencer-side bridge account,
+allowing it to make withdrawals from the bridge account.
+2. The withdrawal contract is deployed on the rollup, emitting `SequencerWithdrawal`
+and `Ics20Withdrawal` events when its `withdrawToSequencer` and `withdrawToIbcChain`
+functions are called, respectively.
+3. The bridge withdrawer watches for these events, converting them to the appropriate
+sequencer-side native or IBC withdrawals and batching them by rollup block. Batches
+are then submitted to the sequencer sequentially.
+
 ## Bridge Account Initialization
 
 1. A bridge account is initialized on the sequencer with an associated rollup
 ID, which is the rollup ID that the rollup reads its block data from.
 
-2. The rollup registers the sequencer bridge account for use in its state
-transition logic. `Deposit`s of the correct asset to the bridge account will
-be used to derive a mint of the corresponding tokens on the rollup, according
-to the metadata provided.
+2. The rollup modifies its consensus to register the sequencer bridge account
+for use in its state transition logic. `Deposit`s of the correct asset to the
+bridge account will be used to derive a mint of the corresponding tokens on the
+rollup, according to the metadata provided.
 
 - An example for "registering" the bridge account: [`astria-geth`](https://github.com/astriaorg/astria-geth/blob/09c27dc320570d9e1f58ea60325158f36d6a0309/genesis.json#L24)
 - An example for the mint derivation logic: [`astria-geth`](https://github.com/astriaorg/astria-geth/blob/09c27dc320570d9e1f58ea60325158f36d6a0309/grpc/execution/validation.go#L27)
@@ -44,8 +68,9 @@ The withdrawer account is set with a sequencer-side [`BridgeSudoChange`](https:/
 action.
 
 The sequencer-side bridge withdrawer is the only account able to make actions that
-transfer funds out of the bridge account to other sequencer accounts, such as
-[`BridgeUnlock` actions.](https://github.com/astriaorg/astria/blob/d03059977c3a40590d66591c520bfda3a9b9de1c/proto/protocolapis/astria/protocol/transaction/v1/action.proto#L186)
+transfer funds out of the bridge account to other sequencer accounts, either via
+[`BridgeUnlock` actions](https://github.com/astriaorg/astria/blob/d03059977c3a40590d66591c520bfda3a9b9de1c/proto/protocolapis/astria/protocol/transaction/v1/action.proto#L186)
+or [`Ics20Withdrawal` actions](https://github.com/astriaorg/astria/blob/d03059977c3a40590d66591c520bfda3a9b9de1c/proto/protocolapis/astria/protocol/transaction/v1/action.proto#L78)
 
 ## Sequencer-To-Rollup Deposits
 
@@ -98,11 +123,11 @@ in the following way:
 payable withdrawal function burns the transferred tokens and emits a
 `Withdrawal` event.
 
-2. The bridge withdrawer watches for `Withdrawal` events. For each event emitted
+2. The bridge withdrawer watches for withdrawal events. For each event emitted
 by the smart contract, the withdrawer creates a sequencer-side action which
 transfers the funds from the bridge account to the destination specified in
-the `Withdrawal` event. These actions are batched and signed into sequencer
-transaction by rollup block, and the transaction is submitted to the sequencer.
+the withdrawal event. These actions are batched by rollup block into one sequencer
+transaction, and the transaction is submitted to the sequencer.
 
 [`BridgeUnlock` actions](https://github.com/astriaorg/astria/blob/d03059977c3a40590d66591c520bfda3a9b9de1c/proto/protocolapis/astria/protocol/transaction/v1/action.proto#L186)
 have the following structure:
@@ -169,9 +194,9 @@ user's rollup address.
 ### Withdrawal From A Rollup
 
 The User initiates a withdrawal from the rollup to an IBC destination using the
-`Ics20Withdrawal` function of an `IAstriaWithdrawer`-compatible smart contract. This
-contract calls burns the funds, emitting an `Ics20Withdrawal` event for the withdrawer
-to process (as described above).
+`withdrawToIbcChain` function of an `IAstriaWithdrawer`-compatible smart contract.
+This contract calls burns the funds, emitting an `Ics20Withdrawal` event for the
+withdrawer to process (as described above).
 
 In addition to the metadata in a sequencer-native withdrawal, the `Ics20Withdrawal`
 event also provides the needed information for creating an Ics20 withdrawal on
