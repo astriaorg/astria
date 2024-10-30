@@ -73,6 +73,7 @@ use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 use tokio::try_join;
 use tracing::instrument;
 
+use super::StateReadExt as _;
 use crate::{
     accounts::StateWriteExt as _,
     address::StateReadExt as _,
@@ -85,7 +86,6 @@ use crate::{
         StateWriteExt as _,
     },
     ibc::{
-        relay::StateReadExt as _,
         StateReadExt as _,
         StateWriteExt as _,
     },
@@ -787,7 +787,7 @@ mod tests {
             StateWriteExt as _,
         },
         ibc::{
-            relay::StateWriteExt as _,
+            action_handler::relay::StateWriteExt as _,
             StateReadExt as _,
             StateWriteExt,
         },

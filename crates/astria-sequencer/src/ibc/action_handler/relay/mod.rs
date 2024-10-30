@@ -13,14 +13,16 @@ use cnidarium::{
 };
 use penumbra_ibc::IbcRelayWithHandlers;
 
-use super::{
-    host_interface::AstriaHost,
-    StateReadExt as _,
-};
 use crate::{
     app::ActionHandler,
-    ibc::ics20_transfer::Ics20Transfer,
+    ibc::{
+        host_interface::AstriaHost,
+        StateReadExt as _,
+    },
 };
+
+mod msg_handler;
+use msg_handler::Ics20Transfer;
 
 #[async_trait::async_trait]
 impl ActionHandler for IbcRelay {
@@ -96,7 +98,7 @@ impl<S: StateWrite> Drop for Guard<S> {
 
 const TRANSACTION_CONTEXT: &str = "ibc/transaction_context";
 
-pub(super) trait StateWriteExt: StateWrite {
+trait StateWriteExt: StateWrite {
     fn put_transaction_context(&mut self, context: crate::transaction::Context) {
         self.object_put(TRANSACTION_CONTEXT, context);
     }
@@ -106,7 +108,7 @@ pub(super) trait StateWriteExt: StateWrite {
     }
 }
 
-pub(super) trait StateReadExt: StateRead {
+trait StateReadExt: StateRead {
     fn get_transaction_context(&self) -> Option<crate::transaction::Context> {
         self.object_get(TRANSACTION_CONTEXT)
     }
