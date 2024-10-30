@@ -860,6 +860,38 @@ impl<const MAX_PARKED_TXS_PER_ACCOUNT: usize> ParkedTransactions<MAX_PARKED_TXS_
         }
     }
 
+    /// Checks if the first transaction for an account matches the given transaction's nonce and if
+    /// it does removes it. This is used to remove transactions that were replaced by a transaction
+    /// that was able to be placed into pending.
+    ///
+    /// Returns the hash of the transaction that was removed.
+    pub(super) fn remove_replaced(
+        &mut self,
+        added_ttx: &TimemarkedTransaction,
+    ) -> Option<[u8; 32]> {
+        // Take the collection for this account out of `self` temporarily.
+        let mut account_txs = self.txs.remove(added_ttx.address())?;
+
+        let found_tx = if let Some(first_entry) = account_txs.txs_mut().first_entry() {
+            if first_entry.get().nonce() == added_ttx.nonce() {
+                let removed_hash = first_entry.get().tx_hash;
+                first_entry.remove();
+                Some(removed_hash)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Re-add the collection to `self` if it's not empty.
+        if !account_txs.txs().is_empty() {
+            let _ = self.txs.insert(*added_ttx.address(), account_txs);
+        }
+
+        found_tx
+    }
+
     /// Removes and returns the transactions that can be promoted from parked to pending for
     /// an account. Will only return sequential nonces from `target_nonce` whose costs are
     /// covered by the `available_balance`.
@@ -2178,6 +2210,69 @@ mod tests {
             0,
             "empty account should've been removed from container"
         );
+    }
+
+    #[tokio::test]
+    async fn parked_transactions_removed_replaced_works() {
+        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 100);
+        let account_balances = mock_balances(100, 100);
+
+        let ttx_1 = MockTTXBuilder::new().nonce(1).chain_id("test-1").build();
+        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
+
+        let replacement_tx = MockTTXBuilder::new().nonce(1).chain_id("test-2").build();
+
+        // add transactions to pending
+        parked_txs.add(ttx_1.clone(), 0, &account_balances).unwrap();
+        parked_txs.add(ttx_2.clone(), 0, &account_balances).unwrap();
+
+        // check for replacement should find the transaction with the matching nonce
+        let removed_tx = parked_txs.remove_replaced(&replacement_tx);
+        assert_eq!(removed_tx, Some(ttx_1.tx_hash));
+
+        // other transactions should still be in the container
+        assert_eq!(parked_txs.len(), 1);
+        assert!(parked_txs.contains_tx(&ttx_2.tx_hash));
+    }
+
+    #[tokio::test]
+    async fn parked_transactions_removed_replaced_empty_ok() {
+        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 100);
+
+        let replacement_tx = MockTTXBuilder::new().nonce(1).build();
+
+        // check for replacement should be fine on empty accounts
+        let removed_tx = parked_txs.remove_replaced(&replacement_tx);
+        assert_eq!(removed_tx, None);
+    }
+
+    #[tokio::test]
+    async fn parked_transactions_removed_replaced_wrong_nonces_ok() {
+        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 100);
+        let account_balances = mock_balances(100, 100);
+
+        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
+        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
+
+        let replacement_tx_higher = MockTTXBuilder::new().nonce(2).build();
+        let replacement_tx_lower = MockTTXBuilder::new().nonce(0).build();
+
+        // add transactions to pending
+        parked_txs.add(ttx_1.clone(), 0, &account_balances).unwrap();
+        parked_txs.add(ttx_2.clone(), 0, &account_balances).unwrap();
+
+        // replacement for higher nonce should be ignored
+        let removed_tx = parked_txs.remove_replaced(&replacement_tx_higher);
+        assert_eq!(removed_tx, None);
+
+        // replacement for lower nonce should be ignored
+        let removed_tx = parked_txs.remove_replaced(&replacement_tx_lower);
+        assert_eq!(removed_tx, None);
+
+        // other transactions should still be in the container
+        assert_eq!(parked_txs.len(), 2);
+        assert!(parked_txs.contains_tx(&ttx_1.tx_hash));
+        assert!(parked_txs.contains_tx(&ttx_2.tx_hash));
     }
 
     #[tokio::test]

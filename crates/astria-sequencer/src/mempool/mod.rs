@@ -251,6 +251,17 @@ impl Mempool {
                 }
             }
             Ok(_) => {
+                // check if first transaction in parked was replaced
+                if let Some(replaced_hash) = parked.remove_replaced(&timemarked_tx) {
+                    // remove from contained txs
+                    self.lock_contained_txs().await.remove(replaced_hash);
+                    // add to removal cache
+                    self.comet_bft_removal_cache
+                        .write()
+                        .await
+                        .add(replaced_hash, RemovalReason::NonceReplacement(id));
+                }
+
                 // check parked for txs able to be promoted
                 let to_promote = parked.find_promotables(
                     timemarked_tx.address(),
@@ -1148,6 +1159,66 @@ mod tests {
         // check that the transactions are not in the tracked set
         assert!(!mempool.is_tracked(tx0.id().get()).await);
         assert!(!mempool.is_tracked(tx1.id().get()).await);
+    }
+
+    #[tokio::test]
+    async fn tx_tracked_nonce_replacement_straight_to_pending() {
+        // tests that a transaction that is replaced by a transaction that is able to be
+        // placed into pending is removed from the tracked set
+
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let account_balances = mock_balances(10, 10);
+        let tx_cost_parked = mock_tx_cost(20, 10, 0);
+        let tx_cost_pending = mock_tx_cost(10, 10, 0);
+
+        let tx1_0 = MockTxBuilder::new().nonce(1).chain_id("test-0").build();
+        let tx1_1 = MockTxBuilder::new().nonce(1).chain_id("test-1").build();
+
+        // insert initial transaction into parked
+        mempool
+            .insert(tx1_0.clone(), 1, account_balances.clone(), tx_cost_parked)
+            .await
+            .unwrap();
+        // replace with different transaction which goes straight to pending
+        mempool
+            .insert(tx1_1.clone(), 1, account_balances.clone(), tx_cost_pending)
+            .await
+            .unwrap();
+
+        // check that the first transaction was removed and the replacement
+        // is tracked
+        assert!(!mempool.is_tracked(tx1_0.id().get()).await);
+        assert!(mempool.is_tracked(tx1_1.id().get()).await);
+    }
+
+    #[tokio::test]
+    async fn tx_tracked_nonce_replacement_modify_parked() {
+        // tests that transactions that are waiting in parked can be replaced
+        // by other transactions that will also go to parked
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+
+        let tx1_0 = MockTxBuilder::new().nonce(1).chain_id("test-0").build();
+        let tx1_1 = MockTxBuilder::new().nonce(1).chain_id("test-1").build();
+
+        // insert initial transaction into parked
+        mempool
+            .insert(tx1_0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        // replace with different transaction
+        mempool
+            .insert(tx1_1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // check that the first transaction was removed and the replacement
+        // is tracked
+        assert!(!mempool.is_tracked(tx1_0.id().get()).await);
+        assert!(mempool.is_tracked(tx1_1.id().get()).await);
     }
 
     #[tokio::test]

@@ -1,6 +1,12 @@
 use std::num::NonZeroU32;
 
-use astria_core::Protobuf as _;
+use astria_core::{
+    protocol::transaction::v1::{
+        action::Transfer,
+        TransactionBody,
+    },
+    Protobuf as _,
+};
 use prost::Message as _;
 use telemetry::Metrics;
 use tendermint::{
@@ -13,13 +19,19 @@ use tendermint::{
 
 use crate::{
     app::{
-        test_utils::MockTxBuilder,
+        test_utils::{
+            get_alice_signing_key,
+            MockTxBuilder,
+            ALICE_ADDRESS,
+            BOB_ADDRESS,
+        },
         App,
     },
     mempool::{
         Mempool,
         RemovalReason,
     },
+    test_utils::astria_address_from_hex_string,
 };
 
 #[tokio::test]
@@ -49,6 +61,110 @@ async fn future_nonces_are_accepted() {
     assert_eq!(rsp.code, Code::Ok, "{rsp:#?}");
 
     // mempool should contain single transaction still
+    assert_eq!(mempool.len().await, 1);
+}
+
+#[tokio::test]
+async fn too_expensive_txs_are_replaceable() {
+    // The mempool should allow replacement of transactions that an account does
+    // not have enough balance to afford.
+    let storage = cnidarium::TempStorage::new().await.unwrap();
+    let snapshot = storage.latest_snapshot();
+
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mut mempool = Mempool::new(metrics, 100);
+    let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
+    let chain_id = "test".to_string();
+    let genesis_state = crate::app::test_utils::genesis_state();
+
+    // get balance higher than alice's
+    let alice_balance = genesis_state
+        .accounts()
+        .iter()
+        .find(|a| a.address == astria_address_from_hex_string(ALICE_ADDRESS))
+        .unwrap()
+        .balance;
+    let too_expensive_amount = alice_balance + 10;
+
+    app.init_chain(storage.clone(), genesis_state, vec![], chain_id.clone())
+        .await
+        .unwrap();
+    app.commit(storage.clone()).await;
+
+    let tx_too_expensive = TransactionBody::builder()
+        .actions(vec![
+            Transfer {
+                to: astria_address_from_hex_string(BOB_ADDRESS),
+                amount: too_expensive_amount,
+                asset: crate::test_utils::nria().into(),
+                fee_asset: crate::test_utils::nria().into(),
+            }
+            .into(),
+        ])
+        .nonce(0)
+        .chain_id(chain_id.clone())
+        .try_build()
+        .unwrap()
+        .sign(&get_alice_signing_key());
+
+    let tx_ok = TransactionBody::builder()
+        .actions(vec![
+            Transfer {
+                to: astria_address_from_hex_string(BOB_ADDRESS),
+                amount: 1,
+                asset: crate::test_utils::nria().into(),
+                fee_asset: crate::test_utils::nria().into(),
+            }
+            .into(),
+        ])
+        .nonce(0)
+        .chain_id(chain_id.clone())
+        .try_build()
+        .unwrap()
+        .sign(&get_alice_signing_key());
+    let req_too_expensive = CheckTx {
+        tx: tx_too_expensive.to_raw().encode_to_vec().into(),
+        kind: CheckTxKind::New,
+    };
+    let req_ok = CheckTx {
+        tx: tx_ok.to_raw().encode_to_vec().into(),
+        kind: CheckTxKind::New,
+    };
+
+    // too expensive should enter the mempool
+    let rsp_too_expensive = super::handle_check_tx(
+        req_too_expensive,
+        storage.latest_snapshot(),
+        &mut mempool,
+        metrics,
+    )
+    .await;
+    assert_eq!(rsp_too_expensive.code, Code::Ok, "{rsp_too_expensive:#?}");
+
+    // ok should enter the mempool
+    let rsp_ok =
+        super::handle_check_tx(req_ok, storage.latest_snapshot(), &mut mempool, metrics).await;
+    assert_eq!(rsp_ok.code, Code::Ok, "{rsp_ok:#?}");
+
+    // recheck on too expensive should be nonce replacement
+    let req_too_expensive = CheckTx {
+        tx: tx_too_expensive.to_raw().encode_to_vec().into(),
+        kind: CheckTxKind::Recheck,
+    };
+    let rsp_too_expensive_recheck = super::handle_check_tx(
+        req_too_expensive,
+        storage.latest_snapshot(),
+        &mut mempool,
+        metrics,
+    )
+    .await;
+    assert_eq!(
+        rsp_too_expensive_recheck.code,
+        Code::Err(NonZeroU32::new(18).unwrap()),
+        "{rsp_too_expensive_recheck:#?}"
+    );
+
+    // mempool should contain single transaction
     assert_eq!(mempool.len().await, 1);
 }
 
