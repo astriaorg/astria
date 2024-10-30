@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix metric `set_batch_total_settled_value` to set to zero when no transactions are settled
+
 ## [1.0.0] - 2024-10-25
 
 ### Changed
