@@ -44,8 +44,6 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
-        /// Deprecated
-        ///
         /// Prefer `ValidatorUpdateV2` instead.
         #[prost(message, tag = "51")]
         ValidatorUpdate(
