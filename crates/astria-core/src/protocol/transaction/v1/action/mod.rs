@@ -890,7 +890,7 @@ enum IbcSudoChangeErrorKind {
 ///
 /// It also contains a `return_address` field which may or may not be the same as the signer
 /// of the packet. The funds will be returned to the `return_address` in the case of a timeout.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ics20Withdrawal {
     // a transparent value consisting of an amount and a denom.
     pub amount: u128,

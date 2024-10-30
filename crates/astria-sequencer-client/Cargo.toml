@@ -39,3 +39,4 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 tokio-test = { workspace = true }
 wiremock = { workspace = true }
+astria-core = { path = "../astria-core", features = ["serde"] }
