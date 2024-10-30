@@ -19,21 +19,25 @@ use tendermint::{
 
 use crate::{
     app::{
-        test_utils::{
-            get_alice_signing_key,
-            MockTxBuilder,
+        benchmark_and_test_utils::{
+            genesis_state,
             ALICE_ADDRESS,
             BOB_ADDRESS,
         },
-        benchmark_and_test_utils::genesis_state,
-        test_utils::MockTxBuilder,
+        test_utils::{
+            get_alice_signing_key,
+            MockTxBuilder,
+        },
         App,
+    },
+    benchmark_and_test_utils::{
+        astria_address_from_hex_string,
+        nria,
     },
     mempool::{
         Mempool,
         RemovalReason,
     },
-    test_utils::astria_address_from_hex_string,
 };
 
 #[tokio::test]
@@ -77,7 +81,7 @@ async fn too_expensive_txs_are_replaceable() {
     let mut mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
     let chain_id = "test".to_string();
-    let genesis_state = crate::app::test_utils::genesis_state();
+    let genesis_state = genesis_state();
 
     // get balance higher than alice's
     let alice_balance = genesis_state
@@ -98,8 +102,8 @@ async fn too_expensive_txs_are_replaceable() {
             Transfer {
                 to: astria_address_from_hex_string(BOB_ADDRESS),
                 amount: too_expensive_amount,
-                asset: crate::test_utils::nria().into(),
-                fee_asset: crate::test_utils::nria().into(),
+                asset: nria().into(),
+                fee_asset: nria().into(),
             }
             .into(),
         ])
@@ -114,8 +118,8 @@ async fn too_expensive_txs_are_replaceable() {
             Transfer {
                 to: astria_address_from_hex_string(BOB_ADDRESS),
                 amount: 1,
-                asset: crate::test_utils::nria().into(),
-                fee_asset: crate::test_utils::nria().into(),
+                asset: nria().into(),
+                fee_asset: nria().into(),
             }
             .into(),
         ])
