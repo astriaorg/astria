@@ -51,7 +51,6 @@ use tracing::{
 use crate::{
     accounts::StateReadExt as _,
     address::StateReadExt as _,
-    app::ActionHandler as _,
     mempool::{
         get_account_balances,
         InsertionError,
@@ -355,7 +354,7 @@ async fn stateless_checks<S: StateRead>(
         finished_parsing.saturating_duration_since(start_parsing),
     );
 
-    if let Err(e) = signed_tx.check_stateless().await {
+    if let Err(e) = crate::transaction::check_stateless(&signed_tx).await {
         metrics.increment_check_tx_removed_failed_stateless();
         return Err(error_response(
             AbciErrorCode::INVALID_PARAMETER,

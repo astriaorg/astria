@@ -42,8 +42,8 @@ impl AddressBytes for [u8; ADDRESS_LEN] {
     }
 }
 
-impl<'a> AddressBytes for &'a Transaction {
-    fn address_bytes(&self) -> &'a [u8; ADDRESS_LEN] {
+impl AddressBytes for Transaction {
+    fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
         Transaction::address_bytes(self)
     }
 }

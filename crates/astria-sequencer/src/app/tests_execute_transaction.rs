@@ -48,7 +48,6 @@ use crate::{
             get_bridge_signing_key,
             initialize_app,
         },
-        ActionHandler as _,
     },
     authority::StateReadExt as _,
     benchmark_and_test_utils::{
@@ -394,7 +393,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
         app.state.get_account_nonce(&alice_address).await.unwrap(),
         1
     );
-    assert!(app.state.is_ibc_relayer(alice_address).await.unwrap());
+    assert!(app.state.is_ibc_relayer(&alice_address).await.unwrap());
 }
 
 #[tokio::test]
@@ -422,7 +421,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
         app.state.get_account_nonce(&alice_address).await.unwrap(),
         1
     );
-    assert!(!app.state.is_ibc_relayer(alice_address).await.unwrap());
+    assert!(!app.state.is_ibc_relayer(&alice_address).await.unwrap());
 }
 
 #[tokio::test]
@@ -962,12 +961,14 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         .unwrap()
         .sign(&keypair);
     // try double, see fails stateful check
-    let res = signed_tx_fail
-        .check_and_execute(Arc::get_mut(&mut app.state).unwrap())
-        .await
-        .unwrap_err()
-        .root_cause()
-        .to_string();
+    let res = crate::transaction::check_and_execute(
+        &signed_tx_fail,
+        Arc::get_mut(&mut app.state).unwrap(),
+    )
+    .await
+    .unwrap_err()
+    .root_cause()
+    .to_string();
     assert!(res.contains("insufficient funds for asset"));
 
     // build single transfer to see passes
@@ -985,10 +986,9 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         .unwrap()
         .sign(&keypair);
 
-    signed_tx_pass
-        .check_and_execute(Arc::get_mut(&mut app.state).unwrap())
+    crate::transaction::check_and_execute(&signed_tx_pass, Arc::get_mut(&mut app.state).unwrap())
         .await
-        .expect("stateful check should pass since we transferred enough to cover fee");
+        .unwrap();
 }
 
 #[tokio::test]
@@ -1177,7 +1177,10 @@ async fn transaction_execution_records_deposit_event() {
     };
     let expected_deposit_event = create_deposit_event(&expected_deposit);
 
-    signed_tx.check_and_execute(&mut state_tx).await.unwrap();
+    crate::transaction::check_and_execute(&signed_tx, &mut state_tx)
+        .await
+        .unwrap();
+
     let events = &state_tx.apply().1;
     let event = events
         .iter()

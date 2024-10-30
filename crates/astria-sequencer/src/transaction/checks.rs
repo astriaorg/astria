@@ -50,7 +50,7 @@ pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
 
     for (asset, total_fee) in cost_by_asset {
         let balance = state
-            .get_account_balance(&tx, &asset)
+            .get_account_balance(tx, &asset)
             .await
             .context("failed to get account balance")?;
         ensure!(
@@ -97,7 +97,7 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             }
             Action::BridgeUnlock(act) => {
                 let asset = state
-                    .get_bridge_account_ibc_asset(&tx)
+                    .get_bridge_account_ibc_asset(tx)
                     .await
                     .wrap_err("failed to get bridge account asset id")?;
                 cost_by_asset

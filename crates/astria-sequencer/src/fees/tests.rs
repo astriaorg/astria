@@ -103,7 +103,9 @@ async fn ensure_correct_block_fees_transfer() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
+    crate::transaction::check_and_execute(&signed_tx, &mut state)
+        .await
+        .unwrap();
 
     let total_block_fees: u128 = state
         .get_block_fees()
@@ -143,7 +145,10 @@ async fn ensure_correct_block_fees_sequence() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
+    crate::transaction::check_and_execute(&signed_tx, &mut state)
+        .await
+        .unwrap();
+
     let total_block_fees: u128 = state
         .get_block_fees()
         .into_iter()
@@ -185,7 +190,9 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
+    crate::transaction::check_and_execute(&signed_tx, &mut state)
+        .await
+        .unwrap();
 
     let total_block_fees: u128 = state
         .get_block_fees()
@@ -246,7 +253,10 @@ async fn ensure_correct_block_fees_bridge_lock() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
+
+    crate::transaction::check_and_execute(&signed_tx, &mut state)
+        .await
+        .unwrap();
 
     let test_deposit = Deposit {
         bridge_address,
@@ -311,7 +321,9 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
+    crate::transaction::check_and_execute(&signed_tx, &mut state)
+        .await
+        .unwrap();
 
     let total_block_fees: u128 = state
         .get_block_fees()

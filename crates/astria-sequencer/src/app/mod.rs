@@ -1152,8 +1152,7 @@ impl App {
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all)]
     async fn execute_transaction(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<Event>> {
-        signed_tx
-            .check_stateless()
+        crate::transaction::check_stateless(&signed_tx)
             .await
             .wrap_err("stateless check failed")?;
 
@@ -1162,8 +1161,7 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
-        signed_tx
-            .check_and_execute(&mut state_tx)
+        crate::transaction::check_and_execute(&signed_tx, &mut state_tx)
             .await
             .wrap_err("failed executing transaction")?;
 
@@ -1211,6 +1209,7 @@ impl App {
             .expect("components should not retain copies of shared state");
 
         // gather and return validator updates
+        // FIXME: Why is this calling `expect`??
         let validator_updates = self
             .state
             .get_validator_updates()
