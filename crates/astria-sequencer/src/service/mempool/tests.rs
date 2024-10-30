@@ -25,6 +25,8 @@ use crate::{
             ALICE_ADDRESS,
             BOB_ADDRESS,
         },
+        benchmark_and_test_utils::genesis_state,
+        test_utils::MockTxBuilder,
         App,
     },
     mempool::{
@@ -43,7 +45,7 @@ async fn future_nonces_are_accepted() {
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
-    let genesis_state = crate::app::test_utils::genesis_state();
+    let genesis_state = genesis_state();
 
     app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
         .await
@@ -177,7 +179,7 @@ async fn rechecks_pass() {
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
-    let genesis_state = crate::app::test_utils::genesis_state();
+    let genesis_state = genesis_state();
 
     app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
         .await
@@ -215,7 +217,7 @@ async fn can_reinsert_after_recheck_fail() {
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
-    let genesis_state = crate::app::test_utils::genesis_state();
+    let genesis_state = genesis_state();
 
     app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
         .await
@@ -263,7 +265,7 @@ async fn recheck_adds_non_tracked_tx() {
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
     let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
-    let genesis_state = crate::app::test_utils::genesis_state();
+    let genesis_state = genesis_state();
 
     app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
         .await
