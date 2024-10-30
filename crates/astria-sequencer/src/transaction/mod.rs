@@ -10,15 +10,12 @@ use astria_core::{
         Transaction,
     },
 };
-use astria_eyre::{
-    anyhow_to_eyre,
-    eyre::{
-        self,
-        ensure,
-        OptionExt as _,
-        Result,
-        WrapErr as _,
-    },
+use astria_eyre::eyre::{
+    self,
+    ensure,
+    OptionExt as _,
+    Result,
+    WrapErr as _,
 };
 pub(crate) use checks::{
     check_balance_for_total_fees_and_transfers,
@@ -28,12 +25,6 @@ pub(crate) use checks::{
 use cnidarium::StateWrite;
 
 mod checks;
-mod state_ext;
-
-pub(crate) use state_ext::{
-    StateReadExt,
-    StateWriteExt,
-};
 
 pub(crate) async fn check_and_execute<S>(
     transaction: &Transaction,
@@ -115,25 +106,9 @@ where
             Action::FeeChange(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("executing fee change failed")?,
-            Action::Ibc(act) => {
-                state.put_transaction_context(context);
-                ensure!(
-                    state
-                        .is_ibc_relayer(transaction.address_bytes())
-                        .await
-                        .wrap_err("failed to check if address is IBC relayer")?,
-                    "only IBC sudo address can execute IBC actions"
-                );
-                let action = act
-                    .clone()
-                    .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
-                action
-                    .check_and_execute(&mut state)
-                    .await
-                    .map_err(anyhow_to_eyre)
-                    .wrap_err("failed executing ibc action")?;
-                state.delete_current_transaction_context();
-            }
+            Action::Ibc(act) => check_execute_and_pay_fees(act, &mut state, context)
+                .await
+                .wrap_err("executing ibc relay failed")?,
             Action::Ics20Withdrawal(act) => check_execute_and_pay_fees(act, &mut state, context)
                 .await
                 .wrap_err("failed executing ics20 withdrawal")?,
@@ -193,16 +168,10 @@ pub(crate) async fn check_stateless(transaction: &Transaction) -> Result<()> {
                 .check_stateless()
                 .await
                 .wrap_err("stateless check failed for FeeChangeAction")?,
-            Action::Ibc(act) => {
-                let action = act
-                    .clone()
-                    .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
-                action
-                    .check_stateless(())
-                    .await
-                    .map_err(anyhow_to_eyre)
-                    .wrap_err("stateless check failed for IbcAction")?;
-            }
+            Action::Ibc(act) => act
+                .check_stateless()
+                .await
+                .wrap_err("stateless check failed for IbcRelay action")?,
             Action::Ics20Withdrawal(act) => act
                 .check_stateless()
                 .await
@@ -250,10 +219,6 @@ use crate::{
         StateWriteExt as _,
     },
     fees::FeeHandler,
-    ibc::{
-        host_interface::AstriaHost,
-        StateReadExt as _,
-    },
 };
 
 #[derive(Debug)]

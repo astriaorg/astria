@@ -85,10 +85,10 @@ use crate::{
         StateWriteExt as _,
     },
     ibc::{
+        relay::StateReadExt as _,
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
     utils::create_deposit_event,
 };
 
@@ -175,7 +175,7 @@ fn is_refund_source_zone(asset: &denom::TracePrefixed, port: &PortId, channel: &
 /// See [here](https://github.com/cosmos/ibc/blob/main/spec/app/ics-020-fungible-token-transfer/README.md)
 /// for the specification which this is based on.
 #[derive(Clone)]
-pub(crate) struct Ics20Transfer;
+pub(super) struct Ics20Transfer;
 
 #[async_trait::async_trait]
 impl AppHandlerCheck for Ics20Transfer {
@@ -787,11 +787,11 @@ mod tests {
             StateWriteExt as _,
         },
         ibc::{
+            relay::StateWriteExt as _,
             StateReadExt as _,
             StateWriteExt,
         },
         test_utils::astria_compat_address,
-        transaction::StateWriteExt as _,
     };
 
     fn packet() -> Packet {

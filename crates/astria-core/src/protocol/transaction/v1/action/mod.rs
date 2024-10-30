@@ -6,7 +6,7 @@ use ibc_types::{
     },
     IdentifierError,
 };
-use penumbra_ibc::IbcRelay;
+pub use penumbra_ibc::IbcRelay;
 use prost::Name as _;
 
 use super::raw;
