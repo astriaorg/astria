@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Set `batch_total_settled_value` metric to 0 when no withdrawals are settled [#1778](https://github.com/astriaorg/astria/pull/1768)
 - Fixed ICS20 withdrawal source when using channel with more than one
   port/channel combo.[#1768](https://github.com/astriaorg/astria/pull/1768)
 

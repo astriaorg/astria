@@ -142,6 +142,13 @@ impl Submitter {
             metrics,
             ..
         } = self;
+
+        if actions.is_empty() {
+            metrics.set_batch_total_settled_value(0);
+
+            return Ok(());
+        }
+
         // get nonce and make unsigned transaction
         let nonce = get_pending_nonce(
             sequencer_grpc_client.clone(),
