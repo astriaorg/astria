@@ -206,7 +206,7 @@ fn builder_queue<T: MempoolSize>(bencher: divan::Bencher) {
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.builder_queue(&mock_state).await.unwrap();
+                mempool.builder_queue(&mock_state).await;
             });
         });
 }
