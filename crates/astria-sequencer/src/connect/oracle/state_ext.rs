@@ -48,6 +48,7 @@ pin_project! {
     }
 }
 
+#[derive(PartialEq)]
 pub(crate) struct CurrencyPairWithId {
     pub(crate) id: u64,
     pub(crate) currency_pair: CurrencyPair,
@@ -74,7 +75,7 @@ where
             .and_then(|value| storage::CurrencyPairId::try_from(value).map(CurrencyPairId::from))
             .wrap_err_with(|| format!("invalid currency pair id bytes under key `{key}`"))?;
 
-        let currency_pair = match keys::extract_currency_pair_from_key(&key) {
+        let currency_pair = match keys::extract_currency_pair_from_pair_to_id_key(&key) {
             Err(err) => {
                 return Poll::Ready(Some(Err(err).with_context(|| {
                     format!("failed to extract currency pair from key `{key}`")
@@ -113,7 +114,7 @@ where
             }
             None => return Poll::Ready(None),
         };
-        let currency_pair = match keys::extract_currency_pair_from_key(&key) {
+        let currency_pair = match keys::extract_currency_pair_from_pair_state_key(&key) {
             Err(err) => {
                 return Poll::Ready(Some(Err(err).with_context(|| {
                     format!("failed to extract currency pair from key `{key}`")
@@ -352,4 +353,233 @@ fn put_currency_pair<T: StateWrite + ?Sized>(
         .wrap_err("failed to serialize currency pair")?;
     state.put_raw(keys::id_to_currency_pair(id), bytes);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use astria_core::{
+        connect::types::v2::{
+            CurrencyPair,
+            Price,
+        },
+        Timestamp,
+    };
+    use cnidarium::StateDelta;
+    use futures::TryStreamExt;
+
+    use super::*;
+
+    fn eth_usd() -> CurrencyPair {
+        "ETH/USD".parse::<CurrencyPair>().unwrap()
+    }
+
+    fn eth_usd_state(nonce: u64) -> CurrencyPairState {
+        currency_pair_state(1, nonce)
+    }
+
+    fn btc_usd() -> CurrencyPair {
+        "BTC/USD".parse::<CurrencyPair>().unwrap()
+    }
+
+    fn btc_usd_state(nonce: u64) -> CurrencyPairState {
+        currency_pair_state(2, nonce)
+    }
+
+    fn currency_pair_state(id: u64, nonce: u64) -> CurrencyPairState {
+        CurrencyPairState {
+            price: QuotePrice {
+                price: Price::new(123),
+                block_timestamp: Timestamp {
+                    seconds: 4,
+                    nanos: 5,
+                },
+                block_height: nonce.checked_add(10).unwrap(),
+            },
+            nonce: CurrencyPairNonce::new(nonce),
+            id: CurrencyPairId::new(id),
+        }
+    }
+
+    /// Putting the currency pair state also writes the pair and the pair ID, so we'll also check
+    /// those getters in this test.
+    #[tokio::test]
+    async fn should_put_and_get_currency_pair_state() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Getting should return `None` when the pair is not stored.
+        assert!(
+            state
+                .get_currency_pair_state(&eth_usd())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            state
+                .get_currency_pair_id(&eth_usd())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            state
+                .get_currency_pair(CurrencyPairId::new(1))
+                .await
+                .unwrap()
+                .is_none()
+        );
+
+        // Putting a currency pair state should succeed.
+        state
+            .put_currency_pair_state(eth_usd(), eth_usd_state(1))
+            .unwrap();
+
+        // Getting the stored state, pair and id should succeed.
+        let retrieved_pair_state = state
+            .get_currency_pair_state(&eth_usd())
+            .await
+            .expect("should not error")
+            .expect("should be `Some`");
+        assert_eq!(eth_usd_state(1), retrieved_pair_state);
+        let retrieved_pair = state
+            .get_currency_pair(eth_usd_state(1).id)
+            .await
+            .expect("should not error")
+            .expect("should be `Some`");
+        assert_eq!(eth_usd(), retrieved_pair);
+        let retrieved_pair_id = state
+            .get_currency_pair_id(&eth_usd())
+            .await
+            .expect("should not error")
+            .expect("should be `Some`");
+        assert_eq!(eth_usd_state(1).id, retrieved_pair_id);
+    }
+
+    #[tokio::test]
+    async fn should_get_currency_pairs_with_ids() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Should return an empty stream before any currency pair states are stored.
+        let collected: Vec<_> = state.currency_pairs_with_ids().try_collect().await.unwrap();
+        assert!(collected.is_empty());
+
+        // Store some currency pair states.
+        state
+            .put_currency_pair_state(eth_usd(), eth_usd_state(2))
+            .unwrap();
+        state
+            .put_currency_pair_state(btc_usd(), btc_usd_state(1))
+            .unwrap();
+        state
+            .put_currency_pair_state(btc_usd(), btc_usd_state(2))
+            .unwrap();
+        state
+            .put_currency_pair_state(eth_usd(), eth_usd_state(1))
+            .unwrap();
+
+        // Check we retrieved all expected currency pairs with ids.
+        let collected: Vec<_> = state.currency_pairs_with_ids().try_collect().await.unwrap();
+        assert_eq!(collected.len(), 2);
+        assert!(collected.contains(&CurrencyPairWithId {
+            id: eth_usd_state(1).id.get(),
+            currency_pair: eth_usd(),
+        }));
+        assert!(collected.contains(&CurrencyPairWithId {
+            id: btc_usd_state(1).id.get(),
+            currency_pair: btc_usd(),
+        }));
+    }
+
+    #[tokio::test]
+    async fn should_get_currency_pairs() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Should return an empty stream before any currency pair states are stored.
+        let collected: Vec<_> = state.currency_pairs().try_collect().await.unwrap();
+        assert!(collected.is_empty());
+
+        // Store some currency pair states.
+        state
+            .put_currency_pair_state(eth_usd(), eth_usd_state(2))
+            .unwrap();
+        state
+            .put_currency_pair_state(btc_usd(), btc_usd_state(1))
+            .unwrap();
+        state
+            .put_currency_pair_state(btc_usd(), btc_usd_state(2))
+            .unwrap();
+        state
+            .put_currency_pair_state(eth_usd(), eth_usd_state(1))
+            .unwrap();
+
+        // Check we retrieved all expected currency pairs.
+        let collected: Vec<_> = state.currency_pairs().try_collect().await.unwrap();
+        assert_eq!(collected.len(), 2);
+        assert!(collected.contains(&eth_usd()));
+        assert!(collected.contains(&btc_usd()));
+    }
+
+    #[tokio::test]
+    async fn should_put_and_get_num_currency_pairs() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Getting should return `0` when no count is stored.
+        assert_eq!(state.get_num_currency_pairs().await.unwrap(), 0);
+
+        // Putting a count should succeed.
+        state.put_num_currency_pairs(1).unwrap();
+
+        // Getting the stored count should succeed.
+        let retrieved_count = state
+            .get_num_currency_pairs()
+            .await
+            .expect("should not error");
+        assert_eq!(1, retrieved_count);
+
+        // Putting a new count should overwrite the first.
+        state.put_num_currency_pairs(2).unwrap();
+
+        let retrieved_count = state
+            .get_num_currency_pairs()
+            .await
+            .expect("should not error");
+        assert_eq!(2, retrieved_count);
+    }
+
+    #[tokio::test]
+    async fn should_put_and_get_num_removed_currency_pairs() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Getting should return `0` when no count is stored.
+        assert_eq!(state.get_num_removed_currency_pairs().await.unwrap(), 0);
+
+        // Putting a count should succeed.
+        state.put_num_removed_currency_pairs(1).unwrap();
+
+        // Getting the stored count should succeed.
+        let retrieved_count = state
+            .get_num_removed_currency_pairs()
+            .await
+            .expect("should not error");
+        assert_eq!(1, retrieved_count);
+
+        // Putting a new count should overwrite the first.
+        state.put_num_removed_currency_pairs(2).unwrap();
+
+        let retrieved_count = state
+            .get_num_removed_currency_pairs()
+            .await
+            .expect("should not error");
+        assert_eq!(2, retrieved_count);
+    }
 }

@@ -37,12 +37,22 @@ pub(in crate::connect::oracle) fn currency_pair_state(currency_pair: &CurrencyPa
     format!("{CURRENCY_PAIR_STATE_PREFIX}{currency_pair}")
 }
 
-pub(in crate::connect::oracle) fn extract_currency_pair_from_key(
+pub(in crate::connect::oracle) fn extract_currency_pair_from_pair_to_id_key(
     key: &str,
 ) -> Result<CurrencyPair> {
+    extract_currency_pair_from_key(CURRENCY_PAIR_TO_ID_PREFIX, key)
+}
+
+pub(in crate::connect::oracle) fn extract_currency_pair_from_pair_state_key(
+    key: &str,
+) -> Result<CurrencyPair> {
+    extract_currency_pair_from_key(CURRENCY_PAIR_STATE_PREFIX, key)
+}
+
+fn extract_currency_pair_from_key(prefix: &str, key: &str) -> Result<CurrencyPair> {
     let currency_pair_str = key
-        .strip_prefix(CURRENCY_PAIR_TO_ID_PREFIX)
-        .ok_or_else(|| eyre!("key `{key}` did not have prefix `{CURRENCY_PAIR_TO_ID_PREFIX}`"))?;
+        .strip_prefix(prefix)
+        .ok_or_else(|| eyre!("key `{key}` did not have prefix `{prefix}`"))?;
     let (base_str, quote_str) = currency_pair_str.split_once('/').ok_or_else(|| {
         eyre!("suffix `{currency_pair_str}` of key `{key}` is not of form <base>/<quote>")
     })?;
@@ -100,10 +110,18 @@ mod tests {
     }
 
     #[test]
-    fn should_extract_asset_from_key() {
+    fn should_extract_currency_pair_from_pair_to_id_key() {
         let currency_pair = currency_pair();
         let key = currency_pair_to_id(&currency_pair);
-        let recovered_currency_pair = extract_currency_pair_from_key(&key).unwrap();
+        let recovered_currency_pair = extract_currency_pair_from_pair_to_id_key(&key).unwrap();
+        assert_eq!(currency_pair, recovered_currency_pair);
+    }
+
+    #[test]
+    fn should_extract_currency_pair_from_pair_state_key() {
+        let currency_pair = currency_pair();
+        let key = currency_pair_state(&currency_pair);
+        let recovered_currency_pair = extract_currency_pair_from_pair_state_key(&key).unwrap();
         assert_eq!(currency_pair, recovered_currency_pair);
     }
 }

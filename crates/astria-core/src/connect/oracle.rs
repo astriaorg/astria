@@ -14,7 +14,7 @@ pub mod v2 {
         Protobuf,
     };
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct QuotePrice {
         pub price: Price,
         pub block_timestamp: Timestamp,
@@ -92,7 +92,7 @@ pub mod v2 {
         MissingBlockTimestamp,
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct CurrencyPairState {
         pub price: QuotePrice,
         pub nonce: CurrencyPairNonce,

@@ -108,3 +108,202 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[cfg(test)]
+mod tests {
+    use astria_core::generated::connect::{
+        marketmap::v2 as raw,
+        types::v2::CurrencyPair,
+    };
+    use cnidarium::StateDelta;
+    use serde_json::{
+        json,
+        Value,
+    };
+
+    use super::*;
+    use crate::{
+        app::benchmark_and_test_utils::{
+            ALICE_ADDRESS,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+            JUDY_ADDRESS,
+        },
+        benchmark_and_test_utils::astria_address_from_hex_string,
+    };
+
+    /// Returns a `MarketMap` with the provided metadata encoded into the first market's ticker to
+    /// support creating non-identical maps.
+    fn market_map(metadata: Option<Value>) -> MarketMap {
+        let raw_market_map = raw::MarketMap {
+            markets: [
+                (
+                    "BTC/USD".to_string(),
+                    raw::Market {
+                        ticker: Some(raw::Ticker {
+                            currency_pair: Some(CurrencyPair {
+                                base: "BTC".to_string(),
+                                quote: "USD".to_string(),
+                            }),
+                            decimals: 8,
+                            min_provider_count: 3,
+                            enabled: true,
+                            metadata_json: metadata
+                                .map(|value| value.to_string())
+                                .unwrap_or_default(),
+                        }),
+                        provider_configs: vec![raw::ProviderConfig {
+                            name: "coingecko_api".to_string(),
+                            off_chain_ticker: "bitcoin/usd".to_string(),
+                            normalize_by_pair: Some(CurrencyPair {
+                                base: "USDT".to_string(),
+                                quote: "USD".to_string(),
+                            }),
+                            invert: false,
+                            metadata_json: json!({ "field": true }).to_string(),
+                        }],
+                    },
+                ),
+                (
+                    "ETH/USD".to_string(),
+                    raw::Market {
+                        ticker: Some(raw::Ticker {
+                            currency_pair: Some(CurrencyPair {
+                                base: "ETH".to_string(),
+                                quote: "USD".to_string(),
+                            }),
+                            decimals: 8,
+                            min_provider_count: 3,
+                            enabled: true,
+                            metadata_json: String::new(),
+                        }),
+                        provider_configs: vec![raw::ProviderConfig {
+                            name: "coingecko_api".to_string(),
+                            off_chain_ticker: "ethereum/usd".to_string(),
+                            normalize_by_pair: Some(CurrencyPair {
+                                base: "USDT".to_string(),
+                                quote: "USD".to_string(),
+                            }),
+                            invert: false,
+                            metadata_json: String::new(),
+                        }],
+                    },
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        MarketMap::try_from(raw_market_map).unwrap()
+    }
+
+    /// Returns a `Params` with the provided addresses as the authorities, and the first one used as
+    /// the admin.
+    fn params(addresses: impl IntoIterator<Item = &'static str>) -> Params {
+        let market_authorities: Vec<_> = addresses
+            .into_iter()
+            .map(astria_address_from_hex_string)
+            .collect();
+        let admin = *market_authorities.first().unwrap();
+        Params {
+            market_authorities,
+            admin,
+        }
+    }
+
+    #[tokio::test]
+    async fn should_put_and_get_market_map() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Getting should return `None` when no market map is stored.
+        assert!(state.get_market_map().await.unwrap().is_none());
+
+        // Putting a market map should succeed.
+        let market_map_1 = market_map(Some(json!({ "field": 1 })));
+        state.put_market_map(market_map_1.clone()).unwrap();
+
+        // Getting the stored market map should succeed.
+        let retrieved_market_map = state
+            .get_market_map()
+            .await
+            .expect("should not error")
+            .expect("should be `Some`");
+        assert_eq!(market_map_1, retrieved_market_map);
+
+        // Putting a new market map should overwrite the first.
+        let market_map_2 = market_map(None);
+        assert_ne!(market_map_1, market_map_2);
+        state.put_market_map(market_map_2.clone()).unwrap();
+
+        let retrieved_market_map = state
+            .get_market_map()
+            .await
+            .expect("should not error")
+            .expect("should be `Some`");
+        assert_eq!(market_map_2, retrieved_market_map);
+    }
+
+    #[tokio::test]
+    async fn should_put_and_get_market_map_last_updated_height() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Getting should return `0` when no height is stored.
+        assert_eq!(state.get_market_map_last_updated_height().await.unwrap(), 0);
+
+        // Putting a height should succeed.
+        state.put_market_map_last_updated_height(1).unwrap();
+
+        // Getting the stored height should succeed.
+        let retrieved_height = state
+            .get_market_map_last_updated_height()
+            .await
+            .expect("should not error");
+        assert_eq!(1, retrieved_height);
+
+        // Putting a new height should overwrite the first.
+        state.put_market_map_last_updated_height(2).unwrap();
+
+        let retrieved_height = state
+            .get_market_map_last_updated_height()
+            .await
+            .expect("should not error");
+        assert_eq!(2, retrieved_height);
+    }
+
+    #[tokio::test]
+    async fn should_put_and_get_params() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Getting should return `None` when no params are stored.
+        assert!(state.get_params().await.unwrap().is_none());
+
+        // Putting params should succeed.
+        let params_1 = params([ALICE_ADDRESS, BOB_ADDRESS, CAROL_ADDRESS]);
+        state.put_params(params_1.clone()).unwrap();
+
+        // Getting the stored params should succeed.
+        let retrieved_params = state
+            .get_params()
+            .await
+            .expect("should not error")
+            .expect("should be `Some`");
+        assert_eq!(params_1, retrieved_params);
+
+        // Putting new params should overwrite the first.
+        let params_2 = params([BOB_ADDRESS, JUDY_ADDRESS]);
+        assert_ne!(params_1, params_2);
+        state.put_params(params_2.clone()).unwrap();
+
+        let retrieved_params = state
+            .get_params()
+            .await
+            .expect("should not error")
+            .expect("should be `Some`");
+        assert_eq!(params_2, retrieved_params);
+    }
+}
