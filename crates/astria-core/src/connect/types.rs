@@ -14,7 +14,7 @@ pub mod v2 {
 
     impl Price {
         #[must_use]
-        pub fn new(value: u128) -> Self {
+        pub const fn new(value: u128) -> Self {
             Self(value)
         }
 
@@ -280,28 +280,20 @@ pub mod v2 {
         type Err = CurrencyPairParseError;
 
         fn from_str(s: &str) -> Result<Self, Self::Err> {
-            static REGEX: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-            fn get_regex() -> &'static regex::Regex {
-                REGEX.get_or_init(|| {
-                    regex::Regex::new(r"^([a-zA-Z]+)/([a-zA-Z]+)$").expect("valid regex")
-                })
-            }
+            let Some((base_str, quote_str)) = s.split_once('/') else {
+                return Err(CurrencyPairParseError::invalid_currency_pair_string(s));
+            };
 
-            let caps = get_regex()
-                .captures(s)
-                .ok_or_else(|| CurrencyPairParseError::invalid_currency_pair_string(s))?;
-            let base = caps
-                .get(1)
-                .expect("must have base string, as regex captured it")
-                .as_str();
-            let quote = caps
-                .get(2)
-                .expect("must have quote string, as regex captured it")
-                .as_str();
+            let base = base_str
+                .parse()
+                .map_err(CurrencyPairParseError::parse_base)?;
+            let quote = quote_str
+                .parse()
+                .map_err(CurrencyPairParseError::parse_quote)?;
 
             Ok(Self {
-                base: Base(base.to_string()),
-                quote: Quote(quote.to_string()),
+                base,
+                quote,
             })
         }
     }
@@ -314,6 +306,10 @@ pub mod v2 {
     pub enum CurrencyPairParseErrorKind {
         #[error("invalid currency pair string: {0}")]
         InvalidCurrencyPairString(String),
+        #[error(transparent)]
+        ParseBase { source: ParseBaseError },
+        #[error(transparent)]
+        ParseQuote { source: ParseQuoteError },
     }
 
     impl CurrencyPairParseError {
@@ -322,6 +318,20 @@ pub mod v2 {
             Self(CurrencyPairParseErrorKind::InvalidCurrencyPairString(
                 s.to_string(),
             ))
+        }
+
+        #[must_use]
+        fn parse_base(source: ParseBaseError) -> Self {
+            Self(CurrencyPairParseErrorKind::ParseBase {
+                source,
+            })
+        }
+
+        #[must_use]
+        fn parse_quote(source: ParseQuoteError) -> Self {
+            Self(CurrencyPairParseErrorKind::ParseQuote {
+                source,
+            })
         }
     }
 
@@ -336,7 +346,7 @@ pub mod v2 {
 
     impl CurrencyPairId {
         #[must_use]
-        pub fn new(value: u64) -> Self {
+        pub const fn new(value: u64) -> Self {
             Self(value)
         }
 
@@ -357,7 +367,7 @@ pub mod v2 {
 
     impl CurrencyPairNonce {
         #[must_use]
-        pub fn new(value: u64) -> Self {
+        pub const fn new(value: u64) -> Self {
             Self(value)
         }
 
@@ -372,23 +382,50 @@ pub mod v2 {
             Some(Self::new(new_nonce))
         }
     }
-}
 
-#[cfg(test)]
-mod test {
-    use super::v2::CurrencyPair;
+    #[cfg(test)]
+    mod test {
+        use super::*;
 
-    #[test]
-    fn currency_pair_parse() {
-        let currency_pair = "ETH/USD".parse::<CurrencyPair>().unwrap();
-        assert_eq!(currency_pair.base(), "ETH");
-        assert_eq!(currency_pair.quote(), "USD");
-        assert_eq!(currency_pair.to_string(), "ETH/USD");
-    }
+        #[test]
+        fn base_should_parse() {
+            "ETH".parse::<Base>().unwrap();
+        }
 
-    #[test]
-    fn invalid_currency_pair_is_rejected() {
-        let currency_pair = "ETHUSD".parse::<CurrencyPair>();
-        assert!(currency_pair.is_err());
+        #[test]
+        fn invalid_base_should_not_parse() {
+            " ETH".parse::<Base>().unwrap_err();
+            "ETH ".parse::<Base>().unwrap_err();
+            "ET H".parse::<Base>().unwrap_err();
+        }
+
+        #[test]
+        fn quote_should_parse() {
+            "ETH".parse::<Quote>().unwrap();
+        }
+
+        #[test]
+        fn invalid_quote_should_not_parse() {
+            " ETH".parse::<Quote>().unwrap_err();
+            "ETH ".parse::<Quote>().unwrap_err();
+            "ET H".parse::<Quote>().unwrap_err();
+        }
+
+        #[test]
+        fn currency_pair_should_parse() {
+            let currency_pair = "ETH/USD".parse::<CurrencyPair>().unwrap();
+            assert_eq!(currency_pair.base(), "ETH");
+            assert_eq!(currency_pair.quote(), "USD");
+            assert_eq!(currency_pair.to_string(), "ETH/USD");
+        }
+
+        #[test]
+        fn invalid_currency_pair_should_not_parse() {
+            "ETHUSD".parse::<CurrencyPair>().unwrap_err();
+            " ETH/USD".parse::<CurrencyPair>().unwrap_err();
+            "ETH/USD ".parse::<CurrencyPair>().unwrap_err();
+            "ETH /USD".parse::<CurrencyPair>().unwrap_err();
+            "ETH/ USD".parse::<CurrencyPair>().unwrap_err();
+        }
     }
 }
