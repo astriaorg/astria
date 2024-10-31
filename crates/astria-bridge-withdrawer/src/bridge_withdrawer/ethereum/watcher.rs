@@ -380,17 +380,16 @@ async fn get_and_forward_block_events(
     if actions.is_empty() {
         info!(
             "no withdrawal actions found for block `{block_hash}` at rollup height \
-             `{rollup_height}; skipping"
+             `{rollup_height}"
         );
-    } else {
-        submitter_handle
-            .send_batch(Batch {
-                actions,
-                rollup_height,
-            })
-            .await
-            .wrap_err("failed to send batched events; receiver dropped?")?;
     }
+    submitter_handle
+        .send_batch(Batch {
+            actions,
+            rollup_height,
+        })
+        .await
+        .wrap_err("failed to send batched events; receiver dropped?")?;
 
     Ok(())
 }

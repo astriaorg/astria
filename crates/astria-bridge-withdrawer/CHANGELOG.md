@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Set `batch_total_settled_value` metric to 0 when no withdrawals are settled [#1778](https://github.com/astriaorg/astria/pull/1768)
+
 ## [1.0.0] - 2024-10-25
 
 ### Changed
