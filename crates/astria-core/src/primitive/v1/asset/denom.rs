@@ -305,7 +305,10 @@ impl TracePrefixed {
         self.trace.leading_channel() == Some(channel.as_ref())
     }
 
-    /// Returns the `channel` in left-most position if the trace prefixed denom one.
+    /// Returns the ICS20 channel in the left-most position.
+    ///
+    /// Returns `None` if the denom only contains a base and has no path segments.
+    /// A path segment is a pair `"<port>/<channel>"`.
     ///
     /// # Examples
     ///
