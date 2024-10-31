@@ -116,7 +116,7 @@ use crate::{
     },
     component::Component as _,
     connect::{
-        marketmap::component::MarketMapComponent,
+        market_map::component::MarketMapComponent,
         oracle::component::OracleComponent,
     },
     fees::{

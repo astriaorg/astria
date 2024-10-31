@@ -45,7 +45,7 @@ use tracing::instrument;
 use crate::{
     app::StateReadExt as _,
     connect::{
-        marketmap::state_ext::StateReadExt as _,
+        market_map::state_ext::StateReadExt as _,
         oracle::state_ext::{
             CurrencyPairWithId,
             StateReadExt as _,

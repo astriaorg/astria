@@ -28,7 +28,7 @@ use super::{
 };
 
 #[derive(BorshSerialize, BorshDeserialize)]
-pub(in crate::connect::marketmap) struct Params<'a> {
+pub(in crate::connect::market_map) struct Params<'a> {
     market_authorities: Vec<Cow<'a, [u8; ADDRESS_LEN]>>,
     admin: Cow<'a, [u8; ADDRESS_LEN]>,
     // NOTE: All addresses in the `market_authorities` and `admin` have the same prefix.

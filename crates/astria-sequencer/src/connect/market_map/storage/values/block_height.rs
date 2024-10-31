@@ -10,7 +10,7 @@ use super::{
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::connect::marketmap) struct BlockHeight(u64);
+pub(in crate::connect::market_map) struct BlockHeight(u64);
 
 impl From<u64> for BlockHeight {
     fn from(block_height: u64) -> Self {

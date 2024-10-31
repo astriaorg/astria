@@ -1,6 +1,6 @@
-pub(in crate::connect::marketmap) const MARKET_MAP: &str = "connect/market_map/market_map";
-pub(in crate::connect::marketmap) const PARAMS: &str = "connect/market_map/params";
-pub(in crate::connect::marketmap) const LAST_UPDATED: &str = "connect/market_map/last_updated";
+pub(in crate::connect::market_map) const MARKET_MAP: &str = "connect/market_map/market_map";
+pub(in crate::connect::market_map) const PARAMS: &str = "connect/market_map/params";
+pub(in crate::connect::market_map) const LAST_UPDATED: &str = "connect/market_map/last_updated";
 
 #[cfg(test)]
 mod tests {

@@ -3,7 +3,7 @@ use borsh::{
     BorshSerialize,
 };
 
-pub(in crate::connect::marketmap) use self::{
+pub(in crate::connect::market_map) use self::{
     block_height::BlockHeight,
     market_map::MarketMap,
     params::Params,

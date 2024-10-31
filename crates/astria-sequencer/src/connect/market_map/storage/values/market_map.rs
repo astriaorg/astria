@@ -150,7 +150,7 @@ impl<'a> From<Market<'a>> for (String, DomainMarket) {
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::connect::marketmap) struct MarketMap<'a>(Vec<Market<'a>>);
+pub(in crate::connect::market_map) struct MarketMap<'a>(Vec<Market<'a>>);
 
 impl<'a> From<&'a DomainMarketMap> for MarketMap<'a> {
     fn from(market_map: &'a DomainMarketMap) -> Self {
