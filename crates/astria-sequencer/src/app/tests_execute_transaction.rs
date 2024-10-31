@@ -961,7 +961,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         .unwrap()
         .sign(&keypair);
     // try double, see fails stateful check
-    let res = crate::transaction::check_and_execute(
+    let res = crate::transaction::check_and_execute_strict(
         &signed_tx_fail,
         Arc::get_mut(&mut app.state).unwrap(),
     )
@@ -986,9 +986,12 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         .unwrap()
         .sign(&keypair);
 
-    crate::transaction::check_and_execute(&signed_tx_pass, Arc::get_mut(&mut app.state).unwrap())
-        .await
-        .unwrap();
+    crate::transaction::check_and_execute_strict(
+        &signed_tx_pass,
+        Arc::get_mut(&mut app.state).unwrap(),
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]
@@ -1177,7 +1180,7 @@ async fn transaction_execution_records_deposit_event() {
     };
     let expected_deposit_event = create_deposit_event(&expected_deposit);
 
-    crate::transaction::check_and_execute(&signed_tx, &mut state_tx)
+    crate::transaction::check_and_execute_strict(&signed_tx, &mut state_tx)
         .await
         .unwrap();
 

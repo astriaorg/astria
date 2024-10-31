@@ -2,19 +2,22 @@ use astria_core::{
     primitive::v1::asset,
     protocol::transaction::{
         self,
-        v1::action::{
-            BridgeLock,
-            BridgeSudoChange,
-            BridgeUnlock,
-            FeeAssetChange,
-            FeeChange,
-            IbcRelayerChange,
-            IbcSudoChange,
-            InitBridgeAccount,
-            RollupDataSubmission,
-            SudoAddressChange,
-            Transfer,
-            ValidatorUpdate,
+        v1::{
+            action::{
+                BridgeLock,
+                BridgeSudoChange,
+                BridgeUnlock,
+                FeeAssetChange,
+                FeeChange,
+                IbcRelayerChange,
+                IbcSudoChange,
+                InitBridgeAccount,
+                RollupDataSubmission,
+                SudoAddressChange,
+                Transfer,
+                ValidatorUpdate,
+            },
+            Action,
         },
     },
     Protobuf,
@@ -108,6 +111,53 @@ impl FeeHandler for Transfer {
     #[instrument(skip_all)]
     fn variable_component(&self) -> u128 {
         0
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for Action {
+    #[instrument(skip_all, err)]
+    async fn check_and_pay_fees<S: StateWrite>(
+        &self,
+        state: S,
+        context: crate::transaction::Context,
+    ) -> eyre::Result<()> {
+        match self {
+            Action::RollupDataSubmission(act) => act.check_and_pay_fees(state, context).await,
+            Action::Transfer(act) => act.check_and_pay_fees(state, context).await,
+            Action::ValidatorUpdate(act) => act.check_and_pay_fees(state, context).await,
+            Action::SudoAddressChange(act) => act.check_and_pay_fees(state, context).await,
+            Action::Ibc(act) => act.check_and_pay_fees(state, context).await,
+            Action::IbcSudoChange(act) => act.check_and_pay_fees(state, context).await,
+            Action::Ics20Withdrawal(act) => act.check_and_pay_fees(state, context).await,
+            Action::IbcRelayerChange(act) => act.check_and_pay_fees(state, context).await,
+            Action::FeeAssetChange(act) => act.check_and_pay_fees(state, context).await,
+            Action::InitBridgeAccount(act) => act.check_and_pay_fees(state, context).await,
+            Action::BridgeLock(act) => act.check_and_pay_fees(state, context).await,
+            Action::BridgeUnlock(act) => act.check_and_pay_fees(state, context).await,
+            Action::BridgeSudoChange(act) => act.check_and_pay_fees(state, context).await,
+            Action::FeeChange(act) => act.check_and_pay_fees(state, context).await,
+        }
+    }
+
+    #[instrument(skip_all)]
+    fn variable_component(&self) -> u128 {
+        match self {
+            Action::RollupDataSubmission(act) => act.variable_component(),
+            Action::Transfer(act) => act.variable_component(),
+            Action::ValidatorUpdate(act) => act.variable_component(),
+            Action::SudoAddressChange(act) => act.variable_component(),
+            Action::Ibc(act) => act.variable_component(),
+            Action::IbcSudoChange(act) => act.variable_component(),
+            Action::Ics20Withdrawal(act) => act.variable_component(),
+            Action::IbcRelayerChange(act) => act.variable_component(),
+            Action::FeeAssetChange(act) => act.variable_component(),
+            Action::InitBridgeAccount(act) => act.variable_component(),
+            Action::BridgeLock(act) => act.variable_component(),
+            Action::BridgeUnlock(act) => act.variable_component(),
+            Action::BridgeSudoChange(act) => act.variable_component(),
+            Action::FeeChange(act) => act.variable_component(),
+        }
     }
 }
 

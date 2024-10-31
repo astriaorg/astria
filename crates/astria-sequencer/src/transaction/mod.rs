@@ -5,10 +5,7 @@ use astria_core::{
         TransactionId,
         ADDRESS_LEN,
     },
-    protocol::transaction::v1::{
-        action::Action,
-        Transaction,
-    },
+    protocol::transaction::v1::Transaction,
 };
 use astria_eyre::eyre::{
     self,
@@ -26,12 +23,43 @@ use cnidarium::StateWrite;
 
 mod checks;
 
-pub(crate) async fn check_and_execute<S>(
+struct StrictSequential;
+
+#[async_trait::async_trait]
+trait ExecutionStrictness {
+    async fn check_execute_and_pay<S: StateWrite>(
+        state: S,
+        transaction: &Transaction,
+    ) -> eyre::Result<()>;
+}
+
+#[async_trait::async_trait]
+impl ExecutionStrictness for StrictSequential {
+    async fn check_execute_and_pay<S: StateWrite>(
+        state: S,
+        transaction: &Transaction,
+    ) -> eyre::Result<()> {
+        process_actions_sequential(state, transaction).await
+    }
+}
+
+pub(crate) async fn check_and_execute_strict<S>(
     transaction: &Transaction,
-    mut state: S,
+    state: S,
 ) -> eyre::Result<()>
 where
     S: StateWrite,
+{
+    check_and_execute_impl::<StrictSequential, _>(transaction, state).await
+}
+
+async fn check_and_execute_impl<TExecutionStrictness, TState>(
+    transaction: &Transaction,
+    mut state: TState,
+) -> eyre::Result<()>
+where
+    TExecutionStrictness: ExecutionStrictness,
+    TState: StateWrite,
 {
     // Transactions must match the chain id of the node.
     let chain_id = state.get_chain_id().await?;
@@ -78,61 +106,23 @@ where
         .put_account_nonce(transaction.address_bytes(), next_nonce)
         .wrap_err("failed updating `from` nonce")?;
 
-    // FIXME: this should create one span per `check_and_execute`
+    TExecutionStrictness::check_execute_and_pay(state, transaction).await?;
+
+    Ok(())
+}
+
+async fn process_actions_sequential<S: StateWrite>(
+    mut state: S,
+    transaction: &Transaction,
+) -> eyre::Result<()> {
     for (i, action) in (0..).zip(transaction.actions().iter()) {
         let context = Context {
             address_bytes: *transaction.address_bytes(),
             transaction_id: transaction.id(),
             source_action_index: i,
         };
-        match action {
-            Action::Transfer(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("executing transfer action failed")?,
-            Action::RollupDataSubmission(act) => {
-                check_execute_and_pay_fees(act, &mut state, context)
-                    .await
-                    .wrap_err("executing sequence action failed")?
-            }
-            Action::ValidatorUpdate(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("executing validor update")?,
-            Action::SudoAddressChange(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("executing sudo address change failed")?,
-            Action::IbcSudoChange(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("executing ibc sudo change failed")?,
-            Action::FeeChange(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("executing fee change failed")?,
-            Action::Ibc(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("executing ibc relay failed")?,
-            Action::Ics20Withdrawal(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("failed executing ics20 withdrawal")?,
-            Action::IbcRelayerChange(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("failed executing ibc relayer change")?,
-            Action::FeeAssetChange(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("failed executing fee asseet change")?,
-            Action::InitBridgeAccount(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("failed executing init bridge account")?,
-            Action::BridgeLock(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("failed executing bridge lock")?,
-            Action::BridgeUnlock(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("failed executing bridge unlock")?,
-            Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state, context)
-                .await
-                .wrap_err("failed executing bridge sudo change")?,
-        }
+        check_execute_and_pay(action, &mut state, context).await?;
     }
-
     Ok(())
 }
 
@@ -143,64 +133,7 @@ pub(crate) async fn check_stateless(transaction: &Transaction) -> Result<()> {
     );
 
     for action in transaction.actions() {
-        match action {
-            Action::Transfer(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for TransferAction")?,
-            Action::RollupDataSubmission(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for SequenceAction")?,
-            Action::ValidatorUpdate(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for ValidatorUpdateAction")?,
-            Action::SudoAddressChange(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for SudoAddressChangeAction")?,
-            Action::IbcSudoChange(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for IbcSudoChangeAction")?,
-            Action::FeeChange(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for FeeChangeAction")?,
-            Action::Ibc(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for IbcRelay action")?,
-            Action::Ics20Withdrawal(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for Ics20WithdrawalAction")?,
-            Action::IbcRelayerChange(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for IbcRelayerChangeAction")?,
-            Action::FeeAssetChange(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for FeeAssetChangeAction")?,
-            Action::InitBridgeAccount(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for InitBridgeAccountAction")?,
-            Action::BridgeLock(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for BridgeLockAction")?,
-            Action::BridgeUnlock(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for BridgeUnlockAction")?,
-            Action::BridgeSudoChange(act) => act
-                .check_stateless()
-                .await
-                .wrap_err("stateless check failed for BridgeSudoChangeAction")?,
-        }
+        action.check_stateless().await?;
     }
     Ok(())
 }
@@ -251,7 +184,7 @@ impl fmt::Display for InvalidNonce {
 
 impl std::error::Error for InvalidNonce {}
 
-async fn check_execute_and_pay_fees<T: ActionHandler + FeeHandler + Sync, S: StateWrite>(
+async fn check_execute_and_pay<T: ActionHandler + FeeHandler + Sync, S: StateWrite>(
     action: &T,
     mut state: S,
     context: Context,

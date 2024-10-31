@@ -1161,7 +1161,7 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
-        crate::transaction::check_and_execute(&signed_tx, &mut state_tx)
+        crate::transaction::check_and_execute_strict(&signed_tx, &mut state_tx)
             .await
             .wrap_err("failed executing transaction")?;
 
