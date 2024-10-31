@@ -53,6 +53,53 @@ where
     check_and_execute_impl::<StrictSequential, _>(transaction, state).await
 }
 
+struct QuickConcurrent;
+#[async_trait::async_trait]
+impl ExecutionStrictness for QuickConcurrent {
+    async fn check_execute_and_pay<S: StateWrite>(
+        state: S,
+        transaction: &Transaction,
+    ) -> eyre::Result<()> {
+        process_actions_concurrent(state, transaction).await
+    }
+}
+pub(crate) async fn check_and_execute_loose<S>(
+    transaction: &Transaction,
+    state: S,
+) -> eyre::Result<()>
+where
+    S: StateWrite,
+{
+    check_and_execute_impl::<QuickConcurrent, _>(transaction, state).await
+}
+
+async fn process_actions_concurrent<S: StateWrite>(
+    state: S,
+    transaction: &Transaction,
+) -> eyre::Result<()> {
+    use futures::{
+        stream,
+        StreamExt as _,
+        TryStreamExt as _,
+    };
+
+    let mut delta = cnidarium::StateDelta::new(state);
+
+    stream::iter((0..).zip(transaction.actions().iter()))
+        .map(Ok)
+        .try_for_each_concurrent(10, move |(i, action)| {
+            let context = Context {
+                address_bytes: *transaction.address_bytes(),
+                transaction_id: transaction.id(),
+                source_action_index: i,
+            };
+            let mut fork = delta.fork();
+            async move { check_execute_and_pay(action, &mut fork, context).await }
+        })
+        .await?;
+    Ok(())
+}
+
 async fn check_and_execute_impl<TExecutionStrictness, TState>(
     transaction: &Transaction,
     mut state: TState,
