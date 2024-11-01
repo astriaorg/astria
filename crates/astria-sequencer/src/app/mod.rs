@@ -649,7 +649,14 @@ impl App {
 
             // execute tx and store in `execution_results` list on success
             match self.execute_transaction(tx.clone()).await {
-                Ok(events) => {
+                Ok(mut events) => {
+                    for event in &mut events {
+                        if event.kind == "send_packet" {
+                            for attribute in &mut event.attributes {
+                                attribute.index = true;
+                            }
+                        }
+                    }
                     execution_results.push(ExecTxResult {
                         events,
                         ..Default::default()
