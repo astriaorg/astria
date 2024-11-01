@@ -736,7 +736,7 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     let action = BridgeLock {
         to: bridge_address,
         amount,
-        asset: nria().into(),
+        asset: nria(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
@@ -797,7 +797,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
     let action = BridgeLock {
         to: bridge_address,
         amount,
-        asset: nria().into(),
+        asset: nria(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
@@ -1034,7 +1034,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     let action = BridgeLock {
         to: bridge_address,
         amount,
-        asset: nria().into(),
+        asset: nria(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
@@ -1106,7 +1106,7 @@ async fn app_execute_transaction_action_index_correctly_increments() {
     let action = BridgeLock {
         to: bridge_address,
         amount,
-        asset: nria().into(),
+        asset: nria(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
@@ -1155,7 +1155,7 @@ async fn transaction_execution_records_deposit_event() {
     let action = BridgeLock {
         to: bob_address,
         amount: 1,
-        asset: nria().into(),
+        asset: nria(),
         fee_asset: nria().into(),
         destination_chain_address: "test_chain_address".to_string(),
     };

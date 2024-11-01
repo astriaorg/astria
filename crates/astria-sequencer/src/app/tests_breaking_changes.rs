@@ -108,7 +108,7 @@ async fn app_finalize_block_snapshot() {
     let lock_action = BridgeLock {
         to: bridge_address,
         amount,
-        asset: nria().into(),
+        asset: nria(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
@@ -303,7 +303,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             BridgeLock {
                 to: bridge_address,
                 amount: 100,
-                asset: nria().into(),
+                asset: nria(),
                 fee_asset: nria().into(),
                 destination_chain_address: "nootwashere".to_string(),
             }

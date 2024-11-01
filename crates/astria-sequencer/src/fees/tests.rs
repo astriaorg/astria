@@ -233,7 +233,7 @@ async fn ensure_correct_block_fees_bridge_lock() {
         BridgeLock {
             to: bridge_address,
             amount: 1,
-            asset: nria().into(),
+            asset: nria(),
             fee_asset: nria().into(),
             destination_chain_address: rollup_id.to_string(),
         }
@@ -353,7 +353,7 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
     let asset = test_asset();
     let bridge_lock = BridgeLock {
         to: bridge_address,
-        asset: asset.clone(),
+        asset: asset.as_trace_prefixed().unwrap().clone(),
         amount: 100,
         fee_asset: asset.clone(),
         destination_chain_address: "someaddress".to_string(),

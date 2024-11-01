@@ -347,7 +347,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let lock_action = BridgeLock {
         to: bridge_address,
         amount,
-        asset: nria().into(),
+        asset: nria(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
@@ -439,7 +439,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let lock_action = BridgeLock {
         to: bridge_address,
         amount,
-        asset: nria().into(),
+        asset: nria(),
         fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };

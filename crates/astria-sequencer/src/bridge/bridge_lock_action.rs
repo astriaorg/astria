@@ -72,7 +72,7 @@ impl ActionHandler for BridgeLock {
             bridge_address: self.to,
             rollup_id,
             amount: self.amount,
-            asset: self.asset.clone(),
+            asset: self.asset.clone().into(),
             destination_chain_address: self.destination_chain_address.clone(),
             source_transaction_id,
             source_action_index,
@@ -81,7 +81,7 @@ impl ActionHandler for BridgeLock {
 
         let transfer_action = Transfer {
             to: self.to,
-            asset: self.asset.clone(),
+            asset: self.asset.clone().into(),
             amount: self.amount,
             fee_asset: self.fee_asset.clone(),
         };

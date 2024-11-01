@@ -1513,7 +1513,7 @@ pub struct BridgeLock {
     pub to: Address,
     pub amount: u128,
     // asset to be transferred.
-    pub asset: asset::Denom,
+    pub asset: asset::TracePrefixed,
     // asset to use for fee payment.
     pub fee_asset: asset::Denom,
     // the address on the destination chain to send the transfer to.
@@ -1613,7 +1613,7 @@ impl BridgeLockError {
     }
 
     #[must_use]
-    fn invalid_asset(err: asset::ParseDenomError) -> Self {
+    fn invalid_asset(err: asset::denom::ParseTracePrefixedError) -> Self {
         Self(BridgeLockErrorKind::InvalidAsset(err))
     }
 
@@ -1632,7 +1632,7 @@ enum BridgeLockErrorKind {
     #[error("the `amount` field was not set")]
     MissingAmount,
     #[error("the `asset` field was invalid")]
-    InvalidAsset(#[source] asset::ParseDenomError),
+    InvalidAsset(#[source] asset::denom::ParseTracePrefixedError),
     #[error("the `fee_asset` field was invalid")]
     InvalidFeeAsset(#[source] asset::ParseDenomError),
 }

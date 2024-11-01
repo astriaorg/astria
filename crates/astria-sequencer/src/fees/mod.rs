@@ -112,7 +112,7 @@ impl FeeHandler for BridgeLock {
 
     #[instrument(skip_all)]
     fn variable_component(&self) -> u128 {
-        base_deposit_fee(&self.asset, &self.destination_chain_address)
+        base_deposit_fee(&self.asset.clone().into(), &self.destination_chain_address)
     }
 }
 

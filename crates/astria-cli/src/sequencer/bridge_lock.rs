@@ -10,6 +10,7 @@ use astria_core::{
 };
 use color_eyre::eyre::{
     self,
+    OptionExt as _,
     WrapErr as _,
 };
 
@@ -64,7 +65,11 @@ impl Command {
             self.private_key.as_str(),
             Action::BridgeLock(BridgeLock {
                 to: self.to_address,
-                asset: self.asset.clone(),
+                asset: self
+                    .asset
+                    .as_trace_prefixed()
+                    .ok_or_eyre("asset should be trace prefixed")?
+                    .clone(),
                 amount: self.amount,
                 fee_asset: self.fee_asset.clone(),
                 destination_chain_address: self.destination_chain_address.clone(),

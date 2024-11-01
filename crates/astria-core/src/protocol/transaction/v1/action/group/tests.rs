@@ -56,7 +56,7 @@ fn try_from_list_of_actions_bundleable_general() {
         Action::BridgeLock(BridgeLock {
             to: address,
             amount: 100,
-            asset: asset.clone(),
+            asset: asset.as_trace_prefixed().unwrap().clone(),
             fee_asset: asset.clone(),
             destination_chain_address: String::new(),
         }),
