@@ -21,7 +21,6 @@ pub(crate) mod vote_extension;
 use std::{
     collections::VecDeque,
     sync::Arc,
-    u64,
 };
 
 use astria_core::{
@@ -1137,12 +1136,11 @@ impl App {
             .put_sequencer_block(sequencer_block)
             .wrap_err("failed to write sequencer block to state")?;
 
-        self.handle_consensus_param_updates(
+        handle_consensus_param_updates(
             &mut state_tx,
             &end_block.consensus_param_updates,
             vote_extensions_enable_height,
         )
-        .await
         .wrap_err("failed to handle consensus param updates")?;
 
         let result = PostTransactionExecutionResult {
@@ -1157,42 +1155,6 @@ impl App {
         // events that occur after end_block are ignored here;
         // there should be none anyways.
         let _ = self.apply(state_tx);
-
-        Ok(())
-    }
-
-    async fn handle_consensus_param_updates(
-        &mut self,
-        state_tx: &mut StateDelta<Arc<StateDelta<Snapshot>>>,
-        consensus_param_updates: &Option<tendermint::consensus::Params>,
-        current_vote_extensions_enable_height: u64,
-    ) -> Result<()> {
-        if let Some(consensus_param_updates) = &consensus_param_updates {
-            if let Some(new_vote_extensions_enable_height) =
-                consensus_param_updates.abci.vote_extensions_enable_height
-            {
-                // if vote extensions are already enabled, they cannot be disabled,
-                // and the `vote_extensions_enable_height` cannot be changed.
-                if current_vote_extensions_enable_height != VOTE_EXTENSIONS_DISABLED_HEIGHT {
-                    warn!(
-                        "vote extensions enabled height already set to {}; ignoring update",
-                        current_vote_extensions_enable_height
-                    );
-                    return Ok(());
-                }
-
-                // vote extensions are currently disabled, so updating the enabled height to
-                // 0 (which also means disabling them) is a no-op.
-                if new_vote_extensions_enable_height.value() == 0 {
-                    warn!("ignoring update to set vote extensions enable height to 0");
-                    return Ok(());
-                }
-
-                state_tx
-                    .put_vote_extensions_enable_height(new_vote_extensions_enable_height.value())
-                    .wrap_err("failed to put vote extensions enabled height")?;
-            }
-        }
 
         Ok(())
     }
@@ -1572,6 +1534,41 @@ impl App {
 
         events
     }
+}
+
+fn handle_consensus_param_updates(
+    state_tx: &mut StateDelta<Arc<StateDelta<Snapshot>>>,
+    consensus_param_updates: &Option<tendermint::consensus::Params>,
+    current_vote_extensions_enable_height: u64,
+) -> Result<()> {
+    if let Some(consensus_param_updates) = &consensus_param_updates {
+        if let Some(new_vote_extensions_enable_height) =
+            consensus_param_updates.abci.vote_extensions_enable_height
+        {
+            // if vote extensions are already enabled, they cannot be disabled,
+            // and the `vote_extensions_enable_height` cannot be changed.
+            if current_vote_extensions_enable_height != VOTE_EXTENSIONS_DISABLED_HEIGHT {
+                warn!(
+                    "vote extensions enable height already set to {}; ignoring update",
+                    current_vote_extensions_enable_height
+                );
+                return Ok(());
+            }
+
+            // vote extensions are currently disabled, so updating the enabled height to
+            // 0 (which also means disabling them) is a no-op.
+            if new_vote_extensions_enable_height.value() == 0 {
+                warn!("ignoring update to set vote extensions enable height to 0");
+                return Ok(());
+            }
+
+            state_tx
+                .put_vote_extensions_enable_height(new_vote_extensions_enable_height.value())
+                .wrap_err("failed to put vote extensions enable height")?;
+        }
+    }
+
+    Ok(())
 }
 
 // updates the mempool to reflect current state
