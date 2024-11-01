@@ -15,23 +15,18 @@ use futures::{
 };
 
 use super::Optimistic;
-use crate::sequencer_grpc_client::SequencerGrpcClient;
+use crate::optimistic_block_client::OptimisticBlockClient;
 
 /// A stream for receiving optimistic blocks from the sequencer.
 pub(crate) struct OptimisticBlockStream {
     client: Pin<Box<tonic::Streaming<GetOptimisticBlockStreamResponse>>>,
-    // client: Pin<Box<dyn Stream<Item = Result<GetOptimisticBlockStreamResponse,
-    // tonic::Status>>>>,
 }
 
 impl OptimisticBlockStream {
-    pub(crate) async fn new(
+    pub(crate) async fn connect(
         rollup_id: RollupId,
-        sequencer_grpc_endpoint: String,
+        mut sequencer_client: OptimisticBlockClient,
     ) -> eyre::Result<OptimisticBlockStream> {
-        let mut sequencer_client = SequencerGrpcClient::new(&sequencer_grpc_endpoint)
-            .wrap_err("failed to initialize sequencer grpc client")?;
-
         let optimistic_stream_client = sequencer_client
             .get_optimistic_block_stream(rollup_id)
             .await

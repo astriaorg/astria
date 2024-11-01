@@ -25,6 +25,7 @@ async-trait = { workspace = true }
 axum = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
+hex = { workspace = true }
 humantime = { workspace = true }
 itertools = { workspace = true }
 pbjson-types = { workspace = true }

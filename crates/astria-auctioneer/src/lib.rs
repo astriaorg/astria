@@ -4,11 +4,13 @@ mod auction;
 mod auctioneer;
 mod block;
 mod build_info;
+mod bundle;
 pub mod config;
 pub(crate) mod metrics;
+mod optimistic_block_client;
 mod optimistic_execution_client;
 mod optimistic_executor;
-mod sequencer_grpc_client;
+mod sequencer_key;
 
 use astria_eyre::{
     eyre,
@@ -21,7 +23,7 @@ pub use metrics::Metrics;
 pub use telemetry;
 use tokio::task::JoinError;
 
-fn flatten<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {
+fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {
     match res {
         Ok(Ok(val)) => Ok(val),
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),

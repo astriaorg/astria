@@ -29,12 +29,12 @@ use tryhard::backoff_strategies::ExponentialBackoff;
 
 /// Wraps the gRPC client for the Sequencer service that wraps client calls with `tryhard`.
 #[derive(Debug, Clone)]
-pub(crate) struct SequencerGrpcClient {
+pub(crate) struct OptimisticBlockClient {
     inner: OptimisticBlockServiceClient<Channel>,
     uri: Uri,
 }
 
-impl SequencerGrpcClient {
+impl OptimisticBlockClient {
     pub(crate) fn new(sequencer_uri: &str) -> eyre::Result<Self> {
         let uri = sequencer_uri
             .parse::<Uri>()
@@ -49,6 +49,7 @@ impl SequencerGrpcClient {
         })
     }
 
+    // TODO: this should probably be separated from the tryhard logic and put in an extension trait
     #[instrument(skip_all, fields(
         uri = %self.uri,
         %rollup_id,
@@ -78,6 +79,7 @@ impl SequencerGrpcClient {
         Ok(stream)
     }
 
+    // TODO: this should probably be separated from the tryhard logic and put in an extension trait
     #[instrument(skip_all, fields(
            uri = %self.uri,
            err,

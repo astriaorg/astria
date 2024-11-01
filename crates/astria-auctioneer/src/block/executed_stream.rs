@@ -1,21 +1,24 @@
-use std::{
-    pin::Pin,
-    time::Duration,
-};
+use std::pin::Pin;
 
 use astria_core::{
-    generated::bundle::v1alpha1::ExecuteOptimisticBlockStreamResponse,
+    generated::bundle::v1alpha1::{
+        ExecuteOptimisticBlockStreamRequest,
+        ExecuteOptimisticBlockStreamResponse,
+    },
     primitive::v1::RollupId,
 };
 use astria_eyre::eyre::{
     self,
     Context,
+    OptionExt,
 };
 use futures::{
     Stream,
-    StreamExt as _,
+    StreamExt,
 };
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tracing::info;
 
 use super::{
     Executed,
@@ -29,7 +32,6 @@ pub(crate) struct Handle {
 
 impl Handle {
     pub(crate) fn try_send_block_to_execute(&mut self, block: Optimistic) -> eyre::Result<()> {
-        // TODO: move the duration value to a const or config value?
         self.blocks_to_execute_tx
             .try_send(block)
             .wrap_err("failed to send block to execute")?;
@@ -37,13 +39,12 @@ impl Handle {
         Ok(())
     }
 }
-
 pub(crate) struct ExecutedBlockStream {
     client: Pin<Box<tonic::Streaming<ExecuteOptimisticBlockStreamResponse>>>,
 }
 
 impl ExecutedBlockStream {
-    pub(crate) async fn new(
+    pub(crate) async fn connect(
         rollup_id: RollupId,
         rollup_grpc_endpoint: String,
     ) -> eyre::Result<(Handle, ExecutedBlockStream)> {
@@ -72,6 +73,45 @@ impl Stream for ExecutedBlockStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context,
     ) -> std::task::Poll<Option<Self::Item>> {
-        unimplemented!()
+        let raw = futures::ready!(self.client.poll_next_unpin(cx))
+            .ok_or_eyre("stream has been closed")?
+            .wrap_err("received gRPC Error")?;
+
+        let executed_block =
+            Executed::try_from_raw(raw).wrap_err("failed to parse raw to Executed")?;
+
+        std::task::Poll::Ready(Some(Ok(executed_block)))
     }
+}
+
+pub(crate) fn make_execution_requests_stream(
+    rollup_id: RollupId,
+) -> (
+    mpsc::Sender<Optimistic>,
+    impl tonic::IntoStreamingRequest<Message = ExecuteOptimisticBlockStreamRequest>,
+) {
+    // TODO: should the capacity be a config instead of a magic number? OPTIMISTIC_REORG_BUFFER?
+    // - add a metric so we can see if that becomes a problem
+    let (blocks_to_execute_tx, blocks_to_execute_rx) = mpsc::channel(16);
+    let blocks_to_execute_stream_rx = ReceiverStream::new(blocks_to_execute_rx);
+
+    let requests = blocks_to_execute_stream_rx.filter_map(move |block: Optimistic| async move {
+        let base_block = block
+            .try_into_base_block(rollup_id)
+            .wrap_err("failed to create BaseBlock from FilteredSequencerBlock");
+
+        // skip blocks which fail to produce a BaseBlock for the given rollup_id
+        match base_block {
+            Ok(base_block) => Some(ExecuteOptimisticBlockStreamRequest {
+                base_block: Some(base_block),
+            }),
+            Err(e) => {
+                info!(error = ?e, "skipping execution of invalid block");
+
+                None
+            }
+        }
+    });
+
+    (blocks_to_execute_tx, requests)
 }
