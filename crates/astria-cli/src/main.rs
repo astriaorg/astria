@@ -5,7 +5,6 @@ use tracing_subscriber::EnvFilter;
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     let args = astria_cli::Cli::parse();
-    // println!("{:?}", args.log_level);
 
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(args.log_level.to_string()));
