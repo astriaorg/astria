@@ -1,7 +1,7 @@
 use astria_core::{
     primitive::v1::Address,
-    protocol::transaction::v1alpha1::{
-        action::IbcRelayerChangeAction,
+    protocol::transaction::v1::{
+        action::IbcRelayerChange,
         Action,
     },
 };
@@ -48,7 +48,7 @@ impl Add {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::IbcRelayerChange(IbcRelayerChangeAction::Addition(args.address)),
+            Action::IbcRelayerChange(IbcRelayerChange::Addition(args.address)),
         )
         .await
         .wrap_err("failed to submit IbcRelayerChangeAction::Addition transaction")?;
@@ -73,7 +73,7 @@ impl Remove {
             args.sequencer_chain_id.clone(),
             &args.prefix,
             args.private_key.as_str(),
-            Action::IbcRelayerChange(IbcRelayerChangeAction::Removal(args.address)),
+            Action::IbcRelayerChange(IbcRelayerChange::Removal(args.address)),
         )
         .await
         .wrap_err("failed to submit IbcRelayerChangeAction::Removal transaction")?;

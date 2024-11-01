@@ -1,6 +1,6 @@
 [package]
 name = "astria-composer"
-version = "0.8.3"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.81.0"
 license = "MIT OR Apache-2.0"
@@ -8,12 +8,13 @@ readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
-[[bin]]
-name = "astria-composer"
-
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["serde", "server"] }
+astria-core = { path = "../astria-core", features = [
+  "client",
+  "serde",
+  "server",
+] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
@@ -59,6 +60,7 @@ path = "../astria-sequencer-client"
 features = ["http"]
 
 [dev-dependencies]
+astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }

@@ -113,7 +113,7 @@ memo_prefix = '{{ $chain.memoPrefix }}'
 
 {{- if $chain.packetFilter }}
 {{- if $chain.packetFilter.policy }}
-[[chains.packet_filter]]
+[chains.packet_filter]
 policy = '{{ $chain.packetFilter.policy }}'
 list = [
   {{- range $index, $filter := $chain.packetFilter.list }}

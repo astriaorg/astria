@@ -2,11 +2,13 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: evm-bridge-withdrawer-metrics
+  name: {{ include "evm-bridge-withdrawer.appName" . }}-metrics
   namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
+  labels:
+    {{- include "evm-bridge-withdrawer.labels" . | nindent 4 }}
 spec:
   selector:
-    app: evm-bridge-withdrawer
+    {{- include "evm-bridge-withdrawer.labels" . | nindent 4 }}
   ports:
     {{- if .Values.metrics.enabled }}
     - name: metrics

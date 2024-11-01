@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/fees/storage/keys.rs
+expression: INIT_BRIDGE_ACCOUNT
+---
+fees/init_bridge_account

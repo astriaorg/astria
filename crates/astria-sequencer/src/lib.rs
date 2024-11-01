@@ -3,24 +3,25 @@ pub(crate) mod address;
 pub(crate) mod app;
 pub(crate) mod assets;
 pub(crate) mod authority;
+#[cfg(any(test, feature = "benchmark"))]
+pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 pub(crate) mod benchmark_utils;
 pub(crate) mod bridge;
 mod build_info;
 pub(crate) mod component;
 pub mod config;
-pub(crate) mod fee_asset_change;
+pub(crate) mod fees;
 pub(crate) mod grpc;
 pub(crate) mod ibc;
 mod mempool;
 pub(crate) mod metrics;
 pub(crate) mod proposal;
-pub(crate) mod sequence;
+pub(crate) mod rollup_data;
 mod sequencer;
 pub(crate) mod service;
 pub(crate) mod storage;
-pub(crate) mod storage_keys;
-#[cfg(any(test, feature = "benchmark"))]
+#[cfg(test)]
 pub(crate) mod test_utils;
 pub(crate) mod transaction;
 mod utils;

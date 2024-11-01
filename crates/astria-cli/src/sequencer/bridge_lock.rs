@@ -3,8 +3,8 @@ use astria_core::{
         asset,
         Address,
     },
-    protocol::transaction::v1alpha1::{
-        action::BridgeLockAction,
+    protocol::transaction::v1::{
+        action::BridgeLock,
         Action,
     },
 };
@@ -63,7 +63,7 @@ impl Command {
             self.sequencer_chain_id.clone(),
             &self.prefix,
             self.private_key.as_str(),
-            Action::BridgeLock(BridgeLockAction {
+            Action::BridgeLock(BridgeLock {
                 to: self.to_address,
                 asset: self.asset.clone(),
                 amount: self.amount,

@@ -37,6 +37,7 @@ pub struct Metrics {
     actions_per_transaction_in_mempool: Histogram,
     transaction_in_mempool_size_bytes: Histogram,
     transactions_in_mempool_total: Gauge,
+    transactions_in_mempool_parked: Gauge,
     mempool_recosted: Counter,
     internal_logic_error: Counter,
 }
@@ -150,6 +151,10 @@ impl Metrics {
 
     pub(crate) fn set_transactions_in_mempool_total(&self, count: usize) {
         self.transactions_in_mempool_total.set(count);
+    }
+
+    pub(crate) fn set_transactions_in_mempool_parked(&self, count: usize) {
+        self.transactions_in_mempool_parked.set(count);
     }
 
     pub(crate) fn increment_mempool_recosted(&self) {
@@ -328,6 +333,13 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let transactions_in_mempool_parked = builder
+            .new_gauge_factory(
+                TRANSACTIONS_IN_MEMPOOL_PARKED,
+                "The number of transactions parked in the app mempool",
+            )?
+            .register()?;
+
         let mempool_recosted = builder
             .new_counter_factory(
                 MEMPOOL_RECOSTED,
@@ -368,6 +380,7 @@ impl telemetry::Metrics for Metrics {
             actions_per_transaction_in_mempool,
             transaction_in_mempool_size_bytes,
             transactions_in_mempool_total,
+            transactions_in_mempool_parked,
             mempool_recosted,
             internal_logic_error,
         })
@@ -396,6 +409,7 @@ metric_names!(const METRICS_NAMES:
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
     TRANSACTIONS_IN_MEMPOOL_TOTAL,
+    TRANSACTIONS_IN_MEMPOOL_PARKED,
     MEMPOOL_RECOSTED,
     INTERNAL_LOGIC_ERROR
 );
@@ -419,6 +433,7 @@ mod tests {
         PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
         PROPOSAL_DEPOSITS,
         PROPOSAL_TRANSACTIONS,
+        TRANSACTIONS_IN_MEMPOOL_PARKED,
         TRANSACTIONS_IN_MEMPOOL_TOTAL,
         TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
     };
@@ -481,6 +496,10 @@ mod tests {
         assert_const(
             TRANSACTIONS_IN_MEMPOOL_TOTAL,
             "transactions_in_mempool_total",
+        );
+        assert_const(
+            TRANSACTIONS_IN_MEMPOOL_PARKED,
+            "transactions_in_mempool_parked",
         );
         assert_const(MEMPOOL_RECOSTED, "mempool_recosted");
         assert_const(INTERNAL_LOGIC_ERROR, "internal_logic_error");

@@ -66,7 +66,7 @@ impl Info {
         query_router
             .insert(
                 "asset/allowed_fee_assets",
-                crate::assets::query::allowed_fee_assets_request,
+                crate::fees::query::allowed_fee_assets_request,
             )
             .wrap_err("invalid path: `asset/allowed_fee_asset_ids`")?;
         query_router
@@ -78,7 +78,7 @@ impl Info {
         query_router
             .insert(
                 "transaction/fee",
-                crate::transaction::query::transaction_fee_request,
+                crate::fees::query::transaction_fee_request,
             )
             .wrap_err("invalid path: `transaction/fee`")?;
         query_router
@@ -181,8 +181,8 @@ mod tests {
     use astria_core::{
         primitive::v1::asset,
         protocol::{
-            account::v1alpha1::BalanceResponse,
-            asset::v1alpha1::DenomResponse,
+            account::v1::BalanceResponse,
+            asset::v1::DenomResponse,
         },
     };
     use cnidarium::StateDelta;
@@ -201,7 +201,9 @@ mod tests {
             StateWriteExt as _,
         },
         app::StateWriteExt as _,
-        assets::{
+        assets::StateWriteExt as _,
+        benchmark_and_test_utils::nria,
+        fees::{
             StateReadExt as _,
             StateWriteExt as _,
         },
@@ -210,8 +212,8 @@ mod tests {
     #[tokio::test]
     async fn handle_balance_query() {
         use astria_core::{
-            generated::protocol::accounts::v1alpha1 as raw,
-            protocol::account::v1alpha1::AssetBalance,
+            generated::protocol::accounts::v1 as raw,
+            protocol::account::v1::AssetBalance,
         };
 
         let storage = cnidarium::TempStorage::new()
@@ -225,7 +227,8 @@ mod tests {
             .unwrap();
 
         state.put_base_prefix("astria".to_string()).unwrap();
-        state.put_native_asset(crate::test_utils::nria()).unwrap();
+        state.put_native_asset(nria()).unwrap();
+        state.put_ibc_asset(nria()).unwrap();
 
         let address = state
             .try_base_prefixed(&hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap())
@@ -234,7 +237,7 @@ mod tests {
 
         let balance = 1000;
         state
-            .put_account_balance(&address, &crate::test_utils::nria(), balance)
+            .put_account_balance(&address, &nria(), balance)
             .unwrap();
         state.put_block_height(height).unwrap();
         storage.commit(state).await.unwrap();
@@ -261,7 +264,7 @@ mod tests {
         assert!(query_response.code.is_ok());
 
         let expected_balance = AssetBalance {
-            denom: crate::test_utils::nria().into(),
+            denom: nria().into(),
             balance,
         };
 
@@ -276,7 +279,7 @@ mod tests {
 
     #[tokio::test]
     async fn handle_denom_query() {
-        use astria_core::generated::protocol::asset::v1alpha1 as raw;
+        use astria_core::generated::protocol::asset::v1 as raw;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());
@@ -320,7 +323,7 @@ mod tests {
 
     #[tokio::test]
     async fn handle_allowed_fee_assets_query() {
-        use astria_core::generated::protocol::asset::v1alpha1 as raw;
+        use astria_core::generated::protocol::asset::v1 as raw;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());

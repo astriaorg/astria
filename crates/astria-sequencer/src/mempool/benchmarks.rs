@@ -11,7 +11,7 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
-    protocol::transaction::v1alpha1::SignedTransaction,
+    protocol::transaction::v1::Transaction,
 };
 use sha2::{
     Digest as _,
@@ -20,7 +20,7 @@ use sha2::{
 use telemetry::Metrics;
 
 use crate::{
-    app::test_utils::{
+    app::benchmark_and_test_utils::{
         mock_balances,
         mock_state_getter,
         mock_state_put_account_balances,
@@ -93,7 +93,7 @@ impl MempoolSize for mempool_with_100000_txs {
     }
 }
 
-fn transactions() -> &'static Vec<Arc<SignedTransaction>> {
+fn transactions() -> &'static Vec<Arc<Transaction>> {
     crate::benchmark_utils::transactions(crate::benchmark_utils::TxTypes::AllSequenceActions)
 }
 
@@ -105,7 +105,7 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         .build()
         .unwrap();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mempool = Mempool::new(metrics);
+    let mempool = Mempool::new(metrics, T::size());
     let account_mock_balance = mock_balances(0, 0);
     let tx_mock_cost = mock_tx_cost(0, 0, 0);
     runtime.block_on(async {
@@ -134,7 +134,7 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
 
 /// Returns the first transaction from the static `transactions()` not included in the initialized
 /// mempool, i.e. the one at index `T::size()`.
-fn get_unused_tx<T: MempoolSize>() -> Arc<SignedTransaction> {
+fn get_unused_tx<T: MempoolSize>() -> Arc<Transaction> {
     transactions().get(T::checked_size()).unwrap().clone()
 }
 

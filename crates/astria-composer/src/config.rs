@@ -26,8 +26,11 @@ pub struct Config {
     /// Address of the API server
     pub api_listen_addr: SocketAddr,
 
-    /// Address of the RPC server for the sequencer chain
-    pub sequencer_url: String,
+    /// Address of the ABCI server for the sequencer chain
+    pub sequencer_abci_endpoint: String,
+
+    /// Address of the GRPC server for the sequencer chain
+    pub sequencer_grpc_endpoint: String,
 
     /// The chain ID of the sequencer chain
     pub sequencer_chain_id: String,
@@ -45,8 +48,8 @@ pub struct Config {
     #[serde(alias = "max_submit_interval_ms")]
     pub block_time_ms: u64,
 
-    /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
-    /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
+    /// Max bytes to encode into a single sequencer transaction, not including signature,
+    /// public key, nonce. This is the sum of the sizes of all the sequence actions.
     pub max_bytes_per_bundle: usize,
 
     /// Max amount of `SizedBundle`s to allow to accrue in the `BundleFactory`'s finished queue.

@@ -1,15 +1,12 @@
 [package]
 name = "astria-bridge-withdrawer"
-version = "0.3.0"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.81.0"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
-
-[[bin]]
-name = "astria-bridge-withdrawer"
 
 [dependencies]
 http = "0.2.9"

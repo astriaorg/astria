@@ -1,4 +1,4 @@
-use astria_core::protocol::genesis::v1alpha1::GenesisAppState;
+use astria_core::protocol::genesis::v1::GenesisAppState;
 use astria_eyre::eyre::{
     bail,
     Result,
@@ -209,10 +209,11 @@ mod tests {
             VerificationKey,
         },
         primitive::v1::RollupId,
-        protocol::transaction::v1alpha1::{
-            action::SequenceAction,
-            UnsignedTransaction,
+        protocol::transaction::v1::{
+            action::RollupDataSubmission,
+            TransactionBody,
         },
+        Protobuf as _,
     };
     use bytes::Bytes;
     use prost::Message as _;
@@ -226,7 +227,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::test_utils::{
+        app::benchmark_and_test_utils::{
             mock_balances,
             mock_tx_cost,
         },
@@ -235,13 +236,13 @@ mod tests {
         proposal::commitment::generate_rollup_datas_commitment,
     };
 
-    fn make_unsigned_tx() -> UnsignedTransaction {
-        UnsignedTransaction::builder()
+    fn make_unsigned_tx() -> TransactionBody {
+        TransactionBody::builder()
             .actions(vec![
-                SequenceAction {
+                RollupDataSubmission {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: Bytes::from_static(b"hello world"),
-                    fee_asset: crate::test_utils::nria().into(),
+                    fee_asset: crate::benchmark_and_test_utils::nria().into(),
                 }
                 .into(),
             ])
@@ -282,7 +283,7 @@ mod tests {
         let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
-        let signed_tx = Arc::new(tx.into_signed(&signing_key));
+        let signed_tx = Arc::new(tx.sign(&signing_key));
         let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         mempool
@@ -324,7 +325,7 @@ mod tests {
         let (mut consensus_service, _) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
-        let signed_tx = tx.into_signed(&signing_key);
+        let signed_tx = tx.sign(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
@@ -449,19 +450,18 @@ mod tests {
 
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if let Some(funded_key) = funded_key {
-            vec![
-                astria_core::generated::protocol::genesis::v1alpha1::Account {
-                    address: Some(
-                        crate::test_utils::astria_address(funded_key.address_bytes()).to_raw(),
-                    ),
-                    balance: Some(10u128.pow(19).into()),
-                },
-            ]
+            vec![astria_core::generated::protocol::genesis::v1::Account {
+                address: Some(
+                    crate::benchmark_and_test_utils::astria_address(funded_key.address_bytes())
+                        .to_raw(),
+                ),
+                balance: Some(10u128.pow(19).into()),
+            }]
         } else {
             vec![]
         };
         let genesis_state = {
-            let mut state = crate::app::test_utils::proto_genesis_state();
+            let mut state = crate::app::benchmark_and_test_utils::proto_genesis_state();
             state.accounts = accounts;
             state
         }
@@ -471,7 +471,7 @@ mod tests {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics);
+        let mempool = Mempool::new(metrics, 100);
         let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
@@ -491,7 +491,7 @@ mod tests {
             new_consensus_service(Some(signing_key.verification_key())).await;
 
         let tx = make_unsigned_tx();
-        let signed_tx = Arc::new(tx.into_signed(&signing_key));
+        let signed_tx = Arc::new(tx.sign(&signing_key));
         let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
         let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());

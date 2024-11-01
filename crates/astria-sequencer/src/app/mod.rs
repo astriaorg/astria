@@ -1,14 +1,16 @@
 mod action_handler;
+#[cfg(any(test, feature = "benchmark"))]
+pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 mod state_ext;
 pub(crate) mod storage;
-#[cfg(any(test, feature = "benchmark"))]
+#[cfg(test)]
 pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
 #[cfg(test)]
-mod tests_block_fees;
+mod tests_block_ordering;
 #[cfg(test)]
 mod tests_breaking_changes;
 #[cfg(test)]
@@ -20,17 +22,21 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transactions::v1alpha1 as raw,
+    generated::protocol::transaction::v1 as raw,
     protocol::{
         abci::AbciErrorCode,
-        genesis::v1alpha1::GenesisAppState,
-        transaction::v1alpha1::{
-            action::ValidatorUpdate,
+        genesis::v1::GenesisAppState,
+        transaction::v1::{
+            action::{
+                group::Group,
+                ValidatorUpdate,
+            },
             Action,
-            SignedTransaction,
+            Transaction,
         },
     },
-    sequencerblock::v1alpha1::block::SequencerBlock,
+    sequencerblock::v1::block::SequencerBlock,
+    Protobuf as _,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -89,10 +95,7 @@ use crate::{
         StateWriteExt as _,
     },
     address::StateWriteExt as _,
-    assets::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    assets::StateWriteExt as _,
     authority::{
         component::{
             AuthorityComponent,
@@ -102,11 +105,14 @@ use crate::{
         StateWriteExt as _,
     },
     bridge::{
-        component::BridgeComponent,
         StateReadExt as _,
         StateWriteExt as _,
     },
     component::Component as _,
+    fees::{
+        component::FeesComponent,
+        StateReadExt as _,
+    },
     grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
     mempool::{
@@ -121,7 +127,6 @@ use crate::{
             GeneratedCommitments,
         },
     },
-    sequence::component::SequenceComponent,
     transaction::InvalidNonce,
 };
 
@@ -135,6 +140,40 @@ const POST_TRANSACTION_EXECUTION_RESULT_KEY: &str = "post_transaction_execution_
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
+
+/// This is used to identify a proposal constructed by the app instance
+/// in `prepare_proposal` during a `process_proposal` call.
+///
+/// The fields are not exhaustive, in most instances just the validator address
+/// is adequate. When running a third party signer such as horcrux however it is
+/// possible that multiple nodes are preparing proposals as the same validator
+/// address, in these instances the timestamp is used as a unique identifier for
+/// the proposal from that node. This is not a perfect solution, but it only
+/// impacts sentry nodes does not halt the network and is cheaper computationally
+/// than an exhaustive comparison.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) struct ProposalFingerprint {
+    validator_address: account::Id,
+    timestamp: tendermint::Time,
+}
+
+impl From<abci::request::PrepareProposal> for ProposalFingerprint {
+    fn from(proposal: abci::request::PrepareProposal) -> Self {
+        Self {
+            validator_address: proposal.proposer_address,
+            timestamp: proposal.time,
+        }
+    }
+}
+
+impl From<abci::request::ProcessProposal> for ProposalFingerprint {
+    fn from(proposal: abci::request::ProcessProposal) -> Self {
+        Self {
+            validator_address: proposal.proposer_address,
+            timestamp: proposal.time,
+        }
+    }
+}
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
@@ -152,14 +191,18 @@ pub(crate) struct App {
     // Transactions are pulled from this mempool during `prepare_proposal`.
     mempool: Mempool,
 
-    // The validator address in cometbft being used to sign votes.
+    // TODO(https://github.com/astriaorg/astria/issues/1660): The executed_proposal_fingerprint and
+    // executed_proposal_hash fields should be stored in the ephemeral storage instead of on the
+    // app struct, to avoid any issues with forgetting to reset them.
+
+    // An identifier for a given proposal constructed by this app.
     //
     // Used to avoid executing a block in both `prepare_proposal` and `process_proposal`. It
     // is set in `prepare_proposal` from information sent in from cometbft and can potentially
     // change round-to-round. In `process_proposal` we check if we prepared the proposal, and
-    // if so, we clear the value and we skip re-execution of the block's transactions to avoid
+    // if so, we clear the value, and we skip re-execution of the block's transactions to avoid
     // failures caused by re-execution.
-    validator_address: Option<account::Id>,
+    executed_proposal_fingerprint: Option<ProposalFingerprint>,
 
     // This is set to the executed hash of the proposal during `process_proposal`
     //
@@ -217,7 +260,7 @@ impl App {
         Ok(Self {
             state,
             mempool,
-            validator_address: None,
+            executed_proposal_fingerprint: None,
             executed_proposal_hash: Hash::default(),
             recost_mempool: false,
             write_batch: None,
@@ -246,13 +289,14 @@ impl App {
             .put_ibc_compat_prefix(genesis_state.address_prefixes().ibc_compat().to_string())
             .wrap_err("failed to write ibc-compat prefix to state")?;
 
-        let native_asset = genesis_state.native_asset_base_denomination();
-        state_tx
-            .put_native_asset(native_asset.clone())
-            .wrap_err("failed to write native asset to state")?;
-        state_tx
-            .put_ibc_asset(native_asset.clone())
-            .wrap_err("failed to commit native asset as ibc asset to state")?;
+        if let Some(native_asset) = genesis_state.native_asset_base_denomination() {
+            state_tx
+                .put_native_asset(native_asset.clone())
+                .wrap_err("failed to write native asset to state")?;
+            state_tx
+                .put_ibc_asset(native_asset.clone())
+                .wrap_err("failed to commit native asset as ibc asset to state")?;
+        }
 
         state_tx
             .put_chain_id_and_revision_number(chain_id.try_into().context("invalid chain ID")?)
@@ -261,13 +305,10 @@ impl App {
             .put_block_height(0)
             .wrap_err("failed to write block height to state")?;
 
-        for fee_asset in genesis_state.allowed_fee_assets() {
-            state_tx
-                .put_allowed_fee_asset(fee_asset)
-                .wrap_err("failed to write allowed fee asset to state")?;
-        }
-
         // call init_chain on all components
+        FeesComponent::init_chain(&mut state_tx, &genesis_state)
+            .await
+            .wrap_err("init_chain failed on FeesComponent")?;
         AccountsComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on AccountsComponent")?;
@@ -280,15 +321,9 @@ impl App {
         )
         .await
         .wrap_err("init_chain failed on AuthorityComponent")?;
-        BridgeComponent::init_chain(&mut state_tx, &genesis_state)
-            .await
-            .wrap_err("init_chain failed on BridgeComponent")?;
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
-        SequenceComponent::init_chain(&mut state_tx, &genesis_state)
-            .await
-            .wrap_err("init_chain failed on SequenceComponent")?;
 
         state_tx.apply();
 
@@ -327,7 +362,7 @@ impl App {
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
     ) -> Result<abci::response::PrepareProposal> {
-        self.validator_address = Some(prepare_proposal.proposer_address);
+        self.executed_proposal_fingerprint = Some(prepare_proposal.clone().into());
         self.update_state_for_new_round(&storage);
 
         let mut block_size_constraints = BlockSizeConstraints::new(
@@ -381,11 +416,12 @@ impl App {
         // we skip execution for this `process_proposal` call.
         //
         // if we didn't propose this block, `self.validator_address` will be None or a different
-        // value, so we will execute the block as normal.
-        if let Some(id) = self.validator_address {
-            if id == process_proposal.proposer_address {
+        // value, so we will execute  block as normal.
+        if let Some(constructed_id) = self.executed_proposal_fingerprint {
+            let proposal_id = process_proposal.clone().into();
+            if constructed_id == proposal_id {
                 debug!("skipping process_proposal as we are the proposer for this block");
-                self.validator_address = None;
+                self.executed_proposal_fingerprint = None;
                 self.executed_proposal_hash = process_proposal.hash;
 
                 // if we're the proposer, we should have the execution results from
@@ -415,7 +451,7 @@ impl App {
                 "our validator address was set but we're not the proposer, so our previous \
                  proposal was skipped, executing block"
             );
-            self.validator_address = None;
+            self.executed_proposal_fingerprint = None;
         }
 
         self.update_state_for_new_round(&storage);
@@ -455,7 +491,7 @@ impl App {
         // the max sequenced data bytes.
         let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
 
-        // deserialize txs into `SignedTransaction`s;
+        // deserialize txs into `Transaction`s;
         // this does not error if any txs fail to be deserialized, but the `execution_results.len()`
         // check below ensures that all txs in the proposal are deserializable (and
         // executable).
@@ -518,7 +554,7 @@ impl App {
     /// is stored in ephemeral storage for usage in `process_proposal`.
     ///
     /// Returns the transactions which were successfully executed
-    /// in both their [`SignedTransaction`] and raw bytes form.
+    /// in both their [`Transaction`] and raw bytes form.
     ///
     /// Unlike the usual flow of an ABCI application, this is called during
     /// the proposal phase, ie. `prepare_proposal`.
@@ -534,7 +570,7 @@ impl App {
     async fn execute_transactions_prepare_proposal(
         &mut self,
         block_size_constraints: &mut BlockSizeConstraints,
-    ) -> Result<(Vec<bytes::Bytes>, Vec<SignedTransaction>)> {
+    ) -> Result<(Vec<bytes::Bytes>, Vec<Transaction>)> {
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "executing transactions from mempool");
 
@@ -543,6 +579,7 @@ impl App {
         let mut failed_tx_count: usize = 0;
         let mut execution_results = Vec::new();
         let mut excluded_txs: usize = 0;
+        let mut current_tx_group = Group::BundleableGeneral;
 
         // get copy of transactions to execute from mempool
         let pending_txs = self
@@ -580,7 +617,7 @@ impl App {
                 .unsigned_transaction()
                 .actions()
                 .iter()
-                .filter_map(Action::as_sequence)
+                .filter_map(Action::as_rollup_data_submission)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
@@ -595,6 +632,20 @@ impl App {
                 excluded_txs = excluded_txs.saturating_add(1);
 
                 // continue as there might be non-sequence txs that can fit
+                continue;
+            }
+
+            // ensure transaction's group is less than or equal to current action group
+            let tx_group = tx.group();
+            if tx_group > current_tx_group {
+                debug!(
+                    transaction_hash = %tx_hash_base64,
+                    block_size_constraints = %json(&block_size_constraints),
+                    "excluding transaction: group is higher priority than previously included transactions"
+                );
+                excluded_txs = excluded_txs.saturating_add(1);
+
+                // note: we don't remove the tx from mempool as it may be valid in the future
                 continue;
             }
 
@@ -628,6 +679,12 @@ impl App {
                         // due to an invalid nonce, as it may be valid in the future.
                         // if it's invalid due to the nonce being too low, it'll be
                         // removed from the mempool in `update_mempool_after_finalization`.
+                        //
+                        // this is important for possible out-of-order transaction
+                        // groups fed into prepare_proposal. a transaction with a higher
+                        // nonce might be in a higher priority group than a transaction
+                        // from the same account wiht a lower nonce. this higher nonce
+                        // could execute in the next block fine.
                     } else {
                         failed_tx_count = failed_tx_count.saturating_add(1);
 
@@ -645,6 +702,9 @@ impl App {
                     }
                 }
             }
+
+            // update current action group to tx's action group
+            current_tx_group = tx_group;
         }
 
         if failed_tx_count > 0 {
@@ -689,11 +749,11 @@ impl App {
     #[instrument(name = "App::execute_transactions_process_proposal", skip_all)]
     async fn execute_transactions_process_proposal(
         &mut self,
-        txs: Vec<SignedTransaction>,
+        txs: Vec<Transaction>,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> Result<Vec<ExecTxResult>> {
-        let mut excluded_tx_count = 0u32;
         let mut execution_results = Vec::new();
+        let mut current_tx_group = Group::BundleableGeneral;
 
         for tx in txs {
             let bytes = tx.to_raw().encode_to_vec();
@@ -705,7 +765,7 @@ impl App {
                 .unsigned_transaction()
                 .actions()
                 .iter()
-                .filter_map(Action::as_sequence)
+                .filter_map(Action::as_rollup_data_submission)
                 .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
 
             if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
@@ -713,10 +773,19 @@ impl App {
                     transaction_hash = %telemetry::display::base64(&tx_hash),
                     block_size_constraints = %json(&block_size_constraints),
                     tx_data_bytes = tx_sequence_data_bytes,
-                    "excluding transaction: max block sequenced data limit reached"
+                    "transaction error: max block sequenced data limit passed"
                 );
-                excluded_tx_count = excluded_tx_count.saturating_add(1);
-                continue;
+                bail!("max block sequenced data limit passed");
+            }
+
+            // ensure transaction's group is less than or equal to current action group
+            let tx_group = tx.group();
+            if tx_group > current_tx_group {
+                debug!(
+                    transaction_hash = %telemetry::display::base64(&tx_hash),
+                    "transaction error: block has incorrect transaction group ordering"
+                );
+                bail!("transactions have incorrect transaction group ordering");
             }
 
             // execute tx and store in `execution_results` list on success
@@ -737,19 +806,14 @@ impl App {
                     debug!(
                         transaction_hash = %telemetry::display::base64(&tx_hash),
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to execute transaction, not including in block"
+                        "transaction error: failed to execute transaction"
                     );
-                    excluded_tx_count = excluded_tx_count.saturating_add(1);
+                    return Err(e.wrap_err("transaction failed to execute"));
                 }
             }
-        }
 
-        if excluded_tx_count > 0 {
-            info!(
-                excluded_tx_count = excluded_tx_count,
-                included_tx_count = execution_results.len(),
-                "excluded transactions from block"
-            );
+            // update current action group to tx's action group
+            current_tx_group = tx_group;
         }
 
         Ok(execution_results)
@@ -1072,15 +1136,12 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on AuthorityComponent")?;
-        BridgeComponent::begin_block(&mut arc_state_tx, begin_block)
-            .await
-            .wrap_err("begin_block failed on BridgeComponent")?;
         IbcComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on IbcComponent")?;
-        SequenceComponent::begin_block(&mut arc_state_tx, begin_block)
+        FeesComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
-            .wrap_err("begin_block failed on SequenceComponent")?;
+            .wrap_err("begin_block failed on FeesComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1090,10 +1151,7 @@ impl App {
 
     /// Executes a signed transaction.
     #[instrument(name = "App::execute_transaction", skip_all)]
-    async fn execute_transaction(
-        &mut self,
-        signed_tx: Arc<SignedTransaction>,
-    ) -> Result<Vec<Event>> {
+    async fn execute_transaction(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<Event>> {
         signed_tx
             .check_stateless()
             .await
@@ -1142,15 +1200,12 @@ impl App {
         AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on AuthorityComponent")?;
-        BridgeComponent::end_block(&mut arc_state_tx, &end_block)
+        FeesComponent::end_block(&mut arc_state_tx, &end_block)
             .await
-            .wrap_err("end_block failed on BridgeComponent")?;
+            .wrap_err("end_block failed on FeesComponent")?;
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on IbcComponent")?;
-        SequenceComponent::end_block(&mut arc_state_tx, &end_block)
-            .await
-            .wrap_err("end_block failed on SequenceComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1166,21 +1221,14 @@ impl App {
         state_tx.clear_validator_updates();
 
         // gather block fees and transfer them to the block proposer
-        let fees = self
-            .state
-            .get_block_fees()
-            .await
-            .wrap_err("failed to get block fees")?;
+        let fees = self.state.get_block_fees();
 
-        for (asset, amount) in fees {
+        for fee in fees {
             state_tx
-                .increase_balance(fee_recipient, &asset, amount)
+                .increase_balance(fee_recipient, fee.asset(), fee.amount())
                 .await
                 .wrap_err("failed to increase fee recipient balance")?;
         }
-
-        // clear block fees
-        state_tx.clear_block_fees().await;
 
         let events = self.apply(state_tx);
         Ok(abci::response::EndBlock {
@@ -1261,10 +1309,10 @@ struct BlockData {
     proposer_address: account::Id,
 }
 
-fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<SignedTransaction> {
-    let raw = raw::SignedTransaction::decode(bytes)
+fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<Transaction> {
+    let raw = raw::Transaction::decode(bytes)
         .wrap_err("failed to decode protobuf to signed transaction")?;
-    let tx = SignedTransaction::try_from_raw(raw)
+    let tx = Transaction::try_from_raw(raw)
         .wrap_err("failed to transform raw signed transaction to verified type")?;
 
     Ok(tx)
