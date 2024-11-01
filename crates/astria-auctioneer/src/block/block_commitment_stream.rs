@@ -11,8 +11,8 @@ use futures::{
     StreamExt as _,
 };
 
-use super::BlockCommitment;
-use crate::sequencer_grpc_client::SequencerGrpcClient;
+use super::Commitment;
+use crate::optimistic_block_client::OptimisticBlockClient;
 
 /// A stream for receiving committed blocks from the sequencer.
 pub(crate) struct BlockCommitmentStream {
@@ -20,10 +20,7 @@ pub(crate) struct BlockCommitmentStream {
 }
 
 impl BlockCommitmentStream {
-    pub(crate) async fn new(sequencer_grpc_endpoint: String) -> eyre::Result<Self> {
-        let mut sequencer_client = SequencerGrpcClient::new(&sequencer_grpc_endpoint)
-            .wrap_err("failed to initialize sequencer grpc client")?;
-
+    pub(crate) async fn connect(mut sequencer_client: OptimisticBlockClient) -> eyre::Result<Self> {
         let committed_stream_client = sequencer_client
             .get_block_commitment_stream()
             .await
@@ -36,7 +33,7 @@ impl BlockCommitmentStream {
 }
 
 impl Stream for BlockCommitmentStream {
-    type Item = eyre::Result<BlockCommitment>;
+    type Item = eyre::Result<Commitment>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
@@ -48,8 +45,8 @@ impl Stream for BlockCommitmentStream {
             .commitment
             .ok_or_eyre("block commitment stream response did not contain block commitment")?;
 
-        let commitment = BlockCommitment::try_from_raw(raw)
-            .wrap_err("failed to parse raw to BlockCommitment")?;
+        let commitment =
+            Commitment::try_from_raw(raw).wrap_err("failed to parse raw to BlockCommitment")?;
 
         std::task::Poll::Ready(Some(Ok(commitment)))
     }

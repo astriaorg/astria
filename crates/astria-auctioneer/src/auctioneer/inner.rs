@@ -20,7 +20,8 @@ use tracing::{
 };
 
 use crate::{
-    flatten,
+    auction,
+    flatten_result,
     optimistic_executor,
     Config,
     Metrics,
@@ -51,24 +52,48 @@ impl Auctioneer {
             latency_margin_ms,
             rollup_grpc_endpoint,
             rollup_id,
+            sequencer_chain_id,
+            sequencer_private_key_path,
+            sequencer_address_prefix,
+            fee_asset_denomination,
             ..
         } = cfg;
 
         let mut tasks = JoinMap::new();
 
+        let auctions = auction::manager::Builder {
+            metrics,
+            shutdown_token: shutdown_token.clone(),
+            sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
+            sequencer_abci_endpoint,
+            latency_margin: Duration::from_millis(latency_margin_ms),
+            sequencer_private_key_path,
+            sequencer_address_prefix,
+            fee_asset_denomination,
+            sequencer_chain_id,
+            rollup_id: rollup_id.clone(),
+        }
+        .build()
+        .wrap_err("failed to initialize auction manager")?;
+
         let optimistic_executor = optimistic_executor::Builder {
             metrics,
             shutdown_token: shutdown_token.clone(),
             sequencer_grpc_endpoint,
-            sequencer_abci_endpoint,
             rollup_id,
-            optimistic_execution_grpc_endpoint: rollup_grpc_endpoint.clone(),
-            bundle_grpc_endpoint: rollup_grpc_endpoint.clone(),
-            latency_margin: Duration::from_millis(latency_margin_ms),
+            rollup_grpc_endpoint,
+            auctions,
         }
-        .build()
-        .wrap_err("failed to initialize the optimistic executor")?;
-        tasks.spawn(Self::OPTIMISTIC_EXECUTOR, optimistic_executor.run());
+        .build();
+
+        tasks.spawn(Self::OPTIMISTIC_EXECUTOR, async {
+            optimistic_executor
+                .startup()
+                .await
+                .wrap_err("optimistic executor startup failed")?
+                .run()
+                .await
+        });
 
         Ok(Self {
             shutdown_token,
@@ -87,7 +112,7 @@ impl Auctioneer {
             },
 
             Some((name, res)) = self.tasks.join_next() => {
-                flatten(res)
+                flatten_result(res)
                     .wrap_err_with(|| format!("task `{name}` failed"))
                     .map(|_| "task `{name}` exited unexpectedly")
             }
@@ -109,7 +134,7 @@ impl Auctioneer {
         let shutdown_loop = async {
             while let Some((name, res)) = self.tasks.join_next().await {
                 let message = "task shut down";
-                match flatten(res) {
+                match flatten_result(res) {
                     Ok(()) => {
                         info!(name, message)
                     }

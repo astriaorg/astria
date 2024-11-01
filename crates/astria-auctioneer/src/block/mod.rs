@@ -23,7 +23,7 @@ use astria_eyre::eyre::{
 use bytes::Bytes;
 use prost::Message as _;
 
-pub(crate) mod commitment_stream;
+pub(crate) mod block_commitment_stream;
 pub(crate) mod executed_stream;
 pub(crate) mod optimistic_stream;
 
@@ -133,15 +133,23 @@ impl Executed {
     pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
         self.sequencer_block_hash
     }
+
+    pub(crate) fn parent_rollup_block_hash(&self) -> [u8; 32] {
+        self.block
+            .hash()
+            .as_ref()
+            .try_into()
+            .expect("rollup block hash must be 32 bytes")
+    }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct BlockCommitment {
+pub(crate) struct Commitment {
     sequencer_height: u64,
     sequnecer_block_hash: [u8; 32],
 }
 
-impl BlockCommitment {
+impl Commitment {
     pub(crate) fn try_from_raw(
         raw: raw_optimistic_block::SequencerBlockCommit,
     ) -> eyre::Result<Self> {
@@ -171,33 +179,31 @@ impl BlockCommitment {
     }
 }
 
-pub(crate) struct CurrentBlock {
+pub(crate) struct Current {
     optimistic: Optimistic,
     executed: Option<Executed>,
-    committed: Option<BlockCommitment>,
+    commitment: Option<Commitment>,
 }
 
-impl CurrentBlock {
-    pub(crate) fn opt(optimistic_block: Optimistic) -> Self {
+impl Current {
+    pub(crate) fn with_optimistic(optimistic_block: Optimistic) -> Self {
         Self {
             optimistic: optimistic_block,
             executed: None,
-            committed: None,
+            commitment: None,
         }
     }
 
-    pub(crate) fn exec(self, executed_block: Executed) -> eyre::Result<Self> {
+    pub(crate) fn execute(&mut self, executed_block: Executed) -> eyre::Result<()> {
         if executed_block.sequencer_block_hash() != self.optimistic.sequencer_block_hash() {
             return Err(eyre!("block hash mismatch"));
         }
 
-        Ok(Self {
-            executed: Some(executed_block),
-            ..self
-        })
+        self.executed = Some(executed_block);
+        Ok(())
     }
 
-    pub(crate) fn commit(self, block_commitment: BlockCommitment) -> eyre::Result<Self> {
+    pub(crate) fn commitment(&mut self, block_commitment: Commitment) -> eyre::Result<()> {
         if block_commitment.sequencer_block_hash() != self.optimistic.sequencer_block_hash() {
             return Err(eyre!("block hash mismatch"));
         }
@@ -205,10 +211,8 @@ impl CurrentBlock {
             return Err(eyre!("block height mismatch"));
         }
 
-        Ok(Self {
-            committed: Some(block_commitment),
-            ..self
-        })
+        self.commitment = Some(block_commitment);
+        Ok(())
     }
 
     pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {

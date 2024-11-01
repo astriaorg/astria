@@ -20,10 +20,10 @@ pub struct Config {
     /// The file path for the private key used to sign sequencer transactions with the auction
     /// results
     pub sequencer_private_key_path: String,
-    // The fee asset denomination to use for the sequnecer transactions.
-    pub fee_asset_denomination: asset::Denom,
     // The address prefix to use when constructing sequencer addresses using the signing key.
     pub sequencer_address_prefix: String,
+    // The fee asset denomination to use for the sequnecer transactions.
+    pub fee_asset_denomination: asset::Denom,
     /// The endpoint for the rollup gRPC service used for the optimistic execution and bundle
     /// streams
     pub rollup_grpc_endpoint: String,

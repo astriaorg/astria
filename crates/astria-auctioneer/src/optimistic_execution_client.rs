@@ -3,7 +3,6 @@ use std::time::Duration;
 use astria_core::{
     generated::bundle::v1alpha1::{
         optimistic_execution_service_client::OptimisticExecutionServiceClient,
-        ExecuteOptimisticBlockStreamRequest,
         ExecuteOptimisticBlockStreamResponse,
     },
     primitive::v1::RollupId,
@@ -12,41 +11,24 @@ use astria_eyre::eyre::{
     self,
     Context,
 };
-use futures::Stream;
 use tokio::sync::mpsc;
-use tokio_stream::{
-    wrappers::ReceiverStream,
-    StreamExt as _,
-};
 use tonic::transport::{
     Channel,
     Endpoint,
     Uri,
 };
 use tracing::{
+    instrument,
     warn,
     Instrument,
     Span,
 };
 use tryhard::backoff_strategies::ExponentialBackoff;
 
-use crate::block;
-
-struct OptimisitcBlocksToExecuteStream {
-    opts: ReceiverStream<block::Optimistic>,
-}
-
-impl Stream for OptimisitcBlocksToExecuteStream {
-    type Item = eyre::Result<block::Optimistic>;
-
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        // opts.next
-        unimplemented!("get an opt block if possible. otherwise return pending?");
-    }
-}
+use crate::block::{
+    self,
+    executed_stream::make_execution_requests_stream,
+};
 
 pub(crate) struct OptimisticExecutionClient {
     inner: OptimisticExecutionServiceClient<Channel>,
@@ -69,6 +51,11 @@ impl OptimisticExecutionClient {
         })
     }
 
+    #[instrument(skip_all, fields(
+        uri = %self.uri,
+        %rollup_id,
+        err,
+    ))]
     pub(crate) async fn execute_optimistic_block_stream(
         &mut self,
         rollup_id: RollupId,
@@ -83,29 +70,11 @@ impl OptimisticExecutionClient {
         let (stream, opt_tx) = tryhard::retry_fn(|| {
             let mut client = client.clone();
 
-            // create request stream
-            let (opts_to_exec_tx, opts_to_exec_rx) = mpsc::channel(16);
-            let opts = ReceiverStream::new(opts_to_exec_rx);
-            let rollup_id = rollup_id.clone();
-
-            let requests = opts.map(move |opt: block::Optimistic| {
-                let base_block = opt
-                    .try_into_base_block(rollup_id)
-                    .wrap_err("failed to create BaseBlock from filtered_sequencer_block")
-                    // TODO: get rid of this unwrap so we can handle blocks with no transactions.
-                    // - instead of opts.map(), i should onyl create exec requests for blocks with
-                    //   transactions in them.
-                    // - moving this into a domain specific stream will help clear up the logic
-                    .unwrap();
-
-                ExecuteOptimisticBlockStreamRequest {
-                    base_block: Some(base_block),
-                }
-            });
+            let (blocks_to_execute_tx, requests) = make_execution_requests_stream(rollup_id);
 
             async move {
                 let stream = client.execute_optimistic_block_stream(requests).await?;
-                Ok((stream, opts_to_exec_tx))
+                Ok((stream, blocks_to_execute_tx))
             }
         })
         .with_config(retry_cfg)

@@ -1,18 +1,27 @@
-mod bid;
 mod builder;
 use std::time::Duration;
 
-use astria_core::protocol::transaction::v1::Transaction;
+use allocation_rule::FirstPrice;
+use astria_core::{
+    generated::sequencerblock::v1::{
+        sequencer_service_client::SequencerServiceClient,
+        GetPendingNonceRequest,
+    },
+    primitive::v1::{
+        asset,
+        RollupId,
+    },
+    protocol::transaction::v1::Transaction,
+};
 use astria_eyre::eyre::{
     self,
     eyre,
     Context,
-};
-use bid::{
-    Bid,
-    Bundle,
+    OptionExt as _,
 };
 pub(crate) use builder::Builder;
+use sequencer_client::Address;
+use telemetry::display::base64;
 use tokio::{
     select,
     sync::{
@@ -21,10 +30,24 @@ use tokio::{
     },
 };
 use tokio_util::sync::CancellationToken;
+use tracing::{
+    info,
+    instrument,
+    warn,
+    Instrument,
+    Span,
+};
+use tryhard::backoff_strategies::ExponentialBackoff;
 
-use crate::Metrics;
+use crate::{
+    bundle::Bundle,
+    sequencer_key::SequencerKey,
+    Metrics,
+};
 
-#[derive(Hash, Eq, PartialEq, Clone, Copy)]
+pub(crate) mod manager;
+
+#[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
 pub(crate) struct Id([u8; 32]);
 
 impl Id {
@@ -33,50 +56,45 @@ impl Id {
     }
 }
 
-struct Auction {
-    highest_bid: Option<Bundle>,
-}
-
-impl Auction {
-    fn new() -> Self {
-        Self {
-            highest_bid: None,
-        }
-    }
-
-    fn bid(&mut self, _bid: Bundle) -> bool {
-        // save the bid if its higher than self.highest_bid
-        unimplemented!()
-    }
-
-    fn winner(self) -> Bundle {
-        unimplemented!()
+impl AsRef<[u8]> for Id {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
     }
 }
 
-pub(crate) struct OptimisticExecutionHandle {
-    executed_block_tx: Option<oneshot::Sender<()>>,
-    block_commitment_tx: Option<oneshot::Sender<()>>,
-    reorg_tx: Option<oneshot::Sender<()>>,
+pub(crate) use manager::Manager;
+
+mod allocation_rule;
+
+pub(crate) struct Handle {
+    start_processing_bids_tx: Option<oneshot::Sender<()>>,
+    start_timer_tx: Option<oneshot::Sender<()>>,
+    abort_tx: Option<oneshot::Sender<()>>,
+    new_bundles_tx: mpsc::Sender<Bundle>,
 }
 
-impl OptimisticExecutionHandle {
-    pub(crate) async fn send_bundle(&self) -> eyre::Result<()> {
-        unimplemented!()
-    }
-
-    pub(crate) fn executed_block(&mut self) -> eyre::Result<()> {
+impl Handle {
+    pub(crate) fn abort(&mut self) -> eyre::Result<()> {
         let _ = self
-            .executed_block_tx
+            .abort_tx
+            .take()
+            .expect("should only send reorg signal to a given auction once");
+
+        Ok(())
+    }
+
+    pub(crate) fn start_processing_bids(&mut self) -> eyre::Result<()> {
+        let _ = self
+            .start_processing_bids_tx
             .take()
             .expect("should only send executed signal to a given auction once")
             .send(());
         Ok(())
     }
 
-    pub(crate) fn block_commitment(&mut self) -> eyre::Result<()> {
+    pub(crate) fn start_timer(&mut self) -> eyre::Result<()> {
         let _ = self
-            .block_commitment_tx
+            .start_timer_tx
             .take()
             .expect("should only send block commitment signal to a given auction once")
             .send(());
@@ -84,28 +102,9 @@ impl OptimisticExecutionHandle {
         Ok(())
     }
 
-    pub(crate) fn reorg(&mut self) -> eyre::Result<()> {
-        let _ = self
-            .reorg_tx
-            .take()
-            .expect("should only send reorg signal to a given auction once");
-
-        Ok(())
-    }
-}
-
-pub(crate) struct BundlesHandle {
-    new_bids_tx: mpsc::Sender<Bid>,
-}
-
-impl BundlesHandle {
-    pub(crate) fn send_bundle_timeout(&mut self, bundle: Bundle) -> eyre::Result<()> {
-        const BUNDLE_TIMEOUT: Duration = Duration::from_millis(100);
-
-        let bid = bundle.into_bid();
-
-        self.new_bids_tx
-            .try_send(bid)
+    pub(crate) fn try_send_bundle(&mut self, bundle: Bundle) -> eyre::Result<()> {
+        self.new_bundles_tx
+            .try_send(bundle)
             .wrap_err("bid channel full")?;
 
         Ok(())
@@ -113,36 +112,44 @@ impl BundlesHandle {
 }
 
 // TODO: should this be the same object as the auction?
-pub(crate) struct Driver {
+struct Auction {
     #[allow(dead_code)]
     metrics: &'static Metrics,
     shutdown_token: CancellationToken,
 
-    /// The endpoint for the sequencer's gRPC service, used for fetching pending nonces
-    sequencer_grpc_endpoint: String,
-    /// The endpoint for the sequencer's ABCI server, used for submitting transactions
-    sequencer_abci_endpoint: String,
+    /// The sequencer's gRPC client, used for fetching pending nonces
+    sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
+    /// The sequencer's ABCI client, used for submitting transactions
+    sequencer_abci_client: sequencer_client::HttpClient,
     /// Channel for receiving the executed block signal to start processing bundles
-    executed_block_rx: oneshot::Receiver<()>,
+    start_processing_bids_rx: oneshot::Receiver<()>,
     /// Channel for receiving the block commitment signal to start the latency margin timer
-    block_commitment_rx: oneshot::Receiver<()>,
+    start_timer_rx: oneshot::Receiver<()>,
     /// Channel for receiving the reorg signal
-    reorg_rx: oneshot::Receiver<()>,
+    abort_rx: oneshot::Receiver<()>,
     /// Channel for receiving new bundles
-    new_bids_rx: mpsc::Receiver<Bid>,
+    new_bundles_rx: mpsc::Receiver<Bundle>,
     /// The time between receiving a block commitment
     latency_margin: Duration,
     /// The ID of the auction
     auction_id: Id,
+    /// The key used to sign transactions on the sequencer
+    sequencer_key: SequencerKey,
+    /// Fee asset for submitting transactions
+    fee_asset_denomination: asset::Denom,
+    /// The chain ID used for sequencer transactions
+    sequencer_chain_id: String,
+    /// Rollup ID to submit the auction result to
+    rollup_id: RollupId,
 }
 
-impl Driver {
+impl Auction {
     pub(crate) async fn run(mut self) -> eyre::Result<()> {
-        // TODO: should the timer be inside the auction so that we only have one option?
         let mut latency_margin_timer = None;
-        let mut auction: Option<Auction> = None;
+        let mut allocation_rule = FirstPrice::new();
+        let mut auction_is_open = false;
 
-        let mut nonce_fetch: Option<tokio::task::JoinHandle<eyre::Result<u64>>> = None;
+        let mut nonce_fetch: Option<tokio::task::JoinHandle<eyre::Result<u32>>> = None;
 
         let auction_result = loop {
             select! {
@@ -150,7 +157,7 @@ impl Driver {
 
                 () = self.shutdown_token.cancelled() => break Err(eyre!("received shutdown signal")),
 
-                signal = &mut self.reorg_rx => {
+                signal = &mut self.abort_rx => {
                     match signal {
                         Ok(()) => {
                             break Err(eyre!("reorg signal received"))
@@ -163,20 +170,19 @@ impl Driver {
                 }
 
                 // get the auction winner when the timer expires
-                // TODO: should this also be conditioned on auction.is_some()? this feels redundant as we only populate the timer if the auction isnt none
                 _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
-                    break Ok(auction.unwrap().winner());
+                    break Ok(allocation_rule.highest_bid());
                 }
 
-                signal = &mut self.executed_block_rx, if auction.is_none() => {
+                signal = &mut self.start_processing_bids_rx, if !auction_is_open => {
                     if let Err(e) = signal {
                         break Err(eyre!("exec signal channel closed")).wrap_err(e);
                     }
                     // set auction to open so it starts collecting bids
-                    auction = Some(Auction::new());
+                    auction_is_open = true;
                 }
 
-                signal = &mut self.block_commitment_rx, if auction.is_some() => {
+                signal = &mut self.start_timer_rx, if auction_is_open => {
                     if let Err(e) = signal {
                         break Err(eyre!("commit signal channel closed")).wrap_err(e);
                     }
@@ -190,16 +196,17 @@ impl Driver {
                     }));
                 }
 
-                //  TODO: new bundles from the bundle stream if auction exists?
-                //      - add the bid to the auction if executed
+                Some(bundle) = self.new_bundles_rx.recv(), if auction_is_open => {
+                    if allocation_rule.bid(bundle.clone()) {
+                        info!(auction.id = %base64(self.auction_id), bundle.bid = %bundle.bid(), "new highest bid")
+                    }
+                }
 
             }
-            // submit the auction result to the sequencer/wait for cancellation signal
-            //  1. result from submit_fut if !submission.terminated()
         };
 
         // await the nonce fetch result
-        // TODO: flatten this or get rid of the option somehow
+        // TODO: flatten this or get rid of the option somehow?
         let nonce = nonce_fetch
             .expect("should have received commit to exit the bid loop")
             .await
@@ -207,18 +214,17 @@ impl Driver {
             .wrap_err("failed to fetch nonce")?;
 
         // handle auction result
-        let transaction = match auction_result {
-            // TODO: add signer
-            Ok(winner) => winner.into_transaction(nonce),
-            Err(e) => {
-                return Err(e);
-            }
-        };
+        let transaction_body = auction_result
+            .wrap_err("")?
+            .ok_or_eyre("auction ended with no winning bid")?
+            .into_transaction_body(nonce, self.rollup_id, self.fee_asset_denomination.clone());
+
+        let transaction = transaction_body.sign(self.sequencer_key.signing_key());
 
         let submission_result = select! {
             biased;
 
-            // TODO: should this be Ok() or something?
+            // TODO: should this be Ok(())?
             () = self.shutdown_token.cancelled() => Err(eyre!("received shutdown signal")),
 
             // submit the transaction to the sequencer
@@ -231,7 +237,62 @@ impl Driver {
         submission_result
     }
 
+    #[instrument(skip_all, fields(auction.id = %base64(self.auction_id), %address, err))]
+    async fn get_pending_nonce(&self, address: Address) -> eyre::Result<u32> {
+        let span = tracing::Span::current();
+        let retry_cfg = make_retry_cfg("get pending nonce".into(), span);
+        let client = self.sequencer_grpc_client.clone();
+
+        let nonce = tryhard::retry_fn(|| {
+            let mut client = client.clone();
+            let address = address.clone();
+
+            async move {
+                client
+                    .get_pending_nonce(GetPendingNonceRequest {
+                        address: Some(address.into_raw()),
+                    })
+                    .await
+            }
+        })
+        .with_config(retry_cfg)
+        .in_current_span()
+        .await
+        .wrap_err("failed to get pending nonce")?
+        .into_inner()
+        .inner;
+
+        Ok(nonce)
+    }
+
     async fn submit_transaction(&self, _transaction: Transaction) -> eyre::Result<()> {
         unimplemented!()
     }
+}
+
+fn make_retry_cfg(
+    msg: String,
+    span: Span,
+) -> tryhard::RetryFutureConfig<
+    ExponentialBackoff,
+    impl Fn(u32, Option<Duration>, &tonic::Status) -> futures::future::Ready<()>,
+> {
+    tryhard::RetryFutureConfig::new(1024)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(2))
+        .on_retry(
+            move |attempt: u32, next_delay: Option<Duration>, error: &tonic::Status| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    parent: &span,
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to {msg} failed; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        )
 }

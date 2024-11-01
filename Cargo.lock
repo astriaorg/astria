@@ -512,6 +512,7 @@ dependencies = [
  "axum",
  "bytes",
  "futures",
+ "hex",
  "humantime",
  "insta",
  "itertools 0.12.1",
