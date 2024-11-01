@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added local admin gRPC server [#1783](https://github.com/astriaorg/astria/pull/1783).
+
 ## [1.0.0] - 2024-10-25
 
 ### Changed
