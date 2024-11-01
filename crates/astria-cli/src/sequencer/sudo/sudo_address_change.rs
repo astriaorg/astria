@@ -57,7 +57,7 @@ impl Command {
         .await
         .wrap_err("failed to submit SudoAddressChange transaction")?;
 
-        info!(height = %res.height, address = %self.address, hash = %res.hash, "SudoAddressChange completed");
+        info!(height = %res.height, address = %self.address, hash = %res.hash, "sudo address change completed");
 
         Ok(())
     }

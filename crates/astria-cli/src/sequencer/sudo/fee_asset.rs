@@ -56,7 +56,7 @@ impl Add {
         .await
         .wrap_err("failed to submit FeeAssetChangeAction::Addition transaction")?;
 
-        info!(height = %res.height, asset = %args.asset, hash = %res.hash, "FeeAssetChangeAction::Addition completed");
+        info!(height = %res.height, asset = %args.asset, hash = %res.hash, "fee asset addition completed");
 
         Ok(())
     }
@@ -81,7 +81,7 @@ impl Remove {
         .await
         .wrap_err("failed to submit FeeAssetChangeAction::Removal transaction")?;
 
-        info!(height = %res.height, asset = %args.asset, hash = %res.hash, "FeeAssetChangeAction::Removal completed");
+        info!(height = %res.height, asset = %args.asset, hash = %res.hash, "fee asset removal completed");
         Ok(())
     }
 }

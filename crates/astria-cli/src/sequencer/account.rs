@@ -53,11 +53,9 @@ impl Create {
         let pretty_signing_key = hex::encode(signing_key.as_bytes());
         let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
         let pretty_address = SigningKey::try_address(&signing_key, &self.prefix)?;
-        println!("Create Sequencer Account");
-        println!();
         // TODO: don't print private keys to CLI, prefer writing to file:
         // https://github.com/astriaorg/astria/issues/594
-        info!(private_key = %pretty_signing_key, public_key = %pretty_verifying_key, address = %pretty_address, "Sequencer account created");
+        info!(private_key = %pretty_signing_key, public_key = %pretty_verifying_key, address = %pretty_address, "sequencer account created");
         Ok(())
     }
 }

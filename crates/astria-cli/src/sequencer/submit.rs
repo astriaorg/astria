@@ -53,8 +53,8 @@ impl Command {
             tx_response.tx_result.log
         );
 
-        println!("Submission completed!");
-        println!("Included in block: {}", tx_response.height);
+        info!(in_block = %tx_response.height, "transaction submission completed");
+
         Ok(())
     }
 }

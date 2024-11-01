@@ -66,7 +66,7 @@ impl Command {
         .await
         .wrap_err("failed to submit ValidatorUpdate transaction")?;
 
-        info!(height = %res.height, verification_key = %verification_key, power = %self.power, hash = %res.hash, "ValidatorUpdate completed");
+        info!(height = %res.height, verification_key = %verification_key, power = %self.power, hash = %res.hash, "validator update completed");
 
         Ok(())
     }
