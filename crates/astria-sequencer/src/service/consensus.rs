@@ -358,10 +358,7 @@ mod tests {
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
-        // let mut expected_txs = vec![b"".to_vec().into()];
         let commitments_and_txs: Vec<Bytes> = commitments.into_iter().chain(txs).collect();
-        // expected_txs.extend(commitments_and_txs.clone());
-
         let expected_txs: Vec<Bytes> = std::iter::once(b"".to_vec().into())
             .chain(commitments_and_txs.clone())
             .collect();

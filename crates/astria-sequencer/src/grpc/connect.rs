@@ -171,9 +171,11 @@ impl OracleService for SequencerServer {
         request: Request<GetPriceRequest>,
     ) -> Result<Response<GetPriceResponse>, Status> {
         let request = request.into_inner();
-        let Ok(currency_pair) = request.currency_pair.parse() else {
-            return Err(Status::invalid_argument("currency pair is invalid"));
-        };
+
+        let currency_pair = request
+            .currency_pair
+            .parse()
+            .map_err(|e| Status::invalid_argument(format!("currency pair is invalid: {e:#}")))?;
 
         let snapshot = self.storage.latest_snapshot();
         let Some(state) = snapshot
@@ -217,19 +219,15 @@ impl OracleService for SequencerServer {
         request: Request<GetPricesRequest>,
     ) -> Result<Response<GetPricesResponse>, Status> {
         let request = request.into_inner();
-        let currency_pairs = match request
+        let currency_pairs = request
             .currency_pair_ids
             .into_iter()
-            .map(|s| CurrencyPair::from_str(&s))
-            .collect::<Result<Vec<_>, _>>()
-        {
-            Ok(currency_pairs) => currency_pairs,
-            Err(e) => {
-                return Err(Status::invalid_argument(format!(
-                    "invalid currency pair id: {e:#}"
-                )));
-            }
-        };
+            .map(|s| {
+                CurrencyPair::from_str(&s).map_err(|e| {
+                    Status::invalid_argument(format!("invalid currency pair id `{s}`: {e:#}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         let snapshot = self.storage.latest_snapshot();
         let Some(market_map) = snapshot.get_market_map().await.map_err(|e| {

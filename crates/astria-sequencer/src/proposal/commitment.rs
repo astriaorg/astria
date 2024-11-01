@@ -22,8 +22,13 @@ pub(crate) struct GeneratedCommitments {
 impl GeneratedCommitments {
     /// The total size of the commitments in bytes.
     pub(crate) const TOTAL_SIZE: usize = 64;
+}
 
-    pub(crate) fn into_iter(self) -> impl Iterator<Item = Bytes> {
+impl IntoIterator for GeneratedCommitments {
+    type IntoIter = std::array::IntoIter<Self::Item, 2>;
+    type Item = Bytes;
+
+    fn into_iter(self) -> Self::IntoIter {
         [
             self.rollup_datas_root.to_vec().into(),
             self.rollup_ids_root.to_vec().into(),
