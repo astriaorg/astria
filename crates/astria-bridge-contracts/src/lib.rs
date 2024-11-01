@@ -296,7 +296,7 @@ where
         if let Some(ics20_asset_to_withdraw) = &ics20_asset_to_withdraw {
             ics20_source_channel.replace(
                 ics20_asset_to_withdraw
-                    .last_channel()
+                    .leading_channel()
                     .ok_or(BuildError::ics20_asset_without_channel())?
                     .parse()
                     .map_err(BuildError::parse_ics20_asset_source_channel)?,

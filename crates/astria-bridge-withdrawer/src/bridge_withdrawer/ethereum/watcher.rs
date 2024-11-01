@@ -204,7 +204,7 @@ impl Watcher {
         .wrap_err("failed connecting to rollup after several retries; giving up")?;
 
         let provider = Arc::new(provider);
-        let ics20_asset_to_withdraw = if rollup_asset_denom.last_channel().is_some() {
+        let ics20_asset_to_withdraw = if rollup_asset_denom.leading_channel().is_some() {
             info!(
                 %rollup_asset_denom,
                 "configured rollup asset contains an ics20 channel; ics20 withdrawals will be emitted"
