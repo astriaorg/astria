@@ -11,10 +11,7 @@ async fn main() -> eyre::Result<()> {
 
     tracing_subscriber::fmt()
         .pretty()
-        // .json() // TODO: Enable JSON outputs
         .with_env_filter(env_filter)
-        // .with_current_span(false)
-        // .with_span_list(false)
         .with_target(false)
         .with_file(false)
         .with_line_number(false)

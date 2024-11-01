@@ -13,6 +13,7 @@ use color_eyre::eyre::{
     ensure,
     WrapErr as _,
 };
+use tracing::info;
 
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
