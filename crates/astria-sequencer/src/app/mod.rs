@@ -21,6 +21,7 @@ pub(crate) mod vote_extension;
 use std::{
     collections::VecDeque,
     sync::Arc,
+    u64,
 };
 
 use astria_core::{
@@ -148,13 +149,26 @@ const EXECUTION_RESULTS_KEY: &str = "execution_results";
 // cleared at the end of the block.
 const POST_TRANSACTION_EXECUTION_RESULT_KEY: &str = "post_transaction_execution_result";
 
-// the number of non-external transactions expected at the start of the block.
+// the number of non-external transactions expected at the start of the block
+// before vote extensions are enabled.
 //
-// currently consists of:
+// consists of:
+// 1. rollup data root
+// 2. rollup IDs root
+const INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED: usize = 2;
+
+// the number of non-external transactions expected at the start of the block
+// after vote extensions are enabled.
+//
+// consists of:
 // 1. encoded `ExtendedCommitInfo` for the previous block
 // 2. rollup data root
 // 3. rollup IDs root
-const INHERENT_TRANSACTIONS_COUNT: usize = 3;
+const INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED: usize = 3;
+
+// the height to set the `vote_extensions_enable_height` to in state if vote extensions are
+// disabled.
+const VOTE_EXTENSIONS_DISABLED_HEIGHT: u64 = u64::MAX;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
@@ -299,6 +313,7 @@ impl App {
         genesis_state: GenesisAppState,
         genesis_validators: Vec<ValidatorUpdate>,
         chain_id: String,
+        vote_extensions_enable_height: u64,
     ) -> Result<AppHash> {
         let mut state_tx = self
             .state
@@ -327,6 +342,17 @@ impl App {
         state_tx
             .put_block_height(0)
             .wrap_err("failed to write block height to state")?;
+
+        // if `vote_extensions_enable_height` is 0, vote extensions are disabled.
+        // we set it to `u64::MAX` in state so checking if our current height is past
+        // the vote extensions enabled height will always be false.
+        let vote_extensions_enable_height = match vote_extensions_enable_height {
+            0 => VOTE_EXTENSIONS_DISABLED_HEIGHT,
+            _ => vote_extensions_enable_height,
+        };
+        state_tx
+            .put_vote_extensions_enable_height(vote_extensions_enable_height)
+            .wrap_err("failed to write vote extensions enabled height to state")?;
 
         // call init_chain on all components
         FeesComponent::init_chain(&mut state_tx, &genesis_state)
@@ -394,55 +420,79 @@ impl App {
         self.executed_proposal_fingerprint = Some(prepare_proposal.clone().into());
         self.update_state_for_new_round(&storage);
 
-        // create the extended commit info from the local last commit
-        let Some(last_commit) = prepare_proposal.local_last_commit else {
-            bail!("local last commit is empty; this should not occur")
-        };
+        let vote_extensions_enable_height = self
+            .state
+            .get_vote_extensions_enable_height()
+            .await
+            .wrap_err("failed to get vote extensions enabled height")?;
 
-        // if this fails, we shouldn't return an error, but instead leave
-        // the vote extensions empty in this block for liveness.
-        // it's not a critical error if the oracle values are not updated for a block.
-        let round = last_commit.round;
-        let extended_commit_info = match ProposalHandler::prepare_proposal(
-            &self.state,
-            prepare_proposal.height.into(),
-            last_commit,
-        )
-        .await
+        let (max_tx_bytes, encoded_extended_commit_info) = if vote_extensions_enable_height
+            <= prepare_proposal.height.value()
         {
-            Ok(info) => info.into_inner(),
-            Err(e) => {
-                warn!(
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                    "failed to generate extended commit info"
-                );
-                tendermint::abci::types::ExtendedCommitInfo {
-                    round,
-                    votes: Vec::new(),
+            // create the extended commit info from the local last commit
+            let Some(last_commit) = prepare_proposal.local_last_commit else {
+                bail!("local last commit is empty; this should not occur")
+            };
+
+            // if this fails, we shouldn't return an error, but instead leave
+            // the vote extensions empty in this block for liveness.
+            // it's not a critical error if the oracle values are not updated for a block.
+            //
+            // note that at the height where vote extensions are enabled, the `extended_commit_info`
+            // will always be empty, as there were no vote extensions for the previous block.
+            let round = last_commit.round;
+            let extended_commit_info = match ProposalHandler::prepare_proposal(
+                &self.state,
+                prepare_proposal.height.into(),
+                last_commit,
+            )
+            .await
+            {
+                Ok(info) => info.into_inner(),
+                Err(e) => {
+                    warn!(
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                        "failed to generate extended commit info"
+                    );
+                    tendermint::abci::types::ExtendedCommitInfo {
+                        round,
+                        votes: Vec::new(),
+                    }
                 }
-            }
+            };
+
+            let mut encoded_extended_commit_info =
+                ExtendedCommitInfo::from(extended_commit_info).encode_to_vec();
+            let max_tx_bytes = usize::try_from(prepare_proposal.max_tx_bytes)
+                .wrap_err("failed to convert max_tx_bytes to usize")?;
+
+            // adjust max block size to account for extended commit info
+            (
+                max_tx_bytes
+                    .checked_sub(encoded_extended_commit_info.len())
+                    .unwrap_or_else(|| {
+                        // zero the commit info if it's too large to fit in the block
+                        // for liveness.
+                        warn!(
+                            encoded_extended_commit_info_len = encoded_extended_commit_info.len(),
+                            max_tx_bytes,
+                            "extended commit info is too large to fit in block; not including in \
+                             block"
+                        );
+                        encoded_extended_commit_info.clear();
+                        max_tx_bytes
+                    }),
+                Some(encoded_extended_commit_info),
+            )
+        } else {
+            (
+                usize::try_from(prepare_proposal.max_tx_bytes)
+                    .wrap_err("failed to convert max_tx_bytes to usize")?,
+                None,
+            )
         };
 
-        let mut encoded_extended_commit_info =
-            ExtendedCommitInfo::from(extended_commit_info).encode_to_vec();
-        let max_tx_bytes = usize::try_from(prepare_proposal.max_tx_bytes)
-            .wrap_err("failed to convert max_tx_bytes to usize")?;
-
-        // adjust max block size to account for extended commit info
-        let adjusted_max_tx_bytes = max_tx_bytes
-            .checked_sub(encoded_extended_commit_info.len())
-            .unwrap_or_else(|| {
-                // zero the commit info if it's too large to fit in the block
-                // for liveness.
-                warn!(
-                    encoded_extended_commit_info_len = encoded_extended_commit_info.len(),
-                    max_tx_bytes,
-                    "extended commit info is too large to fit in block; not including in block"
-                );
-                encoded_extended_commit_info.clear();
-                max_tx_bytes
-            });
-        let mut block_size_constraints = BlockSizeConstraints::new(adjusted_max_tx_bytes)
+        let mut block_size_constraints = BlockSizeConstraints::new(max_tx_bytes)
             .wrap_err("failed to create block size constraints")?;
 
         let block_data = BlockData {
@@ -472,10 +522,15 @@ impl App {
         // included in the block
         let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
 
-        // inject the extended commit info into the start of the block's txs
-        let txs = std::iter::once(encoded_extended_commit_info.into())
-            .chain(res.into_iter().chain(included_tx_bytes))
-            .collect();
+        let txs = match encoded_extended_commit_info {
+            Some(encoded_extended_commit_info) => {
+                std::iter::once(encoded_extended_commit_info.into())
+                    .chain(res.into_iter().chain(included_tx_bytes))
+                    .collect()
+            }
+            None => res.into_iter().chain(included_tx_bytes).collect(),
+        };
+
         Ok(abci::response::PrepareProposal {
             txs,
         })
@@ -536,28 +591,38 @@ impl App {
 
         let mut txs = VecDeque::from(process_proposal.txs.clone());
 
-        // the first transaction in the block should be the extended commit info
-        let extended_commit_info_bytes = txs
-            .pop_front()
-            .wrap_err("no extended commit info in proposal")?;
+        let vote_extensions_enable_height = self
+            .state
+            .get_vote_extensions_enable_height()
+            .await
+            .wrap_err("failed to get vote extensions enabled height")?;
 
-        // decode the extended commit info and validate it
-        let extended_commit_info = ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
-            .wrap_err("failed to decode extended commit info")?;
-        let extended_commit_info = extended_commit_info
-            .try_into()
-            .wrap_err("failed to convert extended commit info from proto to native")?;
-        let Some(last_commit) = process_proposal.proposed_last_commit else {
-            bail!("proposed last commit is empty; this should not occur")
-        };
-        ProposalHandler::validate_proposal(
-            &self.state,
-            process_proposal.height.value(),
-            &last_commit,
-            &extended_commit_info,
-        )
-        .await
-        .wrap_err("failed to validate extended commit info")?;
+        if vote_extensions_enable_height <= process_proposal.height.value() {
+            // if vote extensions are enabled, the first transaction in the block should be the
+            // extended commit info
+            let extended_commit_info_bytes = txs
+                .pop_front()
+                .wrap_err("no extended commit info in proposal")?;
+
+            // decode the extended commit info and validate it
+            let extended_commit_info =
+                ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
+                    .wrap_err("failed to decode extended commit info")?;
+            let extended_commit_info = extended_commit_info
+                .try_into()
+                .wrap_err("failed to convert extended commit info from proto to native")?;
+            let Some(last_commit) = process_proposal.proposed_last_commit else {
+                bail!("proposed last commit is empty; this should not occur")
+            };
+            ProposalHandler::validate_proposal(
+                &self.state,
+                process_proposal.height.value(),
+                &last_commit,
+                &extended_commit_info,
+            )
+            .await
+            .wrap_err("failed to validate extended commit info")?;
+        }
 
         let received_rollup_datas_root: [u8; 32] = txs
             .pop_front()
@@ -1037,6 +1102,17 @@ impl App {
             .put_deposits(&block_hash, deposits_in_this_block.clone())
             .wrap_err("failed to put deposits to state")?;
 
+        let vote_extensions_enable_height = self
+            .state
+            .get_vote_extensions_enable_height()
+            .await
+            .wrap_err("failed to get vote extensions enabled height")?;
+        let injected_txs_count = if vote_extensions_enable_height <= height.value() {
+            INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED
+        } else {
+            INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED
+        };
+
         // cometbft expects a result for every tx in the block, so we need to return a
         // tx result for the commitments, even though they're not actually user txs.
         //
@@ -1044,7 +1120,7 @@ impl App {
         // transaction, not the commitment, so its length is len(txs) - 3.
         let mut finalize_block_tx_results: Vec<ExecTxResult> = Vec::with_capacity(txs.len());
         finalize_block_tx_results
-            .extend(std::iter::repeat(ExecTxResult::default()).take(INHERENT_TRANSACTIONS_COUNT));
+            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_txs_count));
         finalize_block_tx_results.extend(tx_results);
 
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
@@ -1061,6 +1137,14 @@ impl App {
             .put_sequencer_block(sequencer_block)
             .wrap_err("failed to write sequencer block to state")?;
 
+        self.handle_consensus_param_updates(
+            &mut state_tx,
+            &end_block.consensus_param_updates,
+            vote_extensions_enable_height,
+        )
+        .await
+        .wrap_err("failed to handle consensus param updates")?;
+
         let result = PostTransactionExecutionResult {
             events: end_block.events,
             validator_updates: end_block.validator_updates,
@@ -1073,6 +1157,42 @@ impl App {
         // events that occur after end_block are ignored here;
         // there should be none anyways.
         let _ = self.apply(state_tx);
+
+        Ok(())
+    }
+
+    async fn handle_consensus_param_updates(
+        &mut self,
+        state_tx: &mut StateDelta<Arc<StateDelta<Snapshot>>>,
+        consensus_param_updates: &Option<tendermint::consensus::Params>,
+        current_vote_extensions_enable_height: u64,
+    ) -> Result<()> {
+        if let Some(consensus_param_updates) = &consensus_param_updates {
+            if let Some(new_vote_extensions_enable_height) =
+                consensus_param_updates.abci.vote_extensions_enable_height
+            {
+                // if vote extensions are already enabled, they cannot be disabled,
+                // and the `vote_extensions_enable_height` cannot be changed.
+                if current_vote_extensions_enable_height != VOTE_EXTENSIONS_DISABLED_HEIGHT {
+                    warn!(
+                        "vote extensions enabled height already set to {}; ignoring update",
+                        current_vote_extensions_enable_height
+                    );
+                    return Ok(());
+                }
+
+                // vote extensions are currently disabled, so updating the enabled height to
+                // 0 (which also means disabling them) is a no-op.
+                if new_vote_extensions_enable_height.value() == 0 {
+                    warn!("ignoring update to set vote extensions enable height to 0");
+                    return Ok(());
+                }
+
+                state_tx
+                    .put_vote_extensions_enable_height(new_vote_extensions_enable_height.value())
+                    .wrap_err("failed to put vote extensions enabled height")?;
+            }
+        }
 
         Ok(())
     }
@@ -1095,28 +1215,48 @@ impl App {
             self.update_state_for_new_round(&storage);
         }
 
-        ensure!(
-            finalize_block.txs.len() >= INHERENT_TRANSACTIONS_COUNT,
-            "block must contain at least three transactions: the extended commit info, the rollup \
-             transactions commitment and rollup IDs commitment"
-        );
+        let vote_extensions_enable_height = self
+            .state
+            .get_vote_extensions_enable_height()
+            .await
+            .wrap_err("failed to get vote extensions enabled height")?;
+        let injected_transactions_count =
+            if vote_extensions_enable_height <= finalize_block.height.value() {
+                ensure!(
+                    finalize_block.txs.len()
+                        >= INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED,
+                    "block must contain at least three transactions: the extended commit info, \
+                     the rollup transactions commitment and rollup IDs commitment"
+                );
 
-        let extended_commit_info_bytes = finalize_block.txs.first().expect("asserted length above");
-        let extended_commit_info = ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
-            .wrap_err("failed to decode extended commit info")?
-            .try_into()
-            .context("failed to validate decoded extended commit info")?;
-        let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
-            StateDelta::new(self.state.clone());
-        crate::app::vote_extension::apply_prices_from_vote_extensions(
-            &mut state_tx,
-            extended_commit_info,
-            finalize_block.time.into(),
-            finalize_block.height.value(),
-        )
-        .await
-        .wrap_err("failed to apply prices from vote extensions")?;
-        let _ = self.apply(state_tx);
+                let extended_commit_info_bytes =
+                    finalize_block.txs.first().expect("asserted length above");
+                let extended_commit_info =
+                    ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
+                        .wrap_err("failed to decode extended commit info")?
+                        .try_into()
+                        .context("failed to validate decoded extended commit info")?;
+                let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
+                    StateDelta::new(self.state.clone());
+                crate::app::vote_extension::apply_prices_from_vote_extensions(
+                    &mut state_tx,
+                    extended_commit_info,
+                    finalize_block.time.into(),
+                    finalize_block.height.value(),
+                )
+                .await
+                .wrap_err("failed to apply prices from vote extensions")?;
+                let _ = self.apply(state_tx);
+                INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED
+            } else {
+                ensure!(
+                    finalize_block.txs.len()
+                        >= INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED,
+                    "block must contain at least two transactions: the rollup transactions \
+                     commitment and rollup IDs commitment"
+                );
+                INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED
+            };
 
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
@@ -1140,8 +1280,9 @@ impl App {
                 .wrap_err("failed to execute block")?;
 
             let mut tx_results = Vec::with_capacity(finalize_block.txs.len());
-            // skip the first three transactions, as they are injected transactions
-            for tx in finalize_block.txs.iter().skip(INHERENT_TRANSACTIONS_COUNT) {
+            // skip the first `injected_transactions_count` transactions, as they are injected
+            // transactions
+            for tx in finalize_block.txs.iter().skip(injected_transactions_count) {
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .wrap_err("protocol error; only valid txs should be finalized")?;
 

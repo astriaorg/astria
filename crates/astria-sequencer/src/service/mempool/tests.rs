@@ -36,7 +36,7 @@ async fn future_nonces_are_accepted() {
         .await
         .unwrap();
 
-    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string())
+    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string(), 0)
         .await
         .unwrap();
     app.commit(storage.clone()).await;
@@ -68,7 +68,7 @@ async fn rechecks_pass() {
         .await
         .unwrap();
 
-    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string())
+    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string(), 0)
         .await
         .unwrap();
     app.commit(storage.clone()).await;
@@ -108,7 +108,7 @@ async fn can_reinsert_after_recheck_fail() {
         .await
         .unwrap();
 
-    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string())
+    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string(), 0)
         .await
         .unwrap();
     app.commit(storage.clone()).await;
@@ -158,7 +158,7 @@ async fn recheck_adds_non_tracked_tx() {
         .await
         .unwrap();
 
-    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string())
+    app.init_chain(storage.clone(), genesis_state(), vec![], "test".to_string(), 0)
         .await
         .unwrap();
     app.commit(storage.clone()).await;
