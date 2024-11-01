@@ -3,6 +3,7 @@ syntax = "proto3";
 package astria.sequencerblock.v1;
 
 import "astria/primitive/v1/types.proto";
+import "astria/protocol/transaction/v1/transaction.proto";
 import "astria/sequencerblock/v1/block.proto";
 import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
@@ -29,6 +30,26 @@ message GetPendingNonceResponse {
   uint32 inner = 1;
 }
 
+message DumpMempoolRequest {
+  // The submitting address needs to be the sudo address, since we don't want this info
+  // to be publicly available.
+  astria.primitive.v1.Address sudo_address = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message Mempool {
+  repeated AccountTransactions pending = 1;
+  repeated AccountTransactions parked = 2;
+  repeated astria.primitive.v1.TransactionId comet_bft_removal_cache = 3;
+  repeated astria.primitive.v1.TransactionId contained_txs = 4;
+}
+
+message AccountTransactions {
+  // The account address.
+  astria.primitive.v1.Address account = 1;
+  // The transactions associated with the account.
+  repeated astria.protocol.transaction.v1.Transaction transactions = 2;
+}
+
 service SequencerService {
   // Given a block height, returns the sequencer block at that height.
   rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock) {
@@ -47,5 +68,12 @@ service SequencerService {
   // Returns the pending nonce for the given account.
   rpc GetPendingNonce(GetPendingNonceRequest) returns (GetPendingNonceResponse) {
     option (google.api.http) = {get: "/v1/sequencer/pendingnonce/{account}"};
+  }
+}
+
+service AdminMempoolService {
+  // Dumps the mempool.
+  rpc DumpMempool(DumpMempoolRequest) returns (Mempool) {
+    option (google.api.http) = {get: "/v1/admin/mempool"};
   }
 }

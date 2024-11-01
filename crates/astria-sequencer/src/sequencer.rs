@@ -1,4 +1,9 @@
-use astria_core::generated::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
+use std::net::SocketAddr;
+
+use astria_core::generated::sequencerblock::v1::{
+    admin_mempool_service_server::AdminMempoolServiceServer,
+    sequencer_service_server::SequencerServiceServer,
+};
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -38,7 +43,10 @@ use crate::{
     config::Config,
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
-    mempool::Mempool,
+    mempool::{
+        admin_grpc::AdminGrpcServer,
+        Mempool,
+    },
     metrics::Metrics,
     service,
 };
@@ -110,14 +118,18 @@ impl Sequencer {
             .finish()
             .ok_or_eyre("server builder didn't return server; are all fields set?")?;
 
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let (shutdown_tx_grpc, shutdown_rx_grpc) = tokio::sync::oneshot::channel();
+        let (shutdown_tx_admin, shutdown_rx_admin) = tokio::sync::oneshot::channel();
         let (server_exit_tx, server_exit_rx) = tokio::sync::oneshot::channel();
 
         let grpc_addr = config
             .grpc_addr
             .parse()
             .wrap_err("failed to parse grpc_addr address")?;
-        let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
+        let grpc_server_handle =
+            start_grpc_server(&storage, mempool.clone(), grpc_addr, shutdown_rx_grpc);
+        let admin_grpc_server_handle =
+            start_local_admin_grpc_server(&storage, mempool, shutdown_rx_admin);
 
         info!(config.listen_addr, "starting sequencer");
         let server_handle = tokio::spawn(async move {
@@ -143,22 +155,60 @@ impl Sequencer {
             }
         }
 
-        shutdown_tx
+        shutdown_tx_grpc
             .send(())
             .map_err(|()| eyre!("failed to send shutdown signal to grpc server"))?;
         grpc_server_handle
             .await
             .wrap_err("grpc server task failed")?
             .wrap_err("grpc server failed")?;
+        shutdown_tx_admin
+            .send(())
+            .map_err(|()| eyre!("failed to send shutdown signal to admin grpc server"))?;
+        admin_grpc_server_handle
+            .await
+            .wrap_err("admin grpc server task failed")?
+            .wrap_err("admin grpc server failed")?;
         server_handle.abort();
         Ok(())
     }
 }
 
+fn start_local_admin_grpc_server(
+    storage: &cnidarium::Storage,
+    mempool: Mempool,
+    shutdown_rx: oneshot::Receiver<()>,
+) -> JoinHandle<Result<(), tonic::transport::Error>> {
+    use futures::TryFutureExt as _;
+    use penumbra_tower_trace::remote_addr;
+
+    let grpc_addr = "127.0.0.1:8080"
+        .parse::<SocketAddr>()
+        .expect("local host should parse to socket address");
+    let admin_api = AdminGrpcServer::new(storage.clone(), mempool);
+
+    let grpc_server = tonic::transport::Server::builder()
+        .trace_fn(|req| {
+            if let Some(remote_addr) = remote_addr(req) {
+                let addr = remote_addr.to_string();
+                tracing::error_span!("admin_grpc", addr)
+            } else {
+                tracing::error_span!("admin_grpc")
+            }
+        })
+        .accept_http1(true)
+        .add_service(AdminMempoolServiceServer::new(admin_api));
+
+    info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
+    tokio::task::spawn(
+        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
+    )
+}
+
 fn start_grpc_server(
     storage: &cnidarium::Storage,
     mempool: Mempool,
-    grpc_addr: std::net::SocketAddr,
+    grpc_addr: SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> JoinHandle<Result<(), tonic::transport::Error>> {
     use futures::TryFutureExt as _;

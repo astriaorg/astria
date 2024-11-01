@@ -1,3 +1,4 @@
+pub(crate) mod admin_grpc;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 mod mempool_state;
