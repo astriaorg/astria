@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
 ## [1.0.1] - 2024-11-01
 
 ### Fixed
@@ -99,7 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release of EVM Withdrawer.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.1...HEAD
+[1.0.1]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0...bridge-withdrawer-v1.0.1
 [1.0.0]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.2...bridge-withdrawer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.1...bridge-withdrawer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v0.3.0...bridge-withdrawer-v1.0.0-rc.1
