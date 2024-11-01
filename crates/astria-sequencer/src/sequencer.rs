@@ -1,9 +1,6 @@
 use std::net::SocketAddr;
 
-use astria_core::generated::sequencerblock::v1::{
-    admin_mempool_service_server::AdminMempoolServiceServer,
-    sequencer_service_server::SequencerServiceServer,
-};
+use astria_core::generated::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -44,7 +41,7 @@ use crate::{
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
     mempool::{
-        admin_grpc::AdminGrpcServer,
+        admin_grpc::start_local_admin_grpc_server,
         Mempool,
     },
     metrics::Metrics,
@@ -172,37 +169,6 @@ impl Sequencer {
         server_handle.abort();
         Ok(())
     }
-}
-
-fn start_local_admin_grpc_server(
-    storage: &cnidarium::Storage,
-    mempool: Mempool,
-    shutdown_rx: oneshot::Receiver<()>,
-) -> JoinHandle<Result<(), tonic::transport::Error>> {
-    use futures::TryFutureExt as _;
-    use penumbra_tower_trace::remote_addr;
-
-    let grpc_addr = "127.0.0.1:8080"
-        .parse::<SocketAddr>()
-        .expect("local host should parse to socket address");
-    let admin_api = AdminGrpcServer::new(storage.clone(), mempool);
-
-    let grpc_server = tonic::transport::Server::builder()
-        .trace_fn(|req| {
-            if let Some(remote_addr) = remote_addr(req) {
-                let addr = remote_addr.to_string();
-                tracing::error_span!("admin_grpc", addr)
-            } else {
-                tracing::error_span!("admin_grpc")
-            }
-        })
-        .accept_http1(true)
-        .add_service(AdminMempoolServiceServer::new(admin_api));
-
-    info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
-    tokio::task::spawn(
-        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
-    )
 }
 
 fn start_grpc_server(

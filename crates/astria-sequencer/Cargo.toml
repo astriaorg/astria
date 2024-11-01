@@ -10,6 +10,7 @@ homepage = "https://astria.org"
 
 [features]
 benchmark = ["divan"]
+client = ["astria-core/client"]
 
 [dependencies]
 astria-core = { path = "../astria-core", features = [
