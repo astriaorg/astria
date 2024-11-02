@@ -1033,7 +1033,7 @@ impl App {
                             events,
                             ..Default::default()
                         });
-                    },
+                    }
                     Err(e) => {
                         // this is actually a protocol error, as only valid txs should be finalized
                         tracing::error!(
