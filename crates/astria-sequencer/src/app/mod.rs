@@ -803,6 +803,10 @@ impl App {
                             }
                         }
                     }
+                    execution_results.push(ExecTxResult {
+                        events,
+                        ..Default::default()
+                    });
                     block_size_constraints
                         .sequencer_checked_add(tx_sequence_data_bytes)
                         .wrap_err("error growing sequencer block size")?;
