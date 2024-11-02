@@ -192,6 +192,10 @@ run tag=defaultTag:
   expected_celestia_balance=$(echo "$initial_celestia_balance + 1" | bc)
   echo "Initial Celestia balance $initial_celestia_balance"
 
+  # delete hermes and wait to make sure down
+  just delete hermes-local
+  sleep 60
+
   echo "Performing IBC withdrawal from the EVM to Celestia..."
   just evm-send-raw-transaction {{evm_withdraw_tx_raw}}
 
@@ -219,6 +223,14 @@ run tag=defaultTag:
     echo "Transaction receipt not found; IBC transfer from the Rollup to Celestia failed"
     exit 1
   fi
+
+  echo "Waiting to bring up hermes..."
+  sleep 60
+  helm install hermes-local-chart ./charts/hermes \
+      -n astria-dev-cluster \
+      --set createChannel.enabled=false \
+      -f dev/values/hermes/local.yaml
+  kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=480s
 
   # check that celestia balance updated correctly
   for i in {1..50}

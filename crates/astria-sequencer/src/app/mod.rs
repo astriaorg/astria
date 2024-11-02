@@ -795,11 +795,14 @@ impl App {
 
             // execute tx and store in `execution_results` list on success
             match self.execute_transaction(Arc::new(tx.clone())).await {
-                Ok(events) => {
-                    execution_results.push(ExecTxResult {
-                        events,
-                        ..Default::default()
-                    });
+                Ok(mut events) => {
+                    for event in &mut events {
+                        if event.kind == "send_packet" {
+                            for attribute in &mut event.attributes {
+                                attribute.index = true;
+                            }
+                        }
+                    }
                     block_size_constraints
                         .sequencer_checked_add(tx_sequence_data_bytes)
                         .wrap_err("error growing sequencer block size")?;
@@ -1014,10 +1017,19 @@ impl App {
                     .wrap_err("protocol error; only valid txs should be finalized")?;
 
                 match self.execute_transaction(Arc::new(signed_tx)).await {
-                    Ok(events) => tx_results.push(ExecTxResult {
-                        events,
-                        ..Default::default()
-                    }),
+                    Ok(mut events) => {
+                        for event in &mut events {
+                            if event.kind == "send_packet" {
+                                for attribute in &mut event.attributes {
+                                    attribute.index = true;
+                                }
+                            }
+                        }
+                        tx_results.push(ExecTxResult {
+                            events,
+                            ..Default::default()
+                        });
+                    },
                     Err(e) => {
                         // this is actually a protocol error, as only valid txs should be finalized
                         tracing::error!(
