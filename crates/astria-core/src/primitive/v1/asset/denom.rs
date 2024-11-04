@@ -305,9 +305,23 @@ impl TracePrefixed {
         self.trace.leading_channel() == Some(channel.as_ref())
     }
 
+    /// Returns the ICS20 channel in the left-most position.
+    ///
+    /// Returns `None` if the denom only contains a base and has no path segments.
+    /// A path segment is a pair `"<port>/<channel>"`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use astria_core::primitive::v1::asset::denom::TracePrefixed;
+    /// let has_leading = "four/segments/of/a/denom".parse::<TracePrefixed>().unwrap();
+    /// let no_leading = "no_segments".parse::<TracePrefixed>().unwrap();
+    /// assert_eq!(has_leading.leading_channel(), Some("segments"));
+    /// assert_eq!(no_leading.leading_channel(), None);
+    /// ```
     #[must_use]
-    pub fn last_channel(&self) -> Option<&str> {
-        self.trace.last_channel()
+    pub fn leading_channel(&self) -> Option<&str> {
+        self.trace.leading_channel()
     }
 
     pub fn pop_leading_port_and_channel(&mut self) -> Option<PortAndChannel> {
@@ -433,10 +447,6 @@ impl TraceSegments {
 
     fn pop(&mut self) -> Option<PortAndChannel> {
         self.inner.pop_front()
-    }
-
-    fn last_channel(&self) -> Option<&str> {
-        self.inner.back().map(|segment| &*segment.channel)
     }
 
     fn is_empty(&self) -> bool {
