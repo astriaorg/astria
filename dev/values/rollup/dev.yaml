@@ -101,21 +101,21 @@ evm-rollup:
       rpc: "http://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
       token: ""
 
-  resources:
-    conductor:
-      requests:
-        cpu: 0.01
-        memory: 1Mi
-      limits:
-        cpu: 0.1
-        memory: 20Mi
-    geth:
-      requests:
-        cpu: 0.25
-        memory: 256Mi
-      limits:
-        cpu: 2
-        memory: 1Gi
+  resources: {}
+#    conductor:
+#      requests:
+#        cpu: 0.01
+#        memory: 1Mi
+#      limits:
+#        cpu: 0.1
+#        memory: 20Mi
+#    geth:
+#      requests:
+#        cpu: 0.25
+#        memory: 256Mi
+#      limits:
+#        cpu: 2
+#        memory: 1Gi
 
   storage:
     enabled: false
@@ -195,6 +195,8 @@ blockscout-stack:
         value: "postgres://postgres:bigsecretpassword@astria-chain-chart-blockscout-postegres.astria-dev-cluster.svc.cluster.local:5432/blockscout"
       - name: ETHEREUM_JSONRPC_VARIANT
         value: "geth"
+        
+
       - name: ETHEREUM_JSONRPC_HTTP_URL
         value: "http://astria-evm-service.astria-dev-cluster.svc.cluster.local:8545/"
       - name: ETHEREUM_JSONRPC_INSECURE

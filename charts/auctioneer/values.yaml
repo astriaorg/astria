@@ -9,8 +9,8 @@ images:
   auctioneer:
     repo: ghcr.io/astriaorg/astria-auctioneer
     pullPolicy: IfNotPresent
-    tag: 1.0.0-rc.1
-    devTag: local
+    tag: "test-5"
+    devTag: "test-5"
 
 config:
   sequencerGrpcEndpoint: ""
@@ -82,13 +82,13 @@ secretProvider:
       - resourceName: {{ .key.resourceName }}
         fileName: "{{ .key.filename }}"
 
-resources:
-  requests:
-    cpu: 100m
-    memory: 100Mi
-  limits:
-    cpu: 1000m
-    memory: 1Gi
+resources: {}
+#  requests:
+#    cpu: 100m
+#    memory: 100Mi
+#  limits:
+#    cpu: 1000m
+#    memory: 1Gi
 
 # Default service ports
 ports:

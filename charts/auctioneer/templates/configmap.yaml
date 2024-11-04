@@ -4,13 +4,14 @@ metadata:
   name: auctioneer-env
   namespace: {{ include "auctioneer.namespace" . }}
 data:
-  ASTRIA_AUCTIONEER_SEQUENCER_GRPC_ENDPOINT: "{{ .Values.config.sequencerGrpcEndpoint }}"
+{{/*  ASTRIA_AUCTIONEER_SEQUENCER_GRPC_ENDPOINT: "{{ .Values.config.sequencerGrpcEndpoint }}"*/}}
+  ASTRIA_AUCTIONEER_SEQUENCER_GRPC_ENDPOINT: "http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080"
   ASTRIA_AUCTIONEER_SEQUENCER_ABCI_ENDPOINT: "{{ .Values.config.sequencerAbciEndpoint }}"
   ASTRIA_AUCTIONEER_SEQUENCER_CHAIN_ID: "{{ .Values.config.sequencerChainId }}"
   ASTRIA_AUCTIONEER_SEQUENCER_PRIVATE_KEY_PATH: "/var/secrets/{{ .Values.config.sequencerPrivateKey.secret.filename }}"
   ASTRIA_AUCTIONEER_FEE_ASSET_DENOMINATION: "{{ .Values.config.feeAssetDenomination }}"
   ASTRIA_AUCTIONEER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencerAddressPrefix }}"
-  ASTRIA_AUCTIONEER_ROLLUP_GRPC_ENDPOINT: "{{ .Values.config.rollupGrpcEndpoint }}"
+  ASTRIA_AUCTIONEER_ROLLUP_GRPC_ENDPOINT: "http://astria-evm-service.astria-dev-cluster.svc.cluster.local:50051"
   ASTRIA_AUCTIONEER_ROLLUP_ID: "{{ .Values.config.rollupId }}"
   ASTRIA_AUCTIONEER_LATENCY_MARGIN_MS: "{{ .Values.config.latencyMarginMs }}"
   ASTRIA_AUCTIONEER_LOG: "astria_auctioneer={{ .Values.config.logLevel }}"

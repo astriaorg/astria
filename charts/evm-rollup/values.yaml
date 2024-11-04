@@ -8,11 +8,11 @@ global:
 
 images:
   geth:
-    repo: ghcr.io/astriaorg/astria-geth
+    repo: ghcr.io/astriaorg/go-ethereum
     pullPolicy: IfNotPresent
-    tag: 1.0.0
-    devTag: latest
-    overrideTag: ""
+    tag: 0.16.0
+    devTag: auctioneer-11
+    overrideTag: "auctioneer-11"
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
@@ -133,6 +133,7 @@ config:
         value: 0.0.0.0
       - name: grpc.port
         value: "{{ .Values.ports.executionGRPC }}"
+      - name: auctioneer
       - name: db.engine
         value: pebble  # Can be set to 'pebble' or 'leveldb'
       - name: maxpeers
@@ -269,6 +270,21 @@ ingress:
         # kubernetes.io/tls-acme: "true"
       labels: {}
       tls: {}
+    exec-api:
+      enabled: true
+      hosts:
+        - exec-executor.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: '{{ include "rollup.name" . }}-evm-service'
+        port:
+          name: exec-rpc-svc
+      annotations: { }
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+      labels: { }
+      tls: { }
       #  - secretName: chart-example-tls
       #    hosts:
       #      - chart-example.local
@@ -276,18 +292,18 @@ ingress:
 # Default persistent storage values
 # NOTE - `rollupName` will be used with `persistentVolumeName` to generate names for kubernetes resources.
 #  e.g. astria-executor-pv, astria-executor-pvc
-resources:
-  conductor:
-    requests:
-      cpu: 100m
-      memory: 200Mi
-    limits:
-      cpu: 1000m
-      memory: 2Gi
-  geth:
-    requests:
-      cpu: 16000m
-      memory: 32Gi
+resources: {}
+#  conductor:
+#    requests:
+#      cpu: 100m
+#      memory: 200Mi
+#    limits:
+#      cpu: 1000m
+#      memory: 2Gi
+#  geth:
+#    requests:
+#      cpu: 16000m
+#      memory: 32Gi
 
 storage:
   enabled: false

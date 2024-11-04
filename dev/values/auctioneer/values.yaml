@@ -14,7 +14,7 @@ config:
   feeAssetDenomination: "nria"
   sequencerAddressPrefix: astria
   rollupGrpcEndpoint: "http://astria-evm-service.astria-dev-cluster.svc.cluster.local:50051"
-  rollupId: "astriachain"
+  rollupId: "astria"
   latencyMarginMs: 1000
   logLevel: "debug"
 

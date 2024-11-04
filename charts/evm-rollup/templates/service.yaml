@@ -13,10 +13,13 @@ spec:
     - name: ws-rpc-svc
       port: {{ .Values.ports.wsRPC }}
       targetPort: ws-rpc
+    - name: exec-grpc-svc
+      port: {{ .Values.ports.executionGRPC }}
+      targetPort: execution-grpc
       # TODO: fix this to match bharath's work in the geth repo
-    - name: bundle-grpc-svc
-    port: {{ .Values.ports.bundleGRPC }}
-      targetPort: bundle-grpc
+{{/*    - name: bundle-grpc-svc*/}}
+{{/*      port: {{ .Values.ports.bundleGRPC }}*/}}
+{{/*      targetPort: bundle-grpc*/}}
 ---
 {{- if .Values.metrics.enabled }}
 kind: Service
