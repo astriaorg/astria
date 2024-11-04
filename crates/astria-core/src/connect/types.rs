@@ -323,9 +323,10 @@ pub mod v2 {
             self.0
         }
 
-        pub fn increment(self) -> Self {
-            let new_id = self.0.wrapping_add(1);
-            Self::new(new_id)
+        #[must_use]
+        pub fn increment(self) -> Option<Self> {
+            let new_id = self.get().checked_add(1)?;
+            Some(Self::new(new_id))
         }
     }
 
