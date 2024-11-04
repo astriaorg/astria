@@ -651,7 +651,8 @@ impl App {
 
             // execute tx and store in `execution_results` list on success
             match self.execute_transaction(tx.clone()).await {
-                Ok(events) => {
+                Ok(mut events) => {
+                    index_all_send_packet_event_attributes(&mut events);
                     execution_results.push(ExecTxResult {
                         events,
                         ..Default::default()
@@ -790,7 +791,8 @@ impl App {
 
             // execute tx and store in `execution_results` list on success
             match self.execute_transaction(Arc::new(tx.clone())).await {
-                Ok(events) => {
+                Ok(mut events) => {
+                    index_all_send_packet_event_attributes(&mut events);
                     execution_results.push(ExecTxResult {
                         events,
                         ..Default::default()
@@ -1009,10 +1011,13 @@ impl App {
                     .wrap_err("protocol error; only valid txs should be finalized")?;
 
                 match self.execute_transaction(Arc::new(signed_tx)).await {
-                    Ok(events) => tx_results.push(ExecTxResult {
-                        events,
-                        ..Default::default()
-                    }),
+                    Ok(mut events) => {
+                        index_all_send_packet_event_attributes(&mut events);
+                        tx_results.push(ExecTxResult {
+                            events,
+                            ..Default::default()
+                        });
+                    }
                     Err(e) => {
                         // this is actually a protocol error, as only valid txs should be finalized
                         tracing::error!(
@@ -1324,4 +1329,16 @@ struct PostTransactionExecutionResult {
     tx_results: Vec<ExecTxResult>,
     validator_updates: Vec<tendermint::validator::Update>,
     consensus_param_updates: Option<tendermint::consensus::Params>,
+}
+
+fn index_all_send_packet_event_attributes(events: &mut [Event]) {
+    events
+        .iter_mut()
+        .filter(|event| event.kind == "send_packet")
+        .for_each(|event| {
+            event
+                .attributes
+                .iter_mut()
+                .for_each(|attr| attr.index = true);
+        });
 }
