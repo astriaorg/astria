@@ -30,8 +30,7 @@ message GetPendingNonceResponse {
   uint32 inner = 1;
 }
 
-message MempoolInfoRequest {
-}
+message MempoolInfoRequest {}
 
 message MempoolInfoResponse {
   repeated AccountTransactions pending = 1;
