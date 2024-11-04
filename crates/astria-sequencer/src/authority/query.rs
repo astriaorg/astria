@@ -27,8 +27,16 @@ pub(crate) async fn validator_name_request(
 
     let snapshot = storage.latest_snapshot();
 
-    let validator_names = match snapshot.get_validator_names().await {
-        Ok(names) => names,
+    match snapshot.get_validator_name(address.as_bytes()).await {
+        Ok(Some(name)) => {
+            return response::Query {
+                code: Code::Ok,
+                key: request.path.clone().into_bytes().into(),
+                value: name.clone().into_bytes().into(),
+                ..response::Query::default()
+            };
+        }
+        Ok(None) => {}
         Err(err) => {
             return error_query_response(
                 Some(err),
@@ -37,15 +45,6 @@ pub(crate) async fn validator_name_request(
             );
         }
     };
-
-    if let Some(name) = validator_names.get(&address) {
-        return response::Query {
-            code: Code::Ok,
-            key: request.path.clone().into_bytes().into(),
-            value: name.clone().into_bytes().into(),
-            ..response::Query::default()
-        };
-    }
 
     let validator_set = match snapshot.get_validator_set().await {
         Ok(validator_set) => validator_set,
@@ -133,7 +132,6 @@ mod tests {
     use crate::{
         authority::{
             query::validator_name_request,
-            StateReadExt,
             StateWriteExt,
             ValidatorSet,
         },
@@ -152,28 +150,16 @@ mod tests {
         let verification_key = verification_key(1);
         let key_address_bytes = *verification_key.clone().address_bytes();
         let validator_name = "test".to_string();
-        let inner_update = ValidatorUpdate {
-            power: 100,
-            verification_key: verification_key.clone(),
-        };
+
         let update_with_name = ValidatorUpdateV2 {
             name: validator_name.clone(),
             power: 100,
             verification_key,
         };
 
-        let mut validator_names = state.get_validator_names().await.unwrap();
-        assert_eq!(validator_names.len(), 0);
-
-        let inner_validator_map = BTreeMap::new();
-        let mut validator_set = ValidatorSet::new(inner_validator_map);
-        assert_eq!(validator_set.len(), 0);
-
-        validator_names.insert(&key_address_bytes, update_with_name.name.clone());
-        validator_set.insert(inner_update);
-
-        state.put_validator_names(validator_names).unwrap();
-        state.put_validator_set(validator_set).unwrap();
+        state
+            .put_validator_name(&key_address_bytes, update_with_name.name)
+            .unwrap();
         storage.commit(state).await.unwrap();
 
         let query = request::Query {

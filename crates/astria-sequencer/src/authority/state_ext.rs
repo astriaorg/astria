@@ -24,13 +24,16 @@ use super::{
         self,
         keys,
     },
-    ValidatorNames,
     ValidatorSet,
 };
 use crate::{
     accounts::AddressBytes,
     storage::StoredValue,
 };
+
+fn validator_name(key: &[u8]) -> String {
+    format!("{}/{}", keys::VALIDATOR_NAMES_PREFIX, hex::encode(key))
+}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -83,9 +86,9 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_validator_names(&self) -> Result<ValidatorNames> {
+    async fn get_validator_name(&self, validator: &[u8]) -> Result<Option<String>> {
         let Some(bytes) = self
-            .get_raw(keys::VALIDATOR_NAMES)
+            .get_raw(&validator_name(validator))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator names from state")?
@@ -93,11 +96,14 @@ pub(crate) trait StateReadExt: StateRead {
             info!(
                 "request made to get validator names, but they were not found. returning empty set"
             );
-            return Ok(ValidatorNames::new(BTreeMap::new()));
+            return Ok(None);
         };
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::ValidatorNames::try_from(value).map(ValidatorNames::from))
-            .wrap_err("invalid validator names bytes")
+        Some(
+            StoredValue::deserialize(&bytes)
+                .and_then(|value| storage::ValidatorName::try_from(value).map(String::from))
+                .wrap_err("invalid validator names bytes"),
+        )
+        .transpose()
     }
 }
 
@@ -138,11 +144,16 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_validator_names(&mut self, validator_names: ValidatorNames) -> Result<()> {
-        let bytes = StoredValue::from(storage::ValidatorNames::from(&validator_names))
+    fn remove_validator_name(&mut self, validator: &[u8]) {
+        self.delete(validator_name(validator));
+    }
+
+    #[instrument(skip_all)]
+    fn put_validator_name(&mut self, validator: &[u8], name: String) -> Result<()> {
+        let bytes = StoredValue::from(storage::ValidatorName::from(name.as_str()))
             .serialize()
             .wrap_err("failed to serialize validator names")?;
-        self.put_raw(keys::VALIDATOR_NAMES.to_string(), bytes);
+        self.put_raw(validator_name(validator), bytes);
         Ok(())
     }
 }
@@ -456,37 +467,41 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let initial = BTreeMap::new();
-        let mut validator_names = ValidatorNames::new(initial);
+        let validator_address = &[0; ADDRESS_LEN];
+        let validator_name = "ethan_was_here".to_string();
 
         // returns empty validator names if none in state
-        assert_eq!(state.get_validator_names().await.unwrap().len(), 0,);
+        assert_eq!(
+            state.get_validator_name(validator_address).await.unwrap(),
+            None
+        );
 
         // can write new
         state
-            .put_validator_names(validator_names.clone())
-            .expect("writing initial validator set should not fail");
+            .put_validator_name(validator_address, validator_name.clone())
+            .expect("writing initial validator should not fail");
         assert_eq!(
             state
-                .get_validator_names()
+                .get_validator_name(validator_address)
                 .await
-                .expect("validator names were written and must exist inside the database"),
-            validator_names,
-            "stored validator names were not what was expected"
+                .expect("validator name was written and must exist inside the database"),
+            Some(validator_name),
+            "stored validator name was not what was expected"
         );
 
         // can update
-        validator_names.insert(&[0; ADDRESS_LEN], "test".to_string());
+        let validator_address_2 = &[1; ADDRESS_LEN];
+        let validator_name_2 = "ethan_was_here_again".to_string();
         state
-            .put_validator_names(validator_names.clone())
+            .put_validator_name(validator_address_2, validator_name_2.clone())
             .expect("writing update validator set should not fail");
         assert_eq!(
             state
-                .get_validator_names()
+                .get_validator_name(validator_address_2)
                 .await
-                .expect("validator names were written and must exist inside the database"),
-            validator_names,
-            "stored validator names were not what was expected"
+                .expect("validator name was written and must exist inside the database"),
+            Some(validator_name_2),
+            "stored validator name was not what was expected"
         );
     }
 }

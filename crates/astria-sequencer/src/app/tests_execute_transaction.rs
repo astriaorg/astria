@@ -1329,10 +1329,10 @@ async fn app_execute_transaction_validator_update_v2() {
         validator_updates.get(&verification_key),
         Some(&inner_update)
     );
-    let validator_names = app.state.get_validator_names().await.unwrap();
-    assert_eq!(validator_names.len(), 1);
-    assert_eq!(
-        validator_names.get(&verification_key),
-        Some(&update_with_name.name)
-    );
+    let validator_name = app
+        .state
+        .get_validator_name(verification_key.address_bytes())
+        .await
+        .unwrap();
+    assert_eq!(validator_name, Some(update_with_name.name));
 }

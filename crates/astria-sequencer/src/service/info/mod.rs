@@ -184,17 +184,12 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use astria_core::{
         primitive::v1::asset,
         protocol::{
             account::v1::BalanceResponse,
             asset::v1::DenomResponse,
-            transaction::v1::action::{
-                ValidatorUpdate,
-                ValidatorUpdateV2,
-            },
+            transaction::v1::action::ValidatorUpdateV2,
         },
     };
     use cnidarium::StateDelta;
@@ -214,11 +209,7 @@ mod tests {
         },
         app::StateWriteExt as _,
         assets::StateWriteExt as _,
-        authority::{
-            StateWriteExt as _,
-            ValidatorNames,
-            ValidatorSet,
-        },
+        authority::StateWriteExt as _,
         benchmark_and_test_utils::{
             astria_address,
             nria,
@@ -414,26 +405,19 @@ mod tests {
         let height = 0u32;
         let power = 100;
 
-        let inner_validator_update = ValidatorUpdate {
-            power,
-            verification_key: verification_key.clone(),
-        };
-
         let validator_update = ValidatorUpdateV2 {
             verification_key: verification_key.clone(),
             power,
             name: "validator_name".to_string(),
         };
 
-        let mut validator_names = ValidatorNames::new(BTreeMap::new());
-        validator_names.insert(
-            &validator_update.verification_key,
-            validator_update.name.clone(),
-        );
-        state.put_validator_names(validator_names).unwrap();
-        let mut validator_set = ValidatorSet::new(BTreeMap::new());
-        validator_set.insert(inner_validator_update);
-        state.put_validator_set(validator_set).unwrap();
+        state
+            .put_validator_name(
+                verification_key.address_bytes(),
+                validator_update.name.clone(),
+            )
+            .unwrap();
+
         storage.commit(state).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {

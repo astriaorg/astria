@@ -145,21 +145,16 @@ impl ActionHandler for ValidatorUpdateV2 {
             .check_and_execute(&mut state)
             .await
             .wrap_err("failed to execute inner validator update")?;
-        let mut validator_names = state
-            .get_validator_names()
-            .await
-            .wrap_err("failed to get validator names from state")?;
         match self.power {
             0 => {
-                validator_names.remove(&self.verification_key);
+                state.remove_validator_name(self.verification_key.address_bytes());
             }
             _ => {
-                validator_names.insert(&self.verification_key, self.name.clone());
+                state
+                    .put_validator_name(self.verification_key.address_bytes(), self.name.clone())
+                    .wrap_err("failed to put validator name in state")?;
             }
         }
-        state
-            .put_validator_names(validator_names)
-            .wrap_err("failed to put validator names in state")?;
         Ok(())
     }
 }
