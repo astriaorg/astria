@@ -322,6 +322,11 @@ pub mod v2 {
         pub fn get(self) -> u64 {
             self.0
         }
+
+        pub fn increment(self) -> Self {
+            let new_id = self.0.wrapping_add(1);
+            Self::new(new_id)
+        }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -532,6 +532,9 @@ pub(crate) trait StateWriteExt: StateWrite {
                 .get_next_currency_pair_id()
                 .await
                 .wrap_err("failed to read next currency pair ID")?;
+            let next_id = id.increment();
+            self.put_next_currency_pair_id(next_id)
+                .wrap_err("failed to put next currency pair ID")?;
             CurrencyPairState {
                 price,
                 nonce: CurrencyPairNonce::new(0),

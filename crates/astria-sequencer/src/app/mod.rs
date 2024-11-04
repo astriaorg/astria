@@ -372,6 +372,8 @@ impl App {
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
+
+        // TODO: handle vote_extensions_enable_height in MarketMapComponent
         MarketMapComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on MarketMapComponent")?;
