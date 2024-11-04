@@ -41,7 +41,7 @@ use crate::{
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
     mempool::{
-        admin_grpc::start_local_admin_grpc_server,
+        mempool_grpc::start_local_mempool_info_grpc_server,
         Mempool,
     },
     metrics::Metrics,
@@ -116,7 +116,6 @@ impl Sequencer {
             .ok_or_eyre("server builder didn't return server; are all fields set?")?;
 
         let (shutdown_tx_grpc, shutdown_rx_grpc) = tokio::sync::oneshot::channel();
-        let (shutdown_tx_admin, shutdown_rx_admin) = tokio::sync::oneshot::channel();
         let (server_exit_tx, server_exit_rx) = tokio::sync::oneshot::channel();
 
         let grpc_addr = config
@@ -125,8 +124,23 @@ impl Sequencer {
             .wrap_err("failed to parse grpc_addr address")?;
         let grpc_server_handle =
             start_grpc_server(&storage, mempool.clone(), grpc_addr, shutdown_rx_grpc);
-        let admin_grpc_server_handle =
-            start_local_admin_grpc_server(&storage, mempool, shutdown_rx_admin);
+
+        let mut shutdown_tx_mempool = None;
+        let mut mempool_grpc_server_handle = None;
+        if !config.no_mempool_grpc {
+            let (tmp_shutdown_tx_mempool, shutdown_rx_mempool) = tokio::sync::oneshot::channel();
+            let mempool_info_grpc_addr = config
+                .mempool_grpc_addr
+                .parse()
+                .wrap_err("failed to parse mempool_grpc_addr address")?;
+            let tmp_mempool_grpc_server_handle = start_local_mempool_info_grpc_server(
+                mempool,
+                mempool_info_grpc_addr,
+                shutdown_rx_mempool,
+            );
+            shutdown_tx_mempool = Some(tmp_shutdown_tx_mempool);
+            mempool_grpc_server_handle = Some(tmp_mempool_grpc_server_handle);
+        }
 
         info!(config.listen_addr, "starting sequencer");
         let server_handle = tokio::spawn(async move {
@@ -159,13 +173,17 @@ impl Sequencer {
             .await
             .wrap_err("grpc server task failed")?
             .wrap_err("grpc server failed")?;
-        shutdown_tx_admin
-            .send(())
-            .map_err(|()| eyre!("failed to send shutdown signal to admin grpc server"))?;
-        admin_grpc_server_handle
-            .await
-            .wrap_err("admin grpc server task failed")?
-            .wrap_err("admin grpc server failed")?;
+        if let Some(shutdown_tx_mempool) = shutdown_tx_mempool {
+            shutdown_tx_mempool.send(()).map_err(|()| {
+                eyre!("failed to send shutdown signal to mempool info grpc server")
+            })?;
+        }
+        if let Some(mempool_grpc_server_handle) = mempool_grpc_server_handle {
+            mempool_grpc_server_handle
+                .await
+                .wrap_err("mempool info grpc server task failed")?
+                .wrap_err("mempool info grpc server failed")?;
+        }
         server_handle.abort();
         Ok(())
     }

@@ -20,6 +20,10 @@ pub struct Config {
     pub log: String,
     /// The gRPC endpoint
     pub grpc_addr: String,
+    /// The gRPC endpoint for the mempool info service
+    pub mempool_grpc_addr: String,
+    /// Set to true to disable the mempool info service
+    pub no_mempool_grpc: bool,
     /// Forces writing trace data to stdout no matter if connected to a tty or not.
     pub force_stdout: bool,
     /// Disables writing trace data to an opentelemetry endpoint.

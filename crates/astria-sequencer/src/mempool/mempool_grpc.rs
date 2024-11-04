@@ -5,13 +5,13 @@ use std::{
 
 use astria_core::{
     generated::sequencerblock::v1::{
-        admin_mempool_service_server::{
-            AdminMempoolService,
-            AdminMempoolServiceServer,
+        mempool_info_service_server::{
+            MempoolInfoService,
+            MempoolInfoServiceServer,
         },
         AccountTransactions,
-        DumpMempoolRequest,
-        Mempool as MempoolDump,
+        MempoolInfoRequest,
+        MempoolInfoResponse,
     },
     primitive::v1::{
         Address,
@@ -19,13 +19,11 @@ use astria_core::{
     },
     Protobuf,
 };
-use cnidarium::Storage;
 use tokio::{
     sync::oneshot,
     task::JoinHandle,
 };
 use tonic::{
-    Code,
     Request,
     Response,
     Status,
@@ -42,57 +40,25 @@ use super::{
     },
     Mempool,
 };
-use crate::authority::StateReadExt;
 
-pub(crate) struct AdminGrpcServer {
-    storage: Storage,
+pub(crate) struct MempoolGrpcServer {
     mempool: Mempool,
 }
 
-impl AdminGrpcServer {
-    pub(crate) fn new(storage: Storage, mempool: Mempool) -> Self {
+impl MempoolGrpcServer {
+    pub(crate) fn new(mempool: Mempool) -> Self {
         Self {
-            storage,
             mempool,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl AdminMempoolService for AdminGrpcServer {
+impl MempoolInfoService for MempoolGrpcServer {
     async fn dump_mempool(
         self: Arc<Self>,
-        request: Request<DumpMempoolRequest>,
-    ) -> Result<Response<MempoolDump>, Status> {
-        let state_sudo_address = self
-            .storage
-            .latest_snapshot()
-            .get_sudo_address()
-            .await
-            .map_err(|err| {
-                Status::new(
-                    Code::Internal,
-                    format!("failed to get sudo address from state: {err:?}"),
-                )
-            })?;
-        let req_sudo_address =
-            Address::try_from_raw(&request.get_ref().sudo_address.clone().ok_or(Status::new(
-                Code::InvalidArgument,
-                "request sudo address is required",
-            ))?)
-            .map_err(|err| {
-                Status::new(
-                    Code::Internal,
-                    format!("failed to convert sudo address to domain type: {err:?}"),
-                )
-            })?;
-        if state_sudo_address != *req_sudo_address.as_bytes() {
-            return Err(Status::new(
-                Code::PermissionDenied,
-                "sudo address does not match the one in the state",
-            ));
-        }
-
+        _request: Request<MempoolInfoRequest>,
+    ) -> Result<Response<MempoolInfoResponse>, Status> {
         let mempool_read_pending = self.mempool.pending.read().await;
         let pending = mempool_read_pending
             .txs()
@@ -139,7 +105,7 @@ impl AdminMempoolService for AdminGrpcServer {
             .map(|slice| TransactionId::new(*slice).into_raw())
             .collect();
 
-        Ok(Response::new(MempoolDump {
+        Ok(Response::new(MempoolInfoResponse {
             pending,
             parked,
             comet_bft_removal_cache,
@@ -149,30 +115,27 @@ impl AdminMempoolService for AdminGrpcServer {
 }
 
 #[instrument(skip_all)]
-pub(crate) fn start_local_admin_grpc_server(
-    storage: &cnidarium::Storage,
+pub(crate) fn start_local_mempool_info_grpc_server(
     mempool: Mempool,
+    grpc_addr: SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> JoinHandle<Result<(), tonic::transport::Error>> {
     use futures::TryFutureExt as _;
     use penumbra_tower_trace::remote_addr;
 
-    let grpc_addr = "127.0.0.1:8080"
-        .parse::<SocketAddr>()
-        .expect("local host should parse to socket address");
-    let admin_api = AdminGrpcServer::new(storage.clone(), mempool);
+    let mempool_info_api = MempoolGrpcServer::new(mempool);
 
     let grpc_server = tonic::transport::Server::builder()
         .trace_fn(|req| {
             if let Some(remote_addr) = remote_addr(req) {
                 let addr = remote_addr.to_string();
-                tracing::error_span!("admin_grpc", addr)
+                tracing::error_span!("mempool_grpc", addr)
             } else {
-                tracing::error_span!("admin_grpc")
+                tracing::error_span!("mempool_grpc")
             }
         })
         .accept_http1(true)
-        .add_service(AdminMempoolServiceServer::new(admin_api));
+        .add_service(MempoolInfoServiceServer::new(mempool_info_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
     tokio::task::spawn(
@@ -184,9 +147,9 @@ pub(crate) fn start_local_admin_grpc_server(
 mod tests {
     use astria_core::{
         generated::sequencerblock::v1::{
-            admin_mempool_service_client::AdminMempoolServiceClient,
-            DumpMempoolRequest,
-            Mempool as MempoolDump,
+            mempool_info_service_client::MempoolInfoServiceClient,
+            MempoolInfoRequest,
+            MempoolInfoResponse,
         },
         primitive::v1::{
             Address,
@@ -194,7 +157,6 @@ mod tests {
         },
         Protobuf as _,
     };
-    use cnidarium::StateDelta;
     use telemetry::Metrics as _;
 
     use crate::{
@@ -205,11 +167,9 @@ mod tests {
             },
             test_utils::MockTxBuilder,
         },
-        authority::StateWriteExt as _,
-        benchmark_and_test_utils::astria_address,
         mempool::{
-            admin_grpc::{
-                start_local_admin_grpc_server,
+            mempool_grpc::{
+                start_local_mempool_info_grpc_server,
                 TransactionsForAccount as _,
             },
             transactions_container::TransactionsContainer as _,
@@ -223,12 +183,6 @@ mod tests {
     async fn test_admin_grpc_service() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-        let sudo_address = astria_address(&[1; 20]);
-        state.put_sudo_address(sudo_address).unwrap();
-        storage.commit(state).await.unwrap();
 
         let initial_balances = mock_balances(1, 0);
         let tx_cost = mock_tx_cost(1, 0, 0);
@@ -254,21 +208,23 @@ mod tests {
             .await
             .unwrap();
 
+        let grpc_addr = "127.0.0.1:8080";
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-        let admin_grpc_handle =
-            start_local_admin_grpc_server(&storage, mempool.clone(), shutdown_rx);
+        let mempool_grpc_handle = start_local_mempool_info_grpc_server(
+            mempool.clone(),
+            grpc_addr.parse().unwrap(),
+            shutdown_rx,
+        );
 
         // Wait for the server to start
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
-        let mut client = AdminMempoolServiceClient::connect("http://127.0.0.1:8080")
+        let mut client = MempoolInfoServiceClient::connect(format!("http://{grpc_addr}"))
             .await
             .unwrap();
 
-        let request = DumpMempoolRequest {
-            sudo_address: Some(sudo_address.into_raw()),
-        };
-        let MempoolDump {
+        let request = MempoolInfoRequest {};
+        let MempoolInfoResponse {
             pending,
             parked,
             comet_bft_removal_cache,
@@ -319,6 +275,6 @@ mod tests {
             });
 
         shutdown_tx.send(()).unwrap();
-        admin_grpc_handle.await.unwrap().unwrap();
+        mempool_grpc_handle.await.unwrap().unwrap();
     }
 }

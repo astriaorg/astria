@@ -1,6 +1,6 @@
-pub(crate) mod admin_grpc;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
+pub(crate) mod mempool_grpc;
 mod mempool_state;
 mod transactions_container;
 

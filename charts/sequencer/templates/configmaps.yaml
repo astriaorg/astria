@@ -75,5 +75,7 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.sequencer.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_SEQUENCER_MEMPOOL_GRPC_ADDR: "127.0.0.1:{{ .Values.ports.sequencerMempoolGrpc }}"
+  ASTRIA_SEQUENCER_NO_MEMPOOL_GRPC: "{{ .Values.sequencer.mempool.grpc.disabled }}"
   {{- end }}
 ---

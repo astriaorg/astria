@@ -389,14 +389,9 @@ impl ::prost::Name for GetPendingNonceResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DumpMempoolRequest {
-    /// The submitting address needs to be the sudo address, since we don't want this info
-    /// to be publicly available.
-    #[prost(message, optional, tag = "1")]
-    pub sudo_address: ::core::option::Option<super::super::primitive::v1::Address>,
-}
-impl ::prost::Name for DumpMempoolRequest {
-    const NAME: &'static str = "DumpMempoolRequest";
+pub struct MempoolInfoRequest {}
+impl ::prost::Name for MempoolInfoRequest {
+    const NAME: &'static str = "MempoolInfoRequest";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
@@ -404,7 +399,7 @@ impl ::prost::Name for DumpMempoolRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Mempool {
+pub struct MempoolInfoResponse {
     #[prost(message, repeated, tag = "1")]
     pub pending: ::prost::alloc::vec::Vec<AccountTransactions>,
     #[prost(message, repeated, tag = "2")]
@@ -418,8 +413,8 @@ pub struct Mempool {
         super::super::primitive::v1::TransactionId,
     >,
 }
-impl ::prost::Name for Mempool {
-    const NAME: &'static str = "Mempool";
+impl ::prost::Name for MempoolInfoResponse {
+    const NAME: &'static str = "MempoolInfoResponse";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
@@ -625,15 +620,15 @@ pub mod sequencer_service_client {
 }
 /// Generated client implementations.
 #[cfg(feature = "client")]
-pub mod admin_mempool_service_client {
+pub mod mempool_info_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
-    pub struct AdminMempoolServiceClient<T> {
+    pub struct MempoolInfoServiceClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl AdminMempoolServiceClient<tonic::transport::Channel> {
+    impl MempoolInfoServiceClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -644,7 +639,7 @@ pub mod admin_mempool_service_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> AdminMempoolServiceClient<T>
+    impl<T> MempoolInfoServiceClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
@@ -662,7 +657,7 @@ pub mod admin_mempool_service_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> AdminMempoolServiceClient<InterceptedService<T, F>>
+        ) -> MempoolInfoServiceClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
@@ -676,7 +671,7 @@ pub mod admin_mempool_service_client {
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + Send + Sync,
         {
-            AdminMempoolServiceClient::new(InterceptedService::new(inner, interceptor))
+            MempoolInfoServiceClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -712,8 +707,11 @@ pub mod admin_mempool_service_client {
         /// Dumps the mempool.
         pub async fn dump_mempool(
             &mut self,
-            request: impl tonic::IntoRequest<super::DumpMempoolRequest>,
-        ) -> std::result::Result<tonic::Response<super::Mempool>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::MempoolInfoRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::MempoolInfoResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -725,13 +723,13 @@ pub mod admin_mempool_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencerblock.v1.AdminMempoolService/DumpMempool",
+                "/astria.sequencerblock.v1.MempoolInfoService/DumpMempool",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.sequencerblock.v1.AdminMempoolService",
+                        "astria.sequencerblock.v1.MempoolInfoService",
                         "DumpMempool",
                     ),
                 );
@@ -1039,20 +1037,23 @@ pub mod sequencer_service_server {
 }
 /// Generated server implementations.
 #[cfg(feature = "server")]
-pub mod admin_mempool_service_server {
+pub mod mempool_info_service_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with AdminMempoolServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with MempoolInfoServiceServer.
     #[async_trait]
-    pub trait AdminMempoolService: Send + Sync + 'static {
+    pub trait MempoolInfoService: Send + Sync + 'static {
         /// Dumps the mempool.
         async fn dump_mempool(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::DumpMempoolRequest>,
-        ) -> std::result::Result<tonic::Response<super::Mempool>, tonic::Status>;
+            request: tonic::Request<super::MempoolInfoRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::MempoolInfoResponse>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
-    pub struct AdminMempoolServiceServer<T: AdminMempoolService> {
+    pub struct MempoolInfoServiceServer<T: MempoolInfoService> {
         inner: _Inner<T>,
         accept_compression_encodings: EnabledCompressionEncodings,
         send_compression_encodings: EnabledCompressionEncodings,
@@ -1060,7 +1061,7 @@ pub mod admin_mempool_service_server {
         max_encoding_message_size: Option<usize>,
     }
     struct _Inner<T>(Arc<T>);
-    impl<T: AdminMempoolService> AdminMempoolServiceServer<T> {
+    impl<T: MempoolInfoService> MempoolInfoServiceServer<T> {
         pub fn new(inner: T) -> Self {
             Self::from_arc(Arc::new(inner))
         }
@@ -1112,9 +1113,9 @@ pub mod admin_mempool_service_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>> for AdminMempoolServiceServer<T>
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for MempoolInfoServiceServer<T>
     where
-        T: AdminMempoolService,
+        T: MempoolInfoService,
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
@@ -1130,25 +1131,25 @@ pub mod admin_mempool_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.sequencerblock.v1.AdminMempoolService/DumpMempool" => {
+                "/astria.sequencerblock.v1.MempoolInfoService/DumpMempool" => {
                     #[allow(non_camel_case_types)]
-                    struct DumpMempoolSvc<T: AdminMempoolService>(pub Arc<T>);
+                    struct DumpMempoolSvc<T: MempoolInfoService>(pub Arc<T>);
                     impl<
-                        T: AdminMempoolService,
-                    > tonic::server::UnaryService<super::DumpMempoolRequest>
+                        T: MempoolInfoService,
+                    > tonic::server::UnaryService<super::MempoolInfoRequest>
                     for DumpMempoolSvc<T> {
-                        type Response = super::Mempool;
+                        type Response = super::MempoolInfoResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::DumpMempoolRequest>,
+                            request: tonic::Request<super::MempoolInfoRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as AdminMempoolService>::dump_mempool(inner, request)
+                                <T as MempoolInfoService>::dump_mempool(inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -1192,7 +1193,7 @@ pub mod admin_mempool_service_server {
             }
         }
     }
-    impl<T: AdminMempoolService> Clone for AdminMempoolServiceServer<T> {
+    impl<T: MempoolInfoService> Clone for MempoolInfoServiceServer<T> {
         fn clone(&self) -> Self {
             let inner = self.inner.clone();
             Self {
@@ -1204,7 +1205,7 @@ pub mod admin_mempool_service_server {
             }
         }
     }
-    impl<T: AdminMempoolService> Clone for _Inner<T> {
+    impl<T: MempoolInfoService> Clone for _Inner<T> {
         fn clone(&self) -> Self {
             Self(Arc::clone(&self.0))
         }
@@ -1214,8 +1215,8 @@ pub mod admin_mempool_service_server {
             write!(f, "{:?}", self.0)
         }
     }
-    impl<T: AdminMempoolService> tonic::server::NamedService
-    for AdminMempoolServiceServer<T> {
-        const NAME: &'static str = "astria.sequencerblock.v1.AdminMempoolService";
+    impl<T: MempoolInfoService> tonic::server::NamedService
+    for MempoolInfoServiceServer<T> {
+        const NAME: &'static str = "astria.sequencerblock.v1.MempoolInfoService";
     }
 }
