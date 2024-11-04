@@ -11,8 +11,8 @@ images:
     repo: ghcr.io/astriaorg/go-ethereum
     pullPolicy: IfNotPresent
     tag: 0.16.0
-    devTag: auctioneer-11
-    overrideTag: "auctioneer-11"
+    devTag: auctioneer
+    overrideTag: "auctioneer"
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent

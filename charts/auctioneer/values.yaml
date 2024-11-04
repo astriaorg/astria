@@ -9,8 +9,8 @@ images:
   auctioneer:
     repo: ghcr.io/astriaorg/astria-auctioneer
     pullPolicy: IfNotPresent
-    tag: "test-5"
-    devTag: "test-5"
+    tag: "test"
+    devTag: "test"
 
 config:
   sequencerGrpcEndpoint: ""

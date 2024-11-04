@@ -23,8 +23,8 @@ images:
   sequencer:
     repo: ghcr.io/astriaorg/astria-sequencer
     pullPolicy: IfNotPresent
-    tag: "auctioneer-2"
-    devTag: "auctioneer-2"
+    tag: "auctioneer-testing"
+    devTag: "auctioneer-testing"
 
 moniker: ""
 genesis:
