@@ -10,8 +10,8 @@ use astria_core::{
             MempoolInfoServiceServer,
         },
         AccountTransactions,
-        MempoolInfoRequest,
-        MempoolInfoResponse,
+        DumpMempoolRequest,
+        DumpMempoolResponse,
     },
     primitive::v1::{
         Address,
@@ -57,8 +57,8 @@ impl MempoolGrpcServer {
 impl MempoolInfoService for MempoolGrpcServer {
     async fn dump_mempool(
         self: Arc<Self>,
-        _request: Request<MempoolInfoRequest>,
-    ) -> Result<Response<MempoolInfoResponse>, Status> {
+        _request: Request<DumpMempoolRequest>,
+    ) -> Result<Response<DumpMempoolResponse>, Status> {
         let mempool_read_pending = self.mempool.pending.read().await;
         let pending = mempool_read_pending
             .txs()
@@ -105,7 +105,7 @@ impl MempoolInfoService for MempoolGrpcServer {
             .map(|slice| TransactionId::new(*slice).into_raw())
             .collect();
 
-        Ok(Response::new(MempoolInfoResponse {
+        Ok(Response::new(DumpMempoolResponse {
             pending,
             parked,
             comet_bft_removal_cache,
@@ -148,8 +148,8 @@ mod tests {
     use astria_core::{
         generated::sequencerblock::v1::{
             mempool_info_service_client::MempoolInfoServiceClient,
-            MempoolInfoRequest,
-            MempoolInfoResponse,
+            DumpMempoolRequest,
+            DumpMempoolResponse,
         },
         primitive::v1::{
             Address,
@@ -223,8 +223,8 @@ mod tests {
             .await
             .unwrap();
 
-        let request = MempoolInfoRequest {};
-        let MempoolInfoResponse {
+        let request = DumpMempoolRequest {};
+        let DumpMempoolResponse {
             pending,
             parked,
             comet_bft_removal_cache,

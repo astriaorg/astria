@@ -389,9 +389,9 @@ impl ::prost::Name for GetPendingNonceResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MempoolInfoRequest {}
-impl ::prost::Name for MempoolInfoRequest {
-    const NAME: &'static str = "MempoolInfoRequest";
+pub struct DumpMempoolRequest {}
+impl ::prost::Name for DumpMempoolRequest {
+    const NAME: &'static str = "DumpMempoolRequest";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
@@ -399,7 +399,7 @@ impl ::prost::Name for MempoolInfoRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MempoolInfoResponse {
+pub struct DumpMempoolResponse {
     #[prost(message, repeated, tag = "1")]
     pub pending: ::prost::alloc::vec::Vec<AccountTransactions>,
     #[prost(message, repeated, tag = "2")]
@@ -413,8 +413,8 @@ pub struct MempoolInfoResponse {
         super::super::primitive::v1::TransactionId,
     >,
 }
-impl ::prost::Name for MempoolInfoResponse {
-    const NAME: &'static str = "MempoolInfoResponse";
+impl ::prost::Name for DumpMempoolResponse {
+    const NAME: &'static str = "DumpMempoolResponse";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
@@ -707,9 +707,9 @@ pub mod mempool_info_service_client {
         /// Dumps the mempool.
         pub async fn dump_mempool(
             &mut self,
-            request: impl tonic::IntoRequest<super::MempoolInfoRequest>,
+            request: impl tonic::IntoRequest<super::DumpMempoolRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::MempoolInfoResponse>,
+            tonic::Response<super::DumpMempoolResponse>,
             tonic::Status,
         > {
             self.inner
@@ -1046,9 +1046,9 @@ pub mod mempool_info_service_server {
         /// Dumps the mempool.
         async fn dump_mempool(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::MempoolInfoRequest>,
+            request: tonic::Request<super::DumpMempoolRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::MempoolInfoResponse>,
+            tonic::Response<super::DumpMempoolResponse>,
             tonic::Status,
         >;
     }
@@ -1136,16 +1136,16 @@ pub mod mempool_info_service_server {
                     struct DumpMempoolSvc<T: MempoolInfoService>(pub Arc<T>);
                     impl<
                         T: MempoolInfoService,
-                    > tonic::server::UnaryService<super::MempoolInfoRequest>
+                    > tonic::server::UnaryService<super::DumpMempoolRequest>
                     for DumpMempoolSvc<T> {
-                        type Response = super::MempoolInfoResponse;
+                        type Response = super::DumpMempoolResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::MempoolInfoRequest>,
+                            request: tonic::Request<super::DumpMempoolRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {

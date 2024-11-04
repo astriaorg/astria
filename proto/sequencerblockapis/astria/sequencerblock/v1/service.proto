@@ -30,9 +30,9 @@ message GetPendingNonceResponse {
   uint32 inner = 1;
 }
 
-message MempoolInfoRequest {}
+message DumpMempoolRequest {}
 
-message MempoolInfoResponse {
+message DumpMempoolResponse {
   repeated AccountTransactions pending = 1;
   repeated AccountTransactions parked = 2;
   repeated astria.primitive.v1.TransactionId comet_bft_removal_cache = 3;
@@ -69,7 +69,7 @@ service SequencerService {
 
 service MempoolInfoService {
   // Dumps the mempool.
-  rpc DumpMempool(MempoolInfoRequest) returns (MempoolInfoResponse) {
+  rpc DumpMempool(DumpMempoolRequest) returns (DumpMempoolResponse) {
     option (google.api.http) = {get: "/v1/admin/mempool"};
   }
 }

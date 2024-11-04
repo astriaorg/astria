@@ -307,6 +307,221 @@ impl<'de> serde::Deserialize<'de> for Deposit {
         deserializer.deserialize_struct("astria.sequencerblock.v1.Deposit", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for DumpMempoolRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.DumpMempoolRequest", len)?;
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for DumpMempoolRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = DumpMempoolRequest;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.sequencerblock.v1.DumpMempoolRequest")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<DumpMempoolRequest, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                }
+                Ok(DumpMempoolRequest {
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.sequencerblock.v1.DumpMempoolRequest", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for DumpMempoolResponse {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.pending.is_empty() {
+            len += 1;
+        }
+        if !self.parked.is_empty() {
+            len += 1;
+        }
+        if !self.comet_bft_removal_cache.is_empty() {
+            len += 1;
+        }
+        if !self.contained_txs.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.DumpMempoolResponse", len)?;
+        if !self.pending.is_empty() {
+            struct_ser.serialize_field("pending", &self.pending)?;
+        }
+        if !self.parked.is_empty() {
+            struct_ser.serialize_field("parked", &self.parked)?;
+        }
+        if !self.comet_bft_removal_cache.is_empty() {
+            struct_ser.serialize_field("cometBftRemovalCache", &self.comet_bft_removal_cache)?;
+        }
+        if !self.contained_txs.is_empty() {
+            struct_ser.serialize_field("containedTxs", &self.contained_txs)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for DumpMempoolResponse {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "pending",
+            "parked",
+            "comet_bft_removal_cache",
+            "cometBftRemovalCache",
+            "contained_txs",
+            "containedTxs",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Pending,
+            Parked,
+            CometBftRemovalCache,
+            ContainedTxs,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "pending" => Ok(GeneratedField::Pending),
+                            "parked" => Ok(GeneratedField::Parked),
+                            "cometBftRemovalCache" | "comet_bft_removal_cache" => Ok(GeneratedField::CometBftRemovalCache),
+                            "containedTxs" | "contained_txs" => Ok(GeneratedField::ContainedTxs),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = DumpMempoolResponse;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.sequencerblock.v1.DumpMempoolResponse")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<DumpMempoolResponse, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut pending__ = None;
+                let mut parked__ = None;
+                let mut comet_bft_removal_cache__ = None;
+                let mut contained_txs__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Pending => {
+                            if pending__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("pending"));
+                            }
+                            pending__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Parked => {
+                            if parked__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("parked"));
+                            }
+                            parked__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::CometBftRemovalCache => {
+                            if comet_bft_removal_cache__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("cometBftRemovalCache"));
+                            }
+                            comet_bft_removal_cache__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::ContainedTxs => {
+                            if contained_txs__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("containedTxs"));
+                            }
+                            contained_txs__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(DumpMempoolResponse {
+                    pending: pending__.unwrap_or_default(),
+                    parked: parked__.unwrap_or_default(),
+                    comet_bft_removal_cache: comet_bft_removal_cache__.unwrap_or_default(),
+                    contained_txs: contained_txs__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.sequencerblock.v1.DumpMempoolResponse", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for FilteredSequencerBlock {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -879,221 +1094,6 @@ impl<'de> serde::Deserialize<'de> for GetSequencerBlockRequest {
             }
         }
         deserializer.deserialize_struct("astria.sequencerblock.v1.GetSequencerBlockRequest", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for MempoolInfoRequest {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let len = 0;
-        let struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.MempoolInfoRequest", len)?;
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for MempoolInfoRequest {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                            Err(serde::de::Error::unknown_field(value, FIELDS))
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = MempoolInfoRequest;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencerblock.v1.MempoolInfoRequest")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<MempoolInfoRequest, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                while map_.next_key::<GeneratedField>()?.is_some() {
-                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
-                }
-                Ok(MempoolInfoRequest {
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.sequencerblock.v1.MempoolInfoRequest", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for MempoolInfoResponse {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.pending.is_empty() {
-            len += 1;
-        }
-        if !self.parked.is_empty() {
-            len += 1;
-        }
-        if !self.comet_bft_removal_cache.is_empty() {
-            len += 1;
-        }
-        if !self.contained_txs.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.MempoolInfoResponse", len)?;
-        if !self.pending.is_empty() {
-            struct_ser.serialize_field("pending", &self.pending)?;
-        }
-        if !self.parked.is_empty() {
-            struct_ser.serialize_field("parked", &self.parked)?;
-        }
-        if !self.comet_bft_removal_cache.is_empty() {
-            struct_ser.serialize_field("cometBftRemovalCache", &self.comet_bft_removal_cache)?;
-        }
-        if !self.contained_txs.is_empty() {
-            struct_ser.serialize_field("containedTxs", &self.contained_txs)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for MempoolInfoResponse {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "pending",
-            "parked",
-            "comet_bft_removal_cache",
-            "cometBftRemovalCache",
-            "contained_txs",
-            "containedTxs",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Pending,
-            Parked,
-            CometBftRemovalCache,
-            ContainedTxs,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "pending" => Ok(GeneratedField::Pending),
-                            "parked" => Ok(GeneratedField::Parked),
-                            "cometBftRemovalCache" | "comet_bft_removal_cache" => Ok(GeneratedField::CometBftRemovalCache),
-                            "containedTxs" | "contained_txs" => Ok(GeneratedField::ContainedTxs),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = MempoolInfoResponse;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencerblock.v1.MempoolInfoResponse")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<MempoolInfoResponse, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut pending__ = None;
-                let mut parked__ = None;
-                let mut comet_bft_removal_cache__ = None;
-                let mut contained_txs__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Pending => {
-                            if pending__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("pending"));
-                            }
-                            pending__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::Parked => {
-                            if parked__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("parked"));
-                            }
-                            parked__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::CometBftRemovalCache => {
-                            if comet_bft_removal_cache__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("cometBftRemovalCache"));
-                            }
-                            comet_bft_removal_cache__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::ContainedTxs => {
-                            if contained_txs__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("containedTxs"));
-                            }
-                            contained_txs__ = Some(map_.next_value()?);
-                        }
-                    }
-                }
-                Ok(MempoolInfoResponse {
-                    pending: pending__.unwrap_or_default(),
-                    parked: parked__.unwrap_or_default(),
-                    comet_bft_removal_cache: comet_bft_removal_cache__.unwrap_or_default(),
-                    contained_txs: contained_txs__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.sequencerblock.v1.MempoolInfoResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for RollupData {
