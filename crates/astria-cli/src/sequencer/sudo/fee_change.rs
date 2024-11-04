@@ -57,7 +57,10 @@ impl Command {
     }
 }
 
-#[expect(clippy::enum_variant_names)]
+#[expect(
+    clippy::enum_variant_names,
+    reason = "Enum variant names intentionally include 'Fee' for clarity and consistency"
+)]
 #[derive(Debug, Subcommand)]
 enum SubCommand {
     /// Change Transfer Fee
