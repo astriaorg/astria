@@ -206,6 +206,7 @@ pub(crate) async fn initialize_app_with_storage(
         genesis_state,
         genesis_validators,
         "test".to_string(),
+        1,
     )
     .await
     .unwrap();

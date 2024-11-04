@@ -154,6 +154,14 @@ impl Consensus {
                         "failed converting cometbft genesis validators to astria validators",
                     )?,
                 init_chain.chain_id,
+                // if `vote_extensions_enable_height` is zero, vote extensions are disabled.
+                // see https://docs.cometbft.com/v1.0/spec/core/data_structures#abciparams
+                init_chain
+                    .consensus_params
+                    .abci
+                    .vote_extensions_enable_height
+                    .unwrap_or_default()
+                    .value(),
             )
             .await
             .wrap_err("failed to call init_chain")?;
@@ -543,9 +551,15 @@ mod tests {
         )
         .await
         .unwrap();
-        app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
-            .await
-            .unwrap();
+        app.init_chain(
+            storage.clone(),
+            genesis_state,
+            vec![],
+            "test".to_string(),
+            1,
+        )
+        .await
+        .unwrap();
         app.commit(storage.clone()).await;
 
         let (_tx, rx) = mpsc::channel(1);

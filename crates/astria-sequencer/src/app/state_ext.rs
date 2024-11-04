@@ -99,6 +99,21 @@ pub(crate) trait StateReadExt: StateRead {
             .and_then(|value| storage::StorageVersion::try_from(value).map(u64::from))
             .context("invalid storage version bytes")
     }
+
+    #[instrument(skip_all)]
+    async fn get_vote_extensions_enable_height(&self) -> Result<u64> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(keys::VOTE_EXTENSIONS_ENABLED_HEIGHT.as_bytes())
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw vote extensions enabled height from state")?
+        else {
+            bail!("vote extensions enabled height not found");
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::BlockHeight::try_from(value).map(u64::from))
+            .context("invalid vote extensions enabled height bytes")
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -148,6 +163,15 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .context("failed to serialize storage version")?;
         self.nonverifiable_put_raw(keys::storage_version_by_height(height).into_bytes(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn put_vote_extensions_enable_height(&mut self, height: u64) -> Result<()> {
+        let bytes = StoredValue::from(storage::BlockHeight::from(height))
+            .serialize()
+            .context("failed to serialize vote extensions enabled height")?;
+        self.nonverifiable_put_raw(keys::VOTE_EXTENSIONS_ENABLED_HEIGHT.into(), bytes);
         Ok(())
     }
 }
