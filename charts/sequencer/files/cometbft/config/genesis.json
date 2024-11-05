@@ -120,6 +120,8 @@
       {{ include "sequencer.address" $value }}
       {{- end }}
     ],
+    {{- if not .Values.global.dev }}
+    {{- else }}
     "connect": {
       "marketMap": {
         "marketMap": {
@@ -135,8 +137,6 @@
         "nextId": "0"
       }
     }
-    {{- if not .Values.global.dev }}
-    {{- else }}
     {{- end}}
   },
   "chain_id": "{{ .Values.genesis.chainId }}",

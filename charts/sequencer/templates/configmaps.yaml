@@ -73,8 +73,8 @@ data:
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.sequencer.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.sequencer.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.sequencer.otel.serviceName . }}"
-  ASTRIA_SEQUENCER_ORACLE_GRPC_ADDR: "http://127.0.0.1:8081"
-  ASTRIA_SEQUENCER_ORACLE_CLIENT_TIMEOUT_MILLISECONDS: "1000"
+  ASTRIA_SEQUENCER_ORACLE_GRPC_ADDR: "http://127.0.0.1:{{ .Values.ports.oracleGrpc }}"
+  ASTRIA_SEQUENCER_ORACLE_CLIENT_TIMEOUT_MILLISECONDS: "{{ .Values.sequencer.oracle.clientTimeout }}"
   {{- if not .Values.global.dev }}
   {{- else }}
   ASTRIA_SEQUENCER_NO_ORACLE: "true"
