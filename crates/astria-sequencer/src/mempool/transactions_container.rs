@@ -859,25 +859,29 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::test_utils::{
-            denom_0,
-            denom_1,
-            denom_3,
-            get_alice_signing_key,
-            get_bob_signing_key,
-            get_carol_signing_key,
-            get_judy_signing_key,
-            mock_balances,
-            mock_state_getter,
-            mock_state_put_account_nonce,
-            mock_tx_cost,
-            MockTxBuilder,
-            ALICE_ADDRESS,
-            BOB_ADDRESS,
-            CAROL_ADDRESS,
-            MOCK_SEQUENCE_FEE,
+        app::{
+            benchmark_and_test_utils::{
+                denom_0,
+                denom_1,
+                denom_3,
+                mock_balances,
+                mock_state_getter,
+                mock_state_put_account_nonce,
+                mock_tx_cost,
+                ALICE_ADDRESS,
+                BOB_ADDRESS,
+                CAROL_ADDRESS,
+                MOCK_SEQUENCE_FEE,
+            },
+            test_utils::{
+                get_alice_signing_key,
+                get_bob_signing_key,
+                get_carol_signing_key,
+                get_judy_signing_key,
+                MockTxBuilder,
+            },
         },
-        test_utils::astria_address_from_hex_string,
+        benchmark_and_test_utils::astria_address_from_hex_string,
     };
 
     const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;

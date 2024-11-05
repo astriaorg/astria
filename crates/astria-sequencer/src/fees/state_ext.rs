@@ -595,7 +595,7 @@ mod tests {
     use tokio::pin;
 
     use super::*;
-    use crate::app::test_utils::initialize_app_with_storage;
+    use crate::app::benchmark_and_test_utils::initialize_app_with_storage;
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
