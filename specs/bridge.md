@@ -28,10 +28,10 @@ in the rollup block data.
 
 1. The bridge withdrawer has an associated withdrawer address which is authorized
 to withdraw from the bridge account's escrow balance.
-3. The withdrawal contract is deployed on the rollup, emitting `SequencerWithdrawal`
+2. The withdrawal contract is deployed on the rollup, emitting `SequencerWithdrawal`
 and `Ics20Withdrawal` events when its `withdrawToSequencer` and `withdrawToIbcChain`
 functions are called, respectively.
-4. The bridge withdrawer watches for these events, converting them to the appropriate
+3. The bridge withdrawer watches for these events, converting them to the appropriate
 sequencer-side native or IBC withdrawals and batching them by rollup block. Batches
 are then submitted to the sequencer sequentially.
 

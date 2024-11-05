@@ -37,6 +37,23 @@ use ethers::{
 };
 pub use generated::*;
 
+const NON_ERC20_CONTRACT_DECIMALS: u32 = 18u32;
+
+macro_rules! warn {
+    ($($tt:tt)*) => {
+        #[cfg(feature = "tracing")]
+        {
+            #![cfg_attr(
+                feature = "tracing",
+                expect(
+                    clippy::used_underscore_binding,
+                    reason = "underscore is needed to quiet `unused-variables` warning if `tracing` feature is not set",
+            ))]
+            ::tracing::warn!($($tt)*);
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct BuildError(BuildErrorKind);
@@ -120,6 +137,7 @@ pub struct GetWithdrawalActionsBuilder<TProvider = NoProvider> {
     fee_asset: Option<asset::Denom>,
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
+    use_compat_address: bool,
 }
 
 impl Default for GetWithdrawalActionsBuilder {
@@ -138,6 +156,7 @@ impl GetWithdrawalActionsBuilder {
             fee_asset: None,
             sequencer_asset_to_withdraw: None,
             ics20_asset_to_withdraw: None,
+            use_compat_address: false,
         }
     }
 }
@@ -151,6 +170,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            use_compat_address,
             ..
         } = self;
         GetWithdrawalActionsBuilder {
@@ -160,6 +180,7 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            use_compat_address,
         }
     }
 
@@ -218,6 +239,14 @@ impl<P> GetWithdrawalActionsBuilder<P> {
             ..self
         }
     }
+
+    #[must_use]
+    pub fn use_compat_address(self, use_compat_address: bool) -> Self {
+        Self {
+            use_compat_address,
+            ..self
+        }
+    }
 }
 
 impl<P> GetWithdrawalActionsBuilder<WithProvider<P>>
@@ -246,6 +275,7 @@ where
             fee_asset,
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
+            use_compat_address,
         } = self;
 
         let Some(contract_address) = contract_address else {
@@ -266,7 +296,7 @@ where
         if let Some(ics20_asset_to_withdraw) = &ics20_asset_to_withdraw {
             ics20_source_channel.replace(
                 ics20_asset_to_withdraw
-                    .last_channel()
+                    .leading_channel()
                     .ok_or(BuildError::ics20_asset_without_channel())?
                     .parse()
                     .map_err(BuildError::parse_ics20_asset_source_channel)?,
@@ -282,7 +312,25 @@ where
             .await
             .map_err(BuildError::call_base_chain_asset_precision)?;
 
-        let exponent = 18u32
+        let contract_decimals = {
+            let erc_20_contract = astria_bridgeable_erc20::AstriaBridgeableERC20::new(
+                contract_address,
+                provider.clone(),
+            );
+            match erc_20_contract.decimals().call().await {
+                Ok(decimals) => decimals.into(),
+                Err(_error) => {
+                    warn!(
+                        error = &_error as &dyn std::error::Error,
+                        "failed reading decimals from contract; assuming it is not an ERC20 \
+                         contract and falling back to `{NON_ERC20_CONTRACT_DECIMALS}`"
+                    );
+                    NON_ERC20_CONTRACT_DECIMALS
+                }
+            }
+        };
+
+        let exponent = contract_decimals
             .checked_sub(base_chain_asset_precision)
             .ok_or_else(|| BuildError::bad_divisor(base_chain_asset_precision))?;
 
@@ -297,6 +345,7 @@ where
             sequencer_asset_to_withdraw,
             ics20_asset_to_withdraw,
             ics20_source_channel,
+            use_compat_address,
         })
     }
 }
@@ -310,6 +359,7 @@ pub struct GetWithdrawalActions<P> {
     sequencer_asset_to_withdraw: Option<asset::Denom>,
     ics20_asset_to_withdraw: Option<asset::TracePrefixed>,
     ics20_source_channel: Option<ibc_types::core::channel::ChannelId>,
+    use_compat_address: bool,
 }
 
 impl<P> GetWithdrawalActions<P>
@@ -407,7 +457,7 @@ where
         let memo = memo_to_json(&memos::v1::Ics20WithdrawalFromRollup {
             memo: event.memo.clone(),
             rollup_block_number,
-            rollup_return_address: event.sender.to_string(),
+            rollup_return_address: event.sender.encode_hex(),
             rollup_withdrawal_event_id,
         })
         .map_err(GetWithdrawalActionsError::encode_memo)?;
@@ -428,9 +478,7 @@ where
             timeout_time: timeout_in_5_min(),
             source_channel,
             bridge_address: Some(self.bridge_address),
-            // FIXME: this needs a way to determine when to use compat address
-            // https://github.com/astriaorg/astria/issues/1424
-            use_compat_address: false,
+            use_compat_address: self.use_compat_address,
         };
         Ok(Action::Ics20Withdrawal(action))
     }

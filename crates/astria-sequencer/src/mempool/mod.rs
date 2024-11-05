@@ -505,19 +505,23 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::test_utils::{
-            get_bob_signing_key,
-            mock_balances,
-            mock_state_getter,
-            mock_state_put_account_balances,
-            mock_state_put_account_nonce,
-            mock_tx_cost,
-            MockTxBuilder,
-            ALICE_ADDRESS,
-            BOB_ADDRESS,
-            CAROL_ADDRESS,
+        app::{
+            benchmark_and_test_utils::{
+                mock_balances,
+                mock_state_getter,
+                mock_state_put_account_balances,
+                mock_state_put_account_nonce,
+                mock_tx_cost,
+                ALICE_ADDRESS,
+                BOB_ADDRESS,
+                CAROL_ADDRESS,
+            },
+            test_utils::{
+                get_bob_signing_key,
+                MockTxBuilder,
+            },
         },
-        test_utils::astria_address_from_hex_string,
+        benchmark_and_test_utils::astria_address_from_hex_string,
     };
 
     #[tokio::test]

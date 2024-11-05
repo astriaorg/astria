@@ -43,13 +43,13 @@ pin_project! {
     /// A stream of IBC prefixed assets for a given account.
     pub(crate) struct AccountAssetsStream<St> {
         #[pin]
-        pub(crate) underlying: St,
+        underlying: St,
     }
 }
 
 impl<St> Stream for AccountAssetsStream<St>
 where
-    St: Stream<Item = Result<String>>,
+    St: Stream<Item = astria_eyre::anyhow::Result<String>>,
 {
     type Item = Result<asset::IbcPrefixed>;
 
@@ -58,7 +58,9 @@ where
         let key = match ready!(this.underlying.as_mut().poll_next(cx)) {
             Some(Ok(key)) => key,
             Some(Err(err)) => {
-                return Poll::Ready(Some(Err(err).wrap_err("failed reading from state")));
+                return Poll::Ready(Some(Err(
+                    anyhow_to_eyre(err).wrap_err("failed reading from state")
+                )));
             }
             None => return Poll::Ready(None),
         };
@@ -78,7 +80,7 @@ pin_project! {
     /// A stream of IBC prefixed assets and their balances for a given account.
     pub(crate) struct AccountAssetBalancesStream<St> {
         #[pin]
-        pub(crate) underlying: St,
+        underlying: St,
     }
 }
 
@@ -280,7 +282,7 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
-        test_utils::{
+        benchmark_and_test_utils::{
             astria_address,
             nria,
         },
@@ -595,7 +597,7 @@ mod tests {
         // native account should work with ibc too
         state.put_native_asset(nria()).unwrap();
 
-        let asset_0 = state.get_native_asset().await.unwrap();
+        let asset_0 = state.get_native_asset().await.unwrap().unwrap();
         let asset_1 = asset_1();
         let asset_2 = asset_2();
 

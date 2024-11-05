@@ -140,7 +140,7 @@ pub struct Ics20Withdrawal {
     pub return_address: ::core::option::Option<
         super::super::super::primitive::v1::Address,
     >,
-    /// the height (on Astria) at which this transfer expires.
+    /// the height (on the counterparty chain) at which this transfer expires.
     #[prost(message, optional, tag = "5")]
     pub timeout_height: ::core::option::Option<IbcHeight>,
     /// the unix timestamp (in nanoseconds) at which this transfer expires.

@@ -40,15 +40,24 @@ use super::test_utils::get_alice_signing_key;
 use crate::{
     accounts::StateReadExt as _,
     app::{
+        benchmark_and_test_utils::{
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+        },
         test_utils::{
             get_bridge_signing_key,
             initialize_app,
-            BOB_ADDRESS,
-            CAROL_ADDRESS,
         },
         ActionHandler as _,
     },
     authority::StateReadExt as _,
+    benchmark_and_test_utils::{
+        astria_address,
+        astria_address_from_hex_string,
+        nria,
+        verification_key,
+        ASTRIA_PREFIX,
+    },
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -58,13 +67,7 @@ use crate::{
         StateWriteExt as _,
     },
     ibc::StateReadExt as _,
-    test_utils::{
-        astria_address,
-        astria_address_from_hex_string,
-        calculate_rollup_data_submission_fee_from_state,
-        nria,
-        ASTRIA_PREFIX,
-    },
+    test_utils::calculate_rollup_data_submission_fee_from_state,
     transaction::{
         InvalidChainId,
         InvalidNonce,
@@ -86,7 +89,7 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::Genes
                 .unwrap()
                 .to_raw(),
         ),
-        ..crate::app::test_utils::proto_genesis_state()
+        ..crate::app::benchmark_and_test_utils::proto_genesis_state()
     }
 }
 
@@ -112,8 +115,8 @@ async fn app_execute_transaction_transfer() {
             Transfer {
                 to: bob_address,
                 amount: value,
-                asset: crate::test_utils::nria().into(),
-                fee_asset: crate::test_utils::nria().into(),
+                asset: nria().into(),
+                fee_asset: nria().into(),
             }
             .into(),
         ])
@@ -131,7 +134,13 @@ async fn app_execute_transaction_transfer() {
             .unwrap(),
         value + 10u128.pow(19)
     );
-    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
+    let transfer_base = app
+        .state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored")
+        .base;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -197,7 +206,13 @@ async fn app_execute_transaction_transfer_not_native_token() {
         value, // transferred amount
     );
 
-    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
+    let transfer_base = app
+        .state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored")
+        .base;
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -334,7 +349,7 @@ async fn app_execute_transaction_validator_update() {
 
     let update = ValidatorUpdate {
         power: 100,
-        verification_key: crate::test_utils::verification_key(1),
+        verification_key: verification_key(1),
     };
 
     let tx = TransactionBody::builder()
@@ -353,7 +368,7 @@ async fn app_execute_transaction_validator_update() {
     let validator_updates = app.state.get_validator_updates().await.unwrap();
     assert_eq!(validator_updates.len(), 1);
     assert_eq!(
-        validator_updates.get(crate::test_utils::verification_key(1).address_bytes()),
+        validator_updates.get(verification_key(1).address_bytes()),
         Some(&update)
     );
 }
@@ -992,7 +1007,13 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
 
     // give bridge eoa funds so it can pay for the
     // unlock transfer action
-    let transfer_base = app.state.get_transfer_fees().await.unwrap().base;
+    let transfer_base = app
+        .state
+        .get_transfer_fees()
+        .await
+        .expect("should not error fetching transfer fees")
+        .expect("transfer fees should be stored")
+        .base;
     state_tx
         .put_account_balance(&bridge_address, &nria(), transfer_base)
         .unwrap();
@@ -1248,17 +1269,12 @@ async fn transaction_execution_records_fee_event() {
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
+    let events = app.execute_transaction(signed_tx).await.unwrap();
 
-    let sudo_address = app.state.get_sudo_address().await.unwrap();
-    let end_block = app.end_block(1, &sudo_address).await.unwrap();
-
-    let events = end_block.events;
     let event = events.first().unwrap();
     assert_eq!(event.kind, "tx.fees");
     assert_eq!(event.attributes[0].key, "actionName");
     assert_eq!(event.attributes[1].key, "asset");
     assert_eq!(event.attributes[2].key, "feeAmount");
-    assert_eq!(event.attributes[3].key, "sourceTransactionId");
-    assert_eq!(event.attributes[4].key, "sourceActionIndex");
+    assert_eq!(event.attributes[3].key, "positionInTransaction");
 }

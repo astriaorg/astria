@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: evm-bridge-withdrawer-env
+  name: {{ include "evm-bridge-withdrawer.appName" . }}-env
   namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
 data:
   ASTRIA_BRIDGE_WITHDRAWER_LOG: "astria_bridge_withdrawer=debug"
@@ -13,6 +13,7 @@ data:
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_GRPC_ENDPOINT: "{{ tpl .Values.config.sequencerGrpcEndpoint . }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_BRIDGE_ADDRESS: "{{ .Values.config.sequencerBridgeAddress }}"
   ASTRIA_BRIDGE_WITHDRAWER_FEE_ASSET_DENOMINATION: "{{ .Values.config.feeAssetDenom }}"
+  ASTRIA_BRIDGE_WITHDRAWER_USE_COMPAT_ADDRESS: "{{ .Values.config.useCompatAddress }}"
 
   ASTRIA_BRIDGE_WITHDRAWER_ROLLUP_ASSET_DENOMINATION: "{{ .Values.config.rollupAssetDenom }}"
   ASTRIA_BRIDGE_WITHDRAWER_ETHEREUM_CONTRACT_ADDRESS: "{{ .Values.config.evmContractAddress }}"
@@ -39,7 +40,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: evm-bridge-withdrawer-private-key
+  name: {{ include "evm-bridge-withdrawer.appName" . }}-private-key
   namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
 data:
   {{ .Values.config.sequencerPrivateKey.secret.filename }}: |

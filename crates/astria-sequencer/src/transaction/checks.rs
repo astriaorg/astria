@@ -1,31 +1,12 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    primitive::v1::asset,
-    protocol::{
-        fees::v1::{
-            BridgeLockFeeComponents,
-            BridgeSudoChangeFeeComponents,
-            BridgeUnlockFeeComponents,
-            Ics20WithdrawalFeeComponents,
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-            TransferFeeComponents,
-        },
-        transaction::v1::{
-            action::{
-                Action,
-                BridgeLock,
-                BridgeSudoChange,
-                BridgeUnlock,
-                Ics20Withdrawal,
-                InitBridgeAccount,
-                RollupDataSubmission,
-                Transfer,
-            },
-            Transaction,
-            TransactionBody,
-        },
+    primitive::v1::asset::{
+        self,
+    },
+    protocol::transaction::v1::{
+        action::Action,
+        Transaction,
     },
 };
 use astria_eyre::eyre::{
@@ -40,10 +21,7 @@ use crate::{
     accounts::StateReadExt as _,
     app::StateReadExt as _,
     bridge::StateReadExt as _,
-    fees::{
-        FeeHandler,
-        StateReadExt as _,
-    },
+    fees::query::get_fees_for_transaction,
 };
 
 #[instrument(skip_all)]
@@ -57,78 +35,6 @@ pub(crate) async fn check_chain_id_mempool<S: StateRead>(
         .wrap_err("failed to get chain id")?;
     ensure!(tx.chain_id() == chain_id.as_str(), "chain id mismatch");
     Ok(())
-}
-
-#[instrument(skip_all)]
-pub(crate) async fn get_fees_for_transaction<S: StateRead>(
-    tx: &TransactionBody,
-    state: &S,
-) -> Result<HashMap<asset::IbcPrefixed, u128>> {
-    let transfer_fees = state
-        .get_transfer_fees()
-        .await
-        .wrap_err("failed to get transfer fees")?;
-    let rollup_data_submission_fees = state
-        .get_rollup_data_submission_fees()
-        .await
-        .wrap_err("failed to get sequence fees")?;
-    let ics20_withdrawal_fees = state
-        .get_ics20_withdrawal_fees()
-        .await
-        .wrap_err("failed to get ics20 withdrawal fees")?;
-    let init_bridge_account_fees = state
-        .get_init_bridge_account_fees()
-        .await
-        .wrap_err("failed to get init bridge account fees")?;
-    let bridge_lock_fees = state
-        .get_bridge_lock_fees()
-        .await
-        .wrap_err("failed to get bridge lock fees")?;
-    let bridge_unlock_fees = state
-        .get_bridge_unlock_fees()
-        .await
-        .wrap_err("failed to get bridge unlock fees")?;
-    let bridge_sudo_change_fees = state
-        .get_bridge_sudo_change_fees()
-        .await
-        .wrap_err("failed to get bridge sudo change fees")?;
-
-    let mut fees_by_asset = HashMap::new();
-    for action in tx.actions() {
-        match action {
-            Action::Transfer(act) => {
-                transfer_update_fees(act, &mut fees_by_asset, &transfer_fees);
-            }
-            Action::RollupDataSubmission(act) => {
-                sequence_update_fees(act, &mut fees_by_asset, &rollup_data_submission_fees);
-            }
-            Action::Ics20Withdrawal(act) => {
-                ics20_withdrawal_updates_fees(act, &mut fees_by_asset, &ics20_withdrawal_fees);
-            }
-            Action::InitBridgeAccount(act) => {
-                init_bridge_account_update_fees(act, &mut fees_by_asset, &init_bridge_account_fees);
-            }
-            Action::BridgeLock(act) => {
-                bridge_lock_update_fees(act, &mut fees_by_asset, &bridge_lock_fees);
-            }
-            Action::BridgeUnlock(act) => {
-                bridge_unlock_update_fees(act, &mut fees_by_asset, &bridge_unlock_fees);
-            }
-            Action::BridgeSudoChange(act) => {
-                bridge_sudo_change_update_fees(act, &mut fees_by_asset, &bridge_sudo_change_fees);
-            }
-            Action::ValidatorUpdate(_)
-            | Action::SudoAddressChange(_)
-            | Action::IbcSudoChange(_)
-            | Action::Ibc(_)
-            | Action::IbcRelayerChange(_)
-            | Action::FeeAssetChange(_)
-            | Action::FeeChange(_) => {
-                continue;
-            }
-        }
-    }
-    Ok(fees_by_asset)
 }
 
 // Checks that the account has enough balance to cover the total fees and transferred values
@@ -217,126 +123,6 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
     Ok(cost_by_asset)
 }
 
-fn transfer_update_fees(
-    act: &Transfer,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    transfer_fees: &TransferFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        transfer_fees.base,
-        transfer_fees.multiplier,
-        act.variable_component(),
-    );
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn sequence_update_fees(
-    act: &RollupDataSubmission,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    rollup_data_submission_fees: &RollupDataSubmissionFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        rollup_data_submission_fees.base,
-        rollup_data_submission_fees.multiplier,
-        act.variable_component(),
-    );
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn ics20_withdrawal_updates_fees(
-    act: &Ics20Withdrawal,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    ics20_withdrawal_fees: &Ics20WithdrawalFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        ics20_withdrawal_fees.base,
-        ics20_withdrawal_fees.multiplier,
-        act.variable_component(),
-    );
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn bridge_lock_update_fees(
-    act: &BridgeLock,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    bridge_lock_fees: &BridgeLockFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        bridge_lock_fees.base,
-        bridge_lock_fees.multiplier,
-        act.variable_component(),
-    );
-
-    fees_by_asset
-        .entry(act.asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn init_bridge_account_update_fees(
-    act: &InitBridgeAccount,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    init_bridge_account_fees: &InitBridgeAccountFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        init_bridge_account_fees.base,
-        init_bridge_account_fees.multiplier,
-        act.variable_component(),
-    );
-
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn bridge_unlock_update_fees(
-    act: &BridgeUnlock,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    bridge_lock_fees: &BridgeUnlockFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        bridge_lock_fees.base,
-        bridge_lock_fees.multiplier,
-        act.variable_component(),
-    );
-
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn bridge_sudo_change_update_fees(
-    act: &BridgeSudoChange,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    bridge_sudo_change_fees: &BridgeSudoChangeFeeComponents,
-) {
-    let total_fees = calculate_total_fees(
-        bridge_sudo_change_fees.base,
-        bridge_sudo_change_fees.multiplier,
-        act.variable_component(),
-    );
-
-    fees_by_asset
-        .entry(act.fee_asset.to_ibc_prefixed())
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
-fn calculate_total_fees(base: u128, multiplier: u128, computed_cost_base: u128) -> u128 {
-    base.saturating_add(computed_cost_base.saturating_mul(multiplier))
-}
-
 #[cfg(test)]
 mod tests {
     use astria_core::{
@@ -355,9 +141,12 @@ mod tests {
                 RollupDataSubmissionFeeComponents,
                 TransferFeeComponents,
             },
-            transaction::v1::action::{
-                RollupDataSubmission,
-                Transfer,
+            transaction::v1::{
+                action::{
+                    RollupDataSubmission,
+                    Transfer,
+                },
+                TransactionBody,
             },
         },
     };
@@ -373,11 +162,15 @@ mod tests {
         },
         app::test_utils::*,
         assets::StateWriteExt as _,
-        fees::StateWriteExt as _,
-        test_utils::{
-            calculate_rollup_data_submission_fee_from_state,
+        benchmark_and_test_utils::{
+            nria,
             ASTRIA_PREFIX,
         },
+        fees::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+        test_utils::calculate_rollup_data_submission_fee_from_state,
     };
 
     #[tokio::test]
@@ -388,9 +181,7 @@ mod tests {
         let mut state_tx = StateDelta::new(snapshot);
 
         state_tx.put_base_prefix("astria".to_string()).unwrap();
-        state_tx
-            .put_native_asset(crate::test_utils::nria())
-            .unwrap();
+        state_tx.put_native_asset(nria()).unwrap();
         let transfer_fees = TransferFeeComponents {
             base: 12,
             multiplier: 0,
@@ -459,14 +250,19 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = state_tx.get_transfer_fees().await.unwrap().base;
+        let transfer_fee = state_tx
+            .get_transfer_fees()
+            .await
+            .expect("should not error fetching transfer fees")
+            .expect("transfer fees should be stored")
+            .base;
         state_tx
             .increase_balance(
                 &state_tx
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
-                &crate::test_utils::nria(),
+                &nria(),
                 transfer_fee
                     + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
             )
@@ -488,13 +284,13 @@ mod tests {
             Action::Transfer(Transfer {
                 asset: other_asset.clone(),
                 amount,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
             Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
             }),
         ];
 
@@ -518,9 +314,7 @@ mod tests {
         let mut state_tx = StateDelta::new(snapshot);
 
         state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
-            .put_native_asset(crate::test_utils::nria())
-            .unwrap();
+        state_tx.put_native_asset(nria()).unwrap();
         let transfer_fees = TransferFeeComponents {
             base: 12,
             multiplier: 0,
@@ -589,14 +383,19 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = state_tx.get_transfer_fees().await.unwrap().base;
+        let transfer_fee = state_tx
+            .get_transfer_fees()
+            .await
+            .expect("should not error fetching transfer fees")
+            .expect("transfer fees should be stored")
+            .base;
         state_tx
             .increase_balance(
                 &state_tx
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
-                &crate::test_utils::nria(),
+                &nria(),
                 transfer_fee
                     + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
             )
@@ -607,13 +406,13 @@ mod tests {
             Action::Transfer(Transfer {
                 asset: other_asset.clone(),
                 amount,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
                 to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
             Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
-                fee_asset: crate::test_utils::nria().into(),
+                fee_asset: nria().into(),
             }),
         ];
 
