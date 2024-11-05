@@ -16,9 +16,13 @@ use futures::{
     Stream,
     StreamExt,
 };
+use telemetry::display::base64;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::info;
+use tracing::{
+    debug,
+    error,
+};
 
 use super::{
     Executed,
@@ -80,6 +84,12 @@ impl Stream for ExecutedBlockStream {
         let executed_block =
             Executed::try_from_raw(raw).wrap_err("failed to parse raw to Executed")?;
 
+        debug!(
+            executed_block.rollup_block_hash = %base64(executed_block.rollup_block_hash()),
+            executed_block.sequencer_block_hash = %base64(executed_block.sequencer_block_hash()),
+            "received block execution result"
+        );
+
         std::task::Poll::Ready(Some(Ok(executed_block)))
     }
 }
@@ -100,13 +110,13 @@ pub(crate) fn make_execution_requests_stream(
             .try_into_base_block(rollup_id)
             .wrap_err("failed to create BaseBlock from FilteredSequencerBlock");
 
-        // skip blocks which fail to produce a BaseBlock for the given rollup_id
+        // skip blocks which fail to decode the transactions?
         match base_block {
             Ok(base_block) => Some(ExecuteOptimisticBlockStreamRequest {
                 base_block: Some(base_block),
             }),
             Err(e) => {
-                info!(error = ?e, "skipping execution of invalid block");
+                error!(error = ?e, "skipping execution of invalid block");
 
                 None
             }

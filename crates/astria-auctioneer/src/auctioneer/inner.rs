@@ -36,7 +36,6 @@ pub(super) struct Auctioneer {
 }
 
 impl Auctioneer {
-    const AUCTION_DRIVER: &'static str = "auction_driver";
     const OPTIMISTIC_EXECUTOR: &'static str = "optimistic_executor";
     const _BUNDLE_COLLECTOR: &'static str = "bundle_collector";
 

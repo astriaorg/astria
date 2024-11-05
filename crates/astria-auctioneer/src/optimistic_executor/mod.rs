@@ -1,17 +1,12 @@
-mod builder;
+//! - [ ] mention backpressure here
 
-use std::time::Duration;
-
-use astria_core::primitive::v1::{
-    asset,
-    RollupId,
-};
+use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre::{
     self,
+    eyre,
     OptionExt,
     WrapErr as _,
 };
-pub(crate) use builder::Builder;
 use telemetry::display::base64;
 use tokio::select;
 use tokio_stream::StreamExt as _;
@@ -26,7 +21,7 @@ use crate::{
     auction,
     block::{
         self,
-        block_commitment_stream::BlockCommitmentStream,
+        commitment_stream::BlockCommitmentStream,
         executed_stream::ExecutedBlockStream,
         optimistic_stream::OptimisticBlockStream,
     },
@@ -36,6 +31,18 @@ use crate::{
     },
     optimistic_block_client::OptimisticBlockClient,
 };
+
+mod builder;
+pub(crate) use builder::Builder;
+
+macro_rules! break_for_closed_stream {
+    ($stream_res:expr, $msg:expr) => {
+        match $stream_res {
+            Some(val) => val,
+            None => break Err(eyre!($msg)),
+        }
+    };
+}
 
 pub(crate) struct Startup {
     #[allow(dead_code)]
@@ -60,7 +67,6 @@ impl Startup {
 
         let sequencer_client = OptimisticBlockClient::new(&sequencer_grpc_endpoint)
             .wrap_err("failed to initialize sequencer grpc client")?;
-        // TODO: have a connect streams helper?
         let mut optimistic_blocks =
             OptimisticBlockStream::connect(rollup_id, sequencer_client.clone())
                 .await
@@ -78,8 +84,6 @@ impl Startup {
         let bundle_stream = BundleStream::connect(rollup_grpc_endpoint)
             .await
             .wrap_err("failed to initialize bundle stream")?;
-        // let bundle_stream = BundleServiceClient::new(bundle_service_grpc_url)
-        //     .wrap_err("failed to initialize bundle service grpc client")?;
 
         let optimistic_block = optimistic_blocks
             .next()
@@ -117,6 +121,7 @@ pub(crate) struct Running {
 impl Running {
     pub(crate) async fn run(mut self) -> eyre::Result<()> {
         let reason: eyre::Result<&str> = {
+            // This is a long running loop. Errors are emitted inside the handlers.
             loop {
                 select! {
                     biased;
@@ -125,33 +130,33 @@ impl Running {
                     },
 
                     Some((id, res)) = self.auctions.join_next() => {
-                        // TODO: why doesnt this use `id`
+                        // TODO: this seems wrong?
                         res.wrap_err_with(|| "auction failed for block {id}").map(|_| "auction {id} failed")?;
                     },
 
-                    Some(res) = self.optimistic_blocks.next() => {
-                        let optimistic_block = res.wrap_err("failed to get optimistic block")?;
+                    res = self.optimistic_blocks.next() => {
+                        let res = break_for_closed_stream!(res, "optimistic block stream closed");
 
-                        self.optimistic_block_handler(optimistic_block).wrap_err("failed to handle optimistic block")?;
+                        let _ = self.handle_optimistic_block(res);
                     },
 
                     Some(res) = self.block_commitments.next() => {
-                        let block_commitment = res.wrap_err("failed to get block commitment")?;
+                        let block_commitment = tri!(res.wrap_err("failed to get block commitment"));
 
-                        self.block_commitment_handler(block_commitment).wrap_err("failed to handle block commitment")?;
+                        let _ = self.handle_block_commitment(block_commitment);
 
                     },
 
                     Some(res) = self.executed_blocks.next() => {
                         let executed_block = res.wrap_err("failed to get executed block")?;
 
-                        self.executed_block_handler(executed_block).wrap_err("failed to handle executed block")?;
+                        let _ = self.handle_executed_block(executed_block);
                     }
 
                     Some(res) = self.bundle_stream.next() => {
                         let bundle = res.wrap_err("failed to get bundle")?;
 
-                        self.bundle_handler(bundle).wrap_err("failed to handle bundle")?;
+                        let _ = self.handle_incoming_bundle(bundle);
                     }
                 }
             }
@@ -162,15 +167,16 @@ impl Running {
             Err(err) => error!(%err, "shutting down due to error"),
         };
 
-        self.shutdown().await;
         Ok(())
     }
 
-    #[instrument(skip(self), fields(auction.old_id = %base64(self.current_block.sequencer_block_hash())))]
-    fn optimistic_block_handler(
+    #[instrument(skip(self), fields(auction.old_id = %base64(self.current_block.sequencer_block_hash())), err)]
+    fn handle_optimistic_block(
         &mut self,
-        optimistic_block: block::Optimistic,
+        optimistic_block: eyre::Result<block::Optimistic>,
     ) -> eyre::Result<()> {
+        let optimistic_block = optimistic_block.wrap_err("failed receiving optimistic block")?;
+
         let old_auction_id =
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
         self.auctions
@@ -188,9 +194,8 @@ impl Running {
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
         self.auctions.new_auction(new_auction_id);
 
-        // create and run the auction fut and save the its handles
         // forward the optimistic block to the rollup's optimistic execution server
-        // TODO: don't want to exit on this, just complain with a log and skip the block or smth
+        // TODO: don't want to exit on this, just complain with a log and skip the block or smth?
         self.blocks_to_execute_handle
             .try_send_block_to_execute(optimistic_block)
             .wrap_err("failed to send optimistic block for execution")?;
@@ -198,18 +203,16 @@ impl Running {
         Ok(())
     }
 
-    #[instrument(skip(self), fields(auction.id = %base64(self.current_block.sequencer_block_hash())))]
-    fn block_commitment_handler(
-        &mut self,
-        block_commitment: block::Commitment,
-    ) -> eyre::Result<()> {
-        // TODO: handle this with a log instead of exiting
+    #[instrument(skip_all, fields(auction.id = %base64(self.current_block.sequencer_block_hash())), err)]
+    fn handle_block_commitment(&mut self, block_commitment: block::Commitment) -> eyre::Result<()> {
+        // TODO: handle this with a log instead of exiting?
         self.current_block
             .commitment(block_commitment)
             .wrap_err("failed to set block commitment")?;
 
         let auction_id =
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
+
         self.auctions
             .start_timer(auction_id)
             .wrap_err("failed to start timer")?;
@@ -217,15 +220,16 @@ impl Running {
         Ok(())
     }
 
-    #[instrument(skip(self), fields(auction.id = %base64(self.current_block.sequencer_block_hash())))]
-    fn executed_block_handler(&mut self, executed_block: block::Executed) -> eyre::Result<()> {
-        // TODO: handle this with a log instead of exiting
+    #[instrument(skip_all, fields(auction.id = %base64(self.current_block.sequencer_block_hash())))]
+    fn handle_executed_block(&mut self, executed_block: block::Executed) -> eyre::Result<()> {
+        // TODO: handle this with a log instead of exiting?
         self.current_block
             .execute(executed_block)
             .wrap_err("failed to set block to executed")?;
 
         let auction_id =
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
+
         self.auctions
             .start_processing_bids(auction_id)
             .wrap_err("failed to start processing bids")?;
@@ -233,8 +237,29 @@ impl Running {
         Ok(())
     }
 
-    #[instrument(skip(self), fields(auction.id = %base64(self.current_block.sequencer_block_hash())))]
-    fn bundle_handler(&mut self, bundle: Bundle) -> eyre::Result<()> {
+    #[instrument(skip_all, fields(auction.id = %base64(self.current_block.sequencer_block_hash())))]
+    fn handle_incoming_bundle(&mut self, bundle: Bundle) -> eyre::Result<()> {
+        // TODO: use ensure! here and provide the hashes in the error
+        if bundle.base_sequencer_block_hash() != self.current_block.sequencer_block_hash() {
+            return Err(eyre!(
+                "incoming bundle's {sequencer_block_hash} does not match current sequencer block \
+                 hash"
+            ));
+        }
+
+        if let Some(rollup_parent_block_hash) = self.current_block.rollup_parent_block_hash() {
+            if bundle.prev_rollup_block_hash() != rollup_parent_block_hash {
+                return Err(eyre!(
+                    "bundle's rollup parent block hash does not match current rollup parent block \
+                     hash"
+                ));
+            }
+        } else {
+            // TODO: should i buffer these up in the channel until the block is executed and then
+            // filter them in the auction if the parent hashes dont match?
+            return Err(eyre!("current block has not been executed yet."));
+        }
+
         let auction_id =
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
         self.auctions
@@ -242,9 +267,5 @@ impl Running {
             .wrap_err("failed to submit bundle to auction")?;
 
         Ok(())
-    }
-
-    async fn shutdown(self) {
-        self.shutdown_token.cancel();
     }
 }

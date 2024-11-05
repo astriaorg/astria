@@ -17,10 +17,15 @@ use astria_eyre::eyre::{
     self,
     eyre,
     Context,
+    ContextCompat,
     OptionExt as _,
 };
 pub(crate) use builder::Builder;
-use sequencer_client::Address;
+use sequencer_client::{
+    tendermint_rpc::endpoint::broadcast::tx_sync,
+    Address,
+    SequencerClientExt,
+};
 use telemetry::display::base64;
 use tokio::{
     select,
@@ -31,13 +36,13 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
+    debug,
+    error,
     info,
     instrument,
     warn,
     Instrument,
-    Span,
 };
-use tryhard::backoff_strategies::ExponentialBackoff;
 
 use crate::{
     bundle::Bundle,
@@ -66,7 +71,14 @@ pub(crate) use manager::Manager;
 
 mod allocation_rule;
 
+enum Command {
+    StartProcessingBids,
+    StartTimer,
+    Abort,
+}
+
 pub(crate) struct Handle {
+    commands_tx: mpsc::Sender<Command>,
     start_processing_bids_tx: Option<oneshot::Sender<()>>,
     start_timer_tx: Option<oneshot::Sender<()>>,
     abort_tx: Option<oneshot::Sender<()>>,
@@ -78,7 +90,7 @@ impl Handle {
         let _ = self
             .abort_tx
             .take()
-            .expect("should only send reorg signal to a given auction once");
+            .ok_or_eyre("should only send reorg signal to a given auction once")?;
 
         Ok(())
     }
@@ -87,7 +99,7 @@ impl Handle {
         let _ = self
             .start_processing_bids_tx
             .take()
-            .expect("should only send executed signal to a given auction once")
+            .ok_or_eyre("should only send executed signal to a given auction once")?
             .send(());
         Ok(())
     }
@@ -96,7 +108,7 @@ impl Handle {
         let _ = self
             .start_timer_tx
             .take()
-            .expect("should only send block commitment signal to a given auction once")
+            .ok_or_eyre("should only send block commitment signal to a given auction once")?
             .send(());
 
         Ok(())
@@ -112,7 +124,7 @@ impl Handle {
 }
 
 // TODO: should this be the same object as the auction?
-struct Auction {
+pub(crate) struct Auction {
     #[allow(dead_code)]
     metrics: &'static Metrics,
     shutdown_token: CancellationToken,
@@ -176,7 +188,7 @@ impl Auction {
 
                 signal = &mut self.start_processing_bids_rx, if !auction_is_open => {
                     if let Err(e) = signal {
-                        break Err(eyre!("exec signal channel closed")).wrap_err(e);
+                        break Err(e).wrap_err("exec signal channel closed");
                     }
                     // set auction to open so it starts collecting bids
                     auction_is_open = true;
@@ -184,100 +196,97 @@ impl Auction {
 
                 signal = &mut self.start_timer_rx, if auction_is_open => {
                     if let Err(e) = signal {
-                        break Err(eyre!("commit signal channel closed")).wrap_err(e);
+                        break Err(e).wrap_err("commit signal channel closed");
                     }
                     // set the timer
                     latency_margin_timer = Some(tokio::time::sleep(self.latency_margin));
 
-                    // TODO: also want to fetch the pending nonce here (we wait for commit because we want the pending nonce from after the commit)
-                    nonce_fetch = Some(tokio::task::spawn(async {
-                        // TODO: fetch the pending nonce using the sequencer client with tryhard
-                        Ok(0)
+                    let client = self.sequencer_grpc_client.clone();
+                    let address = self.sequencer_key.address().clone();
+
+                    // we wait for commit because we want the pending nonce from after the commit
+                    // TODO: fix lifetime issue with passing metrics here?
+                    nonce_fetch = Some(tokio::task::spawn(async move {
+                        get_pending_nonce(client, address).await
                     }));
                 }
 
                 Some(bundle) = self.new_bundles_rx.recv(), if auction_is_open => {
                     if allocation_rule.bid(bundle.clone()) {
-                        info!(auction.id = %base64(self.auction_id), bundle.bid = %bundle.bid(), "new highest bid")
+                        info!(
+                            auction.id = %base64(self.auction_id),
+                            bundle.bid = %bundle.bid(),
+                            "received new highest bid"
+                        );
+                    } else {
+                        debug!(
+                            auction.id = %base64(self.auction_id),
+                            bundle.bid = %bundle.bid(),
+                            "received bid lower than current highest bid, discarding"
+                        );
                     }
                 }
 
             }
         };
 
-        // await the nonce fetch result
+        // TODO: separate the rest of this to a different object, e.g. AuctionResult?
         // TODO: flatten this or get rid of the option somehow?
+        // await the nonce fetch result
         let nonce = nonce_fetch
-            .expect("should have received commit to exit the bid loop")
+            .expect(
+                "should have received commit and fetched pending nonce before exiting the auction \
+                 loop",
+            )
             .await
-            .wrap_err("task failed")?
+            .wrap_err("get_pending_nonce task failed")?
             .wrap_err("failed to fetch nonce")?;
 
-        // handle auction result
+        // serialize, sign and submit to the sequencer
         let transaction_body = auction_result
-            .wrap_err("")?
+            .wrap_err("auction failed unexpectedly")?
             .ok_or_eyre("auction ended with no winning bid")?
-            .into_transaction_body(nonce, self.rollup_id, self.fee_asset_denomination.clone());
+            .into_transaction_body(
+                nonce,
+                self.rollup_id,
+                self.fee_asset_denomination.clone(),
+                self.sequencer_chain_id,
+            );
 
         let transaction = transaction_body.sign(self.sequencer_key.signing_key());
 
         let submission_result = select! {
             biased;
 
-            // TODO: should this be Ok(())?
-            () = self.shutdown_token.cancelled() => Err(eyre!("received shutdown signal")),
+            // TODO: should this be Ok(())? or Ok("received shutdown signal")?
+            () = self.shutdown_token.cancelled() => Err(eyre!("received shutdown signal during auction result submission")),
 
-            // submit the transaction to the sequencer
-            result = self.submit_transaction(transaction) => {
-                // TODO: handle submission failure better?
-                result
+            result = submit_transaction(self.sequencer_abci_client.clone(), transaction, self.metrics) => {
+                // TODO: how to handle submission failure better?
+                match result {
+                    Ok(resp) => {
+                        // TODO: handle failed submission instead of just logging the result
+                        info!(auction.id = %base64(self.auction_id), auction.result = %resp.log, "auction result submitted to sequencer");
+                        Ok(())
+                    },
+                    Err(e) => {
+                        error!(auction.id = %base64(self.auction_id), err = %e, "failed to submit auction result to sequencer");
+                        Err(e).wrap_err("failed to submit auction result to sequencer")
+                    },
+                }
             }
         };
-
         submission_result
-    }
-
-    #[instrument(skip_all, fields(auction.id = %base64(self.auction_id), %address, err))]
-    async fn get_pending_nonce(&self, address: Address) -> eyre::Result<u32> {
-        let span = tracing::Span::current();
-        let retry_cfg = make_retry_cfg("get pending nonce".into(), span);
-        let client = self.sequencer_grpc_client.clone();
-
-        let nonce = tryhard::retry_fn(|| {
-            let mut client = client.clone();
-            let address = address.clone();
-
-            async move {
-                client
-                    .get_pending_nonce(GetPendingNonceRequest {
-                        address: Some(address.into_raw()),
-                    })
-                    .await
-            }
-        })
-        .with_config(retry_cfg)
-        .in_current_span()
-        .await
-        .wrap_err("failed to get pending nonce")?
-        .into_inner()
-        .inner;
-
-        Ok(nonce)
-    }
-
-    async fn submit_transaction(&self, _transaction: Transaction) -> eyre::Result<()> {
-        unimplemented!()
     }
 }
 
-fn make_retry_cfg(
-    msg: String,
-    span: Span,
-) -> tryhard::RetryFutureConfig<
-    ExponentialBackoff,
-    impl Fn(u32, Option<Duration>, &tonic::Status) -> futures::future::Ready<()>,
-> {
-    tryhard::RetryFutureConfig::new(1024)
+#[instrument(skip_all, fields(%address, err))]
+async fn get_pending_nonce(
+    client: SequencerServiceClient<tonic::transport::Channel>,
+    address: Address,
+) -> eyre::Result<u32> {
+    let span = tracing::Span::current();
+    let retry_cfg = tryhard::RetryFutureConfig::new(1024)
         .exponential_backoff(Duration::from_millis(100))
         .max_delay(Duration::from_secs(2))
         .on_retry(
@@ -290,9 +299,69 @@ fn make_retry_cfg(
                     attempt,
                     wait_duration,
                     error = error as &dyn std::error::Error,
-                    "attempt to {msg} failed; retrying after backoff",
+                    "attempt to get pending nonce failed; retrying after backoff",
                 );
                 futures::future::ready(())
             },
-        )
+        );
+
+    let nonce = tryhard::retry_fn(|| {
+        let mut client = client.clone();
+        let address = address.clone();
+
+        async move {
+            client
+                .get_pending_nonce(GetPendingNonceRequest {
+                    address: Some(address.into_raw()),
+                })
+                .await
+        }
+    })
+    .with_config(retry_cfg)
+    .in_current_span()
+    .await
+    .wrap_err("failed to get pending nonce")?
+    .into_inner()
+    .inner;
+
+    Ok(nonce)
+}
+
+async fn submit_transaction(
+    client: sequencer_client::HttpClient,
+    transaction: Transaction,
+    _metrics: &'static Metrics,
+) -> eyre::Result<tx_sync::Response> {
+    let span = tracing::Span::current();
+    let retry_cfg = tryhard::RetryFutureConfig::new(1024)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(2))
+        .on_retry(
+            move |attempt: u32,
+                  next_delay: Option<Duration>,
+                  error: &sequencer_client::extension_trait::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    parent: &span,
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to submit transaction failed; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    tryhard::retry_fn(|| {
+        let client = client.clone();
+        let transaction = transaction.clone();
+
+        async move { client.submit_transaction_sync(transaction).await }
+    })
+    .with_config(retry_cfg)
+    .in_current_span()
+    .await
+    .wrap_err("failed to submit transaction")
 }
