@@ -122,7 +122,7 @@ impl Manager {
     pub(crate) fn new_auction(&mut self, auction_id: Id) {
         let (handle, auction) = super::Builder {
             metrics: self.metrics,
-            shutdown_token: self.shutdown_token.clone(),
+            shutdown_token: self.shutdown_token.child_token(),
             sequencer_grpc_client: self.sequencer_grpc_client.clone(),
             sequencer_abci_client: self.sequencer_abci_client.clone(),
             latency_margin: self.latency_margin,
@@ -141,29 +141,40 @@ impl Manager {
 
     pub(crate) fn abort_auction(&mut self, auction_id: Id) -> eyre::Result<()> {
         // TODO: this should return an option in case the auction returned before being aborted
-        self.auction_handles
+        let handle = self
+            .auction_handles
             .get_mut(&auction_id)
-            .ok_or_eyre("unable to get handle for the given auction")?
-            .abort()
-            .wrap_err("failed to abort auction")
+            .ok_or_eyre("unable to get handle for the given auction")?;
+
+        handle.abort().expect("should only abort once per auction");
+        Ok(())
     }
 
     #[instrument(skip(self))]
     pub(crate) fn start_timer(&mut self, auction_id: Id) -> eyre::Result<()> {
-        self.auction_handles
+        let handle = self
+            .auction_handles
             .get_mut(&auction_id)
-            .ok_or_eyre("unable to get handle for the given auction")?
+            .ok_or_eyre("unable to get handle for the given auction")?;
+
+        handle
             .start_timer()
-            .wrap_err("failed to start timer")
+            .expect("should only start timer once per auction");
+
+        Ok(())
     }
 
     #[instrument(skip(self))]
     pub(crate) fn start_processing_bids(&mut self, auction_id: Id) -> eyre::Result<()> {
-        self.auction_handles
+        let handle = self
+            .auction_handles
             .get_mut(&auction_id)
-            .ok_or_eyre("unable to get handle for the given auction")?
+            .ok_or_eyre("unable to get handle for the given auction")?;
+
+        handle
             .start_processing_bids()
-            .wrap_err("failed to start processing bids")
+            .expect("should only start processing bids once per auction");
+        Ok(())
     }
 
     pub(crate) fn try_send_bundle(&mut self, auction_id: Id, bundle: Bundle) -> eyre::Result<()> {

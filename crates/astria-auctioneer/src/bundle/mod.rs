@@ -29,6 +29,7 @@ pub(crate) struct Bundle {
     /// The byte list of transactions fto be included.
     transactions: Vec<Bytes>,
     /// The hash of the rollup block that this bundle is based on.
+    // TODO: rename this to `parent_rollup_block_hash` to match execution api
     prev_rollup_block_hash: [u8; 32],
     /// The hash of the sequencer block used to derive the rollup block that this bundle is based
     /// on.
@@ -71,8 +72,12 @@ impl Bundle {
         nonce: u32,
         rollup_id: RollupId,
         fee_asset: asset::Denom,
+        chain_id: String,
     ) -> TransactionBody {
         let data = self.into_raw().encode_to_vec();
+
+        // TODO: sign the bundle data and put it in a `SignedBundle` message or something (need to
+        // update protos for this)
 
         TransactionBody::builder()
             .actions(vec![
@@ -84,11 +89,20 @@ impl Bundle {
                 .into(),
             ])
             .nonce(nonce)
+            .chain_id(chain_id)
             .try_build()
             .expect("failed to build transaction body")
     }
 
     pub(crate) fn bid(&self) -> u64 {
         self.fee
+    }
+
+    pub(crate) fn prev_rollup_block_hash(&self) -> [u8; 32] {
+        self.prev_rollup_block_hash
+    }
+
+    pub(crate) fn base_sequencer_block_hash(&self) -> [u8; 32] {
+        self.base_sequencer_block_hash
     }
 }

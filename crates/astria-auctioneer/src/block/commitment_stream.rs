@@ -10,6 +10,8 @@ use futures::{
     Stream,
     StreamExt as _,
 };
+use telemetry::display::base64;
+use tracing::debug;
 
 use super::Commitment;
 use crate::optimistic_block_client::OptimisticBlockClient;
@@ -47,6 +49,8 @@ impl Stream for BlockCommitmentStream {
 
         let commitment =
             Commitment::try_from_raw(raw).wrap_err("failed to parse raw to BlockCommitment")?;
+
+        debug!(block_commitment.sequencer_block_hash = %base64(&commitment.sequencer_block_hash()), "received block commitment");
 
         std::task::Poll::Ready(Some(Ok(commitment)))
     }

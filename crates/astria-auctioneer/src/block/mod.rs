@@ -18,12 +18,11 @@ use astria_eyre::eyre::{
     self,
     eyre,
     Context,
-    OptionExt,
 };
 use bytes::Bytes;
 use prost::Message as _;
 
-pub(crate) mod block_commitment_stream;
+pub(crate) mod commitment_stream;
 pub(crate) mod executed_stream;
 pub(crate) mod optimistic_stream;
 
@@ -55,10 +54,9 @@ impl Optimistic {
         })
     }
 
-    pub(crate) fn into_raw(self) -> raw_sequencer_block::FilteredSequencerBlock {
-        self.filtered_sequencer_block.into_raw()
-    }
-
+    /// Converts this [`Optimistic`] into a [`BaseBlock`] for the given `rollup_id`.
+    /// If there are no transactions for the given `rollup_id`, this will return a `BaseBlock`.
+    // TODO: add typed errors here?
     pub(crate) fn try_into_base_block(
         self,
         rollup_id: RollupId,
@@ -70,19 +68,19 @@ impl Optimistic {
             ..
         } = self.filtered_sequencer_block.into_parts();
 
-        let serialized_transactions = rollup_transactions
+        let maybe_serialized_transactions = rollup_transactions
             .swap_remove(&rollup_id)
-            .ok_or_eyre(
-                "FilteredSequencerBlock does not contain transactions for the given rollup",
-            )?
-            .into_parts();
+            .map(|transactions| transactions.into_parts());
 
-        let transactions = serialized_transactions
-            .transactions
-            .into_iter()
-            .map(raw_sequencer_block::RollupData::decode)
-            .collect::<Result<_, _>>()
-            .wrap_err("failed to decode RollupData")?;
+        let transactions =
+            maybe_serialized_transactions.map_or(Ok(vec![]), |serialized_transactions| {
+                serialized_transactions
+                    .transactions
+                    .into_iter()
+                    .map(raw_sequencer_block::RollupData::decode)
+                    .collect::<Result<_, _>>()
+                    .wrap_err("failed to decode RollupData")
+            })?;
 
         let timestamp = Some(convert_tendermint_time_to_protobuf_timestamp(header.time()));
 
@@ -135,6 +133,14 @@ impl Executed {
     }
 
     pub(crate) fn parent_rollup_block_hash(&self) -> [u8; 32] {
+        self.block
+            .parent_block_hash()
+            .as_ref()
+            .try_into()
+            .expect("rollup block hash must be 32 bytes")
+    }
+
+    pub(crate) fn rollup_block_hash(&self) -> [u8; 32] {
         self.block
             .hash()
             .as_ref()
@@ -217,5 +223,11 @@ impl Current {
 
     pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
         self.optimistic.sequencer_block_hash()
+    }
+
+    pub(crate) fn rollup_parent_block_hash(&self) -> Option<[u8; 32]> {
+        self.executed
+            .as_ref()
+            .map(|executed| executed.parent_rollup_block_hash())
     }
 }
