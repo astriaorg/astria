@@ -186,7 +186,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "transfer",
         )
         .await;
     }
@@ -200,7 +199,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "rollup_data_submission",
         )
         .await;
     }
@@ -214,7 +212,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "ics_20_withdrawal",
         )
         .await;
     }
@@ -228,7 +225,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "init_bridge_account",
         )
         .await;
     }
@@ -242,7 +238,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "bridge_lock",
         )
         .await;
     }
@@ -256,7 +251,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "bridge_unlock",
         )
         .await;
     }
@@ -270,7 +264,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "bridge_sudo_change",
         )
         .await;
     }
@@ -284,7 +277,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "validator_update",
         )
         .await;
     }
@@ -298,7 +290,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "ibc_relay",
         )
         .await;
     }
@@ -312,7 +303,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "ibc_relayer_change",
         )
         .await;
     }
@@ -326,7 +316,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "fee_asset_change",
         )
         .await;
     }
@@ -340,7 +329,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "fee_change",
         )
         .await;
     }
@@ -354,7 +342,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "sudo_address_change",
         )
         .await;
     }
@@ -368,7 +355,6 @@ mod tests {
             initial_fee_change,
             new_fees,
             new_fee_change,
-            "ibc_sudo_change",
         )
         .await;
     }
@@ -378,7 +364,6 @@ mod tests {
         initial_fee_change: FeeChange,
         new_fees: T,
         new_fee_change: FeeChange,
-        action_name: &str,
     ) where
         T: FeeComponents + std::fmt::Debug + std::cmp::PartialEq<T>,
     {
@@ -397,7 +382,7 @@ mod tests {
         assert!(
             F::fee_components(&state)
                 .await
-                .unwrap_or_else(|_| panic!("should not error fetching unstored {action_name} fees"))
+                .expect("should not error fetching unstored action fees")
                 .is_none()
         );
 
@@ -409,8 +394,8 @@ mod tests {
 
         let retrieved_fees = F::fee_components(&state)
             .await
-            .unwrap_or_else(|_| panic!("should not error fetching initial {action_name} fees"))
-            .unwrap_or_else(|| panic!("initial {action_name} fees should be stored"));
+            .expect("should not error fetching initial action fees")
+            .expect("initial action fees should be stored");
         assert_eq!(initial_fees, retrieved_fees);
 
         // Execute a second fee change tx to overwrite the fees.
@@ -418,8 +403,8 @@ mod tests {
 
         let retrieved_fees = F::fee_components(&state)
             .await
-            .unwrap_or_else(|_| panic!("should not error fetching new {action_name} fees"))
-            .unwrap_or_else(|| panic!("new {action_name} fees should be stored"));
+            .expect("should not error fetching new action fees")
+            .expect("new action fees should be stored");
         assert_ne!(initial_fees, retrieved_fees);
         assert_eq!(new_fees, retrieved_fees);
     }
