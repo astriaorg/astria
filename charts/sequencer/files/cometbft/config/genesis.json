@@ -141,9 +141,6 @@
   },
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
-    "abci": {
-      "vote_extensions_enable_height": "1"
-    },
     "block": {
       "max_bytes": " {{ .Values.genesis.consensusParams.blockMaxBytes }}",
       "max_gas": "{{ .Values.genesis.consensusParams.blockMaxGas }}"
@@ -160,7 +157,16 @@
     },
     "version": {
       "app": "0"
-    }
+    },
+    {{- if not .Values.global.dev }}
+    "abci": {
+      "vote_extensions_enable_height": "0"
+    },
+    {{- else }}
+    "abci": {
+      "vote_extensions_enable_height": "1"
+    },
+    {{- end}}
   },
   "genesis_time": "{{ .Values.genesis.genesisTime }}",
   "initial_height": "0",
