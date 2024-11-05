@@ -651,8 +651,7 @@ impl App {
 
             // execute tx and store in `execution_results` list on success
             match self.execute_transaction(tx.clone()).await {
-                Ok(mut events) => {
-                    index_all_event_attributes(&mut events);
+                Ok(events) => {
                     execution_results.push(ExecTxResult {
                         events,
                         ..Default::default()
@@ -791,8 +790,7 @@ impl App {
 
             // execute tx and store in `execution_results` list on success
             match self.execute_transaction(Arc::new(tx.clone())).await {
-                Ok(mut events) => {
-                    index_all_event_attributes(&mut events);
+                Ok(events) => {
                     execution_results.push(ExecTxResult {
                         events,
                         ..Default::default()
@@ -1011,13 +1009,10 @@ impl App {
                     .wrap_err("protocol error; only valid txs should be finalized")?;
 
                 match self.execute_transaction(Arc::new(signed_tx)).await {
-                    Ok(mut events) => {
-                        index_all_event_attributes(&mut events);
-                        tx_results.push(ExecTxResult {
-                            events,
-                            ..Default::default()
-                        });
-                    }
+                    Ok(events) => tx_results.push(ExecTxResult {
+                        events,
+                        ..Default::default()
+                    }),
                     Err(e) => {
                         // this is actually a protocol error, as only valid txs should be finalized
                         tracing::error!(
@@ -1180,7 +1175,17 @@ impl App {
                     .iter()
                     .any(|act| act.is_fee_asset_change() || act.is_fee_change());
 
-        Ok(state_tx.apply().1)
+        // index all event attributes
+        let mut events = state_tx.apply().1;
+        for event in &mut events {
+            event
+                .attributes
+                .iter_mut()
+                .filter(|attr| !attr.index)
+                .for_each(|attr| attr.index = true);
+        }
+
+        Ok(events)
     }
 
     #[instrument(name = "App::end_block", skip_all)]
@@ -1329,13 +1334,4 @@ struct PostTransactionExecutionResult {
     tx_results: Vec<ExecTxResult>,
     validator_updates: Vec<tendermint::validator::Update>,
     consensus_param_updates: Option<tendermint::consensus::Params>,
-}
-
-fn index_all_event_attributes(events: &mut [Event]) {
-    for event in events {
-        event
-            .attributes
-            .iter_mut()
-            .for_each(|attr| attr.index = true);
-    }
 }

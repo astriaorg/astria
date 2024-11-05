@@ -1278,3 +1278,54 @@ async fn transaction_execution_records_fee_event() {
     assert_eq!(event.attributes[2].key, "feeAmount");
     assert_eq!(event.attributes[3].key, "positionInTransaction");
 }
+
+#[tokio::test]
+async fn ensure_all_event_attributes_are_indexed() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+
+    let alice = get_alice_signing_key();
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+    let value = 333_333;
+    state_tx
+        .put_bridge_account_rollup_id(&bob_address, [0; 32].into())
+        .unwrap();
+    state_tx.put_allowed_fee_asset(&nria()).unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bob_address, nria())
+        .unwrap();
+    app.apply(state_tx);
+
+    let transfer_action = Transfer {
+        to: bob_address,
+        amount: value,
+        asset: nria().into(),
+        fee_asset: nria().into(),
+    };
+    let bridge_lock_action = BridgeLock {
+        to: bob_address,
+        amount: 1,
+        asset: nria().into(),
+        fee_asset: nria().into(),
+        destination_chain_address: "test_chain_address".to_string(),
+    };
+    let tx = TransactionBody::builder()
+        .actions(vec![transfer_action.into(), bridge_lock_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice));
+    let events = app.execute_transaction(signed_tx).await.unwrap();
+
+    events
+        .iter()
+        .flat_map(|event| &event.attributes)
+        .for_each(|attribute| {
+            assert!(
+                attribute.index,
+                "attribute {} is not indexed",
+                attribute.key,
+            );
+        });
+}
