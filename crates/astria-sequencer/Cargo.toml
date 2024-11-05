@@ -52,6 +52,7 @@ bytes = { workspace = true }
 divan = { workspace = true, optional = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
+humantime = { workspace = true }
 ibc-types = { workspace = true, features = ["with_serde"] }
 indexmap = { workspace = true }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
@@ -70,6 +71,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
+tryhard = { workspace = true }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [
