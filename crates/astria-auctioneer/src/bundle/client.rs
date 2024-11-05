@@ -20,6 +20,7 @@ use futures::{
 };
 use tonic::transport::Endpoint;
 use tracing::{
+    instrument,
     warn,
     Instrument,
     Span,
@@ -47,6 +48,7 @@ impl BundleClient {
         })
     }
 
+    #[instrument(skip_all, fields(uri = %self.uri))]
     pub(crate) async fn get_bundle_stream(
         &mut self,
     ) -> eyre::Result<tonic::Streaming<GetBundleStreamResponse>> {

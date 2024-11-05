@@ -13,11 +13,14 @@ use futures::{
     Stream,
     StreamExt as _,
 };
+use telemetry::display::base64;
+use tracing::debug;
 
 use super::Optimistic;
 use crate::optimistic_block_client::OptimisticBlockClient;
 
 /// A stream for receiving optimistic blocks from the sequencer.
+// TODO: pin project these instead
 pub(crate) struct OptimisticBlockStream {
     client: Pin<Box<tonic::Streaming<GetOptimisticBlockStreamResponse>>>,
 }
@@ -33,7 +36,6 @@ impl OptimisticBlockStream {
             .wrap_err("failed to stream optimistic blocks")?;
 
         Ok(OptimisticBlockStream {
-            // client,
             client: Box::pin(optimistic_stream_client),
         })
     }
@@ -46,17 +48,24 @@ impl Stream for OptimisticBlockStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let raw = futures::ready!(self.client.poll_next_unpin(cx))
-            // TODO: better error messages here
-            .ok_or_eyre("stream has been closed")?
-            .wrap_err("received gRPC error")?
-            .block
-            .ok_or_eyre(
-                "optimsitic block stream response did not contain filtered sequencer block",
-            )?;
+        // TODO: return none when stream is closed
+        let rsp = match futures::ready!(self.client.poll_next_unpin(cx)) {
+            Some(raw) => raw,
+            None => return std::task::Poll::Ready(None),
+        };
+
+        // TODO: filter_map on these errors
+        let raw = rsp.wrap_err("received gRPC error")?.block.ok_or_eyre(
+            "optimsitic block stream response did not contain filtered sequencer block",
+        )?;
 
         let optimistic_block =
             Optimistic::try_from_raw(raw).wrap_err("failed to parse raw to Optimistic")?;
+
+        debug!(
+            optimistic_block.sequencer_block_hash = %base64(optimistic_block.sequencer_block_hash()),
+            "received optimistic block from sequencer"
+        );
 
         std::task::Poll::Ready(Some(Ok(optimistic_block)))
     }
