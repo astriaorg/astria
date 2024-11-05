@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Changed
 
-- Index all send packet event attributes [#1786](https://github.com/astriaorg/astria/pull/1786).
+- Index all event attributes [#1786](https://github.com/astriaorg/astria/pull/1786).
 
 ## [1.0.0] - 2024-10-25
 
