@@ -18,6 +18,7 @@ use astria_core::{
     generated::protocol::transaction::v1::Transaction as RawTransaction,
     protocol::transaction::v1::Transaction,
 };
+use astria_core::primitive::v1::{Address, Bech32m};
 
 #[derive(clap::Args, Debug)]
 pub struct Args {
@@ -47,6 +48,8 @@ pub fn run(
     println!();
     println!("Transaction Body:");
     let transaction = Transaction::try_from_raw(raw_transaction).wrap_err("failed to convert to transaction")?;
+    let address: Address<Bech32m> = Address::builder().prefix("astria").slice(transaction.address_bytes()).try_build()?;
+    println!("Address: {}", address);
     println!("{}", serde_json::to_string_pretty(&transaction.unsigned_transaction().to_raw()).wrap_err("failed to json-encode")?);
 
     Ok(())
