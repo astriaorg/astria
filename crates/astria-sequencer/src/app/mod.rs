@@ -46,6 +46,7 @@ use cnidarium::{
     StateWrite,
     Storage,
 };
+use penumbra_ibc::component::Ibc;
 use prost::Message as _;
 use sha2::{
     Digest as _,
@@ -59,6 +60,8 @@ use tendermint::{
         Event,
     },
     account,
+    block::Header,
+    chain::Id,
     AppHash,
     Hash,
 };
@@ -87,6 +90,7 @@ use crate::{
     },
     fees::StateReadExt as _,
     grpc::StateWriteExt as _,
+    ibc::host_interface::AstriaHost,
     mempool::{
         Mempool,
         RemovalReason,
@@ -305,7 +309,8 @@ impl App {
     }
 
     /// sets up the state for execution of the block's transactions.
-    /// set the current height and timestamp, and removes byzantine validators from state.
+    /// set the current height and timestamp, removes byzantine validators from state, and calls
+    /// [`Ibc::begin_block`].
     ///
     /// this *must* be called anytime before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
@@ -314,6 +319,12 @@ impl App {
         &mut self,
         block_data: BlockData,
     ) -> Result<()> {
+        let chain_id = self
+            .state
+            .get_chain_id()
+            .await
+            .wrap_err("failed to get chain ID from state")?;
+
         // reset recost flag
         self.recost_mempool = false;
 
@@ -338,6 +349,16 @@ impl App {
         state_tx
             .put_validator_set(current_set)
             .wrap_err("failed putting validator set")?;
+
+        let begin_block = create_begin_block(self.app_hash.clone(), chain_id, &block_data);
+        let mut arc_state_tx = Arc::new(state_tx);
+        Ibc::begin_block::<AstriaHost, StateDelta<Arc<StateDelta<Snapshot>>>>(
+            &mut arc_state_tx,
+            &begin_block,
+        )
+        .await;
+        let state_tx = Arc::try_unwrap(arc_state_tx)
+            .expect("components should not retain copies of shared state");
 
         self.apply(state_tx);
 
@@ -635,6 +656,8 @@ struct BlockData {
     misbehavior: Vec<tendermint::abci::types::Misbehavior>,
     height: tendermint::block::Height,
     time: tendermint::Time,
+    next_validators_hash: Hash,
+    proposer_address: account::Id,
 }
 
 #[derive(Clone, Debug)]
@@ -921,4 +944,39 @@ fn tx_sequence_data_bytes(tx: &Arc<Transaction>) -> usize {
         .iter()
         .filter_map(Action::as_rollup_data_submission)
         .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()))
+}
+
+fn create_begin_block(
+    app_hash: AppHash,
+    chain_id: Id,
+    block_data: &BlockData,
+) -> abci::request::BeginBlock {
+    abci::request::BeginBlock {
+        hash: Hash::default(), // unused
+        byzantine_validators: block_data.misbehavior.clone(),
+        header: Header {
+            app_hash,
+            chain_id,
+            consensus_hash: Hash::default(),      // unused
+            data_hash: Some(Hash::default()),     // unused
+            evidence_hash: Some(Hash::default()), // unused
+            height: block_data.height,
+            last_block_id: None,                      // unused
+            last_commit_hash: Some(Hash::default()),  // unused
+            last_results_hash: Some(Hash::default()), // unused
+            next_validators_hash: block_data.next_validators_hash,
+            proposer_address: block_data.proposer_address,
+            time: block_data.time,
+            validators_hash: Hash::default(), // unused
+            version: tendermint::block::header::Version {
+                // unused
+                app: 0,
+                block: 0,
+            },
+        },
+        last_commit_info: tendermint::abci::types::CommitInfo {
+            round: 0u16.into(), // unused
+            votes: vec![],
+        }, // unused
+    }
 }

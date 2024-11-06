@@ -163,6 +163,8 @@ impl AppAbci for App {
                 misbehavior: finalize_block.misbehavior,
                 height,
                 time,
+                next_validators_hash: finalize_block.next_validators_hash,
+                proposer_address,
             };
 
             self.prepare_state_for_execution(block_data)
@@ -337,6 +339,8 @@ impl AppAbci for App {
             misbehavior: prepare_proposal.misbehavior,
             height: prepare_proposal.height,
             time: prepare_proposal.time,
+            next_validators_hash: prepare_proposal.next_validators_hash,
+            proposer_address: prepare_proposal.proposer_address,
         };
 
         self.prepare_state_for_execution(block_data)
@@ -437,6 +441,8 @@ impl AppAbci for App {
             misbehavior: process_proposal.misbehavior,
             height: process_proposal.height,
             time: process_proposal.time,
+            next_validators_hash: process_proposal.next_validators_hash,
+            proposer_address: process_proposal.proposer_address,
         };
 
         self.prepare_state_for_execution(block_data)

@@ -109,6 +109,8 @@ async fn app_prepare_state_for_execution() {
         misbehavior: vec![],
         height: 1u8.into(),
         time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
     };
 
     app.prepare_state_for_execution(block_data.clone())
@@ -153,6 +155,8 @@ async fn app_prepare_state_for_execution_remove_byzantine_validators() {
         misbehavior: vec![misbehavior],
         height: 1u8.into(),
         time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
     };
 
     app.prepare_state_for_execution(block_data).await.unwrap();
