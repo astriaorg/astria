@@ -372,12 +372,6 @@ impl App {
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
-        MarketMapComponent::init_chain(&mut state_tx, &genesis_state)
-            .await
-            .wrap_err("init_chain failed on MarketMapComponent")?;
-        OracleComponent::init_chain(&mut state_tx, &genesis_state)
-            .await
-            .wrap_err("init_chain failed on OracleComponent")?;
 
         if vote_extensions_enable_height != VOTE_EXTENSIONS_DISABLED_HEIGHT {
             MarketMapComponent::init_chain(&mut state_tx, &genesis_state)
@@ -1571,6 +1565,9 @@ fn handle_consensus_param_updates(
                 return Ok(());
             }
 
+            // TODO: when we implement an action to activate vote extensions,
+            // we must ensure that the action *also* writes the necessary state
+            // as done in `MarketMapComponent::init_chain` and `OracleComponent::init_chain`.
             state_tx
                 .put_vote_extensions_enable_height(new_vote_extensions_enable_height.value())
                 .wrap_err("failed to put vote extensions enable height")?;

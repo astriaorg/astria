@@ -21,6 +21,7 @@ use astria_core::connect::{
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
+        ContextCompat as _,
         OptionExt as _,
         Result,
         WrapErr as _,
@@ -301,6 +302,9 @@ pub(crate) trait StateWriteExt: StateWrite {
             let id = get_next_currency_pair_id(self)
                 .await
                 .wrap_err("failed to read next currency pair ID")?;
+            let next_id = id.increment().wrap_err("increment ID overflowed")?;
+            self.put_next_currency_pair_id(next_id)
+                .wrap_err("failed to put next currency pair ID")?;
             CurrencyPairState {
                 price,
                 nonce: CurrencyPairNonce::new(0),

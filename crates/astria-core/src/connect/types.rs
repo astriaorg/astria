@@ -354,6 +354,12 @@ pub mod v2 {
         pub fn get(self) -> u64 {
             self.0
         }
+
+        #[must_use]
+        pub fn increment(self) -> Option<Self> {
+            let new_id = self.get().checked_add(1)?;
+            Some(Self::new(new_id))
+        }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

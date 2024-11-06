@@ -120,21 +120,6 @@
       {{ include "sequencer.address" $value }}
       {{- end }}
     ],
-    "connect": {
-      "marketMap": {
-        "marketMap": {
-          "markets": {}
-        },
-        "params": {
-          "marketAuthorities": [],
-          "admin": "{{ .Values.genesis.marketAdminAddress }}"
-        }
-      },
-      "oracle": {
-        "currencyPairGenesis": [],
-        "nextId": "0"
-      }
-    }
     {{- if not .Values.global.dev }}
     {{- else }}
     "connect": {
@@ -156,9 +141,6 @@
   },
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
-    "abci": {
-      "vote_extensions_enable_height": "1"
-    },
     "block": {
       "max_bytes": " {{ .Values.genesis.consensusParams.blockMaxBytes }}",
       "max_gas": "{{ .Values.genesis.consensusParams.blockMaxGas }}"
