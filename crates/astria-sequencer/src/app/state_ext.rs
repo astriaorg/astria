@@ -444,4 +444,44 @@ mod tests {
             "original but updated storage version was not what was expected"
         );
     }
+
+    #[tokio::test]
+    async fn vote_extensions_enable_height() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        let _ = state
+            .get_vote_extensions_enable_height()
+            .await
+            .expect_err("no vote extensions enable height should exist at first");
+
+        // can write new
+        let block_height_orig = 0;
+        state
+            .put_vote_extensions_enable_height(block_height_orig)
+            .unwrap();
+        assert_eq!(
+            state.get_vote_extensions_enable_height().await.expect(
+                "a vote extensions enable height was written and must exist inside the database"
+            ),
+            block_height_orig,
+            "stored vote extensions enable height was not what was expected"
+        );
+
+        // can rewrite with new value
+        let block_height_update = 1;
+        state
+            .put_vote_extensions_enable_height(block_height_update)
+            .unwrap();
+        assert_eq!(
+            state.get_vote_extensions_enable_height().await.expect(
+                "a new vote extensions enable height was written and must exist inside the \
+                 database"
+            ),
+            block_height_update,
+            "updated vote extensions enable height was not what was expected"
+        );
+    }
 }

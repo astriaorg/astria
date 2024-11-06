@@ -783,21 +783,21 @@ impl SequencerBlock {
     ) -> Result<Self, SequencerBlockError> {
         use prost::Message as _;
 
-        let tree = merkle_tree_from_data(&data);
-        let data_hash = tree.root();
-
-        let mut data_list = data.into_iter();
-
-        // TODO: this needs to go into the block header
-        let _extended_commit_info = data_list
-            .next()
-            .ok_or(SequencerBlockError::no_extended_commit_info())?;
-
-        let (rollup_transactions_root, rollup_ids_root) =
-            rollup_transactions_and_ids_root_from_data(&mut data_list)?;
+        let InitialDataElements {
+            data_root_hash,
+            // This iterator over `data` has been advanced by 3 steps while retrieving the initial
+            // elements. The next element to be yielded will be the first of the actual rollup txs.
+            data_iter,
+            // TODO: this needs to go into the block header
+            _extended_commit_info,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_root,
+            rollup_ids_proof,
+        } = take_initial_elements_from_data(data)?;
 
         let mut rollup_datas = IndexMap::new();
-        for elem in data_list {
+        for elem in data_iter {
             let raw_tx = crate::generated::protocol::transaction::v1::Transaction::decode(&*elem)
                 .map_err(SequencerBlockError::transaction_protobuf_decode)?;
             let tx = Transaction::try_from_raw(raw_tx)
@@ -850,6 +850,8 @@ impl SequencerBlock {
 
         let mut rollup_transactions = IndexMap::new();
         for (i, (rollup_id, data)) in rollup_datas.into_iter().enumerate() {
+            // NOTE: This should never error as the tree was derived with the same `rollup_datas`
+            // just above.
             let proof = rollup_transaction_tree
                 .construct_proof(i)
                 .expect("the proof must exist because the tree was derived with the same leaf");
@@ -864,18 +866,6 @@ impl SequencerBlock {
         }
         rollup_transactions.sort_unstable_keys();
 
-        // action tree root is always the second tx in a block
-        let rollup_transactions_proof = tree.construct_proof(1).expect(
-            "the tree has at least two leaves; if this line is reached and `construct_proof` \
-             returns None it means that the short circuiting checks above it have been removed",
-        );
-
-        // rollup id tree root is always the third tx in a block
-        let rollup_ids_proof = tree.construct_proof(2).expect(
-            "the tree has at least three leaves; if this line is reached and `construct_proof` \
-             returns None it means that the short circuiting checks above it have been removed",
-        );
-
         Ok(Self {
             block_hash,
             header: SequencerBlockHeader {
@@ -883,7 +873,7 @@ impl SequencerBlock {
                 height,
                 time,
                 rollup_transactions_root,
-                data_hash,
+                data_hash: data_root_hash,
                 proposer_address,
             },
             rollup_transactions,
@@ -1007,24 +997,60 @@ impl SequencerBlock {
     }
 }
 
-fn rollup_transactions_and_ids_root_from_data(
-    data_list: &mut IntoIter<Bytes>,
-) -> Result<([u8; 32], [u8; 32]), SequencerBlockError> {
-    let rollup_transactions_root: [u8; 32] = data_list
+struct InitialDataElements {
+    data_root_hash: [u8; 32],
+    data_iter: IntoIter<Bytes>,
+    _extended_commit_info: Bytes,
+    rollup_transactions_root: [u8; 32],
+    rollup_transactions_proof: merkle::Proof,
+    rollup_ids_root: [u8; 32],
+    rollup_ids_proof: merkle::Proof,
+}
+
+fn take_initial_elements_from_data(
+    data: Vec<Bytes>,
+) -> Result<InitialDataElements, SequencerBlockError> {
+    let tree = merkle_tree_from_data(&data);
+    let data_root_hash = tree.root();
+    let mut data_iter = data.into_iter();
+
+    let extended_commit_info = data_iter
+        .next()
+        .ok_or(SequencerBlockError::no_extended_commit_info())?;
+
+    let rollup_transactions_root: [u8; 32] = data_iter
         .next()
         .ok_or(SequencerBlockError::no_rollup_transactions_root())?
         .as_ref()
         .try_into()
         .map_err(|_| {
-            SequencerBlockError::incorrect_rollup_transactions_root_length(data_list.len())
+            SequencerBlockError::incorrect_rollup_transactions_root_length(data_iter.len())
         })?;
-    let rollup_ids_root: [u8; 32] = data_list
+    let rollup_transactions_proof = tree.construct_proof(1).expect(
+        "the leaf must exist in the tree as `rollup_transactions_root` was created from the same \
+         index in `data` used to construct the tree",
+    );
+
+    let rollup_ids_root: [u8; 32] = data_iter
         .next()
         .ok_or(SequencerBlockError::no_rollup_ids_root())?
         .as_ref()
         .try_into()
-        .map_err(|_| SequencerBlockError::incorrect_rollup_ids_root_length(data_list.len()))?;
-    Ok((rollup_transactions_root, rollup_ids_root))
+        .map_err(|_| SequencerBlockError::incorrect_rollup_ids_root_length(data_iter.len()))?;
+    let rollup_ids_proof = tree.construct_proof(2).expect(
+        "the leaf must exist in the tree as `rollup_ids_root` was created from the same index in \
+         `data` used to construct the tree",
+    );
+
+    Ok(InitialDataElements {
+        data_root_hash,
+        data_iter,
+        _extended_commit_info: extended_commit_info,
+        rollup_transactions_root,
+        rollup_transactions_proof,
+        rollup_ids_root,
+        rollup_ids_proof,
+    })
 }
 
 /// Constructs a `[merkle::Tree]` from an iterator yielding byte slices.

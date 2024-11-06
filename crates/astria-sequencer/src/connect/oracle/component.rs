@@ -24,7 +24,7 @@ pub(crate) struct OracleComponent;
 impl Component for OracleComponent {
     type AppState = GenesisAppState;
 
-    #[instrument(name = "OracleComponent::init_chain", skip(state))]
+    #[instrument(name = "OracleComponent::init_chain", skip_all, err)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         if let Some(connect) = app_state.connect() {
             for currency_pair in &connect.oracle().currency_pair_genesis {

@@ -16,11 +16,6 @@ pub mod v2 {
         Protobuf,
     };
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(try_from = "raw::GenesisState", into = "raw::GenesisState")
-    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct GenesisState {
         pub market_map: MarketMap,
@@ -135,11 +130,6 @@ pub mod v2 {
         ParamsParseError(#[from] ParamsError),
     }
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(try_from = "raw::Params", into = "raw::Params")
-    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Params {
         pub market_authorities: Vec<Address>,
@@ -192,6 +182,21 @@ pub mod v2 {
                 admin: self.admin.to_string(),
             }
         }
+
+        /// This should only be used where the inputs have been provided by a trusted entity, e.g.
+        /// read from our own state store.
+        ///
+        /// Note that this function is not considered part of the public API and is subject to
+        /// breaking change at any time.
+        #[cfg(feature = "unchecked-constructors")]
+        #[doc(hidden)]
+        #[must_use]
+        pub fn unchecked_from_parts(market_authorities: Vec<Address>, admin: Address) -> Self {
+            Self {
+                market_authorities,
+                admin,
+            }
+        }
     }
 
     #[derive(Debug, thiserror::Error)]
@@ -218,11 +223,6 @@ pub mod v2 {
         AdminParseError(#[source] AddressError),
     }
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(try_from = "raw::Market", into = "raw::Market")
-    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Market {
         pub ticker: Ticker,
@@ -284,6 +284,21 @@ pub mod v2 {
                     .collect(),
             }
         }
+
+        /// This should only be used where the inputs have been provided by a trusted entity, e.g.
+        /// read from our own state store.
+        ///
+        /// Note that this function is not considered part of the public API and is subject to
+        /// breaking change at any time.
+        #[cfg(feature = "unchecked-constructors")]
+        #[doc(hidden)]
+        #[must_use]
+        pub fn unchecked_from_parts(ticker: Ticker, provider_configs: Vec<ProviderConfig>) -> Self {
+            Self {
+                ticker,
+                provider_configs,
+            }
+        }
     }
 
     #[derive(Debug, thiserror::Error)]
@@ -317,11 +332,6 @@ pub mod v2 {
         ProviderConfigParseError(#[from] ProviderConfigError),
     }
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(try_from = "raw::Ticker", into = "raw::Ticker")
-    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Ticker {
         pub currency_pair: CurrencyPair,
@@ -378,6 +388,30 @@ pub mod v2 {
                 metadata_json: self.metadata_json,
             }
         }
+
+        /// This should only be used where the inputs have been provided by a trusted entity, e.g.
+        /// read from our own state store.
+        ///
+        /// Note that this function is not considered part of the public API and is subject to
+        /// breaking change at any time.
+        #[cfg(feature = "unchecked-constructors")]
+        #[doc(hidden)]
+        #[must_use]
+        pub fn unchecked_from_parts(
+            currency_pair: CurrencyPair,
+            decimals: u64,
+            min_provider_count: u64,
+            enabled: bool,
+            metadata_json: String,
+        ) -> Self {
+            Self {
+                currency_pair,
+                decimals,
+                min_provider_count,
+                enabled,
+                metadata_json,
+            }
+        }
     }
 
     #[derive(Debug, thiserror::Error)]
@@ -411,11 +445,6 @@ pub mod v2 {
         InvalidCurrencyPair { source: CurrencyPairError },
     }
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(try_from = "raw::ProviderConfig", into = "raw::ProviderConfig")
-    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ProviderConfig {
         pub name: String,
@@ -470,6 +499,30 @@ pub mod v2 {
                 metadata_json: self.metadata_json,
             }
         }
+
+        /// This should only be used where the inputs have been provided by a trusted entity, e.g.
+        /// read from our own state store.
+        ///
+        /// Note that this function is not considered part of the public API and is subject to
+        /// breaking change at any time.
+        #[cfg(feature = "unchecked-constructors")]
+        #[doc(hidden)]
+        #[must_use]
+        pub fn unchecked_from_parts(
+            name: String,
+            off_chain_ticker: String,
+            normalize_by_pair: CurrencyPair,
+            invert: bool,
+            metadata_json: String,
+        ) -> Self {
+            Self {
+                name,
+                off_chain_ticker,
+                normalize_by_pair,
+                invert,
+                metadata_json,
+            }
+        }
     }
 
     #[derive(Debug, thiserror::Error)]
@@ -502,11 +555,6 @@ pub mod v2 {
         InvalidNormalizeByPair { source: CurrencyPairError },
     }
 
-    #[cfg_attr(
-        feature = "serde",
-        derive(serde::Deserialize, serde::Serialize),
-        serde(try_from = "raw::MarketMap", into = "raw::MarketMap")
-    )]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct MarketMap {
         pub markets: IndexMap<String, Market>,
@@ -554,6 +602,22 @@ pub mod v2 {
                 .collect();
             raw::MarketMap {
                 markets,
+            }
+        }
+
+        /// This should only be used where the inputs have been provided by a trusted entity, e.g.
+        /// read from our own state store.
+        ///
+        /// Note that this function is not considered part of the public API and is subject to
+        /// breaking change at any time.
+        #[cfg(feature = "unchecked-constructors")]
+        #[doc(hidden)]
+        #[must_use]
+        pub fn unchecked_from_parts<I: IntoIterator<Item = (String, Market)>>(
+            name_and_market_iter: I,
+        ) -> Self {
+            Self {
+                markets: IndexMap::from_iter(name_and_market_iter),
             }
         }
     }
