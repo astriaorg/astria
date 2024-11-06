@@ -772,6 +772,10 @@ impl SequencerBlock {
     /// # Panics
     ///
     /// - if a rollup data merkle proof cannot be constructed.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "all arguments are required to make a block"
+    )]
     pub fn try_from_block_info_and_data(
         block_hash: [u8; 32],
         chain_id: tendermint::chain::Id,
@@ -780,13 +784,15 @@ impl SequencerBlock {
         proposer_address: account::Id,
         data: Vec<Bytes>,
         deposits: HashMap<RollupId, Vec<Deposit>>,
+        with_extended_commit_info: bool,
     ) -> Result<Self, SequencerBlockError> {
         use prost::Message as _;
 
         let InitialDataElements {
             data_root_hash,
-            // This iterator over `data` has been advanced by 3 steps while retrieving the initial
-            // elements. The next element to be yielded will be the first of the actual rollup txs.
+            // This iterator over `data` has been advanced to skip the injected transactions while
+            // retrieving the initial elements. The next element to be yielded will be
+            // the first of the actual user-submitted txs.
             data_iter,
             // TODO: this needs to go into the block header
             _extended_commit_info,
@@ -794,7 +800,7 @@ impl SequencerBlock {
             rollup_transactions_proof,
             rollup_ids_root,
             rollup_ids_proof,
-        } = take_initial_elements_from_data(data)?;
+        } = take_initial_elements_from_data(data, with_extended_commit_info)?;
 
         let mut rollup_datas = IndexMap::new();
         for elem in data_iter {
@@ -1000,7 +1006,7 @@ impl SequencerBlock {
 struct InitialDataElements {
     data_root_hash: [u8; 32],
     data_iter: IntoIter<Bytes>,
-    _extended_commit_info: Bytes,
+    _extended_commit_info: Option<Bytes>,
     rollup_transactions_root: [u8; 32],
     rollup_transactions_proof: merkle::Proof,
     rollup_ids_root: [u8; 32],
@@ -1009,14 +1015,11 @@ struct InitialDataElements {
 
 fn take_initial_elements_from_data(
     data: Vec<Bytes>,
+    with_extended_commit_info: bool,
 ) -> Result<InitialDataElements, SequencerBlockError> {
     let tree = merkle_tree_from_data(&data);
     let data_root_hash = tree.root();
     let mut data_iter = data.into_iter();
-
-    let extended_commit_info = data_iter
-        .next()
-        .ok_or(SequencerBlockError::no_extended_commit_info())?;
 
     let rollup_transactions_root: [u8; 32] = data_iter
         .next()
@@ -1041,6 +1044,16 @@ fn take_initial_elements_from_data(
         "the leaf must exist in the tree as `rollup_ids_root` was created from the same index in \
          `data` used to construct the tree",
     );
+
+    let extended_commit_info = if with_extended_commit_info {
+        Some(
+            data_iter
+                .next()
+                .ok_or(SequencerBlockError::no_extended_commit_info())?,
+        )
+    } else {
+        None
+    };
 
     Ok(InitialDataElements {
         data_root_hash,

@@ -60,6 +60,7 @@ impl ConfigureSequencerBlock {
     #[must_use]
     #[expect(
         clippy::missing_panics_doc,
+        clippy::too_many_lines,
         reason = "This should only be used in tests, so everything here is unwrapped"
     )]
     pub fn make(self) -> SequencerBlock {
@@ -156,9 +157,9 @@ impl ConfigureSequencerBlock {
         )
         .root();
         let mut data = vec![
-            extended_commit_info_bytes,
             rollup_transactions_tree.root().to_vec(),
             rollup_ids_root.to_vec(),
+            extended_commit_info_bytes,
         ];
         data.extend(txs.into_iter().map(|tx| tx.into_raw().encode_to_vec()));
         let data = data.into_iter().map(Bytes::from).collect();
@@ -170,6 +171,7 @@ impl ConfigureSequencerBlock {
             proposer_address,
             data,
             deposits_map,
+            true,
         )
         .unwrap()
     }

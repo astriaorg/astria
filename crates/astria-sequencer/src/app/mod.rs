@@ -160,9 +160,9 @@ const INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED: usize = 2;
 // after vote extensions are enabled.
 //
 // consists of:
-// 1. encoded `ExtendedCommitInfo` for the previous block
-// 2. rollup data root
-// 3. rollup IDs root
+// 1. rollup data root
+// 2. rollup IDs root
+// 3. encoded `ExtendedCommitInfo` for the previous block
 const INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED: usize = 3;
 
 // the height to set the `vote_extensions_enable_height` to in state if vote extensions are
@@ -525,11 +525,11 @@ impl App {
         let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
 
         let txs = match encoded_extended_commit_info {
-            Some(encoded_extended_commit_info) => {
-                std::iter::once(encoded_extended_commit_info.into())
-                    .chain(res.into_iter().chain(included_tx_bytes))
-                    .collect()
-            }
+            Some(encoded_extended_commit_info) => res
+                .into_iter()
+                .chain(std::iter::once(encoded_extended_commit_info.into()))
+                .chain(included_tx_bytes)
+                .collect(),
             None => res.into_iter().chain(included_tx_bytes).collect(),
         };
 
@@ -599,8 +599,22 @@ impl App {
             .await
             .wrap_err("failed to get vote extensions enabled height")?;
 
+        let received_rollup_datas_root: [u8; 32] = txs
+            .pop_front()
+            .ok_or_eyre("no transaction commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| eyre!("transaction commitment must be 32 bytes"))?;
+
+        let received_rollup_ids_root: [u8; 32] = txs
+            .pop_front()
+            .ok_or_eyre("no chain IDs commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
+
         if vote_extensions_enable_height <= process_proposal.height.value() {
-            // if vote extensions are enabled, the first transaction in the block should be the
+            // if vote extensions are enabled, the third transaction in the block should be the
             // extended commit info
             let extended_commit_info_bytes = txs
                 .pop_front()
@@ -625,20 +639,6 @@ impl App {
             .await
             .wrap_err("failed to validate extended commit info")?;
         }
-
-        let received_rollup_datas_root: [u8; 32] = txs
-            .pop_front()
-            .ok_or_eyre("no transaction commitment in proposal")?
-            .to_vec()
-            .try_into()
-            .map_err(|_| eyre!("transaction commitment must be 32 bytes"))?;
-
-        let received_rollup_ids_root: [u8; 32] = txs
-            .pop_front()
-            .ok_or_eyre("no chain IDs commitment in proposal")?
-            .to_vec()
-            .try_into()
-            .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
 
         let expected_txs_len = txs.len();
 
@@ -1109,7 +1109,8 @@ impl App {
             .get_vote_extensions_enable_height()
             .await
             .wrap_err("failed to get vote extensions enabled height")?;
-        let injected_txs_count = if vote_extensions_enable_height <= height.value() {
+        let vote_extensions_enabled = vote_extensions_enable_height <= height.value();
+        let injected_txs_count = if vote_extensions_enabled {
             INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED
         } else {
             INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED
@@ -1133,6 +1134,7 @@ impl App {
             proposer_address,
             txs,
             deposits_in_this_block,
+            vote_extensions_enabled,
         )
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
@@ -1190,12 +1192,12 @@ impl App {
                 ensure!(
                     finalize_block.txs.len()
                         >= INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED,
-                    "block must contain at least three transactions: the extended commit info, \
-                     the rollup transactions commitment and rollup IDs commitment"
+                    "block must contain at least three transactions: the rollup transactions \
+                     commitment, rollup IDs commitment, and the extended commit info"
                 );
 
                 let extended_commit_info_bytes =
-                    finalize_block.txs.first().expect("asserted length above");
+                    finalize_block.txs.get(2).expect("asserted length above");
                 let extended_commit_info =
                     ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
                         .wrap_err("failed to decode extended commit info")?

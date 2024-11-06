@@ -197,13 +197,10 @@ pub(crate) fn transactions_with_extended_commit_info_and_commitments(
     }
     .into();
     let commitments = generate_rollup_datas_commitment(txs, deposits.unwrap_or_default());
-    let txs_with_commit_info: Vec<Bytes> =
-        std::iter::once(extended_commit_info.encode_to_vec().into())
-            .chain(
-                commitments
-                    .into_iter()
-                    .chain(txs.iter().map(|tx| tx.to_raw().encode_to_vec().into())),
-            )
-            .collect();
+    let txs_with_commit_info: Vec<Bytes> = commitments
+        .into_iter()
+        .chain(std::iter::once(extended_commit_info.encode_to_vec().into()))
+        .chain(txs.iter().map(|tx| tx.to_raw().encode_to_vec().into()))
+        .collect();
     txs_with_commit_info
 }
