@@ -3,14 +3,14 @@ global:
   replicaCount: 1
   # Whether to use tty readable logging for astria services, when false use json.
   useTTY: false
-  dev: true
+  dev: false
 
 images:
   auctioneer:
     repo: ghcr.io/astriaorg/astria-auctioneer
     pullPolicy: IfNotPresent
-    tag: 1.0.0-rc.1
-    devTag: local
+    tag: 0.0.1
+    devTag: 0.0.1
 
 config:
   sequencerGrpcEndpoint: ""

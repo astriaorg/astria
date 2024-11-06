@@ -2,15 +2,15 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: auctioneer-metrics
+  name: {{ include "auctioneer.appName" . }}-metrics
   namespace: {{ include "auctioneer.namespace" . }}
   labels:
-    app: auctioneer
+    {{ include "auctioneer.labels" . }}
 spec:
   selector:
-    app: auctioneer
+    {{ include "auctioneer.selectorLabels" . }}
   ports:
-    - name: auctioneer-metrics
+    - name: metrics
       port: {{ .Values.ports.metrics }}
       targetPort: auctioneer-metrics
 {{- end }}

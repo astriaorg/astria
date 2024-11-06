@@ -145,9 +145,6 @@ deploy-auctioneer:
 delete-auctioneer:
   @just delete chart auctioneer astria-dev-cluster
 
-wait-for-auctioneer:
-  kubectl wait -n astria-dev-cluster deployment auctioneer --for=condition=Available=True --timeout=600s
-
 deploy-bridge-withdrawer:
   helm install evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
     --namespace astria-dev-cluster \

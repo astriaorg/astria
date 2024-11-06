@@ -16,14 +16,14 @@ auctioneer
 Common labels
 */}}
 {{- define "auctioneer.labels" -}}
-{{ include "rollup.selectorLabels" . }}
+{{ include "auctioneer.selectorLabels" . }}
 {{- end }}
 
 {{/*
 Selector labels
 */}}
 {{- define "auctioneer.selectorLabels" -}}
-app: {{ include "rollup.appName" . }}
+app: {{ include "auctioneer.appName" . }}
 {{- end }}
 
 {{- define "auctioneer.image" -}}

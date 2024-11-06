@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: auctioneer
+  name: {{ include "auctioneer.appName " . }}
   namespace: {{ include "auctioneer.namespace" . }}
   labels:
-    app: auctioneer
+    {{ include "auctioneer.labels" . }}
 spec:
   replicas: {{ .Values.global.replicaCount }}
   selector:
     matchLabels:
-      app: auctioneer
+      {{ include "auctioneer.labels" . }}
   template:
     metadata:
       labels:
-        app: auctioneer
+        {{ include "auctioneer.labels" . }}
     spec:
       containers:
         - name: auctioneer
