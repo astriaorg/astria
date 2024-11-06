@@ -221,6 +221,10 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::IdProofInvalid(source))
     }
 
+    fn no_extended_commit_info() -> Self {
+        Self(SequencerBlockErrorKind::NoExtendedCommitInfo)
+    }
+
     fn no_rollup_transactions_root() -> Self {
         Self(SequencerBlockErrorKind::NoRollupTransactionsRoot)
     }
@@ -287,6 +291,10 @@ enum SequencerBlockErrorKind {
     TransactionProofInvalid(#[source] merkle::audit::InvalidProof),
     #[error("failed constructing a rollup ID proof from the raw protobuf rollup ID proof")]
     IdProofInvalid(#[source] merkle::audit::InvalidProof),
+    #[error(
+        "the cometbft block.data field was too short and did not contain the extended commit info"
+    )]
+    NoExtendedCommitInfo,
     #[error(
         "the cometbft block.data field was too short and did not contain the rollup transaction \
          root"
@@ -779,6 +787,12 @@ impl SequencerBlock {
         let data_hash = tree.root();
 
         let mut data_list = data.into_iter();
+
+        // TODO: this needs to go into the block header
+        let _extended_commit_info = data_list
+            .next()
+            .ok_or(SequencerBlockError::no_extended_commit_info())?;
+
         let (rollup_transactions_root, rollup_ids_root) =
             rollup_transactions_and_ids_root_from_data(&mut data_list)?;
 
@@ -850,14 +864,15 @@ impl SequencerBlock {
         }
         rollup_transactions.sort_unstable_keys();
 
-        // action tree root is always the first tx in a block
-        let rollup_transactions_proof = tree.construct_proof(0).expect(
-            "the tree has at least one leaf; if this line is reached and `construct_proof` \
+        // action tree root is always the second tx in a block
+        let rollup_transactions_proof = tree.construct_proof(1).expect(
+            "the tree has at least two leaves; if this line is reached and `construct_proof` \
              returns None it means that the short circuiting checks above it have been removed",
         );
 
-        let rollup_ids_proof = tree.construct_proof(1).expect(
-            "the tree has at least two leaves; if this line is reached and `construct_proof` \
+        // rollup id tree root is always the third tx in a block
+        let rollup_ids_proof = tree.construct_proof(2).expect(
+            "the tree has at least three leaves; if this line is reached and `construct_proof` \
              returns None it means that the short circuiting checks above it have been removed",
         );
 

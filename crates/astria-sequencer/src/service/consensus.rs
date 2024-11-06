@@ -98,13 +98,26 @@ impl Consensus {
                     },
                 )
             }
-            ConsensusRequest::ExtendVote(_) => {
-                ConsensusResponse::ExtendVote(response::ExtendVote {
-                    vote_extension: vec![].into(),
+            ConsensusRequest::ExtendVote(extend_vote) => {
+                ConsensusResponse::ExtendVote(match self.handle_extend_vote(extend_vote).await {
+                    Ok(response) => response,
+                    Err(e) => {
+                        warn!(
+                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            "failed to extend vote, returning empty vote extension"
+                        );
+                        response::ExtendVote {
+                            vote_extension: vec![].into(),
+                        }
+                    }
                 })
             }
-            ConsensusRequest::VerifyVoteExtension(_) => {
-                ConsensusResponse::VerifyVoteExtension(response::VerifyVoteExtension::Accept)
+            ConsensusRequest::VerifyVoteExtension(vote_extension) => {
+                ConsensusResponse::VerifyVoteExtension(
+                    self.handle_verify_vote_extension(vote_extension)
+                        .await
+                        .wrap_err("failed to verify vote extension")?,
+                )
             }
             ConsensusRequest::FinalizeBlock(finalize_block) => ConsensusResponse::FinalizeBlock(
                 self.finalize_block(finalize_block)
@@ -141,6 +154,14 @@ impl Consensus {
                         "failed converting cometbft genesis validators to astria validators",
                     )?,
                 init_chain.chain_id,
+                // if `vote_extensions_enable_height` is zero, vote extensions are disabled.
+                // see https://docs.cometbft.com/v1.0/spec/core/data_structures#abciparams
+                init_chain
+                    .consensus_params
+                    .abci
+                    .vote_extensions_enable_height
+                    .unwrap_or_default()
+                    .value(),
             )
             .await
             .wrap_err("failed to call init_chain")?;
@@ -176,6 +197,28 @@ impl Consensus {
     }
 
     #[instrument(skip_all)]
+    async fn handle_extend_vote(
+        &mut self,
+        extend_vote: request::ExtendVote,
+    ) -> Result<response::ExtendVote> {
+        let extend_vote = self.app.extend_vote(extend_vote).await?;
+        Ok(extend_vote)
+    }
+
+    #[instrument(skip_all)]
+    async fn handle_verify_vote_extension(
+        &mut self,
+        vote_extension: request::VerifyVoteExtension,
+    ) -> Result<response::VerifyVoteExtension> {
+        self.app.verify_vote_extension(vote_extension).await
+    }
+
+    #[instrument(skip_all, fields(
+        hash = %finalize_block.hash,
+        height = %finalize_block.height,
+        time = %finalize_block.time,
+        proposer = %finalize_block.proposer_address
+    ))]
     async fn finalize_block(
         &mut self,
         finalize_block: request::FinalizeBlock,
@@ -220,6 +263,10 @@ mod tests {
     use rand::rngs::OsRng;
     use telemetry::Metrics as _;
     use tendermint::{
+        abci::types::{
+            CommitInfo,
+            ExtendedCommitInfo,
+        },
         account::Id,
         Hash,
         Time,
@@ -255,7 +302,10 @@ mod tests {
         request::PrepareProposal {
             txs: vec![],
             max_tx_bytes: 1024,
-            local_last_commit: None,
+            local_last_commit: Some(ExtendedCommitInfo {
+                round: 0u16.into(),
+                votes: vec![],
+            }),
             misbehavior: vec![],
             height: 1u32.into(),
             time: Time::now(),
@@ -265,9 +315,21 @@ mod tests {
     }
 
     fn new_process_proposal_request(txs: Vec<Bytes>) -> request::ProcessProposal {
+        let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
+            round: 0u16.into(),
+            votes: vec![],
+        }
+        .into();
+        let bytes = extended_commit_info.encode_to_vec();
+        let mut txs_with_commit_info = vec![bytes.into()];
+        txs_with_commit_info.extend(txs);
+
         request::ProcessProposal {
-            txs,
-            proposed_last_commit: None,
+            txs: txs_with_commit_info,
+            proposed_last_commit: Some(CommitInfo {
+                round: 0u16.into(),
+                votes: vec![],
+            }),
             misbehavior: vec![],
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),
@@ -296,23 +358,32 @@ mod tests {
             .await
             .unwrap();
 
-        let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
+        let commitments =
+            generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
         let prepare_proposal = new_prepare_proposal_request();
         let prepare_proposal_response = consensus_service
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
+        // let mut expected_txs = vec![b"".to_vec().into()];
+        let commitments_and_txs: Vec<Bytes> = commitments.into_iter().chain(txs).collect();
+        // expected_txs.extend(commitments_and_txs.clone());
+
+        let expected_txs: Vec<Bytes> = std::iter::once(b"".to_vec().into())
+            .chain(commitments_and_txs.clone())
+            .collect();
+
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
-                txs: res.into_transactions(txs)
+                txs: expected_txs,
             }
         );
 
         let (mut consensus_service, _) =
             new_consensus_service(Some(signing_key.verification_key())).await;
-        let process_proposal = new_process_proposal_request(prepare_proposal_response.txs);
+        let process_proposal = new_process_proposal_request(commitments_and_txs);
         consensus_service
             .handle_process_proposal(process_proposal)
             .await
@@ -328,8 +399,10 @@ mod tests {
         let signed_tx = tx.sign(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
-        let process_proposal = new_process_proposal_request(res.into_transactions(txs));
+        let commitments = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
+        let tx_data = commitments.into_iter().chain(txs.clone()).collect();
+        let process_proposal = new_process_proposal_request(tx_data);
+
         consensus_service
             .handle_process_proposal(process_proposal)
             .await
@@ -355,15 +428,13 @@ mod tests {
     async fn process_proposal_fail_wrong_commitment_length() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("transaction commitment must be 32 bytes")
-        );
+        let err = consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(err.contains("transaction commitment must be 32 bytes"));
     }
 
     #[tokio::test]
@@ -388,17 +459,20 @@ mod tests {
     async fn prepare_proposal_empty_block() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let txs = vec![];
-        let res = generate_rollup_datas_commitment(&txs.clone(), HashMap::new());
+        let commitments = generate_rollup_datas_commitment(&txs, HashMap::new());
         let prepare_proposal = new_prepare_proposal_request();
 
         let prepare_proposal_response = consensus_service
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
+        let expected_txs = std::iter::once(b"".to_vec().into())
+            .chain(commitments.into_iter())
+            .collect();
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
-                txs: res.into_transactions(vec![]),
+                txs: expected_txs,
             }
         );
     }
@@ -407,8 +481,8 @@ mod tests {
     async fn process_proposal_ok_empty_block() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let txs = vec![];
-        let res = generate_rollup_datas_commitment(&txs, HashMap::new());
-        let process_proposal = new_process_proposal_request(res.into_transactions(vec![]));
+        let commitments = generate_rollup_datas_commitment(&txs, HashMap::new());
+        let process_proposal = new_process_proposal_request(commitments.into_iter().collect());
         consensus_service
             .handle_process_proposal(process_proposal)
             .await
@@ -472,10 +546,23 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);
-        let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
-        app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
-            .await
-            .unwrap();
+        let mut app = App::new(
+            snapshot,
+            mempool.clone(),
+            crate::app::vote_extension::Handler::new(None),
+            metrics,
+        )
+        .await
+        .unwrap();
+        app.init_chain(
+            storage.clone(),
+            genesis_state,
+            vec![],
+            "test".to_string(),
+            1,
+        )
+        .await
+        .unwrap();
         app.commit(storage.clone()).await;
 
         let (_tx, rx) = mpsc::channel(1);
@@ -494,9 +581,10 @@ mod tests {
         let signed_tx = Arc::new(tx.sign(&signing_key));
         let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
+        let commitments =
+            generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
-        let block_data = res.into_transactions(txs.clone());
+        let block_data: Vec<Bytes> = commitments.into_iter().chain(txs.clone()).collect();
         let data_hash =
             merkle::Tree::from_leaves(block_data.iter().map(sha2::Sha256::digest)).root();
         let mut header = default_header();
@@ -508,6 +596,7 @@ mod tests {
             .unwrap();
 
         let process_proposal = new_process_proposal_request(block_data.clone());
+        let txs = process_proposal.txs.clone();
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
             .await
@@ -524,7 +613,7 @@ mod tests {
                 votes: vec![],
             },
             misbehavior: vec![],
-            txs: block_data,
+            txs,
         };
         consensus_service
             .handle_request(ConsensusRequest::FinalizeBlock(finalize_block))

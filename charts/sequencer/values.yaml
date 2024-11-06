@@ -34,6 +34,7 @@ genesis:
     base: "astria"
     ibcCompat: "astriacompat"
   authoritySudoAddress: ""
+  marketAdminAddress: ""
   allowedFeeAssets: []
     # - nria
   ibc:
@@ -108,6 +109,8 @@ sequencer:
   mempool:
     parked:
       maxTxCount: 200
+  oracle:
+    clientTimeout: 1000
   metrics:
     enabled: false
   otel:
@@ -271,9 +274,11 @@ ports:
   cometbftRpc: 26657
   cometbftMetrics: 26660
   sequencerABCI: 26658
+  # note: the oracle sidecar also uses 8080 by default but can be changed with --port
   sequencerGrpc: 8080
   relayerRpc: 2450
   sequencerMetrics: 9000
+  oracleGrpc: 8081
 
 # ServiceMonitor configuration
 serviceMonitor:

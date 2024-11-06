@@ -1,6 +1,11 @@
 use std::collections::HashMap;
 
 use astria_core::{
+    connect::market_map::v2::{
+        MarketMap,
+        Params,
+    },
+    generated::protocol::genesis::v1::ConnectGenesis,
     primitive::v1::asset::{
         Denom,
         IbcPrefixed,
@@ -153,6 +158,25 @@ pub(crate) fn proto_genesis_state() -> astria_core::generated::protocol::genesis
         }),
         allowed_fee_assets: vec![nria().to_string()],
         fees: Some(default_fees().to_raw()),
+        connect: Some(ConnectGenesis {
+            market_map: Some(
+                astria_core::connect::market_map::v2::GenesisState {
+                    market_map: MarketMap {
+                        markets: indexmap::IndexMap::new(),
+                    },
+                    last_updated: 0,
+                    params: Params {
+                        market_authorities: vec![],
+                        admin: astria_address_from_hex_string(ALICE_ADDRESS),
+                    },
+                }
+                .into_raw(),
+            ),
+            oracle: Some(astria_core::generated::connect::oracle::v2::GenesisState {
+                currency_pair_genesis: vec![],
+                next_id: 0,
+            }),
+        }),
     }
 }
 
@@ -170,7 +194,10 @@ pub(crate) async fn initialize_app_with_storage(
     let snapshot = storage.latest_snapshot();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
+    let ve_handler = crate::app::vote_extension::Handler::new(None);
+    let mut app = App::new(snapshot, mempool, ve_handler, metrics)
+        .await
+        .unwrap();
 
     let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
 
@@ -179,6 +206,7 @@ pub(crate) async fn initialize_app_with_storage(
         genesis_state,
         genesis_validators,
         "test".to_string(),
+        1,
     )
     .await
     .unwrap();

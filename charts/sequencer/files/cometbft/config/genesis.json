@@ -119,9 +119,24 @@
       {{- if $index }},{{- end }}
       {{ include "sequencer.address" $value }}
       {{- end }}
-    ]
+    ],
     {{- if not .Values.global.dev }}
     {{- else }}
+    "connect": {
+      "marketMap": {
+        "marketMap": {
+          "markets": {}
+        },
+        "params": {
+          "marketAuthorities": [],
+          "admin": "{{ .Values.genesis.marketAdminAddress }}"
+        }
+      },
+      "oracle": {
+        "currencyPairGenesis": [],
+        "nextId": "0"
+      }
+    }
     {{- end}}
   },
   "chain_id": "{{ .Values.genesis.chainId }}",
@@ -142,7 +157,16 @@
     },
     "version": {
       "app": "0"
+    },
+    {{- if not .Values.global.dev }}
+    "abci": {
+      "vote_extensions_enable_height": "0"
     }
+    {{- else }}
+    "abci": {
+      "vote_extensions_enable_height": "1"
+    }
+    {{- end}}
   },
   "genesis_time": "{{ .Values.genesis.genesisTime }}",
   "initial_height": "0",

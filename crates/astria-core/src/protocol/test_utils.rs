@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use bytes::Bytes;
 use prost::Message as _;
+use tendermint::abci::types::ExtendedCommitInfo;
 
 use super::{
     group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id,
@@ -141,6 +142,13 @@ impl ConfigureSequencerBlock {
         rollup_transactions.sort_unstable_keys();
         let rollup_transactions_tree = derive_merkle_tree_from_rollup_txs(&rollup_transactions);
 
+        let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
+            round: 0u16.into(),
+            votes: vec![],
+        }
+        .into();
+        let extended_commit_info_bytes = extended_commit_info.encode_to_vec();
+
         let rollup_ids_root = merkle::Tree::from_leaves(
             rollup_transactions
                 .keys()
@@ -148,6 +156,7 @@ impl ConfigureSequencerBlock {
         )
         .root();
         let mut data = vec![
+            extended_commit_info_bytes,
             rollup_transactions_tree.root().to_vec(),
             rollup_ids_root.to_vec(),
         ];

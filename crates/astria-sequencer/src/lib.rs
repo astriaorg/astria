@@ -11,6 +11,7 @@ pub(crate) mod bridge;
 mod build_info;
 pub(crate) mod component;
 pub mod config;
+pub(crate) mod connect;
 pub(crate) mod fees;
 pub(crate) mod grpc;
 pub(crate) mod ibc;

@@ -1,3 +1,4 @@
+pub use pbjson_types::Timestamp;
 use prost::Name;
 
 #[cfg(not(target_pointer_width = "64"))]
@@ -13,7 +14,9 @@ compile_error!(
 )]
 pub mod generated;
 
+pub mod connect;
 pub mod crypto;
+pub mod display;
 pub mod execution;
 pub mod primitive;
 pub mod protocol;

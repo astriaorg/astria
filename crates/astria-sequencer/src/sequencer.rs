@@ -1,4 +1,14 @@
-use astria_core::generated::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
+use astria_core::generated::{
+    connect::{
+        marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
+        oracle::v2::query_server::QueryServer as OracleQueryServer,
+        service::v2::{
+            oracle_client::OracleClient,
+            QueryPricesRequest,
+        },
+    },
+    sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
+};
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -26,15 +36,23 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tonic::transport::{
+    Endpoint,
+    Uri,
+};
 use tower_abci::v038::Server;
 use tracing::{
+    debug,
     error,
     info,
     instrument,
+    warn,
 };
 
 use crate::{
+    address::StateReadExt as _,
     app::App,
+    assets::StateReadExt as _,
     config::Config,
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
@@ -84,10 +102,57 @@ impl Sequencer {
         .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
 
+        // the native asset should be configurable only at genesis.
+        // the genesis state must include the native asset's base
+        // denomination, and it is set in storage during init_chain.
+        // on subsequent startups, we load the native asset from storage.
+        if storage.latest_version() != u64::MAX {
+            let _ = snapshot
+                .get_native_asset()
+                .await
+                .context("failed to query state for native asset")?;
+            let _ = snapshot
+                .get_base_prefix()
+                .await
+                .context("failed to query state for base prefix")?;
+        }
+
+        let oracle_client = if config.no_oracle {
+            None
+        } else {
+            let uri: Uri = config
+                .oracle_grpc_addr
+                .parse()
+                .context("failed parsing oracle grpc address as Uri")?;
+            let endpoint = Endpoint::from(uri.clone()).timeout(std::time::Duration::from_millis(
+                config.oracle_client_timeout_milliseconds,
+            ));
+            let mut oracle_client = OracleClient::new(
+                endpoint
+                    .connect()
+                    .await
+                    .wrap_err("failed to connect to oracle sidecar")?,
+            );
+
+            // ensure the oracle sidecar is reachable
+            // TODO: allow this to retry in case the oracle sidecar is not ready yet
+            if let Err(e) = oracle_client.prices(QueryPricesRequest::default()).await {
+                warn!(uri = %uri, error = %e, "oracle sidecar is unreachable");
+            } else {
+                debug!(uri = %uri, "oracle sidecar is reachable");
+            };
+            Some(oracle_client)
+        };
+
         let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
-        let app = App::new(snapshot, mempool.clone(), metrics)
-            .await
-            .wrap_err("failed to initialize app")?;
+        let app = App::new(
+            snapshot,
+            mempool.clone(),
+            crate::app::vote_extension::Handler::new(oracle_client),
+            metrics,
+        )
+        .await
+        .wrap_err("failed to initialize app")?;
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -172,6 +237,8 @@ fn start_grpc_server(
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
     let sequencer_api = SequencerServer::new(storage.clone(), mempool);
+    let market_map_api = crate::grpc::connect::SequencerServer::new(storage.clone());
+    let oracle_api = crate::grpc::connect::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?
@@ -195,7 +262,9 @@ fn start_grpc_server(
         .add_service(ClientQueryServer::new(ibc.clone()))
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()))
-        .add_service(SequencerServiceServer::new(sequencer_api));
+        .add_service(SequencerServiceServer::new(sequencer_api))
+        .add_service(MarketMapQueryServer::new(market_map_api))
+        .add_service(OracleQueryServer::new(oracle_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
     tokio::task::spawn(

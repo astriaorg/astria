@@ -251,7 +251,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_sequencer_block() {
+    async fn get_sequencer_block_ok() {
         let block = make_test_sequencer_block(1);
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));

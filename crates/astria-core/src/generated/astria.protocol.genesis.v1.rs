@@ -27,6 +27,8 @@ pub struct GenesisAppState {
     pub allowed_fee_assets: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "10")]
     pub fees: ::core::option::Option<GenesisFees>,
+    #[prost(message, optional, tag = "11")]
+    pub connect: ::core::option::Option<ConnectGenesis>,
 }
 impl ::prost::Name for GenesisAppState {
     const NAME: &'static str = "GenesisAppState";
@@ -148,6 +150,25 @@ pub struct GenesisFees {
 }
 impl ::prost::Name for GenesisFees {
     const NAME: &'static str = "GenesisFees";
+    const PACKAGE: &'static str = "astria.protocol.genesis.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.genesis.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConnectGenesis {
+    #[prost(message, optional, tag = "1")]
+    pub market_map: ::core::option::Option<
+        super::super::super::super::connect::marketmap::v2::GenesisState,
+    >,
+    #[prost(message, optional, tag = "2")]
+    pub oracle: ::core::option::Option<
+        super::super::super::super::connect::oracle::v2::GenesisState,
+    >,
+}
+impl ::prost::Name for ConnectGenesis {
+    const NAME: &'static str = "ConnectGenesis";
     const PACKAGE: &'static str = "astria.protocol.genesis.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.genesis.v1.{}", Self::NAME)
