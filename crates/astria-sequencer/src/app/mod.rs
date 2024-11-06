@@ -379,6 +379,15 @@ impl App {
             .await
             .wrap_err("init_chain failed on OracleComponent")?;
 
+        if vote_extensions_enable_height != VOTE_EXTENSIONS_DISABLED_HEIGHT {
+            MarketMapComponent::init_chain(&mut state_tx, &genesis_state)
+                .await
+                .wrap_err("init_chain failed on MarketMapComponent")?;
+            OracleComponent::init_chain(&mut state_tx, &genesis_state)
+                .await
+                .wrap_err("init_chain failed on OracleComponent")?;
+        }
+
         state_tx.apply();
 
         let app_hash = self
