@@ -109,6 +109,8 @@ sequencer:
   mempool:
     parked:
       maxTxCount: 200
+  oracle:
+    clientTimeout: 1000
   metrics:
     enabled: false
   otel:
@@ -276,6 +278,7 @@ ports:
   sequencerGrpc: 8080
   relayerRpc: 2450
   sequencerMetrics: 9000
+  oracleGrpc: 8081
 
 # ServiceMonitor configuration
 serviceMonitor:
