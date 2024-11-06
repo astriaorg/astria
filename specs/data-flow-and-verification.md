@@ -16,8 +16,10 @@ become part of a sequencer transaction. The data types are as follows:
 
 ```rust
 pub struct RollupDataSubmission {
-    rollup_id: Vec<u8>,
-    data: Vec<u8>,
+    rollup_id: RollupId,
+    data: Bytes,
+    // the asset to pay fees with
+    fee_asset: asset::Denom,
 }
 ```
 
