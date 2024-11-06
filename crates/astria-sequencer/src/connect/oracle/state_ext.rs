@@ -22,15 +22,12 @@ use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         ContextCompat as _,
+        OptionExt as _,
         Result,
         WrapErr as _,
     },
 };
 use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
 use cnidarium::{
     StateRead,
     StateWrite,
@@ -39,202 +36,11 @@ use futures::Stream;
 use pin_project_lite::pin_project;
 use tracing::instrument;
 
-mod in_state {
-    //! Contains all borsh datatypes that are written to/read from state.
-
-    use astria_eyre::eyre::{
-        Result,
-        WrapErr as _,
-    };
-    use borsh::{
-        BorshDeserialize,
-        BorshSerialize,
-    };
-
-    #[derive(BorshSerialize, BorshDeserialize, Debug)]
-    pub(super) struct CurrencyPairId(pub(super) u64);
-
-    impl From<CurrencyPairId> for super::CurrencyPairId {
-        fn from(value: CurrencyPairId) -> Self {
-            Self::new(value.0)
-        }
-    }
-
-    impl From<super::CurrencyPairId> for CurrencyPairId {
-        fn from(value: super::CurrencyPairId) -> Self {
-            Self(value.get())
-        }
-    }
-
-    #[derive(BorshSerialize, BorshDeserialize, Debug)]
-    pub(super) struct CurrencyPairNonce(pub(super) u64);
-
-    impl From<CurrencyPairNonce> for super::CurrencyPairNonce {
-        fn from(value: CurrencyPairNonce) -> Self {
-            Self::new(value.0)
-        }
-    }
-
-    impl From<super::CurrencyPairNonce> for CurrencyPairNonce {
-        fn from(value: super::CurrencyPairNonce) -> Self {
-            Self(value.get())
-        }
-    }
-
-    #[derive(BorshSerialize, BorshDeserialize, Debug)]
-    pub(super) struct CurrencyPair {
-        base: String,
-        quote: String,
-    }
-
-    impl TryFrom<CurrencyPair> for super::CurrencyPair {
-        type Error = astria_eyre::eyre::Error;
-
-        fn try_from(value: CurrencyPair) -> Result<Self> {
-            Ok(Self::from_parts(
-                value.base.parse().with_context(|| {
-                    format!(
-                        "failed to parse state-fetched `{}` as currency pair base",
-                        value.base
-                    )
-                })?,
-                value.quote.parse().with_context(|| {
-                    format!(
-                        "failed to parse state-fetched `{}` as currency pair quote",
-                        value.quote
-                    )
-                })?,
-            ))
-        }
-    }
-
-    impl From<super::CurrencyPair> for CurrencyPair {
-        fn from(value: super::CurrencyPair) -> Self {
-            let (base, quote) = value.into_parts();
-            Self {
-                base,
-                quote,
-            }
-        }
-    }
-
-    #[derive(Debug, BorshSerialize, BorshDeserialize)]
-    struct Timestamp {
-        seconds: i64,
-        nanos: i32,
-    }
-
-    impl From<astria_core::primitive::Timestamp> for Timestamp {
-        fn from(value: astria_core::primitive::Timestamp) -> Self {
-            Self {
-                seconds: value.seconds,
-                nanos: value.nanos,
-            }
-        }
-    }
-
-    impl From<Timestamp> for astria_core::primitive::Timestamp {
-        fn from(value: Timestamp) -> Self {
-            Self {
-                seconds: value.seconds,
-                nanos: value.nanos,
-            }
-        }
-    }
-
-    #[derive(Debug, BorshSerialize, BorshDeserialize)]
-    struct Price(u128);
-
-    impl From<astria_core::connect::types::v2::Price> for Price {
-        fn from(value: astria_core::connect::types::v2::Price) -> Self {
-            Self(value.get())
-        }
-    }
-
-    impl From<Price> for astria_core::connect::types::v2::Price {
-        fn from(value: Price) -> Self {
-            Self::new(value.0)
-        }
-    }
-
-    #[derive(Debug, BorshSerialize, BorshDeserialize)]
-    pub(super) struct QuotePrice {
-        price: Price,
-        block_timestamp: Timestamp,
-        block_height: u64,
-    }
-
-    impl From<super::QuotePrice> for QuotePrice {
-        fn from(value: super::QuotePrice) -> Self {
-            Self {
-                price: value.price.into(),
-                block_timestamp: value.block_timestamp.into(),
-                block_height: value.block_height,
-            }
-        }
-    }
-
-    impl From<QuotePrice> for super::QuotePrice {
-        fn from(value: QuotePrice) -> Self {
-            Self {
-                price: value.price.into(),
-                block_timestamp: value.block_timestamp.into(),
-                block_height: value.block_height,
-            }
-        }
-    }
-
-    #[derive(Debug, BorshSerialize, BorshDeserialize)]
-    pub(super) struct CurrencyPairState {
-        pub(super) price: QuotePrice,
-        pub(super) nonce: CurrencyPairNonce,
-        pub(super) id: CurrencyPairId,
-    }
-
-    impl From<super::CurrencyPairState> for CurrencyPairState {
-        fn from(value: super::CurrencyPairState) -> Self {
-            Self {
-                price: value.price.into(),
-                nonce: value.nonce.into(),
-                id: value.id.into(),
-            }
-        }
-    }
-
-    impl From<CurrencyPairState> for super::CurrencyPairState {
-        fn from(value: CurrencyPairState) -> Self {
-            Self {
-                price: value.price.into(),
-                nonce: value.nonce.into(),
-                id: value.id.into(),
-            }
-        }
-    }
-}
-
-const CURRENCY_PAIR_TO_ID_PREFIX: &str = "oraclecpid";
-const ID_TO_CURRENCY_PAIR_PREFIX: &str = "oracleidcp";
-const CURRENCY_PAIR_STATE_PREFIX: &str = "oraclecpstate";
-
-const NUM_CURRENCY_PAIRS_KEY: &str = "oraclenumcps";
-const NUM_REMOVED_CURRENCY_PAIRS_KEY: &str = "oraclenumremovedcps";
-const NEXT_CURRENCY_PAIR_ID_KEY: &str = "oraclenextcpid";
-
-fn currency_pair_to_id_storage_key(currency_pair: &CurrencyPair) -> String {
-    format!("{CURRENCY_PAIR_TO_ID_PREFIX}/{currency_pair}",)
-}
-
-fn id_to_currency_pair_storage_key(id: CurrencyPairId) -> String {
-    format!("{ID_TO_CURRENCY_PAIR_PREFIX}/{id}")
-}
-
-fn currency_pair_state_storage_key(currency_pair: &CurrencyPair) -> String {
-    format!("{CURRENCY_PAIR_STATE_PREFIX}/{currency_pair}",)
-}
-
-/// Newtype wrapper to read and write a u64 from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct Count(u64);
+use super::storage::{
+    self,
+    keys,
+};
+use crate::storage::StoredValue;
 
 pin_project! {
     pub(crate) struct CurrencyPairsWithIdsStream<St> {
@@ -243,6 +49,7 @@ pin_project! {
     }
 }
 
+#[derive(PartialEq)]
 pub(crate) struct CurrencyPairWithId {
     pub(crate) id: u64,
     pub(crate) currency_pair: CurrencyPair,
@@ -265,11 +72,11 @@ where
             }
             None => return Poll::Ready(None),
         };
-        let in_state::CurrencyPairId(id) = in_state::CurrencyPairId::try_from_slice(&bytes)
-            .with_context(|| {
-                "failed decoding bytes read from state as currency pair ID for key `{key}`"
-            })?;
-        let currency_pair = match extract_currency_pair_from_key(&key) {
+        let id = StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::CurrencyPairId::try_from(value).map(CurrencyPairId::from))
+            .wrap_err_with(|| format!("invalid currency pair id bytes under key `{key}`"))?;
+
+        let currency_pair = match keys::extract_currency_pair_from_pair_to_id_key(&key) {
             Err(err) => {
                 return Poll::Ready(Some(Err(err).with_context(|| {
                     format!("failed to extract currency pair from key `{key}`")
@@ -278,7 +85,7 @@ where
             Ok(parsed) => parsed,
         };
         Poll::Ready(Some(Ok(CurrencyPairWithId {
-            id,
+            id: id.get(),
             currency_pair,
         })))
     }
@@ -308,7 +115,7 @@ where
             }
             None => return Poll::Ready(None),
         };
-        let currency_pair = match extract_currency_pair_from_key(&key) {
+        let currency_pair = match keys::extract_currency_pair_from_pair_state_key(&key) {
             Err(err) => {
                 return Poll::Ready(Some(Err(err).with_context(|| {
                     format!("failed to extract currency pair from key `{key}`")
@@ -320,13 +127,6 @@ where
     }
 }
 
-fn extract_currency_pair_from_key(key: &str) -> Result<CurrencyPair> {
-    key.strip_prefix(CURRENCY_PAIR_TO_ID_PREFIX)
-        .wrap_err("failed to strip prefix from currency pair state key")?
-        .parse::<CurrencyPair>()
-        .wrap_err("failed to parse storage key suffix as currency pair")
-}
-
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
@@ -335,77 +135,79 @@ pub(crate) trait StateReadExt: StateRead {
         currency_pair: &CurrencyPair,
     ) -> Result<Option<CurrencyPairId>> {
         let Some(bytes) = self
-            .get_raw(&currency_pair_to_id_storage_key(currency_pair))
+            .get_raw(&keys::currency_pair_to_id(currency_pair))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading currency pair id from state")?
         else {
             return Ok(None);
         };
-        in_state::CurrencyPairId::try_from_slice(&bytes)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::CurrencyPairId::try_from(value).map(|id| Some(CurrencyPairId::from(id)))
+            })
             .wrap_err("invalid currency pair id bytes")
-            .map(|id| Some(id.into()))
     }
 
     #[instrument(skip_all)]
     async fn get_currency_pair(&self, id: CurrencyPairId) -> Result<Option<CurrencyPair>> {
         let Some(bytes) = self
-            .get_raw(&id_to_currency_pair_storage_key(id))
+            .get_raw(&keys::id_to_currency_pair(id))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading currency pair from state")?
         else {
             return Ok(None);
         };
-        let currency_pair = borsh::from_slice::<in_state::CurrencyPair>(&bytes)
-            .wrap_err("failed to deserialize bytes read from state as currency pair")?
-            .try_into()
-            .wrap_err("failed converting in-state currency pair into domain type currency pair")?;
-        Ok(Some(currency_pair))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::CurrencyPair::try_from(value).map(|pair| Some(CurrencyPair::from(pair)))
+            })
+            .wrap_err("invalid currency pair bytes")
     }
 
     #[instrument(skip_all)]
     fn currency_pairs_with_ids(&self) -> CurrencyPairsWithIdsStream<Self::PrefixRawStream> {
         CurrencyPairsWithIdsStream {
-            underlying: self.prefix_raw(CURRENCY_PAIR_TO_ID_PREFIX),
+            underlying: self.prefix_raw(keys::CURRENCY_PAIR_TO_ID_PREFIX),
         }
     }
 
     #[instrument(skip_all)]
     fn currency_pairs(&self) -> CurrencyPairsStream<Self::PrefixKeysStream> {
         CurrencyPairsStream {
-            underlying: self.prefix_keys(CURRENCY_PAIR_STATE_PREFIX),
+            underlying: self.prefix_keys(keys::CURRENCY_PAIR_STATE_PREFIX),
         }
     }
 
     #[instrument(skip_all)]
     async fn get_num_currency_pairs(&self) -> Result<u64> {
         let Some(bytes) = self
-            .get_raw(NUM_CURRENCY_PAIRS_KEY)
+            .get_raw(keys::NUM_CURRENCY_PAIRS)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading number of currency pairs from state")?
         else {
             return Ok(0);
         };
-        let Count(num_currency_pairs) =
-            Count::try_from_slice(&bytes).wrap_err("invalid number of currency pairs bytes")?;
-        Ok(num_currency_pairs)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::Count::try_from(value).map(u64::from))
+            .wrap_err("invalid number of currency pairs bytes")
     }
 
     #[instrument(skip_all)]
     async fn get_num_removed_currency_pairs(&self) -> Result<u64> {
         let Some(bytes) = self
-            .get_raw(NUM_REMOVED_CURRENCY_PAIRS_KEY)
+            .get_raw(keys::NUM_REMOVED_CURRENCY_PAIRS)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading number of removed currency pairs from state")?
         else {
             return Ok(0);
         };
-        let Count(num_removed_currency_pairs) = Count::try_from_slice(&bytes)
-            .wrap_err("invalid number of removed currency pairs bytes")?;
-        Ok(num_removed_currency_pairs)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::Count::try_from(value).map(u64::from))
+            .wrap_err("invalid number of removed currency pairs bytes")
     }
 
     #[instrument(skip_all)]
@@ -413,34 +215,20 @@ pub(crate) trait StateReadExt: StateRead {
         &self,
         currency_pair: &CurrencyPair,
     ) -> Result<Option<CurrencyPairState>> {
-        let bytes = self
-            .get_raw(&currency_pair_state_storage_key(currency_pair))
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed to get currency pair state from state")?;
-        bytes
-            .map(|bytes| {
-                borsh::from_slice::<in_state::CurrencyPairState>(&bytes)
-                    .wrap_err("failed to deserialize bytes read from state as currency pair state")
-                    .map(Into::into)
-            })
-            .transpose()
-    }
-
-    #[instrument(skip_all)]
-    async fn get_next_currency_pair_id(&self) -> Result<CurrencyPairId> {
         let Some(bytes) = self
-            .get_raw(NEXT_CURRENCY_PAIR_ID_KEY)
+            .get_raw(&keys::currency_pair_state(currency_pair))
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading next currency pair id from state")?
+            .wrap_err("failed to get currency pair state from state")?
         else {
-            return Ok(CurrencyPairId::new(0));
+            return Ok(None);
         };
-        let next_currency_pair_id = in_state::CurrencyPairId::try_from_slice(&bytes)
-            .wrap_err("invalid next currency pair id bytes")?
-            .into();
-        Ok(next_currency_pair_id)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::CurrencyPairState::try_from(value)
+                    .map(|state| Some(CurrencyPairState::from(state)))
+            })
+            .wrap_err("invalid currency pair state bytes")
     }
 }
 
@@ -449,38 +237,20 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
-    fn put_currency_pair_id(
-        &mut self,
-        currency_pair: &CurrencyPair,
-        id: CurrencyPairId,
-    ) -> Result<()> {
-        let bytes = borsh::to_vec(&in_state::CurrencyPairId::from(id))
-            .wrap_err("failed to serialize currency pair id")?;
-        self.put_raw(currency_pair_to_id_storage_key(currency_pair), bytes);
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    fn put_currency_pair(&mut self, id: CurrencyPairId, currency_pair: CurrencyPair) -> Result<()> {
-        let bytes = borsh::to_vec(&in_state::CurrencyPair::from(currency_pair))
-            .wrap_err("failed to serialize currency pair")?;
-        self.put_raw(id_to_currency_pair_storage_key(id), bytes);
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
     fn put_num_currency_pairs(&mut self, num_currency_pairs: u64) -> Result<()> {
-        let bytes = borsh::to_vec(&Count(num_currency_pairs))
+        let bytes = StoredValue::from(storage::Count::from(num_currency_pairs))
+            .serialize()
             .wrap_err("failed to serialize number of currency pairs")?;
-        self.put_raw(NUM_CURRENCY_PAIRS_KEY.to_string(), bytes);
+        self.put_raw(keys::NUM_CURRENCY_PAIRS.to_string(), bytes);
         Ok(())
     }
 
     #[instrument(skip_all)]
     fn put_num_removed_currency_pairs(&mut self, num_removed_currency_pairs: u64) -> Result<()> {
-        let bytes = borsh::to_vec(&Count(num_removed_currency_pairs))
+        let bytes = StoredValue::from(storage::Count::from(num_removed_currency_pairs))
+            .serialize()
             .wrap_err("failed to serialize number of removed currency pairs")?;
-        self.put_raw(NUM_REMOVED_CURRENCY_PAIRS_KEY.to_string(), bytes);
+        self.put_raw(keys::NUM_REMOVED_CURRENCY_PAIRS.to_string(), bytes);
         Ok(())
     }
 
@@ -491,22 +261,23 @@ pub(crate) trait StateWriteExt: StateWrite {
         currency_pair_state: CurrencyPairState,
     ) -> Result<()> {
         let currency_pair_id = currency_pair_state.id;
-        let bytes = borsh::to_vec(&in_state::CurrencyPairState::from(currency_pair_state))
+        let bytes = StoredValue::from(storage::CurrencyPairState::from(currency_pair_state))
+            .serialize()
             .wrap_err("failed to serialize currency pair state")?;
-        self.put_raw(currency_pair_state_storage_key(&currency_pair), bytes);
+        self.put_raw(keys::currency_pair_state(&currency_pair), bytes);
 
-        self.put_currency_pair_id(&currency_pair, currency_pair_id)
+        put_currency_pair_id(self, &currency_pair, currency_pair_id)
             .wrap_err("failed to put currency pair id")?;
-        self.put_currency_pair(currency_pair_id, currency_pair)
-            .wrap_err("failed to put currency pair")?;
-        Ok(())
+        put_currency_pair(self, currency_pair_id, currency_pair)
+            .wrap_err("failed to put currency pair")
     }
 
     #[instrument(skip_all)]
     fn put_next_currency_pair_id(&mut self, next_currency_pair_id: CurrencyPairId) -> Result<()> {
-        let bytes = borsh::to_vec(&in_state::CurrencyPairId::from(next_currency_pair_id))
+        let bytes = StoredValue::from(storage::CurrencyPairId::from(next_currency_pair_id))
+            .serialize()
             .wrap_err("failed to serialize next currency pair id")?;
-        self.put_raw(NEXT_CURRENCY_PAIR_ID_KEY.to_string(), bytes);
+        self.put_raw(keys::NEXT_CURRENCY_PAIR_ID.to_string(), bytes);
         Ok(())
     }
 
@@ -525,11 +296,10 @@ pub(crate) trait StateWriteExt: StateWrite {
             state.nonce = state
                 .nonce
                 .increment()
-                .wrap_err("increment nonce overflowed")?;
+                .ok_or_eyre("increment nonce overflowed")?;
             state
         } else {
-            let id = self
-                .get_next_currency_pair_id()
+            let id = get_next_currency_pair_id(self)
                 .await
                 .wrap_err("failed to read next currency pair ID")?;
             let next_id = id.increment().wrap_err("increment ID overflowed")?;
@@ -542,9 +312,278 @@ pub(crate) trait StateWriteExt: StateWrite {
             }
         };
         self.put_currency_pair_state(currency_pair, state)
-            .wrap_err("failed to put currency pair state")?;
-        Ok(())
+            .wrap_err("failed to put currency pair state")
     }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[instrument(skip_all)]
+async fn get_next_currency_pair_id<T: StateRead + ?Sized>(state: &T) -> Result<CurrencyPairId> {
+    let Some(bytes) = state
+        .get_raw(keys::NEXT_CURRENCY_PAIR_ID)
+        .await
+        .map_err(anyhow_to_eyre)
+        .wrap_err("failed reading next currency pair id from state")?
+    else {
+        return Ok(CurrencyPairId::new(0));
+    };
+    StoredValue::deserialize(&bytes)
+        .and_then(|value| storage::CurrencyPairId::try_from(value).map(CurrencyPairId::from))
+        .wrap_err("invalid next currency pair id bytes")
+}
+
+#[instrument(skip_all)]
+fn put_currency_pair_id<T: StateWrite + ?Sized>(
+    state: &mut T,
+    currency_pair: &CurrencyPair,
+    id: CurrencyPairId,
+) -> Result<()> {
+    let bytes = StoredValue::from(storage::CurrencyPairId::from(id))
+        .serialize()
+        .wrap_err("failed to serialize currency pair id")?;
+    state.put_raw(keys::currency_pair_to_id(currency_pair), bytes);
+    Ok(())
+}
+
+#[instrument(skip_all)]
+fn put_currency_pair<T: StateWrite + ?Sized>(
+    state: &mut T,
+    id: CurrencyPairId,
+    currency_pair: CurrencyPair,
+) -> Result<()> {
+    let bytes = StoredValue::from(storage::CurrencyPair::from(&currency_pair))
+        .serialize()
+        .wrap_err("failed to serialize currency pair")?;
+    state.put_raw(keys::id_to_currency_pair(id), bytes);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use astria_core::{
+        connect::types::v2::{
+            CurrencyPair,
+            Price,
+        },
+        Timestamp,
+    };
+    use cnidarium::StateDelta;
+    use futures::TryStreamExt;
+
+    use super::*;
+
+    fn eth_usd() -> CurrencyPair {
+        "ETH/USD".parse::<CurrencyPair>().unwrap()
+    }
+
+    fn eth_usd_state(nonce: u64) -> CurrencyPairState {
+        currency_pair_state(1, nonce)
+    }
+
+    fn btc_usd() -> CurrencyPair {
+        "BTC/USD".parse::<CurrencyPair>().unwrap()
+    }
+
+    fn btc_usd_state(nonce: u64) -> CurrencyPairState {
+        currency_pair_state(2, nonce)
+    }
+
+    fn currency_pair_state(id: u64, nonce: u64) -> CurrencyPairState {
+        CurrencyPairState {
+            price: QuotePrice {
+                price: Price::new(123),
+                block_timestamp: Timestamp {
+                    seconds: 4,
+                    nanos: 5,
+                },
+                block_height: nonce.checked_add(10).unwrap(),
+            },
+            nonce: CurrencyPairNonce::new(nonce),
+            id: CurrencyPairId::new(id),
+        }
+    }
+
+    /// Putting the currency pair state also writes the pair and the pair ID, so we'll also check
+    /// those getters in this test.
+    #[tokio::test]
+    async fn should_put_and_get_currency_pair_state() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Getting should return `None` when the pair is not stored.
+        assert!(
+            state
+                .get_currency_pair_state(&eth_usd())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            state
+                .get_currency_pair_id(&eth_usd())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            state
+                .get_currency_pair(CurrencyPairId::new(1))
+                .await
+                .unwrap()
+                .is_none()
+        );
+
+        // Putting a currency pair state should succeed.
+        state
+            .put_currency_pair_state(eth_usd(), eth_usd_state(1))
+            .unwrap();
+
+        // Getting the stored state, pair and id should succeed.
+        let retrieved_pair_state = state
+            .get_currency_pair_state(&eth_usd())
+            .await
+            .expect("should not error")
+            .expect("should be `Some`");
+        assert_eq!(eth_usd_state(1), retrieved_pair_state);
+        let retrieved_pair = state
+            .get_currency_pair(eth_usd_state(1).id)
+            .await
+            .expect("should not error")
+            .expect("should be `Some`");
+        assert_eq!(eth_usd(), retrieved_pair);
+        let retrieved_pair_id = state
+            .get_currency_pair_id(&eth_usd())
+            .await
+            .expect("should not error")
+            .expect("should be `Some`");
+        assert_eq!(eth_usd_state(1).id, retrieved_pair_id);
+    }
+
+    #[tokio::test]
+    async fn should_get_currency_pairs_with_ids() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Should return an empty stream before any currency pair states are stored.
+        let collected: Vec<_> = state.currency_pairs_with_ids().try_collect().await.unwrap();
+        assert!(collected.is_empty());
+
+        // Store some currency pair states.
+        state
+            .put_currency_pair_state(eth_usd(), eth_usd_state(2))
+            .unwrap();
+        state
+            .put_currency_pair_state(btc_usd(), btc_usd_state(1))
+            .unwrap();
+        state
+            .put_currency_pair_state(btc_usd(), btc_usd_state(2))
+            .unwrap();
+        state
+            .put_currency_pair_state(eth_usd(), eth_usd_state(1))
+            .unwrap();
+
+        // Check we retrieved all expected currency pairs with ids.
+        let collected: Vec<_> = state.currency_pairs_with_ids().try_collect().await.unwrap();
+        assert_eq!(collected.len(), 2);
+        assert!(collected.contains(&CurrencyPairWithId {
+            id: eth_usd_state(1).id.get(),
+            currency_pair: eth_usd(),
+        }));
+        assert!(collected.contains(&CurrencyPairWithId {
+            id: btc_usd_state(1).id.get(),
+            currency_pair: btc_usd(),
+        }));
+    }
+
+    #[tokio::test]
+    async fn should_get_currency_pairs() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Should return an empty stream before any currency pair states are stored.
+        let collected: Vec<_> = state.currency_pairs().try_collect().await.unwrap();
+        assert!(collected.is_empty());
+
+        // Store some currency pair states.
+        state
+            .put_currency_pair_state(eth_usd(), eth_usd_state(2))
+            .unwrap();
+        state
+            .put_currency_pair_state(btc_usd(), btc_usd_state(1))
+            .unwrap();
+        state
+            .put_currency_pair_state(btc_usd(), btc_usd_state(2))
+            .unwrap();
+        state
+            .put_currency_pair_state(eth_usd(), eth_usd_state(1))
+            .unwrap();
+
+        // Check we retrieved all expected currency pairs.
+        let collected: Vec<_> = state.currency_pairs().try_collect().await.unwrap();
+        assert_eq!(collected.len(), 2);
+        assert!(collected.contains(&eth_usd()));
+        assert!(collected.contains(&btc_usd()));
+    }
+
+    #[tokio::test]
+    async fn should_put_and_get_num_currency_pairs() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Getting should return `0` when no count is stored.
+        assert_eq!(state.get_num_currency_pairs().await.unwrap(), 0);
+
+        // Putting a count should succeed.
+        state.put_num_currency_pairs(1).unwrap();
+
+        // Getting the stored count should succeed.
+        let retrieved_count = state
+            .get_num_currency_pairs()
+            .await
+            .expect("should not error");
+        assert_eq!(1, retrieved_count);
+
+        // Putting a new count should overwrite the first.
+        state.put_num_currency_pairs(2).unwrap();
+
+        let retrieved_count = state
+            .get_num_currency_pairs()
+            .await
+            .expect("should not error");
+        assert_eq!(2, retrieved_count);
+    }
+
+    #[tokio::test]
+    async fn should_put_and_get_num_removed_currency_pairs() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // Getting should return `0` when no count is stored.
+        assert_eq!(state.get_num_removed_currency_pairs().await.unwrap(), 0);
+
+        // Putting a count should succeed.
+        state.put_num_removed_currency_pairs(1).unwrap();
+
+        // Getting the stored count should succeed.
+        let retrieved_count = state
+            .get_num_removed_currency_pairs()
+            .await
+            .expect("should not error");
+        assert_eq!(1, retrieved_count);
+
+        // Putting a new count should overwrite the first.
+        state.put_num_removed_currency_pairs(2).unwrap();
+
+        let retrieved_count = state
+            .get_num_removed_currency_pairs()
+            .await
+            .expect("should not error");
+        assert_eq!(2, retrieved_count);
+    }
+}

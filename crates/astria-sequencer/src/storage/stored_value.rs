@@ -19,6 +19,8 @@ pub(crate) enum StoredValue<'a> {
     Ibc(crate::ibc::storage::Value<'a>),
     App(crate::app::storage::Value<'a>),
     Grpc(crate::grpc::storage::Value<'a>),
+    ConnectMarketMap(crate::connect::market_map::storage::Value<'a>),
+    ConnectOracle(crate::connect::oracle::storage::Value<'a>),
 }
 
 impl<'a> StoredValue<'a> {

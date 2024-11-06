@@ -13,14 +13,11 @@ pub mod v2 {
 
     #[derive(Debug, thiserror::Error)]
     #[error(transparent)]
-    pub struct QueryPriceResponseError(#[from] QueryPriceResponseErrorKind);
+    pub struct QueryPricesResponseError(#[from] QueryPricesResponseErrorKind);
 
     #[derive(Debug, thiserror::Error)]
-    #[error(
-        "failed validating wire type {}",
-        raw::QueryPriceResponseError::full_name()
-    )]
-    enum QueryPriceResponseErrorKind {
+    #[error("failed validating wire type `{}`", raw::QueryPrices::full_name())]
+    enum QueryPricesResponseErrorKind {
         #[error("failed to parse key `{input}` in `.prices` field as currency pair")]
         ParseCurrencyPair {
             input: String,
@@ -36,21 +33,21 @@ pub mod v2 {
 
     pub struct QueryPricesResponse {
         pub prices: IndexMap<CurrencyPair, Price>,
-        pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+        pub timestamp: Option<pbjson_types::Timestamp>,
         pub version: String,
     }
 
     impl QueryPricesResponse {
-        /// Converts the on-wire [`raw::QueryPricesReponse`] to a validated domain type
+        /// Converts the on-wire [`raw::QueryPricesResponse`] to a validated domain type
         /// [`QueryPricesResponse`].
         ///
         /// # Errors
         /// Returns an error if:
-        /// + A key in the `.prices` map could not be parsed as a [`CurrencyPair`].
-        /// + A value in the `.prices` map could not be parsed as [`Price`].
+        /// - A key in the `.prices` map could not be parsed as a [`CurrencyPair`].
+        /// - A value in the `.prices` map could not be parsed as a [`Price`].
         pub fn try_from_raw(
             wire: raw::QueryPricesResponse,
-        ) -> Result<QueryPricesResponse, QueryPriceResponseError> {
+        ) -> Result<QueryPricesResponse, QueryPricesResponseError> {
             let raw::QueryPricesResponse {
                 prices,
                 timestamp,
@@ -61,7 +58,7 @@ pub mod v2 {
                 .map(|(key, value)| {
                     let currency_pair = match key.parse() {
                         Err(source) => {
-                            return Err(QueryPriceResponseErrorKind::ParseCurrencyPair {
+                            return Err(QueryPricesResponseErrorKind::ParseCurrencyPair {
                                 input: key,
                                 source,
                             });
@@ -69,7 +66,7 @@ pub mod v2 {
                         Ok(parsed) => parsed,
                     };
                     let price = value.parse().map_err(move |source| {
-                        QueryPriceResponseErrorKind::ParsePrice {
+                        QueryPricesResponseErrorKind::ParsePrice {
                             input: value,
                             key,
                             source,

@@ -38,7 +38,7 @@ cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.8
   "metrics",
 ] }
 ibc-proto = { version = "0.41.0", features = ["server"] }
-# `is_sorted_by` is available in rust 1.81.0, but we haven't updated our msrv yet
+# `is_sorted_by` is available in rust 1.82.0, but we haven't updated our msrv yet
 is_sorted = "0.1.1"
 matchit = "0.7.2"
 tower = "0.4"
@@ -54,6 +54,7 @@ futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
 indexmap = { workspace = true }
+itertools = { workspace = true }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 penumbra-proto = { workspace = true }
 penumbra-tower-trace = { workspace = true }

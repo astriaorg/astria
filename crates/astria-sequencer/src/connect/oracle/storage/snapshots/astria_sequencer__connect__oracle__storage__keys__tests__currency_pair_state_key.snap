@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/connect/oracle/storage/keys.rs
+expression: currency_pair_state(&currency_pair())
+---
+connect/oracle/currency_pair_state/abc/def
