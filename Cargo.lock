@@ -569,6 +569,7 @@ dependencies = [
  "clap",
  "clap-stdin",
  "color-eyre",
+ "erased-serde 0.4.5",
  "ethers",
  "frost-ed25519",
  "futures",

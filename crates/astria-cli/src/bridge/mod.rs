@@ -18,23 +18,28 @@ use color_eyre::eyre::{
 };
 use tracing::instrument;
 
+use crate::command::{
+    run,
+    RunCommandFut,
+};
+
 /// Interact with a Sequencer node
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
     command: SubCommand,
 }
 
 impl Command {
-    pub(super) async fn run(self) -> eyre::Result<()> {
+    pub(super) fn run(self) -> RunCommandFut {
         match self.command {
-            SubCommand::CollectWithdrawals(args) => args.run().await,
-            SubCommand::SubmitWithdrawals(args) => args.run().await,
+            SubCommand::CollectWithdrawals(args) => run(|| args.run()),
+            SubCommand::SubmitWithdrawals(args) => run(|| args.run()),
         }
     }
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Clone, Debug, Subcommand)]
 enum SubCommand {
     /// Commands for interacting with Sequencer accounts
     CollectWithdrawals(collect::Command),

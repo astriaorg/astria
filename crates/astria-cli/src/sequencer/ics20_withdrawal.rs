@@ -34,7 +34,7 @@ fn now_plus_5_minutes() -> u64 {
         .expect("timestamp must be positive, so this conversion would only fail if negative")
 }
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub(super) struct Command {
     /// The transfer amount to send
     #[arg(long)]

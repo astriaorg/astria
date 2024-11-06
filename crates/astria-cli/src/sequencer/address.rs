@@ -7,7 +7,7 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
     command: SubCommand,
@@ -20,13 +20,13 @@ impl Command {
     }
 }
 
-#[derive(Debug, clap::Subcommand)]
+#[derive(Clone, Debug, clap::Subcommand)]
 enum SubCommand {
     /// Returns a bech32m sequencer address given a prefix and hex-encoded byte slice
     Bech32m(Bech32m),
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct Bech32m {
     /// The hex formatted byte part of the bech32m address
     #[arg(long)]

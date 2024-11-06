@@ -28,7 +28,7 @@ use tracing::{
     warn,
 };
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub(crate) struct Command {
     #[arg(long, short)]
     input: PathBuf,
@@ -91,6 +91,7 @@ impl Command {
                 ),
             }
         }
+        // FIXME: provide a useful response for this object.
         Ok(())
     }
 }

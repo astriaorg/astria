@@ -22,7 +22,7 @@ use termion::color;
 
 use super::read_line_raw;
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
     command: SubCommand,
@@ -39,7 +39,7 @@ impl Command {
     }
 }
 
-#[derive(Debug, clap::Subcommand)]
+#[derive(Clone, Debug, clap::Subcommand)]
 enum SubCommand {
     /// perform part 1 of the signing protocol.
     ///
@@ -64,7 +64,7 @@ enum SubCommand {
     Aggregate(Aggregate),
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct Part1 {
     /// path to a file with the secret key package from keygen ceremony
     #[arg(long)]
@@ -120,7 +120,7 @@ struct CommitmentsWithIdentifier {
     commitments: frost_ed25519::round1::SigningCommitments,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct PrepareMessage {
     /// path to file with message (json-formatted `TransactionBody`) to be signed
     ///
@@ -210,7 +210,7 @@ impl PrepareMessage {
     clippy::struct_field_names,
     reason = "it's okay for all the args to end in `_path`"
 )]
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct Part2 {
     /// path to a file with the secret key package from keygen ceremony
     #[arg(long)]
@@ -274,7 +274,7 @@ struct SignatureShareWithIdentifier {
     signature_share: frost_ed25519::round2::SignatureShare,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct Aggregate {
     /// path to the signing package
     #[arg(long)]

@@ -42,7 +42,7 @@ use tracing::{
 
 use super::ActionsByRollupHeight;
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub(super) struct Command {
     /// The websocket endpoint of a geth compatible rollup.
     #[arg(long)]
@@ -86,7 +86,7 @@ pub(super) struct Command {
 }
 
 impl Command {
-    pub(super) async fn run(self) -> eyre::Result<()> {
+    pub(super) async fn run(self) -> eyre::Result<ActionsByRollupHeight> {
         let Self {
             rollup_endpoint,
             contract_address,
@@ -176,9 +176,13 @@ impl Command {
             actions_by_rollup_height.0.len(),
         );
 
+        // FIXME: Write this to stdout.
         actions_by_rollup_height
+            .clone()
             .write_to_output(output)
-            .wrap_err("failed to write actions to file")
+            .wrap_err("failed to write actions to file")?;
+
+        Ok(actions_by_rollup_height)
     }
 }
 

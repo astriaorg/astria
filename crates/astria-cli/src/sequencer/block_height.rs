@@ -8,7 +8,7 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
     command: SubCommand,
@@ -21,13 +21,13 @@ impl Command {
     }
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Clone, Debug, Subcommand)]
 enum SubCommand {
     /// Get the current block height of the Sequencer node
     Get(Get),
 }
 
-#[derive(clap::Args, Debug)]
+#[derive(Clone, clap::Args, Debug)]
 struct Get {
     /// The url of the Sequencer node
     #[arg(

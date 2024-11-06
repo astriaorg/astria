@@ -14,7 +14,7 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub(super) struct Command {
     /// The URL at which the Sequencer node is listening for ABCI commands.
     #[arg(

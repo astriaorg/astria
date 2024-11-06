@@ -6,6 +6,8 @@
 )]
 
 mod bridge;
+mod command;
+mod output;
 mod sequencer;
 mod utils;
 
@@ -37,14 +39,16 @@ impl Cli {
     /// not explicitly listed here.
     pub async fn run() -> eyre::Result<()> {
         let cli = Self::parse();
-        match cli.command {
-            Command::Bridge(bridge) => bridge.run().await,
-            Command::Sequencer(sequencer) => sequencer.run().await,
-        }
+        let output = match cli.command {
+            Command::Bridge(bridge) => command::run(move || bridge.run()).await?,
+            Command::Sequencer(sequencer) => command::run(move || sequencer.run()).await?,
+        };
+        println!("{output}");
+        Ok(())
     }
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Clone, Debug, Subcommand)]
 enum Command {
     /// Collect events from a rollup and submit to Sequencer.
     Bridge(bridge::Command),

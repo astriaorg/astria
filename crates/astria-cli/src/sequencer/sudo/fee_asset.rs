@@ -13,7 +13,7 @@ use color_eyre::eyre::{
 
 use crate::utils::submit_transaction;
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
     command: SubCommand,
@@ -28,7 +28,7 @@ impl Command {
     }
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Clone, Debug, Subcommand)]
 enum SubCommand {
     /// Add Fee Asset
     Add(Add),

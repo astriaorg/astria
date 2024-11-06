@@ -25,7 +25,7 @@ use termion::color;
 
 use super::read_line_raw;
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     /// index of the participant of the DKG protocol.
     /// must be 1 <= index <= n, where n is the maximum number of signers.

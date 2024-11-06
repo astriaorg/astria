@@ -12,28 +12,28 @@ use color_eyre::{
 
 use crate::utils::submit_transaction;
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
     command: SubCommand,
 }
 
 impl Command {
-    pub(super) async fn run(self) -> eyre::Result<()> {
+    pub(super) fn run(self) -> crate::command::RunCommandFut {
         match self.command {
-            SubCommand::Add(add) => add.run().await,
-            SubCommand::Remove(remove) => remove.run().await,
+            SubCommand::Add(add) => crate::command::run(|| add.run()),
+            SubCommand::Remove(remove) => crate::command::run(|| remove.run()),
         }
     }
 }
 
-#[derive(Debug, clap::Subcommand)]
+#[derive(Clone, Debug, clap::Subcommand)]
 enum SubCommand {
     Add(Add),
     Remove(Remove),
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct Add {
     #[command(flatten)]
     inner: ArgsInner,
@@ -58,7 +58,7 @@ impl Add {
     }
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct Remove {
     #[command(flatten)]
     inner: ArgsInner,
@@ -83,7 +83,7 @@ impl Remove {
     }
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct ArgsInner {
     /// The prefix to construct a bech32m address given the private key.
     #[arg(long, default_value = "astria")]

@@ -1,5 +1,4 @@
 use clap::Subcommand;
-use color_eyre::eyre;
 
 mod account;
 mod address;
@@ -14,33 +13,39 @@ mod sudo;
 mod threshold;
 mod transfer;
 
-#[derive(Debug, clap::Args)]
+use crate::command::{
+    run,
+    run_sync,
+};
+
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
     command: SubCommand,
 }
 
 impl Command {
-    pub(super) async fn run(self) -> eyre::Result<()> {
+    pub(super) fn run(self) -> crate::command::RunCommandFut {
         match self.command {
-            SubCommand::Account(account) => account.run().await,
-            SubCommand::Address(address) => address.run(),
-            SubCommand::Balance(balance) => balance.run().await,
-            SubCommand::BlockHeight(block_height) => block_height.run().await,
-            SubCommand::BridgeLock(bridge_lock) => bridge_lock.run().await,
-            SubCommand::InitBridgeAccount(init_bridge_account) => init_bridge_account.run().await,
-            SubCommand::Sudo(sudo) => sudo.run().await,
-            SubCommand::Transfer(transfer) => transfer.run().await,
-            SubCommand::Threshold(threshold) => threshold.run().await,
-            SubCommand::Ics20Withdrawal(ics20_withdrawal) => ics20_withdrawal.run().await,
-            SubCommand::Submit(submit) => submit.run().await,
-            SubCommand::Sign(sign) => sign.run(),
+            SubCommand::Account(account) => run(|| account.run()),
+            SubCommand::Address(address) => run_sync(|| address.run()),
+            SubCommand::Balance(balance) => run(|| balance.run()),
+            SubCommand::BlockHeight(block_height) => run(|| block_height.run()),
+            SubCommand::BridgeLock(bridge_lock) => run(|| bridge_lock.run()),
+            SubCommand::InitBridgeAccount(init_bridge_account) => run(|| init_bridge_account.run()),
+            SubCommand::Sudo(sudo) => run(|| sudo.run()),
+            SubCommand::Transfer(transfer) => run(|| transfer.run()),
+            SubCommand::Threshold(threshold) => run(|| threshold.run()),
+            SubCommand::Ics20Withdrawal(ics20_withdrawal) => run(|| ics20_withdrawal.run()),
+
+            SubCommand::Submit(submit) => run(|| submit.run()),
+            SubCommand::Sign(sign) => run_sync(|| sign.run()),
         }
     }
 }
 
 /// Interact with a Sequencer node
-#[derive(Debug, Subcommand)]
+#[derive(Clone, Debug, Subcommand)]
 enum SubCommand {
     /// Commands for interacting with Sequencer accounts
     Account(account::Command),

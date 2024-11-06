@@ -10,7 +10,7 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub(super) struct Command {
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]

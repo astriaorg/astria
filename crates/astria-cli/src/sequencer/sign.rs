@@ -18,7 +18,7 @@ use color_eyre::eyre::{
 
 use crate::utils::signing_key_from_private_key;
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub(super) struct Command {
     /// The private key of account being sent from
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]

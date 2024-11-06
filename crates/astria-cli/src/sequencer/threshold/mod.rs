@@ -1,26 +1,32 @@
 use color_eyre::eyre;
 
+use crate::command::{
+    run,
+    run_sync,
+    RunCommandFut,
+};
+
 mod dkg;
 mod sign;
 mod verify;
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
     command: SubCommand,
 }
 
 impl Command {
-    pub(super) async fn run(self) -> eyre::Result<()> {
+    pub(super) fn run(self) -> RunCommandFut {
         match self.command {
-            SubCommand::Dkg(dkg) => dkg.run().await,
-            SubCommand::Sign(sign) => sign.run().await,
-            SubCommand::Verify(verify) => verify.run(),
+            SubCommand::Dkg(dkg) => run(|| dkg.run()),
+            SubCommand::Sign(sign) => run(|| sign.run()),
+            SubCommand::Verify(verify) => run_sync(|| verify.run()),
         }
     }
 }
 
-#[derive(Debug, clap::Subcommand)]
+#[derive(Clone, Debug, clap::Subcommand)]
 enum SubCommand {
     /// distributed key generation command.
     ///

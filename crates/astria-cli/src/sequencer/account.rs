@@ -13,23 +13,29 @@ use color_eyre::eyre::{
 };
 use rand::rngs::OsRng;
 
-#[derive(Debug, clap::Args)]
+use crate::command::{
+    run,
+    run_sync,
+    RunCommandFut,
+};
+
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     #[command(subcommand)]
     command: SubCommand,
 }
 
 impl Command {
-    pub(super) async fn run(self) -> eyre::Result<()> {
+    pub(super) fn run(self) -> RunCommandFut {
         match self.command {
-            SubCommand::Create(create) => create.run(),
-            SubCommand::Balance(balance) => balance.run().await,
-            SubCommand::Nonce(nonce) => nonce.run().await,
+            SubCommand::Create(create) => run_sync(|| create.run()),
+            SubCommand::Balance(balance) => run(|| balance.run()),
+            SubCommand::Nonce(nonce) => run(|| nonce.run()),
         }
     }
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Clone, Debug, Subcommand)]
 enum SubCommand {
     /// Generates a new ED25519 keypair.
     Create(Create),
@@ -39,7 +45,7 @@ enum SubCommand {
     Nonce(Nonce),
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct Create {
     /// The address prefix
     #[arg(long, default_value = "astria")]
@@ -63,7 +69,7 @@ impl Create {
     }
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct Balance {
     #[command(flatten)]
     inner: ArgsInner,
@@ -89,7 +95,7 @@ impl Balance {
     }
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 struct Nonce {
     #[command(flatten)]
     inner: ArgsInner,
@@ -113,7 +119,7 @@ impl Nonce {
     }
 }
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 struct ArgsInner {
     /// The url of the Sequencer node
     #[arg(

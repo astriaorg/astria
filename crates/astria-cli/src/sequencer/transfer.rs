@@ -15,7 +15,7 @@ use color_eyre::eyre::{
 
 use crate::utils::submit_transaction;
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub(super) struct Command {
     // The address of the Sequencer account to send amount to
     to_address: Address,

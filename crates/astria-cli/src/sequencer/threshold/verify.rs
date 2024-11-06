@@ -7,7 +7,7 @@ use frost_ed25519::{
     self,
 };
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     /// hex-encoded verifying key
     #[arg(long)]

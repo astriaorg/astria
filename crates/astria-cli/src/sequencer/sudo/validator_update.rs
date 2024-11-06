@@ -9,7 +9,7 @@ use color_eyre::eyre::{
 
 use crate::utils::submit_transaction;
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub(super) struct Command {
     /// The url of the Sequencer node
     #[arg(

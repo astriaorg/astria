@@ -12,7 +12,7 @@ use color_eyre::eyre::{
 
 use crate::utils::submit_transaction;
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 pub(super) struct Command {
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
