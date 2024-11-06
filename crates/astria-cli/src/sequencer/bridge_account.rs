@@ -56,7 +56,7 @@ impl Get {
         println!("    Rollup Id: {}", info.rollup_id);
         println!("    Asset: {}", info.asset);
         println!("    Sudo Address: {}", info.sudo_address);
-        println!("    Withdrawer Address {}", info.withdrawer_address);
+        println!("    Withdrawer Address: {}", info.withdrawer_address);
         Ok(())
     }
 }
