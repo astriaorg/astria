@@ -13,6 +13,7 @@ use tendermint::{
 
 use crate::{
     app::{
+        app_abci::AppAbci as _,
         benchmark_and_test_utils::genesis_state,
         test_utils::MockTxBuilder,
         App,

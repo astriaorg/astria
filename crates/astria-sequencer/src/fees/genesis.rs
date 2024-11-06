@@ -1,26 +1,20 @@
-use std::sync::Arc;
-
 use astria_core::protocol::genesis::v1::GenesisAppState;
 use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use tendermint::abci::request::{
-    BeginBlock,
-    EndBlock,
-};
 use tracing::instrument;
 
 use crate::{
-    component::Component,
     fees,
+    genesis::Genesis,
 };
 
 #[derive(Default)]
 pub(crate) struct FeesComponent;
 
 #[async_trait::async_trait]
-impl Component for FeesComponent {
+impl Genesis for FeesComponent {
     type AppState = GenesisAppState;
 
     #[instrument(name = "FeesComponent::init_chain", skip_all)]
@@ -130,22 +124,6 @@ impl Component for FeesComponent {
                 .wrap_err("failed to store ibc sudo change fee components")?;
         }
 
-        Ok(())
-    }
-
-    #[instrument(name = "FeesComponent::begin_block", skip_all)]
-    async fn begin_block<S: fees::StateWriteExt + 'static>(
-        _state: &mut Arc<S>,
-        _begin_block: &BeginBlock,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    #[instrument(name = "FeesComponent::end_block", skip_all)]
-    async fn end_block<S: fees::StateWriteExt + 'static>(
-        _state: &mut Arc<S>,
-        _end_block: &EndBlock,
-    ) -> Result<()> {
         Ok(())
     }
 }

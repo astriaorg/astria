@@ -20,7 +20,10 @@ use tracing::{
     Instrument,
 };
 
-use crate::app::App;
+use crate::app::{
+    app_abci::AppAbci,
+    App,
+};
 
 pub(crate) struct Consensus {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,

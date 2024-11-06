@@ -1,5 +1,5 @@
 mod action;
-pub(crate) mod component;
+pub(crate) mod genesis;
 mod state_ext;
 pub(crate) mod storage;
 
@@ -21,8 +21,7 @@ pub(crate) use state_ext::{
 use crate::accounts::AddressBytes;
 
 /// A map of public keys to validator updates.
-#[derive(Debug, PartialEq, Eq)]
-#[cfg_attr(test, derive(Clone))]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct ValidatorSet(BTreeMap<[u8; ADDRESS_LEN], ValidatorUpdate>);
 
 impl ValidatorSet {

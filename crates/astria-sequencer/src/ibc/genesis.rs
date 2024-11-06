@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use astria_core::protocol::genesis::v1::GenesisAppState;
 use astria_eyre::eyre::{
     Result,
@@ -9,25 +7,18 @@ use penumbra_ibc::{
     component::Ibc,
     genesis::Content,
 };
-use tendermint::abci::request::{
-    BeginBlock,
-    EndBlock,
-};
 use tracing::instrument;
 
 use crate::{
-    component::Component,
-    ibc::{
-        host_interface::AstriaHost,
-        state_ext::StateWriteExt,
-    },
+    genesis::Genesis,
+    ibc::state_ext::StateWriteExt,
 };
 
 #[derive(Default)]
 pub(crate) struct IbcComponent;
 
 #[async_trait::async_trait]
-impl Component for IbcComponent {
+impl Genesis for IbcComponent {
     type AppState = GenesisAppState;
 
     #[instrument(name = "IbcComponent::init_chain", skip_all)]
@@ -50,24 +41,6 @@ impl Component for IbcComponent {
                 .wrap_err("failed to write IBC relayer address")?;
         }
 
-        Ok(())
-    }
-
-    #[instrument(name = "IbcComponent::begin_block", skip_all)]
-    async fn begin_block<S: StateWriteExt + 'static>(
-        state: &mut Arc<S>,
-        begin_block: &BeginBlock,
-    ) -> Result<()> {
-        Ibc::begin_block::<AstriaHost, S>(state, begin_block).await;
-        Ok(())
-    }
-
-    #[instrument(name = "IbcComponent::end_block", skip_all)]
-    async fn end_block<S: StateWriteExt + 'static>(
-        state: &mut Arc<S>,
-        end_block: &EndBlock,
-    ) -> Result<()> {
-        Ibc::end_block(state, end_block).await;
         Ok(())
     }
 }

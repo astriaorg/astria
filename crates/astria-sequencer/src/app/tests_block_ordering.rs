@@ -25,6 +25,7 @@ use tendermint::{
 use super::test_utils::get_alice_signing_key;
 use crate::{
     app::{
+        app_abci::AppAbci as _,
         benchmark_and_test_utils::{
             initialize_app_with_storage,
             mock_balances,

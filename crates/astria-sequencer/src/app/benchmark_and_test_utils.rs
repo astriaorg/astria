@@ -39,6 +39,7 @@ use cnidarium::{
 };
 use telemetry::Metrics as _;
 
+use super::app_abci::AppAbci as _;
 use crate::{
     accounts::StateWriteExt as _,
     app::App,

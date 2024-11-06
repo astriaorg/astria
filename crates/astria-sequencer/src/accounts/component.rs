@@ -1,28 +1,22 @@
-use std::sync::Arc;
-
 use astria_core::protocol::genesis::v1::GenesisAppState;
 use astria_eyre::eyre::{
     OptionExt as _,
     Result,
     WrapErr as _,
 };
-use tendermint::abci::request::{
-    BeginBlock,
-    EndBlock,
-};
 use tracing::instrument;
 
 use crate::{
     accounts,
     assets,
-    component::Component,
+    genesis::Genesis,
 };
 
 #[derive(Default)]
 pub(crate) struct AccountsComponent;
 
 #[async_trait::async_trait]
-impl Component for AccountsComponent {
+impl Genesis for AccountsComponent {
     type AppState = GenesisAppState;
 
     #[instrument(name = "AccountsComponent::init_chain", skip_all)]
@@ -45,22 +39,6 @@ impl Component for AccountsComponent {
                     .wrap_err("failed writing account balance to state")?;
             }
         }
-        Ok(())
-    }
-
-    #[instrument(name = "AccountsComponent::begin_block", skip_all)]
-    async fn begin_block<S: accounts::StateWriteExt + 'static>(
-        _state: &mut Arc<S>,
-        _begin_block: &BeginBlock,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    #[instrument(name = "AccountsComponent::end_block", skip_all)]
-    async fn end_block<S: accounts::StateWriteExt + 'static>(
-        _state: &mut Arc<S>,
-        _end_block: &EndBlock,
-    ) -> Result<()> {
         Ok(())
     }
 }

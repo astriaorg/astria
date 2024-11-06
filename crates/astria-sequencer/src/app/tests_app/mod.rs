@@ -2,6 +2,7 @@ mod mempool;
 
 use std::collections::HashMap;
 
+use app_abci::AppAbci as _;
 use astria_core::{
     primitive::v1::{
         asset::TracePrefixed,
@@ -16,6 +17,7 @@ use astria_core::{
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
+                ValidatorUpdate,
             },
             TransactionBody,
         },
@@ -46,12 +48,9 @@ use tendermint::{
     },
     account,
     block::{
-        header::Version,
-        Header,
         Height,
         Round,
     },
-    AppHash,
     Hash,
     Time,
 };
@@ -76,28 +75,6 @@ use crate::{
     fees::StateReadExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
 };
-
-fn default_tendermint_header() -> Header {
-    Header {
-        app_hash: AppHash::try_from(vec![]).unwrap(),
-        chain_id: "test".to_string().try_into().unwrap(),
-        consensus_hash: Hash::default(),
-        data_hash: Some(Hash::try_from([0u8; 32].to_vec()).unwrap()),
-        evidence_hash: Some(Hash::default()),
-        height: Height::default(),
-        last_block_id: None,
-        last_commit_hash: Some(Hash::default()),
-        last_results_hash: Some(Hash::default()),
-        next_validators_hash: Hash::default(),
-        proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
-        time: Time::now(),
-        validators_hash: Hash::default(),
-        version: Version {
-            app: 0,
-            block: 0,
-        },
-    }
-}
 
 #[tokio::test]
 async fn app_genesis_and_init_chain() {
@@ -125,18 +102,16 @@ async fn app_genesis_and_init_chain() {
 }
 
 #[tokio::test]
-async fn app_pre_execute_transactions() {
+async fn app_prepare_state_for_execution() {
     let mut app = initialize_app(None, vec![]).await;
 
     let block_data = BlockData {
         misbehavior: vec![],
         height: 1u8.into(),
         time: Time::now(),
-        next_validators_hash: Hash::default(),
-        proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
     };
 
-    app.pre_execute_transactions(block_data.clone())
+    app.prepare_state_for_execution(block_data.clone())
         .await
         .unwrap();
     assert_eq!(app.state.get_block_height().await.unwrap(), 1);
@@ -147,7 +122,7 @@ async fn app_pre_execute_transactions() {
 }
 
 #[tokio::test]
-async fn app_begin_block_remove_byzantine_validators() {
+async fn app_prepare_state_for_execution_remove_byzantine_validators() {
     use tendermint::abci::types;
 
     let initial_validator_set = vec![
@@ -174,18 +149,13 @@ async fn app_begin_block_remove_byzantine_validators() {
         total_voting_power: 101u32.into(),
     };
 
-    let mut begin_block = abci::request::BeginBlock {
-        header: default_tendermint_header(),
-        hash: Hash::default(),
-        last_commit_info: CommitInfo {
-            votes: vec![],
-            round: Round::default(),
-        },
-        byzantine_validators: vec![misbehavior],
+    let block_data = BlockData {
+        misbehavior: vec![misbehavior],
+        height: 1u8.into(),
+        time: Time::now(),
     };
-    begin_block.header.height = 1u8.into();
 
-    app.begin_block(&begin_block).await.unwrap();
+    app.prepare_state_for_execution(block_data).await.unwrap();
 
     // assert that validator with pubkey_a is removed
     let validator_set = app.state.get_validator_set().await.unwrap();
@@ -912,10 +882,38 @@ async fn app_end_block_validator_updates() {
         .unwrap();
     app.apply(state_tx);
 
-    let resp = app.end_block(1, &proposer_address).await.unwrap();
+    let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+    let tx = TransactionBody::builder()
+        .actions(vec![
+            RollupDataSubmission {
+                rollup_id,
+                data: Bytes::from_static(b"hello world"),
+                fee_asset: nria().into(),
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+    let signed_tx = tx.sign(&get_alice_signing_key());
+    let deposits = HashMap::from_iter(vec![(rollup_id, vec![])]);
+    let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
+
+    app.update_state_and_end_block(
+        Hash::Sha256([0u8; 32]),
+        1u32.into(),
+        Time::now(),
+        proposer_address.to_vec().try_into().unwrap(),
+        commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+        vec![],
+    )
+    .await
+    .unwrap();
+    let validator_updates = app.state.get_validator_updates().await.unwrap();
+
     // we only assert length here as the ordering of the updates is not guaranteed
     // and validator::Update does not implement Ord
-    assert_eq!(resp.validator_updates.len(), validator_updates.len());
+    assert_eq!(validator_updates.len(), validator_updates.len());
 
     // validator with pubkey_a should be removed (power set to 0)
     // validator with pubkey_b should be updated

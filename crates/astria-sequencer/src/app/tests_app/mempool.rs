@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use app_abci::AppAbci as _;
 use astria_core::{
     protocol::{
         fees::v1::TransferFeeComponents,
