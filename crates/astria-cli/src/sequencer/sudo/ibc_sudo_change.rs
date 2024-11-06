@@ -54,9 +54,9 @@ impl Command {
             }),
         )
         .await
-        .wrap_err("failed to submit SudoAddressChange transaction")?;
+        .wrap_err("failed to submit IbcSudoChange transaction")?;
 
-        println!("SudoAddressChange completed!");
+        println!("IbcSudoChange completed!");
         println!("Included in block: {}", res.height);
         Ok(())
     }

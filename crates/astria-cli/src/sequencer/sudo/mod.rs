@@ -2,7 +2,7 @@ use color_eyre::eyre;
 
 mod fee_asset;
 mod ibc_relayer;
-mod ibc_sudo_address_change;
+mod ibc_sudo_change;
 mod sudo_address_change;
 mod validator_update;
 
@@ -32,5 +32,5 @@ enum SubCommand {
     FeeAsset(fee_asset::Command),
     SudoAddressChange(sudo_address_change::Command),
     ValidatorUpdate(validator_update::Command),
-    IbcSudoAddressChange(ibc_sudo_address_change::Command),
+    IbcSudoAddressChange(ibc_sudo_change::Command),
 }
