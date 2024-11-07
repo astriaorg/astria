@@ -4,32 +4,36 @@ use astria_core::generated::sequencerblock::optimisticblock::v1alpha1::GetBlockC
 use astria_eyre::eyre::{
     self,
     Context,
-    OptionExt,
+    OptionExt as _,
 };
 use futures::{
     Stream,
     StreamExt as _,
 };
+use pin_project_lite::pin_project;
 use telemetry::display::base64;
 use tracing::debug;
 
 use super::Commitment;
 use crate::optimistic_block_client::OptimisticBlockClient;
 
-/// A stream for receiving committed blocks from the sequencer.
-pub(crate) struct BlockCommitmentStream {
-    client: Pin<Box<tonic::Streaming<GetBlockCommitmentStreamResponse>>>,
+pin_project! {
+    /// A stream for receiving committed blocks from the sequencer.
+    pub(crate) struct BlockCommitmentStream {
+        #[pin]
+        client: tonic::Streaming<GetBlockCommitmentStreamResponse>,
+    }
 }
 
 impl BlockCommitmentStream {
     pub(crate) async fn connect(mut sequencer_client: OptimisticBlockClient) -> eyre::Result<Self> {
-        let committed_stream_client = sequencer_client
+        let commitment_stream_client = sequencer_client
             .get_block_commitment_stream()
             .await
             .wrap_err("failed to stream block commitments")?;
 
         Ok(Self {
-            client: Box::pin(committed_stream_client),
+            client: commitment_stream_client,
         })
     }
 }
@@ -41,11 +45,15 @@ impl Stream for BlockCommitmentStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let raw = futures::ready!(self.client.poll_next_unpin(cx))
-            .ok_or_eyre("stream has been closed")?
+        let res = match futures::ready!(self.client.poll_next_unpin(cx)) {
+            Some(res) => res,
+            None => return std::task::Poll::Ready(None),
+        };
+
+        let raw = res
             .wrap_err("received gRPC error")?
             .commitment
-            .ok_or_eyre("block commitment stream response did not contain block commitment")?;
+            .ok_or_eyre("response did not contain block commitment")?;
 
         let commitment =
             Commitment::try_from_raw(raw).wrap_err("failed to parse raw to BlockCommitment")?;
