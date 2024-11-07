@@ -21,7 +21,7 @@ use prost::Message as _;
 
 mod client;
 
-// TODO: this should probably be moved to astria_core::bundle
+// TODO: this should probably be moved to astria_core::bundle?
 #[derive(Debug, Clone)]
 pub(crate) struct Bundle {
     /// The fee that will be charged for this bundle
@@ -98,7 +98,7 @@ impl Bundle {
         self.fee
     }
 
-    pub(crate) fn prev_rollup_block_hash(&self) -> [u8; 32] {
+    pub(crate) fn parent_rollup_block_hash(&self) -> [u8; 32] {
         self.prev_rollup_block_hash
     }
 

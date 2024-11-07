@@ -7,10 +7,7 @@ use astria_core::{
         RollupId,
     },
 };
-use tokio::sync::{
-    mpsc,
-    oneshot,
-};
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use super::{
@@ -59,10 +56,8 @@ impl Builder {
             sequencer_chain_id,
         } = self;
 
-        let (executed_block_tx, executed_block_rx) = oneshot::channel();
-        let (block_commitment_tx, block_commitment_rx) = oneshot::channel();
-        let (reorg_tx, reorg_rx) = oneshot::channel();
-        // TODO: get the capacity from config or something instead of using a magic number
+        // TODO: get the capacities from config or something instead of using a magic number
+        let (commands_tx, commands_rx) = mpsc::channel(16);
         let (new_bundles_tx, new_bundles_rx) = mpsc::channel(16);
 
         let auction = Auction {
@@ -70,9 +65,7 @@ impl Builder {
             shutdown_token,
             sequencer_grpc_client,
             sequencer_abci_client,
-            start_processing_bids_rx: executed_block_rx,
-            start_timer_rx: block_commitment_rx,
-            abort_rx: reorg_rx,
+            commands_rx,
             new_bundles_rx,
             auction_id,
             latency_margin,
@@ -85,9 +78,7 @@ impl Builder {
         (
             Handle {
                 new_bundles_tx,
-                start_processing_bids_tx: Some(executed_block_tx),
-                start_timer_tx: Some(block_commitment_tx),
-                abort_tx: Some(reorg_tx),
+                commands_tx,
             },
             auction,
         )

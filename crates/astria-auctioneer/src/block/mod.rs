@@ -16,11 +16,15 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     eyre,
     Context,
 };
 use bytes::Bytes;
 use prost::Message as _;
+use telemetry::display::base64;
+
+use crate::bundle::Bundle;
 
 pub(crate) mod commitment_stream;
 pub(crate) mod executed_stream;
@@ -42,6 +46,7 @@ fn convert_tendermint_time_to_protobuf_timestamp(
 
 #[derive(Debug, Clone)]
 pub(crate) struct Optimistic {
+    /// The optimistic block data, filtered for a rollup id.
     filtered_sequencer_block: FilteredSequencerBlock,
 }
 
@@ -55,7 +60,11 @@ impl Optimistic {
     }
 
     /// Converts this [`Optimistic`] into a [`BaseBlock`] for the given `rollup_id`.
-    /// If there are no transactions for the given `rollup_id`, this will return a `BaseBlock`.
+    /// If there are no transactions for the given `rollup_id`, this will return a `BaseBlock`
+    /// with no transactions.
+    ///
+    /// # Errors
+    /// Invalid `RollupData` included in the optimistic block data will result in an error.
     // TODO: add typed errors here?
     pub(crate) fn try_into_base_block(
         self,
@@ -102,7 +111,9 @@ impl Optimistic {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Executed {
+    /// The rollup block metadata that resulted from executing the optimistic block.
     block: execution::v1::Block,
+    /// The hash of the sequencer block that was executed optimistically.
     sequencer_block_hash: [u8; 32],
 }
 
@@ -151,7 +162,9 @@ impl Executed {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Commitment {
+    /// The height of the sequencer block that was committed.
     sequencer_height: u64,
+    /// The hash of the sequencer block that was committed.
     sequnecer_block_hash: [u8; 32],
 }
 
@@ -167,13 +180,6 @@ impl Commitment {
                 .try_into()
                 .wrap_err("invalid block hash")?,
         })
-    }
-
-    pub(crate) fn into_raw(self) -> raw_optimistic_block::SequencerBlockCommit {
-        raw_optimistic_block::SequencerBlockCommit {
-            height: self.sequencer_height,
-            block_hash: Bytes::copy_from_slice(&self.sequnecer_block_hash),
-        }
     }
 
     pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
@@ -192,6 +198,7 @@ pub(crate) struct Current {
 }
 
 impl Current {
+    /// Creates a new `Current` with the given `optimistic_block`.
     pub(crate) fn with_optimistic(optimistic_block: Optimistic) -> Self {
         Self {
             optimistic: optimistic_block,
@@ -200,6 +207,9 @@ impl Current {
         }
     }
 
+    /// Updates the `Current` with the given `executed_block`.
+    /// This will fail if the `executed_block` does not match the `optimistic_block`'s sequencer
+    /// block hash.
     pub(crate) fn execute(&mut self, executed_block: Executed) -> eyre::Result<()> {
         if executed_block.sequencer_block_hash() != self.optimistic.sequencer_block_hash() {
             return Err(eyre!("block hash mismatch"));
@@ -209,6 +219,9 @@ impl Current {
         Ok(())
     }
 
+    /// Updates the `Current` with the given `block_commitment`.
+    /// This will fail if the `block_commitment` does not match the `optimistic_block`'s sequencer
+    /// block hash.
     pub(crate) fn commitment(&mut self, block_commitment: Commitment) -> eyre::Result<()> {
         if block_commitment.sequencer_block_hash() != self.optimistic.sequencer_block_hash() {
             return Err(eyre!("block hash mismatch"));
@@ -229,5 +242,28 @@ impl Current {
         self.executed
             .as_ref()
             .map(|executed| executed.parent_rollup_block_hash())
+    }
+
+    /// Ensures that the given `bundle` is valid for the current block state.
+    pub(crate) fn ensure_bundle_is_valid(&self, bundle: &Bundle) -> eyre::Result<()> {
+        ensure!(
+            bundle.base_sequencer_block_hash() == self.sequencer_block_hash(),
+            "incoming bundle's sequencer block hash {bundle_hash} does not match current \
+             sequencer block hash {current_hash}",
+            bundle_hash = base64(bundle.base_sequencer_block_hash()),
+            current_hash = base64(self.sequencer_block_hash())
+        );
+
+        if let Some(rollup_parent_block_hash) = self.rollup_parent_block_hash() {
+            ensure!(
+                bundle.parent_rollup_block_hash() == rollup_parent_block_hash,
+                "bundle's rollup parent block hash {bundle_hash} does not match current rollup \
+                 parent block hash {current_hash}",
+                bundle_hash = base64(bundle.parent_rollup_block_hash()),
+                current_hash = base64(rollup_parent_block_hash)
+            );
+        }
+
+        Ok(())
     }
 }
