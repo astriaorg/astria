@@ -47,6 +47,7 @@ ibcAccountMnemonic: globe elegant people render embark whisper pumpkin local thi
 # address celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96
 devAccountName: "dev-account"
 devAccountMnemonic: enrich avocado local net will avoid dizzy truth column excuse ready lesson
+fast: false
 
 # Default service ports
 ports:
