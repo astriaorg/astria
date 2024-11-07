@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed ICS20 withdrawal source when using channel with more than one
   port/channel combo. [#1768](https://github.com/astriaorg/astria/pull/1768)
 
+### Removed
+
+- Removed `sequeuncer address` subcommand [#1803](https://github.com/astriaorg/astria/pull/1803)
+
 ## [0.5.1] - 2024-10-23
 
 ### Added

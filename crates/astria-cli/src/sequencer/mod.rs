@@ -2,7 +2,6 @@ use clap::Subcommand;
 use color_eyre::eyre;
 
 mod account;
-mod address;
 mod balance;
 mod block_height;
 mod bridge_account;
@@ -26,7 +25,6 @@ impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
         match self.command {
             SubCommand::Account(account) => account.run().await,
-            SubCommand::Address(address) => address.run(),
             SubCommand::Balance(balance) => balance.run().await,
             SubCommand::BlockHeight(block_height) => block_height.run().await,
             SubCommand::BridgeLock(bridge_lock) => bridge_lock.run().await,
@@ -48,8 +46,6 @@ impl Command {
 enum SubCommand {
     /// Commands for interacting with Sequencer accounts
     Account(account::Command),
-    /// Utilities for constructing and inspecting sequencer addresses
-    Address(address::Command),
     /// Commands for interacting with Sequencer balances
     Balance(balance::Command),
     /// Commands for interacting with Sequencer block heights
