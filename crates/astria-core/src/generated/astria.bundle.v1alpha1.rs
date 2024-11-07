@@ -40,6 +40,33 @@ impl ::prost::Name for Bundle {
         ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
     }
 }
+/// The AuctionResult message is submitted by the Auctioneer to the rollup as a
+/// `RollupDataSubmission` on the sequencer.
+/// The rollup will verify the signature and public key against its configuration,
+/// then unbundle the body into rollup transactions and execute them first in the
+/// block.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AuctionResult {
+    /// The Ed25519 signature of the Auctioneer, to be verified against config by the
+    /// rollup.
+    #[prost(bytes = "bytes", tag = "1")]
+    pub signature: ::prost::bytes::Bytes,
+    /// The Ed25519 public key of the Auctioneer, to be verified against config by the
+    /// rollup.
+    #[prost(bytes = "bytes", tag = "2")]
+    pub public_key: ::prost::bytes::Bytes,
+    /// The bundle that was allocated the winning slot by the Auctioneer.
+    #[prost(message, optional, tag = "3")]
+    pub allocation: ::core::option::Option<Bundle>,
+}
+impl ::prost::Name for AuctionResult {
+    const NAME: &'static str = "AuctionResult";
+    const PACKAGE: &'static str = "astria.bundle.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetBundleStreamResponse {

@@ -24,6 +24,22 @@ message Bundle {
   bytes prev_rollup_block_hash = 4;
 }
 
+// The AuctionResult message is submitted by the Auctioneer to the rollup as a
+// `RollupDataSubmission` on the sequencer.
+// The rollup will verify the signature and public key against its configuration,
+// then unbundle the body into rollup transactions and execute them first in the
+// block.
+message AuctionResult {
+  // The Ed25519 signature of the Auctioneer, to be verified against config by the
+  // rollup.
+  bytes signature = 1;
+  // The Ed25519 public key of the Auctioneer, to be verified against config by the
+  // rollup.
+  bytes public_key = 2;
+  // The bundle that was allocated the winning slot by the Auctioneer.
+  Bundle allocation = 3;
+}
+
 message GetBundleStreamResponse {
   Bundle bundle = 1;
 }
