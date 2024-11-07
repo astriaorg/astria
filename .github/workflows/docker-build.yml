@@ -49,7 +49,7 @@ jobs:
       id-token: write
       packages: write
     with:
-      depot-project-id: abcdefghij # TODO: change this to the correct depot project ID
+      depot-project-id: 1kp2p2bvbr
       package-name: auctioneer
       binary-name: auctioneer
       tag: ${{ inputs.tag }}
