@@ -12,6 +12,7 @@ use astria_core::{
     protocol::{
         abci::AbciErrorCode,
         asset::v1::AllowedFeeAssetsResponse,
+        fees::v1::FeeComponents,
         transaction::v1::{
             action::{
                 BridgeLock,
@@ -36,6 +37,8 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    eyre,
+    ErrReport,
     OptionExt as _,
     WrapErr as _,
 };
@@ -70,10 +73,10 @@ use crate::{
     app::StateReadExt as _,
     assets::StateReadExt as _,
     fees::{
-        access::FeeComponents,
         FeeHandler,
         StateReadExt as _,
     },
+    storage::StoredValue,
 };
 
 async fn find_trace_prefixed_or_return_ibc<S: StateRead>(
@@ -238,27 +241,31 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     tx: &TransactionBody,
     state: &S,
 ) -> eyre::Result<HashMap<asset::IbcPrefixed, u128>> {
-    let transfer_fees = OnceCell::new();
-    let rollup_data_submission_fees = OnceCell::new();
-    let ics20_withdrawal_fees = OnceCell::new();
-    let init_bridge_account_fees = OnceCell::new();
-    let bridge_lock_fees = OnceCell::new();
-    let bridge_unlock_fees = OnceCell::new();
-    let bridge_sudo_change_fees = OnceCell::new();
-    let validator_update_fees = OnceCell::new();
-    let sudo_address_change_fees = OnceCell::new();
-    let ibc_sudo_change_fees = OnceCell::new();
-    let ibc_relay_fees = OnceCell::new();
-    let ibc_relayer_change_fees = OnceCell::new();
-    let fee_asset_change_fees = OnceCell::new();
-    let fee_change_fees = OnceCell::new();
+    let transfer_fees: OnceCell<Option<FeeComponents<Transfer>>> = OnceCell::new();
+    let rollup_data_submission_fees: OnceCell<Option<FeeComponents<RollupDataSubmission>>> =
+        OnceCell::new();
+    let ics20_withdrawal_fees: OnceCell<Option<FeeComponents<Ics20Withdrawal>>> = OnceCell::new();
+    let init_bridge_account_fees: OnceCell<Option<FeeComponents<InitBridgeAccount>>> =
+        OnceCell::new();
+    let bridge_lock_fees: OnceCell<Option<FeeComponents<BridgeLock>>> = OnceCell::new();
+    let bridge_unlock_fees: OnceCell<Option<FeeComponents<BridgeUnlock>>> = OnceCell::new();
+    let bridge_sudo_change_fees: OnceCell<Option<FeeComponents<BridgeSudoChange>>> =
+        OnceCell::new();
+    let validator_update_fees: OnceCell<Option<FeeComponents<ValidatorUpdate>>> = OnceCell::new();
+    let sudo_address_change_fees: OnceCell<Option<FeeComponents<SudoAddressChange>>> =
+        OnceCell::new();
+    let ibc_sudo_change_fees: OnceCell<Option<FeeComponents<IbcSudoChange>>> = OnceCell::new();
+    let ibc_relay_fees: OnceCell<Option<FeeComponents<IbcRelay>>> = OnceCell::new();
+    let ibc_relayer_change_fees: OnceCell<Option<FeeComponents<IbcRelayerChange>>> =
+        OnceCell::new();
+    let fee_asset_change_fees: OnceCell<Option<FeeComponents<FeeAssetChange>>> = OnceCell::new();
+    let fee_change_fees: OnceCell<Option<FeeComponents<FeeChange>>> = OnceCell::new();
 
     let mut fees_by_asset = HashMap::new();
     for action in tx.actions() {
         match action {
             Action::Transfer(act) => {
-                let transfer_fees =
-                    get_or_init_fees::<Transfer, _, _>(state, &transfer_fees, "Transfer").await?;
+                let transfer_fees = get_or_init_fees(state, &transfer_fees).await?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -267,12 +274,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::RollupDataSubmission(act) => {
-                let rollup_data_submission_fees = get_or_init_fees::<RollupDataSubmission, _, _>(
-                    state,
-                    &rollup_data_submission_fees,
-                    "RollupDataSubmission",
-                )
-                .await?;
+                let rollup_data_submission_fees =
+                    get_or_init_fees(state, &rollup_data_submission_fees).await?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -281,12 +284,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::Ics20Withdrawal(act) => {
-                let ics20_withdrawal_fees = get_or_init_fees::<Ics20Withdrawal, _, _>(
-                    state,
-                    &ics20_withdrawal_fees,
-                    "Ics20Withdrawal",
-                )
-                .await?;
+                let ics20_withdrawal_fees = get_or_init_fees(state, &ics20_withdrawal_fees).await?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -295,12 +293,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::InitBridgeAccount(act) => {
-                let init_bridge_account_fees = get_or_init_fees::<InitBridgeAccount, _, _>(
-                    state,
-                    &init_bridge_account_fees,
-                    "InitBridgeAccount",
-                )
-                .await?;
+                let init_bridge_account_fees =
+                    get_or_init_fees(state, &init_bridge_account_fees).await?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -309,9 +303,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::BridgeLock(act) => {
-                let bridge_lock_fees =
-                    get_or_init_fees::<BridgeLock, _, _>(state, &bridge_lock_fees, "BridgeLock")
-                        .await?;
+                let bridge_lock_fees = get_or_init_fees(state, &bridge_lock_fees).await?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -320,12 +312,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::BridgeUnlock(act) => {
-                let bridge_unlock_fees = get_or_init_fees::<BridgeUnlock, _, _>(
-                    state,
-                    &bridge_unlock_fees,
-                    "BridgeUnlock",
-                )
-                .await?;
+                let bridge_unlock_fees = get_or_init_fees(state, &bridge_unlock_fees).await?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -334,12 +321,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::BridgeSudoChange(act) => {
-                let bridge_sudo_change_fees = get_or_init_fees::<BridgeSudoChange, _, _>(
-                    state,
-                    &bridge_sudo_change_fees,
-                    "BridgeSudoChange",
-                )
-                .await?;
+                let bridge_sudo_change_fees =
+                    get_or_init_fees(state, &bridge_sudo_change_fees).await?;
                 calculate_and_add_fees(
                     act,
                     act.fee_asset.to_ibc_prefixed(),
@@ -348,65 +331,40 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 );
             }
             Action::ValidatorUpdate(_) => {
-                get_or_init_fees::<ValidatorUpdate, _, _>(
-                    state,
-                    &validator_update_fees,
-                    "ValidatorUpdate",
-                )
-                .await?;
+                get_or_init_fees(state, &validator_update_fees).await?;
             }
             Action::SudoAddressChange(_) => {
-                get_or_init_fees::<SudoAddressChange, _, _>(
-                    state,
-                    &sudo_address_change_fees,
-                    "SudoAddressChange",
-                )
-                .await?;
+                get_or_init_fees(state, &sudo_address_change_fees).await?;
             }
             Action::IbcSudoChange(_) => {
-                get_or_init_fees::<IbcSudoChange, _, _>(
-                    state,
-                    &ibc_sudo_change_fees,
-                    "IbcSudoChange",
-                )
-                .await?;
+                get_or_init_fees(state, &ibc_sudo_change_fees).await?;
             }
             Action::Ibc(_) => {
-                get_or_init_fees::<IbcRelay, _, _>(state, &ibc_relay_fees, "IbcRelay").await?;
+                get_or_init_fees(state, &ibc_relay_fees).await?;
             }
             Action::IbcRelayerChange(_) => {
-                get_or_init_fees::<IbcRelayerChange, _, _>(
-                    state,
-                    &ibc_relayer_change_fees,
-                    "IbcRelayerChange",
-                )
-                .await?;
+                get_or_init_fees(state, &ibc_relayer_change_fees).await?;
             }
             Action::FeeAssetChange(_) => {
-                get_or_init_fees::<FeeAssetChange, _, _>(
-                    state,
-                    &fee_asset_change_fees,
-                    "FeeAssetChange",
-                )
-                .await?;
+                get_or_init_fees(state, &fee_asset_change_fees).await?;
             }
             Action::FeeChange(_) => {
-                get_or_init_fees::<FeeChange, _, _>(state, &fee_change_fees, "FeeChange").await?;
+                get_or_init_fees(state, &fee_change_fees).await?;
             }
         }
     }
     Ok(fees_by_asset)
 }
 
-fn calculate_and_add_fees<T: FeeHandler, F: FeeComponents>(
-    act: &T,
+fn calculate_and_add_fees<F: FeeHandler>(
+    action: &F,
     fee_asset: asset::IbcPrefixed,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    fees: &F,
+    fees: &FeeComponents<F>,
 ) {
     let base = fees.base();
     let multiplier = fees.multiplier();
-    let total_fees = base.saturating_add(multiplier.saturating_mul(act.variable_component()));
+    let total_fees = base.saturating_add(multiplier.saturating_mul(action.variable_component()));
     fees_by_asset
         .entry(fee_asset)
         .and_modify(|amt| *amt = amt.saturating_add(total_fees))
@@ -447,23 +405,25 @@ fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, 
     Ok(tx)
 }
 
-async fn get_or_init_fees<'a, Act, S, T>(
+async fn get_or_init_fees<'a, F, S>(
     state: &S,
-    cell: &'a OnceCell<Option<T>>,
-    action_name: &str,
-) -> eyre::Result<&'a T>
+    fee_components: &'a OnceCell<Option<FeeComponents<F>>>,
+) -> eyre::Result<&'a FeeComponents<F>>
 where
-    Act: FeeHandler<FeeComponents = T>,
+    F: FeeHandler,
+    FeeComponents<F>: TryFrom<StoredValue<'a>, Error = ErrReport>,
     S: StateRead,
-    T: FeeComponents,
 {
-    let fees = cell
-        .get_or_try_init(|| async { Act::fee_components(state).await })
+    let fees = fee_components
+        .get_or_try_init(|| async { state.get_fees::<F>().await })
         .await
-        .wrap_err(format!("failed to get fees for `{action_name}` action"))?
+        .wrap_err_with(|| format!("failed to get fees for `{}` action", F::snake_case_name()))?
         .as_ref()
-        .ok_or_eyre(format!(
-            "fees not found for `{action_name}` action, hence it is disabled",
-        ))?;
+        .ok_or_else(|| {
+            eyre!(
+                "fees not found for `{}` action, hence it is disabled",
+                F::snake_case_name()
+            )
+        })?;
     Ok(fees)
 }

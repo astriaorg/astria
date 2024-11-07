@@ -3,14 +3,18 @@ mod state_ext;
 
 use std::fmt;
 
-use astria_core::protocol::transaction::v1::{
-    action::Action,
-    Transaction,
+use astria_core::protocol::{
+    fees::v1::FeeComponents,
+    transaction::v1::{
+        action::Action,
+        Transaction,
+    },
 };
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         ensure,
+        ErrReport,
         OptionExt as _,
         Result,
         WrapErr as _,
@@ -49,6 +53,7 @@ use crate::{
         host_interface::AstriaHost,
         StateReadExt as _,
     },
+    storage::StoredValue,
 };
 
 #[derive(Debug)]
@@ -285,10 +290,12 @@ impl ActionHandler for Transaction {
     }
 }
 
-async fn check_execute_and_pay_fees<T: ActionHandler + FeeHandler + Sync, S: StateWrite>(
-    action: &T,
-    mut state: S,
-) -> Result<()> {
+async fn check_execute_and_pay_fees<'a, T, S>(action: &T, mut state: S) -> Result<()>
+where
+    T: ActionHandler + FeeHandler + Sync,
+    FeeComponents<T>: TryFrom<StoredValue<'a>, Error = ErrReport>,
+    S: StateWrite,
+{
     action.check_and_execute(&mut state).await?;
     action.check_and_pay_fees(&mut state).await?;
     Ok(())

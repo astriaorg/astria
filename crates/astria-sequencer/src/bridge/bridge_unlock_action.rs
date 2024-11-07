@@ -236,10 +236,7 @@ mod tests {
         let transfer_fee = 10;
         let transfer_amount = 100;
         state
-            .put_bridge_unlock_fees(BridgeUnlockFeeComponents {
-                base: transfer_fee,
-                multiplier: 0,
-            })
+            .put_fees(BridgeUnlockFeeComponents::new(transfer_fee, 0))
             .unwrap();
 
         let to_address = astria_address(&[2; 20]);

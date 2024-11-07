@@ -104,10 +104,7 @@ fn from_list_of_actions_bundleable_sudo() {
 
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
-        Action::FeeChange(FeeChange::Transfer(TransferFeeComponents {
-            base: 100,
-            multiplier: 0,
-        })),
+        Action::FeeChange(FeeChange::Transfer(TransferFeeComponents::new(100, 0))),
         Action::FeeAssetChange(FeeAssetChange::Addition(asset)),
         Action::IbcRelayerChange(IbcRelayerChange::Addition(address)),
     ];
