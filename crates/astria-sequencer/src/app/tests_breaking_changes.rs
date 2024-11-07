@@ -71,7 +71,10 @@ use crate::{
         nria,
         ASTRIA_PREFIX,
     },
-    bridge::StateWriteExt as _,
+    bridge::{
+        StateReadExt,
+        StateWriteExt as _,
+    },
     proposal::commitment::generate_rollup_datas_commitment,
 };
 
@@ -179,6 +182,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let bridge_address = astria_address(&bridge.address_bytes());
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
+    let mut signed_txs = vec![];
 
     let accounts = {
         let mut acc = default_genesis_accounts();
@@ -225,7 +229,8 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         ])
         .chain_id("test")
         .try_build()
-        .unwrap();
+        .unwrap()
+        .sign(&alice);
 
     let tx_bundleable_sudo = TransactionBody::builder()
         .actions(vec![
@@ -239,7 +244,8 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .nonce(1)
         .chain_id("test")
         .try_build()
-        .unwrap();
+        .unwrap()
+        .sign(&alice);
 
     let tx_sudo_ibc = TransactionBody::builder()
         .actions(vec![
@@ -251,7 +257,8 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .nonce(2)
         .chain_id("test")
         .try_build()
-        .unwrap();
+        .unwrap()
+        .sign(&alice);
 
     let tx_sudo = TransactionBody::builder()
         .actions(vec![
@@ -263,23 +270,26 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .nonce(3)
         .chain_id("test")
         .try_build()
-        .unwrap();
+        .unwrap()
+        .sign(&alice);
 
-    let signed_tx_general_bundleable = Arc::new(tx_bundleable_general.sign(&alice));
-    app.execute_transaction(signed_tx_general_bundleable)
+    signed_txs.insert(0, tx_bundleable_general.clone());
+    app.execute_transaction(Arc::new(tx_bundleable_general))
         .await
         .unwrap();
 
-    let signed_tx_sudo_bundleable = Arc::new(tx_bundleable_sudo.sign(&alice));
-    app.execute_transaction(signed_tx_sudo_bundleable)
+    signed_txs.insert(0, tx_bundleable_sudo.clone());
+    app.execute_transaction(Arc::new(tx_bundleable_sudo))
         .await
         .unwrap();
 
-    let signed_tx_sudo_ibc = Arc::new(tx_sudo_ibc.sign(&alice));
-    app.execute_transaction(signed_tx_sudo_ibc).await.unwrap();
+    signed_txs.insert(0, tx_sudo_ibc.clone());
+    app.execute_transaction(Arc::new(tx_sudo_ibc))
+        .await
+        .unwrap();
 
-    let signed_tx_sudo = Arc::new(tx_sudo.sign(&alice));
-    app.execute_transaction(signed_tx_sudo).await.unwrap();
+    signed_txs.insert(0, tx_sudo.clone());
+    app.execute_transaction(Arc::new(tx_sudo)).await.unwrap();
 
     let tx = TransactionBody::builder()
         .actions(vec![
@@ -294,9 +304,10 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         ])
         .chain_id("test")
         .try_build()
-        .unwrap();
-    let signed_tx = Arc::new(tx.sign(&bridge));
-    app.execute_transaction(signed_tx).await.unwrap();
+        .unwrap()
+        .sign(&bridge);
+    signed_txs.insert(0, tx.clone());
+    app.execute_transaction(Arc::new(tx)).await.unwrap();
 
     let tx_bridge_bundleable = TransactionBody::builder()
         .actions(vec![
@@ -322,10 +333,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .nonce(1)
         .chain_id("test")
         .try_build()
-        .unwrap();
+        .unwrap()
+        .sign(&bridge);
 
-    let signed_tx = Arc::new(tx_bridge_bundleable.sign(&bridge));
-    app.execute_transaction(signed_tx).await.unwrap();
+    signed_txs.insert(0, tx_bridge_bundleable.clone());
+    app.execute_transaction(Arc::new(tx_bridge_bundleable))
+        .await
+        .unwrap();
 
     let tx_bridge = TransactionBody::builder()
         .actions(vec![
@@ -340,10 +354,30 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .nonce(2)
         .chain_id("test")
         .try_build()
-        .unwrap();
+        .unwrap()
+        .sign(&bridge);
 
-    let signed_tx = Arc::new(tx_bridge.sign(&bridge));
-    app.execute_transaction(signed_tx).await.unwrap();
+    signed_txs.insert(0, tx_bridge.clone());
+    app.execute_transaction(Arc::new(tx_bridge)).await.unwrap();
+
+    let cached_deposits = app.state.get_cached_block_deposits();
+    let commitments = generate_rollup_datas_commitment(&signed_txs, cached_deposits.clone());
+
+    app.update_state_and_end_block(
+        Hash::Sha256([0u8; 32]),
+        1u32.into(),
+        Time::now(),
+        [0; 20].to_vec().try_into().unwrap(),
+        commitments.into_transactions(
+            signed_txs
+                .iter()
+                .map(|tx| tx.to_raw().encode_to_vec().into())
+                .collect(),
+        ),
+        vec![],
+    )
+    .await
+    .unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
