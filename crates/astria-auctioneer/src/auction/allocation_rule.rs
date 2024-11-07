@@ -1,3 +1,5 @@
+//! The allocation rule is the mechanism by which the auction processes incoming bids and determines
+//! the winner.
 use super::Bundle;
 
 pub(super) struct FirstPrice {
@@ -23,7 +25,8 @@ impl FirstPrice {
         }
     }
 
-    pub(crate) fn highest_bid(self) -> Option<Bundle> {
+    /// Returns the winner of the auction, if one exists.
+    pub(crate) fn winner(self) -> Option<Bundle> {
         self.highest_bid
     }
 }

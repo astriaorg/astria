@@ -9,13 +9,13 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    Context,
-    OptionExt,
+    WrapErr as _,
 };
 use futures::{
     Stream,
     StreamExt,
 };
+use pin_project_lite::pin_project;
 use telemetry::display::base64;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -43,8 +43,13 @@ impl Handle {
         Ok(())
     }
 }
-pub(crate) struct ExecutedBlockStream {
-    client: Pin<Box<tonic::Streaming<ExecuteOptimisticBlockStreamResponse>>>,
+
+pin_project! {
+    /// A stream for receiving optimistic execution results from the rollup node.
+    pub(crate) struct ExecutedBlockStream {
+        #[pin]
+        client: tonic::Streaming<ExecuteOptimisticBlockStreamResponse>,
+    }
 }
 
 impl ExecutedBlockStream {
@@ -64,7 +69,7 @@ impl ExecutedBlockStream {
                 blocks_to_execute_tx,
             },
             Self {
-                client: Box::pin(executed_stream_client),
+                client: executed_stream_client,
             },
         ))
     }
@@ -77,9 +82,12 @@ impl Stream for ExecutedBlockStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let raw = futures::ready!(self.client.poll_next_unpin(cx))
-            .ok_or_eyre("stream has been closed")?
-            .wrap_err("received gRPC Error")?;
+        let res = match futures::ready!(self.client.poll_next_unpin(cx)) {
+            Some(res) => res,
+            None => return std::task::Poll::Ready(None),
+        };
+
+        let raw = res.wrap_err("received gRPC Error")?;
 
         let executed_block =
             Executed::try_from_raw(raw).wrap_err("failed to parse raw to Executed")?;
@@ -100,8 +108,8 @@ pub(crate) fn make_execution_requests_stream(
     mpsc::Sender<Optimistic>,
     impl tonic::IntoStreamingRequest<Message = ExecuteOptimisticBlockStreamRequest>,
 ) {
-    // TODO: should the capacity be a config instead of a magic number? OPTIMISTIC_REORG_BUFFER?
-    // - add a metric so we can see if that becomes a problem
+    // TODO: should this capacity be a config instead of a magic number? OPTIMISTIC_REORG_BUFFER?
+    // TODO: add a metric so we can see if that becomes a problem
     let (blocks_to_execute_tx, blocks_to_execute_rx) = mpsc::channel(16);
     let blocks_to_execute_stream_rx = ReceiverStream::new(blocks_to_execute_rx);
 
@@ -116,7 +124,7 @@ pub(crate) fn make_execution_requests_stream(
                 base_block: Some(base_block),
             }),
             Err(e) => {
-                error!(error = ?e, "skipping execution of invalid block");
+                error!(error = %e, "skipping execution of invalid block");
 
                 None
             }

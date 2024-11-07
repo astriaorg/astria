@@ -1,3 +1,5 @@
+/// The auction Manager is responsible for managing running auction futures and their
+/// associated handles.
 use std::collections::HashMap;
 
 use astria_core::{
@@ -110,7 +112,6 @@ pub(crate) struct Manager {
     latency_margin: std::time::Duration,
     running_auctions: JoinMap<Id, eyre::Result<()>>,
     auction_handles: HashMap<Id, Handle>,
-    // TODO: hold the bundle stream here?
     sequencer_key: SequencerKey,
     fee_asset_denomination: asset::Denom,
     sequencer_chain_id: String,
@@ -140,13 +141,14 @@ impl Manager {
     }
 
     pub(crate) fn abort_auction(&mut self, auction_id: Id) -> eyre::Result<()> {
-        // TODO: this should return an option in case the auction returned before being aborted
         let handle = self
             .auction_handles
             .get_mut(&auction_id)
             .ok_or_eyre("unable to get handle for the given auction")?;
 
-        handle.abort().expect("should only abort once per auction");
+        handle
+            .try_abort()
+            .wrap_err("failed to send command to abort auction")?;
         Ok(())
     }
 
@@ -159,7 +161,7 @@ impl Manager {
 
         handle
             .start_timer()
-            .expect("should only start timer once per auction");
+            .wrap_err("failed to send command to start timer to auction")?;
 
         Ok(())
     }
@@ -173,7 +175,7 @@ impl Manager {
 
         handle
             .start_processing_bids()
-            .expect("should only start processing bids once per auction");
+            .wrap_err("failed to send command to start processing bids")?;
         Ok(())
     }
 
@@ -187,10 +189,10 @@ impl Manager {
 
     pub(crate) async fn join_next(&mut self) -> Option<(Id, eyre::Result<()>)> {
         if let Some((auction_id, result)) = self.running_auctions.join_next().await {
-            // TODO: get rid of this expect?
+            // TODO: get rid of this expect somehow
             self.auction_handles
                 .remove(&auction_id)
-                .expect("unable to get handle for the given auction");
+                .expect("handle should always exist for running auction");
 
             Some((auction_id, flatten_result(result)))
         } else {

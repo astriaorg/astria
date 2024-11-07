@@ -1,4 +1,35 @@
-//! - [ ] mention backpressure here
+//! The Optimistic Executor is the component responsible for maintaining the current block
+//! state based on the optimistic block stream, the block commitment stream, and the executed
+//! block stream. The Optimistic Executior uses its current block state for running an auction
+//! per block. Incoming bundles are fed to the current auction after checking them against the
+//! current block state.
+//!
+//! ## Block Lifecycle
+//! The Optimistic Executor tracks its current block using the `block:Current` struct, at a high
+//! level:
+//! 1. Blocks are received optimistically from the sequencer via the optimistic block stream, which
+//!    also forwards them to the rollup node for execution.
+//! 2. Execution results are received from the rollup node via the executed block stream.
+//! 3. Commitments are received from the sequencer via the block commitment stream.
+//!
+//! ## Auction Lifecycle
+//! The current block state is used for running an auction per block. Auctions are managed by the
+//! `auction::Manager` struct, and the Optimistic Executor advances their state based on its current
+//! block state:
+//! 1. An auction is created when a new block is received optimistically.
+//! 2. The auction will begin processing bids when the executed block is received.
+//! 3. The auction's timer is started when a block commitment is received.
+//! 4. Bundles are fed to the current auction after checking them against the current block state.
+//!
+//! ### Bundles and Backpressure
+//! Bundles are fed to the current auction via an mpsc channel. Since the auction will only start
+//! processing bids after the executed block is received, the channel is used to buffer bundles
+//! that are received before the executed block.
+//! If too many bundles are received from the rollup node before the block is executed
+//! optimistically on the rollup node, the channel will fill up and newly received bundles will be
+//! dropped until the auction begins processing bundles.
+//! We assume this is highly unlikely, as the rollup node's should filter the bundles it streams
+//! by its optimistic head block hash.
 
 use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre::{
@@ -15,6 +46,7 @@ use tracing::{
     error,
     info,
     instrument,
+    warn,
 };
 
 use crate::{
@@ -65,21 +97,24 @@ impl Startup {
             auctions,
         } = self;
 
+        let (execution_stream_handle, executed_blocks) =
+            ExecutedBlockStream::connect(rollup_id, rollup_grpc_endpoint.clone())
+                .await
+                .wrap_err("failed to initialize executed block stream")?;
+
         let sequencer_client = OptimisticBlockClient::new(&sequencer_grpc_endpoint)
             .wrap_err("failed to initialize sequencer grpc client")?;
-        let mut optimistic_blocks =
-            OptimisticBlockStream::connect(rollup_id, sequencer_client.clone())
-                .await
-                .wrap_err("failed to initialize optimsitic block stream")?;
+        let mut optimistic_blocks = OptimisticBlockStream::connect(
+            rollup_id,
+            sequencer_client.clone(),
+            execution_stream_handle,
+        )
+        .await
+        .wrap_err("failed to initialize optimsitic block stream")?;
 
         let block_commitments = BlockCommitmentStream::connect(sequencer_client)
             .await
             .wrap_err("failed to initialize block commitment stream")?;
-
-        let (blocks_to_execute_handle, executed_blocks) =
-            ExecutedBlockStream::connect(rollup_id, rollup_grpc_endpoint.clone())
-                .await
-                .wrap_err("failed to initialize executed block stream")?;
 
         let bundle_stream = BundleStream::connect(rollup_grpc_endpoint)
             .await
@@ -98,7 +133,6 @@ impl Startup {
             optimistic_blocks,
             block_commitments,
             executed_blocks,
-            blocks_to_execute_handle,
             bundle_stream,
             auctions,
             current_block,
@@ -107,12 +141,13 @@ impl Startup {
 }
 
 pub(crate) struct Running {
+    // TODO: add metrics
+    #[allow(dead_code)]
     metrics: &'static crate::Metrics,
     shutdown_token: CancellationToken,
     optimistic_blocks: OptimisticBlockStream,
     block_commitments: BlockCommitmentStream,
     executed_blocks: ExecutedBlockStream,
-    blocks_to_execute_handle: block::executed_stream::Handle,
     bundle_stream: BundleStream,
     auctions: auction::Manager,
     current_block: block::Current,
@@ -130,8 +165,7 @@ impl Running {
                     },
 
                     Some((id, res)) = self.auctions.join_next() => {
-                        // TODO: this seems wrong?
-                        res.wrap_err_with(|| "auction failed for block {id}").map(|_| "auction {id} failed")?;
+                        res.wrap_err_with(|| format!("auction failed for block {}", base64(id)))?;
                     },
 
                     res = self.optimistic_blocks.next() => {
@@ -140,23 +174,23 @@ impl Running {
                         let _ = self.handle_optimistic_block(res);
                     },
 
-                    Some(res) = self.block_commitments.next() => {
-                        let block_commitment = tri!(res.wrap_err("failed to get block commitment"));
+                    res = self.block_commitments.next() => {
+                        let res = break_for_closed_stream!(res, "block commitment stream closed");
 
-                        let _ = self.handle_block_commitment(block_commitment);
+                        let _ = self.handle_block_commitment(res);
 
                     },
 
-                    Some(res) = self.executed_blocks.next() => {
-                        let executed_block = res.wrap_err("failed to get executed block")?;
+                    res = self.executed_blocks.next() => {
+                        let res = break_for_closed_stream!(res, "executed block stream closed");
 
-                        let _ = self.handle_executed_block(executed_block);
+                        let _ = self.handle_executed_block(res);
                     }
 
                     Some(res) = self.bundle_stream.next() => {
                         let bundle = res.wrap_err("failed to get bundle")?;
 
-                        let _ = self.handle_incoming_bundle(bundle);
+                        let _ = self.handle_bundle(bundle);
                     }
                 }
             }
@@ -175,7 +209,7 @@ impl Running {
         &mut self,
         optimistic_block: eyre::Result<block::Optimistic>,
     ) -> eyre::Result<()> {
-        let optimistic_block = optimistic_block.wrap_err("failed receiving optimistic block")?;
+        let optimistic_block = optimistic_block.wrap_err("failed to receive optimistic block")?;
 
         let old_auction_id =
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
@@ -184,7 +218,6 @@ impl Running {
             .wrap_err("failed to abort auction")?;
 
         info!(
-            // TODO: is this how we display block hashes?
             optimistic_block.sequencer_block_hash = %base64(optimistic_block.sequencer_block_hash()),
             "received optimistic block, aborting old auction and starting new auction"
         );
@@ -194,21 +227,24 @@ impl Running {
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
         self.auctions.new_auction(new_auction_id);
 
-        // forward the optimistic block to the rollup's optimistic execution server
-        // TODO: don't want to exit on this, just complain with a log and skip the block or smth?
-        self.blocks_to_execute_handle
-            .try_send_block_to_execute(optimistic_block)
-            .wrap_err("failed to send optimistic block for execution")?;
-
         Ok(())
     }
 
     #[instrument(skip_all, fields(auction.id = %base64(self.current_block.sequencer_block_hash())), err)]
-    fn handle_block_commitment(&mut self, block_commitment: block::Commitment) -> eyre::Result<()> {
-        // TODO: handle this with a log instead of exiting?
-        self.current_block
-            .commitment(block_commitment)
-            .wrap_err("failed to set block commitment")?;
+    fn handle_block_commitment(
+        &mut self,
+        block_commitment: eyre::Result<block::Commitment>,
+    ) -> eyre::Result<()> {
+        let block_commitment = block_commitment.wrap_err("failed to receive block commitment")?;
+
+        if let Err(e) = self.current_block.commitment(block_commitment.clone()) {
+            warn!(
+                current_block.sequencer_block_hash = %base64(self.current_block.sequencer_block_hash()),
+                block_commitment.sequencer_block_hash = %base64(block_commitment.sequencer_block_hash()),
+                "received block commitment for the wrong block"
+            );
+            return Err(e).wrap_err("failed to handle block commitment");
+        }
 
         let auction_id =
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
@@ -221,11 +257,22 @@ impl Running {
     }
 
     #[instrument(skip_all, fields(auction.id = %base64(self.current_block.sequencer_block_hash())))]
-    fn handle_executed_block(&mut self, executed_block: block::Executed) -> eyre::Result<()> {
-        // TODO: handle this with a log instead of exiting?
-        self.current_block
-            .execute(executed_block)
-            .wrap_err("failed to set block to executed")?;
+    fn handle_executed_block(
+        &mut self,
+        executed_block: eyre::Result<block::Executed>,
+    ) -> eyre::Result<()> {
+        let executed_block = executed_block.wrap_err("failed to receive executed block")?;
+
+        if let Err(e) = self.current_block.execute(executed_block.clone()) {
+            warn!(
+                // TODO: nicer display for the current block
+                current_block.sequencer_block_hash = %base64(self.current_block.sequencer_block_hash()),
+                executed_block.sequencer_block_hash = %base64(executed_block.sequencer_block_hash()),
+                executed_block.rollup_block_hash = %base64(executed_block.rollup_block_hash()),
+                "received optimistic execution result for wrong sequencer block"
+            );
+            return Err(e).wrap_err("failed to handle executed block");
+        }
 
         let auction_id =
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
@@ -238,26 +285,15 @@ impl Running {
     }
 
     #[instrument(skip_all, fields(auction.id = %base64(self.current_block.sequencer_block_hash())))]
-    fn handle_incoming_bundle(&mut self, bundle: Bundle) -> eyre::Result<()> {
-        // TODO: use ensure! here and provide the hashes in the error
-        if bundle.base_sequencer_block_hash() != self.current_block.sequencer_block_hash() {
-            return Err(eyre!(
-                "incoming bundle's {sequencer_block_hash} does not match current sequencer block \
-                 hash"
-            ));
-        }
-
-        if let Some(rollup_parent_block_hash) = self.current_block.rollup_parent_block_hash() {
-            if bundle.prev_rollup_block_hash() != rollup_parent_block_hash {
-                return Err(eyre!(
-                    "bundle's rollup parent block hash does not match current rollup parent block \
-                     hash"
-                ));
-            }
-        } else {
-            // TODO: should i buffer these up in the channel until the block is executed and then
-            // filter them in the auction if the parent hashes dont match?
-            return Err(eyre!("current block has not been executed yet."));
+    fn handle_bundle(&mut self, bundle: Bundle) -> eyre::Result<()> {
+        if let Err(e) = self.current_block.ensure_bundle_is_valid(&bundle) {
+            warn!(
+                curent_block.sequencer_block_hash = %base64(self.current_block.sequencer_block_hash()),
+                bundle.sequencer_block_hash = %base64(bundle.base_sequencer_block_hash()),
+                bundle.parent_rollup_block_hash = %base64(bundle.parent_rollup_block_hash()),
+                "incoming bundle does not match current block, ignoring"
+            );
+            return Err(e).wrap_err("failed to handle bundle");
         }
 
         let auction_id =
