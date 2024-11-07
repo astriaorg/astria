@@ -1,8 +1,33 @@
+use std::{
+    fmt::{
+        self,
+        Debug,
+        Formatter,
+    },
+    marker::PhantomData,
+};
+
+use penumbra_ibc::IbcRelay;
 use prost::Name as _;
 
 use crate::{
     generated::protocol::fees::v1 as raw,
     primitive::v1::asset,
+    protocol::transaction::v1::action::{
+        BridgeLock,
+        BridgeSudoChange,
+        BridgeUnlock,
+        FeeAssetChange,
+        FeeChange,
+        IbcRelayerChange,
+        IbcSudoChange,
+        Ics20Withdrawal,
+        InitBridgeAccount,
+        RollupDataSubmission,
+        SudoAddressChange,
+        Transfer,
+        ValidatorUpdate,
+    },
     Protobuf,
 };
 
@@ -49,6 +74,7 @@ macro_rules! impl_protobuf_for_fee_components {
                         multiplier: multiplier
                             .ok_or_else(|| Self::Error::missing_field(Self::Raw::full_name(), "multiplier"))?
                             .into(),
+                        _phantom: PhantomData,
                     })
                 }
 
@@ -56,6 +82,7 @@ macro_rules! impl_protobuf_for_fee_components {
                     let Self {
                         base,
                         multiplier,
+                        _phantom,
                     } = self;
                     Self::Raw {
                         base: Some(base.into()),
@@ -83,89 +110,79 @@ impl_protobuf_for_fee_components!(
     IbcSudoChangeFeeComponents => raw::IbcSudoChangeFeeComponents,
 );
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct TransferFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
+pub struct FeeComponents<T: ?Sized> {
+    base: u128,
+    multiplier: u128,
+    _phantom: PhantomData<T>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct RollupDataSubmissionFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
+impl<T: ?Sized> FeeComponents<T> {
+    #[must_use]
+    pub fn new(base: u128, multiplier: u128) -> Self {
+        Self {
+            base,
+            multiplier,
+            _phantom: PhantomData,
+        }
+    }
+
+    #[must_use]
+    pub fn base(&self) -> u128 {
+        self.base
+    }
+
+    #[must_use]
+    pub fn multiplier(&self) -> u128 {
+        self.multiplier
+    }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Ics20WithdrawalFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
+impl<T: Protobuf> Debug for FeeComponents<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct(&format!("{}FeeComponents", T::Raw::NAME))
+            .field("base", &self.base)
+            .field("multiplier", &self.multiplier)
+            .finish()
+    }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct InitBridgeAccountFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
+impl Debug for FeeComponents<IbcRelay> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("IbcRelayFeeComponents")
+            .field("base", &self.base)
+            .field("multiplier", &self.multiplier)
+            .finish()
+    }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BridgeLockFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
+impl<T: ?Sized> Clone for FeeComponents<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BridgeUnlockFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
+impl<T: ?Sized> Copy for FeeComponents<T> {}
+
+impl<T: ?Sized> PartialEq for FeeComponents<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.base == other.base && self.multiplier == other.multiplier
+    }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BridgeSudoChangeFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct IbcRelayFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ValidatorUpdateFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct FeeAssetChangeFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct FeeChangeFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct IbcRelayerChangeFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SudoAddressChangeFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct IbcSudoChangeFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
-}
+pub type TransferFeeComponents = FeeComponents<Transfer>;
+pub type RollupDataSubmissionFeeComponents = FeeComponents<RollupDataSubmission>;
+pub type Ics20WithdrawalFeeComponents = FeeComponents<Ics20Withdrawal>;
+pub type InitBridgeAccountFeeComponents = FeeComponents<InitBridgeAccount>;
+pub type BridgeLockFeeComponents = FeeComponents<BridgeLock>;
+pub type BridgeUnlockFeeComponents = FeeComponents<BridgeUnlock>;
+pub type BridgeSudoChangeFeeComponents = FeeComponents<BridgeSudoChange>;
+pub type IbcRelayFeeComponents = FeeComponents<IbcRelay>;
+pub type ValidatorUpdateFeeComponents = FeeComponents<ValidatorUpdate>;
+pub type FeeAssetChangeFeeComponents = FeeComponents<FeeAssetChange>;
+pub type FeeChangeFeeComponents = FeeComponents<FeeChange>;
+pub type IbcRelayerChangeFeeComponents = FeeComponents<IbcRelayerChange>;
+pub type SudoAddressChangeFeeComponents = FeeComponents<SudoAddressChange>;
+pub type IbcSudoChangeFeeComponents = FeeComponents<IbcSudoChange>;
 
 #[derive(Debug, Clone)]
 pub struct TransactionFeeResponse {

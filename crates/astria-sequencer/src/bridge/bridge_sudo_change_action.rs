@@ -159,10 +159,7 @@ mod tests {
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         state
-            .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
-                base: 10,
-                multiplier: 0,
-            })
+            .put_fees(BridgeSudoChangeFeeComponents::new(10, 0))
             .unwrap();
 
         let fee_asset = test_asset();
