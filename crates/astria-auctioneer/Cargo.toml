@@ -18,7 +18,7 @@ astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 sequencer_client = { package = "astria-sequencer-client", path = "../astria-sequencer-client" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
-    "display",
+  "display",
 ] }
 
 async-trait = { workspace = true }
@@ -36,11 +36,11 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = [
-    "macros",
-    "rt-multi-thread",
-    "sync",
-    "time",
-    "signal",
+  "macros",
+  "rt-multi-thread",
+  "sync",
+  "time",
+  "signal",
 ] }
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
@@ -51,12 +51,12 @@ tokio-stream = { workspace = true, features = ["net"] }
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = ["client"] }
 config = { package = "astria-config", path = "../astria-config", features = [
-    "tests",
+  "tests",
 ] }
 insta = { workspace = true, features = ["json"] }
 tempfile = { workspace = true }
 test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
-    "geth",
+  "geth",
 ] }
 tokio-test = { workspace = true }
 wiremock = { workspace = true }

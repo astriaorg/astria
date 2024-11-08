@@ -69,9 +69,8 @@ impl Stream for OptimisticBlockStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let res = match futures::ready!(self.client.poll_next_unpin(cx)) {
-            Some(raw) => raw,
-            None => return std::task::Poll::Ready(None),
+        let Some(res) = futures::ready!(self.client.poll_next_unpin(cx)) else {
+            return std::task::Poll::Ready(None);
         };
 
         let raw = res

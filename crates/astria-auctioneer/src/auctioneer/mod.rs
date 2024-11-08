@@ -32,7 +32,6 @@ impl Auctioneer {
     ///
     /// # Errors
     /// Returns an error if the Auctioneer cannot be initialized.
-    #[must_use]
     pub fn spawn(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let shutdown_token = CancellationToken::new();
         let inner = inner::Auctioneer::new(cfg, metrics, shutdown_token.child_token())?;
