@@ -67,8 +67,8 @@ impl Builder {
             sequencer_abci_client,
             commands_rx,
             new_bundles_rx,
-            auction_id,
             latency_margin,
+            id: auction_id,
             sequencer_key,
             fee_asset_denomination,
             sequencer_chain_id,
@@ -77,8 +77,8 @@ impl Builder {
 
         (
             Handle {
-                new_bundles_tx,
                 commands_tx,
+                new_bundles_tx,
             },
             auction,
         )

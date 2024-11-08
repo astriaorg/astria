@@ -45,9 +45,8 @@ impl Stream for BlockCommitmentStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let res = match futures::ready!(self.client.poll_next_unpin(cx)) {
-            Some(res) => res,
-            None => return std::task::Poll::Ready(None),
+        let Some(res) = futures::ready!(self.client.poll_next_unpin(cx)) else {
+            return std::task::Poll::Ready(None);
         };
 
         let raw = res
@@ -56,7 +55,7 @@ impl Stream for BlockCommitmentStream {
             .ok_or_eyre("response did not contain block commitment")?;
 
         let commitment =
-            Commitment::try_from_raw(raw).wrap_err("failed to parse raw to BlockCommitment")?;
+            Commitment::try_from_raw(&raw).wrap_err("failed to parse raw to BlockCommitment")?;
 
         debug!(block_commitment.sequencer_block_hash = %base64(&commitment.sequencer_block_hash()), "received block commitment");
 

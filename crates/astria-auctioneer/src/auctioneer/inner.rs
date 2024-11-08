@@ -113,7 +113,7 @@ impl Auctioneer {
             Some((name, res)) = self.tasks.join_next() => {
                 flatten_result(res)
                     .wrap_err_with(|| format!("task `{name}` failed"))
-                    .map(|_| "task `{name}` exited unexpectedly")
+                    .map(|()| "task `{name}` exited unexpectedly")
             }
         };
 
@@ -135,10 +135,10 @@ impl Auctioneer {
                 let message = "task shut down";
                 match flatten_result(res) {
                     Ok(()) => {
-                        info!(name, message)
+                        info!(name, message);
                     }
                     Err(err) => {
-                        error!(name, %err, message)
+                        error!(name, %err, message);
                     }
                 }
             }
@@ -153,7 +153,7 @@ impl Auctioneer {
             warn!(
                 tasks = format_args!("[{tasks}]"),
                 "aborting all tasks that have not yet shut down"
-            )
+            );
         } else {
             info!("all tasks have shut down regularly");
         }

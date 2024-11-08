@@ -4,13 +4,18 @@ use astria_core::{
         bundle::v1alpha1 as raw_bundle,
         sequencerblock::{
             optimisticblock::v1alpha1 as raw_optimistic_block,
-            v1 as raw_sequencer_block,
+            v1::{
+                self as raw_sequencer_block,
+            },
         },
     },
     primitive::v1::RollupId,
-    sequencerblock::v1::block::{
-        FilteredSequencerBlock,
-        FilteredSequencerBlockParts,
+    sequencerblock::v1::{
+        block::{
+            FilteredSequencerBlock,
+            FilteredSequencerBlockParts,
+        },
+        RollupTransactions,
     },
     Protobuf,
 };
@@ -79,7 +84,7 @@ impl Optimistic {
 
         let maybe_serialized_transactions = rollup_transactions
             .swap_remove(&rollup_id)
-            .map(|transactions| transactions.into_parts());
+            .map(RollupTransactions::into_parts);
 
         let transactions =
             maybe_serialized_transactions.map_or(Ok(vec![]), |serialized_transactions| {
@@ -101,7 +106,7 @@ impl Optimistic {
     }
 
     pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
-        self.filtered_sequencer_block.block_hash().clone()
+        *self.filtered_sequencer_block.block_hash()
     }
 
     pub(crate) fn sequencer_height(&self) -> u64 {
@@ -170,7 +175,7 @@ pub(crate) struct Commitment {
 
 impl Commitment {
     pub(crate) fn try_from_raw(
-        raw: raw_optimistic_block::SequencerBlockCommit,
+        raw: &raw_optimistic_block::SequencerBlockCommit,
     ) -> eyre::Result<Self> {
         Ok(Self {
             sequencer_height: raw.height,
@@ -238,10 +243,10 @@ impl Current {
         self.optimistic.sequencer_block_hash()
     }
 
-    pub(crate) fn rollup_parent_block_hash(&self) -> Option<[u8; 32]> {
+    pub(crate) fn parent_rollup_block_hash(&self) -> Option<[u8; 32]> {
         self.executed
             .as_ref()
-            .map(|executed| executed.parent_rollup_block_hash())
+            .map(Executed::parent_rollup_block_hash)
     }
 
     /// Ensures that the given `bundle` is valid for the current block state.
@@ -254,7 +259,7 @@ impl Current {
             current_hash = base64(self.sequencer_block_hash())
         );
 
-        if let Some(rollup_parent_block_hash) = self.rollup_parent_block_hash() {
+        if let Some(rollup_parent_block_hash) = self.parent_rollup_block_hash() {
             ensure!(
                 bundle.parent_rollup_block_hash() == rollup_parent_block_hash,
                 "bundle's rollup parent block hash {bundle_hash} does not match current rollup \

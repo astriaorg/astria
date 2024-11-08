@@ -123,8 +123,11 @@ impl Stream for BundleStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let raw = futures::ready!(self.client.poll_next_unpin(cx))
-            .ok_or_eyre("stream has been closed")?
+        let Some(res) = futures::ready!(self.client.poll_next_unpin(cx)) else {
+            return std::task::Poll::Ready(None);
+        };
+
+        let raw = res
             .wrap_err("received gRPC error")?
             .bundle
             .ok_or_eyre("bundle stream response did not contain bundle")?;
