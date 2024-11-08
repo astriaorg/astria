@@ -810,6 +810,7 @@ dependencies = [
  "divan",
  "futures",
  "hex",
+ "humantime",
  "ibc-proto",
  "ibc-types",
  "indexmap 2.4.0",
@@ -840,6 +841,7 @@ dependencies = [
  "tower-actor",
  "tower-http",
  "tracing",
+ "tryhard",
 ]
 
 [[package]]
