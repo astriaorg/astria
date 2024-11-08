@@ -13,8 +13,8 @@
 //! `Command::Abort`. This will cause the auction to return early without submitting a winner,
 //! effectively discarding any bundles that were processed.
 //! This is used for leveraging optimsitic execution, running an auction for block data that has
-//! been proposed in the sequencer network's CometBFT but not yet finalized.
-//! We assume that most proposals are adopted in CometBFT, allowing us to buy a few hundred
+//! been proposed in the sequencer network's cometBFT but not yet finalized.
+//! We assume that most proposals are adopted in cometBFT, allowing us to buy a few hundred
 //! milliseconds before they are finalized. However, if multiple rounds of voting invalidate a
 //! proposal, we can abort the auction and avoid submitting a potentially invalid bundle. In this
 //! case, the auction will abort and a new one will be created for the newly processed proposal
@@ -119,8 +119,7 @@ pub(crate) struct Handle {
 
 impl Handle {
     pub(crate) fn try_abort(&mut self) -> eyre::Result<()> {
-        let _ = self
-            .commands_tx
+        self.commands_tx
             .try_send(Command::Abort)
             .wrap_err("unable to send abort command to auction")?;
 
@@ -128,16 +127,14 @@ impl Handle {
     }
 
     pub(crate) fn start_processing_bids(&mut self) -> eyre::Result<()> {
-        let _ = self
-            .commands_tx
+        self.commands_tx
             .try_send(Command::StartProcessingBids)
             .wrap_err("unable to send command to start processing bids to auction")?;
         Ok(())
     }
 
     pub(crate) fn start_timer(&mut self) -> eyre::Result<()> {
-        let _ = self
-            .commands_tx
+        self.commands_tx
             .try_send(Command::StartTimer)
             .wrap_err("unable to send command to start time to auction")?;
 
@@ -169,7 +166,7 @@ pub(crate) struct Auction {
     /// The time between receiving a block commitment
     latency_margin: Duration,
     /// The ID of the auction
-    auction_id: Id,
+    id: Id,
     /// The key used to sign transactions on the sequencer
     sequencer_key: SequencerKey,
     /// Fee asset for submitting transactions
@@ -204,8 +201,7 @@ impl Auction {
                     match cmd {
                         Command::Abort => {
                             // abort the auction early
-                            // TODO: should this be an error?
-                            break Err(eyre!("auction {id} received abort signal", id = base64(&self.auction_id)));
+                            break Err(eyre!("auction {id} received abort signal", id = base64(&self.id)));
                         },
                         Command::StartProcessingBids => {
                             if auction_is_open {
@@ -224,7 +220,7 @@ impl Auction {
                             // we wait for commit because we want the pending nonce from the committed block
                             nonce_fetch = {
                                 let client = self.sequencer_grpc_client.clone();
-                                let address = self.sequencer_key.address().clone();
+                                let &address = self.sequencer_key.address();
                                 Some(tokio::task::spawn(async move { get_pending_nonce(client, address, self.metrics).await }))
                             };
                         }
@@ -234,13 +230,13 @@ impl Auction {
                 Some(bundle) = self.new_bundles_rx.recv(), if auction_is_open => {
                     if allocation_rule.bid(bundle.clone()) {
                         info!(
-                            auction.id = %base64(self.auction_id),
+                            auction.id = %base64(self.id),
                             bundle.bid = %bundle.bid(),
                             "received new highest bid"
                         );
                     } else {
                         debug!(
-                            auction.id = %base64(self.auction_id),
+                            auction.id = %base64(self.id),
                             bundle.bid = %bundle.bid(),
                             "received bid lower than current highest bid, discarding"
                         );
@@ -286,11 +282,11 @@ impl Auction {
                 match result {
                     Ok(resp) => {
                         // TODO: handle failed submission instead of just logging the result
-                        info!(auction.id = %base64(self.auction_id), auction.result = %resp.log, "auction result submitted to sequencer");
+                        info!(auction.id = %base64(self.id), auction.result = %resp.log, "auction result submitted to sequencer");
                         Ok(())
                     },
                     Err(e) => {
-                        error!(auction.id = %base64(self.auction_id), err = %e, "failed to submit auction result to sequencer");
+                        error!(auction.id = %base64(self.id), err = %e, "failed to submit auction result to sequencer");
                         Err(e).wrap_err("failed to submit auction result to sequencer")
                     },
                 }
@@ -329,7 +325,6 @@ async fn get_pending_nonce(
 
     let nonce = tryhard::retry_fn(|| {
         let mut client = client.clone();
-        let address = address.clone();
 
         async move {
             client
