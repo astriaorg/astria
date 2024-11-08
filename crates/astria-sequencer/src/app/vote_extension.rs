@@ -252,6 +252,16 @@ impl ProposalHandler {
             .await
             .wrap_err("failed to validate vote extensions in prepare_proposal")?;
 
+        extended_commit_info.votes.sort_by(|a, b| {
+            if a.validator.power == b.validator.power {
+                // addresses sorted in ascending order, if the powers are the same
+                a.validator.address.cmp(&b.validator.address)
+            } else {
+                // powers sorted in descending order
+                b.validator.power.cmp(&a.validator.power)
+            }
+        });
+
         Ok(ValidatedExtendedCommitInfo(extended_commit_info))
     }
 
@@ -560,14 +570,20 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
 
 #[cfg(test)]
 mod test {
+    use std::collections::BTreeMap;
+
     use astria_core::{
         crypto::SigningKey,
         protocol::transaction::v1::action::ValidatorUpdate,
     };
     use cnidarium::StateDelta;
-    use tendermint::abci::types::{
-        ExtendedVoteInfo,
-        Validator,
+    use tendermint::{
+        abci::types::{
+            ExtendedVoteInfo,
+            Validator,
+            VoteInfo,
+        },
+        vote::Power,
     };
     use tendermint_proto::types::CanonicalVoteExtension;
 
@@ -584,6 +600,39 @@ mod test {
     #[test]
     fn verify_vote_extension_empty_ok() {
         verify_vote_extension(vec![].into(), 100).unwrap();
+    }
+
+    #[test]
+    fn verify_vote_extension_too_many_prices() {
+        let vote_extension = RawOracleVoteExtension {
+            prices: (0u64..=1)
+                .map(|i| (i, vec![].into()))
+                .collect::<BTreeMap<_, _>>(),
+        };
+        assert!(
+            verify_vote_extension(vote_extension.encode_to_vec().into(), 1)
+                .unwrap_err()
+                .to_string()
+                .contains(
+                    "number of oracle vote extension prices exceeds max expected number of \
+                     currency pairs"
+                )
+        );
+    }
+
+    #[test]
+    fn verify_vote_extension_price_too_long() {
+        let vote_extension = RawOracleVoteExtension {
+            prices: (0u64..=1)
+                .map(|i| (i, vec![0u8; MAXIMUM_PRICE_BYTE_LEN + 1].into()))
+                .collect::<BTreeMap<_, _>>(),
+        };
+        assert!(
+            verify_vote_extension(vote_extension.encode_to_vec().into(), 2)
+                .unwrap_err()
+                .to_string()
+                .contains("encoded price length exceeded")
+        );
     }
 
     #[tokio::test]
@@ -679,5 +728,159 @@ mod test {
         validate_vote_extensions(&state, vote_extension_height + 1, &extended_commit_info)
             .await
             .unwrap();
+    }
+
+    fn get_extended_vote_info_commit(
+        signing_key: &SigningKey,
+        message_to_sign: &[u8],
+        vote_extension: bytes::Bytes,
+        power: Power,
+    ) -> ExtendedVoteInfo {
+        ExtendedVoteInfo {
+            validator: Validator {
+                address: *signing_key.verification_key().address_bytes(),
+                power,
+            },
+            sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
+            extension_signature: Some(
+                signing_key
+                    .sign(message_to_sign)
+                    .to_bytes()
+                    .to_vec()
+                    .try_into()
+                    .unwrap(),
+            ),
+            vote_extension,
+        }
+    }
+
+    #[expect(clippy::too_many_lines, reason = "ok since this is a unit test")]
+    #[tokio::test]
+    async fn prepare_proposal_and_validate_proposal() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(&snapshot);
+
+        let chain_id: tendermint::chain::Id = "test-0".try_into().unwrap();
+        state
+            .put_chain_id_and_revision_number(chain_id.clone())
+            .unwrap();
+
+        let signing_key_a = SigningKey::from([0; 32]);
+        let signing_key_b = SigningKey::from([1; 32]);
+        let signing_key_c = SigningKey::from([2; 32]);
+
+        let updates = vec![
+            ValidatorUpdate {
+                power: 5u16.into(),
+                verification_key: signing_key_a.verification_key(),
+            },
+            ValidatorUpdate {
+                power: 2u16.into(),
+                verification_key: signing_key_b.verification_key(),
+            },
+            ValidatorUpdate {
+                power: 2u16.into(),
+                verification_key: signing_key_c.verification_key(),
+            },
+        ];
+        let validator_set = ValidatorSet::new_from_updates(updates);
+        state.put_validator_set(validator_set).unwrap();
+        state.put_base_prefix("astria".to_string()).unwrap();
+
+        let round = 1u16;
+        let vote_extension_height = 1u64;
+        let vote_extension = RawOracleVoteExtension {
+            prices: BTreeMap::default(),
+        }
+        .encode_to_vec();
+
+        let message = CanonicalVoteExtension {
+            extension: vote_extension.clone(),
+            height: vote_extension_height.try_into().unwrap(),
+            round: i64::from(round),
+            chain_id: chain_id.to_string(),
+        }
+        .encode_length_delimited_to_vec();
+
+        let extended_commit_info = ExtendedCommitInfo {
+            round: round.into(),
+            votes: vec![
+                get_extended_vote_info_commit(
+                    &signing_key_c,
+                    &message,
+                    vote_extension.clone().into(),
+                    2u16.into(),
+                ),
+                get_extended_vote_info_commit(
+                    &signing_key_b,
+                    &message,
+                    vote_extension.clone().into(),
+                    2u16.into(),
+                ),
+                get_extended_vote_info_commit(
+                    &signing_key_a,
+                    &message,
+                    vote_extension.into(),
+                    5u16.into(),
+                ),
+            ],
+        };
+        let validated_extended_commit_info = ProposalHandler::prepare_proposal(
+            &state,
+            vote_extension_height + 1,
+            extended_commit_info.clone(),
+        )
+        .await
+        .unwrap();
+
+        let last_commit = CommitInfo {
+            round: round.into(),
+            votes: vec![
+                VoteInfo {
+                    validator: Validator {
+                        address: *signing_key_a.verification_key().address_bytes(),
+                        power: 5u16.into(),
+                    },
+                    sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
+                },
+                VoteInfo {
+                    validator: Validator {
+                        address: *signing_key_b.verification_key().address_bytes(),
+                        power: 2u16.into(),
+                    },
+                    sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
+                },
+                VoteInfo {
+                    validator: Validator {
+                        address: *signing_key_c.verification_key().address_bytes(),
+                        power: 2u16.into(),
+                    },
+                    sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
+                },
+            ],
+        };
+        ProposalHandler::validate_proposal(
+            &state,
+            vote_extension_height + 1,
+            &last_commit,
+            &validated_extended_commit_info.0,
+        )
+        .await
+        .unwrap();
+
+        // unsorted extended commit info should fail
+        assert!(
+            ProposalHandler::validate_proposal(
+                &state,
+                vote_extension_height + 1,
+                &last_commit,
+                &extended_commit_info,
+            )
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("extended commit votes are not sorted by voting power")
+        );
     }
 }
