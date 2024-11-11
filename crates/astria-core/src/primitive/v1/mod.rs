@@ -6,6 +6,7 @@ use std::{
     str::FromStr,
 };
 
+pub use astria_core_consts::ADDRESS_LENGTH as ADDRESS_LEN;
 use base64::{
     display::Base64Display,
     prelude::BASE64_URL_SAFE,
@@ -20,8 +21,6 @@ use crate::{
     generated::primitive::v1 as raw,
     Protobuf,
 };
-
-pub const ADDRESS_LEN: usize = 20;
 
 pub const ROLLUP_ID_LEN: usize = 32;
 

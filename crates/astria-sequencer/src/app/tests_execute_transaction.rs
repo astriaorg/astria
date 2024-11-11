@@ -4,6 +4,7 @@ use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
         asset,
+        Address,
         RollupId,
     },
     protocol::{
@@ -78,14 +79,18 @@ use crate::{
 fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState {
     astria_core::generated::protocol::genesis::v1::GenesisAppState {
         authority_sudo_address: Some(
-            get_alice_signing_key()
-                .try_address(ASTRIA_PREFIX)
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(get_alice_signing_key().address_bytes())
+                .try_build()
                 .unwrap()
                 .to_raw(),
         ),
         ibc_sudo_address: Some(
-            get_alice_signing_key()
-                .try_address(ASTRIA_PREFIX)
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(get_alice_signing_key().address_bytes())
+                .try_build()
                 .unwrap()
                 .to_raw(),
         ),
