@@ -16,11 +16,11 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bech32 = "0.11.0"
 brotli = { version = "5.0.0", optional = true }
 celestia-types = { version = "0.1.1", optional = true }
 pbjson = { version = "0.6.0", optional = true }
 
+astria-core-address = { path = "../astria-core-address" }
 astria-core-consts = { path = "../astria-core-consts" }
 astria-core-crypto = { path = "../astria-core-crypto" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
@@ -56,7 +56,7 @@ brotli = ["dep:brotli"]
 # When enabled, this adds constructors for some types that skip the normal constructor validity
 # checks. It supports the case where the inputs are already deemed valid, e.g. having read them from
 # local storage.
-unchecked-constructors = []
+unchecked-constructors = ["astria-core-address/unchecked-constructor"]
 
 [dev-dependencies]
 astria-core = { path = ".", features = ["serde"] }
