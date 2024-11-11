@@ -15,7 +15,10 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::RollupId,
+    primitive::v1::{
+        Address,
+        RollupId,
+    },
     protocol::{
         genesis::v1::Account,
         transaction::v1::{
@@ -190,8 +193,22 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     };
     let genesis_state = astria_core::generated::protocol::genesis::v1::GenesisAppState {
         accounts,
-        authority_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
-        ibc_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
+        authority_sudo_address: Some(
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(alice.address_bytes())
+                .try_build()
+                .unwrap()
+                .to_raw(),
+        ),
+        ibc_sudo_address: Some(
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(alice.address_bytes())
+                .try_build()
+                .unwrap()
+                .to_raw(),
+        ),
         ..proto_genesis_state()
     }
     .try_into()

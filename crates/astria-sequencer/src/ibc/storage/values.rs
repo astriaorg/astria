@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use astria_core::primitive::v1::ADDRESS_LEN;
+use astria_core::primitive::v1::ADDRESS_LENGTH;
 use astria_eyre::eyre::bail;
 use borsh::{
     BorshDeserialize,
@@ -59,7 +59,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Balance {
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
-pub(in crate::ibc) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
+pub(in crate::ibc) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LENGTH]>);
 
 impl<'a> Debug for AddressBytes<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -73,7 +73,7 @@ impl<'a, T: DomainAddressBytes> From<&'a T> for AddressBytes<'a> {
     }
 }
 
-impl<'a> From<AddressBytes<'a>> for [u8; ADDRESS_LEN] {
+impl<'a> From<AddressBytes<'a>> for [u8; ADDRESS_LENGTH] {
     fn from(address_bytes: AddressBytes<'a>) -> Self {
         address_bytes.0.into_owned()
     }

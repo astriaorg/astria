@@ -5,7 +5,7 @@ use std::{
 
 use astria_core::primitive::v1::{
     asset,
-    ADDRESS_LEN,
+    ADDRESS_LENGTH,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -63,7 +63,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
+    async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LENGTH]> {
         let Some(bytes) = self
             .get_raw(keys::IBC_SUDO)
             .await
@@ -74,7 +74,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("ibc sudo address not found");
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::AddressBytes::try_from(value).map(<[u8; ADDRESS_LEN]>::from))
+            .and_then(|value| storage::AddressBytes::try_from(value).map(<[u8; ADDRESS_LENGTH]>::from))
             .wrap_err("invalid ibc sudo address bytes")
     }
 

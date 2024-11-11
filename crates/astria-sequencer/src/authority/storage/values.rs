@@ -9,7 +9,7 @@ use std::{
 
 use astria_core::{
     crypto::VerificationKey as DomainVerificationKey,
-    primitive::v1::ADDRESS_LEN,
+    primitive::v1::ADDRESS_LENGTH,
     protocol::transaction::v1::action::ValidatorUpdate as DomainValidatorUpdate,
 };
 use astria_eyre::eyre::bail;
@@ -34,7 +34,7 @@ enum ValueImpl<'a> {
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
-pub(in crate::authority) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
+pub(in crate::authority) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LENGTH]>);
 
 impl<'a> Debug for AddressBytes<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -48,7 +48,7 @@ impl<'a, T: DomainAddressBytes> From<&'a T> for AddressBytes<'a> {
     }
 }
 
-impl<'a> From<AddressBytes<'a>> for [u8; ADDRESS_LEN] {
+impl<'a> From<AddressBytes<'a>> for [u8; ADDRESS_LENGTH] {
     fn from(address_bytes: AddressBytes<'a>) -> Self {
         address_bytes.0.into_owned()
     }

@@ -14,7 +14,7 @@ use crate::{
     generated::protocol::transaction::v1 as raw,
     primitive::v1::{
         TransactionId,
-        ADDRESS_LEN,
+        ADDRESS_LENGTH,
     },
     Protobuf,
 };
@@ -172,7 +172,7 @@ impl Protobuf for Transaction {
 }
 
 impl Transaction {
-    pub fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
+    pub fn address_bytes(&self) -> &[u8; ADDRESS_LENGTH] {
         self.verification_key.address_bytes()
     }
 

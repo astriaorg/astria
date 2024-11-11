@@ -13,11 +13,12 @@ compile_error!(
 )]
 pub mod generated;
 
-pub mod crypto;
 pub mod execution;
 pub mod primitive;
 pub mod protocol;
 pub mod sequencerblock;
+
+pub use astria_core_crypto as crypto;
 
 #[cfg(feature = "brotli")]
 pub mod brotli;

@@ -1,0 +1,22 @@
+[package]
+name = "astria-core-crypto"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.81.0"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
+
+[dependencies]
+astria-core-consts = { path = "../astria-core-consts" }
+
+base64 = { workspace = true }
+rand = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+
+ed25519-consensus = { version = "2.1.0", default-features = false, features = [
+  "std",
+] }
+zeroize = { version = "1.7.0", features = ["zeroize_derive"] }

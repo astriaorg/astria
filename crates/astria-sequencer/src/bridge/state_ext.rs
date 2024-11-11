@@ -5,7 +5,7 @@ use astria_core::{
         asset,
         RollupId,
         TransactionId,
-        ADDRESS_LEN,
+        ADDRESS_LENGTH,
     },
     sequencerblock::v1::block::Deposit,
 };
@@ -90,7 +90,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     async fn get_bridge_account_sudo_address<T: AddressBytes>(
         &self,
         bridge_address: &T,
-    ) -> Result<Option<[u8; ADDRESS_LEN]>> {
+    ) -> Result<Option<[u8; ADDRESS_LENGTH]>> {
         let Some(bytes) = self
             .get_raw(&keys::bridge_account_sudo_address(bridge_address))
             .await
@@ -103,7 +103,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::AddressBytes::try_from(value).map(|stored_address_bytes| {
-                    Some(<[u8; ADDRESS_LEN]>::from(stored_address_bytes))
+                    Some(<[u8; ADDRESS_LENGTH]>::from(stored_address_bytes))
                 })
             })
             .wrap_err("invalid bridge account sudo address bytes")
@@ -113,7 +113,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     async fn get_bridge_account_withdrawer_address<T: AddressBytes>(
         &self,
         bridge_address: &T,
-    ) -> Result<Option<[u8; ADDRESS_LEN]>> {
+    ) -> Result<Option<[u8; ADDRESS_LENGTH]>> {
         let Some(bytes) = self
             .get_raw(&keys::bridge_account_withdrawer_address(bridge_address))
             .await
@@ -126,7 +126,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         StoredValue::deserialize(&bytes)
             .and_then(|value| {
                 storage::AddressBytes::try_from(value).map(|stored_address_bytes| {
-                    Some(<[u8; ADDRESS_LEN]>::from(stored_address_bytes))
+                    Some(<[u8; ADDRESS_LENGTH]>::from(stored_address_bytes))
                 })
             })
             .wrap_err("invalid bridge account withdrawer address bytes")

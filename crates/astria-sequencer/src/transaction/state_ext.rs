@@ -1,7 +1,7 @@
 use astria_core::{
     primitive::v1::{
         TransactionId,
-        ADDRESS_LEN,
+        ADDRESS_LENGTH,
     },
     protocol::transaction::v1::Transaction,
 };
@@ -16,13 +16,13 @@ fn transaction_context() -> &'static str {
 
 #[derive(Clone, Copy)]
 pub(crate) struct TransactionContext {
-    pub(crate) address_bytes: [u8; ADDRESS_LEN],
+    pub(crate) address_bytes: [u8; ADDRESS_LENGTH],
     pub(crate) transaction_id: TransactionId,
     pub(crate) source_action_index: u64,
 }
 
 impl TransactionContext {
-    pub(crate) fn address_bytes(self) -> [u8; ADDRESS_LEN] {
+    pub(crate) fn address_bytes(self) -> [u8; ADDRESS_LENGTH] {
         self.address_bytes
     }
 }

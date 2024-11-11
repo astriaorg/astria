@@ -1,6 +1,6 @@
 use astria_core::primitive::v1::{
     Address,
-    ADDRESS_LEN,
+    ADDRESS_LENGTH,
 };
 use color_eyre::eyre::{
     self,
@@ -39,7 +39,7 @@ struct Bech32m {
 impl Bech32m {
     fn run(self) -> eyre::Result<()> {
         use hex::FromHex as _;
-        let bytes = <[u8; ADDRESS_LEN]>::from_hex(&self.bytes)
+        let bytes = <[u8; ADDRESS_LENGTH]>::from_hex(&self.bytes)
             .wrap_err("failed decoding provided hex bytes")?;
         let address = Address::<astria_core::primitive::v1::Bech32m>::builder()
             .array(bytes)

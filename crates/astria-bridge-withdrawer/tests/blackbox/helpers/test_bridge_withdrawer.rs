@@ -566,7 +566,7 @@ pub fn default_sequencer_address() -> Address {
 /// Constructs an [`Address`] prefixed by `"astria"`.
 #[must_use]
 pub(crate) fn astria_address(
-    array: [u8; astria_core::primitive::v1::ADDRESS_LEN],
+    array: [u8; astria_core::primitive::v1::ADDRESS_LENGTH],
 ) -> astria_core::primitive::v1::Address {
     astria_core::primitive::v1::Address::builder()
         .array(array)

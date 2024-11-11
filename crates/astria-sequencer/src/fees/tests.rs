@@ -6,7 +6,7 @@ use astria_core::{
         Address,
         RollupId,
         TransactionId,
-        ADDRESS_LEN,
+        ADDRESS_LENGTH,
         ROLLUP_ID_LEN,
         TRANSACTION_ID_LEN,
     },
@@ -30,6 +30,7 @@ use astria_core::{
         },
     },
     sequencerblock::v1::block::Deposit,
+    Protobuf as _,
 };
 use cnidarium::StateDelta;
 
@@ -441,7 +442,7 @@ fn get_base_deposit_fee() {
     use prost::Message as _;
     let bridge_address = Address::builder()
         .prefix("astria-bridge")
-        .slice(&[0u8; ADDRESS_LEN][..])
+        .slice(&[0u8; ADDRESS_LENGTH][..])
         .try_build()
         .unwrap();
     let raw_deposit = astria_core::generated::sequencerblock::v1::Deposit {

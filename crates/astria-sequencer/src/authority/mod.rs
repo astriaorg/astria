@@ -6,7 +6,7 @@ pub(crate) mod storage;
 use std::collections::BTreeMap;
 
 use astria_core::{
-    primitive::v1::ADDRESS_LEN,
+    primitive::v1::ADDRESS_LENGTH,
     protocol::transaction::v1::action::ValidatorUpdate,
 };
 use astria_eyre::eyre::{
@@ -23,10 +23,10 @@ use crate::accounts::AddressBytes;
 /// A map of public keys to validator updates.
 #[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(Clone))]
-pub(crate) struct ValidatorSet(BTreeMap<[u8; ADDRESS_LEN], ValidatorUpdate>);
+pub(crate) struct ValidatorSet(BTreeMap<[u8; ADDRESS_LENGTH], ValidatorUpdate>);
 
 impl ValidatorSet {
-    pub(crate) fn new(inner: BTreeMap<[u8; ADDRESS_LEN], ValidatorUpdate>) -> Self {
+    pub(crate) fn new(inner: BTreeMap<[u8; ADDRESS_LENGTH], ValidatorUpdate>) -> Self {
         Self(inner)
     }
 

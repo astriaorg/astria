@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use astria_core::primitive::v1::ADDRESS_LEN;
+use astria_core::primitive::v1::ADDRESS_LENGTH;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -31,7 +31,7 @@ use crate::{
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
-    async fn get_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
+    async fn get_sudo_address(&self) -> Result<[u8; ADDRESS_LENGTH]> {
         let Some(bytes) = self
             .get_raw(keys::SUDO)
             .await
@@ -42,7 +42,7 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("sudo key not found");
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::AddressBytes::try_from(value).map(<[u8; ADDRESS_LEN]>::from))
+            .and_then(|value| storage::AddressBytes::try_from(value).map(<[u8; ADDRESS_LENGTH]>::from))
             .wrap_err("invalid sudo key bytes")
     }
 
@@ -151,7 +151,7 @@ mod tests {
             .expect_err("no sudo address should exist at first");
 
         // can write new
-        let mut address_expected = [42u8; ADDRESS_LEN];
+        let mut address_expected = [42u8; ADDRESS_LENGTH];
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
@@ -165,7 +165,7 @@ mod tests {
         );
 
         // can rewrite with new value
-        address_expected = [41u8; ADDRESS_LEN];
+        address_expected = [41u8; ADDRESS_LENGTH];
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");

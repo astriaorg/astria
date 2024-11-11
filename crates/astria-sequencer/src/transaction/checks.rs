@@ -129,7 +129,7 @@ mod tests {
         primitive::v1::{
             asset::Denom,
             RollupId,
-            ADDRESS_LEN,
+            ADDRESS_LENGTH,
         },
         protocol::{
             fees::v1::{
@@ -285,7 +285,7 @@ mod tests {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: nria().into(),
-                to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
+                to: state_tx.try_base_prefixed(&[0; ADDRESS_LENGTH]).await.unwrap(),
             }),
             Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
@@ -407,7 +407,7 @@ mod tests {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: nria().into(),
-                to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
+                to: state_tx.try_base_prefixed(&[0; ADDRESS_LENGTH]).await.unwrap(),
             }),
             Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
