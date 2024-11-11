@@ -1,13 +1,18 @@
 use bytes::Bytes;
 
 use super::raw;
-use crate::primitive::v1::{
-    asset,
-    asset::denom::ParseDenomError,
-    Address,
-    AddressError,
-    IncorrectRollupIdLength,
-    RollupId,
+use crate::{
+    primitive::v1::{
+        asset::{
+            self,
+            denom::ParseDenomError,
+        },
+        Address,
+        AddressError,
+        IncorrectRollupIdLength,
+        RollupId,
+    },
+    Protobuf as _,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -159,9 +164,9 @@ impl BridgeAccountInfoResponse {
                 rollup_id: RollupId::try_from_raw(rollup_id)
                     .map_err(BridgeAccountInfoResponseError::invalid_rollup_id)?,
                 asset,
-                sudo_address: Address::try_from_raw(&sudo_address)
+                sudo_address: Address::try_from_raw(sudo_address)
                     .map_err(BridgeAccountInfoResponseError::invalid_sudo_address)?,
-                withdrawer_address: Address::try_from_raw(&withdrawer_address)
+                withdrawer_address: Address::try_from_raw(withdrawer_address)
                     .map_err(BridgeAccountInfoResponseError::invalid_withdrawer_address)?,
             }),
         })

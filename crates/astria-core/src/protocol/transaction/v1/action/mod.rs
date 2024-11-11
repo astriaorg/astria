@@ -538,7 +538,7 @@ impl Protobuf for Transfer {
         let Some(to) = to else {
             return Err(TransferError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(to).map_err(TransferError::address)?;
+        let to = Address::try_from_raw_ref(to).map_err(TransferError::address)?;
         let amount = amount.map_or(0, Into::into);
         let asset = asset.parse().map_err(TransferError::asset)?;
         let fee_asset = fee_asset.parse().map_err(TransferError::fee_asset)?;
@@ -780,7 +780,7 @@ impl Protobuf for SudoAddressChange {
             return Err(SudoAddressChangeError::field_not_set("new_address"));
         };
         let new_address =
-            Address::try_from_raw(new_address).map_err(SudoAddressChangeError::address)?;
+            Address::try_from_raw_ref(new_address).map_err(SudoAddressChangeError::address)?;
         Ok(Self {
             new_address,
         })
@@ -847,7 +847,7 @@ impl Protobuf for IbcSudoChange {
             return Err(IbcSudoChangeError::field_not_set("new_address"));
         };
         let new_address =
-            Address::try_from_raw(new_address).map_err(IbcSudoChangeError::address)?;
+            Address::try_from_raw_ref(new_address).map_err(IbcSudoChangeError::address)?;
         Ok(Self {
             new_address,
         })
@@ -1034,7 +1034,7 @@ impl Protobuf for Ics20Withdrawal {
         } = proto;
         let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
         let return_address = Address::try_from_raw(
-            &return_address.ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
+            return_address.ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
         )
         .map_err(Ics20WithdrawalError::return_address)?;
 
@@ -1042,7 +1042,6 @@ impl Protobuf for Ics20Withdrawal {
             .ok_or(Ics20WithdrawalError::field_not_set("timeout_height"))?
             .into();
         let bridge_address = bridge_address
-            .as_ref()
             .map(Address::try_from_raw)
             .transpose()
             .map_err(Ics20WithdrawalError::invalid_bridge_address)?;
@@ -1090,12 +1089,13 @@ impl Protobuf for Ics20Withdrawal {
             use_compat_address,
         } = proto;
         let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
-        let return_address = Address::try_from_raw(
-            return_address
-                .as_ref()
-                .ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
-        )
-        .map_err(Ics20WithdrawalError::return_address)?;
+        let return_address = return_address
+            .as_ref()
+            .ok_or_else(|| Ics20WithdrawalError::field_not_set("return_address"))
+            .and_then(|return_address| {
+                Address::try_from_raw_ref(return_address)
+                    .map_err(Ics20WithdrawalError::return_address)
+            })?;
 
         let timeout_height = timeout_height
             .clone()
@@ -1103,7 +1103,7 @@ impl Protobuf for Ics20Withdrawal {
             .into();
         let bridge_address = bridge_address
             .as_ref()
-            .map(Address::try_from_raw)
+            .map(Address::try_from_raw_ref)
             .transpose()
             .map_err(Ics20WithdrawalError::invalid_bridge_address)?;
 
@@ -1245,14 +1245,14 @@ impl Protobuf for IbcRelayerChange {
                 value: Some(raw::ibc_relayer_change::Value::Addition(address)),
             } => {
                 let address =
-                    Address::try_from_raw(address).map_err(IbcRelayerChangeError::address)?;
+                    Address::try_from_raw_ref(address).map_err(IbcRelayerChangeError::address)?;
                 Ok(IbcRelayerChange::Addition(address))
             }
             raw::IbcRelayerChange {
                 value: Some(raw::ibc_relayer_change::Value::Removal(address)),
             } => {
                 let address =
-                    Address::try_from_raw(address).map_err(IbcRelayerChangeError::address)?;
+                    Address::try_from_raw_ref(address).map_err(IbcRelayerChangeError::address)?;
                 Ok(IbcRelayerChange::Removal(address))
             }
             _ => Err(IbcRelayerChangeError::missing_address()),
@@ -1423,13 +1423,11 @@ impl Protobuf for InitBridgeAccount {
             .map_err(InitBridgeAccountError::invalid_fee_asset)?;
         let sudo_address = proto
             .sudo_address
-            .as_ref()
             .map(Address::try_from_raw)
             .transpose()
             .map_err(InitBridgeAccountError::invalid_sudo_address)?;
         let withdrawer_address = proto
             .withdrawer_address
-            .as_ref()
             .map(Address::try_from_raw)
             .transpose()
             .map_err(InitBridgeAccountError::invalid_withdrawer_address)?;
@@ -1558,7 +1556,7 @@ impl Protobuf for BridgeLock {
         let Some(to) = proto.to else {
             return Err(BridgeLockError::field_not_set("to"));
         };
-        let to = Address::try_from_raw(&to).map_err(BridgeLockError::address)?;
+        let to = Address::try_from_raw(to).map_err(BridgeLockError::address)?;
         let amount = proto.amount.ok_or(BridgeLockError::missing_amount())?;
         let asset = proto
             .asset
@@ -1704,13 +1702,13 @@ impl Protobuf for BridgeUnlock {
         } = proto;
         let to = to
             .ok_or_else(|| BridgeUnlockError::field_not_set("to"))
-            .and_then(|to| Address::try_from_raw(&to).map_err(BridgeUnlockError::address))?;
+            .and_then(|to| Address::try_from_raw(to).map_err(BridgeUnlockError::address))?;
         let amount = amount.ok_or_else(|| BridgeUnlockError::field_not_set("amount"))?;
         let fee_asset = fee_asset.parse().map_err(BridgeUnlockError::fee_asset)?;
 
         let bridge_address = bridge_address
             .ok_or_else(|| BridgeUnlockError::field_not_set("bridge_address"))
-            .and_then(|to| Address::try_from_raw(&to).map_err(BridgeUnlockError::bridge_address))?;
+            .and_then(|to| Address::try_from_raw(to).map_err(BridgeUnlockError::bridge_address))?;
         Ok(Self {
             to,
             amount: amount.into(),
@@ -1825,17 +1823,15 @@ impl Protobuf for BridgeSudoChange {
         let Some(bridge_address) = proto.bridge_address else {
             return Err(BridgeSudoChangeError::field_not_set("bridge_address"));
         };
-        let bridge_address = Address::try_from_raw(&bridge_address)
+        let bridge_address = Address::try_from_raw(bridge_address)
             .map_err(BridgeSudoChangeError::invalid_bridge_address)?;
         let new_sudo_address = proto
             .new_sudo_address
-            .as_ref()
             .map(Address::try_from_raw)
             .transpose()
             .map_err(BridgeSudoChangeError::invalid_new_sudo_address)?;
         let new_withdrawer_address = proto
             .new_withdrawer_address
-            .as_ref()
             .map(Address::try_from_raw)
             .transpose()
             .map_err(BridgeSudoChangeError::invalid_new_withdrawer_address)?;

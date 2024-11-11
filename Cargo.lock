@@ -701,10 +701,10 @@ name = "astria-core"
 version = "0.1.0"
 dependencies = [
  "astria-core",
+ "astria-core-address",
  "astria-merkle",
  "base64 0.21.7",
  "base64-serde",
- "bech32 0.11.0",
  "brotli",
  "bytes",
  "celestia-tendermint",
@@ -730,6 +730,19 @@ dependencies = [
  "tracing",
  "zeroize",
 ]
+
+[[package]]
+name = "astria-core-address"
+version = "0.1.0"
+dependencies = [
+ "astria-core-consts",
+ "bech32 0.11.0",
+ "thiserror",
+]
+
+[[package]]
+name = "astria-core-consts"
+version = "0.1.0"
 
 [[package]]
 name = "astria-eyre"
