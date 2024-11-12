@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Moved definitions of address domain type to `astria-core-address` and reexported items using the
-  same aliases [#1802](https://github.com/astriaorg/astria/pull/1802)
+- Moved definitions of address domain type to `astria-core-address` and
+  reexported items using the same aliases [#1802](https://github.com/astriaorg/astria/pull/1802)
 
 ### Removed
 
