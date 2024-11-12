@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a trace prefixed ICS20 asset [#1768](https://github.com/astriaorg/astria/pull/1768)
 - Added `impl Protobuf for Address<Bech32m>` [#1802](https://github.com/astriaorg/astria/pull/1802)
 
+### Changed
+
+- Moved definitions of address domain type to `astria-core-address` and reexported items using the
+  same aliases [#1802](https://github.com/astriaorg/astria/pull/1802)
+
 ### Removed
 
 - Removed method `TracePrefixed::last_channel` [#1768](https://github.com/astriaorg/astria/pull/1768)
