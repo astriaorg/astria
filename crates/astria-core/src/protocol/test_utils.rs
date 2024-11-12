@@ -53,6 +53,7 @@ pub struct ConfigureSequencerBlock {
     pub sequence_data: Vec<(RollupId, Vec<u8>)>,
     pub deposits: Vec<Deposit>,
     pub unix_timestamp: UnixTimeStamp,
+    pub with_extended_commit_info: bool,
 }
 
 impl ConfigureSequencerBlock {
@@ -80,6 +81,7 @@ impl ConfigureSequencerBlock {
             sequence_data,
             unix_timestamp,
             deposits,
+            with_extended_commit_info,
         } = self;
 
         let block_hash = block_hash.unwrap_or_default();
@@ -143,13 +145,6 @@ impl ConfigureSequencerBlock {
         rollup_transactions.sort_unstable_keys();
         let rollup_transactions_tree = derive_merkle_tree_from_rollup_txs(&rollup_transactions);
 
-        let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
-            round: 0u16.into(),
-            votes: vec![],
-        }
-        .into();
-        let extended_commit_info_bytes = extended_commit_info.encode_to_vec();
-
         let rollup_ids_root = merkle::Tree::from_leaves(
             rollup_transactions
                 .keys()
@@ -159,10 +154,22 @@ impl ConfigureSequencerBlock {
         let mut data = vec![
             rollup_transactions_tree.root().to_vec(),
             rollup_ids_root.to_vec(),
-            extended_commit_info_bytes,
         ];
+
+        if with_extended_commit_info {
+            let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
+                ExtendedCommitInfo {
+                    round: 0u16.into(),
+                    votes: vec![],
+                }
+                .into();
+            let extended_commit_info_bytes = extended_commit_info.encode_to_vec();
+            data.push(extended_commit_info_bytes);
+        }
+
         data.extend(txs.into_iter().map(|tx| tx.into_raw().encode_to_vec()));
         let data = data.into_iter().map(Bytes::from).collect();
+
         SequencerBlock::try_from_block_info_and_data(
             block_hash,
             chain_id.try_into().unwrap(),
@@ -171,7 +178,7 @@ impl ConfigureSequencerBlock {
             proposer_address,
             data,
             deposits_map,
-            true,
+            with_extended_commit_info,
         )
         .unwrap()
     }

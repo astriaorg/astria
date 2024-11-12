@@ -809,7 +809,7 @@ impl SequencerBlock {
             let tx = Transaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in tx.into_unsigned().into_actions() {
-                // XXX: The fee asset is dropped. We shjould explain why that's ok.
+                // XXX: The fee asset is dropped. We should explain why that's ok.
                 if let action::Action::RollupDataSubmission(action::RollupDataSubmission {
                     rollup_id,
                     data,
