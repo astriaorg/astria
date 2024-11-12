@@ -13,7 +13,7 @@ use std::{
     sync::OnceLock,
 };
 
-use astria_core_consts::ADDRESS_LENGTH;
+pub use astria_core_consts::ADDRESS_LENGTH;
 use base64::{
     display::Base64Display,
     prelude::BASE64_STANDARD,
