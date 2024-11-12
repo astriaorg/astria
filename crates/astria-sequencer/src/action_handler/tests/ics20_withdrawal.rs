@@ -7,7 +7,7 @@ use ibc_types::core::client::Height;
 
 use crate::{
     action_handler::{
-        actions::establish_withdrawal_target,
+        impls::ics20_withdrawal::establish_withdrawal_target,
         tests::test_asset,
     },
     address::StateWriteExt as _,

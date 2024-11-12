@@ -1,9 +1,27 @@
 //! Contains the `ActionHandler` trait, which houses all stateless/stateful checks and execution, as
 //! well as all of its implementations.
 
-use cnidarium::StateWrite;
+use astria_core::protocol::transaction::v1::action::Transfer;
+use astria_eyre::eyre::{
+    ensure,
+    Result,
+    WrapErr as _,
+};
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 
-pub(crate) mod actions;
+use crate::{
+    accounts::{
+        AddressBytes,
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    address::StateReadExt as _,
+};
+
+pub(crate) mod impls;
 #[cfg(test)]
 mod tests;
 pub(crate) mod transaction;
@@ -31,4 +49,49 @@ pub(crate) trait ActionHandler {
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S)
     -> astria_eyre::eyre::Result<()>;
+}
+
+async fn execute_transfer<S, TAddress>(
+    action: &Transfer,
+    from: &TAddress,
+    mut state: S,
+) -> Result<()>
+where
+    S: StateWrite,
+    TAddress: AddressBytes,
+{
+    let from = from.address_bytes();
+    state
+        .decrease_balance(from, &action.asset, action.amount)
+        .await
+        .wrap_err("failed decreasing `from` account balance")?;
+    state
+        .increase_balance(&action.to, &action.asset, action.amount)
+        .await
+        .wrap_err("failed increasing `to` account balance")?;
+
+    Ok(())
+}
+
+async fn check_transfer<S, TAddress>(action: &Transfer, from: &TAddress, state: &S) -> Result<()>
+where
+    S: StateRead,
+    TAddress: AddressBytes,
+{
+    state.ensure_base_prefix(&action.to).await.wrap_err(
+        "failed ensuring that the destination address matches the permitted base prefix",
+    )?;
+
+    let transfer_asset = &action.asset;
+
+    let from_transfer_balance = state
+        .get_account_balance(from, transfer_asset)
+        .await
+        .wrap_err("failed to get account balance in transfer check")?;
+    ensure!(
+        from_transfer_balance >= action.amount,
+        "insufficient funds for transfer"
+    );
+
+    Ok(())
 }
