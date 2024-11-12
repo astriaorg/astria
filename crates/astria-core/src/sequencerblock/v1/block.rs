@@ -1029,7 +1029,7 @@ fn take_initial_elements_from_data(
         .map_err(|_| {
             SequencerBlockError::incorrect_rollup_transactions_root_length(data_iter.len())
         })?;
-    let rollup_transactions_proof = tree.construct_proof(1).expect(
+    let rollup_transactions_proof = tree.construct_proof(0).expect(
         "the leaf must exist in the tree as `rollup_transactions_root` was created from the same \
          index in `data` used to construct the tree",
     );
@@ -1040,7 +1040,7 @@ fn take_initial_elements_from_data(
         .as_ref()
         .try_into()
         .map_err(|_| SequencerBlockError::incorrect_rollup_ids_root_length(data_iter.len()))?;
-    let rollup_ids_proof = tree.construct_proof(2).expect(
+    let rollup_ids_proof = tree.construct_proof(1).expect(
         "the leaf must exist in the tree as `rollup_ids_root` was created from the same index in \
          `data` used to construct the tree",
     );
