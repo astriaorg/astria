@@ -188,6 +188,38 @@ jobs:
         run: |
           cargo nextest run --package astria-bridge-withdrawer -- --include-ignored
 
+  # Specifically for tools other than the protobuf and solidity compilers which
+  # are run as part of other steps. (only `tools/astria-address` for now).
+  rust-tools:
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    needs: run_checker
+    if: needs.run_checker.outputs.run_tests == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2.7.3
+        with:
+          cache-provider: "buildjet"
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+      - name: Build tests
+        run: |
+          cargo nextest archive \
+          --manifest-path tools/astria-address/Cargo.toml \
+          --archive-file=archive.tar.zst \
+          --release \
+          --all-features \
+          --all-targets \
+      - name: Run tests
+        timeout-minutes: 20
+        run: |
+          cargo nextest run --archive-file=archive.tar.zst
+
+
   doctest:
     runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
@@ -280,7 +312,7 @@ jobs:
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, protos-compiled, solidity-contracts-compiled, rust, doctest, clippy, lockfile, custom-lints]
+    needs: [compiles, protos-compiled, solidity-contracts-compiled, rust, rust-tools, doctest, clippy, lockfile, custom-lints]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

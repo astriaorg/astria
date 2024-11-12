@@ -1,5 +1,9 @@
 [workspace]
-exclude = ["tools/protobuf-compiler", "tools/solidity-compiler"]
+exclude = [
+  "tools/protobuf-compiler",
+  "tools/solidity-compiler",
+  "tools/astria-address",
+]
 
 members = [
   "crates/astria-bridge-contracts",

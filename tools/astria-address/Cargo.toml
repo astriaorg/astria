@@ -1,0 +1,15 @@
+[package]
+name = "astria-address"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.81.0"
+
+[dependencies]
+astria-core-address = { path = "../../crates/astria-core-address" }
+const-hex = "1.13.1"
+const_format = "0.2.33"
+pico-args = "0.5.0"
+
+[dev-dependencies]
+assert_cmd = "2.0.16"
+predicates = "3.1.2"
