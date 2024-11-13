@@ -15,7 +15,7 @@ use astria_core::{
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        ErrReport,
+        Report,
         Result,
         WrapErr as _,
     },
@@ -85,7 +85,7 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_fees<'a, T>(&self) -> Result<Option<FeeComponents<T>>>
     where
         T: FeeHandler + ?Sized,
-        FeeComponents<T>: TryFrom<StoredValue<'a>, Error = ErrReport>,
+        FeeComponents<T>: TryFrom<StoredValue<'a>, Error = Report>,
     {
         let bytes = self
             .get_raw(&keys::name::<T>())
@@ -321,7 +321,7 @@ mod tests {
     async fn fees_round_trip<'a, T>()
     where
         T: FeeHandler,
-        FeeComponents<T>: TryFrom<StoredValue<'a>, Error = ErrReport> + Debug,
+        FeeComponents<T>: TryFrom<StoredValue<'a>, Error = Report> + Debug,
         StoredValue<'a>: From<FeeComponents<T>>,
     {
         let storage = cnidarium::TempStorage::new().await.unwrap();

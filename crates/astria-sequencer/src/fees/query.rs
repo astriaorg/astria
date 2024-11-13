@@ -38,8 +38,8 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     eyre,
-    ErrReport,
     OptionExt as _,
+    Report,
     WrapErr as _,
 };
 use cnidarium::{
@@ -411,7 +411,7 @@ async fn get_or_init_fees<'a, F, S>(
 ) -> eyre::Result<&'a FeeComponents<F>>
 where
     F: FeeHandler,
-    FeeComponents<F>: TryFrom<StoredValue<'a>, Error = ErrReport>,
+    FeeComponents<F>: TryFrom<StoredValue<'a>, Error = Report>,
     S: StateRead,
 {
     let fees = fee_components

@@ -285,7 +285,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     let rollup_data_submission_fees = RollupDataSubmissionFeeComponents::new(MOCK_SEQUENCE_FEE, 0);
     state
         .put_fees(rollup_data_submission_fees)
-        .wrap_err("failed to initiate sequence action fee components")
+        .wrap_err("failed to initiate rollup data submission fee components")
         .unwrap();
 
     let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents::new(0, 0);

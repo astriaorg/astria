@@ -14,8 +14,8 @@ use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         ensure,
-        ErrReport,
         OptionExt as _,
+        Report,
         Result,
         WrapErr as _,
     },
@@ -293,7 +293,7 @@ impl ActionHandler for Transaction {
 async fn check_execute_and_pay_fees<'a, T, S>(action: &T, mut state: S) -> Result<()>
 where
     T: ActionHandler + FeeHandler + Sync,
-    FeeComponents<T>: TryFrom<StoredValue<'a>, Error = ErrReport>,
+    FeeComponents<T>: TryFrom<StoredValue<'a>, Error = Report>,
     S: StateWrite,
 {
     action.check_and_execute(&mut state).await?;

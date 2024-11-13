@@ -144,7 +144,7 @@ mod tests {
             transaction::v1::action::*,
         },
     };
-    use astria_eyre::eyre::ErrReport;
+    use astria_eyre::eyre::Report;
     use penumbra_ibc::IbcRelay;
 
     use crate::{
@@ -364,7 +364,7 @@ mod tests {
         new_fee_change: FeeChange,
     ) where
         F: FeeHandler,
-        FeeComponents<F>: TryFrom<StoredValue<'a>, Error = ErrReport> + Debug,
+        FeeComponents<F>: TryFrom<StoredValue<'a>, Error = Report> + Debug,
     {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();

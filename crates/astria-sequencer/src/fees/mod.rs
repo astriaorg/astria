@@ -24,7 +24,7 @@ use astria_eyre::eyre::{
     self,
     ensure,
     eyre,
-    ErrReport,
+    Report,
     WrapErr as _,
 };
 use cnidarium::StateWrite;
@@ -100,7 +100,7 @@ pub(crate) trait FeeHandler: Send {
     async fn check_and_pay_fees<'a, S>(&self, mut state: S) -> eyre::Result<()>
     where
         S: StateWrite,
-        FeeComponents<Self>: TryFrom<StoredValue<'a>, Error = ErrReport>,
+        FeeComponents<Self>: TryFrom<StoredValue<'a>, Error = Report>,
     {
         let fees = state
             .get_fees::<Self>()
@@ -117,6 +117,14 @@ pub(crate) trait FeeHandler: Send {
             return Ok(());
         };
 
+        ensure!(
+            state
+                .is_allowed_fee_asset(fee_asset)
+                .await
+                .wrap_err("failed to check allowed fee assets in state")?,
+            "invalid fee asset",
+        );
+
         let variable_fee = self.variable_component().saturating_mul(fees.multiplier());
         let total_fees = fees.base().saturating_add(variable_fee);
         let transaction_context = state
@@ -125,13 +133,6 @@ pub(crate) trait FeeHandler: Send {
         let from = transaction_context.address_bytes();
         let source_action_index = transaction_context.source_action_index;
 
-        ensure!(
-            state
-                .is_allowed_fee_asset(fee_asset)
-                .await
-                .wrap_err("failed to check allowed fee assets in state")?,
-            "invalid fee asset",
-        );
         state
             .add_fee_to_block_fees::<_, Self>(fee_asset, total_fees, source_action_index)
             .wrap_err("failed to add to block fees")?;

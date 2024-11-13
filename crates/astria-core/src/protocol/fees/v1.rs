@@ -139,7 +139,7 @@ impl<T: ?Sized> FeeComponents<T> {
 
 impl<T: Protobuf> Debug for FeeComponents<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct(&format!("{}FeeComponents", T::Raw::NAME))
+        f.debug_struct(&format!("FeeComponents<{}>", T::Raw::NAME))
             .field("base", &self.base)
             .field("multiplier", &self.multiplier)
             .finish()
@@ -148,7 +148,7 @@ impl<T: Protobuf> Debug for FeeComponents<T> {
 
 impl Debug for FeeComponents<IbcRelay> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("IbcRelayFeeComponents")
+        f.debug_struct("FeeComponents<IbcRelay>")
             .field("base", &self.base)
             .field("multiplier", &self.multiplier)
             .finish()
