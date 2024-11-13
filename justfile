@@ -18,7 +18,7 @@ default_repo_name := 'ghcr.io/astriaorg'
 docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
   #!/usr/bin/env sh
   set -eu
-  short_name=`just _crate_short_name {{crate}}`
+  short_name=$(just _crate_short_name {{crate}})
   set -x
   docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{repo_name}}/$short_name:{{tag}} .
 
@@ -28,7 +28,7 @@ docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_s
 docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
   #!/usr/bin/env sh
   set -eu
-  short_name=`just _crate_short_name {{crate}}`
+  short_name=$(just _crate_short_name {{crate}})
   set -x
   just docker-build {{crate}} {{tag}} {{repo_name}}
   just load-image $short_name {{tag}} {{repo_name}}
