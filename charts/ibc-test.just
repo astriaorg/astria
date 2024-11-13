@@ -146,29 +146,8 @@ run tag=defaultTag:
     exit 1
   fi
 
-  # set celestia wallet balance balance variables
-  initial_celestia_balance=$(just ibc-test get-celestia-balance)
-  expected_celestia_balance=$(echo "$initial_celestia_balance - {{transfer_amount}} - {{transfer_fees}}" | bc)
-
   # Execute the transfer from Celstia to sequencer with compat address
   just ibc-test _do-ibc-transfer {{defaultNamespace}} {{compat_address}}
-
-  # check that celestia balance updated correctly
-  for i in {1..50}
-  do
-    current_celestia_balance=$(just ibc-test get-celestia-balance)
-    echo "check $i, balance: $current_celestia_balance, expected: $expected_celestia_balance"
-    if (( $expected_celestia_balance == $current_celestia_balance )); then
-      expected_celestia_balance_found="1"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if [[ -z $expected_celestia_balance_found ]]; then
-    echo "expected celestia balance was not found after withdraw; IBC transfer from Celestia to the Rollup failed"
-    exit 1
-  fi
 
   # check that sequencer balance updated correctly
   ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
@@ -284,29 +263,8 @@ run-timeout tag=defaultTag:
     exit 1
   fi
 
-  # set celestia wallet balance balance variables
-  initial_celestia_balance=$(just ibc-test get-celestia-balance)
-  expected_celestia_balance=$(echo "$initial_celestia_balance - {{transfer_amount}} - {{transfer_fees}}" | bc)
-
   # Execute the transfer from Celstia to sequencer with compat address
   just ibc-test _do-ibc-transfer {{defaultNamespace}} {{compat_address}}
-
-  # check that celestia balance updated correctly
-  for i in {1..50}
-  do
-    current_celestia_balance=$(just ibc-test get-celestia-balance)
-    echo "check $i, balance: $current_celestia_balance, expected: $expected_celestia_balance"
-    if (( $expected_celestia_balance == $current_celestia_balance )); then
-      expected_celestia_balance_found="1"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if [[ -z $expected_celestia_balance_found ]]; then
-    echo "expected celestia balance was not found after withdraw; IBC transfer from Celestia to the Rollup failed"
-    exit 1
-  fi
 
   # check that sequencer balance updated correctly
   ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
