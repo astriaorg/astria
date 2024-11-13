@@ -14,8 +14,8 @@ use crate::{
 
 pub(in crate::fees) const BLOCK: &str = "fees/block"; // NOTE: `BLOCK` is only used in the ephemeral store.
 pub(in crate::fees) const ALLOWED_ASSET_PREFIX: &str = "fees/allowed_asset/";
-pub(in crate::fees) fn name<T: FeeHandler + ?Sized>() -> String {
-    format!("fees/{}", T::snake_case_name())
+pub(in crate::fees) fn name<F: FeeHandler + ?Sized>() -> String {
+    format!("fees/{}", F::snake_case_name())
 }
 
 pub(in crate::fees) fn allowed_asset<'a, TAsset>(asset: &'a TAsset) -> String
@@ -76,8 +76,8 @@ mod tests {
     fn keys_should_not_change() {
         // NOTE: `BLOCK` is only used in the ephemeral store, so isn't included here.
 
-        fn check<T: FeeHandler>() {
-            assert_snapshot!(format!("{}_fees_key", T::snake_case_name()), name::<T>());
+        fn check<F: FeeHandler>() {
+            assert_snapshot!(format!("{}_fees_key", F::snake_case_name()), name::<F>());
         }
 
         check::<BridgeLock>();

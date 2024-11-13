@@ -33,7 +33,7 @@ pub(crate) struct Value(ValueImpl);
 )]
 enum ValueImpl {
     TransferFees(FeeComponents),
-    SequenceFees(FeeComponents),
+    RollupDataSubmissionFees(FeeComponents),
     Ics20WithdrawalFees(FeeComponents),
     InitBridgeAccountFees(FeeComponents),
     BridgeLockFees(FeeComponents),
@@ -96,7 +96,7 @@ impl<T: ?Sized> From<FeeComponents> for DomainFeeComponents<T> {
 
 impl_from_for_fee_storage!(
     DomainFeeComponents<Transfer> => TransferFees,
-    DomainFeeComponents<RollupDataSubmission> => SequenceFees,
+    DomainFeeComponents<RollupDataSubmission> => RollupDataSubmissionFees,
     DomainFeeComponents<Ics20Withdrawal> => Ics20WithdrawalFees,
     DomainFeeComponents<InitBridgeAccount> => InitBridgeAccountFees,
     DomainFeeComponents<BridgeLock> => BridgeLockFees,

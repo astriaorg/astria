@@ -265,91 +265,60 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     for action in tx.actions() {
         match action {
             Action::Transfer(act) => {
-                let transfer_fees = get_or_init_fees(state, &transfer_fees).await?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    transfer_fees,
-                );
+                let fees = get_or_init_fees(state, &transfer_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::RollupDataSubmission(act) => {
-                let rollup_data_submission_fees =
-                    get_or_init_fees(state, &rollup_data_submission_fees).await?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    rollup_data_submission_fees,
-                );
+                let fees = get_or_init_fees(state, &rollup_data_submission_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::Ics20Withdrawal(act) => {
-                let ics20_withdrawal_fees = get_or_init_fees(state, &ics20_withdrawal_fees).await?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    ics20_withdrawal_fees,
-                );
+                let fees = get_or_init_fees(state, &ics20_withdrawal_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::InitBridgeAccount(act) => {
-                let init_bridge_account_fees =
-                    get_or_init_fees(state, &init_bridge_account_fees).await?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    init_bridge_account_fees,
-                );
+                let fees = get_or_init_fees(state, &init_bridge_account_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::BridgeLock(act) => {
-                let bridge_lock_fees = get_or_init_fees(state, &bridge_lock_fees).await?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    bridge_lock_fees,
-                );
+                let fees = get_or_init_fees(state, &bridge_lock_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::BridgeUnlock(act) => {
-                let bridge_unlock_fees = get_or_init_fees(state, &bridge_unlock_fees).await?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    bridge_unlock_fees,
-                );
+                let fees = get_or_init_fees(state, &bridge_unlock_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::BridgeSudoChange(act) => {
-                let bridge_sudo_change_fees =
-                    get_or_init_fees(state, &bridge_sudo_change_fees).await?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    bridge_sudo_change_fees,
-                );
+                let fees = get_or_init_fees(state, &bridge_sudo_change_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
-            Action::ValidatorUpdate(_) => {
-                get_or_init_fees(state, &validator_update_fees).await?;
+            Action::ValidatorUpdate(act) => {
+                let fees = get_or_init_fees(state, &validator_update_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
-            Action::SudoAddressChange(_) => {
-                get_or_init_fees(state, &sudo_address_change_fees).await?;
+            Action::SudoAddressChange(act) => {
+                let fees = get_or_init_fees(state, &sudo_address_change_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
-            Action::IbcSudoChange(_) => {
-                get_or_init_fees(state, &ibc_sudo_change_fees).await?;
+            Action::IbcSudoChange(act) => {
+                let fees = get_or_init_fees(state, &ibc_sudo_change_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
-            Action::Ibc(_) => {
-                get_or_init_fees(state, &ibc_relay_fees).await?;
+            Action::Ibc(act) => {
+                let fees = get_or_init_fees(state, &ibc_relay_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
-            Action::IbcRelayerChange(_) => {
-                get_or_init_fees(state, &ibc_relayer_change_fees).await?;
+            Action::IbcRelayerChange(act) => {
+                let fees = get_or_init_fees(state, &ibc_relayer_change_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
-            Action::FeeAssetChange(_) => {
-                get_or_init_fees(state, &fee_asset_change_fees).await?;
+            Action::FeeAssetChange(act) => {
+                let fees = get_or_init_fees(state, &fee_asset_change_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
-            Action::FeeChange(_) => {
-                get_or_init_fees(state, &fee_change_fees).await?;
+            Action::FeeChange(act) => {
+                let fees = get_or_init_fees(state, &fee_change_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
         }
     }
@@ -358,10 +327,13 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
 
 fn calculate_and_add_fees<F: FeeHandler>(
     action: &F,
-    fee_asset: asset::IbcPrefixed,
     fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
     fees: &FeeComponents<F>,
 ) {
+    let Some(fee_asset) = action.fee_asset().map(Denom::to_ibc_prefixed) else {
+        // If there's no fee asset, we don't charge fees.
+        return;
+    };
     let base = fees.base();
     let multiplier = fees.multiplier();
     let total_fees = base.saturating_add(multiplier.saturating_mul(action.variable_component()));

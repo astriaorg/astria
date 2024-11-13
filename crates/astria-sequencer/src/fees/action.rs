@@ -172,7 +172,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ics_20_withdrawal_fee_change_action_executes_as_expected() {
+    async fn ics20_withdrawal_fee_change_action_executes_as_expected() {
         test_fee_change_action::<Ics20Withdrawal>().await;
     }
 

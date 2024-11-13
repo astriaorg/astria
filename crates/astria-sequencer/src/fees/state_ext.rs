@@ -82,26 +82,26 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_fees<'a, T>(&self) -> Result<Option<FeeComponents<T>>>
+    async fn get_fees<'a, F>(&self) -> Result<Option<FeeComponents<F>>>
     where
-        T: FeeHandler + ?Sized,
-        FeeComponents<T>: TryFrom<StoredValue<'a>, Error = Report>,
+        F: FeeHandler + ?Sized,
+        FeeComponents<F>: TryFrom<StoredValue<'a>, Error = Report>,
     {
         let bytes = self
-            .get_raw(&keys::name::<T>())
+            .get_raw(&keys::name::<F>())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err_with(|| {
                 format!(
                     "failed reading raw {} fee components from state",
-                    T::snake_case_name()
+                    F::snake_case_name()
                 )
             })?;
         let Some(bytes) = bytes else {
             return Ok(None);
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| FeeComponents::<T>::try_from(value).map(Some))
+            .and_then(|value| FeeComponents::<F>::try_from(value).map(Some))
             .wrap_err("invalid fees bytes")
     }
 
@@ -168,15 +168,15 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_fees<'a, T>(&mut self, fees: FeeComponents<T>) -> Result<()>
+    fn put_fees<'a, F>(&mut self, fees: FeeComponents<F>) -> Result<()>
     where
-        T: FeeHandler,
-        StoredValue<'a>: From<FeeComponents<T>>,
+        F: FeeHandler,
+        StoredValue<'a>: From<FeeComponents<F>>,
     {
         let bytes = StoredValue::from(fees)
             .serialize()
             .wrap_err("failed to serialize fees")?;
-        self.put_raw(keys::name::<T>(), bytes);
+        self.put_raw(keys::name::<F>(), bytes);
         Ok(())
     }
 
@@ -318,17 +318,17 @@ mod tests {
         );
     }
 
-    async fn fees_round_trip<'a, T>()
+    async fn fees_round_trip<'a, F>()
     where
-        T: FeeHandler,
-        FeeComponents<T>: TryFrom<StoredValue<'a>, Error = Report> + Debug,
-        StoredValue<'a>: From<FeeComponents<T>>,
+        F: FeeHandler,
+        FeeComponents<F>: TryFrom<StoredValue<'a>, Error = Report> + Debug,
+        StoredValue<'a>: From<FeeComponents<F>>,
     {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let fee_components = FeeComponents::<T>::new(123, 1);
+        let fee_components = FeeComponents::<F>::new(123, 1);
         state.put_fees(fee_components).unwrap();
         let retrieved_fees = state.get_fees().await.unwrap();
         assert_eq!(retrieved_fees, Some(fee_components));
