@@ -37,7 +37,7 @@ use astria_core::{
             Transaction,
         },
     },
-    sequencerblock::v1::block::SequencerBlock,
+    sequencerblock::v1::block::SequencerBlockBuilder,
     Protobuf as _,
 };
 use astria_eyre::{
@@ -1126,16 +1126,17 @@ impl App {
             .extend(std::iter::repeat(ExecTxResult::default()).take(injected_txs_count));
         finalize_block_tx_results.extend(tx_results);
 
-        let sequencer_block = SequencerBlock::try_from_block_info_and_data(
+        let sequencer_block = SequencerBlockBuilder {
             block_hash,
             chain_id,
             height,
             time,
             proposer_address,
-            txs,
-            deposits_in_this_block,
-            vote_extensions_enabled,
-        )
+            data: txs,
+            deposits: deposits_in_this_block,
+            with_extended_commit_info: vote_extensions_enabled,
+        }
+        .try_build()
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
             .put_sequencer_block(sequencer_block)

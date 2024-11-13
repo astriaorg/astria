@@ -18,7 +18,10 @@ use crate::{
     },
     protocol::transaction::v1::TransactionBody,
     sequencerblock::v1::{
-        block::Deposit,
+        block::{
+            Deposit,
+            SequencerBlockBuilder,
+        },
         SequencerBlock,
     },
     Protobuf as _,
@@ -170,16 +173,17 @@ impl ConfigureSequencerBlock {
         data.extend(txs.into_iter().map(|tx| tx.into_raw().encode_to_vec()));
         let data = data.into_iter().map(Bytes::from).collect();
 
-        SequencerBlock::try_from_block_info_and_data(
+        SequencerBlockBuilder {
             block_hash,
-            chain_id.try_into().unwrap(),
-            height.into(),
-            Time::from_unix_timestamp(unix_timestamp.secs, unix_timestamp.nanos).unwrap(),
+            chain_id: chain_id.try_into().unwrap(),
+            height: height.into(),
+            time: Time::from_unix_timestamp(unix_timestamp.secs, unix_timestamp.nanos).unwrap(),
             proposer_address,
             data,
-            deposits_map,
+            deposits: deposits_map,
             with_extended_commit_info,
-        )
+        }
+        .try_build()
         .unwrap()
     }
 }
