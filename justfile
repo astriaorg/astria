@@ -13,12 +13,42 @@ default_docker_tag := 'local'
 default_repo_name := 'ghcr.io/astriaorg'
 
 # Builds docker image for the crate. Defaults to 'local' tag.
-docker-build crate tag=default_docker_tag repo_name=default_repo_name:
-  docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{repo_name}}/$(sed 's/^[^-]*-//' <<< {{crate}}):{{tag}} .
+# NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
+# binary will produce a meaningful error message.
+docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
+  #!/usr/bin/env sh
+  set -eu
+  short_name=$(just _crate_short_name {{crate}})
+  set -x
+  docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{repo_name}}/$short_name:{{tag}} .
 
-docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name:
-  @just docker-build {{crate}} {{tag}} {{repo_name}}
-  @just load-image $(sed 's/^[^-]*-//' <<< {{crate}}) {{tag}} {{repo_name}}
+# Builds and loads docker image for the crate. Defaults to 'local' tag.
+# NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
+# binary will produce a meaningful error message.
+docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
+  #!/usr/bin/env sh
+  set -eu
+  short_name=$(just _crate_short_name {{crate}})
+  set -x
+  just docker-build {{crate}} {{tag}} {{repo_name}}
+  just load-image $short_name {{tag}} {{repo_name}}
+
+# Maps a crate name to the shortened name used in the docker tag.
+# If `quiet` is an empty string the shortened name will be echoed. If `quiet` is a non-empty string,
+# the only output will be in the case of an error, where the input `crate` is not a valid one.
+_crate_short_name crate quiet="":
+  #!/usr/bin/env sh
+  set -eu
+  case {{crate}} in
+    astria-bridge-withdrawer) short_name=bridge-withdrawer ;;
+    astria-cli) short_name=cli ;;
+    astria-composer) short_name=composer ;;
+    astria-conductor) short_name=conductor ;;
+    astria-sequencer) short_name=sequencer ;;
+    astria-sequencer-relayer) short_name=sequencer-relayer ;;
+    *) echo "{{crate}} is not a supported binary" && exit 2
+  esac
+  [ -z {{quiet}} ] && echo $short_name || true
 
 # Installs the astria rust cli from local codebase
 install-cli:
