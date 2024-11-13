@@ -14,7 +14,7 @@ default_repo_name := 'ghcr.io/astriaorg'
 
 # Builds docker image for the crate. Defaults to 'local' tag.
 # NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
-# crate will produce a maningful error message.
+# binary will produce a meaningful error message.
 docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
   #!/usr/bin/env sh
   set -eu
@@ -24,7 +24,7 @@ docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_s
 
 # Builds and loads docker image for the crate. Defaults to 'local' tag.
 # NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
-# crate will produce a maningful error message.
+# binary will produce a meaningful error message.
 docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
   #!/usr/bin/env sh
   set -eu
@@ -41,11 +41,12 @@ _crate_short_name crate quiet="":
   set -eu
   case {{crate}} in
     astria-bridge-withdrawer) short_name=bridge-withdrawer ;;
+    astria-cli) short_name=cli ;;
     astria-composer) short_name=composer ;;
     astria-conductor) short_name=conductor ;;
     astria-sequencer) short_name=sequencer ;;
     astria-sequencer-relayer) short_name=sequencer-relayer ;;
-    *) echo "{{crate}} is not a supported crate" && exit 2
+    *) echo "{{crate}} is not a supported binary" && exit 2
   esac
   [ -z {{quiet}} ] && echo $short_name || true
 
