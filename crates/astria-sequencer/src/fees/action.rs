@@ -161,210 +161,81 @@ mod tests {
         },
     };
 
-    macro_rules! get_default_fees_and_fee_changes {
-        ($fee_ty:tt) => {
-            paste::item! {
-                {
-                    let initial_fees = [< $fee_ty FeeComponents >] ::new(1, 2);
-                    let initial_fee_change = FeeChange::$fee_ty(initial_fees);
-                    let new_fees = [< $fee_ty FeeComponents >] ::new(3, 4);
-                    let new_fee_change = FeeChange::$fee_ty(new_fees);
-                    (initial_fees, initial_fee_change, new_fees, new_fee_change)
-                }
-            }
-        };
-    }
-
     #[tokio::test]
     async fn transfer_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(Transfer);
-        test_fee_change_action::<Transfer>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<Transfer>().await;
     }
 
     #[tokio::test]
     async fn rollup_data_submission_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(RollupDataSubmission);
-        test_fee_change_action::<RollupDataSubmission>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<RollupDataSubmission>().await;
     }
 
     #[tokio::test]
     async fn ics_20_withdrawal_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(Ics20Withdrawal);
-        test_fee_change_action::<Ics20Withdrawal>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<Ics20Withdrawal>().await;
     }
 
     #[tokio::test]
     async fn init_bridge_account_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(InitBridgeAccount);
-        test_fee_change_action::<InitBridgeAccount>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<InitBridgeAccount>().await;
     }
 
     #[tokio::test]
     async fn bridge_lock_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(BridgeLock);
-        test_fee_change_action::<BridgeLock>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<BridgeLock>().await;
     }
 
     #[tokio::test]
     async fn bridge_unlock_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(BridgeUnlock);
-        test_fee_change_action::<BridgeUnlock>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<BridgeUnlock>().await;
     }
 
     #[tokio::test]
     async fn bridge_sudo_change_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(BridgeSudoChange);
-        test_fee_change_action::<BridgeSudoChange>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<BridgeSudoChange>().await;
     }
 
     #[tokio::test]
     async fn validator_update_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(ValidatorUpdate);
-        test_fee_change_action::<ValidatorUpdate>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<ValidatorUpdate>().await;
     }
 
     #[tokio::test]
     async fn ibc_relay_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(IbcRelay);
-        test_fee_change_action::<IbcRelay>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<IbcRelay>().await;
     }
 
     #[tokio::test]
     async fn ibc_relayer_change_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(IbcRelayerChange);
-        test_fee_change_action::<IbcRelayerChange>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<IbcRelayerChange>().await;
     }
 
     #[tokio::test]
     async fn fee_asset_change_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(FeeAssetChange);
-        test_fee_change_action::<FeeAssetChange>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<FeeAssetChange>().await;
     }
 
     #[tokio::test]
     async fn fee_change_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(FeeChange);
-        test_fee_change_action::<FeeChange>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<FeeChange>().await;
     }
 
     #[tokio::test]
     async fn sudo_address_change_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(SudoAddressChange);
-        test_fee_change_action::<SudoAddressChange>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<SudoAddressChange>().await;
     }
 
     #[tokio::test]
     async fn ibc_sudo_change_fee_change_action_executes_as_expected() {
-        let (initial_fees, initial_fee_change, new_fees, new_fee_change) =
-            get_default_fees_and_fee_changes!(IbcSudoChange);
-        test_fee_change_action::<IbcSudoChange>(
-            initial_fees,
-            initial_fee_change,
-            new_fees,
-            new_fee_change,
-        )
-        .await;
+        test_fee_change_action::<IbcSudoChange>().await;
     }
 
-    async fn test_fee_change_action<'a, F>(
-        initial_fees: FeeComponents<F>,
-        initial_fee_change: FeeChange,
-        new_fees: FeeComponents<F>,
-        new_fee_change: FeeChange,
-    ) where
+    async fn test_fee_change_action<'a, F>()
+    where
         F: FeeHandler,
         FeeComponents<F>: TryFrom<StoredValue<'a>, Error = Report> + Debug,
+        FeeChange: From<FeeComponents<F>>,
     {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
@@ -387,6 +258,8 @@ mod tests {
         );
 
         // Execute an initial fee change tx to store the first version of the fees.
+        let initial_fees = FeeComponents::<F>::new(1, 2);
+        let initial_fee_change = FeeChange::from(initial_fees);
         initial_fee_change
             .check_and_execute(&mut state)
             .await
@@ -400,6 +273,8 @@ mod tests {
         assert_eq!(initial_fees, retrieved_fees);
 
         // Execute a second fee change tx to overwrite the fees.
+        let new_fees = FeeComponents::<F>::new(3, 4);
+        let new_fee_change = FeeChange::from(new_fees);
         new_fee_change.check_and_execute(&mut state).await.unwrap();
 
         let retrieved_fees = state

@@ -11,13 +11,7 @@ use astria_core::{
         TRANSACTION_ID_LEN,
     },
     protocol::{
-        fees::v1::{
-            BridgeLockFeeComponents,
-            BridgeSudoChangeFeeComponents,
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-            TransferFeeComponents,
-        },
+        fees::v1::FeeComponents,
         transaction::v1::{
             action::{
                 BridgeLock,
@@ -79,7 +73,7 @@ async fn ensure_correct_block_fees_transfer() {
     let mut state = StateDelta::new(snapshot);
     let transfer_base = 1;
     state
-        .put_fees(TransferFeeComponents::new(transfer_base, 0))
+        .put_fees(FeeComponents::<Transfer>::new(transfer_base, 0))
         .unwrap();
 
     let alice = get_alice_signing_key();
@@ -116,7 +110,7 @@ async fn ensure_correct_block_fees_sequence() {
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
     state
-        .put_fees(RollupDataSubmissionFeeComponents::new(1, 1))
+        .put_fees(FeeComponents::<RollupDataSubmission>::new(1, 1))
         .unwrap();
 
     let alice = get_alice_signing_key();
@@ -154,7 +148,7 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
     let mut state = StateDelta::new(snapshot);
     let init_bridge_account_base = 1;
     state
-        .put_fees(InitBridgeAccountFeeComponents::new(
+        .put_fees(FeeComponents::<InitBridgeAccount>::new(
             init_bridge_account_base,
             0,
         ))
@@ -205,10 +199,10 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let bridge_lock_byte_cost_multiplier = 1;
 
     state
-        .put_fees(TransferFeeComponents::new(transfer_base, 0))
+        .put_fees(FeeComponents::<Transfer>::new(transfer_base, 0))
         .unwrap();
     state
-        .put_fees(BridgeLockFeeComponents::new(
+        .put_fees(FeeComponents::<BridgeLock>::new(
             transfer_base,
             bridge_lock_byte_cost_multiplier,
         ))
@@ -273,7 +267,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
 
     let sudo_change_base = 1;
     state
-        .put_fees(BridgeSudoChangeFeeComponents::new(sudo_change_base, 0))
+        .put_fees(FeeComponents::<BridgeSudoChange>::new(sudo_change_base, 0))
         .unwrap();
     state
         .put_bridge_account_sudo_address(&bridge_address, alice_address)
@@ -326,10 +320,10 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
     state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
     state
-        .put_fees(TransferFeeComponents::new(transfer_fee, 0))
+        .put_fees(FeeComponents::<Transfer>::new(transfer_fee, 0))
         .unwrap();
     state
-        .put_fees(BridgeLockFeeComponents::new(transfer_fee, 2))
+        .put_fees(FeeComponents::<BridgeLock>::new(transfer_fee, 2))
         .unwrap();
 
     let bridge_address = astria_address(&[1; 20]);

@@ -1,25 +1,27 @@
-use astria_core::protocol::fees::v1::{
-    BridgeLockFeeComponents,
-    BridgeSudoChangeFeeComponents,
-    BridgeUnlockFeeComponents,
-    FeeAssetChangeFeeComponents,
-    FeeChangeFeeComponents,
-    FeeComponents as DomainFeeComponents,
-    IbcRelayFeeComponents,
-    IbcRelayerChangeFeeComponents,
-    IbcSudoChangeFeeComponents,
-    Ics20WithdrawalFeeComponents,
-    InitBridgeAccountFeeComponents,
-    RollupDataSubmissionFeeComponents,
-    SudoAddressChangeFeeComponents,
-    TransferFeeComponents,
-    ValidatorUpdateFeeComponents,
+use astria_core::protocol::{
+    fees::v1::FeeComponents as DomainFeeComponents,
+    transaction::v1::action::{
+        BridgeLock,
+        BridgeSudoChange,
+        BridgeUnlock,
+        FeeAssetChange,
+        FeeChange,
+        IbcRelayerChange,
+        IbcSudoChange,
+        Ics20Withdrawal,
+        InitBridgeAccount,
+        RollupDataSubmission,
+        SudoAddressChange,
+        Transfer,
+        ValidatorUpdate,
+    },
 };
 use astria_eyre::eyre::bail;
 use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
+use penumbra_ibc::IbcRelay;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(crate) struct Value(ValueImpl);
@@ -93,18 +95,18 @@ impl<T: ?Sized> From<FeeComponents> for DomainFeeComponents<T> {
 }
 
 impl_from_for_fee_storage!(
-    TransferFeeComponents => TransferFees,
-    RollupDataSubmissionFeeComponents => SequenceFees,
-    Ics20WithdrawalFeeComponents => Ics20WithdrawalFees,
-    InitBridgeAccountFeeComponents => InitBridgeAccountFees,
-    BridgeLockFeeComponents => BridgeLockFees,
-    BridgeUnlockFeeComponents => BridgeUnlockFees,
-    BridgeSudoChangeFeeComponents => BridgeSudoChangeFees,
-    IbcRelayFeeComponents => IbcRelayFees,
-    ValidatorUpdateFeeComponents => ValidatorUpdateFees,
-    FeeAssetChangeFeeComponents => FeeAssetChangeFees,
-    FeeChangeFeeComponents => FeeChangeFees,
-    IbcRelayerChangeFeeComponents => IbcRelayerChangeFees,
-    IbcSudoChangeFeeComponents => IbcSudoChangeFees,
-    SudoAddressChangeFeeComponents => SudoAddressChangeFees,
+    DomainFeeComponents<Transfer> => TransferFees,
+    DomainFeeComponents<RollupDataSubmission> => SequenceFees,
+    DomainFeeComponents<Ics20Withdrawal> => Ics20WithdrawalFees,
+    DomainFeeComponents<InitBridgeAccount> => InitBridgeAccountFees,
+    DomainFeeComponents<BridgeLock> => BridgeLockFees,
+    DomainFeeComponents<BridgeUnlock> => BridgeUnlockFees,
+    DomainFeeComponents<BridgeSudoChange> => BridgeSudoChangeFees,
+    DomainFeeComponents<IbcRelay> => IbcRelayFees,
+    DomainFeeComponents<ValidatorUpdate> => ValidatorUpdateFees,
+    DomainFeeComponents<FeeAssetChange> => FeeAssetChangeFees,
+    DomainFeeComponents<FeeChange> => FeeChangeFees,
+    DomainFeeComponents<IbcRelayerChange> => IbcRelayerChangeFees,
+    DomainFeeComponents<IbcSudoChange> => IbcSudoChangeFees,
+    DomainFeeComponents<SudoAddressChange> => SudoAddressChangeFees,
 );

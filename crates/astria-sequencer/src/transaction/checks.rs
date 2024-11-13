@@ -132,17 +132,14 @@ mod tests {
             ADDRESS_LEN,
         },
         protocol::{
-            fees::v1::{
-                BridgeLockFeeComponents,
-                BridgeSudoChangeFeeComponents,
-                BridgeUnlockFeeComponents,
-                Ics20WithdrawalFeeComponents,
-                InitBridgeAccountFeeComponents,
-                RollupDataSubmissionFeeComponents,
-                TransferFeeComponents,
-            },
+            fees::v1::FeeComponents,
             transaction::v1::{
                 action::{
+                    BridgeLock,
+                    BridgeSudoChange,
+                    BridgeUnlock,
+                    Ics20Withdrawal,
+                    InitBridgeAccount,
                     RollupDataSubmission,
                     Transfer,
                 },
@@ -182,25 +179,25 @@ mod tests {
         state_tx.put_base_prefix("astria".to_string()).unwrap();
         state_tx.put_native_asset(nria()).unwrap();
         state_tx
-            .put_fees(TransferFeeComponents::new(12, 0))
+            .put_fees(FeeComponents::<Transfer>::new(12, 0))
             .unwrap();
         state_tx
-            .put_fees(RollupDataSubmissionFeeComponents::new(0, 1))
+            .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 1))
             .unwrap();
         state_tx
-            .put_fees(Ics20WithdrawalFeeComponents::new(1, 0))
+            .put_fees(FeeComponents::<Ics20Withdrawal>::new(1, 0))
             .unwrap();
         state_tx
-            .put_fees(InitBridgeAccountFeeComponents::new(12, 0))
+            .put_fees(FeeComponents::<InitBridgeAccount>::new(12, 0))
             .unwrap();
         state_tx
-            .put_fees(BridgeLockFeeComponents::new(0, 1))
+            .put_fees(FeeComponents::<BridgeLock>::new(0, 1))
             .unwrap();
         state_tx
-            .put_fees(BridgeUnlockFeeComponents::new(0, 0))
+            .put_fees(FeeComponents::<BridgeUnlock>::new(0, 0))
             .unwrap();
         state_tx
-            .put_fees(BridgeSudoChangeFeeComponents::new(24, 0))
+            .put_fees(FeeComponents::<BridgeSudoChange>::new(24, 0))
             .unwrap();
 
         let other_asset = "other".parse::<Denom>().unwrap();
@@ -273,25 +270,25 @@ mod tests {
         state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         state_tx.put_native_asset(nria()).unwrap();
         state_tx
-            .put_fees(TransferFeeComponents::new(12, 0))
+            .put_fees(FeeComponents::<Transfer>::new(12, 0))
             .unwrap();
         state_tx
-            .put_fees(RollupDataSubmissionFeeComponents::new(0, 1))
+            .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 1))
             .unwrap();
         state_tx
-            .put_fees(Ics20WithdrawalFeeComponents::new(1, 0))
+            .put_fees(FeeComponents::<Ics20Withdrawal>::new(1, 0))
             .unwrap();
         state_tx
-            .put_fees(InitBridgeAccountFeeComponents::new(12, 0))
+            .put_fees(FeeComponents::<InitBridgeAccount>::new(12, 0))
             .unwrap();
         state_tx
-            .put_fees(BridgeLockFeeComponents::new(0, 1))
+            .put_fees(FeeComponents::<BridgeLock>::new(0, 1))
             .unwrap();
         state_tx
-            .put_fees(BridgeUnlockFeeComponents::new(0, 0))
+            .put_fees(FeeComponents::<BridgeUnlock>::new(0, 0))
             .unwrap();
         state_tx
-            .put_fees(BridgeSudoChangeFeeComponents::new(24, 0))
+            .put_fees(FeeComponents::<BridgeSudoChange>::new(24, 0))
             .unwrap();
 
         let other_asset = "other".parse::<Denom>().unwrap();

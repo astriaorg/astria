@@ -7,10 +7,7 @@ use astria_core::{
         RollupId,
     },
     protocol::{
-        fees::v1::{
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-        },
+        fees::v1::FeeComponents,
         genesis::v1::GenesisAppState,
         transaction::v1::{
             action::{
@@ -275,7 +272,7 @@ async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_fees(RollupDataSubmissionFeeComponents::new(0, 1))
+        .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 1))
         .unwrap();
     app.apply(state_tx);
 
@@ -610,7 +607,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let mut state_tx = StateDelta::new(app.state.clone());
     let fee = 12; // arbitrary
     state_tx
-        .put_fees(InitBridgeAccountFeeComponents::new(fee, 0))
+        .put_fees(FeeComponents::<InitBridgeAccount>::new(fee, 0))
         .unwrap();
     app.apply(state_tx);
 

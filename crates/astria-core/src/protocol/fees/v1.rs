@@ -94,20 +94,20 @@ macro_rules! impl_protobuf_for_fee_components {
     };
 }
 impl_protobuf_for_fee_components!(
-    TransferFeeComponents => raw::TransferFeeComponents,
-    RollupDataSubmissionFeeComponents => raw::RollupDataSubmissionFeeComponents,
-    Ics20WithdrawalFeeComponents => raw::Ics20WithdrawalFeeComponents,
-    InitBridgeAccountFeeComponents => raw::InitBridgeAccountFeeComponents,
-    BridgeLockFeeComponents => raw::BridgeLockFeeComponents,
-    BridgeUnlockFeeComponents => raw::BridgeUnlockFeeComponents,
-    BridgeSudoChangeFeeComponents => raw::BridgeSudoChangeFeeComponents,
-    ValidatorUpdateFeeComponents => raw::ValidatorUpdateFeeComponents,
-    IbcRelayerChangeFeeComponents => raw::IbcRelayerChangeFeeComponents,
-    IbcRelayFeeComponents => raw::IbcRelayFeeComponents,
-    FeeAssetChangeFeeComponents => raw::FeeAssetChangeFeeComponents,
-    FeeChangeFeeComponents => raw::FeeChangeFeeComponents,
-    SudoAddressChangeFeeComponents => raw::SudoAddressChangeFeeComponents,
-    IbcSudoChangeFeeComponents => raw::IbcSudoChangeFeeComponents,
+    FeeComponents<Transfer> => raw::TransferFeeComponents,
+    FeeComponents<RollupDataSubmission> => raw::RollupDataSubmissionFeeComponents,
+    FeeComponents<Ics20Withdrawal> => raw::Ics20WithdrawalFeeComponents,
+    FeeComponents<InitBridgeAccount> => raw::InitBridgeAccountFeeComponents,
+    FeeComponents<BridgeLock> => raw::BridgeLockFeeComponents,
+    FeeComponents<BridgeUnlock> => raw::BridgeUnlockFeeComponents,
+    FeeComponents<BridgeSudoChange> => raw::BridgeSudoChangeFeeComponents,
+    FeeComponents<ValidatorUpdate> => raw::ValidatorUpdateFeeComponents,
+    FeeComponents<IbcRelayerChange> => raw::IbcRelayerChangeFeeComponents,
+    FeeComponents<IbcRelay> => raw::IbcRelayFeeComponents,
+    FeeComponents<FeeAssetChange> => raw::FeeAssetChangeFeeComponents,
+    FeeComponents<FeeChange> => raw::FeeChangeFeeComponents,
+    FeeComponents<SudoAddressChange> => raw::SudoAddressChangeFeeComponents,
+    FeeComponents<IbcSudoChange> => raw::IbcSudoChangeFeeComponents,
 );
 
 pub struct FeeComponents<T: ?Sized> {
@@ -168,21 +168,6 @@ impl<T: ?Sized> PartialEq for FeeComponents<T> {
         self.base == other.base && self.multiplier == other.multiplier
     }
 }
-
-pub type TransferFeeComponents = FeeComponents<Transfer>;
-pub type RollupDataSubmissionFeeComponents = FeeComponents<RollupDataSubmission>;
-pub type Ics20WithdrawalFeeComponents = FeeComponents<Ics20Withdrawal>;
-pub type InitBridgeAccountFeeComponents = FeeComponents<InitBridgeAccount>;
-pub type BridgeLockFeeComponents = FeeComponents<BridgeLock>;
-pub type BridgeUnlockFeeComponents = FeeComponents<BridgeUnlock>;
-pub type BridgeSudoChangeFeeComponents = FeeComponents<BridgeSudoChange>;
-pub type IbcRelayFeeComponents = FeeComponents<IbcRelay>;
-pub type ValidatorUpdateFeeComponents = FeeComponents<ValidatorUpdate>;
-pub type FeeAssetChangeFeeComponents = FeeComponents<FeeAssetChange>;
-pub type FeeChangeFeeComponents = FeeComponents<FeeChange>;
-pub type IbcRelayerChangeFeeComponents = FeeComponents<IbcRelayerChange>;
-pub type SudoAddressChangeFeeComponents = FeeComponents<SudoAddressChange>;
-pub type IbcSudoChangeFeeComponents = FeeComponents<IbcSudoChange>;
 
 #[derive(Debug, Clone)]
 pub struct TransactionFeeResponse {
