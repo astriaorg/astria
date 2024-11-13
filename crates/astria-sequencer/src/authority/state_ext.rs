@@ -14,10 +14,7 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use tracing::{
-    info,
-    instrument,
-};
+use tracing::instrument;
 
 use super::{
     storage::{
@@ -91,17 +88,14 @@ pub(crate) trait StateReadExt: StateRead {
             .get_raw(&validator_name(validator))
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw validator names from state")?
+            .wrap_err("failed reading raw validator name from state")?
         else {
-            info!(
-                "request made to get validator names, but they were not found. returning empty set"
-            );
             return Ok(None);
         };
         Some(
             StoredValue::deserialize(&bytes)
                 .and_then(|value| storage::ValidatorName::try_from(value).map(String::from))
-                .wrap_err("invalid validator names bytes"),
+                .wrap_err("invalid validator name bytes"),
         )
         .transpose()
     }
