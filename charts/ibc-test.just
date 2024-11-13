@@ -146,6 +146,10 @@ run tag=defaultTag:
     exit 1
   fi
 
+  # set celestia wallet balance balance variables
+  initial_celestia_balance=$(just ibc-test get-celestia-balance)
+  expected_celestia_balance=$(echo "$initial_celestia_balance - {{transfer_amount}} - {{transfer_fees}}" | bc)
+
   # Execute the transfer from Celstia to sequencer with compat address
   just ibc-test _do-ibc-transfer {{defaultNamespace}} {{compat_address}}
 
@@ -279,6 +283,10 @@ run-timeout tag=defaultTag:
     echo "expected balance was not found; IBC transfer from Celestia to the Rollup failed"
     exit 1
   fi
+
+  # set celestia wallet balance balance variables
+  initial_celestia_balance=$(just ibc-test get-celestia-balance)
+  expected_celestia_balance=$(echo "$initial_celestia_balance - {{transfer_amount}} - {{transfer_fees}}" | bc)
 
   # Execute the transfer from Celstia to sequencer with compat address
   just ibc-test _do-ibc-transfer {{defaultNamespace}} {{compat_address}}
