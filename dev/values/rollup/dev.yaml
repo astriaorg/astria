@@ -98,7 +98,7 @@ evm-rollup:
       executionCommitLevel: 'SoftAndFirm'
       # The expected fastest block time possible from sequencer, determines polling
       # rate.
-      sequencerBlockTimeMs: 2000
+      sequencerBlockTimeMs: 500
       # The maximum number of requests to make to the sequencer per second
       sequencerRequestsPerSecond: 500
 

@@ -737,14 +737,22 @@ impl ExecutableBlock {
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
 fn convert_tendermint_time_to_protobuf_timestamp(value: TendermintTime) -> pbjson_types::Timestamp {
+    info!("BHARATH: tendermint time is {:?}", value.unix_timestamp());
+    info!("BHARATH: tendermint time in nanos is {:?}", value.unix_timestamp_nanos());
+
     let sequencer_client::tendermint_proto::google::protobuf::Timestamp {
         seconds,
         nanos,
     } = value.into();
-    pbjson_types::Timestamp {
+    let final_time = pbjson_types::Timestamp {
         seconds,
         nanos,
-    }
+    };
+
+    info!("BHARATH: final time seconds is {:?}", final_time.seconds);
+    info!("BHARATH: final time nanos is {:?}", final_time.nanos);
+
+    final_time
 }
 
 #[derive(Copy, Clone, Debug)]
