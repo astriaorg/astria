@@ -118,7 +118,7 @@ mod tests {
     use crate::{
         accounts::StateWriteExt as _,
         action_handler::{
-            test_utils::test_asset,
+            impls::test_utils::test_asset,
             ActionHandler as _,
         },
         address::StateWriteExt as _,

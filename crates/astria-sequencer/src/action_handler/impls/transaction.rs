@@ -15,12 +15,12 @@ use astria_eyre::{
 };
 use cnidarium::StateWrite;
 
-use super::ActionHandler;
 use crate::{
     accounts::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    action_handler::ActionHandler,
     app::StateReadExt as _,
     bridge::{
         StateReadExt as _,

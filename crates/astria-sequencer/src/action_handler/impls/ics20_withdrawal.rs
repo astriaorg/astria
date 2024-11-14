@@ -276,8 +276,8 @@ mod tests {
     use ibc_types::core::client::Height;
 
     use crate::{
-        action_handler::{
-            impls::ics20_withdrawal::establish_withdrawal_target,
+        action_handler::impls::{
+            ics20_withdrawal::establish_withdrawal_target,
             test_utils::test_asset,
         },
         address::StateWriteExt as _,

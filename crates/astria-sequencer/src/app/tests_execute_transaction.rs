@@ -40,7 +40,7 @@ use super::test_utils::get_alice_signing_key;
 use crate::{
     accounts::StateReadExt as _,
     action_handler::{
-        transaction::InvalidChainId,
+        impls::transaction::InvalidChainId,
         ActionHandler as _,
     },
     app::{
