@@ -23,7 +23,7 @@ use crate::{
 
 pub(crate) mod impls;
 #[cfg(test)]
-mod tests;
+mod test_utils;
 pub(crate) mod transaction;
 
 /// This trait is a verbatim copy of `cnidarium_component::ActionHandler`.
