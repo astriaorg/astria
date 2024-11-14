@@ -24,6 +24,7 @@ use astria_core::{
             action::{
                 BridgeUnlock,
                 Ics20Withdrawal,
+                Ics20WithdrawalWithBridgeAddress,
             },
             Action,
         },
@@ -403,29 +404,16 @@ struct SubsetOfIcs20Withdrawal {
 
 impl From<Ics20Withdrawal> for SubsetOfIcs20Withdrawal {
     fn from(value: Ics20Withdrawal) -> Self {
-        let Ics20Withdrawal {
-            amount,
-            denom,
-            destination_chain_address,
-            return_address,
-            timeout_height,
-            timeout_time: _timeout_time,
-            source_channel,
-            fee_asset,
-            memo,
-            bridge_address,
-            use_compat_address: _use_compat_address,
-        } = value;
         Self {
-            amount,
-            denom,
-            destination_chain_address,
-            return_address,
-            timeout_height,
-            source_channel,
-            fee_asset,
-            memo,
-            bridge_address,
+            amount: value.amount(),
+            denom: value.denom().clone(),
+            destination_chain_address: value.destination_chain_address().to_string(),
+            return_address: *value.return_address(),
+            timeout_height: *value.timeout_height(),
+            source_channel: value.source_channel().clone(),
+            fee_asset: value.fee_asset().clone(),
+            memo: value.memo().to_string(),
+            bridge_address: value.bridge_address().copied(),
         }
     }
 }
@@ -456,25 +444,24 @@ pub fn make_native_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Acti
     let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
     let event_index = receipt.logs[0].log_index.unwrap().encode_hex();
 
-    let inner = Ics20Withdrawal {
+    let inner = Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
         denom: denom.clone(),
         destination_chain_address: default_sequencer_address().to_string(),
         return_address: default_bridge_address(),
         amount: 1_000_000u128,
-        memo: serde_json::to_string(&Ics20WithdrawalFromRollup {
+        ics20_withdrawal_from_rollup: Ics20WithdrawalFromRollup {
             memo: "nootwashere".to_string(),
             rollup_return_address: receipt.from.encode_hex(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
             rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
-        })
-        .unwrap(),
+        },
         fee_asset: denom,
         timeout_height,
         timeout_time,
         source_channel: "channel-0".parse().unwrap(),
-        bridge_address: Some(default_bridge_address()),
+        bridge_address: default_bridge_address(),
         use_compat_address: false,
-    };
+    });
 
     Action::Ics20Withdrawal(inner)
 }
@@ -507,25 +494,24 @@ pub fn make_erc20_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Actio
     // use the second event because the erc20 transfer also emits an event
     let event_index = receipt.logs[1].log_index.unwrap().encode_hex();
 
-    let inner = Ics20Withdrawal {
+    let inner = Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
         denom: denom.clone(),
         destination_chain_address: default_sequencer_address().to_string(),
         return_address: default_bridge_address(),
         amount: 1_000_000u128,
-        memo: serde_json::to_string(&Ics20WithdrawalFromRollup {
+        ics20_withdrawal_from_rollup: Ics20WithdrawalFromRollup {
             memo: "nootwashere".to_string(),
             rollup_return_address: receipt.from.encode_hex(),
             rollup_block_number: receipt.block_number.unwrap().as_u64(),
             rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
-        })
-        .unwrap(),
+        },
         fee_asset: denom,
         timeout_height,
         timeout_time,
         source_channel: "channel-0".parse().unwrap(),
-        bridge_address: Some(default_bridge_address()),
+        bridge_address: default_bridge_address(),
         use_compat_address: false,
-    };
+    });
 
     Action::Ics20Withdrawal(inner)
 }

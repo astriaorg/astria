@@ -279,7 +279,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     )?;
                 calculate_and_add_fees(
                     act,
-                    act.fee_asset.to_ibc_prefixed(),
+                    act.fee_asset().to_ibc_prefixed(),
                     &mut fees_by_asset,
                     ics20_withdrawal_fees.base,
                     ics20_withdrawal_fees.multiplier,

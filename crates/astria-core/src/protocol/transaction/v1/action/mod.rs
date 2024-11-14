@@ -890,10 +890,18 @@ enum IbcSudoChangeErrorKind {
 ///
 /// It also contains a `return_address` field which may or may not be the same as the signer
 /// of the packet. The funds will be returned to the `return_address` in the case of a timeout.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Ics20Withdrawal {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Ics20Withdrawal {
+    NoBridgeAddress(Ics20WithdrawalNoBridgeAddress),
+    FromRollup(Ics20WithdrawalWithBridgeAddress),
+}
+
+/// An IBC Withdrawal from a normal account, containing no bridge address.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ics20WithdrawalNoBridgeAddress {
     // a transparent value consisting of an amount and a denom.
     pub amount: u128,
+    // the asset to transfer.
     pub denom: Denom,
     // the address on the destination chain to send the transfer to.
     pub destination_chain_address: String,
@@ -910,17 +918,40 @@ pub struct Ics20Withdrawal {
     pub fee_asset: asset::Denom,
     // a memo to include with the transfer
     pub memo: String,
+    // whether to use a bech32-compatible format of the `.return_address` when generating
+    // fungible token packets (as opposed to Astria-native bech32m addresses). This is
+    // necessary for chains like noble which enforce a strict bech32 format.
+    pub use_compat_address: bool,
+}
+
+/// An IBC Withdrawal from a rollup, containing a bridge address. The sender of this kind of action
+/// must be the bridge account's withdrawer.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ics20WithdrawalWithBridgeAddress {
+    // a transparent value consisting of an amount and a denom.
+    pub amount: u128,
+    // the asset to transfer.
+    pub denom: Denom,
+    // the address on the destination chain to send the transfer to.
+    pub destination_chain_address: String,
+    // an Astria address to use to return funds from this withdrawal
+    // in the case it fails.
+    pub return_address: Address,
+    // the height (on the counterparty chain) at which this transfer expires.
+    pub timeout_height: IbcHeight,
+    // the unix timestamp (in nanoseconds) at which this transfer expires.
+    pub timeout_time: u64,
+    // the source channel used for the withdrawal.
+    pub source_channel: ChannelId,
+    // the asset to use for fee payment.
+    pub fee_asset: asset::Denom,
+    // the parsed memo, which contains rollup information for ics20 withdrawals which contain a
+    // bridge address.
+    pub ics20_withdrawal_from_rollup: Ics20WithdrawalFromRollup,
     // the address of the bridge account to transfer from, if this is a withdrawal
     // from a bridge account and the sender of the tx is the bridge's withdrawer,
     // which differs from the bridge account's address.
-    //
-    // if unset, and the transaction sender is not a bridge account, the withdrawal
-    // is treated as a user (non-bridge) withdrawal.
-    //
-    // if unset, and the transaction sender is a bridge account, the withdrawal is
-    // treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
-    pub bridge_address: Option<Address>,
-
+    pub bridge_address: Address,
     // whether to use a bech32-compatible format of the `.return_address` when generating
     // fungible token packets (as opposed to Astria-native bech32m addresses). This is
     // necessary for chains like noble which enforce a strict bech32 format.
@@ -930,47 +961,98 @@ pub struct Ics20Withdrawal {
 impl Ics20Withdrawal {
     #[must_use]
     pub fn amount(&self) -> u128 {
-        self.amount
+        match self {
+            Self::NoBridgeAddress(inner) => inner.amount,
+            Self::FromRollup(inner) => inner.amount,
+        }
     }
 
     #[must_use]
     pub fn denom(&self) -> &Denom {
-        &self.denom
+        match self {
+            Self::NoBridgeAddress(inner) => &inner.denom,
+            Self::FromRollup(inner) => &inner.denom,
+        }
     }
 
     #[must_use]
     pub fn destination_chain_address(&self) -> &str {
-        &self.destination_chain_address
+        match self {
+            Self::NoBridgeAddress(inner) => &inner.destination_chain_address,
+            Self::FromRollup(inner) => &inner.destination_chain_address,
+        }
     }
 
     #[must_use]
     pub fn return_address(&self) -> &Address {
-        &self.return_address
+        match self {
+            Self::NoBridgeAddress(inner) => &inner.return_address,
+            Self::FromRollup(inner) => &inner.return_address,
+        }
     }
 
     #[must_use]
     pub fn timeout_height(&self) -> &IbcHeight {
-        &self.timeout_height
+        match self {
+            Self::NoBridgeAddress(inner) => &inner.timeout_height,
+            Self::FromRollup(inner) => &inner.timeout_height,
+        }
     }
 
     #[must_use]
     pub fn timeout_time(&self) -> u64 {
-        self.timeout_time
+        match self {
+            Self::NoBridgeAddress(inner) => inner.timeout_time,
+            Self::FromRollup(inner) => inner.timeout_time,
+        }
     }
 
     #[must_use]
     pub fn source_channel(&self) -> &ChannelId {
-        &self.source_channel
+        match self {
+            Self::NoBridgeAddress(inner) => &inner.source_channel,
+            Self::FromRollup(inner) => &inner.source_channel,
+        }
     }
 
     #[must_use]
     pub fn fee_asset(&self) -> &asset::Denom {
-        &self.fee_asset
+        match self {
+            Self::NoBridgeAddress(inner) => &inner.fee_asset,
+            Self::FromRollup(inner) => &inner.fee_asset,
+        }
     }
 
     #[must_use]
     pub fn memo(&self) -> &str {
-        &self.memo
+        match self {
+            Self::NoBridgeAddress(inner) => &inner.memo,
+            Self::FromRollup(inner) => &inner.ics20_withdrawal_from_rollup.memo,
+        }
+    }
+
+    #[must_use]
+    pub fn bridge_address(&self) -> Option<&Address> {
+        match self {
+            Self::NoBridgeAddress(_) => None,
+            Self::FromRollup(inner) => Some(&inner.bridge_address),
+        }
+    }
+
+    #[must_use]
+    pub fn ics20_withdrawal_from_rollup(&self) -> Option<&Ics20WithdrawalFromRollup> {
+        match self {
+            Self::NoBridgeAddress(_) => None,
+            Self::FromRollup(inner) => Some(&inner.ics20_withdrawal_from_rollup),
+        }
+    }
+
+    #[must_use]
+    pub fn use_compat_address(&self) -> bool {
+        match self {
+            Self::NoBridgeAddress(inner) => inner.use_compat_address,
+            Self::FromRollup(inner) => inner.use_compat_address,
+        }
     }
 }
 
@@ -981,34 +1063,34 @@ impl Protobuf for Ics20Withdrawal {
     #[must_use]
     fn to_raw(&self) -> raw::Ics20Withdrawal {
         raw::Ics20Withdrawal {
-            amount: Some(self.amount.into()),
-            denom: self.denom.to_string(),
-            destination_chain_address: self.destination_chain_address.clone(),
-            return_address: Some(self.return_address.into_raw()),
-            timeout_height: Some(self.timeout_height.into_raw()),
-            timeout_time: self.timeout_time,
-            source_channel: self.source_channel.to_string(),
-            fee_asset: self.fee_asset.to_string(),
-            memo: self.memo.clone(),
-            bridge_address: self.bridge_address.as_ref().map(Address::to_raw),
-            use_compat_address: self.use_compat_address,
+            amount: Some(self.amount().into()),
+            denom: self.denom().to_string(),
+            destination_chain_address: self.destination_chain_address().to_string(),
+            return_address: Some(self.return_address().into_raw()),
+            timeout_height: Some(self.timeout_height().into_raw()),
+            timeout_time: self.timeout_time(),
+            source_channel: self.source_channel().to_string(),
+            fee_asset: self.fee_asset().to_string(),
+            memo: self.memo().to_string(),
+            bridge_address: self.bridge_address().as_ref().map(|addr| addr.to_raw()),
+            use_compat_address: self.use_compat_address(),
         }
     }
 
     #[must_use]
     fn into_raw(self) -> raw::Ics20Withdrawal {
         raw::Ics20Withdrawal {
-            amount: Some(self.amount.into()),
-            denom: self.denom.to_string(),
-            destination_chain_address: self.destination_chain_address,
-            return_address: Some(self.return_address.into_raw()),
-            timeout_height: Some(self.timeout_height.into_raw()),
-            timeout_time: self.timeout_time,
-            source_channel: self.source_channel.to_string(),
-            fee_asset: self.fee_asset.to_string(),
-            memo: self.memo,
-            bridge_address: self.bridge_address.map(Address::into_raw),
-            use_compat_address: self.use_compat_address,
+            amount: Some(self.amount().into()),
+            denom: self.denom().to_string(),
+            destination_chain_address: self.destination_chain_address().to_string(),
+            return_address: Some(self.return_address().into_raw()),
+            timeout_height: Some(self.timeout_height().into_raw()),
+            timeout_time: self.timeout_time(),
+            source_channel: self.source_channel().to_string(),
+            fee_asset: self.fee_asset().to_string(),
+            memo: self.memo().to_string(),
+            bridge_address: self.bridge_address().map(Address::to_raw),
+            use_compat_address: self.use_compat_address(),
         }
     }
 
@@ -1035,17 +1117,14 @@ impl Protobuf for Ics20Withdrawal {
             bridge_address,
             use_compat_address,
         } = proto;
-        let amount = u128::from(amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?);
+        let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
         let return_address = Address::try_from_raw(
             &return_address.ok_or(Ics20WithdrawalError::field_not_set("return_address"))?,
         )
         .map_err(Ics20WithdrawalError::return_address)?;
 
         if timeout_time == 0 {
-            return Err(Ics20WithdrawalError::invalid_timeout_time());
-        }
-        if amount == 0 {
-            return Err(Ics20WithdrawalError::invalid_amount());
+            return Err(Ics20WithdrawalError::zero_timeout_time());
         }
 
         let timeout_height = timeout_height
@@ -1057,7 +1136,7 @@ impl Protobuf for Ics20Withdrawal {
             .transpose()
             .map_err(Ics20WithdrawalError::invalid_bridge_address)?;
 
-        if bridge_address.is_some() {
+        if let Some(bridge_address) = bridge_address {
             let parsed_withdrawal: Ics20WithdrawalFromRollup =
                 serde_json::from_str(&memo).map_err(Ics20WithdrawalError::parse_memo)?;
             validate_rollup_return_address(&parsed_withdrawal.rollup_return_address)
@@ -1067,25 +1146,42 @@ impl Protobuf for Ics20Withdrawal {
                 parsed_withdrawal.rollup_block_number,
             )
             .map_err(Ics20WithdrawalError::rollup_withdrawal)?;
-        }
 
-        Ok(Self {
-            amount,
-            denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
-            destination_chain_address,
-            return_address,
-            timeout_height,
-            timeout_time,
-            source_channel: source_channel
-                .parse()
-                .map_err(Ics20WithdrawalError::invalid_source_channel)?,
-            fee_asset: fee_asset
-                .parse()
-                .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
-            memo,
-            bridge_address,
-            use_compat_address,
-        })
+            Ok(Self::FromRollup(Ics20WithdrawalWithBridgeAddress {
+                amount: amount.into(),
+                denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
+                destination_chain_address,
+                return_address,
+                timeout_height,
+                timeout_time,
+                source_channel: source_channel
+                    .parse()
+                    .map_err(Ics20WithdrawalError::invalid_source_channel)?,
+                fee_asset: fee_asset
+                    .parse()
+                    .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
+                ics20_withdrawal_from_rollup: parsed_withdrawal,
+                bridge_address,
+                use_compat_address,
+            }))
+        } else {
+            Ok(Self::NoBridgeAddress(Ics20WithdrawalNoBridgeAddress {
+                amount: amount.into(),
+                denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
+                destination_chain_address,
+                return_address,
+                timeout_height,
+                timeout_time,
+                source_channel: source_channel
+                    .parse()
+                    .map_err(Ics20WithdrawalError::invalid_source_channel)?,
+                fee_asset: fee_asset
+                    .parse()
+                    .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
+                memo,
+                use_compat_address,
+            }))
+        }
     }
 
     /// Convert from a reference to raw, unchecked protobuf [`raw::Ics20Withdrawal`].
@@ -1111,7 +1207,7 @@ impl Protobuf for Ics20Withdrawal {
             bridge_address,
             use_compat_address,
         } = proto;
-        let amount = u128::from(amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?);
+        let amount = amount.ok_or(Ics20WithdrawalError::field_not_set("amount"))?;
         let return_address = Address::try_from_raw(
             return_address
                 .as_ref()
@@ -1120,10 +1216,7 @@ impl Protobuf for Ics20Withdrawal {
         .map_err(Ics20WithdrawalError::return_address)?;
 
         if *timeout_time == 0 {
-            return Err(Ics20WithdrawalError::invalid_timeout_time());
-        }
-        if amount == 0 {
-            return Err(Ics20WithdrawalError::invalid_amount());
+            return Err(Ics20WithdrawalError::zero_timeout_time());
         }
 
         let timeout_height = timeout_height
@@ -1136,7 +1229,7 @@ impl Protobuf for Ics20Withdrawal {
             .transpose()
             .map_err(Ics20WithdrawalError::invalid_bridge_address)?;
 
-        if bridge_address.is_some() {
+        if let Some(bridge_address) = bridge_address {
             let parsed_withdrawal: Ics20WithdrawalFromRollup =
                 serde_json::from_str(memo).map_err(Ics20WithdrawalError::parse_memo)?;
             validate_rollup_return_address(&parsed_withdrawal.rollup_return_address)
@@ -1146,25 +1239,42 @@ impl Protobuf for Ics20Withdrawal {
                 parsed_withdrawal.rollup_block_number,
             )
             .map_err(Ics20WithdrawalError::rollup_withdrawal)?;
-        }
 
-        Ok(Self {
-            amount,
-            denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
-            destination_chain_address: destination_chain_address.clone(),
-            return_address,
-            timeout_height,
-            timeout_time: *timeout_time,
-            source_channel: source_channel
-                .parse()
-                .map_err(Ics20WithdrawalError::invalid_source_channel)?,
-            fee_asset: fee_asset
-                .parse()
-                .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
-            memo: memo.clone(),
-            bridge_address,
-            use_compat_address: *use_compat_address,
-        })
+            Ok(Self::FromRollup(Ics20WithdrawalWithBridgeAddress {
+                amount: amount.into(),
+                denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
+                destination_chain_address: destination_chain_address.clone(),
+                return_address,
+                timeout_height,
+                timeout_time: *timeout_time,
+                source_channel: source_channel
+                    .parse()
+                    .map_err(Ics20WithdrawalError::invalid_source_channel)?,
+                fee_asset: fee_asset
+                    .parse()
+                    .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
+                ics20_withdrawal_from_rollup: parsed_withdrawal,
+                bridge_address,
+                use_compat_address: *use_compat_address,
+            }))
+        } else {
+            Ok(Self::NoBridgeAddress(Ics20WithdrawalNoBridgeAddress {
+                amount: amount.into(),
+                denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
+                destination_chain_address: destination_chain_address.clone(),
+                return_address,
+                timeout_height,
+                timeout_time: *timeout_time,
+                source_channel: source_channel
+                    .parse()
+                    .map_err(Ics20WithdrawalError::invalid_source_channel)?,
+                fee_asset: fee_asset
+                    .parse()
+                    .map_err(Ics20WithdrawalError::invalid_fee_asset)?,
+                memo: memo.clone(),
+                use_compat_address: *use_compat_address,
+            }))
+        }
     }
 }
 
@@ -1238,13 +1348,8 @@ impl Ics20WithdrawalError {
     }
 
     #[must_use]
-    fn invalid_timeout_time() -> Self {
-        Self(Ics20WithdrawalErrorKind::InvalidTimeoutTime)
-    }
-
-    #[must_use]
-    fn invalid_amount() -> Self {
-        Self(Ics20WithdrawalErrorKind::InvalidAmount)
+    fn zero_timeout_time() -> Self {
+        Self(Ics20WithdrawalErrorKind::ZeroTimeoutTime)
     }
 
     #[must_use]
@@ -1273,9 +1378,7 @@ enum Ics20WithdrawalErrorKind {
     #[error("`denom` field was invalid")]
     InvalidDenom { source: asset::ParseDenomError },
     #[error("`timeout_time` must be non-zero")]
-    InvalidTimeoutTime,
-    #[error("`amount` must be greater than zero")]
-    InvalidAmount,
+    ZeroTimeoutTime,
     #[error("failed to parse memo for ICS bound bridge withdrawal")]
     ParseMemo(#[source] serde_json::Error),
     #[error("rollup withdrawal information was invalid")]

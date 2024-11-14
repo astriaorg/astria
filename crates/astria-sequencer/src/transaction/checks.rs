@@ -85,9 +85,9 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             }
             Action::Ics20Withdrawal(act) => {
                 cost_by_asset
-                    .entry(act.denom.to_ibc_prefixed())
-                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
-                    .or_insert(act.amount);
+                    .entry(act.denom().to_ibc_prefixed())
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount()))
+                    .or_insert(act.amount());
             }
             Action::BridgeLock(act) => {
                 cost_by_asset

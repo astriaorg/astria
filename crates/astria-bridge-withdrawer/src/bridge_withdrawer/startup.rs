@@ -12,7 +12,6 @@ use astria_core::{
     protocol::{
         asset::v1::AllowedFeeAssetsResponse,
         bridge::v1::BridgeAccountLastTxHashResponse,
-        memos,
         transaction::v1::Action,
     },
     Protobuf as _,
@@ -450,11 +449,12 @@ fn rollup_height_from_signed_transaction(signed_transaction: &Transaction) -> ey
 
     let last_batch_rollup_height = match withdrawal_action {
         Action::BridgeUnlock(action) => Some(action.rollup_block_number),
-        Action::Ics20Withdrawal(action) => {
-            let memo: memos::v1::Ics20WithdrawalFromRollup = serde_json::from_str(&action.memo)
-                .wrap_err("failed to parse memo from last transaction by the bridge account")?;
-            Some(memo.rollup_block_number)
-        }
+        Action::Ics20Withdrawal(action) => Some(
+            action
+                .ics20_withdrawal_from_rollup()
+                .ok_or_eyre("ics20 withdrawal action did not contain rollup information")?
+                .rollup_block_number,
+        ),
         _ => None,
     }
     .expect("action is already checked to be either BridgeUnlock or Ics20Withdrawal");

@@ -179,7 +179,7 @@ impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
             .await
             .wrap_err("error fetching ics20 withdrawal fees")?
             .ok_or_eyre("ics20 withdrawal fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+        check_and_pay_fees(self, fees.base, fees.multiplier, state, self.fee_asset()).await
     }
 
     #[instrument(skip_all)]

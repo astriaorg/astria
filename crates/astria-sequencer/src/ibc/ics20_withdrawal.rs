@@ -1,13 +1,9 @@
 use astria_core::{
     primitive::v1::{
         asset::Denom,
-        Address,
         Bech32,
     },
-    protocol::{
-        memos::v1::Ics20WithdrawalFromRollup,
-        transaction::v1::action,
-    },
+    protocol::transaction::v1::action,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -60,7 +56,7 @@ async fn create_ibc_packet_from_withdrawal<S: StateRead>(
     withdrawal: &action::Ics20Withdrawal,
     state: S,
 ) -> Result<IBCPacket<Unchecked>> {
-    let sender = if withdrawal.use_compat_address {
+    let sender = if withdrawal.use_compat_address() {
         let ibc_compat_prefix = state.get_ibc_compat_prefix().await.context(
             "need to construct bech32 compatible address for IBC communication but failed reading \
              required prefix from state",
@@ -72,14 +68,14 @@ async fn create_ibc_packet_from_withdrawal<S: StateRead>(
             .to_format::<Bech32>()
             .to_string()
     } else {
-        withdrawal.return_address.to_string()
+        withdrawal.return_address().to_string()
     };
     let packet = FungibleTokenPacketData {
-        amount: withdrawal.amount.to_string(),
-        denom: withdrawal.denom.to_string(),
+        amount: withdrawal.amount().to_string(),
+        denom: withdrawal.denom().to_string(),
         sender,
-        receiver: withdrawal.destination_chain_address.clone(),
-        memo: withdrawal.memo.clone(),
+        receiver: withdrawal.destination_chain_address().to_string(),
+        memo: withdrawal.memo().to_string(),
     };
 
     let serialized_packet_data =
@@ -112,7 +108,7 @@ async fn establish_withdrawal_target<'a, S: StateRead>(
 ) -> Result<&'a [u8; 20]> {
     // If the bridge address is set, the withdrawer on that address must match
     // the from address.
-    if let Some(bridge_address) = &action.bridge_address {
+    if let Some(bridge_address) = action.bridge_address() {
         let Some(withdrawer) = state
             .get_bridge_account_withdrawer_address(bridge_address)
             .await
@@ -157,22 +153,22 @@ impl ActionHandler for action::Ics20Withdrawal {
             .address_bytes();
 
         state
-            .ensure_base_prefix(&self.return_address)
+            .ensure_base_prefix(self.return_address())
             .await
             .wrap_err("failed to verify that return address address has permitted base prefix")?;
 
-        if let Some(bridge_address) = &self.bridge_address {
+        if let Some(bridge_address) = self.bridge_address() {
             state.ensure_base_prefix(bridge_address).await.wrap_err(
                 "failed to verify that bridge address address has permitted base prefix",
             )?;
-            let parsed_bridge_memo: Ics20WithdrawalFromRollup = serde_json::from_str(&self.memo)
-                .context("failed to parse memo for ICS bound bridge withdrawal")?;
+
+            let parsed_bridge_memo = self.ics20_withdrawal_from_rollup().ok_or_eyre(
+                "ics20_withdrawal_from_rollup should be present if bridge address is present",
+            )?;
 
             state
                 .check_and_set_withdrawal_event_block_for_bridge_account(
-                    self.bridge_address
-                        .as_ref()
-                        .map_or(&from, Address::as_bytes),
+                    bridge_address.as_bytes(),
                     &parsed_bridge_memo.rollup_withdrawal_event_id,
                     parsed_bridge_memo.rollup_block_number,
                 )
@@ -238,7 +234,15 @@ fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) ->
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::RollupId;
+    use action::{
+        Ics20Withdrawal,
+        Ics20WithdrawalNoBridgeAddress,
+        Ics20WithdrawalWithBridgeAddress,
+    };
+    use astria_core::{
+        primitive::v1::RollupId,
+        protocol::memos::v1::Ics20WithdrawalFromRollup,
+    };
     use cnidarium::StateDelta;
     use ibc_types::core::client::Height;
 
@@ -260,10 +264,9 @@ mod tests {
 
         let denom = "test".parse::<Denom>().unwrap();
         let from = [1u8; 20];
-        let action = action::Ics20Withdrawal {
+        let action = Ics20Withdrawal::NoBridgeAddress(Ics20WithdrawalNoBridgeAddress {
             amount: 1,
             denom: denom.clone(),
-            bridge_address: None,
             destination_chain_address: "test".to_string(),
             return_address: astria_address(&from),
             timeout_height: Height::new(1, 1).unwrap(),
@@ -272,7 +275,7 @@ mod tests {
             fee_asset: denom.clone(),
             memo: String::new(),
             use_compat_address: false,
-        };
+        });
 
         assert_eq!(
             *establish_withdrawal_target(&action, &state, &from)
@@ -303,10 +306,9 @@ mod tests {
             .unwrap();
 
         let denom = "test".parse::<Denom>().unwrap();
-        let action = action::Ics20Withdrawal {
+        let action = Ics20Withdrawal::NoBridgeAddress(Ics20WithdrawalNoBridgeAddress {
             amount: 1,
             denom: denom.clone(),
-            bridge_address: None,
             destination_chain_address: "test".to_string(),
             return_address: astria_address(&bridge_address),
             timeout_height: Height::new(1, 1).unwrap(),
@@ -315,7 +317,7 @@ mod tests {
             fee_asset: denom.clone(),
             memo: String::new(),
             use_compat_address: false,
-        };
+        });
 
         assert_eyre_error(
             &establish_withdrawal_target(&action, &state, &bridge_address)
@@ -326,6 +328,8 @@ mod tests {
     }
 
     mod bridge_sender_is_rejected_because_it_is_not_a_withdrawer {
+        use action::Ics20WithdrawalWithBridgeAddress;
+
         use super::*;
 
         fn bridge_address() -> [u8; 20] {
@@ -337,19 +341,24 @@ mod tests {
         }
 
         fn action() -> action::Ics20Withdrawal {
-            action::Ics20Withdrawal {
+            Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
                 amount: 1,
                 denom: denom(),
-                bridge_address: None,
                 destination_chain_address: "test".to_string(),
                 return_address: astria_address(&[1; 20]),
                 timeout_height: Height::new(1, 1).unwrap(),
                 timeout_time: 1,
                 source_channel: "channel-0".to_string().parse().unwrap(),
                 fee_asset: denom(),
-                memo: String::new(),
                 use_compat_address: false,
-            }
+                bridge_address: astria_address(&bridge_address()),
+                ics20_withdrawal_from_rollup: Ics20WithdrawalFromRollup {
+                    rollup_withdrawal_event_id: String::new(),
+                    rollup_block_number: 1,
+                    rollup_return_address: String::new(),
+                    memo: String::new(),
+                },
+            })
         }
 
         async fn run_test(action: action::Ics20Withdrawal) {
@@ -383,9 +392,7 @@ mod tests {
 
         #[tokio::test]
         async fn bridge_set() {
-            let mut action = action();
-            action.bridge_address = Some(astria_address(&bridge_address()));
-            run_test(action).await;
+            run_test(action()).await;
         }
     }
 
@@ -411,19 +418,24 @@ mod tests {
             .unwrap();
 
         let denom = "test".parse::<Denom>().unwrap();
-        let action = action::Ics20Withdrawal {
+        let action = Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
             amount: 1,
             denom: denom.clone(),
-            bridge_address: Some(astria_address(&bridge_address)),
             destination_chain_address: "test".to_string(),
-            return_address: astria_address(&bridge_address),
+            return_address: astria_address(&[1; 20]),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
-            fee_asset: denom.clone(),
-            memo: String::new(),
+            fee_asset: denom,
             use_compat_address: false,
-        };
+            bridge_address: astria_address(&bridge_address),
+            ics20_withdrawal_from_rollup: Ics20WithdrawalFromRollup {
+                rollup_withdrawal_event_id: String::new(),
+                rollup_block_number: 1,
+                rollup_return_address: String::new(),
+                memo: String::new(),
+            },
+        });
 
         assert_eq!(
             *establish_withdrawal_target(&action, &state, &withdrawer_address)
@@ -443,19 +455,24 @@ mod tests {
         let not_bridge_address = [1u8; 20];
 
         let denom = "test".parse::<Denom>().unwrap();
-        let action = action::Ics20Withdrawal {
+        let action = Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
             amount: 1,
             denom: denom.clone(),
-            bridge_address: Some(astria_address(&not_bridge_address)),
             destination_chain_address: "test".to_string(),
-            return_address: astria_address(&not_bridge_address),
+            return_address: astria_address(&[1; 20]),
             timeout_height: Height::new(1, 1).unwrap(),
             timeout_time: 1,
             source_channel: "channel-0".to_string().parse().unwrap(),
-            fee_asset: denom.clone(),
-            memo: String::new(),
+            fee_asset: denom,
             use_compat_address: false,
-        };
+            bridge_address: astria_address(&not_bridge_address),
+            ics20_withdrawal_from_rollup: Ics20WithdrawalFromRollup {
+                rollup_withdrawal_event_id: String::new(),
+                rollup_block_number: 1,
+                rollup_return_address: String::new(),
+                memo: String::new(),
+            },
+        });
 
         assert_eyre_error(
             &establish_withdrawal_target(&action, &state, &not_bridge_address)

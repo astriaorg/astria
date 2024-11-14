@@ -15,7 +15,10 @@ use astria_core::{
     protocol::{
         memos,
         transaction::v1::{
-            action::Ics20Withdrawal,
+            action::{
+                Ics20Withdrawal,
+                Ics20WithdrawalWithBridgeAddress,
+            },
             Action,
         },
     },
@@ -454,32 +457,31 @@ where
                 .expect("must be set if this method is entered"),
         );
 
-        let memo = memo_to_json(&memos::v1::Ics20WithdrawalFromRollup {
+        let ics20_withdrawal_from_rollup = memos::v1::Ics20WithdrawalFromRollup {
             memo: event.memo.clone(),
             rollup_block_number,
             rollup_return_address: event.sender.encode_hex(),
             rollup_withdrawal_event_id,
-        })
-        .map_err(GetWithdrawalActionsError::encode_memo)?;
+        };
 
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
 
-        let action = Ics20Withdrawal {
+        let action = Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
             denom,
             destination_chain_address: event.destination_chain_address,
             return_address: self.bridge_address,
             amount,
-            memo,
+            ics20_withdrawal_from_rollup,
             fee_asset: self.fee_asset.clone(),
             // note: this refers to the timeout on the destination chain, which we are unaware of.
             // thus, we set it to the maximum possible value.
             timeout_height: max_timeout_height(),
             timeout_time: timeout_in_5_min(),
             source_channel,
-            bridge_address: Some(self.bridge_address),
+            bridge_address: self.bridge_address,
             use_compat_address: self.use_compat_address,
-        };
+        });
         Ok(Action::Ics20Withdrawal(action))
     }
 
@@ -547,10 +549,6 @@ impl GetWithdrawalActionsError {
         ))
     }
 
-    fn encode_memo(source: EncodeMemoError) -> Self {
-        Self(GetWithdrawalActionsErrorKind::EncodeMemo(source))
-    }
-
     fn get_logs(source: GetLogsError) -> Self {
         Self(GetWithdrawalActionsErrorKind::GetLogs(source))
     }
@@ -577,8 +575,6 @@ enum GetWithdrawalActionsErrorKind {
     DecodeLog(DecodeLogError),
     #[error(transparent)]
     DestinationChainAsAddress(DestinationChainAsAddressError),
-    #[error(transparent)]
-    EncodeMemo(EncodeMemoError),
     #[error(transparent)]
     GetLogs(GetLogsError),
     #[error("log did not contain a block number")]
@@ -689,20 +685,6 @@ fn max_timeout_height() -> ibc_types::core::client::Height {
 struct DestinationChainAsAddressError {
     #[from]
     source: AddressError,
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("failed encoding memo `{proto_message}` as JSON")]
-struct EncodeMemoError {
-    proto_message: String,
-    source: serde_json::Error,
-}
-
-fn memo_to_json<T: prost::Name + serde::Serialize>(memo: &T) -> Result<String, EncodeMemoError> {
-    serde_json::to_string(memo).map_err(|source| EncodeMemoError {
-        proto_message: T::full_name(),
-        source,
-    })
 }
 
 fn parse_destination_chain_as_address(

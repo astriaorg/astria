@@ -22,6 +22,7 @@ use crate::{
         IbcRelayerChange,
         IbcSudoChange,
         Ics20Withdrawal,
+        Ics20WithdrawalNoBridgeAddress,
         InitBridgeAccount,
         RollupDataSubmission,
         SudoAddressChange,
@@ -73,19 +74,20 @@ fn try_from_list_of_actions_bundleable_general() {
             power: 100,
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
         }),
-        Action::Ics20Withdrawal(Ics20Withdrawal {
-            denom: asset.clone(),
-            destination_chain_address: String::new(),
-            return_address: address,
-            amount: 1_000_000u128,
-            memo: String::new(),
-            fee_asset: asset.clone(),
-            timeout_height: Height::new(1, 1).unwrap(),
-            timeout_time: 0,
-            source_channel: "channel-0".parse().unwrap(),
-            bridge_address: Some(address),
-            use_compat_address: false,
-        }),
+        Action::Ics20Withdrawal(Ics20Withdrawal::NoBridgeAddress(
+            Ics20WithdrawalNoBridgeAddress {
+                denom: asset.clone(),
+                destination_chain_address: String::new(),
+                return_address: address,
+                amount: 1_000_000u128,
+                memo: String::new(),
+                fee_asset: asset.clone(),
+                timeout_height: Height::new(1, 1).unwrap(),
+                timeout_time: 0,
+                source_channel: "channel-0".parse().unwrap(),
+                use_compat_address: false,
+            },
+        )),
     ];
 
     assert!(matches!(

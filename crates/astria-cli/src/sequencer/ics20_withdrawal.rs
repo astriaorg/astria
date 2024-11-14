@@ -1,4 +1,5 @@
 use astria_core::{
+    generated::protocol::transaction::v1::IbcHeight,
     primitive::v1::{
         asset,
         Address,
@@ -7,15 +8,13 @@ use astria_core::{
         action::Ics20Withdrawal,
         Action,
     },
+    Protobuf as _,
 };
 use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use ibc_types::core::{
-    channel::ChannelId,
-    client::Height,
-};
+use ibc_types::core::channel::ChannelId;
 use tracing::info;
 
 use crate::utils::{
@@ -97,22 +96,27 @@ impl Command {
             self.sequencer_chain_id.clone(),
             &self.prefix,
             self.private_key.as_str(),
-            Action::Ics20Withdrawal(Ics20Withdrawal {
-                amount: self.amount,
-                denom: self.asset,
-                destination_chain_address: self.destination_chain_address,
-                return_address: self.return_address.unwrap_or(from_address),
-                timeout_height: Height {
-                    revision_number: u64::MAX,
-                    revision_height: u64::MAX,
-                },
-                timeout_time: now_plus_5_minutes(),
-                source_channel: ChannelId(self.source_channel),
-                fee_asset: self.fee_asset,
-                memo: self.memo.unwrap_or_default(),
-                bridge_address: self.bridge_address,
-                use_compat_address: self.compat,
-            }),
+            Action::Ics20Withdrawal(
+                Ics20Withdrawal::try_from_raw(
+                    astria_core::generated::protocol::transaction::v1::Ics20Withdrawal {
+                        amount: Some(self.amount.into()),
+                        denom: self.asset.to_string(),
+                        destination_chain_address: self.destination_chain_address,
+                        return_address: Some(self.return_address.unwrap_or(from_address).to_raw()),
+                        timeout_height: Some(IbcHeight {
+                            revision_number: u64::MAX,
+                            revision_height: u64::MAX,
+                        }),
+                        timeout_time: now_plus_5_minutes(),
+                        source_channel: ChannelId(self.source_channel).to_string(),
+                        fee_asset: self.fee_asset.to_string(),
+                        memo: self.memo.unwrap_or_default(),
+                        bridge_address: self.bridge_address.map(|act| act.to_raw()),
+                        use_compat_address: self.compat,
+                    },
+                )
+                .wrap_err("failed to create ics20 withdrawal action")?,
+            ),
         )
         .await
         .wrap_err("failed to perform ics20 withdrawal")?;
