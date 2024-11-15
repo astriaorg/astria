@@ -1181,7 +1181,6 @@ impl App {
             event
                 .attributes
                 .iter_mut()
-                .filter(|attr| !attr.index)
                 .for_each(|attr| attr.index = true);
         }
 
