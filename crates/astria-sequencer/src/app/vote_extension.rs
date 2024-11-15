@@ -1,4 +1,10 @@
-use std::collections::HashMap;
+use std::{
+    cmp::Ordering,
+    collections::{
+        HashMap,
+        HashSet,
+    },
+};
 
 use astria_core::{
     connect::{
@@ -22,19 +28,28 @@ use astria_core::{
 use astria_eyre::eyre::{
     bail,
     ensure,
-    ContextCompat as _,
+    eyre,
+    OptionExt,
     Result,
     WrapErr as _,
 };
+use futures::{
+    stream::FuturesUnordered,
+    StreamExt,
+    TryStreamExt,
+};
 use indexmap::IndexMap;
 use prost::Message as _;
+use telemetry::display::base64;
 use tendermint::{
     abci,
     abci::types::{
         BlockSignatureInfo::Flag,
         CommitInfo,
         ExtendedCommitInfo,
+        ExtendedVoteInfo,
     },
+    vote::Power,
 };
 use tendermint_proto::google::protobuf::Timestamp;
 use tonic::transport::Channel;
@@ -91,9 +106,8 @@ impl Handler {
             }
         };
 
-        let query_prices_response =
-            astria_core::connect::service::v2::QueryPricesResponse::try_from_raw(rsp)
-                .wrap_err("failed to validate prices server response")?;
+        let query_prices_response = QueryPricesResponse::try_from_raw(rsp)
+            .wrap_err("failed to validate prices server response")?;
         let oracle_vote_extension = transform_oracle_service_prices(state, query_prices_response)
             .await
             .wrap_err("failed to transform oracle service prices")?;
@@ -120,7 +134,7 @@ impl Handler {
         let response = match verify_vote_extension(vote.vote_extension, max_num_currency_pairs) {
             Ok(()) => abci::response::VerifyVoteExtension::Accept,
             Err(e) => {
-                tracing::warn!(error = %e, "failed to verify vote extension");
+                warn!(error = %e, "failed to verify vote extension");
                 abci::response::VerifyVoteExtension::Reject
             }
         };
@@ -136,15 +150,22 @@ fn verify_vote_extension(
     let oracle_vote_extension = RawOracleVoteExtension::decode(oracle_vote_extension_bytes)
         .wrap_err("failed to decode oracle vote extension")?;
 
+    let num_prices = u64::try_from(oracle_vote_extension.prices.len()).wrap_err_with(|| {
+        format!(
+            "expected no more than {} prices, got {} prices",
+            u64::MAX,
+            oracle_vote_extension.prices.len()
+        )
+    })?;
     ensure!(
-        u64::try_from(oracle_vote_extension.prices.len()).ok() <= Some(max_num_currency_pairs),
+        num_prices <= max_num_currency_pairs,
         "number of oracle vote extension prices exceeds max expected number of currency pairs"
     );
 
     for prices in oracle_vote_extension.prices.values() {
         ensure!(
             prices.len() <= MAXIMUM_PRICE_BYTE_LEN,
-            "encoded price length exceeded {MAXIMUM_PRICE_BYTE_LEN}"
+            "encoded price length exceeded {MAXIMUM_PRICE_BYTE_LEN} bytes"
         );
     }
 
@@ -158,37 +179,23 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
     rsp: QueryPricesResponse,
 ) -> Result<OracleVoteExtension> {
     use astria_core::connect::types::v2::CurrencyPairId;
-    use futures::StreamExt as _;
 
-    let futures = futures::stream::FuturesUnordered::new();
-    for (currency_pair, price) in rsp.prices {
-        futures.push(async move {
-            (
-                DefaultCurrencyPairStrategy::id(state, &currency_pair).await,
-                currency_pair,
-                price,
-            )
-        });
-    }
-
-    let result: Vec<(Result<Option<CurrencyPairId>>, CurrencyPair, Price)> =
-        futures.collect().await;
-    let strategy_prices = result.into_iter().filter_map(|(get_id_result, currency_pair, price)| {
-        let id = match get_id_result {
-            Ok(Some(id)) => id,
-            Ok(None) => {
-                debug!(%currency_pair, "currency pair ID not found in state; skipping");
-                return None;
-            }
-            Err(err) => {
-                // FIXME: this event can be removed once all instrumented functions
-                // can generate an error event.
+    let strategy_prices = rsp.prices.into_iter().map(|(currency_pair, price)| async move {
+        DefaultCurrencyPairStrategy::id(state, &currency_pair).await
+            .wrap_err_with(|| {
                 warn!(%currency_pair, "failed to fetch ID for currency pair; cancelling transformation");
-                return Some(Err(err).wrap_err("failed to fetch currency pair ID"));
-            }
-        };
-        Some(Ok((id, price)))
-    }).collect::<Result<IndexMap<CurrencyPairId, Price>>>()?;
+                format!("error fetching currency pair {currency_pair}")
+            })
+            .map(|maybe_id| (maybe_id, currency_pair, price))
+    }).collect::<FuturesUnordered<_>>()
+        .try_filter_map(|(maybe_id, currency_pair, price)| async move {
+            let Some(id) = maybe_id else {
+                debug!(%currency_pair, "currency pair ID not found in state; skipping");
+                return Ok(None);
+            };
+            Ok(Some((id, price)))
+        })
+        .try_collect::<IndexMap<CurrencyPairId, Price>>().await?;
 
     Ok(OracleVoteExtension {
         prices: strategy_prices,
@@ -252,15 +259,9 @@ impl ProposalHandler {
             .await
             .wrap_err("failed to validate vote extensions in prepare_proposal")?;
 
-        extended_commit_info.votes.sort_by(|a, b| {
-            if a.validator.power == b.validator.power {
-                // addresses sorted in ascending order, if the powers are the same
-                a.validator.address.cmp(&b.validator.address)
-            } else {
-                // powers sorted in descending order
-                b.validator.power.cmp(&a.validator.power)
-            }
-        });
+        extended_commit_info
+            .votes
+            .sort_unstable_by(|a, b| VoteSorter::from(a).cmp(&VoteSorter::from(b)));
 
         Ok(ValidatedExtendedCommitInfo(extended_commit_info))
     }
@@ -321,10 +322,11 @@ async fn validate_vote_extensions<S: StateReadExt>(
     // the total voting power of all validators which submitted vote extensions
     let mut submitted_voting_power: u64 = 0;
 
-    let validator_set = state
+    let all_validators = state
         .get_validator_set()
         .await
         .wrap_err("failed to get validator set")?;
+    let mut validators_that_voted = HashSet::new();
 
     for vote in &extended_commit_info.votes {
         let address = state
@@ -332,16 +334,24 @@ async fn validate_vote_extensions<S: StateReadExt>(
             .await
             .wrap_err("failed to construct validator address with base prefix")?;
 
-        total_voting_power = total_voting_power.saturating_add(vote.validator.power.value());
+        ensure!(
+            validators_that_voted.insert(&vote.validator.address),
+            "{} voted twice",
+            base64(&vote.validator.address)
+        );
 
-        if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Commit) {
-            ensure!(
-                vote.extension_signature.is_some(),
-                "vote extension signature is missing for validator {address}",
-            );
-        }
+        total_voting_power = total_voting_power
+            .checked_add(vote.validator.power.value())
+            .ok_or_eyre("calculating total voting power overflowed")?;
 
-        if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit) {
+        let signature = if vote.sig_info == Flag(tendermint::block::BlockIdFlag::Commit) {
+            vote.extension_signature
+                .as_ref()
+                .ok_or_else(|| eyre!("vote extension signature is missing for validator {address}"))
+                .and_then(|sig| {
+                    Signature::try_from(sig.as_bytes()).wrap_err("failed to create signature")
+                })?
+        } else {
             ensure!(
                 vote.vote_extension.is_empty(),
                 "non-commit vote extension present for validator {address}"
@@ -350,18 +360,21 @@ async fn validate_vote_extensions<S: StateReadExt>(
                 vote.extension_signature.is_none(),
                 "non-commit extension signature present for validator {address}",
             );
-        }
-
-        if vote.sig_info != Flag(tendermint::block::BlockIdFlag::Commit) {
             continue;
-        }
+        };
 
-        submitted_voting_power =
-            submitted_voting_power.saturating_add(vote.validator.power.value());
+        submitted_voting_power = submitted_voting_power
+            .checked_add(vote.validator.power.value())
+            .ok_or_eyre("calculating submitted voting power overflowed")?;
 
-        let verification_key = &validator_set
+        let verification_key = &all_validators
             .get(&vote.validator.address)
-            .wrap_err("validator not found")?
+            .ok_or_else(|| {
+                eyre!(
+                    "{} not found in validator set",
+                    base64(&vote.validator.address)
+                )
+            })?
             .verification_key;
 
         let vote_extension = CanonicalVoteExtension {
@@ -375,13 +388,6 @@ async fn validate_vote_extensions<S: StateReadExt>(
         };
 
         let message = vote_extension.encode_length_delimited_to_vec();
-        let signature = Signature::try_from(
-            vote.extension_signature
-                .as_ref()
-                .expect("extension signature is some, as it was checked above")
-                .as_bytes(),
-        )
-        .wrap_err("failed to create signature")?;
         verification_key
             .verify(&signature, &message)
             .wrap_err("failed to verify signature for vote extension")?;
@@ -394,11 +400,11 @@ async fn validate_vote_extensions<S: StateReadExt>(
 
     let required_voting_power = total_voting_power
         .checked_mul(2)
-        .wrap_err("failed to multiply total voting power by 2")?
+        .ok_or_eyre("failed to multiply total voting power by 2")?
         .checked_div(3)
-        .wrap_err("failed to divide total voting power by 3")?
+        .ok_or_eyre("failed to divide total voting power by 3")?
         .checked_add(1)
-        .wrap_err("failed to add 1 from total voting power")?;
+        .ok_or_eyre("failed to add 1 from total voting power")?;
     ensure!(
         submitted_voting_power >= required_voting_power,
         "submitted voting power is less than required voting power",
@@ -426,18 +432,10 @@ fn validate_extended_commit_against_last_commit(
     );
 
     ensure!(
-        is_sorted::IsSorted::is_sorted_by(&mut extended_commit_info.votes.iter(), |a, b| {
-            if a.validator.power == b.validator.power {
-                // addresses sorted in ascending order, if the powers are the same
-                a.validator.address.partial_cmp(&b.validator.address)
-            } else {
-                // powers sorted in descending order
-                a.validator
-                    .power
-                    .partial_cmp(&b.validator.power)
-                    .map(std::cmp::Ordering::reverse)
-            }
-        }),
+        is_sorted::IsSorted::is_sorted_by_key(
+            &mut extended_commit_info.votes.iter(),
+            |&extended_vote_info| VoteSorter::from(extended_vote_info)
+        ),
         "extended commit votes are not sorted by voting power",
     );
 
@@ -516,74 +514,146 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
 async fn aggregate_oracle_votes<S: StateReadExt>(
     state: &S,
     votes: Vec<OracleVoteExtension>,
-) -> Result<HashMap<CurrencyPair, Price>> {
+) -> Result<impl Iterator<Item = (CurrencyPair, Price)>> {
     // validators are not weighted right now, so we just take the median price for each currency
     // pair
     //
     // skip uses a stake-weighted median: https://github.com/skip-mev/connect/blob/19a916122110cfd0e98d93978107d7ada1586918/pkg/math/voteweighted/voteweighted.go#L59
     // we can implement this later, when we have stake weighting.
-    let mut currency_pair_to_price_list = HashMap::new();
-    for vote in votes {
-        for (id, price) in vote.prices {
-            let Some(currency_pair) = DefaultCurrencyPairStrategy::from_id(state, id)
+    let mut currency_pair_stream = votes
+        .into_iter()
+        .flat_map(|vote| vote.prices)
+        .map(|(id, price)| async move {
+            DefaultCurrencyPairStrategy::from_id(state, id)
                 .await
-                .wrap_err("failed to get currency pair from id")?
-            else {
-                continue;
-            };
-            currency_pair_to_price_list
-                .entry(currency_pair)
-                .and_modify(|prices: &mut Vec<Price>| prices.push(price))
-                .or_insert(vec![price]);
-        }
+                .wrap_err_with(|| format!("failed to get currency pair from id {id}"))
+                .map(|maybe_currency_pair| (maybe_currency_pair, price))
+        })
+        .collect::<FuturesUnordered<_>>();
+
+    let mut currency_pair_to_price_list = HashMap::new();
+    while let Some(result) = currency_pair_stream.next().await {
+        let (maybe_currency_pair, price) = result?;
+        let Some(currency_pair) = maybe_currency_pair else {
+            continue;
+        };
+        currency_pair_to_price_list
+            .entry(currency_pair)
+            .and_modify(|prices: &mut Vec<_>| prices.push(price))
+            .or_insert(vec![price]);
+    }
+    Ok(currency_pair_to_price_list
+        .into_iter()
+        .map(|(currency_pair, price_list)| (currency_pair, median(price_list))))
+}
+
+fn median(mut price_list: Vec<Price>) -> Price {
+    price_list.sort_unstable();
+    let midpoint = price_list
+        .len()
+        .checked_div(2)
+        .expect("can't fail as divisor is not zero");
+    if price_list.len() % 2 == 1 {
+        return price_list
+            .get(midpoint)
+            .copied()
+            .expect("`midpoint` is a valid index");
     }
 
-    let mut prices = HashMap::new();
-    for (currency_pair, mut price_list) in currency_pair_to_price_list {
-        price_list.sort_unstable();
-        let midpoint = price_list
-            .len()
-            .checked_div(2)
-            .expect("has a result because RHS is not 0");
-        let median_price = if price_list.len() % 2 == 0 {
-            'median_from_even: {
-                let Some(left) = price_list.get(midpoint) else {
-                    break 'median_from_even None;
-                };
-                let Some(right_idx) = midpoint.checked_add(1) else {
-                    break 'median_from_even None;
-                };
-                let Some(right) = price_list.get(right_idx).copied() else {
-                    break 'median_from_even None;
-                };
-                left.checked_add(right).and_then(|sum| sum.checked_div(2))
-            }
+    let Some(lower_index) = midpoint.checked_sub(1) else {
+        // We can only get here if `price_list` is empty; just return 0.
+        return Price::new(0);
+    };
+
+    // `price_list.len()` >= 2 if we got to here, meaning `midpoint` and `lower_index` must both be
+    // valid indices of `price_list`.
+    let higher_price = price_list
+        .get(midpoint)
+        .expect("`midpoint` is a valid index");
+    let lower_price = price_list
+        .get(lower_index)
+        .expect("`lower_index` is a valid index");
+    // Avoid overflow by halving both values first.
+    let half_high = higher_price
+        .checked_div(2)
+        .expect("can't fail as divisor is not zero");
+    let half_low = lower_price
+        .checked_div(2)
+        .expect("can't fail as divisor is not zero");
+    let sum = half_high
+        .checked_add(half_low)
+        .expect("can't fail as both operands are <= MAX/2");
+    // If `higher_price` and `lower_price` are both odd, we rounded down twice when halving them,
+    // so add 1 to the sum.
+    if higher_price.get() % 2 == 1 && lower_price.get() % 2 == 1 {
+        sum.checked_add(Price::new(1))
+            .expect("can't fail as we rounded down twice while halving the prices")
+    } else {
+        sum
+    }
+}
+
+#[derive(PartialEq, Eq)]
+struct VoteSorter<'a> {
+    power: &'a Power,
+    address: &'a [u8; 20],
+}
+
+impl<'a> PartialOrd for VoteSorter<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<'a> Ord for VoteSorter<'a> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.power == other.power {
+            // addresses sorted in ascending order, if the powers are the same
+            self.address.cmp(other.address)
         } else {
-            price_list.get(midpoint).copied()
+            // powers sorted in descending order
+            other.power.cmp(self.power)
         }
-        .unwrap_or_else(|| Price::new(0));
-        prices.insert(currency_pair, median_price);
     }
+}
 
-    Ok(prices)
+impl<'a> From<&'a ExtendedVoteInfo> for VoteSorter<'a> {
+    fn from(extended_vote_info: &'a ExtendedVoteInfo) -> Self {
+        Self {
+            power: &extended_vote_info.validator.power,
+            address: &extended_vote_info.validator.address,
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use std::collections::BTreeMap;
+    use std::{
+        collections::BTreeMap,
+        fmt::Debug,
+    };
 
     use astria_core::{
+        connect::{
+            oracle::v2::CurrencyPairState,
+            types::v2::{
+                CurrencyPairId,
+                CurrencyPairNonce,
+            },
+        },
         crypto::SigningKey,
         protocol::transaction::v1::action::ValidatorUpdate,
+        Timestamp,
     };
-    use cnidarium::StateDelta;
-    use tendermint::{
-        abci::types::{
-            ExtendedVoteInfo,
-            Validator,
-            VoteInfo,
-        },
-        vote::Power,
+    use cnidarium::{
+        Snapshot,
+        StateDelta,
+        TempStorage,
+    };
+    use tendermint::abci::types::{
+        ExtendedVoteInfo,
+        Validator,
+        VoteInfo,
     };
     use tendermint_proto::types::CanonicalVoteExtension;
 
@@ -596,6 +666,8 @@ mod test {
             ValidatorSet,
         },
     };
+
+    const CHAIN_ID: &str = "test-0";
 
     #[test]
     fn verify_vote_extension_empty_ok() {
@@ -635,234 +707,719 @@ mod test {
         );
     }
 
-    #[tokio::test]
-    async fn validate_vote_extensions_insufficient_voting_power() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(&snapshot);
-        state
-            .put_chain_id_and_revision_number("test-0".try_into().unwrap())
-            .unwrap();
-        let validator_set = ValidatorSet::new_from_updates(vec![
-            ValidatorUpdate {
-                power: 1u16.into(),
-                verification_key: SigningKey::from([0; 32]).verification_key(),
-            },
-            ValidatorUpdate {
-                power: 2u16.into(),
-                verification_key: SigningKey::from([1; 32]).verification_key(),
-            },
-        ]);
-        state.put_validator_set(validator_set).unwrap();
-        state.put_base_prefix("astria".to_string()).unwrap();
-
-        let extended_commit_info = ExtendedCommitInfo {
-            round: 1u16.into(),
-            votes: vec![ExtendedVoteInfo {
-                validator: Validator {
-                    address: *SigningKey::from([0; 32]).verification_key().address_bytes(),
-                    power: 1u16.into(),
-                },
-                sig_info: Flag(tendermint::block::BlockIdFlag::Nil),
-                extension_signature: None,
-                vote_extension: vec![].into(),
-            }],
-        };
-        assert!(
-            validate_vote_extensions(&state, 1, &extended_commit_info)
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("submitted voting power is less than required voting power")
-        );
+    fn canonical_vote_extension() -> CanonicalVoteExtension {
+        let mut prices = BTreeMap::new();
+        let _ = prices.insert(0, vec![].into());
+        let _ = prices.insert(1, vec![].into());
+        let _ = prices.insert(2, vec![].into());
+        let extension = RawOracleVoteExtension {
+            prices,
+        }
+        .encode_to_vec();
+        CanonicalVoteExtension {
+            extension,
+            height: 1,
+            round: 1,
+            chain_id: CHAIN_ID.to_string(),
+        }
     }
 
-    #[tokio::test]
-    async fn validate_vote_extensions_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(&snapshot);
-
-        let chain_id: tendermint::chain::Id = "test-0".try_into().unwrap();
-        state
-            .put_chain_id_and_revision_number(chain_id.clone())
-            .unwrap();
-        let validator_set = ValidatorSet::new_from_updates(vec![
-            ValidatorUpdate {
-                power: 5u16.into(),
-                verification_key: SigningKey::from([0; 32]).verification_key(),
-            },
-            ValidatorUpdate {
-                power: 2u16.into(),
-                verification_key: SigningKey::from([1; 32]).verification_key(),
-            },
-        ]);
-        state.put_validator_set(validator_set).unwrap();
-        state.put_base_prefix("astria".to_string()).unwrap();
-
-        let round = 1u16;
-        let vote_extension_height = 1u64;
-        let vote_extension_message = b"noot".to_vec();
-        let vote_extension = CanonicalVoteExtension {
-            extension: vote_extension_message.clone(),
-            height: vote_extension_height.try_into().unwrap(),
-            round: i64::from(round),
-            chain_id: chain_id.to_string(),
-        };
-
-        let message = vote_extension.encode_length_delimited_to_vec();
-        let signature = SigningKey::from([0; 32]).sign(&message);
-
-        let extended_commit_info = ExtendedCommitInfo {
-            round: round.into(),
-            votes: vec![ExtendedVoteInfo {
-                validator: Validator {
-                    address: *SigningKey::from([0; 32]).verification_key().address_bytes(),
-                    power: 1u16.into(),
-                },
-                sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
-                extension_signature: Some(signature.to_bytes().to_vec().try_into().unwrap()),
-                vote_extension: vote_extension_message.into(),
-            }],
-        };
-        validate_vote_extensions(&state, vote_extension_height + 1, &extended_commit_info)
-            .await
-            .unwrap();
+    fn extended_commit_info(round: i64, votes: Vec<ExtendedVoteInfo>) -> ExtendedCommitInfo {
+        ExtendedCommitInfo {
+            round: u16::try_from(round).unwrap().into(),
+            votes,
+        }
     }
 
-    fn get_extended_vote_info_commit(
-        signing_key: &SigningKey,
-        message_to_sign: &[u8],
-        vote_extension: bytes::Bytes,
-        power: Power,
+    fn extended_vote_info_commit(
+        signer: &Signer,
+        canonical_vote_extension: &CanonicalVoteExtension,
     ) -> ExtendedVoteInfo {
+        let message_to_sign = canonical_vote_extension.encode_length_delimited_to_vec();
         ExtendedVoteInfo {
             validator: Validator {
-                address: *signing_key.verification_key().address_bytes(),
-                power,
+                address: *signer.signing_key.verification_key().address_bytes(),
+                power: signer.power.into(),
             },
             sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
             extension_signature: Some(
-                signing_key
-                    .sign(message_to_sign)
+                signer
+                    .signing_key
+                    .sign(&message_to_sign)
                     .to_bytes()
                     .to_vec()
                     .try_into()
                     .unwrap(),
             ),
-            vote_extension,
+            vote_extension: canonical_vote_extension.extension.clone().into(),
         }
     }
 
-    #[expect(clippy::too_many_lines, reason = "ok since this is a unit test")]
+    fn extended_vote_info_nil(signer: &Signer) -> ExtendedVoteInfo {
+        ExtendedVoteInfo {
+            validator: Validator {
+                address: *signer.signing_key.verification_key().address_bytes(),
+                power: signer.power.into(),
+            },
+            sig_info: Flag(tendermint::block::BlockIdFlag::Nil),
+            extension_signature: None,
+            vote_extension: vec![].into(),
+        }
+    }
+
+    fn height(message: &CanonicalVoteExtension) -> u64 {
+        u64::try_from(message.height).unwrap()
+    }
+
+    fn last_commit<'a, T: IntoIterator<Item = &'a Signer>>(signers: T, round: i64) -> CommitInfo {
+        let votes = signers
+            .into_iter()
+            .map(|signer| VoteInfo {
+                validator: Validator {
+                    address: signer.signing_key.address_bytes(),
+                    power: signer.power.into(),
+                },
+                sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
+            })
+            .collect();
+        CommitInfo {
+            round: u16::try_from(round).unwrap().into(),
+            votes,
+        }
+    }
+
+    fn oracle_vote_extension<I: IntoIterator<Item = u128>>(prices: I) -> OracleVoteExtension {
+        OracleVoteExtension {
+            prices: prices
+                .into_iter()
+                .enumerate()
+                .map(|(index, price)| (CurrencyPairId::new(index as u64), Price::new(price)))
+                .collect(),
+        }
+    }
+
+    fn pair_0() -> (CurrencyPair, CurrencyPairId) {
+        ("ETH/USD".parse().unwrap(), CurrencyPairId::new(0))
+    }
+
+    fn pair_1() -> (CurrencyPair, CurrencyPairId) {
+        ("BTC/USD".parse().unwrap(), CurrencyPairId::new(1))
+    }
+
+    fn pair_2() -> (CurrencyPair, CurrencyPairId) {
+        ("TIA/USD".parse().unwrap(), CurrencyPairId::new(2))
+    }
+
+    struct Signer {
+        signing_key: SigningKey,
+        power: u8,
+    }
+
+    impl Signer {
+        fn new(signing_key_bytes: [u8; 32], power: u8) -> Self {
+            Self {
+                signing_key: SigningKey::from(signing_key_bytes),
+                power,
+            }
+        }
+    }
+
+    struct Fixture {
+        signer_a: Signer,
+        signer_b: Signer,
+        signer_c: Signer,
+        state: StateDelta<Snapshot>,
+        _storage: TempStorage,
+    }
+
+    impl Fixture {
+        async fn new() -> Self {
+            let signer_a = Signer::new([0; 32], 6);
+            let signer_b = Signer::new([1; 32], 2);
+            let signer_c = Signer::new([2; 32], 1);
+
+            let storage = TempStorage::new().await.unwrap();
+            let mut state = StateDelta::new(storage.latest_snapshot());
+            state
+                .put_chain_id_and_revision_number(CHAIN_ID.try_into().unwrap())
+                .unwrap();
+            let validator_set = ValidatorSet::new_from_updates(vec![
+                ValidatorUpdate {
+                    power: signer_a.power.into(),
+                    verification_key: signer_a.signing_key.verification_key(),
+                },
+                ValidatorUpdate {
+                    power: signer_b.power.into(),
+                    verification_key: signer_b.signing_key.verification_key(),
+                },
+                ValidatorUpdate {
+                    power: signer_c.power.into(),
+                    verification_key: signer_c.signing_key.verification_key(),
+                },
+            ]);
+            state.put_validator_set(validator_set).unwrap();
+            state.put_base_prefix("astria".to_string()).unwrap();
+
+            for (pair, pair_id) in [pair_0(), pair_1(), pair_2()] {
+                let pair_state = CurrencyPairState {
+                    price: QuotePrice {
+                        price: Price::new(123),
+                        block_timestamp: Timestamp {
+                            seconds: 4,
+                            nanos: 5,
+                        },
+                        block_height: 1,
+                    },
+                    nonce: CurrencyPairNonce::new(1),
+                    id: pair_id,
+                };
+                state.put_currency_pair_state(pair, pair_state).unwrap();
+            }
+            state.put_num_currency_pairs(3).unwrap();
+
+            Self {
+                signer_a,
+                signer_b,
+                signer_c,
+                state,
+                _storage: storage,
+            }
+        }
+    }
+
+    #[track_caller]
+    fn assert_err_contains<T: Debug, E: ToString>(result: Result<T, E>, message: &str) {
+        let actual_message = result.unwrap_err().to_string();
+        assert!(
+            actual_message.contains(message),
+            "error expected to contain `{message}`, but the actual error message is \
+             `{actual_message}`"
+        );
+    }
+
+    /// Should fail validation if any validator votes more than once.
+    #[tokio::test]
+    async fn validate_vote_extensions_repeated_voter() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            state,
+            _storage,
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let votes = vec![
+            extended_vote_info_commit(&signer_c, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            extended_vote_info_commit(&signer_a, &message),
+            extended_vote_info_commit(&signer_a, &message),
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        assert_err_contains(
+            validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
+            "voted twice",
+        );
+    }
+
+    /// Should fail validation if any of the votes is a `Commit` type but doesn't include a
+    /// signature.
+    #[tokio::test]
+    async fn validate_vote_extensions_missing_sig() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            state,
+            _storage,
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let mut bad_vote = extended_vote_info_commit(&signer_a, &message);
+        bad_vote.extension_signature = None;
+        let votes = vec![
+            extended_vote_info_commit(&signer_c, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            bad_vote,
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        assert_err_contains(
+            validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
+            "vote extension signature is missing for validator",
+        );
+    }
+
+    /// Should fail validation if any of the votes is not a `Commit` type and also includes a vote
+    /// extension.
+    #[tokio::test]
+    async fn validate_vote_extensions_nil_with_extension() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            state,
+            _storage,
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let mut bad_vote = extended_vote_info_nil(&signer_a);
+        bad_vote.vote_extension = vec![1_u8].into();
+        let votes = vec![
+            extended_vote_info_commit(&signer_c, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            bad_vote,
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        assert_err_contains(
+            validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
+            "non-commit vote extension present for validator",
+        );
+    }
+
+    /// Should fail validation if any of the votes is not a `Commit` type and also includes a
+    /// signature.
+    #[tokio::test]
+    async fn validate_vote_extensions_nil_with_signature() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            state,
+            _storage,
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let mut bad_vote = extended_vote_info_nil(&signer_a);
+        bad_vote.extension_signature = Some(vec![1_u8; 64].try_into().unwrap());
+        let votes = vec![
+            extended_vote_info_commit(&signer_c, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            bad_vote,
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        assert_err_contains(
+            validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
+            "non-commit extension signature present for validator",
+        );
+    }
+
+    /// Should fail validation if any of the votes is a `Commit` type with a signature by a key
+    /// not in the validator set.
+    #[tokio::test]
+    async fn validate_vote_extensions_unknown_signer() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            state,
+            _storage,
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let unknown_signer = Signer::new([9; 32], 10);
+        let bad_vote = extended_vote_info_commit(&unknown_signer, &message);
+        let votes = vec![
+            extended_vote_info_commit(&signer_c, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            extended_vote_info_commit(&signer_a, &message),
+            bad_vote,
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        assert_err_contains(
+            validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
+            "not found in validator set",
+        );
+    }
+
+    /// Should fail validation if any of the votes is a `Commit` type with an invalid signature.
+    #[tokio::test]
+    async fn validate_vote_extensions_invalid_signature() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            state,
+            _storage,
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let mut bad_vote = extended_vote_info_commit(&signer_a, &message);
+        bad_vote.extension_signature = Some(vec![0; 64].try_into().unwrap());
+        let votes = vec![
+            extended_vote_info_commit(&signer_c, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            bad_vote,
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        assert_err_contains(
+            validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
+            "failed to verify signature for vote extension",
+        );
+    }
+
+    /// Should fail validation if there are no votes.
+    #[tokio::test]
+    async fn validate_vote_extensions_no_votes() {
+        let Fixture {
+            state,
+            _storage,
+            ..
+        } = Fixture::new().await;
+
+        let extended_commit_info = extended_commit_info(1, vec![]);
+        assert_err_contains(
+            validate_vote_extensions(&state, 2, &extended_commit_info).await,
+            "total voting power is zero",
+        );
+    }
+
+    /// Should fail validation if the total power of `Commit` type votes is less than 2/3 of the
+    /// total power of all votes.
+    #[tokio::test]
+    async fn validate_vote_extensions_insufficient_voting_power() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            state,
+            _storage,
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        // Signer A has 2/3 voting power, and sends a nil vote.
+        let nil_vote = extended_vote_info_nil(&signer_a);
+        let votes = vec![
+            extended_vote_info_commit(&signer_c, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            nil_vote,
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        assert_err_contains(
+            validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
+            "submitted voting power is less than required voting power",
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_vote_extensions_ok() {
+        let Fixture {
+            signer_c,
+            state,
+            _storage,
+            ..
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let votes = vec![extended_vote_info_commit(&signer_c, &message)];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn validate_against_last_commit_wrong_round() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            ..
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let votes = vec![
+            extended_vote_info_commit(&signer_a, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            extended_vote_info_commit(&signer_c, &message),
+        ];
+        let extended_commit_info = extended_commit_info(message.round + 1, votes);
+        let last_commit = last_commit([&signer_a, &signer_b, &signer_c], message.round);
+        assert_err_contains(
+            validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
+            "last commit round does not match extended commit round",
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_against_last_commit_num_votes_mismatch() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            ..
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let votes = vec![
+            extended_vote_info_commit(&signer_a, &message),
+            extended_vote_info_commit(&signer_b, &message),
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        let last_commit = last_commit([&signer_a, &signer_b, &signer_c], message.round);
+        assert_err_contains(
+            validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
+            "last commit votes length does not match extended commit votes length",
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_against_last_commit_not_sorted() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            ..
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let votes = vec![
+            extended_vote_info_commit(&signer_a, &message),
+            extended_vote_info_commit(&signer_c, &message),
+            extended_vote_info_commit(&signer_b, &message),
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        let last_commit = last_commit([&signer_a, &signer_b, &signer_c], message.round);
+        assert_err_contains(
+            validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
+            "extended commit votes are not sorted by voting power",
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_against_last_commit_voter_address_mismatch() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            ..
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let votes = vec![
+            extended_vote_info_commit(&signer_a, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            extended_vote_info_commit(&signer_c, &message),
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        let bad_signer = Signer::new([9; 32], signer_c.power);
+        let last_commit = last_commit([&signer_a, &signer_b, &bad_signer], message.round);
+        assert_err_contains(
+            validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
+            "last commit vote address does not match extended commit vote address",
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_against_last_commit_voter_power_mismatch() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            ..
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let votes = vec![
+            extended_vote_info_commit(&signer_a, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            extended_vote_info_commit(&signer_c, &message),
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        let bad_signer = Signer {
+            signing_key: signer_c.signing_key.clone(),
+            power: signer_c.power.checked_add(1).unwrap(),
+        };
+        let last_commit = last_commit([&signer_a, &signer_b, &bad_signer], message.round);
+        assert_err_contains(
+            validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
+            "last commit vote power does not match extended commit vote power",
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_against_last_commit_sig_info_mismatch() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            ..
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let votes = vec![
+            extended_vote_info_commit(&signer_a, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            extended_vote_info_commit(&signer_c, &message),
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        let mut last_commit = last_commit([&signer_a, &signer_b, &signer_c], message.round);
+        // Change the type of the final vote's sig info to create a mismatch.
+        last_commit.votes.last_mut().unwrap().sig_info = Flag(tendermint::block::BlockIdFlag::Nil);
+        assert_err_contains(
+            validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
+            "last commit vote sig info does not match extended commit vote sig info",
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_against_last_commit_ok() {
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            ..
+        } = Fixture::new().await;
+
+        let message = canonical_vote_extension();
+        let votes = vec![
+            extended_vote_info_commit(&signer_a, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            extended_vote_info_commit(&signer_c, &message),
+        ];
+        let extended_commit_info = extended_commit_info(message.round, votes);
+        let last_commit = last_commit([&signer_a, &signer_b, &signer_c], message.round);
+        validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info).unwrap();
+    }
+
+    #[tokio::test]
+    async fn aggregate_oracle_votes_ok() {
+        let Fixture {
+            state,
+            _storage,
+            ..
+        } = Fixture::new().await;
+
+        let votes = vec![
+            oracle_vote_extension([9, 19, 29]),
+            oracle_vote_extension([10, 20, 30]),
+            oracle_vote_extension([11, 21, 31]),
+        ];
+        let aggregated_prices: BTreeMap<_, _> = aggregate_oracle_votes(&state, votes)
+            .await
+            .unwrap()
+            .collect();
+        assert_eq!(3, aggregated_prices.len());
+        assert_eq!(Some(&Price::new(10)), aggregated_prices.get(&pair_0().0));
+        assert_eq!(Some(&Price::new(20)), aggregated_prices.get(&pair_1().0));
+        assert_eq!(Some(&Price::new(30)), aggregated_prices.get(&pair_2().0));
+    }
+
+    #[tokio::test]
+    async fn aggregate_oracle_votes_should_skip_unknown_pairs() {
+        let Fixture {
+            state,
+            _storage,
+            ..
+        } = Fixture::new().await;
+
+        // Last two entries in each vote should be ignored as we haven't stored state for them in
+        // storage, so there is no mapping of their `CurrencyPairId` to `CurrencyPair`.
+        let votes = vec![
+            oracle_vote_extension([9, 19, 29, 39, 49]),
+            oracle_vote_extension([10, 20, 30, 40, 50]),
+            oracle_vote_extension([11, 21, 31, 41, 51]),
+        ];
+        let aggregated_prices: BTreeMap<_, _> = aggregate_oracle_votes(&state, votes)
+            .await
+            .unwrap()
+            .collect();
+        assert_eq!(3, aggregated_prices.len());
+        assert_eq!(Some(&Price::new(10)), aggregated_prices.get(&pair_0().0));
+        assert_eq!(Some(&Price::new(20)), aggregated_prices.get(&pair_1().0));
+        assert_eq!(Some(&Price::new(30)), aggregated_prices.get(&pair_2().0));
+    }
+
+    #[test]
+    fn should_calculate_median() {
+        fn prices<I: IntoIterator<Item = u128>>(prices: I) -> Vec<Price> {
+            prices.into_iter().map(Price::new).collect()
+        }
+
+        // Empty set should yield 0.
+        assert_eq!(0, median(vec![]).get());
+
+        // Should handle a set with 1 entry.
+        assert_eq!(1, median(prices([1])).get());
+
+        // Should handle a set with 2 entries.
+        assert_eq!(15, median(prices([20, 10])).get());
+
+        // Should handle a larger set with odd number of entries.
+        assert_eq!(10, median(prices([21, 22, 23, 1, 2, 10, 3])).get());
+
+        // Should handle a larger set with even number of entries.
+        assert_eq!(12, median(prices([21, 22, 23, 1, 2, 3])).get());
+
+        // Should round down if required.
+        assert_eq!(17, median(prices([10, 15, 20, 25])).get());
+
+        // Should handle large values in a set with odd number of entries.
+        assert_eq!(u128::MAX, median(prices([u128::MAX, u128::MAX, 1])).get());
+
+        // Should handle large values in a set with even number of entries.
+        assert_eq!(
+            u128::MAX - 1,
+            median(prices([u128::MAX, u128::MAX, u128::MAX - 1, u128::MAX - 1])).get()
+        );
+    }
+
+    #[test]
+    fn should_sort_votes() {
+        // Should be sorted to the end; joint lowest power and higher address than `signer_2`.
+        let signer_1 = Signer::new([2; 32], 1);
+        let address_1 = *signer_1.signing_key.verification_key().address_bytes();
+
+        // Should be sorted to the middle; joint lowest power and lower address than `signer_1`.
+        let signer_2 = Signer::new([1; 32], 1);
+        let address_2 = *signer_2.signing_key.verification_key().address_bytes();
+        assert!(address_1 > address_2);
+
+        // Should be sorted to the start; highest power.
+        let signer_3 = Signer::new([3; 32], 2);
+        let address_3 = *signer_3.signing_key.verification_key().address_bytes();
+
+        let mut votes = vec![
+            extended_vote_info_nil(&signer_1),
+            extended_vote_info_nil(&signer_3),
+            extended_vote_info_nil(&signer_2),
+        ];
+
+        votes.sort_unstable_by(|a, b| VoteSorter::from(a).cmp(&VoteSorter::from(b)));
+
+        assert_eq!(address_3, votes[0].validator.address);
+        assert_eq!(address_2, votes[1].validator.address);
+        assert_eq!(address_1, votes[2].validator.address);
+    }
+
     #[tokio::test]
     async fn prepare_proposal_and_validate_proposal() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(&snapshot);
+        let Fixture {
+            signer_a,
+            signer_b,
+            signer_c,
+            state,
+            _storage,
+        } = Fixture::new().await;
 
-        let chain_id: tendermint::chain::Id = "test-0".try_into().unwrap();
-        state
-            .put_chain_id_and_revision_number(chain_id.clone())
-            .unwrap();
-
-        let signing_key_a = SigningKey::from([0; 32]);
-        let signing_key_b = SigningKey::from([1; 32]);
-        let signing_key_c = SigningKey::from([2; 32]);
-
-        let updates = vec![
-            ValidatorUpdate {
-                power: 5u16.into(),
-                verification_key: signing_key_a.verification_key(),
-            },
-            ValidatorUpdate {
-                power: 2u16.into(),
-                verification_key: signing_key_b.verification_key(),
-            },
-            ValidatorUpdate {
-                power: 2u16.into(),
-                verification_key: signing_key_c.verification_key(),
-            },
+        let message = canonical_vote_extension();
+        let votes = vec![
+            extended_vote_info_commit(&signer_c, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            extended_vote_info_commit(&signer_a, &message),
         ];
-        let validator_set = ValidatorSet::new_from_updates(updates);
-        state.put_validator_set(validator_set).unwrap();
-        state.put_base_prefix("astria".to_string()).unwrap();
-
-        let round = 1u16;
-        let vote_extension_height = 1u64;
-        let vote_extension = RawOracleVoteExtension {
-            prices: BTreeMap::default(),
-        }
-        .encode_to_vec();
-
-        let message = CanonicalVoteExtension {
-            extension: vote_extension.clone(),
-            height: vote_extension_height.try_into().unwrap(),
-            round: i64::from(round),
-            chain_id: chain_id.to_string(),
-        }
-        .encode_length_delimited_to_vec();
-
-        let extended_commit_info = ExtendedCommitInfo {
-            round: round.into(),
-            votes: vec![
-                get_extended_vote_info_commit(
-                    &signing_key_c,
-                    &message,
-                    vote_extension.clone().into(),
-                    2u16.into(),
-                ),
-                get_extended_vote_info_commit(
-                    &signing_key_b,
-                    &message,
-                    vote_extension.clone().into(),
-                    2u16.into(),
-                ),
-                get_extended_vote_info_commit(
-                    &signing_key_a,
-                    &message,
-                    vote_extension.into(),
-                    5u16.into(),
-                ),
-            ],
-        };
+        let extended_commit_info = extended_commit_info(message.round, votes);
         let validated_extended_commit_info = ProposalHandler::prepare_proposal(
             &state,
-            vote_extension_height + 1,
+            height(&message) + 1,
             extended_commit_info.clone(),
         )
         .await
         .unwrap();
 
-        let last_commit = CommitInfo {
-            round: round.into(),
-            votes: vec![
-                VoteInfo {
-                    validator: Validator {
-                        address: *signing_key_a.verification_key().address_bytes(),
-                        power: 5u16.into(),
-                    },
-                    sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
-                },
-                VoteInfo {
-                    validator: Validator {
-                        address: *signing_key_b.verification_key().address_bytes(),
-                        power: 2u16.into(),
-                    },
-                    sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
-                },
-                VoteInfo {
-                    validator: Validator {
-                        address: *signing_key_c.verification_key().address_bytes(),
-                        power: 2u16.into(),
-                    },
-                    sig_info: Flag(tendermint::block::BlockIdFlag::Commit),
-                },
-            ],
-        };
+        let last_commit = last_commit([&signer_a, &signer_b, &signer_c], message.round);
         ProposalHandler::validate_proposal(
             &state,
-            vote_extension_height + 1,
+            height(&message) + 1,
             &last_commit,
             &validated_extended_commit_info.0,
         )
@@ -870,17 +1427,15 @@ mod test {
         .unwrap();
 
         // unsorted extended commit info should fail
-        assert!(
+        assert_err_contains(
             ProposalHandler::validate_proposal(
                 &state,
-                vote_extension_height + 1,
+                height(&message) + 1,
                 &last_commit,
                 &extended_commit_info,
             )
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("extended commit votes are not sorted by voting power")
+            .await,
+            "extended commit votes are not sorted by voting power",
         );
     }
 }
