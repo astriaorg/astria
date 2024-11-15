@@ -79,7 +79,11 @@ use tendermint::{
     AppHash,
     Hash,
 };
-use tokio::sync::watch::Sender;
+use tokio::sync::watch::{
+    Receiver,
+    Sender,
+};
+use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -181,44 +185,94 @@ impl From<abci::request::ProcessProposal> for ProposalFingerprint {
 }
 
 #[derive(Clone)]
-pub(crate) struct OptimisticBlockChannels {
-    optimistic_block_sender: tokio::sync::watch::Sender<Option<SequencerBlock>>,
-    committed_block_sender: tokio::sync::watch::Sender<Option<SequencerBlockCommit>>,
+pub(crate) struct EventReceiver<T> {
+    receiver: Receiver<T>,
+    is_init: CancellationToken,
 }
 
-impl OptimisticBlockChannels {
-    pub(crate) fn new(
-        optimistic_block_sender: tokio::sync::watch::Sender<Option<SequencerBlock>>,
-        committed_block_sender: tokio::sync::watch::Sender<Option<SequencerBlockCommit>>,
-    ) -> Self {
+impl<T> EventReceiver<T>
+where
+    T: Send + Sync + Clone,
+{
+    pub(crate) async fn receive(&mut self) -> Result<T> {
+        self.is_init.cancelled().await;
+        self.receiver.changed().await?;
+        Ok(self.receiver.borrow_and_update().clone())
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct EventSender<T> {
+    sender: Sender<T>,
+    is_init: CancellationToken,
+}
+
+impl<T> EventSender<T>
+where
+    T: Send + Sync + Clone,
+{
+    fn new(init_value: T) -> Self {
+        let (sender, _) = tokio::sync::watch::channel::<T>(init_value);
         Self {
-            optimistic_block_sender,
-            committed_block_sender,
+            sender,
+            is_init: CancellationToken::new(),
         }
     }
 
-    pub(crate) fn optimistic_block_sender(&self) -> Sender<Option<SequencerBlock>> {
-        self.optimistic_block_sender.clone()
+    fn subscribe(&self) -> EventReceiver<T> {
+        EventReceiver {
+            receiver: self.sender.subscribe(),
+            is_init: self.is_init.clone(),
+        }
     }
 
-    pub(crate) fn committed_block_sender(&self) -> Sender<Option<SequencerBlockCommit>> {
-        self.committed_block_sender.clone()
-    }
-
-    pub(crate) fn send_optimistic_block(&self, block: Option<SequencerBlock>) {
-        if self.optimistic_block_sender().receiver_count() > 0 {
-            if let Err(e) = self.optimistic_block_sender.send(block) {
-                error!(error = %e, "failed to send optimistic block");
+    fn send(&self, event: T) {
+        if self.sender.receiver_count() > 0 {
+            if let Err(e) = self.sender.send(event) {
+                error!(error = %e, "failed to send event");
             }
+            self.is_init.cancel();
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct EventBus {
+    process_proposal_block_sender: EventSender<Option<Arc<SequencerBlock>>>,
+    finalize_block_sender: EventSender<Option<Arc<SequencerBlockCommit>>>,
+}
+
+impl EventBus {
+    pub(crate) fn new() -> Self {
+        let process_proposal_block_sender = EventSender::new(None);
+        let finalize_block_sender = EventSender::new(None);
+
+        Self {
+            process_proposal_block_sender,
+            finalize_block_sender,
         }
     }
 
-    pub(crate) fn send_committed_block(&self, block: Option<SequencerBlockCommit>) {
-        if self.committed_block_sender().receiver_count() > 0 {
-            if let Err(e) = self.committed_block_sender.send(block) {
-                error!(error = %e, "failed to send committed block");
-            }
-        }
+    pub(crate) fn subscribe_process_proposal_blocks(
+        &self,
+    ) -> EventReceiver<Option<Arc<SequencerBlock>>> {
+        self.process_proposal_block_sender.subscribe()
+    }
+
+    pub(crate) fn subscribe_finalize_blocks(
+        &self,
+    ) -> EventReceiver<Option<Arc<SequencerBlockCommit>>> {
+        self.finalize_block_sender.subscribe()
+    }
+
+    fn send_process_proposal_block(&self, sequencer_block: SequencerBlock) {
+        self.process_proposal_block_sender
+            .send(Some(Arc::new(sequencer_block)));
+    }
+
+    fn send_finalize_block(&self, sequencer_block_commit: SequencerBlockCommit) {
+        self.finalize_block_sender
+            .send(Some(Arc::new(sequencer_block_commit)));
     }
 }
 
@@ -284,7 +338,7 @@ pub(crate) struct App {
     // block whenever `finalize_block` is run.
     // it is set to `None` when optimistic block execution is disabled as per the
     // `no_optimistic_block` config.
-    optimistic_block_channels: Option<OptimisticBlockChannels>,
+    event_bus: EventBus,
 
     metrics: &'static Metrics,
 }
@@ -293,7 +347,6 @@ impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
-        optimistic_block_channels: Option<OptimisticBlockChannels>,
         metrics: &'static Metrics,
     ) -> Result<Self> {
         debug!("initializing App instance");
@@ -312,6 +365,8 @@ impl App {
         // there should be no unexpected copies elsewhere.
         let state = Arc::new(StateDelta::new(snapshot));
 
+        let event_bus = EventBus::new();
+
         Ok(Self {
             state,
             mempool,
@@ -320,9 +375,13 @@ impl App {
             recost_mempool: false,
             write_batch: None,
             app_hash,
-            optimistic_block_channels,
+            event_bus,
             metrics,
         })
+    }
+
+    pub(crate) fn get_event_bus(&self) -> EventBus {
+        self.event_bus.clone()
     }
 
     #[instrument(name = "App:init_chain", skip_all)]
@@ -501,9 +560,7 @@ impl App {
                     .await
                     .wrap_err("failed to run post execute transactions handler")?;
 
-                if let Some(optimistic_block_channels) = &self.optimistic_block_channels {
-                    optimistic_block_channels.send_optimistic_block(Some(sequencer_block));
-                }
+                self.event_bus.send_process_proposal_block(sequencer_block);
 
                 return Ok(());
             }
@@ -606,9 +663,7 @@ impl App {
             .await
             .wrap_err("failed to run post execute transactions handler")?;
 
-        if let Some(optimistic_block_channels) = &self.optimistic_block_channels {
-            optimistic_block_channels.send_optimistic_block(Some(sequencer_block));
-        }
+        self.event_bus.send_process_proposal_block(sequencer_block);
 
         Ok(())
     }
@@ -945,6 +1000,7 @@ impl App {
     /// `SequencerBlock`.
     ///
     /// this must be called after a block's transactions are executed.
+    /// FIXME: don't return sequencer block but grab the block from state delta https://github.com/astriaorg/astria/issues/1436
     #[instrument(name = "App::post_execute_transactions", skip_all)]
     async fn post_execute_transactions(
         &mut self,
@@ -1142,14 +1198,12 @@ impl App {
             tx_results: post_transaction_execution_result.tx_results,
         };
 
-        if let Some(optimistic_block_channels) = &self.optimistic_block_channels {
-            let Hash::Sha256(block_hash) = block_hash else {
-                bail!("block hash is empty; this should not occur")
-            };
+        let Hash::Sha256(block_hash) = block_hash else {
+            bail!("block hash is empty; this should not occur")
+        };
 
-            optimistic_block_channels
-                .send_committed_block(Some(SequencerBlockCommit::new(height.value(), block_hash)));
-        }
+        self.event_bus
+            .send_finalize_block(SequencerBlockCommit::new(height.value(), block_hash));
 
         Ok(finalize_block)
     }
