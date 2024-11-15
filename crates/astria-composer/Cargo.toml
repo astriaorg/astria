@@ -10,10 +10,7 @@ homepage = "https://astria.org"
 
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = [
-  "client",
-  "server",
-] }
+astria-core = { path = "../astria-core", features = ["client", "server"] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [

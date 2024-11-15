@@ -7,7 +7,7 @@ rust-version = "1.81.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-astria-core = { path = "../astria-core"}
+astria-core = { path = "../astria-core" }
 
 ethers = { workspace = true }
 futures = { workspace = true }

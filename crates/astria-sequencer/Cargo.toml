@@ -67,10 +67,7 @@ tonic = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-astria-core = { path = "../astria-core", features = [
-  "server",
-  "test-utils",
-] }
+astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
