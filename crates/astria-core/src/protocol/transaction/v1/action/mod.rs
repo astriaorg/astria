@@ -46,12 +46,8 @@ use crate::{
 
 pub mod group;
 
-#[derive(Clone, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(::serde::Deserialize, ::serde::Serialize),
-    serde(into = "raw::Action", try_from = "raw::Action")
-)]
+#[derive(Clone, Debug, ::serde::Deserialize, ::serde::Serialize)]
+#[serde(into = "raw::Action", try_from = "raw::Action")]
 pub enum Action {
     RollupDataSubmission(RollupDataSubmission),
     Transfer(Transfer),
@@ -627,14 +623,10 @@ enum ValidatorUpdateErrorKind {
     VerificationKey { source: crate::crypto::Error },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serde",
-    derive(::serde::Deserialize, ::serde::Serialize),
-    serde(
-        into = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
-        try_from = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
-    )
+#[derive(Clone, Debug, PartialEq, Eq, ::serde::Deserialize, ::serde::Serialize)]
+#[serde(
+    into = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
+    try_from = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate"
 )]
 pub struct ValidatorUpdate {
     pub power: u32,

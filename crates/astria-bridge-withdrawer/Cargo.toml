@@ -35,7 +35,6 @@ astria-bridge-contracts = { path = "../astria-bridge-contracts", features = [
 ] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = [
-  "serde",
   "server",
   "client",
 ] }

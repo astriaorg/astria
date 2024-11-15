@@ -3,7 +3,7 @@ pub use crate::generated::protocol::memos::v1::{
     Ics20WithdrawalFromRollup,
 };
 
-#[cfg(all(feature = "serde", test))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

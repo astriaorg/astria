@@ -84,14 +84,10 @@ impl Protobuf for merkle::Proof {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(transparent))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
+#[serde(transparent)]
 pub struct RollupId {
-    #[cfg_attr(
-        feature = "serde",
-        serde(serialize_with = "crate::serde::base64_serialize")
-    )]
+    #[serde(serialize_with = "crate::serde::base64_serialize")]
     inner: [u8; 32],
 }
 
@@ -490,7 +486,6 @@ pub struct Address<T = Bech32m> {
 // The serde impls need to be manually implemented for Address because they
 // only work for Address<Bech32m> which cannot be expressed using serde
 // attributes.
-#[cfg(feature = "serde")]
 mod _serde_impls {
     use serde::de::Error as _;
     impl serde::Serialize for super::Address<super::Bech32m> {
@@ -697,12 +692,10 @@ where
     tree
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(try_from = "raw::TransactionId", into = "raw::TransactionId")
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
+#[serde(try_from = "raw::TransactionId", into = "raw::TransactionId")]
 pub struct TransactionId {
     inner: [u8; TRANSACTION_ID_LEN],
 }
@@ -835,7 +828,6 @@ mod tests {
         assert_wrong_address_bytes(&[42; 100]);
     }
 
-    #[cfg(feature = "serde")]
     #[test]
     fn snapshots() {
         use crate::primitive::v1::Bech32;

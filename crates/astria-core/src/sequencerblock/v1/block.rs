@@ -1359,12 +1359,8 @@ impl FilteredSequencerBlockError {
 ///
 /// A [`Deposit`] is constructed whenever a [`BridgeLockAction`] is executed
 /// and stored as part of the block's events.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(into = "crate::generated::sequencerblock::v1::Deposit")
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(into = "crate::generated::sequencerblock::v1::Deposit")]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.
     pub bridge_address: Address,

@@ -14,7 +14,6 @@ benchmark = ["divan"]
 [dependencies]
 astria-core = { path = "../astria-core", features = [
   "server",
-  "serde",
   "unchecked-constructors",
 ] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
@@ -70,7 +69,6 @@ tracing = { workspace = true }
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [
   "server",
-  "serde",
   "test-utils",
 ] }
 config = { package = "astria-config", path = "../astria-config", features = [

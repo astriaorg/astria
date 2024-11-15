@@ -12,7 +12,6 @@ homepage = "https://astria.org"
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = [
   "client",
-  "serde",
   "server",
 ] }
 astria-eyre = { path = "../astria-eyre" }

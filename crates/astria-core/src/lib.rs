@@ -23,7 +23,6 @@ pub mod sequencerblock;
 pub mod brotli;
 #[cfg(feature = "celestia")]
 pub mod celestia;
-#[cfg(feature = "serde")]
 pub(crate) mod serde;
 
 /// A trait to convert from raw decoded protobuf types to idiomatic astria types.

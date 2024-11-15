@@ -39,12 +39,8 @@ enum GenesisInfoErrorKind {
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::GenesisInfo`].
-#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(into = "crate::generated::execution::v1::GenesisInfo")
-)]
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(into = "crate::generated::execution::v1::GenesisInfo")]
 pub struct GenesisInfo {
     /// The rollup id which is used to identify the rollup txs.
     rollup_id: RollupId,
@@ -144,12 +140,8 @@ enum BlockErrorKind {
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::Block`].
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(into = "crate::generated::execution::v1::Block")
-)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(into = "crate::generated::execution::v1::Block")]
 pub struct Block {
     /// The block number
     number: u32,
@@ -376,12 +368,8 @@ impl CommitmentStateBuilder<WithFirm, WithSoft, WithCelestiaBaseHeight> {
 /// - Block numbers are such that soft >= firm (upheld by this type).
 /// - No blocks ever decrease in block number.
 /// - The chain defined by soft is the head of the canonical chain the firm block must belong to.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(into = "crate::generated::execution::v1::CommitmentState")
-)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(into = "crate::generated::execution::v1::CommitmentState")]
 pub struct CommitmentState {
     /// Soft commitment is the rollup block matching latest sequencer block.
     soft: Block,
