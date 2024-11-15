@@ -74,7 +74,7 @@ fn try_from_list_of_actions_bundleable_general() {
             power: 100,
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
         }),
-        Action::Ics20Withdrawal(Ics20Withdrawal::NoBridgeAddress(
+        Action::Ics20Withdrawal(Ics20Withdrawal::NoBridgeAddress(Box::new(
             Ics20WithdrawalNoBridgeAddress {
                 denom: asset.clone(),
                 destination_chain_address: String::new(),
@@ -87,7 +87,7 @@ fn try_from_list_of_actions_bundleable_general() {
                 source_channel: "channel-0".parse().unwrap(),
                 use_compat_address: false,
             },
-        )),
+        ))),
     ];
 
     assert!(matches!(

@@ -464,10 +464,13 @@ where
             rollup_withdrawal_event_id,
         };
 
+        let memo = serde_json::to_string(&ics20_withdrawal_from_rollup)
+            .map_err(GetWithdrawalActionsError::serialize_memo)?;
+
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
 
-        let action = Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
+        let action = Ics20Withdrawal::FromRollup(Box::new(Ics20WithdrawalWithBridgeAddress {
             denom,
             destination_chain_address: event.destination_chain_address,
             return_address: self.bridge_address,
@@ -481,7 +484,8 @@ where
             source_channel,
             bridge_address: self.bridge_address,
             use_compat_address: self.use_compat_address,
-        });
+            memo,
+        }));
         Ok(Action::Ics20Withdrawal(action))
     }
 
@@ -567,6 +571,10 @@ impl GetWithdrawalActionsError {
     fn log_without_log_index(_log: &Log) -> Self {
         Self(GetWithdrawalActionsErrorKind::LogWithoutLogIndex)
     }
+
+    fn serialize_memo(source: serde_json::Error) -> Self {
+        Self(GetWithdrawalActionsErrorKind::SerializeMemo(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -585,6 +593,8 @@ enum GetWithdrawalActionsErrorKind {
     LogWithoutLogIndex,
     #[error(transparent)]
     CalculateWithdrawalAmount(CalculateWithdrawalAmountError),
+    #[error("failed to serialize ics20 withdrawal rollup information as memo")]
+    SerializeMemo(serde_json::Error),
 }
 
 #[derive(Debug, thiserror::Error)]

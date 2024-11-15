@@ -264,7 +264,7 @@ mod tests {
 
         let denom = "test".parse::<Denom>().unwrap();
         let from = [1u8; 20];
-        let action = Ics20Withdrawal::NoBridgeAddress(Ics20WithdrawalNoBridgeAddress {
+        let action = Ics20Withdrawal::NoBridgeAddress(Box::new(Ics20WithdrawalNoBridgeAddress {
             amount: 1,
             denom: denom.clone(),
             destination_chain_address: "test".to_string(),
@@ -275,7 +275,7 @@ mod tests {
             fee_asset: denom.clone(),
             memo: String::new(),
             use_compat_address: false,
-        });
+        }));
 
         assert_eq!(
             *establish_withdrawal_target(&action, &state, &from)
@@ -306,7 +306,7 @@ mod tests {
             .unwrap();
 
         let denom = "test".parse::<Denom>().unwrap();
-        let action = Ics20Withdrawal::NoBridgeAddress(Ics20WithdrawalNoBridgeAddress {
+        let action = Ics20Withdrawal::NoBridgeAddress(Box::new(Ics20WithdrawalNoBridgeAddress {
             amount: 1,
             denom: denom.clone(),
             destination_chain_address: "test".to_string(),
@@ -317,7 +317,7 @@ mod tests {
             fee_asset: denom.clone(),
             memo: String::new(),
             use_compat_address: false,
-        });
+        }));
 
         assert_eyre_error(
             &establish_withdrawal_target(&action, &state, &bridge_address)
@@ -341,7 +341,7 @@ mod tests {
         }
 
         fn action() -> action::Ics20Withdrawal {
-            Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
+            Ics20Withdrawal::FromRollup(Box::new(Ics20WithdrawalWithBridgeAddress {
                 amount: 1,
                 denom: denom(),
                 destination_chain_address: "test".to_string(),
@@ -358,7 +358,8 @@ mod tests {
                     rollup_return_address: String::new(),
                     memo: String::new(),
                 },
-            })
+                memo: String::new(),
+            }))
         }
 
         async fn run_test(action: action::Ics20Withdrawal) {
@@ -418,7 +419,7 @@ mod tests {
             .unwrap();
 
         let denom = "test".parse::<Denom>().unwrap();
-        let action = Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
+        let action = Ics20Withdrawal::FromRollup(Box::new(Ics20WithdrawalWithBridgeAddress {
             amount: 1,
             denom: denom.clone(),
             destination_chain_address: "test".to_string(),
@@ -435,7 +436,8 @@ mod tests {
                 rollup_return_address: String::new(),
                 memo: String::new(),
             },
-        });
+            memo: String::new(),
+        }));
 
         assert_eq!(
             *establish_withdrawal_target(&action, &state, &withdrawer_address)
@@ -455,7 +457,7 @@ mod tests {
         let not_bridge_address = [1u8; 20];
 
         let denom = "test".parse::<Denom>().unwrap();
-        let action = Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
+        let action = Ics20Withdrawal::FromRollup(Box::new(Ics20WithdrawalWithBridgeAddress {
             amount: 1,
             denom: denom.clone(),
             destination_chain_address: "test".to_string(),
@@ -472,7 +474,8 @@ mod tests {
                 rollup_return_address: String::new(),
                 memo: String::new(),
             },
-        });
+            memo: String::new(),
+        }));
 
         assert_eyre_error(
             &establish_withdrawal_target(&action, &state, &not_bridge_address)

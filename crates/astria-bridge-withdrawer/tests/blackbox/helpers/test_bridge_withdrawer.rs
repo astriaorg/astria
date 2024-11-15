@@ -444,24 +444,29 @@ pub fn make_native_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Acti
     let rollup_transaction_hash = receipt.transaction_hash.encode_hex();
     let event_index = receipt.logs[0].log_index.unwrap().encode_hex();
 
-    let inner = Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
+    let ics20_withdrawal_from_rollup = Ics20WithdrawalFromRollup {
+        memo: "nootwashere".to_string(),
+        rollup_return_address: receipt.from.encode_hex(),
+        rollup_block_number: receipt.block_number.unwrap().as_u64(),
+        rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
+    };
+
+    let memo = serde_json::to_string(&ics20_withdrawal_from_rollup).unwrap();
+
+    let inner = Ics20Withdrawal::FromRollup(Box::new(Ics20WithdrawalWithBridgeAddress {
         denom: denom.clone(),
         destination_chain_address: default_sequencer_address().to_string(),
         return_address: default_bridge_address(),
         amount: 1_000_000u128,
-        ics20_withdrawal_from_rollup: Ics20WithdrawalFromRollup {
-            memo: "nootwashere".to_string(),
-            rollup_return_address: receipt.from.encode_hex(),
-            rollup_block_number: receipt.block_number.unwrap().as_u64(),
-            rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
-        },
+        ics20_withdrawal_from_rollup,
         fee_asset: denom,
         timeout_height,
         timeout_time,
         source_channel: "channel-0".parse().unwrap(),
         bridge_address: default_bridge_address(),
         use_compat_address: false,
-    });
+        memo,
+    }));
 
     Action::Ics20Withdrawal(inner)
 }
@@ -494,24 +499,29 @@ pub fn make_erc20_ics20_withdrawal_action(receipt: &TransactionReceipt) -> Actio
     // use the second event because the erc20 transfer also emits an event
     let event_index = receipt.logs[1].log_index.unwrap().encode_hex();
 
-    let inner = Ics20Withdrawal::FromRollup(Ics20WithdrawalWithBridgeAddress {
+    let ics20_withdrawal_from_rollup = Ics20WithdrawalFromRollup {
+        memo: "nootwashere".to_string(),
+        rollup_return_address: receipt.from.encode_hex(),
+        rollup_block_number: receipt.block_number.unwrap().as_u64(),
+        rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
+    };
+
+    let memo = serde_json::to_string(&ics20_withdrawal_from_rollup).unwrap();
+
+    let inner = Ics20Withdrawal::FromRollup(Box::new(Ics20WithdrawalWithBridgeAddress {
         denom: denom.clone(),
         destination_chain_address: default_sequencer_address().to_string(),
         return_address: default_bridge_address(),
         amount: 1_000_000u128,
-        ics20_withdrawal_from_rollup: Ics20WithdrawalFromRollup {
-            memo: "nootwashere".to_string(),
-            rollup_return_address: receipt.from.encode_hex(),
-            rollup_block_number: receipt.block_number.unwrap().as_u64(),
-            rollup_withdrawal_event_id: format!("{rollup_transaction_hash}.{event_index}"),
-        },
+        ics20_withdrawal_from_rollup,
         fee_asset: denom,
         timeout_height,
         timeout_time,
         source_channel: "channel-0".parse().unwrap(),
         bridge_address: default_bridge_address(),
         use_compat_address: false,
-    });
+        memo,
+    }));
 
     Action::Ics20Withdrawal(inner)
 }
