@@ -21,10 +21,10 @@ images:
     tag: v0.38.8
     devTag: v0.38.8
   sequencer:
-    repo: ghcr.io/astriaorg/astria-sequencer
+    repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
-    tag: "auctioneer-final-test-2"
-    devTag: "auctioneer-final-test-2"
+    tag: "update-changes-9"
+    devTag: "update-changes-9"
 
 moniker: ""
 genesis:
