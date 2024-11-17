@@ -8,6 +8,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use tracing::info;
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
@@ -51,9 +52,9 @@ impl Get {
             .await
             .wrap_err("failed to get balance")?;
 
-        println!("Balances for address: {}", self.address);
+        info!(address = %self.address, "Balances for address");
         for balance in res.balances {
-            println!("    {} {}", balance.balance, balance.denom);
+            info!(balance = %balance.balance, denom = %balance.denom, "Balance details");
         }
 
         Ok(())

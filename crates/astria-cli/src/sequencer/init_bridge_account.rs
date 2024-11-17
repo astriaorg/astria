@@ -9,6 +9,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use tracing::info;
 
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
@@ -68,10 +69,7 @@ impl Command {
         .await
         .wrap_err("failed to submit InitBridgeAccount transaction")?;
 
-        println!("InitBridgeAccount completed!");
-        println!("Included in block: {}", res.height);
-        println!("Rollup name: {}", self.rollup_name);
-        println!("Rollup ID: {rollup_id}");
+        info!(height = %res.height, rollup_name = %self.rollup_name, rollup_id = %rollup_id, "InitBridgeAccount completed");
         Ok(())
     }
 }

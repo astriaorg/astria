@@ -13,6 +13,7 @@ use color_eyre::eyre::{
     ensure,
     WrapErr as _,
 };
+use tracing::info;
 
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
@@ -53,8 +54,8 @@ impl Command {
             tx_response.tx_result.log
         );
 
-        println!("Submission completed!");
-        println!("Included in block: {}", tx_response.height);
+        info!(in_block = %tx_response.height, "transaction submission completed");
+
         Ok(())
     }
 }
