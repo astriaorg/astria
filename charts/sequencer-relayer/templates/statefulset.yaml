@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: sequencer-relayer
+  name: {{ include "sequencer-relayer.name" . }}
   labels:
-    app: sequencer-relayer
+    {{- include "sequencer-relayer.labels" . | nindent 4 }}
   namespace: {{ include "sequencer-relayer.namespace" . }}
 spec:
   replicas: {{ .Values.global.replicaCount }}

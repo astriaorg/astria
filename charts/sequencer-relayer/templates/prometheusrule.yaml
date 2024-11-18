@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ include "sequencer-relayer.name" . }}
+  name: {{ include "sequencer-relayer.name" . }}-prometheus-rules
 {{- if .Values.alerting.prometheusRule.namespace }}
   namespace: {{ .Values.alerting.prometheusRule.namespace | quote }}
 {{- end }}

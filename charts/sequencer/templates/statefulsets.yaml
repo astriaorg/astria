@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: sequencer
+  name: {{ include "sequencer.name" . }}
   labels:
     app: {{ .Values.moniker }}-sequencer
   namespace: {{ include "sequencer.namespace" . }}

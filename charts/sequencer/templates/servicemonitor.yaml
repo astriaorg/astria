@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: cometbft-metrics
+  name: {{ include "sequencer.name" . }}-monitor
   labels:
     {{- include "sequencer.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.additionalLabels }}

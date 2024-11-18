@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: sequencer-relayer-metrics
+  name: {{ include "sequencer-relayer.name" . }}-metrics
   labels:
     {{- include "sequencer-relayer.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.additionalLabels }}

@@ -19,6 +19,7 @@ images:
 
 config:
   relayer:
+    blockTimeMs: "1000"
     sequencerChainId: ""
     celestiaChainId: ""
     celestiaAppGrpc: ""
@@ -70,14 +71,14 @@ alerting:
       release: kube-prometheus-stack
     namespace: monitoring
     rules:
-    - alert: Sequencer_Relayer_Down
-      expr: up{container="sequencer-relayer"} == 0  # Insert your query Expression
-      for: 1m  # Rough number but should be enough to init warn
-      labels:
-        severity: warning
-      annotations:
-        summary: Sequencer Relayer is Down (instance {{ $labels.instance }})
-        description: "Sequencer relayer '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: Sequencer_Relayer_Down
+        expr: up{container="sequencer-relayer"} == 0 # Insert your query Expression
+        for: 1m # Rough number but should be enough to init warn
+        labels:
+          severity: warning
+        annotations:
+          summary: Sequencer Relayer is Down (instance {{ $labels.instance }})
+          description: "Sequencer relayer '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
 storage:
   enabled: false
