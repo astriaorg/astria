@@ -595,6 +595,148 @@ pub struct SequencerBlockParts {
     pub rollup_ids_proof: merkle::Proof,
 }
 
+pub struct SequencerBlockBuilder {
+    pub block_hash: [u8; 32],
+    pub chain_id: tendermint::chain::Id,
+    pub height: tendermint::block::Height,
+    pub time: Time,
+    pub proposer_address: account::Id,
+    pub data: Vec<Bytes>,
+    pub deposits: HashMap<RollupId, Vec<Deposit>>,
+    pub with_extended_commit_info: bool,
+}
+
+impl SequencerBlockBuilder {
+    /// Attempts to build a [`SequencerBlock`] from the provided data.
+    ///
+    /// # Errors
+    ///
+    /// - if the first transaction in the data is not the 32-byte rollup transactions root.
+    /// - if the second transaction in the data is not the 32-byte rollup IDs root.
+    /// - if `with_extended_commit_info` is set to `true` and the third transaction in the data is
+    ///   not the extended commit info.
+    /// - if any transaction in the data cannot be decoded.
+    /// - if the rollup transactions root does not match the reconstructed root.
+    /// - if the rollup IDs root does not match the reconstructed root.
+    ///
+    /// # Panics
+    ///
+    /// - if a rollup data merkle proof cannot be constructed.
+    pub fn try_build(self) -> Result<SequencerBlock, SequencerBlockError> {
+        use prost::Message as _;
+
+        let SequencerBlockBuilder {
+            block_hash,
+            chain_id,
+            height,
+            time,
+            proposer_address,
+            data,
+            deposits,
+            with_extended_commit_info,
+        } = self;
+
+        let InitialDataElements {
+            data_root_hash,
+            // This iterator over `data` has been advanced to skip the injected transactions while
+            // retrieving the initial elements. The next element to be yielded will be
+            // the first of the actual user-submitted txs.
+            data_iter,
+            // TODO: this needs to go into the block header
+            _extended_commit_info,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_root,
+            rollup_ids_proof,
+        } = take_initial_elements_from_data(data, with_extended_commit_info)?;
+
+        let mut rollup_datas = IndexMap::new();
+        for elem in data_iter {
+            let raw_tx = crate::generated::protocol::transaction::v1::Transaction::decode(&*elem)
+                .map_err(SequencerBlockError::transaction_protobuf_decode)?;
+            let tx = Transaction::try_from_raw(raw_tx)
+                .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
+            for action in tx.into_unsigned().into_actions() {
+                // XXX: The fee asset is dropped. We should explain why that's ok.
+                if let action::Action::RollupDataSubmission(action::RollupDataSubmission {
+                    rollup_id,
+                    data,
+                    fee_asset: _,
+                }) = action
+                {
+                    let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
+                    let data = RollupData::SequencedData(data)
+                        .into_raw()
+                        .encode_to_vec()
+                        .into();
+                    elem.push(data);
+                }
+            }
+        }
+        for (id, deposits) in deposits {
+            rollup_datas
+                .entry(id)
+                .or_default()
+                .extend(deposits.into_iter().map(|deposit| {
+                    RollupData::Deposit(Box::new(deposit))
+                        .into_raw()
+                        .encode_to_vec()
+                        .into()
+                }));
+        }
+
+        // XXX: The rollup data must be sorted by its keys before constructing the merkle tree.
+        // Since it's constructed from non-deterministically ordered sources, there is otherwise no
+        // guarantee that the same data will give the root.
+        rollup_datas.sort_unstable_keys();
+
+        // ensure the rollup IDs commitment matches the one calculated from the rollup data
+        if rollup_ids_root != merkle::Tree::from_leaves(rollup_datas.keys()).root() {
+            return Err(SequencerBlockError::rollup_ids_root_does_not_match_reconstructed());
+        }
+
+        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(&rollup_datas);
+        if rollup_transactions_root != rollup_transaction_tree.root() {
+            return Err(
+                SequencerBlockError::rollup_transactions_root_does_not_match_reconstructed(),
+            );
+        }
+
+        let mut rollup_transactions = IndexMap::new();
+        for (i, (rollup_id, data)) in rollup_datas.into_iter().enumerate() {
+            // NOTE: This should never error as the tree was derived with the same `rollup_datas`
+            // just above.
+            let proof = rollup_transaction_tree
+                .construct_proof(i)
+                .expect("the proof must exist because the tree was derived with the same leaf");
+            rollup_transactions.insert(
+                rollup_id,
+                RollupTransactions {
+                    rollup_id,
+                    transactions: data, // TODO: rename this field?
+                    proof,
+                },
+            );
+        }
+        rollup_transactions.sort_unstable_keys();
+
+        Ok(SequencerBlock {
+            block_hash,
+            header: SequencerBlockHeader {
+                chain_id,
+                height,
+                time,
+                rollup_transactions_root,
+                data_hash: data_root_hash,
+                proposer_address,
+            },
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        })
+    }
+}
+
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
 /// converting its opaque `data` bytes into sequencer specific types.
 #[derive(Clone, Debug, PartialEq)]
@@ -764,124 +906,6 @@ impl SequencerBlock {
         celestia::PreparedBlock::from_sequencer_block(self).into_parts()
     }
 
-    /// Converts from relevant header fields and the block data.
-    ///
-    /// # Errors
-    /// TODO(https://github.com/astriaorg/astria/issues/612)
-    ///
-    /// # Panics
-    ///
-    /// - if a rollup data merkle proof cannot be constructed.
-    pub fn try_from_block_info_and_data(
-        block_hash: [u8; 32],
-        chain_id: tendermint::chain::Id,
-        height: tendermint::block::Height,
-        time: Time,
-        proposer_address: account::Id,
-        data: Vec<Bytes>,
-        deposits: HashMap<RollupId, Vec<Deposit>>,
-    ) -> Result<Self, SequencerBlockError> {
-        use prost::Message as _;
-
-        let InitialDataElements {
-            data_root_hash,
-            // This iterator over `data` has been advanced by 3 steps while retrieving the initial
-            // elements. The next element to be yielded will be the first of the actual rollup txs.
-            data_iter,
-            // TODO: this needs to go into the block header
-            _extended_commit_info,
-            rollup_transactions_root,
-            rollup_transactions_proof,
-            rollup_ids_root,
-            rollup_ids_proof,
-        } = take_initial_elements_from_data(data)?;
-
-        let mut rollup_datas = IndexMap::new();
-        for elem in data_iter {
-            let raw_tx = crate::generated::protocol::transaction::v1::Transaction::decode(&*elem)
-                .map_err(SequencerBlockError::transaction_protobuf_decode)?;
-            let tx = Transaction::try_from_raw(raw_tx)
-                .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
-            for action in tx.into_unsigned().into_actions() {
-                // XXX: The fee asset is dropped. We shjould explain why that's ok.
-                if let action::Action::RollupDataSubmission(action::RollupDataSubmission {
-                    rollup_id,
-                    data,
-                    fee_asset: _,
-                }) = action
-                {
-                    let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
-                    let data = RollupData::SequencedData(data)
-                        .into_raw()
-                        .encode_to_vec()
-                        .into();
-                    elem.push(data);
-                }
-            }
-        }
-        for (id, deposits) in deposits {
-            rollup_datas
-                .entry(id)
-                .or_default()
-                .extend(deposits.into_iter().map(|deposit| {
-                    RollupData::Deposit(Box::new(deposit))
-                        .into_raw()
-                        .encode_to_vec()
-                        .into()
-                }));
-        }
-
-        // XXX: The rollup data must be sorted by its keys before constructing the merkle tree.
-        // Since it's constructed from non-deterministically ordered sources, there is otherwise no
-        // guarantee that the same data will give the root.
-        rollup_datas.sort_unstable_keys();
-
-        // ensure the rollup IDs commitment matches the one calculated from the rollup data
-        if rollup_ids_root != merkle::Tree::from_leaves(rollup_datas.keys()).root() {
-            return Err(SequencerBlockError::rollup_ids_root_does_not_match_reconstructed());
-        }
-
-        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(&rollup_datas);
-        if rollup_transactions_root != rollup_transaction_tree.root() {
-            return Err(
-                SequencerBlockError::rollup_transactions_root_does_not_match_reconstructed(),
-            );
-        }
-
-        let mut rollup_transactions = IndexMap::new();
-        for (i, (rollup_id, data)) in rollup_datas.into_iter().enumerate() {
-            // NOTE: This should never error as the tree was derived with the same `rollup_datas`
-            // just above.
-            let proof = rollup_transaction_tree
-                .construct_proof(i)
-                .expect("the proof must exist because the tree was derived with the same leaf");
-            rollup_transactions.insert(
-                rollup_id,
-                RollupTransactions {
-                    rollup_id,
-                    transactions: data, // TODO: rename this field?
-                    proof,
-                },
-            );
-        }
-        rollup_transactions.sort_unstable_keys();
-
-        Ok(Self {
-            block_hash,
-            header: SequencerBlockHeader {
-                chain_id,
-                height,
-                time,
-                rollup_transactions_root,
-                data_hash: data_root_hash,
-                proposer_address,
-            },
-            rollup_transactions,
-            rollup_transactions_proof,
-            rollup_ids_proof,
-        })
-    }
-
     /// Converts from the raw decoded protobuf representation of this type.
     ///
     /// # Errors
@@ -1000,7 +1024,7 @@ impl SequencerBlock {
 struct InitialDataElements {
     data_root_hash: [u8; 32],
     data_iter: IntoIter<Bytes>,
-    _extended_commit_info: Bytes,
+    _extended_commit_info: Option<Bytes>,
     rollup_transactions_root: [u8; 32],
     rollup_transactions_proof: merkle::Proof,
     rollup_ids_root: [u8; 32],
@@ -1009,14 +1033,11 @@ struct InitialDataElements {
 
 fn take_initial_elements_from_data(
     data: Vec<Bytes>,
+    with_extended_commit_info: bool,
 ) -> Result<InitialDataElements, SequencerBlockError> {
     let tree = merkle_tree_from_data(&data);
     let data_root_hash = tree.root();
     let mut data_iter = data.into_iter();
-
-    let extended_commit_info = data_iter
-        .next()
-        .ok_or(SequencerBlockError::no_extended_commit_info())?;
 
     let rollup_transactions_root: [u8; 32] = data_iter
         .next()
@@ -1026,7 +1047,7 @@ fn take_initial_elements_from_data(
         .map_err(|_| {
             SequencerBlockError::incorrect_rollup_transactions_root_length(data_iter.len())
         })?;
-    let rollup_transactions_proof = tree.construct_proof(1).expect(
+    let rollup_transactions_proof = tree.construct_proof(0).expect(
         "the leaf must exist in the tree as `rollup_transactions_root` was created from the same \
          index in `data` used to construct the tree",
     );
@@ -1037,10 +1058,20 @@ fn take_initial_elements_from_data(
         .as_ref()
         .try_into()
         .map_err(|_| SequencerBlockError::incorrect_rollup_ids_root_length(data_iter.len()))?;
-    let rollup_ids_proof = tree.construct_proof(2).expect(
+    let rollup_ids_proof = tree.construct_proof(1).expect(
         "the leaf must exist in the tree as `rollup_ids_root` was created from the same index in \
          `data` used to construct the tree",
     );
+
+    let extended_commit_info = if with_extended_commit_info {
+        Some(
+            data_iter
+                .next()
+                .ok_or(SequencerBlockError::no_extended_commit_info())?,
+        )
+    } else {
+        None
+    };
 
     Ok(InitialDataElements {
         data_root_hash,

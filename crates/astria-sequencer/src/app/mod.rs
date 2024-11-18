@@ -37,7 +37,7 @@ use astria_core::{
             Transaction,
         },
     },
-    sequencerblock::v1::block::SequencerBlock,
+    sequencerblock::v1::block::SequencerBlockBuilder,
     Protobuf as _,
 };
 use astria_eyre::{
@@ -160,9 +160,9 @@ const INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED: usize = 2;
 // after vote extensions are enabled.
 //
 // consists of:
-// 1. encoded `ExtendedCommitInfo` for the previous block
-// 2. rollup data root
-// 3. rollup IDs root
+// 1. rollup data root
+// 2. rollup IDs root
+// 3. encoded `ExtendedCommitInfo` for the previous block
 const INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED: usize = 3;
 
 // the height to set the `vote_extensions_enable_height` to in state if vote extensions are
@@ -521,17 +521,17 @@ impl App {
         self.metrics.record_proposal_deposits(deposits.len());
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
-        // included in the block
-        let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
-
-        let txs = match encoded_extended_commit_info {
-            Some(encoded_extended_commit_info) => {
-                std::iter::once(encoded_extended_commit_info.into())
-                    .chain(res.into_iter().chain(included_tx_bytes))
-                    .collect()
-            }
-            None => res.into_iter().chain(included_tx_bytes).collect(),
-        };
+        // included in the block, chain on the extended commit info if `Some`, and finally chain on
+        // the tx bytes.
+        let txs = generate_rollup_datas_commitment(&signed_txs_included, deposits)
+            .into_iter()
+            .chain(
+                encoded_extended_commit_info
+                    .map(bytes::Bytes::from)
+                    .into_iter(),
+            )
+            .chain(included_tx_bytes)
+            .collect();
 
         Ok(abci::response::PrepareProposal {
             txs,
@@ -599,8 +599,22 @@ impl App {
             .await
             .wrap_err("failed to get vote extensions enabled height")?;
 
+        let received_rollup_datas_root: [u8; 32] = txs
+            .pop_front()
+            .ok_or_eyre("no transaction commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| eyre!("transaction commitment must be 32 bytes"))?;
+
+        let received_rollup_ids_root: [u8; 32] = txs
+            .pop_front()
+            .ok_or_eyre("no chain IDs commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
+
         if vote_extensions_enable_height <= process_proposal.height.value() {
-            // if vote extensions are enabled, the first transaction in the block should be the
+            // if vote extensions are enabled, the third transaction in the block should be the
             // extended commit info
             let extended_commit_info_bytes = txs
                 .pop_front()
@@ -625,20 +639,6 @@ impl App {
             .await
             .wrap_err("failed to validate extended commit info")?;
         }
-
-        let received_rollup_datas_root: [u8; 32] = txs
-            .pop_front()
-            .ok_or_eyre("no transaction commitment in proposal")?
-            .to_vec()
-            .try_into()
-            .map_err(|_| eyre!("transaction commitment must be 32 bytes"))?;
-
-        let received_rollup_ids_root: [u8; 32] = txs
-            .pop_front()
-            .ok_or_eyre("no chain IDs commitment in proposal")?
-            .to_vec()
-            .try_into()
-            .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
 
         let expected_txs_len = txs.len();
 
@@ -1109,7 +1109,8 @@ impl App {
             .get_vote_extensions_enable_height()
             .await
             .wrap_err("failed to get vote extensions enabled height")?;
-        let injected_txs_count = if vote_extensions_enable_height <= height.value() {
+        let vote_extensions_enabled = vote_extensions_enable_height <= height.value();
+        let injected_txs_count = if vote_extensions_enabled {
             INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED
         } else {
             INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED
@@ -1125,15 +1126,17 @@ impl App {
             .extend(std::iter::repeat(ExecTxResult::default()).take(injected_txs_count));
         finalize_block_tx_results.extend(tx_results);
 
-        let sequencer_block = SequencerBlock::try_from_block_info_and_data(
+        let sequencer_block = SequencerBlockBuilder {
             block_hash,
             chain_id,
             height,
             time,
             proposer_address,
-            txs,
-            deposits_in_this_block,
-        )
+            data: txs,
+            deposits: deposits_in_this_block,
+            with_extended_commit_info: vote_extensions_enabled,
+        }
+        .try_build()
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
             .put_sequencer_block(sequencer_block)
@@ -1190,12 +1193,12 @@ impl App {
                 ensure!(
                     finalize_block.txs.len()
                         >= INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED,
-                    "block must contain at least three transactions: the extended commit info, \
-                     the rollup transactions commitment and rollup IDs commitment"
+                    "block must contain at least three transactions: the rollup transactions \
+                     commitment, rollup IDs commitment, and the extended commit info"
                 );
 
                 let extended_commit_info_bytes =
-                    finalize_block.txs.first().expect("asserted length above");
+                    finalize_block.txs.get(2).expect("asserted length above");
                 let extended_commit_info =
                     ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
                         .wrap_err("failed to decode extended commit info")?
