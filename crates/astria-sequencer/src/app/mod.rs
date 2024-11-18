@@ -3,6 +3,7 @@ mod action_handler;
 pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
+pub(crate) mod event_bus;
 mod state_ext;
 pub(crate) mod storage;
 #[cfg(test)]
@@ -79,14 +80,8 @@ use tendermint::{
     AppHash,
     Hash,
 };
-use tokio::sync::watch::{
-    Receiver,
-    Sender,
-};
-use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
-    error,
     info,
     instrument,
 };
@@ -104,6 +99,7 @@ use crate::{
         StateWriteExt as _,
     },
     address::StateWriteExt as _,
+    app::event_bus::EventBus,
     assets::StateWriteExt as _,
     authority::{
         component::{
@@ -181,98 +177,6 @@ impl From<abci::request::ProcessProposal> for ProposalFingerprint {
             validator_address: proposal.proposer_address,
             timestamp: proposal.time,
         }
-    }
-}
-
-#[derive(Clone)]
-pub(crate) struct EventReceiver<T> {
-    receiver: Receiver<T>,
-    is_init: CancellationToken,
-}
-
-impl<T> EventReceiver<T>
-where
-    T: Send + Sync + Clone,
-{
-    pub(crate) async fn receive(&mut self) -> Result<T> {
-        self.is_init.cancelled().await;
-        self.receiver.changed().await?;
-        Ok(self.receiver.borrow_and_update().clone())
-    }
-}
-
-#[derive(Clone)]
-pub(crate) struct EventSender<T> {
-    sender: Sender<T>,
-    is_init: CancellationToken,
-}
-
-impl<T> EventSender<T>
-where
-    T: Send + Sync + Clone,
-{
-    fn new(init_value: T) -> Self {
-        let (sender, _) = tokio::sync::watch::channel::<T>(init_value);
-        Self {
-            sender,
-            is_init: CancellationToken::new(),
-        }
-    }
-
-    fn subscribe(&self) -> EventReceiver<T> {
-        EventReceiver {
-            receiver: self.sender.subscribe(),
-            is_init: self.is_init.clone(),
-        }
-    }
-
-    fn send(&self, event: T) {
-        if self.sender.receiver_count() > 0 {
-            if let Err(e) = self.sender.send(event) {
-                error!(error = %e, "failed to send event");
-            }
-            self.is_init.cancel();
-        }
-    }
-}
-
-#[derive(Clone)]
-pub(crate) struct EventBus {
-    process_proposal_block_sender: EventSender<Option<Arc<SequencerBlock>>>,
-    finalize_block_sender: EventSender<Option<Arc<SequencerBlockCommit>>>,
-}
-
-impl EventBus {
-    pub(crate) fn new() -> Self {
-        let process_proposal_block_sender = EventSender::new(None);
-        let finalize_block_sender = EventSender::new(None);
-
-        Self {
-            process_proposal_block_sender,
-            finalize_block_sender,
-        }
-    }
-
-    pub(crate) fn subscribe_process_proposal_blocks(
-        &self,
-    ) -> EventReceiver<Option<Arc<SequencerBlock>>> {
-        self.process_proposal_block_sender.subscribe()
-    }
-
-    pub(crate) fn subscribe_finalize_blocks(
-        &self,
-    ) -> EventReceiver<Option<Arc<SequencerBlockCommit>>> {
-        self.finalize_block_sender.subscribe()
-    }
-
-    fn send_process_proposal_block(&self, sequencer_block: SequencerBlock) {
-        self.process_proposal_block_sender
-            .send(Some(Arc::new(sequencer_block)));
-    }
-
-    fn send_finalize_block(&self, sequencer_block_commit: SequencerBlockCommit) {
-        self.finalize_block_sender
-            .send(Some(Arc::new(sequencer_block_commit)));
     }
 }
 
