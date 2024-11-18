@@ -1,9 +1,6 @@
-use std::{
-    cmp::Ordering,
-    collections::{
-        HashMap,
-        HashSet,
-    },
+use std::collections::{
+    HashMap,
+    HashSet,
 };
 
 use astria_core::{
@@ -47,9 +44,7 @@ use tendermint::{
         BlockSignatureInfo::Flag,
         CommitInfo,
         ExtendedCommitInfo,
-        ExtendedVoteInfo,
     },
-    vote::Power,
 };
 use tendermint_proto::google::protobuf::Timestamp;
 use tonic::transport::Channel;
@@ -259,10 +254,6 @@ impl ProposalHandler {
             .await
             .wrap_err("failed to validate vote extensions in prepare_proposal")?;
 
-        extended_commit_info
-            .votes
-            .sort_unstable_by(|a, b| VoteSorter::from(a).cmp(&VoteSorter::from(b)));
-
         Ok(ValidatedExtendedCommitInfo(extended_commit_info))
     }
 
@@ -431,14 +422,6 @@ fn validate_extended_commit_against_last_commit(
         "last commit votes length does not match extended commit votes length"
     );
 
-    ensure!(
-        is_sorted::IsSorted::is_sorted_by_key(
-            &mut extended_commit_info.votes.iter(),
-            |&extended_vote_info| VoteSorter::from(extended_vote_info)
-        ),
-        "extended commit votes are not sorted by voting power",
-    );
-
     for (last_commit_vote, extended_commit_info_vote) in last_commit
         .votes
         .iter()
@@ -590,39 +573,6 @@ fn median(mut price_list: Vec<Price>) -> Price {
             .expect("can't fail as we rounded down twice while halving the prices")
     } else {
         sum
-    }
-}
-
-#[derive(PartialEq, Eq)]
-struct VoteSorter<'a> {
-    power: &'a Power,
-    address: &'a [u8; 20],
-}
-
-impl<'a> PartialOrd for VoteSorter<'a> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<'a> Ord for VoteSorter<'a> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        if self.power == other.power {
-            // addresses sorted in ascending order, if the powers are the same
-            self.address.cmp(other.address)
-        } else {
-            // powers sorted in descending order
-            other.power.cmp(self.power)
-        }
-    }
-}
-
-impl<'a> From<&'a ExtendedVoteInfo> for VoteSorter<'a> {
-    fn from(extended_vote_info: &'a ExtendedVoteInfo) -> Self {
-        Self {
-            power: &extended_vote_info.validator.power,
-            address: &extended_vote_info.validator.address,
-        }
     }
 }
 
@@ -1163,29 +1113,6 @@ mod test {
     }
 
     #[tokio::test]
-    async fn validate_against_last_commit_not_sorted() {
-        let Fixture {
-            signer_a,
-            signer_b,
-            signer_c,
-            ..
-        } = Fixture::new().await;
-
-        let message = canonical_vote_extension();
-        let votes = vec![
-            extended_vote_info_commit(&signer_a, &message),
-            extended_vote_info_commit(&signer_c, &message),
-            extended_vote_info_commit(&signer_b, &message),
-        ];
-        let extended_commit_info = extended_commit_info(message.round, votes);
-        let last_commit = last_commit([&signer_a, &signer_b, &signer_c], message.round);
-        assert_err_contains(
-            validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
-            "extended commit votes are not sorted by voting power",
-        );
-    }
-
-    #[tokio::test]
     async fn validate_against_last_commit_voter_address_mismatch() {
         let Fixture {
             signer_a,
@@ -1363,34 +1290,6 @@ mod test {
         );
     }
 
-    #[test]
-    fn should_sort_votes() {
-        // Should be sorted to the end; joint lowest power and higher address than `signer_2`.
-        let signer_1 = Signer::new([2; 32], 1);
-        let address_1 = *signer_1.signing_key.verification_key().address_bytes();
-
-        // Should be sorted to the middle; joint lowest power and lower address than `signer_1`.
-        let signer_2 = Signer::new([1; 32], 1);
-        let address_2 = *signer_2.signing_key.verification_key().address_bytes();
-        assert!(address_1 > address_2);
-
-        // Should be sorted to the start; highest power.
-        let signer_3 = Signer::new([3; 32], 2);
-        let address_3 = *signer_3.signing_key.verification_key().address_bytes();
-
-        let mut votes = vec![
-            extended_vote_info_nil(&signer_1),
-            extended_vote_info_nil(&signer_3),
-            extended_vote_info_nil(&signer_2),
-        ];
-
-        votes.sort_unstable_by(|a, b| VoteSorter::from(a).cmp(&VoteSorter::from(b)));
-
-        assert_eq!(address_3, votes[0].validator.address);
-        assert_eq!(address_2, votes[1].validator.address);
-        assert_eq!(address_1, votes[2].validator.address);
-    }
-
     #[tokio::test]
     async fn prepare_proposal_and_validate_proposal() {
         let Fixture {
@@ -1403,15 +1302,14 @@ mod test {
 
         let message = canonical_vote_extension();
         let votes = vec![
-            extended_vote_info_commit(&signer_c, &message),
-            extended_vote_info_commit(&signer_b, &message),
             extended_vote_info_commit(&signer_a, &message),
+            extended_vote_info_commit(&signer_b, &message),
+            extended_vote_info_commit(&signer_c, &message),
         ];
-        let extended_commit_info = extended_commit_info(message.round, votes);
         let validated_extended_commit_info = ProposalHandler::prepare_proposal(
             &state,
             height(&message) + 1,
-            extended_commit_info.clone(),
+            extended_commit_info(message.round, votes),
         )
         .await
         .unwrap();
@@ -1427,15 +1325,21 @@ mod test {
         .unwrap();
 
         // unsorted extended commit info should fail
+        let votes = vec![
+            extended_vote_info_commit(&signer_a, &message),
+            extended_vote_info_commit(&signer_c, &message),
+            extended_vote_info_commit(&signer_b, &message),
+        ];
+        let unsorted_extended_commit_info = extended_commit_info(message.round, votes);
         assert_err_contains(
             ProposalHandler::validate_proposal(
                 &state,
                 height(&message) + 1,
                 &last_commit,
-                &extended_commit_info,
+                &unsorted_extended_commit_info,
             )
             .await,
-            "extended commit votes are not sorted by voting power",
+            "last commit vote address does not match extended commit vote address",
         );
     }
 }
