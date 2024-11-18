@@ -46,6 +46,8 @@ message SequencerBlock {
   astria.primitive.v1.Proof rollup_ids_proof = 4;
   /// The block hash of the cometbft block that corresponds to this sequencer block.
   bytes block_hash = 5;
+  optional bytes extended_commit_info = 6;
+  astria.primitive.v1.Proof extended_commit_info_proof = 7;
 }
 
 message SequencerBlockHeader {

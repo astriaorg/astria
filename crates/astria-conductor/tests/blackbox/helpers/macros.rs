@@ -81,6 +81,7 @@ macro_rules! filtered_sequencer_block {
         let block = ::astria_core::protocol::test_utils::ConfigureSequencerBlock {
             height: $height,
             sequence_data: vec![($crate::ROLLUP_ID, $crate::helpers::data())],
+            with_extended_commit_info: false,
             ..Default::default()
         }
         .make();

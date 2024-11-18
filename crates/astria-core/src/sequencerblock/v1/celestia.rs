@@ -35,6 +35,8 @@ impl PreparedBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = block.into_parts();
 
         let head = SubmittedMetadata {
@@ -43,6 +45,8 @@ impl PreparedBlock {
             rollup_ids: rollup_transactions.keys().copied().collect(),
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         };
 
         let mut tail = Vec::with_capacity(rollup_transactions.len());
@@ -339,6 +343,14 @@ impl SubmittedMetadataError {
             kind: SubmittedMetadataErrorKind::RollupIdsNotInCometBftBlock,
         }
     }
+
+    fn extended_commit_info_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
+        Self {
+            kind: SubmittedMetadataErrorKind::ExtendedCommitInfoProof {
+                source,
+            },
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -374,6 +386,13 @@ enum SubmittedMetadataErrorKind {
     RollupTransactionsNotInCometBftBlock,
     #[error("the Merkle Tree Hash of the rollup IDs was not a leaf in the sequencer block data")]
     RollupIdsNotInCometBftBlock,
+    #[error(
+        "failed constructing a Merkle Hash Tree Proof for the extended commit info from the raw \
+         raw source type"
+    )]
+    ExtendedCommitInfoProof {
+        source: <merkle::Proof as Protobuf>::Error,
+    },
 }
 
 /// A shadow of [`SubmittedMetadata`] with public access to its fields.
@@ -400,6 +419,9 @@ pub struct UncheckedSubmittedMetadata {
     /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
     /// `astria.SequencerBlock.rollup_ids_proof`.
     pub rollup_ids_proof: merkle::Proof,
+
+    pub extended_commit_info: Option<Bytes>,
+    pub extended_commit_info_proof: Option<merkle::Proof>,
 }
 
 impl UncheckedSubmittedMetadata {
@@ -424,7 +446,8 @@ impl UncheckedSubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            ..
+            extended_commit_info,
+            extended_commit_info_proof,
         } = raw;
         let header = 'header: {
             let Some(header) = header else {
@@ -461,12 +484,19 @@ impl UncheckedSubmittedMetadata {
             .try_into()
             .map_err(|_| SubmittedMetadataError::block_hash(block_hash.len()))?;
 
+        let extended_commit_info_proof = extended_commit_info_proof
+            .map(merkle::Proof::try_from_raw)
+            .transpose()
+            .map_err(SubmittedMetadataError::extended_commit_info_proof)?;
+
         Ok(Self {
             block_hash,
             header,
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         })
     }
 }
@@ -491,6 +521,9 @@ pub struct SubmittedMetadata {
     /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
     /// `astria.SequencerBlock.rollup_ids_proof`.
     rollup_ids_proof: merkle::Proof,
+
+    extended_commit_info: Option<Bytes>,
+    extended_commit_info_proof: Option<merkle::Proof>,
 }
 
 /// An iterator over rollup IDs.
@@ -557,6 +590,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = self;
         UncheckedSubmittedMetadata {
             block_hash,
@@ -564,6 +599,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         }
     }
 
@@ -580,6 +617,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = unchecked;
 
         if !rollup_transactions_proof.verify(
@@ -603,6 +642,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         })
     }
 
@@ -614,7 +655,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            ..
+            extended_commit_info,
+            extended_commit_info_proof,
         } = self;
         raw::SubmittedMetadata {
             block_hash: Bytes::copy_from_slice(&block_hash),
@@ -622,6 +664,8 @@ impl SubmittedMetadata {
             rollup_ids: rollup_ids.into_iter().map(RollupId::into_raw).collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
+            extended_commit_info,
+            extended_commit_info_proof: extended_commit_info_proof.map(merkle::Proof::into_raw),
         }
     }
 

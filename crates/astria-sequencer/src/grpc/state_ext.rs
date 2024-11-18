@@ -169,6 +169,8 @@ pub(crate) trait StateWriteExt: StateWrite {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = block.into_parts();
 
         put_block_hash(self, header.height(), block_hash)?;
@@ -212,6 +214,8 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
         rollup_transactions: Default::default(),
         rollup_transactions_proof,
         rollup_ids_proof,
+        extended_commit_info,
+        extended_commit_info_proof,
     };
 
     for rollup_id in rollup_ids {
@@ -326,6 +330,36 @@ fn put_rollup_ids_proof<S: StateWrite + ?Sized>(
         .serialize()
         .context("failed to serialize rollup ids proof")?;
     state.nonverifiable_put_raw(keys::rollup_ids_proof_by_hash(block_hash).into(), bytes);
+    Ok(())
+}
+
+fn put_extended_commit_info<S: StateWrite + ?Sized>(
+    state: &mut S,
+    block_hash: &[u8; 32],
+    extended_commit_info: Vec<u8>,
+) -> Result<()> {
+    let bytes = StoredValue::from(storage::ExtendedCommitInfo::from(extended_commit_info))
+        .serialize()
+        .context("failed to serialize extended commit info")?;
+    state.nonverifiable_put_raw(
+        keys::extended_commit_info_by_hash(block_hash).into(),
+        bytes,
+    );
+    Ok(())
+}
+
+fn put_extended_commit_info_proof<S: StateWrite + ?Sized>(
+    state: &mut S,
+    block_hash: &[u8; 32],
+    proof: merkle::Proof,
+) -> Result<()> {
+    let bytes = StoredValue::from(storage::Proof::from(&proof))
+        .serialize()
+        .context("failed to serialize extended commit info proof")?;
+    state.nonverifiable_put_raw(
+        keys::extended_commit_info_proof_by_hash(block_hash).into(),
+        bytes,
+    );
     Ok(())
 }
 

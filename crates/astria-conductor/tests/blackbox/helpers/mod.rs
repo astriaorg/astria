@@ -555,6 +555,7 @@ pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1::Seq
         unix_timestamp: (1i64, 1u32).into(),
         signing_key: Some(signing_key()),
         proposer_address: None,
+        with_extended_commit_info: true,
         ..Default::default()
     }
     .make()

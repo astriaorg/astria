@@ -272,6 +272,16 @@ impl SequencerBlockError {
     fn invalid_rollup_ids_proof() -> Self {
         Self(SequencerBlockErrorKind::InvalidRollupIdsProof)
     }
+
+    fn extended_commit_info_proof_invalid(source: merkle::audit::InvalidProof) -> Self {
+        Self(SequencerBlockErrorKind::ExtendedCommitInfoProofInvalid(
+            source,
+        ))
+    }
+
+    fn invalid_extended_commit_info_proof() -> Self {
+        Self(SequencerBlockErrorKind::InvalidExtendedCommitInfoProof)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -352,6 +362,13 @@ enum SequencerBlockErrorKind {
          data_hash given the rollup IDs proof"
     )]
     InvalidRollupIdsProof,
+    #[error("the extended commit info proof was invalid")]
+    ExtendedCommitInfoProofInvalid(#[source] merkle::audit::InvalidProof),
+    #[error(
+        "the extended commit info did not verify against data_hash given the extended commit info \
+         proof"
+    )]
+    InvalidExtendedCommitInfoProof,
 }
 
 /// The individual parts that make up a [`SequencerBlockHeader`].
@@ -593,6 +610,8 @@ pub struct SequencerBlockParts {
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     pub rollup_transactions_proof: merkle::Proof,
     pub rollup_ids_proof: merkle::Proof,
+    pub extended_commit_info: Option<Bytes>,
+    pub extended_commit_info_proof: Option<merkle::Proof>,
 }
 
 pub struct SequencerBlockBuilder {
@@ -642,8 +661,8 @@ impl SequencerBlockBuilder {
             // retrieving the initial elements. The next element to be yielded will be
             // the first of the actual user-submitted txs.
             data_iter,
-            // TODO: this needs to go into the block header
-            _extended_commit_info,
+            extended_commit_info,
+            extended_commit_info_proof,
             rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_root,
@@ -733,6 +752,8 @@ impl SequencerBlockBuilder {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         })
     }
 }
@@ -765,6 +786,9 @@ pub struct SequencerBlock {
     /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     /// the rollup transactions.
     rollup_ids_proof: merkle::Proof,
+
+    extended_commit_info: Option<Bytes>,
+    extended_commit_info_proof: Option<merkle::Proof>,
 }
 
 impl SequencerBlock {
@@ -811,6 +835,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = self;
         SequencerBlockParts {
             block_hash,
@@ -818,6 +844,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         }
     }
 
@@ -835,6 +863,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = self;
         raw::SequencerBlock {
             block_hash: Bytes::copy_from_slice(&block_hash),
@@ -845,6 +875,8 @@ impl SequencerBlock {
                 .collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
+            extended_commit_info: extended_commit_info.map(Into::into),
+            extended_commit_info_proof: extended_commit_info_proof.map(merkle::Proof::into_raw),
         }
     }
 
@@ -926,6 +958,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = raw;
 
         let block_hash = block_hash
@@ -986,12 +1020,31 @@ impl SequencerBlock {
             return Err(SequencerBlockError::rollup_ids_not_in_sequencer_block());
         }
 
+        let extended_commit_info_proof = extended_commit_info_proof
+            .map(merkle::Proof::try_from_raw)
+            .transpose()
+            .map_err(SequencerBlockError::extended_commit_info_proof_invalid)?;
+        if let Some(extended_commit_info) = &extended_commit_info {
+            let Some(extended_commit_info_proof) = &extended_commit_info_proof else {
+                return Err(SequencerBlockError::field_not_set(
+                    "extended_commit_info_proof",
+                ));
+            };
+
+            if !extended_commit_info_proof.verify(&Sha256::digest(&extended_commit_info), data_hash)
+            {
+                return Err(SequencerBlockError::invalid_extended_commit_info_proof());
+            }
+        }
+
         Ok(Self {
             block_hash,
             header,
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         })
     }
 
@@ -1010,6 +1063,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = parts;
         Self {
             block_hash,
@@ -1017,6 +1072,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         }
     }
 }
@@ -1024,7 +1081,8 @@ impl SequencerBlock {
 struct InitialDataElements {
     data_root_hash: [u8; 32],
     data_iter: IntoIter<Bytes>,
-    _extended_commit_info: Option<Bytes>,
+    extended_commit_info: Option<Bytes>,
+    extended_commit_info_proof: Option<merkle::Proof>,
     rollup_transactions_root: [u8; 32],
     rollup_transactions_proof: merkle::Proof,
     rollup_ids_root: [u8; 32],
@@ -1063,20 +1121,24 @@ fn take_initial_elements_from_data(
          `data` used to construct the tree",
     );
 
-    let extended_commit_info = if with_extended_commit_info {
-        Some(
-            data_iter
-                .next()
-                .ok_or(SequencerBlockError::no_extended_commit_info())?,
-        )
+    let (extended_commit_info, extended_commit_info_proof) = if with_extended_commit_info {
+        let extended_commit_info = data_iter
+            .next()
+            .ok_or(SequencerBlockError::no_extended_commit_info())?;
+        let extended_commit_info_proof = tree.construct_proof(2).expect(
+            "the leaf must exist in the tree as `extended_commit_info` was created from the same \
+             index in `data` used to construct the tree",
+        );
+        (Some(extended_commit_info), Some(extended_commit_info_proof))
     } else {
-        None
+        (None, None)
     };
 
     Ok(InitialDataElements {
         data_root_hash,
         data_iter,
-        _extended_commit_info: extended_commit_info,
+        extended_commit_info,
+        extended_commit_info_proof,
         rollup_transactions_root,
         rollup_transactions_proof,
         rollup_ids_root,
