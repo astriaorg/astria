@@ -521,17 +521,17 @@ impl App {
         self.metrics.record_proposal_deposits(deposits.len());
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
-        // included in the block
-        let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
-
-        let txs = match encoded_extended_commit_info {
-            Some(encoded_extended_commit_info) => res
-                .into_iter()
-                .chain(std::iter::once(encoded_extended_commit_info.into()))
-                .chain(included_tx_bytes)
-                .collect(),
-            None => res.into_iter().chain(included_tx_bytes).collect(),
-        };
+        // included in the block, chain on the extended commit info if `Some`, and finally chain on
+        // the tx bytes.
+        let txs = generate_rollup_datas_commitment(&signed_txs_included, deposits)
+            .into_iter()
+            .chain(
+                encoded_extended_commit_info
+                    .map(bytes::Bytes::from)
+                    .into_iter(),
+            )
+            .chain(included_tx_bytes)
+            .collect();
 
         Ok(abci::response::PrepareProposal {
             txs,
