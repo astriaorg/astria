@@ -1,6 +1,7 @@
 use std::{
     pin::Pin,
     sync::Arc,
+    time::Duration,
 };
 
 use astria_core::{
@@ -25,10 +26,14 @@ use astria_eyre::{
 use tokio::{
     sync::{
         mpsc,
-        mpsc::error::SendError,
+        mpsc::{
+            error::SendError,
+            Receiver,
+        },
     },
     task::JoinSet,
 };
+use tokio_util::sync::CancellationToken;
 use tonic::{
     codegen::tokio_stream::{
         wrappers::ReceiverStream,
@@ -41,108 +46,124 @@ use tonic::{
 use tracing::{
     debug,
     error,
+    info,
+    instrument,
 };
 
-use crate::app::{
+use crate::app::event_bus::{
     EventBus,
     EventReceiver,
 };
 
-type OptimisticBlockStreamResponse = Result<GetOptimisticBlockStreamResponse, Status>;
-type BlockCommitmentStreamResponse = Result<GetBlockCommitmentStreamResponse, Status>;
+const STREAM_TASKS_SHUTDOWN_DURATION: Duration = Duration::from_secs(5);
 
 struct GetOptimisticBlockStreamInnerRequest {
     rollup_id: RollupId,
-    tx: mpsc::Sender<OptimisticBlockStreamResponse>,
+    tx: mpsc::Sender<Result<GetOptimisticBlockStreamResponse, Status>>,
 }
 
 struct GetBlockCommitmentStreamInnerRequest {
-    tx: mpsc::Sender<BlockCommitmentStreamResponse>,
+    tx: mpsc::Sender<tonic::Result<GetBlockCommitmentStreamResponse>>,
 }
 
-enum InnerStreamRequest {
-    GetOptimisticBlockStream(GetOptimisticBlockStreamInnerRequest),
-    GetBlockCommitmentStream(GetBlockCommitmentStreamInnerRequest),
+enum NewStreamRequest {
+    OptimisticBlockStream(GetOptimisticBlockStreamInnerRequest),
+    BlockCommitmentStream(GetBlockCommitmentStreamInnerRequest),
 }
 
 pub(crate) struct OptimisticBlockInner {
     event_bus: EventBus,
-    stream_request_receiver: mpsc::Receiver<InnerStreamRequest>,
+    stream_request_receiver: mpsc::Receiver<NewStreamRequest>,
     stream_tasks: JoinSet<Result<(), eyre::Report>>,
-}
-
-async fn optimistic_stream_task(
-    mut process_proposal_block_receiver: EventReceiver<Option<Arc<SequencerBlock>>>,
-    rollup_id: RollupId,
-    tx: mpsc::Sender<OptimisticBlockStreamResponse>,
-) -> Result<(), eyre::Report> {
-    loop {
-        match process_proposal_block_receiver.receive().await {
-            Ok(process_proposal_block) => {
-                let filtered_optimistic_block = process_proposal_block
-                    .clone()
-                    .expect("expected a valid block from process_proposal_block event receiver")
-                    .to_filtered_block(vec![rollup_id]);
-                let raw_filtered_optimistic_block = filtered_optimistic_block.into_raw();
-
-                let get_optimistic_block_stream_response = GetOptimisticBlockStreamResponse {
-                    block: Some(raw_filtered_optimistic_block),
-                };
-
-                if let Err(e) = tx.send(Ok(get_optimistic_block_stream_response)).await {
-                    error!(error = %e, "grpc stream receiver for optimistic block has been dropped");
-                    return Err(eyre!(
-                        "grpc stream receiver for optimistic block has been dropped"
-                    ));
-                };
-            }
-            Err(e) => {
-                error!(error = %e, "process proposal block sender has been dropped");
-                return Err(eyre!("process proposal block sender has been dropped"));
-            }
-        }
-    }
-}
-
-async fn block_commitment_stream_task(
-    mut finalize_block_sender: EventReceiver<Option<Arc<SequencerBlockCommit>>>,
-    tx: mpsc::Sender<BlockCommitmentStreamResponse>,
-) -> Result<(), eyre::Report> {
-    loop {
-        match finalize_block_sender.receive().await {
-            Ok(finalize_block) => {
-                let sequencer_block_commit = finalize_block
-                    .clone()
-                    .expect("expected a valid block from finalize_block event receiver");
-
-                let get_block_commitment_stream_response = GetBlockCommitmentStreamResponse {
-                    commitment: Some(sequencer_block_commit.to_raw()),
-                };
-
-                if let Err(e) = tx.send(Ok(get_block_commitment_stream_response)).await {
-                    error!(error = %e, "grpc stream receiver for block commitment has been dropped");
-                    return Err(eyre!(
-                        "grpc stream receiver for block commitment has been dropped"
-                    ));
-                };
-            }
-            Err(e) => {
-                error!(error = %e, "finalize block sender has been dropped");
-                return Err(eyre!("finalize block sender has been dropped"));
-            }
-        }
-    }
+    server_cancellation_token: CancellationToken,
 }
 
 impl OptimisticBlockInner {
     fn new(
         event_bus: EventBus,
-        stream_request_receiver: mpsc::Receiver<InnerStreamRequest>,
+        stream_request_receiver: mpsc::Receiver<NewStreamRequest>,
+        server_cancellation_token: CancellationToken,
     ) -> Self {
         Self {
             event_bus,
             stream_request_receiver,
             stream_tasks: JoinSet::new(),
+            server_cancellation_token,
+        }
+    }
+
+    async fn block_commitment_stream_task(
+        &self,
+        mut finalize_block_sender: EventReceiver<Arc<SequencerBlockCommit>>,
+        tx: mpsc::Sender<tonic::Result<GetBlockCommitmentStreamResponse>>,
+    ) -> Result<(), eyre::Report> {
+        loop {
+            tokio::select! {
+                biased;
+                () = self.server_cancellation_token.cancelled() => {
+                    break Ok(());
+                }
+                finalize_block_res = finalize_block_sender.receive() => {
+                    match finalize_block_res {
+                        Ok(finalize_block) => {
+                            let sequencer_block_commit = finalize_block
+                                .clone();
+
+                            let get_block_commitment_stream_response = GetBlockCommitmentStreamResponse {
+                                commitment: Some(sequencer_block_commit.to_raw()),
+                            };
+
+                            if let Err(e) = tx.send(Ok(get_block_commitment_stream_response)).await {
+                                break Err(eyre!(
+                                    "grpc stream receiver for block commitment has been dropped with error: {e}"
+                                ));
+                            };
+                        },
+                        Err(e) => {
+                            break Err(eyre!("finalize block sender has been dropped with error: {e}"));
+                        }
+                    }
+                },
+            }
+        }
+    }
+
+    async fn optimistic_stream_task(
+        &self,
+        mut process_proposal_block_receiver: EventReceiver<Arc<SequencerBlock>>,
+        rollup_id: RollupId,
+        tx: mpsc::Sender<Result<GetOptimisticBlockStreamResponse, Status>>,
+    ) -> Result<(), eyre::Report> {
+        loop {
+            tokio::select! {
+                biased;
+                () = self.server_cancellation_token.cancelled() => {
+                    break Ok(());
+                }
+                process_proposal_block_res = process_proposal_block_receiver.receive() => {
+                    match process_proposal_block_res {
+                        Ok(process_proposal_block) => {
+                            let filtered_optimistic_block = process_proposal_block
+                                .clone()
+                                .to_filtered_block(vec![rollup_id]);
+                            let raw_filtered_optimistic_block = filtered_optimistic_block.into_raw();
+
+                            let get_optimistic_block_stream_response = GetOptimisticBlockStreamResponse {
+                                block: Some(raw_filtered_optimistic_block),
+                            };
+
+                            if let Err(e) = tx.send(Ok(get_optimistic_block_stream_response)).await {
+                                break Err(eyre!(
+                                    "grpc stream receiver for optimistic block has been dropped with error: {e}"
+                                ));
+                            };
+                        },
+                        Err(e) => {
+                            break Err(eyre!("process proposal block sender has been dropped with error: {e}"));
+                        }
+                    }
+                },
+            }
         }
     }
 
@@ -157,7 +178,7 @@ impl OptimisticBlockInner {
 
         let process_proposal_block_receiver = self.event_bus.subscribe_process_proposal_blocks();
 
-        self.stream_tasks.spawn(optimistic_stream_task(
+        self.stream_tasks.spawn(self.optimistic_stream_task(
             process_proposal_block_receiver,
             rollup_id,
             tx,
@@ -175,51 +196,70 @@ impl OptimisticBlockInner {
         let finalize_block_sender = self.event_bus.subscribe_finalize_blocks();
 
         self.stream_tasks
-            .spawn(block_commitment_stream_task(finalize_block_sender, tx));
+            .spawn(self.block_commitment_stream_task(finalize_block_sender, tx));
     }
 
-    // TODO - should this return anything? ideally i think run will be running forever
-    // run will only shutdown when the server shutsdown
-    pub(crate) async fn run(&mut self) {
+    pub(crate) async fn run(&mut self) -> eyre::Result<()> {
         loop {
             tokio::select! {
+                biased;
+                () = self.server_cancellation_token.cancelled() => {
+                    break;
+                },
                 Some(inner_stream_request) = self.stream_request_receiver.recv() => {
                     match inner_stream_request {
-                        InnerStreamRequest::GetOptimisticBlockStream(request) => {
+                        NewStreamRequest::OptimisticBlockStream(request) => {
                             self.handle_optimistic_block_stream_request(request);
                         }
-                        InnerStreamRequest::GetBlockCommitmentStream(request) => {
+                        NewStreamRequest::BlockCommitmentStream(request) => {
                             self.handle_block_commitment_stream_request(request);
                         }
                     }
                 },
-                Some(joined_task) = self.stream_tasks.join_next() => {
-                    match joined_task {
-                        Ok(Ok(())) => {
-                            debug!("stream task has been joined successfully");
-                        }
-                        Ok(Err(e)) => {
-                            error!(error = %e, "stream task has been joined with an error");
-                        }
-                        Err(e) => {
-                            error!(error = %e, "stream task has been joined with an error");
-                        }
-                    }
-                },
-                // TODO - do we need the else? the loop was panicking without it as all other branches
-                // were disabled
-                else => {}
             }
         }
+
+        self.shutdown().await
+    }
+
+    #[instrument(skip_all)]
+    async fn shutdown(&mut self) -> Result<(), eyre::Report> {
+        match tokio::time::timeout(STREAM_TASKS_SHUTDOWN_DURATION, async {
+            while let Some(joined_tasks) = self.stream_tasks.join_next().await {
+                match joined_tasks {
+                    Ok(Ok(())) => {
+                        debug!("stream task has been joined successfully");
+                    }
+                    Ok(Err(e)) => {
+                        error!(error = %e, "stream task has been joined with an error");
+                    }
+                    Err(e) => {
+                        error!(error = %e, "stream task has been joined with an error");
+                    }
+                }
+            }
+        })
+        .await
+        {
+            Ok(()) => {
+                info!("all stream tasks have been joined successfully");
+            }
+            Err(e) => {
+                error!(error = %e, "stream tasks failed to shut down in time");
+                self.stream_tasks.abort_all();
+            }
+        }
+
+        Ok(())
     }
 }
 
 pub(crate) struct OptimisticBlockFacade {
-    stream_request_sender: mpsc::Sender<InnerStreamRequest>,
+    stream_request_sender: mpsc::Sender<NewStreamRequest>,
 }
 
 impl OptimisticBlockFacade {
-    fn new(stream_request_sender: mpsc::Sender<InnerStreamRequest>) -> Self {
+    fn new(stream_request_sender: mpsc::Sender<NewStreamRequest>) -> Self {
         Self {
             stream_request_sender,
         }
@@ -227,43 +267,63 @@ impl OptimisticBlockFacade {
 
     pub(crate) fn new_optimistic_block_service(
         event_bus: EventBus,
+        server_cancellation_token: CancellationToken,
     ) -> (Self, OptimisticBlockInner) {
         let (tx, rx) = mpsc::channel(128);
 
         let facade = Self::new(tx);
-        let inner = OptimisticBlockInner::new(event_bus, rx);
+        let inner =
+            OptimisticBlockInner::new(event_bus, rx, server_cancellation_token.child_token());
 
         (facade, inner)
     }
 
+    #[instrument(skip_all)]
     async fn send_optimistic_block_stream_request(
         &self,
-        rollup_id: RollupId,
-        tx: mpsc::Sender<OptimisticBlockStreamResponse>,
-    ) -> Result<(), SendError<InnerStreamRequest>> {
+        get_optimistic_block_stream_request: GetOptimisticBlockStreamRequest,
+    ) -> eyre::Result<Receiver<tonic::Result<GetOptimisticBlockStreamResponse>>> {
+        let rollup_id = {
+            let rollup_id = get_optimistic_block_stream_request
+                .rollup_id
+                .ok_or_else(|| Status::invalid_argument("rollup id is required"))?;
+
+            RollupId::try_from_raw(rollup_id)
+                .map_err(|e| eyre!(format!("invalid rollup id: {e}")))?
+        };
+
+        let (tx, rx) =
+            tokio::sync::mpsc::channel::<tonic::Result<GetOptimisticBlockStreamResponse>>(128);
+
         let request =
-            InnerStreamRequest::GetOptimisticBlockStream(GetOptimisticBlockStreamInnerRequest {
+            NewStreamRequest::OptimisticBlockStream(GetOptimisticBlockStreamInnerRequest {
                 rollup_id,
                 tx,
             });
 
         self.stream_request_sender.send(request).await?;
 
-        Ok(())
+        Ok(rx)
     }
 
+    #[instrument(skip_all)]
     async fn send_block_commitment_stream_request(
         &self,
-        tx: mpsc::Sender<BlockCommitmentStreamResponse>,
-    ) -> Result<(), SendError<InnerStreamRequest>> {
+    ) -> Result<
+        Receiver<tonic::Result<GetBlockCommitmentStreamResponse>>,
+        SendError<NewStreamRequest>,
+    > {
+        let (tx, rx) =
+            tokio::sync::mpsc::channel::<tonic::Result<GetBlockCommitmentStreamResponse>>(128);
+
         let request =
-            InnerStreamRequest::GetBlockCommitmentStream(GetBlockCommitmentStreamInnerRequest {
+            NewStreamRequest::BlockCommitmentStream(GetBlockCommitmentStreamInnerRequest {
                 tx,
             });
 
         self.stream_request_sender.send(request).await?;
 
-        Ok(())
+        Ok(rx)
     }
 }
 
@@ -274,51 +334,43 @@ impl OptimisticBlockService for OptimisticBlockFacade {
     type GetOptimisticBlockStreamStream =
         Pin<Box<dyn Stream<Item = Result<GetOptimisticBlockStreamResponse, Status>> + Send>>;
 
+    #[instrument(skip_all)]
     async fn get_optimistic_block_stream(
         self: Arc<Self>,
         request: Request<GetOptimisticBlockStreamRequest>,
     ) -> Result<Response<Self::GetOptimisticBlockStreamStream>, Status> {
         let get_optimistic_block_stream_request = request.into_inner();
 
-        // The facade creates the stream channels and sends it to the inner optimistic block service
-        let rollup_id = {
-            let rollup_id = get_optimistic_block_stream_request
-                .rollup_id
-                .ok_or_else(|| Status::invalid_argument("rollup id is required"))?;
-
-            RollupId::try_from_raw(rollup_id)
-                .map_err(|e| Status::invalid_argument(format!("invalid rollup id: {e}")))?
-        };
-
-        let (tx, rx) =
-            tokio::sync::mpsc::channel::<OptimisticBlockStreamResponse>(128);
-
-        if let Err(e) = self
-            .send_optimistic_block_stream_request(rollup_id, tx)
+        let rx = match self
+            .send_optimistic_block_stream_request(get_optimistic_block_stream_request)
             .await
         {
-            return Err(Status::internal(format!(
-                "failed to create optimistic block stream: {e}"
-            )));
-        }
+            Ok(rx) => rx,
+            Err(e) => {
+                return Err(Status::internal(format!(
+                    "failed to create optimistic block stream: {e}"
+                )));
+            }
+        };
 
         Ok(Response::new(
             Box::pin(ReceiverStream::new(rx)) as Self::GetOptimisticBlockStreamStream
         ))
     }
 
+    #[instrument(skip_all)]
     async fn get_block_commitment_stream(
         self: Arc<Self>,
         _request: Request<GetBlockCommitmentStreamRequest>,
     ) -> Result<Response<Self::GetBlockCommitmentStreamStream>, Status> {
-        let (tx, rx) =
-            tokio::sync::mpsc::channel::<BlockCommitmentStreamResponse>(128);
-
-        if let Err(e) = self.send_block_commitment_stream_request(tx).await {
-            return Err(Status::internal(format!(
-                "failed to create block commitment stream: {e}"
-            )));
-        }
+        let rx = match self.send_block_commitment_stream_request().await {
+            Ok(rx) => rx,
+            Err(e) => {
+                return Err(Status::internal(format!(
+                    "failed to create block commitment stream: {e}"
+                )));
+            }
+        };
 
         Ok(Response::new(
             Box::pin(ReceiverStream::new(rx)) as Self::GetBlockCommitmentStreamStream
