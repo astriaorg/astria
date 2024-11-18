@@ -81,7 +81,7 @@ async fn optimistic_stream_task(
             Ok(process_proposal_block) => {
                 let filtered_optimistic_block = process_proposal_block
                     .clone()
-                    .expect("unexpected None")
+                    .expect("expected a valid block from process_proposal_block event receiver")
                     .to_filtered_block(vec![rollup_id]);
                 let raw_filtered_optimistic_block = filtered_optimistic_block.into_raw();
 
@@ -111,7 +111,9 @@ async fn block_commitment_stream_task(
     loop {
         match finalize_block_sender.receive().await {
             Ok(finalize_block) => {
-                let sequencer_block_commit = finalize_block.clone().expect("unexpected None");
+                let sequencer_block_commit = finalize_block
+                    .clone()
+                    .expect("expected a valid block from finalize_block event receiver");
 
                 let get_block_commitment_stream_response = GetBlockCommitmentStreamResponse {
                     commitment: Some(sequencer_block_commit.to_raw()),
@@ -155,9 +157,11 @@ impl OptimisticBlockInner {
 
         let process_proposal_block_receiver = self.event_bus.subscribe_process_proposal_blocks();
 
-        self.stream_tasks.spawn(async move {
-            optimistic_stream_task(process_proposal_block_receiver, rollup_id, tx).await
-        });
+        self.stream_tasks.spawn(optimistic_stream_task(
+            process_proposal_block_receiver,
+            rollup_id,
+            tx,
+        ));
     }
 
     fn handle_block_commitment_stream_request(
@@ -171,9 +175,11 @@ impl OptimisticBlockInner {
         let finalize_block_sender = self.event_bus.subscribe_finalize_blocks();
 
         self.stream_tasks
-            .spawn(async move { block_commitment_stream_task(finalize_block_sender, tx).await });
+            .spawn(block_commitment_stream_task(finalize_block_sender, tx));
     }
 
+    // TODO - should this return anything? ideally i think run will be running forever
+    // run will only shutdown when the server shutsdown
     pub(crate) async fn run(&mut self) {
         loop {
             tokio::select! {
@@ -200,6 +206,8 @@ impl OptimisticBlockInner {
                         }
                     }
                 },
+                // TODO - do we need the else? the loop was panicking without it as all other branches
+                // were disabled
                 else => {}
             }
         }
@@ -283,14 +291,14 @@ impl OptimisticBlockService for OptimisticBlockFacade {
         };
 
         let (tx, rx) =
-            tokio::sync::mpsc::channel::<Result<GetOptimisticBlockStreamResponse, Status>>(128);
+            tokio::sync::mpsc::channel::<OptimisticBlockStreamResponse>(128);
 
         if let Err(e) = self
             .send_optimistic_block_stream_request(rollup_id, tx)
             .await
         {
             return Err(Status::internal(format!(
-                "failed to send optimistic block stream request: {e}"
+                "failed to create optimistic block stream: {e}"
             )));
         }
 
@@ -304,11 +312,11 @@ impl OptimisticBlockService for OptimisticBlockFacade {
         _request: Request<GetBlockCommitmentStreamRequest>,
     ) -> Result<Response<Self::GetBlockCommitmentStreamStream>, Status> {
         let (tx, rx) =
-            tokio::sync::mpsc::channel::<Result<GetBlockCommitmentStreamResponse, Status>>(128);
+            tokio::sync::mpsc::channel::<BlockCommitmentStreamResponse>(128);
 
         if let Err(e) = self.send_block_commitment_stream_request(tx).await {
             return Err(Status::internal(format!(
-                "failed to send block commitment stream request: {e}"
+                "failed to create block commitment stream: {e}"
             )));
         }
 
