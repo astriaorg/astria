@@ -50,7 +50,7 @@ impl Get {
 
         println!("Allowed fee assets:");
         for asset in res.fee_assets {
-            println!("    {}", asset);
+            println!("    {asset}");
         }
 
         Ok(())
