@@ -33,6 +33,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tokio_util::sync::CancellationToken;
 use tower_abci::v038::Server;
 use tracing::{
     error,
@@ -42,8 +43,8 @@ use tracing::{
 
 use crate::{
     app::{
+        event_bus::EventBus,
         App,
-        EventBus,
     },
     config::Config,
     grpc::{
@@ -198,8 +199,13 @@ fn start_grpc_server(
     let sequencer_api = SequencerServer::new(storage.clone(), mempool);
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
+    let optimistic_streams_cancellation_token = CancellationToken::new();
+
     let (optimistic_block_facade, mut optimistic_block_service_inner) =
-        OptimisticBlockFacade::new_optimistic_block_service(event_bus);
+        OptimisticBlockFacade::new_optimistic_block_service(
+            event_bus,
+            optimistic_streams_cancellation_token.child_token(),
+        );
 
     let optimistic_block_service_server = {
         if no_optimistic_blocks {
@@ -240,15 +246,17 @@ fn start_grpc_server(
     }
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
+
     tokio::task::spawn(grpc_server.serve_with_shutdown(grpc_addr, async move {
         tokio::select! {
-            _ = optimistic_block_inner_handle => {
-                info!("BHARATH: optimistic block service task exited");
-            }
             _ = shutdown_rx => {
-                info!("BHARATH: grpc server shutting down");
+                info!("grpc server shutting down");
+            },
+            _ = optimistic_block_inner_handle => {
+                info!("optimistic block inner handle task exited");
             }
         }
+        optimistic_streams_cancellation_token.cancel();
     }))
 }
 
