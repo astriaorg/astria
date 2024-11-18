@@ -17,3 +17,4 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tendermint = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true, optional = true }

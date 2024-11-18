@@ -26,6 +26,7 @@ use astria_core::{
             Transaction,
         },
     },
+    Protobuf as _,
 };
 use astria_eyre::eyre::{
     self,

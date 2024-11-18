@@ -20,6 +20,7 @@ use crate::{
         block::Deposit,
         SequencerBlock,
     },
+    Protobuf as _,
 };
 
 #[derive(Default)]

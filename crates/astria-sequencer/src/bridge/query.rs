@@ -304,11 +304,11 @@ mod tests {
         address::StateWriteExt as _,
         app::StateWriteExt as _,
         assets::StateWriteExt as _,
-        bridge::StateWriteExt as _,
-        test_utils::{
+        benchmark_and_test_utils::{
             astria_address,
             ASTRIA_PREFIX,
         },
+        bridge::StateWriteExt as _,
     };
 
     #[tokio::test]

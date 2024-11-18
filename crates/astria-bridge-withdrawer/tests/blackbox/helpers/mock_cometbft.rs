@@ -3,6 +3,7 @@ use std::time::Duration;
 use astria_core::{
     primitive::v1::asset,
     protocol::bridge::v1::BridgeAccountLastTxHashResponse,
+    Protobuf as _,
 };
 use prost::Message as _;
 use sequencer_client::{
