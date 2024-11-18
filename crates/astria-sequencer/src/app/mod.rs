@@ -590,13 +590,12 @@ impl App {
         for (tx_hash, tx) in pending_txs {
             unused_count = unused_count.saturating_sub(1);
             let tx_hash_base_64 = telemetry::display::base64(&tx_hash).to_string();
-            info!(transaction_hash = %tx_hash_base_64, "executing transaction");
 
             if ExitContinue::Exit
                 == proposal_checks_and_tx_execution(
                     self,
                     tx,
-                    &tx_hash_base_64,
+                    Some(tx_hash_base_64),
                     block_size_constraints,
                     &mut proposal_info,
                 )
@@ -666,15 +665,11 @@ impl App {
 
         for tx in txs {
             let tx = Arc::new(tx);
-            let bytes = tx.to_raw().encode_to_vec();
-            let tx_hash = Sha256::digest(&bytes);
-            let tx_hash_base_64 = telemetry::display::base64(&tx_hash).to_string();
-
             if ExitContinue::Exit
                 == proposal_checks_and_tx_execution(
                     self,
                     tx,
-                    &tx_hash_base_64,
+                    None,
                     block_size_constraints,
                     &mut proposal_info,
                 )
@@ -683,7 +678,6 @@ impl App {
                 break;
             }
         }
-
         Ok(proposal_info.execution_results())
     }
 
@@ -1295,7 +1289,8 @@ impl ProcessProposalInformation {
 async fn proposal_checks_and_tx_execution(
     app: &mut App,
     tx: Arc<Transaction>,
-    tx_hash_base_64: &str,
+    tx_hash_base_64: Option<String>, /* optional since prepare_proposal already has tx_hash and
+                                      * we shouldn't compute it twice */
     block_size_constraints: &mut BlockSizeConstraints,
     proposal_info: &mut Proposal<'_>,
 ) -> Result<ExitContinue> {
@@ -1306,13 +1301,16 @@ async fn proposal_checks_and_tx_execution(
         .iter()
         .filter_map(Action::as_rollup_data_submission)
         .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
-    let bytes = tx.to_raw().encode_to_vec();
-    let tx_len = bytes.len();
-
+    let tx_bytes = tx.to_raw().encode_to_vec();
+    let tx_hash_base_64 = tx_hash_base_64
+        .unwrap_or_else(|| telemetry::display::base64(Sha256::digest(&tx_bytes)).to_string());
+    let tx_len = tx_bytes.len();
     let debug_msg = match proposal_info {
         Proposal::Prepare(_) => "excluding transaction",
         Proposal::Process(_) => "transaction error",
     };
+
+    info!(transaction_hash = %tx_hash_base_64, "executing transaction");
 
     // check CometBFT size constraints for `prepare_proposal`
     if let Proposal::Prepare(proposal_info) = proposal_info {
@@ -1386,9 +1384,7 @@ async fn proposal_checks_and_tx_execution(
                 .cometbft_checked_add(tx_len)
                 .wrap_err("error growing cometBFT block size")?;
             if let Proposal::Prepare(proposal_info) = proposal_info {
-                proposal_info
-                    .validated_txs
-                    .push(tx.to_raw().encode_to_vec().into());
+                proposal_info.validated_txs.push(tx_bytes.into());
                 proposal_info.included_signed_txs.push((*tx).clone());
             }
         }
