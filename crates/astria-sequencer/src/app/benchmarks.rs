@@ -105,7 +105,7 @@ fn execute_transactions_prepare_proposal(bencher: divan::Bencher) {
             let (_tx_bytes, included_txs) = runtime.block_on(async {
                 fixture
                     .app
-                    .execute_transactions_prepare_proposal(constraints)
+                    .prepare_proposal_tx_execution(constraints)
                     .await
                     .unwrap()
             });
