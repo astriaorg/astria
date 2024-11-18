@@ -684,13 +684,7 @@ impl App {
             }
         }
 
-        let ProcessProposalInformation {
-            execution_results, ..
-        } = proposal_info
-            .into_process()
-            .ok_or_eyre("expected `Proposal::Process`, received `Proposal::Prepare`")?;
-
-        Ok(execution_results)
+        Ok(proposal_info.execution_results())
     }
 
     /// sets up the state for execution of the block's transactions.
@@ -1242,17 +1236,17 @@ impl<'a> Proposal<'a> {
         }
     }
 
+    fn execution_results(self) -> Vec<ExecTxResult> {
+        match self {
+            Proposal::Prepare(proposal_info) => proposal_info.execution_results,
+            Proposal::Process(proposal_info) => proposal_info.execution_results,
+        }
+    }
+
     fn into_prepare(self) -> Option<PrepareProposalInformation<'a>> {
         match self {
             Proposal::Prepare(proposal_info) => Some(proposal_info),
             Proposal::Process(_) => None,
-        }
-    }
-
-    fn into_process(self) -> Option<ProcessProposalInformation> {
-        match self {
-            Proposal::Prepare(_) => None,
-            Proposal::Process(proposal_info) => Some(proposal_info),
         }
     }
 }
