@@ -149,7 +149,6 @@ fn prepare_sequencer_block_response(
                 RollupId::from_unhashed_bytes(b"some_rollup_id"),
                 vec![99u8; 32],
             )],
-            with_extended_commit_info: true,
             ..Default::default()
         }
         .make(),

@@ -219,10 +219,10 @@ pub(crate) trait StateWriteExt: StateWrite {
         put_rollups_transactions_proof(self, &block_hash, rollup_transactions_proof)?;
         put_rollup_ids_proof(self, &block_hash, rollup_ids_proof)?;
         if let Some(extended_commit_info) = extended_commit_info {
-            put_extended_commit_info(self, &block_hash, extended_commit_info)?;
+            put_extended_commit_info(self, &block_hash, &extended_commit_info)?;
         }
         if let Some(extended_commit_info_proof) = extended_commit_info_proof {
-            put_extended_commit_info_proof(self, &block_hash, extended_commit_info_proof)?;
+            put_extended_commit_info_proof(self, &block_hash, &extended_commit_info_proof)?;
         }
         Ok(())
     }
@@ -390,9 +390,9 @@ fn put_rollup_ids_proof<S: StateWrite + ?Sized>(
 fn put_extended_commit_info<S: StateWrite + ?Sized>(
     state: &mut S,
     block_hash: &[u8; 32],
-    extended_commit_info: Bytes,
+    extended_commit_info: &Bytes,
 ) -> Result<()> {
-    let bytes = StoredValue::from(storage::ExtendedCommitInfo::from(&extended_commit_info))
+    let bytes = StoredValue::from(storage::ExtendedCommitInfo::from(extended_commit_info))
         .serialize()
         .context("failed to serialize extended commit info")?;
     state.nonverifiable_put_raw(keys::extended_commit_info_by_hash(block_hash).into(), bytes);
@@ -402,9 +402,9 @@ fn put_extended_commit_info<S: StateWrite + ?Sized>(
 fn put_extended_commit_info_proof<S: StateWrite + ?Sized>(
     state: &mut S,
     block_hash: &[u8; 32],
-    proof: merkle::Proof,
+    proof: &merkle::Proof,
 ) -> Result<()> {
-    let bytes = StoredValue::from(storage::Proof::from(&proof))
+    let bytes = StoredValue::from(storage::Proof::from(proof))
         .serialize()
         .context("failed to serialize extended commit info proof")?;
     state.nonverifiable_put_raw(

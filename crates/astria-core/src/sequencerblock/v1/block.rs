@@ -786,8 +786,10 @@ pub struct SequencerBlock {
     /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     /// the rollup transactions.
     rollup_ids_proof: merkle::Proof,
-
+    /// The extended commit info for the block, if vote extensions were enabled at this height.
     extended_commit_info: Option<Bytes>,
+    /// The proof that the extended commit info is included in the cometbft block data (if it
+    /// exists), specifically the third item in the data field.
     extended_commit_info_proof: Option<merkle::Proof>,
 }
 
@@ -824,6 +826,16 @@ impl SequencerBlock {
     #[must_use]
     pub fn rollup_ids_proof(&self) -> &merkle::Proof {
         &self.rollup_ids_proof
+    }
+
+    #[must_use]
+    pub fn extended_commit_info(&self) -> Option<&Bytes> {
+        self.extended_commit_info.as_ref()
+    }
+
+    #[must_use]
+    pub fn extended_commit_info_proof(&self) -> Option<&merkle::Proof> {
+        self.extended_commit_info_proof.as_ref()
     }
 
     /// Converts a [`SequencerBlock`] into its [`SequencerBlockParts`].
@@ -1031,7 +1043,7 @@ impl SequencerBlock {
                 ));
             };
 
-            if !extended_commit_info_proof.verify(&Sha256::digest(&extended_commit_info), data_hash)
+            if !extended_commit_info_proof.verify(&Sha256::digest(extended_commit_info), data_hash)
             {
                 return Err(SequencerBlockError::invalid_extended_commit_info_proof());
             }

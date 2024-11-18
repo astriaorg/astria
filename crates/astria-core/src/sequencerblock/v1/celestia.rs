@@ -419,8 +419,10 @@ pub struct UncheckedSubmittedMetadata {
     /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
     /// `astria.SequencerBlock.rollup_ids_proof`.
     pub rollup_ids_proof: merkle::Proof,
-
+    /// The extended commit info for the block, if vote extensions were enabled at this height.
     pub extended_commit_info: Option<Bytes>,
+    /// The proof that the extended commit info is included in the cometbft block data (if it
+    /// exists), specifically the third item in the data field.
     pub extended_commit_info_proof: Option<merkle::Proof>,
 }
 

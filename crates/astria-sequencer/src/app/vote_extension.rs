@@ -271,6 +271,13 @@ impl ProposalHandler {
             return Ok(());
         }
 
+        if extended_commit_info.votes.is_empty() {
+            // it's okay for the extended commit info to be empty,
+            // as it's possible the proposer did not receive valid vote extensions from >2/3 staking
+            // power.
+            return Ok(());
+        }
+
         // inside process_proposal, we must validate the vote extensions proposed against the last
         // commit proposed
         validate_extended_commit_against_last_commit(last_commit, extended_commit_info)?;
