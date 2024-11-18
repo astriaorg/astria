@@ -40,6 +40,20 @@ pub(in crate::grpc) fn rollup_ids_proof_by_hash(hash: &[u8; 32]) -> String {
     )
 }
 
+pub(in crate::grpc) fn extended_commit_info_by_hash(hash: &[u8; 32]) -> String {
+    format!(
+        "grpc/extended_commit_info/{}",
+        Base64Display::new(hash, &URL_SAFE)
+    )
+}
+
+pub(in crate::grpc) fn extended_commit_info_proof_by_hash(hash: &[u8; 32]) -> String {
+    format!(
+        "grpc/extended_commit_info_proof/{}",
+        Base64Display::new(hash, &URL_SAFE)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
