@@ -83,6 +83,12 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
                     .and_modify(|amt| *amt = amt.saturating_add(act.amount))
                     .or_insert(act.amount);
             }
+            Action::StakeBuilder(act) => {
+                cost_by_asset
+                    .entry(act.asset.to_ibc_prefixed())
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                    .or_insert(act.amount);
+            }
             Action::Ics20Withdrawal(act) => {
                 cost_by_asset
                     .entry(act.denom.to_ibc_prefixed())
@@ -114,6 +120,8 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             | Action::Ibc(_)
             | Action::IbcRelayerChange(_)
             | Action::FeeAssetChange(_)
+            | Action::UnstakeBuilder(_)
+            | Action::WithdrawBuilderCollateral(_)
             | Action::FeeChange(_) => {
                 continue;
             }
@@ -126,6 +134,7 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
 #[cfg(test)]
 mod tests {
     use astria_core::{
+        generated::protocol::transaction::v1::action::Value::WithdrawBuilderCollateral,
         primitive::v1::{
             asset::Denom,
             RollupId,
@@ -139,7 +148,10 @@ mod tests {
                 Ics20WithdrawalFeeComponents,
                 InitBridgeAccountFeeComponents,
                 RollupDataSubmissionFeeComponents,
+                StakeBuilderFeeComponents,
                 TransferFeeComponents,
+                UnstakeBuilderFeeComponents,
+                WithdrawBuilderCollateralFeeComponents,
             },
             transaction::v1::{
                 action::{
@@ -243,6 +255,33 @@ mod tests {
         state_tx
             .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
             .wrap_err("failed to initiate bridge sudo change fee components")
+            .unwrap();
+
+        let stake_builder_fees = StakeBuilderFeeComponents {
+            base: 5,
+            multiplier: 1,
+        };
+        state_tx
+            .put_stake_builder_fees(stake_builder_fees)
+            .wrap_err("failed to initiate stake builder fee components")
+            .unwrap();
+
+        let unstake_builder_fees = UnstakeBuilderFeeComponents {
+            base: 5,
+            multiplier: 1,
+        };
+        state_tx
+            .put_unstake_builder_fees(unstake_builder_fees)
+            .wrap_err("failed to initiate unstake builder fee components")
+            .unwrap();
+
+        let withdraw_builder_collateral_fees = WithdrawBuilderCollateralFeeComponents {
+            base: 5,
+            multiplier: 1,
+        };
+        state_tx
+            .put_withdraw_builder_collateral_fees(withdraw_builder_collateral_fees)
+            .wrap_err("failed to initiate withdraw builder collateral fee components")
             .unwrap();
 
         let other_asset = "other".parse::<Denom>().unwrap();

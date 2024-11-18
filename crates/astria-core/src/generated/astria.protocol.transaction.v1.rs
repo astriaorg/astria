@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 60, 61, 62"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -46,6 +46,13 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
+        /// 60-70 are builder enshrined actions
+        #[prost(message, tag = "60")]
+        StakeBuilder(super::StakeBuilder),
+        #[prost(message, tag = "61")]
+        UnstakeBuilder(super::UnstakeBuilder),
+        #[prost(message, tag = "62")]
+        WithdrawBuilderCollateral(super::WithdrawBuilderCollateral),
     }
 }
 impl ::prost::Name for Action {
@@ -396,13 +403,75 @@ impl ::prost::Name for BridgeSudoChange {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
     }
 }
+/// The builder actions infer the builder addresses from the transaction sender.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StakeBuilder {
+    /// the address of the enshrined builder
+    #[prost(message, optional, tag = "1")]
+    pub builder_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the amount to be staked
+    #[prost(message, optional, tag = "2")]
+    pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    /// the asset to be staked
+    #[prost(string, tag = "3")]
+    pub asset: ::prost::alloc::string::String,
+    /// the asset used to pay the transaction fee
+    #[prost(string, tag = "4")]
+    pub fee_asset: ::prost::alloc::string::String,
+}
+impl ::prost::Name for StakeBuilder {
+    const NAME: &'static str = "StakeBuilder";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnstakeBuilder {
+    /// the address of the enshrined builder
+    #[prost(message, optional, tag = "1")]
+    pub builder_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    #[prost(string, tag = "2")]
+    pub fee_asset: ::prost::alloc::string::String,
+}
+impl ::prost::Name for UnstakeBuilder {
+    const NAME: &'static str = "UnstakeBuilder";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WithdrawBuilderCollateral {
+    /// the address of the enshrined builder
+    #[prost(message, optional, tag = "1")]
+    pub builder_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    #[prost(string, tag = "2")]
+    pub fee_asset: ::prost::alloc::string::String,
+}
+impl ::prost::Name for WithdrawBuilderCollateral {
+    const NAME: &'static str = "WithdrawBuilderCollateral";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -442,6 +511,14 @@ pub mod fee_change {
         Transfer(super::super::super::fees::v1::TransferFeeComponents),
         #[prost(message, tag = "14")]
         ValidatorUpdate(super::super::super::fees::v1::ValidatorUpdateFeeComponents),
+        #[prost(message, tag = "15")]
+        StakeBuilder(super::super::super::fees::v1::StakeBuilderFeeComponents),
+        #[prost(message, tag = "16")]
+        UnstakeBuilder(super::super::super::fees::v1::UnstakeBuilderFeeComponents),
+        #[prost(message, tag = "17")]
+        WithdrawBuilderCollateral(
+            super::super::super::fees::v1::WithdrawBuilderCollateralFeeComponents,
+        ),
     }
 }
 impl ::prost::Name for FeeChange {

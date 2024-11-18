@@ -12,9 +12,12 @@ use astria_core::{
             IbcSudoChange,
             InitBridgeAccount,
             RollupDataSubmission,
+            StakeBuilder,
             SudoAddressChange,
             Transfer,
+            UnstakeBuilder,
             ValidatorUpdate,
+            WithdrawBuilderCollateral,
         },
     },
     Protobuf,
@@ -318,6 +321,65 @@ impl FeeHandler for IbcRelay {
             .await
             .wrap_err("error fetching ibc relay fees")?
             .ok_or_eyre("ibc relay fees not found, so this action is disabled")?;
+        Ok(())
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for StakeBuilder {
+    #[instrument(skip_all, err)]
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> astria_eyre::Result<()> {
+        state
+            .get_stake_builder_fees()
+            .await
+            .wrap_err("error fetching stake builder fees")?
+            .ok_or_else(|| {
+                eyre::eyre!("stake builder fees not found, so this action is disabled")
+            })?;
+        Ok(())
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for UnstakeBuilder {
+    #[instrument(skip_all, err)]
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> astria_eyre::Result<()> {
+        state
+            .get_unstake_builder_fees()
+            .await
+            .wrap_err("error fetching unstake builder fees")?
+            .ok_or_else(|| {
+                eyre::eyre!("unstake builder fees not found, so this action is disabled")
+            })?;
+        Ok(())
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for WithdrawBuilderCollateral {
+    #[instrument(skip_all, err)]
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> astria_eyre::Result<()> {
+        state
+            .get_withdraw_builder_collateral_fees()
+            .await
+            .wrap_err("error fetching withdraw builder collateral fees")?
+            .ok_or_else(|| {
+                eyre::eyre!(
+                    "withdraw builder collateral fees not found, so this action is disabled"
+                )
+            })?;
         Ok(())
     }
 

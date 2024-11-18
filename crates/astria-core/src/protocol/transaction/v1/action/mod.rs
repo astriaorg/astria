@@ -34,9 +34,12 @@ use crate::{
         Ics20WithdrawalFeeComponents,
         InitBridgeAccountFeeComponents,
         RollupDataSubmissionFeeComponents,
+        StakeBuilderFeeComponents,
         SudoAddressChangeFeeComponents,
         TransferFeeComponents,
+        UnstakeBuilderFeeComponents,
         ValidatorUpdateFeeComponents,
+        WithdrawBuilderCollateralFeeComponents,
     },
     Protobuf,
 };
@@ -64,6 +67,9 @@ pub enum Action {
     BridgeUnlock(BridgeUnlock),
     BridgeSudoChange(BridgeSudoChange),
     FeeChange(FeeChange),
+    StakeBuilder(StakeBuilder),
+    UnstakeBuilder(UnstakeBuilder),
+    WithdrawBuilderCollateral(WithdrawBuilderCollateral),
 }
 
 impl Protobuf for Action {
@@ -88,6 +94,11 @@ impl Protobuf for Action {
             Action::BridgeUnlock(act) => Value::BridgeUnlock(act.to_raw()),
             Action::BridgeSudoChange(act) => Value::BridgeSudoChange(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChange(act.to_raw()),
+            Action::StakeBuilder(sb) => Value::StakeBuilder(sb.to_raw()),
+            Action::UnstakeBuilder(ub) => Value::UnstakeBuilder(ub.to_raw()),
+            Action::WithdrawBuilderCollateral(wbc) => {
+                Value::WithdrawBuilderCollateral(wbc.to_raw())
+            }
         };
         raw::Action {
             value: Some(kind),
@@ -161,6 +172,16 @@ impl Protobuf for Action {
             Value::FeeChange(act) => {
                 Self::FeeChange(FeeChange::try_from_raw_ref(&act).map_err(Error::fee_change)?)
             }
+            Value::StakeBuilder(act) => Self::StakeBuilder(
+                StakeBuilder::try_from_raw_ref(&act).map_err(Error::stake_builder)?,
+            ),
+            Value::UnstakeBuilder(act) => Self::UnstakeBuilder(
+                UnstakeBuilder::try_from_raw_ref(&act).map_err(Error::unstake_builder)?,
+            ),
+            Value::WithdrawBuilderCollateral(act) => Self::WithdrawBuilderCollateral(
+                WithdrawBuilderCollateral::try_from_raw_ref(&act)
+                    .map_err(Error::withdraw_builder_collateral)?,
+            ),
         };
         Ok(action)
     }
@@ -308,6 +329,9 @@ impl ActionName for Action {
             Action::BridgeUnlock(_) => "BridgeUnlock",
             Action::BridgeSudoChange(_) => "BridgeSudoChange",
             Action::FeeChange(_) => "FeeChange",
+            Action::StakeBuilder(_) => "StakeBuilder",
+            Action::UnstakeBuilder(_) => "UnstakeBuilder",
+            Action::WithdrawBuilderCollateral(_) => "WithdrawBuilderCollateral",
         }
     }
 }
@@ -376,6 +400,18 @@ impl Error {
     fn fee_change(inner: FeeChangeError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
+
+    fn stake_builder(inner: StakeBuilderError) -> Self {
+        Self(ActionErrorKind::StakeBuilder(inner))
+    }
+
+    fn unstake_builder(inner: UnstakeBuilderError) -> Self {
+        Self(ActionErrorKind::UnstakeBuilder(inner))
+    }
+
+    fn withdraw_builder_collateral(inner: WithdrawBuilderCollateralError) -> Self {
+        Self(ActionErrorKind::WithdrawBuilderCollateral(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -410,6 +446,12 @@ enum ActionErrorKind {
     BridgeSudoChange(#[source] BridgeSudoChangeError),
     #[error("fee change action was not valid")]
     FeeChange(#[source] FeeChangeError),
+    #[error("stake builder action was not valid")]
+    StakeBuilder(#[source] StakeBuilderError),
+    #[error("unstake builder action was not valid")]
+    UnstakeBuilder(#[source] UnstakeBuilderError),
+    #[error("withdraw builder collateral action was not valid")]
+    WithdrawBuilderCollateral(#[source] WithdrawBuilderCollateralError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1960,6 +2002,9 @@ pub enum FeeChange {
     IbcRelayerChange(IbcRelayerChangeFeeComponents),
     SudoAddressChange(SudoAddressChangeFeeComponents),
     IbcSudoChange(IbcSudoChangeFeeComponents),
+    StakeBuilder(StakeBuilderFeeComponents),
+    UnstakeBuilder(UnstakeBuilderFeeComponents),
+    WithdrawBuilderCollateral(WithdrawBuilderCollateralFeeComponents),
 }
 
 impl Protobuf for FeeChange {
@@ -2011,6 +2056,15 @@ impl Protobuf for FeeChange {
                 }
                 Self::IbcSudoChange(fee_change) => {
                     raw::fee_change::FeeComponents::IbcSudoChange(fee_change.to_raw())
+                }
+                Self::StakeBuilder(fee_change) => {
+                    raw::fee_change::FeeComponents::StakeBuilder(fee_change.to_raw())
+                }
+                Self::UnstakeBuilder(fee_change) => {
+                    raw::fee_change::FeeComponents::UnstakeBuilder(fee_change.to_raw())
+                }
+                Self::WithdrawBuilderCollateral(fee_change) => {
+                    raw::fee_change::FeeComponents::WithdrawBuilderCollateral(fee_change.to_raw())
                 }
             }),
         }
@@ -2072,7 +2126,314 @@ impl Protobuf for FeeChange {
             Some(raw::fee_change::FeeComponents::IbcSudoChange(fee_change)) => {
                 Self::IbcSudoChange(IbcSudoChangeFeeComponents::try_from_raw_ref(fee_change)?)
             }
+            Some(raw::fee_change::FeeComponents::StakeBuilder(fee_change)) => {
+                Self::StakeBuilder(StakeBuilderFeeComponents::try_from_raw_ref(fee_change)?)
+            }
+            Some(raw::fee_change::FeeComponents::UnstakeBuilder(fee_change)) => {
+                Self::UnstakeBuilder(UnstakeBuilderFeeComponents::try_from_raw_ref(fee_change)?)
+            }
+            Some(raw::fee_change::FeeComponents::WithdrawBuilderCollateral(fee_change)) => {
+                Self::WithdrawBuilderCollateral(
+                    WithdrawBuilderCollateralFeeComponents::try_from_raw_ref(fee_change)?,
+                )
+            }
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct StakeBuilderError(StakeBuilderErrorKind);
+
+impl StakeBuilderError {
+    #[must_use]
+    fn field_not_set(field: &'static str) -> Self {
+        Self(StakeBuilderErrorKind::FieldNotSet(field))
+    }
+    #[must_use]
+    fn address(source: AddressError) -> Self {
+        Self(StakeBuilderErrorKind::Address {
+            source,
+        })
+    }
+    #[must_use]
+    fn fee_asset(source: asset::ParseDenomError) -> Self {
+        Self(StakeBuilderErrorKind::FeeAsset {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum StakeBuilderErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the `to` field was invalid")]
+    Address { source: AddressError },
+    #[error("the `fee_asset` field was invalid")]
+    FeeAsset { source: asset::ParseDenomError },
+}
+
+#[derive(Debug, Clone)]
+pub struct StakeBuilder {
+    pub builder_address: Address,
+    pub amount: u128,
+    pub asset: asset::Denom,
+    pub fee_asset: asset::Denom,
+}
+
+impl Protobuf for StakeBuilder {
+    type Error = StakeBuilderError;
+    type Raw = raw::StakeBuilder;
+
+    #[must_use]
+    fn into_raw(self) -> raw::StakeBuilder {
+        raw::StakeBuilder {
+            builder_address: Some(self.builder_address.to_raw()),
+            amount: Some(self.amount.into()),
+            asset: self.asset.to_string(),
+            fee_asset: self.fee_asset.to_string(),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::StakeBuilder {
+        raw::StakeBuilder {
+            builder_address: Some(self.builder_address.to_raw()),
+            amount: Some(self.amount.into()),
+            asset: self.asset.to_string(),
+            fee_asset: self.fee_asset.to_string(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::StakeBuilderAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `amount` field is not set
+    /// - if the `amount` field is invalid
+    /// - if the `asset` field is invalid
+    /// - if the `fee_asset` field is invalid
+    fn try_from_raw(proto: raw::StakeBuilder) -> Result<Self, StakeBuilderError> {
+        let Some(builder_address) = proto.builder_address else {
+            return Err(StakeBuilderError::field_not_set("to"));
+        };
+        let builder_address = Address::try_from_raw(&builder_address)
+            .map_err(StakeBuilderError::address)?;
+
+        let asset = proto.asset.parse().map_err(StakeBuilderError::fee_asset)?;
+        let fee_asset = proto
+            .fee_asset
+            .parse()
+            .map_err(StakeBuilderError::fee_asset)?;
+        let amount = proto.amount.map_or(0, Into::into);
+        Ok(Self {
+            builder_address,
+            amount,
+            asset,
+            fee_asset,
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::StakeBuilderAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `amount` field is not set
+    /// - if the `amount` field is invalid
+    /// - if the `asset` field is invalid
+    /// - if the `fee_asset` field is invalid
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, StakeBuilderError> {
+        Self::try_from_raw(proto.clone())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct UnstakeBuilderError(UnstakeBuilderErrorKind);
+
+impl UnstakeBuilderError {
+    #[must_use]
+    fn field_not_set(field: &'static str) -> Self {
+        Self(UnstakeBuilderErrorKind::FieldNotSet(field))
+    }
+    #[must_use]
+    fn address(source: AddressError) -> Self {
+        Self(UnstakeBuilderErrorKind::Address {
+            source,
+        })
+    }
+    #[must_use]
+    fn fee_asset(source: asset::ParseDenomError) -> Self {
+        Self(UnstakeBuilderErrorKind::FeeAsset {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum UnstakeBuilderErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the `to` field was invalid")]
+    Address { source: AddressError },
+    // TODO: add error for invalid fee asset
+    #[error("the `fee_asset` field was invalid")]
+    FeeAsset { source: asset::ParseDenomError },
+}
+
+#[derive(Debug, Clone)]
+pub struct UnstakeBuilder {
+    pub builder_address: Address,
+    pub fee_asset: asset::Denom,
+}
+
+impl Protobuf for UnstakeBuilder {
+    type Error = UnstakeBuilderError;
+    type Raw = raw::UnstakeBuilder;
+
+    #[must_use]
+    fn into_raw(self) -> raw::UnstakeBuilder {
+        raw::UnstakeBuilder {
+            builder_address: Some(self.builder_address.to_raw()),
+            fee_asset: self.fee_asset.to_string(),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::UnstakeBuilder {
+        raw::UnstakeBuilder {
+            builder_address: Some(self.builder_address.to_raw()),
+            fee_asset: self.fee_asset.to_string(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::UnstakeBuilderAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `fee_asset` field is invalid
+    fn try_from_raw(proto: raw::UnstakeBuilder) -> Result<Self, UnstakeBuilderError> {
+        let Some(builder_address) = proto.builder_address else {
+            return Err(UnstakeBuilderError::field_not_set("to"));
+        };
+        let builder_address = Address::try_from_raw(&builder_address)
+            .map_err(UnstakeBuilderError::address)?;
+
+        let fee_asset = proto
+            .fee_asset
+            .parse()
+            .map_err(UnstakeBuilderError::fee_asset)?;
+        Ok(Self {
+            builder_address,
+            fee_asset,
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::UnstakeBuilderAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `amount` field is not set
+    /// - if the `amount` field is invalid
+    /// - if the `asset` field is invalid
+    /// - if the `fee_asset` field is invalid
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, UnstakeBuilderError> {
+        Self::try_from_raw(proto.clone())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct WithdrawBuilderCollateralError(WithdrawBuilderCollateralErrorKind);
+
+impl WithdrawBuilderCollateralError {
+    #[must_use]
+    fn field_not_set(field: &'static str) -> Self {
+        Self(WithdrawBuilderCollateralErrorKind::FieldNotSet(field))
+    }
+    #[must_use]
+    fn address(source: AddressError) -> Self {
+        Self(WithdrawBuilderCollateralErrorKind::Address {
+            source,
+        })
+    }
+    #[must_use]
+    fn fee_asset(source: asset::ParseDenomError) -> Self {
+        Self(WithdrawBuilderCollateralErrorKind::FeeAsset {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum WithdrawBuilderCollateralErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the `to` field was invalid")]
+    Address { source: AddressError },
+    #[error("the `fee_asset` field was invalid")]
+    FeeAsset { source: asset::ParseDenomError },
+}
+
+#[derive(Debug, Clone)]
+pub struct WithdrawBuilderCollateral {
+    pub builder_address: Address,
+    pub fee_asset: asset::Denom,
+}
+
+impl Protobuf for WithdrawBuilderCollateral {
+    type Error = WithdrawBuilderCollateralError;
+    type Raw = raw::WithdrawBuilderCollateral;
+
+    #[must_use]
+    fn into_raw(self) -> raw::WithdrawBuilderCollateral {
+        raw::WithdrawBuilderCollateral {
+            builder_address: Some(self.builder_address.to_raw()),
+            fee_asset: self.fee_asset.to_string(),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::WithdrawBuilderCollateral {
+        raw::WithdrawBuilderCollateral {
+            builder_address: Some(self.builder_address.to_raw()),
+            fee_asset: self.fee_asset.to_string(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::WithdrawBuilderCollateralAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `fee_asset` field is invalid
+    fn try_from_raw(
+        proto: raw::WithdrawBuilderCollateral,
+    ) -> Result<Self, WithdrawBuilderCollateralError> {
+        let Some(builder_address) = proto.builder_address else {
+            return Err(WithdrawBuilderCollateralError::field_not_set("to"));
+        };
+        let builder_address = Address::try_from_raw(&builder_address)
+            .map_err(WithdrawBuilderCollateralError::address)?;
+
+        let fee_asset = proto
+            .fee_asset
+            .parse()
+            .map_err(WithdrawBuilderCollateralError::fee_asset)?;
+        Ok(Self {
+            builder_address,
+            fee_asset,
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf
+    /// [`raw::WithdrawBuilderCollateralAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `fee_asset` field is invalid
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, WithdrawBuilderCollateralError> {
+        Self::try_from_raw(proto.clone())
     }
 }

@@ -84,6 +84,15 @@ impl ActionHandler for FeeChange {
             Self::IbcSudoChange(fees) => state
                 .put_ibc_sudo_change_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
+            Self::StakeBuilder(fees) => state
+                .put_stake_builder_fees(*fees)
+                .wrap_err("failed to put stake builder fees"),
+            Self::UnstakeBuilder(fees) => state
+                .put_unstake_builder_fees(*fees)
+                .wrap_err("failed to put unstake builder fees"),
+            Self::WithdrawBuilderCollateral(fees) => state
+                .put_withdraw_builder_collateral_fees(*fees)
+                .wrap_err("failed to put stake validator fees"),
         }
     }
 }

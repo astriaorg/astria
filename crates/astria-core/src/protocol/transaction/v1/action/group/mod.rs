@@ -21,9 +21,12 @@ use super::{
     Ics20Withdrawal,
     InitBridgeAccount,
     RollupDataSubmission,
+    StakeBuilder,
     SudoAddressChange,
     Transfer,
+    UnstakeBuilder,
     ValidatorUpdate,
+    WithdrawBuilderCollateral,
 };
 
 trait BelongsToGroup {
@@ -55,6 +58,9 @@ impl_belong_to_group!(
     (FeeAssetChange, Group::BundleableSudo),
     (IbcRelay, Group::BundleableGeneral),
     (IbcSudoChange, Group::UnbundleableSudo),
+    (StakeBuilder, Group::BundleableGeneral),
+    (UnstakeBuilder, Group::BundleableGeneral),
+    (WithdrawBuilderCollateral, Group::BundleableGeneral)
 );
 
 impl Action {
@@ -74,6 +80,9 @@ impl Action {
             Action::FeeAssetChange(_) => FeeAssetChange::GROUP,
             Action::Ibc(_) => IbcRelay::GROUP,
             Action::IbcSudoChange(_) => IbcSudoChange::GROUP,
+            Action::StakeBuilder(_) => StakeBuilder::GROUP,
+            Action::UnstakeBuilder(_) => UnstakeBuilder::GROUP,
+            Action::WithdrawBuilderCollateral(_) => WithdrawBuilderCollateral::GROUP,
         }
     }
 }

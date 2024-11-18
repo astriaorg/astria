@@ -30,6 +30,11 @@ message Action {
     FeeAssetChange fee_asset_change = 53;
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
+
+    // 60-70 are builder enshrined actions
+    StakeBuilder stake_builder = 60;
+    UnstakeBuilder unstake_builder = 61;
+    WithdrawBuilderCollateral withdraw_builder_collateral = 62;
   }
 }
 
@@ -211,6 +216,30 @@ message BridgeSudoChange {
   string fee_asset = 4;
 }
 
+// The builder actions infer the builder addresses from the transaction sender.
+message StakeBuilder {
+  // the address of the enshrined builder
+  astria.primitive.v1.Address builder_address = 1;
+  // the amount to be staked
+  astria.primitive.v1.Uint128 amount = 2;
+  // the asset to be staked
+  string asset = 3;
+  // the asset used to pay the transaction fee
+  string fee_asset = 4;
+}
+
+message UnstakeBuilder {
+  // the address of the enshrined builder
+  astria.primitive.v1.Address builder_address = 1;
+  string fee_asset = 2;
+}
+
+message WithdrawBuilderCollateral {
+  // the address of the enshrined builder
+  astria.primitive.v1.Address builder_address = 1;
+  string fee_asset = 2;
+}
+
 message FeeChange {
   // the new fee components values
   oneof fee_components {
@@ -228,6 +257,9 @@ message FeeChange {
     astria.protocol.fees.v1.SudoAddressChangeFeeComponents sudo_address_change = 12;
     astria.protocol.fees.v1.TransferFeeComponents transfer = 13;
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
+    astria.protocol.fees.v1.StakeBuilderFeeComponents stake_builder = 15;
+    astria.protocol.fees.v1.UnstakeBuilderFeeComponents unstake_builder = 16;
+    astria.protocol.fees.v1.WithdrawBuilderCollateralFeeComponents withdraw_builder_collateral = 17;
   }
 }
 

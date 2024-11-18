@@ -10,9 +10,12 @@ use astria_core::protocol::fees::v1::{
     Ics20WithdrawalFeeComponents,
     InitBridgeAccountFeeComponents,
     RollupDataSubmissionFeeComponents,
+    StakeBuilderFeeComponents,
     SudoAddressChangeFeeComponents,
     TransferFeeComponents,
+    UnstakeBuilderFeeComponents,
     ValidatorUpdateFeeComponents,
+    WithdrawBuilderCollateralFeeComponents,
 };
 use astria_eyre::eyre::bail;
 use borsh::{
@@ -43,6 +46,9 @@ enum ValueImpl {
     IbcRelayerChangeFees(IbcRelayerChangeFeeComponentsStorage),
     IbcSudoChangeFees(IbcSudoChangeFeeComponentsStorage),
     SudoAddressChangeFees(SudoAddressChangeFeeComponentsStorage),
+    StakeBuilderFees(StakeBuilderFeeComponentsStorage),
+    UnstakeBuilderFees(UnstakeBuilderFeeComponentsStorage),
+    WithdrawBuilderCollateralFees(WithdrawBuilderCollateralFeeComponentsStorage),
 }
 
 macro_rules! impl_from_for_fee_component{
@@ -171,6 +177,24 @@ pub(in crate::fees) struct SudoAddressChangeFeeComponentsStorage {
     pub multiplier: u128,
 }
 
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub(in crate::fees) struct StakeBuilderFeeComponentsStorage {
+    pub base: u128,
+    pub multiplier: u128,
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub(in crate::fees) struct UnstakeBuilderFeeComponentsStorage {
+    pub base: u128,
+    pub multiplier: u128,
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub(in crate::fees) struct WithdrawBuilderCollateralFeeComponentsStorage {
+    pub base: u128,
+    pub multiplier: u128,
+}
+
 impl_from_for_fee_component!(
     TransferFeeComponents => TransferFeeComponentsStorage,
     RollupDataSubmissionFeeComponents => RollupDataSubmissionFeeComponentsStorage,
@@ -186,6 +210,9 @@ impl_from_for_fee_component!(
     IbcRelayerChangeFeeComponents => IbcRelayerChangeFeeComponentsStorage,
     IbcSudoChangeFeeComponents => IbcSudoChangeFeeComponentsStorage,
     SudoAddressChangeFeeComponents => SudoAddressChangeFeeComponentsStorage,
+    StakeBuilderFeeComponents => StakeBuilderFeeComponentsStorage,
+    UnstakeBuilderFeeComponents => UnstakeBuilderFeeComponentsStorage,
+    WithdrawBuilderCollateralFeeComponents => WithdrawBuilderCollateralFeeComponentsStorage,
 );
 
 impl_from_for_fee_storage!(
@@ -203,4 +230,7 @@ impl_from_for_fee_storage!(
     IbcRelayerChangeFeeComponentsStorage => IbcRelayerChangeFees,
     IbcSudoChangeFeeComponentsStorage => IbcSudoChangeFees,
     SudoAddressChangeFeeComponentsStorage => SudoAddressChangeFees,
+    StakeBuilderFeeComponentsStorage => StakeBuilderFees,
+    UnstakeBuilderFeeComponentsStorage => UnstakeBuilderFees,
+    WithdrawBuilderCollateralFeeComponentsStorage => WithdrawBuilderCollateralFees,
 );

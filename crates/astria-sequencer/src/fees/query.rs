@@ -235,6 +235,9 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     let ibc_relayer_change_fees = OnceCell::new();
     let fee_asset_change_fees = OnceCell::new();
     let fee_change_fees = OnceCell::new();
+    let stake_builder_fees = OnceCell::new();
+    let unstake_builder_fees = OnceCell::new();
+    let withdraw_builder_collateral = OnceCell::new();
 
     let mut fees_by_asset = HashMap::new();
     for action in tx.actions() {
@@ -251,6 +254,55 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     &mut fees_by_asset,
                     transfer_fees.base,
                     transfer_fees.multiplier,
+                );
+            }
+            Action::StakeBuilder(act) => {
+                let stake_builder_fees = stake_builder_fees
+                    .get_or_try_init(|| async { state.get_stake_builder_fees().await })
+                    .await
+                    .wrap_err("failed to get stake builder fees")?
+                    .ok_or_eyre("fees not found for `StakeBuilder` action, hence it is disabled")?;
+                calculate_and_add_fees(
+                    act,
+                    act.fee_asset.to_ibc_prefixed(),
+                    &mut fees_by_asset,
+                    stake_builder_fees.base,
+                    stake_builder_fees.multiplier,
+                );
+            }
+            Action::UnstakeBuilder(act) => {
+                let unstake_builder_fees = unstake_builder_fees
+                    .get_or_try_init(|| async { state.get_unstake_builder_fees().await })
+                    .await
+                    .wrap_err("failed to get unstake builder fees")?
+                    .ok_or_eyre(
+                        "fees not found for `UnstakeBuilder` action, hence it is disabled",
+                    )?;
+                calculate_and_add_fees(
+                    act,
+                    act.fee_asset.to_ibc_prefixed(),
+                    &mut fees_by_asset,
+                    unstake_builder_fees.base,
+                    unstake_builder_fees.multiplier,
+                );
+            }
+            Action::WithdrawBuilderCollateral(act) => {
+                let withdraw_builder_collateral = withdraw_builder_collateral
+                    .get_or_try_init(|| async {
+                        state.get_withdraw_builder_collateral_fees().await
+                    })
+                    .await
+                    .wrap_err("failed to get withdraw builder collateral fees")?
+                    .ok_or_eyre(
+                        "fees not found for `WithdrawBuilderCollateral` action, hence it is \
+                         disabled",
+                    )?;
+                calculate_and_add_fees(
+                    act,
+                    act.fee_asset.to_ibc_prefixed(),
+                    &mut fees_by_asset,
+                    withdraw_builder_collateral.base,
+                    withdraw_builder_collateral.multiplier,
                 );
             }
             Action::RollupDataSubmission(act) => {

@@ -9,6 +9,7 @@ pub(crate) mod benchmark_and_test_utils;
 pub(crate) mod benchmark_utils;
 pub(crate) mod bridge;
 mod build_info;
+pub(crate) mod builder_enshrinement;
 pub(crate) mod component;
 pub mod config;
 pub(crate) mod fees;

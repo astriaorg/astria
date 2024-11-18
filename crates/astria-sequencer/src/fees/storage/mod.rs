@@ -14,7 +14,10 @@ pub(super) use values::{
     Ics20WithdrawalFeeComponentsStorage,
     InitBridgeAccountFeeComponentsStorage,
     RollupDataSubmissionFeeComponentsStorage,
+    StakeBuilderFeeComponentsStorage,
     SudoAddressChangeFeeComponentsStorage,
     TransferFeeComponentsStorage,
+    UnstakeBuilderFeeComponentsStorage,
     ValidatorUpdateFeeComponentsStorage,
+    WithdrawBuilderCollateralFeeComponentsStorage,
 };

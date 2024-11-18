@@ -22,9 +22,12 @@ use astria_core::{
         Ics20WithdrawalFeeComponents,
         InitBridgeAccountFeeComponents,
         RollupDataSubmissionFeeComponents,
+        StakeBuilderFeeComponents,
         SudoAddressChangeFeeComponents,
         TransferFeeComponents,
+        UnstakeBuilderFeeComponents,
         ValidatorUpdateFeeComponents,
+        WithdrawBuilderCollateralFeeComponents,
     },
     Protobuf,
 };
@@ -350,6 +353,59 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
+    async fn get_stake_builder_fees(&self) -> Result<Option<StakeBuilderFeeComponents>> {
+        let bytes = self
+            .get_raw(keys::STAKE_BUILDER)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw stake builder fee components from state")?;
+        let Some(bytes) = bytes else {
+            return Ok(None);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::StakeBuilderFeeComponentsStorage::try_from(value)
+                    .map(|fees| Some(StakeBuilderFeeComponents::from(fees)))
+            })
+            .wrap_err("invalid fees bytes")
+    }
+
+    async fn get_unstake_builder_fees(&self) -> Result<Option<UnstakeBuilderFeeComponents>> {
+        let bytes = self
+            .get_raw(keys::UNSTAKE_BUILDER)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw unstake builder fee components from state")?;
+        let Some(bytes) = bytes else {
+            return Ok(None);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::UnstakeBuilderFeeComponentsStorage::try_from(value)
+                    .map(|fees| Some(UnstakeBuilderFeeComponents::from(fees)))
+            })
+            .wrap_err("invalid fees bytes")
+    }
+
+    async fn get_withdraw_builder_collateral_fees(
+        &self,
+    ) -> Result<Option<WithdrawBuilderCollateralFeeComponents>> {
+        let bytes = self
+            .get_raw(keys::WITHDRAW_BUILDER_COLLATERAL)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw withdraw builder collateral fee components from state")?;
+        let Some(bytes) = bytes else {
+            return Ok(None);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::WithdrawBuilderCollateralFeeComponentsStorage::try_from(value)
+                    .map(|fees| Some(WithdrawBuilderCollateralFeeComponents::from(fees)))
+            })
+            .wrap_err("invalid fees bytes")
+    }
+
     #[instrument(skip_all)]
     async fn is_allowed_fee_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
@@ -540,6 +596,37 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .wrap_err("failed to serialize fees")?;
         self.put_raw(keys::IBC_SUDO_CHANGE.to_string(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn put_stake_builder_fees(&mut self, fees: StakeBuilderFeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::StakeBuilderFeeComponentsStorage::from(fees))
+            .serialize()
+            .wrap_err("failed to serialize fees")?;
+        self.put_raw(keys::STAKE_BUILDER.to_string(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn put_unstake_builder_fees(&mut self, fees: UnstakeBuilderFeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::UnstakeBuilderFeeComponentsStorage::from(fees))
+            .serialize()
+            .wrap_err("failed to serialize fees")?;
+        self.put_raw(keys::UNSTAKE_BUILDER.to_string(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn put_withdraw_builder_collateral_fees(
+        &mut self,
+        fees: WithdrawBuilderCollateralFeeComponents,
+    ) -> Result<()> {
+        let bytes =
+            StoredValue::from(storage::WithdrawBuilderCollateralFeeComponentsStorage::from(fees))
+                .serialize()
+                .wrap_err("failed to serialize fees")?;
+        self.put_raw(keys::WITHDRAW_BUILDER_COLLATERAL.to_string(), bytes);
         Ok(())
     }
 
@@ -900,6 +987,56 @@ mod tests {
 
         state.put_ibc_sudo_change_fees(fee_components).unwrap();
         let retrieved_fee = state.get_ibc_sudo_change_fees().await.unwrap();
+        assert_eq!(retrieved_fee, Some(fee_components));
+    }
+
+    #[tokio::test]
+    async fn stake_builder_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = StakeBuilderFeeComponents {
+            base: 123,
+            multiplier: 1,
+        };
+
+        state.put_stake_builder_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_stake_builder_fees().await.unwrap();
+        assert_eq!(retrieved_fee, Some(fee_components));
+    }
+
+    #[tokio::test]
+    async fn unstake_builder_fees_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = UnstakeBuilderFeeComponents {
+            base: 123,
+            multiplier: 1,
+        };
+
+        state.put_unstake_builder_fees(fee_components).unwrap();
+        let retrieved_fee = state.get_unstake_builder_fees().await.unwrap();
+        assert_eq!(retrieved_fee, Some(fee_components));
+    }
+
+    #[tokio::test]
+    async fn withdraw_builder_collateral_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let fee_components = WithdrawBuilderCollateralFeeComponents {
+            base: 123,
+            multiplier: 1,
+        };
+
+        state
+            .put_withdraw_builder_collateral_fees(fee_components)
+            .unwrap();
+        let retrieved_fee = state.get_withdraw_builder_collateral_fees().await.unwrap();
         assert_eq!(retrieved_fee, Some(fee_components));
     }
 

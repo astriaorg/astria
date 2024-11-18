@@ -25,6 +25,9 @@ pub(in crate::fees) const SUDO_ADDRESS_CHANGE: &str = "fees/sudo_address_change"
 pub(in crate::fees) const IBC_SUDO_CHANGE: &str = "fees/ibc_sudo_change";
 pub(in crate::fees) const BLOCK: &str = "fees/block"; // NOTE: `BLOCK` is only used in the ephemeral store.
 pub(in crate::fees) const ALLOWED_ASSET_PREFIX: &str = "fees/allowed_asset/";
+pub(in crate::fees) const STAKE_BUILDER: &str = "fees/stake_builder";
+pub(in crate::fees) const UNSTAKE_BUILDER: &str = "fees/unstake_builder";
+pub(in crate::fees) const WITHDRAW_BUILDER_COLLATERAL: &str = "fees/withdraw_builder_collateral";
 
 pub(in crate::fees) fn allowed_asset<'a, TAsset>(asset: &'a TAsset) -> String
 where
@@ -81,6 +84,12 @@ mod tests {
         assert_snapshot!("sudo_address_change_fees_key", SUDO_ADDRESS_CHANGE);
         assert_snapshot!("transer_fees_key", TRANSFER);
         assert_snapshot!("validator_update_fees_key", VALIDATOR_UPDATE);
+        assert_snapshot!("stake_builder_fees_key", STAKE_BUILDER);
+        assert_snapshot!("unstake_builder_fees_key", UNSTAKE_BUILDER);
+        assert_snapshot!(
+            "withdraw_builder_collateral_fees_key",
+            WITHDRAW_BUILDER_COLLATERAL
+        );
         assert_snapshot!("allowed_asset_key", allowed_asset(&test_asset()));
     }
 
@@ -101,6 +110,9 @@ mod tests {
         assert!(SUDO_ADDRESS_CHANGE.starts_with(COMPONENT_PREFIX));
         assert!(IBC_SUDO_CHANGE.starts_with(COMPONENT_PREFIX));
         assert!(ALLOWED_ASSET_PREFIX.starts_with(COMPONENT_PREFIX));
+        assert!(STAKE_BUILDER.starts_with(COMPONENT_PREFIX));
+        assert!(UNSTAKE_BUILDER.starts_with(COMPONENT_PREFIX));
+        assert!(WITHDRAW_BUILDER_COLLATERAL.starts_with(COMPONENT_PREFIX));
         assert!(allowed_asset(&test_asset()).starts_with(COMPONENT_PREFIX));
     }
 

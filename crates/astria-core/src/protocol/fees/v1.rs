@@ -81,6 +81,9 @@ impl_protobuf_for_fee_components!(
     FeeChangeFeeComponents => raw::FeeChangeFeeComponents,
     SudoAddressChangeFeeComponents => raw::SudoAddressChangeFeeComponents,
     IbcSudoChangeFeeComponents => raw::IbcSudoChangeFeeComponents,
+    StakeBuilderFeeComponents => raw::StakeBuilderFeeComponents,
+    UnstakeBuilderFeeComponents => raw::UnstakeBuilderFeeComponents,
+    WithdrawBuilderCollateralFeeComponents => raw::WithdrawBuilderCollateralFeeComponents,
 );
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -163,6 +166,24 @@ pub struct SudoAddressChangeFeeComponents {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct IbcSudoChangeFeeComponents {
+    pub base: u128,
+    pub multiplier: u128,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StakeBuilderFeeComponents {
+    pub base: u128,
+    pub multiplier: u128,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct UnstakeBuilderFeeComponents {
+    pub base: u128,
+    pub multiplier: u128,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WithdrawBuilderCollateralFeeComponents {
     pub base: u128,
     pub multiplier: u128,
 }
