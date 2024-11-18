@@ -1,6 +1,6 @@
 [package]
 name = "astria-bridge-withdrawer"
-version = "1.0.0-rc.2"
+version = "1.0.1"
 edition = "2021"
 rust-version = "1.81.0"
 license = "MIT OR Apache-2.0"
@@ -30,7 +30,9 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true }
 tonic = { workspace = true }
 
-astria-bridge-contracts = { path = "../astria-bridge-contracts" }
+astria-bridge-contracts = { path = "../astria-bridge-contracts", features = [
+  "tracing",
+] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = [
   "serde",

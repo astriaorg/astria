@@ -1,3 +1,5 @@
+//! Contains the logic for constructing responses for a [`Mock`](`crate::Mock`).
+
 use std::{
     marker::PhantomData,
     time::Duration,
@@ -9,6 +11,53 @@ use super::{
 };
 use crate::erase_response;
 
+/// Constructs a [`ResponseTemplate`] that will respond with [`tonic::Response<T>`]
+/// where `T` is the type of `value` and the `message` of the response is `value`.
+///
+/// # Examples
+///
+/// ```rust
+/// use astria_grpc_mock::{
+///     matcher,
+///     response,
+///     AnyMessage,
+///     Mock,
+///     MockServer,
+/// };
+/// use futures::{
+///     executor::block_on,
+///     future::join,
+/// };
+///
+/// // `MockMessage` implementation hidden for brevity
+/// # #[derive(serde::Serialize, ::prost::Message, Clone, PartialEq)]
+/// # struct MockMessage {
+/// #     #[prost(string, tag = "1")]
+/// #     name: String,
+/// # }
+/// # impl ::prost::Name for MockMessage {
+/// #     const NAME: &'static str = "MockMessage";
+/// #     const PACKAGE: &'static str = "test";
+/// #
+/// #     fn full_name() -> ::prost::alloc::string::String {
+/// #         ::prost::alloc::format!("test.{}", Self::NAME)
+/// #     }
+/// # }
+///
+/// let mock_message = MockMessage {
+///     name: "test".to_string(),
+/// };
+/// let server = MockServer::new();
+/// let mock_fut = Mock::for_rpc_given("rpc", matcher::message_exact_pbjson(&mock_message))
+///     .respond_with(response::constant_response(mock_message.clone()))
+///     .mount(&server);
+/// let rsp_fut = server.handle_request::<MockMessage, MockMessage>(
+///     "rpc",
+///     tonic::Request::new(mock_message.clone()),
+/// );
+/// let (_, rsp) = block_on(join(mock_fut, rsp_fut));
+/// assert_eq!(rsp.unwrap().into_inner(), mock_message);
+/// ```
 pub fn constant_response<
     T: erased_serde::Serialize + prost::Name + Clone + Default + Send + Sync + 'static,
 >(
@@ -37,6 +86,53 @@ impl Respond for ConstantResponse {
     }
 }
 
+/// Constructs a [`ResponseTemplate`] that will respond with [`tonic::Response<T>`]
+/// where the constant response is the default value of `T`.
+///
+/// # Examples
+///
+/// ```rust
+/// use astria_grpc_mock::{
+///     matcher,
+///     response,
+///     AnyMessage,
+///     Mock,
+///     MockServer,
+/// };
+/// use futures::{
+///     executor::block_on,
+///     future::join,
+/// };
+///
+/// // `MockMessage` implementation hidden for brevity
+/// # #[derive(serde::Serialize, ::prost::Message, Clone, PartialEq)]
+/// # struct MockMessage {
+/// #     #[prost(string, tag = "1")]
+/// #     name: String,
+/// # }
+/// # impl ::prost::Name for MockMessage {
+/// #     const NAME: &'static str = "MockMessage";
+/// #     const PACKAGE: &'static str = "test";
+/// #
+/// #     fn full_name() -> ::prost::alloc::string::String {
+/// #         ::prost::alloc::format!("test.{}", Self::NAME)
+/// #     }
+/// # }
+///
+/// let mock_message = MockMessage {
+///     name: String::new(),
+/// };
+/// let server = MockServer::new();
+/// let mock_fut = Mock::for_rpc_given("rpc", matcher::message_exact_pbjson(&mock_message))
+///     .respond_with(response::default_response::<MockMessage>())
+///     .mount(&server);
+/// let rsp_fut = server.handle_request::<MockMessage, MockMessage>(
+///     "rpc",
+///     tonic::Request::new(mock_message.clone()),
+/// );
+/// let (_, rsp) = block_on(join(mock_fut, rsp_fut));
+/// assert_eq!(rsp.unwrap().into_inner(), mock_message);
+/// ```
 #[must_use]
 pub fn default_response<
     T: erased_serde::Serialize + prost::Name + Clone + Default + Send + Sync + 'static,
@@ -51,6 +147,56 @@ pub fn default_response<
     }
 }
 
+/// Constructs a [`ResponseTemplate`] that will respond with [`tonic::Response<T>`],
+/// where the response is the return value of `responder({Request})`.
+///
+/// # Examples
+///
+/// ```rust
+/// use astria_grpc_mock::{
+///     matcher,
+///     response,
+///     AnyMessage,
+///     Mock,
+///     MockServer,
+/// };
+/// use futures::{
+///     executor::block_on,
+///     future::join,
+/// };
+///
+/// // `MockMessage` implementation hidden for brevity
+/// # #[derive(serde::Serialize, ::prost::Message, Clone, PartialEq)]
+/// # struct MockMessage {
+/// #     #[prost(string, tag = "1")]
+/// #     name: String,
+/// # }
+/// # impl ::prost::Name for MockMessage {
+/// #     const NAME: &'static str = "MockMessage";
+/// #     const PACKAGE: &'static str = "test";
+/// #
+/// #     fn full_name() -> ::prost::alloc::string::String {
+/// #         ::prost::alloc::format!("test.{}", Self::NAME)
+/// #     }
+/// # }
+///
+/// let mock_message = MockMessage {
+///     name: "test".to_string(),
+/// };
+/// let server = MockServer::new();
+/// let responder = |req: &MockMessage| MockMessage {
+///     name: req.name.clone(),
+/// };
+/// let mock_fut = Mock::for_rpc_given("rpc", matcher::message_exact_pbjson(&mock_message))
+///     .respond_with(response::dynamic_response(responder))
+///     .mount(&server);
+/// let rsp_fut = server.handle_request::<MockMessage, MockMessage>(
+///     "rpc",
+///     tonic::Request::new(mock_message.clone()),
+/// );
+/// let (_, rsp) = block_on(join(mock_fut, rsp_fut));
+/// assert_eq!(rsp.unwrap().into_inner(), mock_message);
+/// ```
 pub fn dynamic_response<I, O, F>(responder: F) -> ResponseTemplate
 where
     O: erased_serde::Serialize + prost::Name + Clone + 'static,
@@ -67,7 +213,7 @@ where
     }
 }
 
-pub struct DynamicResponse<I, O, F> {
+struct DynamicResponse<I, O, F> {
     type_name: &'static str,
     responder: Box<F>,
     _phantom_data: PhantomData<(I, O)>,
@@ -83,6 +229,54 @@ impl Respond for ErrorResponse {
     }
 }
 
+/// Constructs a [`ResponseTemplate`] that will respond with a [`tonic::Status`] error containing
+/// the given [`tonic::Code`].
+///
+/// # Examples
+///
+/// ```rust
+/// use astria_grpc_mock::{
+///     matcher,
+///     response,
+///     AnyMessage,
+///     Mock,
+///     MockServer,
+/// };
+/// use futures::executor::block_on;
+///
+/// // `MockMessage` implementation hidden for brevity
+/// # #[derive(serde::Serialize, ::prost::Message, Clone, PartialEq)]
+/// # struct MockMessage {
+/// #     #[prost(string, tag = "1")]
+/// #     name: String,
+/// # }
+/// # impl ::prost::Name for MockMessage {
+/// #     const NAME: &'static str = "MockMessage";
+/// #     const PACKAGE: &'static str = "test";
+/// #
+/// #     fn full_name() -> ::prost::alloc::string::String {
+/// #        ::prost::alloc::format!("test.{}", Self::NAME)
+/// #    }
+/// # }
+/// #
+///
+/// let mock_message = MockMessage {
+///     name: "test".to_string(),
+/// };
+/// let server = MockServer::new();
+///
+/// block_on(
+///     Mock::for_rpc_given("rpc", matcher::message_exact_pbjson(&mock_message))
+///         .respond_with(response::error_response(2.into())) // mount `Code::Unknown`
+///         .mount(&server),
+/// );
+///
+/// let rsp = block_on(server.handle_request::<MockMessage, MockMessage>(
+///     "rpc",
+///     tonic::Request::new(mock_message.clone()),
+/// ));
+/// assert_eq!(rsp.unwrap_err().code(), tonic::Code::Unknown);
+/// ```
 #[must_use]
 pub fn error_response(code: tonic::Code) -> ResponseTemplate {
     ResponseTemplate {
@@ -121,11 +315,14 @@ where
     }
 }
 
+/// The `Ok` variant of the `Result` returned by [`Respond::respond`]. It consists
+/// of the type name of the inner message and a [`tonic::Response`] containing the inner message.
 pub struct MockResponse {
     pub(crate) type_name: &'static str,
     pub(crate) inner: tonic::Response<AnyMessage>,
 }
 
+/// The return type of [`Respond::respond`].
 pub type ResponseResult = Result<MockResponse, tonic::Status>;
 
 impl Clone for MockResponse {
@@ -138,6 +335,9 @@ impl Clone for MockResponse {
     }
 }
 
+/// A template for response that is used to construct a [`Mock`](`crate::Mock`). When a request is
+/// made which satisfies the mock's matcher, the template's [`Respond`] implementation is called.
+/// There is an optional delay that can be set on the response as well.
 pub struct ResponseTemplate {
     response: Box<dyn Respond>,
     delay: Option<Duration>,
@@ -151,6 +351,22 @@ impl ResponseTemplate {
         (self.response.respond(req), self.delay)
     }
 
+    /// Sets the delay of the response.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use astria_grpc_mock::{
+    ///     matcher,
+    ///     response,
+    ///     AnyMessage,
+    ///     Mock,
+    /// };
+    ///
+    /// // The below mock's response will be delayed by 1 second.
+    /// let _mock = Mock::for_rpc_given("rpc", matcher::message_type::<AnyMessage>()).respond_with(
+    ///     response::error_response(0.into()).set_delay(std::time::Duration::from_secs(1)),
+    /// );
+    /// ```
     #[must_use]
     pub fn set_delay(mut self, delay: Duration) -> Self {
         self.delay = Some(delay);
@@ -158,6 +374,14 @@ impl ResponseTemplate {
     }
 }
 
+/// The trait which houses the logic for responding to a request.
+///
+/// It is already implemented for the following response types:
+/// * [`constant_response`]
+/// * [`dynamic_response`]
+/// * [`error_response`]
+///
+/// This trait can also be implemented to use custom response logic.
 pub trait Respond: Send + Sync {
     fn respond(&self, req: &tonic::Request<AnyMessage>) -> ResponseResult;
 }

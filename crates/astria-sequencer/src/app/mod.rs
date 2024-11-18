@@ -1,9 +1,11 @@
 mod action_handler;
+#[cfg(any(test, feature = "benchmark"))]
+pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 mod state_ext;
 pub(crate) mod storage;
-#[cfg(any(test, feature = "benchmark"))]
+#[cfg(test)]
 pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
@@ -806,7 +808,7 @@ impl App {
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "transaction error: failed to execute transaction"
                     );
-                    bail!("transaction failed to execute");
+                    return Err(e.wrap_err("transaction failed to execute"));
                 }
             }
 
@@ -1173,7 +1175,16 @@ impl App {
                     .iter()
                     .any(|act| act.is_fee_asset_change() || act.is_fee_change());
 
-        Ok(state_tx.apply().1)
+        // index all event attributes
+        let mut events = state_tx.apply().1;
+        for event in &mut events {
+            event
+                .attributes
+                .iter_mut()
+                .for_each(|attr| attr.index = true);
+        }
+
+        Ok(events)
     }
 
     #[instrument(name = "App::end_block", skip_all)]

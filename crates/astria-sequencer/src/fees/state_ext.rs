@@ -42,10 +42,7 @@ use cnidarium::{
 };
 use futures::Stream;
 use pin_project_lite::pin_project;
-use tendermint::abci::{
-    Event,
-    EventAttributeIndexExt as _,
-};
+use tendermint::abci::Event;
 use tracing::instrument;
 
 use super::{
@@ -574,14 +571,13 @@ fn construct_tx_fee_event(fee: &Fee) -> Event {
     Event::new(
         "tx.fees",
         [
-            ("actionName", fee.action_name.to_string()).index(),
-            ("asset", fee.asset.to_string()).index(),
-            ("feeAmount", fee.amount.to_string()).index(),
+            ("actionName", fee.action_name.to_string()),
+            ("asset", fee.asset.to_string()),
+            ("feeAmount", fee.amount.to_string()),
             (
                 "positionInTransaction",
                 fee.position_in_transaction.to_string(),
-            )
-                .index(),
+            ),
         ],
     )
 }
@@ -599,7 +595,7 @@ mod tests {
     use tokio::pin;
 
     use super::*;
-    use crate::app::test_utils::initialize_app_with_storage;
+    use crate::app::benchmark_and_test_utils::initialize_app_with_storage;
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
