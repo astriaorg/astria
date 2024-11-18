@@ -23,6 +23,7 @@ use std::{
 
 use astria_core::{
     generated::protocol::transaction::v1 as raw,
+    primitive::v1::TRANSACTION_ID_LEN,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1::GenesisAppState,
@@ -589,13 +590,12 @@ impl App {
         let mut unused_count = pending_txs.len();
         for (tx_hash, tx) in pending_txs {
             unused_count = unused_count.saturating_sub(1);
-            let tx_hash_base_64 = telemetry::display::base64(&tx_hash).to_string();
 
             if ExitContinue::Exit
                 == proposal_checks_and_tx_execution(
                     self,
                     tx,
-                    Some(tx_hash_base_64),
+                    Some(tx_hash),
                     block_size_constraints,
                     &mut proposal_info,
                 )
@@ -1289,8 +1289,8 @@ impl ProcessProposalInformation {
 async fn proposal_checks_and_tx_execution(
     app: &mut App,
     tx: Arc<Transaction>,
-    tx_hash_base_64: Option<String>, /* optional since prepare_proposal already has tx_hash and
-                                      * we shouldn't compute it twice */
+    // `prepare_proposal_tx_execution` already has the tx hash, so we pass it in here
+    tx_hash: Option<[u8; TRANSACTION_ID_LEN]>,
     block_size_constraints: &mut BlockSizeConstraints,
     proposal_info: &mut Proposal<'_>,
 ) -> Result<ExitContinue> {
@@ -1302,8 +1302,9 @@ async fn proposal_checks_and_tx_execution(
         .filter_map(Action::as_rollup_data_submission)
         .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
     let tx_bytes = tx.to_raw().encode_to_vec();
-    let tx_hash_base_64 = tx_hash_base_64
-        .unwrap_or_else(|| telemetry::display::base64(Sha256::digest(&tx_bytes)).to_string());
+    let tx_hash_base_64 =
+        telemetry::display::base64(tx_hash.unwrap_or_else(|| Sha256::digest(&tx_bytes).into()))
+            .to_string();
     let tx_len = tx_bytes.len();
     let debug_msg = match proposal_info {
         Proposal::Prepare(_) => "excluding transaction",
