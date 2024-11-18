@@ -44,16 +44,13 @@ spec:
               name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
               subPath: {{ include "rollup.name" . }}/executor
       containers:
-        - name: geth
-          command: [ "geth" ]
-          args:
-            {{- range $arg := .Values.config.geth.flags }}
-            {{- if $arg.condition | default true }}
-            - --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }}
-            {{- end }}
-            {{- end }}
-          image: {{ include "rollup.image" . }}
+        - name: chess-rollup
+          command: [ "/usr/local/bin/chess" ]
+          image: chess:local-v0.0.17
           imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "rollup.name" . }}-geth-env
           volumeMounts:
             - mountPath: /scripts/
               name: {{ include "rollup.name" . }}-executor-scripts-volume
@@ -68,6 +65,8 @@ spec:
               name: ws-rpc
             - containerPort: {{ .Values.ports.executionGRPC }}
               name: execution-grpc
+            - containerPort: 3030
+              name: rollup-rest
             {{- if .Values.metrics.enabled }}
             - containerPort: {{ .Values.ports.metrics }}
               name: geth-metr
