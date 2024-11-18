@@ -23,8 +23,8 @@ images:
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
-    tag: "update-changes-9"
-    devTag: "update-changes-9"
+    tag: "updated-changes-10"
+    devTag: "updated-changes-10"
 
 moniker: ""
 genesis:
