@@ -1355,7 +1355,22 @@ async fn proposal_checks_and_tx_execution(
         };
     }
 
-    check_tx_group(tx_hash_base_64, tx_group, debug_msg, proposal_info)?;
+    // ensure transaction's group is less than or equal to current action group
+    if tx_group > proposal_info.current_tx_group() {
+        debug!(
+            transaction_hash = %tx_hash_base_64,
+            "{debug_msg}: group is higher priority than previously included transactions"
+        );
+        match proposal_info {
+            Proposal::Prepare(proposal_info) => {
+                proposal_info.excluded_txs = proposal_info.excluded_txs.saturating_add(1);
+                return Ok(ExitContinue::Continue);
+            }
+            Proposal::Process(_) => {
+                bail!("transactions have incorrect transaction group ordering");
+            }
+        };
+    }
 
     let execution_results = proposal_info.execution_results_mut();
     match app.execute_transaction(tx.clone()).await {
@@ -1423,28 +1438,4 @@ async fn proposal_checks_and_tx_execution(
     };
     proposal_info.set_current_tx_group(tx_group);
     Ok(ExitContinue::Continue)
-}
-
-#[instrument(skip_all)]
-fn check_tx_group(
-    tx_hash_base_64: &str,
-    tx_group: Group,
-    debug_msg: &str,
-    proposal_info: &mut Proposal,
-) -> Result<()> {
-    if tx_group > proposal_info.current_tx_group() {
-        debug!(
-            transaction_hash = %tx_hash_base_64,
-            "{debug_msg}: group is higher priority than previously included transactions"
-        );
-        match proposal_info {
-            Proposal::Prepare(proposal_info) => {
-                proposal_info.excluded_txs = proposal_info.excluded_txs.saturating_add(1);
-            }
-            Proposal::Process(_) => {
-                bail!("transactions have incorrect transaction group ordering");
-            }
-        };
-    }
-    Ok(())
 }
