@@ -89,10 +89,7 @@ run-without-native tag=defaultTag:
   # Execute the transfer from Celestia to the Rollup
   just ibc-test _do-ibc-transfer {{defaultNamespace}} {{sequencer_sudo_address}}
 
-  # Add transfer/channel-0/utia as fee-asset
-  docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer sudo fee-asset add --private-key {{sequencer_sudo_pkey}} --asset transfer/channel-0/utia --sequencer-url {{sequencer_rpc_url}} --sequencer.chain-id {{sequencer_chain_id}}
   # check that sequencer balance updated correctly
-
   EXPECTED_BALANCE=$(echo "1 * {{transfer_amount}}" | bc)
   for i in {1..50}
   do
@@ -109,6 +106,11 @@ run-without-native tag=defaultTag:
     echo "expected sequencer balance was not found after IBC transfer; IBC transfer with compat address failed"
     exit 1
   fi
+
+  # Add transfer/channel-0/utia as allowed fee-asset
+  docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer sudo fee-asset add --private-key {{sequencer_sudo_pkey}} --asset transfer/channel-0/utia --sequencer-url {{sequencer_rpc_url}} --sequencer.chain-id {{sequencer_chain_id}}
+
+  # TODO: query allowd fee asset verifying succefull addition
 
 [no-cd]
 run tag=defaultTag:
