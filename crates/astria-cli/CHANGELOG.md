@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed ICS20 withdrawal source when using channel with more than one
+  port/channel combo. [#1768](https://github.com/astriaorg/astria/pull/1768)
+
 ## [0.5.1] - 2024-10-23
 
 ### Added

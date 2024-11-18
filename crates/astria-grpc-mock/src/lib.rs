@@ -25,15 +25,25 @@ pub use mock_server::{
     MockGuard,
     MockServer,
 };
-pub use response::Respond;
 
+/// A generic boxed gRPC message type, which can be used in both [`AnyRequest`] and [`AnyResponse`].
+///
+/// Types wished to be passed as this generic type must implement [`ErasedMessage`].
 pub type AnyMessage = Box<dyn ErasedMessage + Send + Sync>;
+
+/// Type alias for a tonic request with an [`AnyMessage`] as its message body.
 pub type AnyRequest = tonic::Request<AnyMessage>;
+
+/// Type alias for a tonic response with an [`AnyMessage`] as its message body.
 pub type AnyResponse = tonic::Response<AnyMessage>;
 
+/// Provides functionality for obtaining the name and type URL of an erased type. It is already
+/// implemented for all types that implement [`prost::Name`].
 pub trait ErasedName {
+    /// Returns the full name of the erased type.
     fn full_name(&self) -> String;
 
+    /// Returns the type URL of the erased type.
     fn type_url(&self) -> String;
 }
 
@@ -50,17 +60,26 @@ where
     }
 }
 
+/// A trait for working with type erased messages. Types that implement this trait must also
+/// implement `Any`, `erased_serde::Serialize`, and [`ErasedName`].
 pub trait ErasedMessage: Any + erased_serde::Serialize + ErasedName {
+    /// Clones `self` into a boxed trait object.
     fn clone_box(&self) -> Box<dyn ErasedMessage + Send + Sync>;
 
+    /// Converts `self` into a boxed `Any` trait object, consuming `self` in the process.
     fn into_any(self: Box<Self>) -> Box<dyn Any>;
 
+    /// Converts `self` into a boxed `erased_serde::Serialize` trait object, consuming `self` in the
+    /// process.
     fn into_serialize(self: Box<Self>) -> Box<dyn erased_serde::Serialize>;
 
+    /// Returns a reference to `self` as a boxed `Any` trait object.
     fn as_any(&self) -> &dyn Any;
 
+    /// Returns a reference to `self` as a boxed [`ErasedName`] trait object.
     fn as_name(&self) -> &dyn ErasedName;
 
+    /// Returns a reference to `self` as a boxed [`erased_serde::Serialize`] trait object.
     fn as_serialize(&self) -> &dyn erased_serde::Serialize;
 }
 
