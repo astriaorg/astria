@@ -1,8 +1,8 @@
 {{/* We need to manually create a PersistentVolume when local. */}}
 {{/* In prod, a PV will be created by the StorageClass' provisioner using dynamic provisioning feature.  */}}
 {{- if and .Values.ipfs.storage.enabled }}
-  {{- range $key, $value := .Values.storage.entities }}
-    {{- if $.Values.storage.local }}
+  {{- range $key, $value := .Values.ipfs.storage.entities }}
+    {{- if $.Values.ipfs.storage.local }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -41,7 +41,7 @@ metadata:
     "app.kubernetes.io/managed-by": {{ $.Release.Service | quote }}
     "helm.sh/chart": {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
 spec:
-  {{- if $.Values.storage.local }}
+  {{- if $.Values.ipfs.storage.local }}
   storageClassName: {{ .Values.persistence.storageClass }}
   {{- end }}
   {{- if $value.storageClassName }}
@@ -56,22 +56,25 @@ spec:
   {{- end }}
 {{- end }}
 {{- if and .Values.postgres.storage.enabled }}
-  {{- range $key, $value := .Values.storage.entities }}
-    {{- if $.Values.storage.local }}
+  {{- range $key, $value := .Values.postgres.storage.entities }}
+    {{- if $.Values.postgres.storage.local }}
 apiVersion: v1
-kind: PersistentVolume
+kind: PersistentVolumeClaim
 metadata:
-  name: postgres-pvc
+  name: ipfs-pvc
 spec:
   capacity:
     storage: {{ $value.size }}
   volumeMode: Filesystem
-  accessModes:
-    - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   storageClassName: {{ .Values.persistence.storageClass }}
+  accessModes:
+    - ReadWriteOnce
   local:
     path: {{ $value.path }}
+  resources:
+    requests:
+      storage: {{ .Values.ipfs.storage.size }}
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -93,7 +96,7 @@ metadata:
     "app.kubernetes.io/managed-by": {{ $.Release.Service | quote }}
     "helm.sh/chart": {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
 spec:
-  {{- if $.Values.storage.local }}
+  {{- if $.Values.postgres.storage.local }}
   storageClassName: {{ .Values.persistence.storageClass }}
   {{- end }}
   {{- if $value.storageClassName }}
