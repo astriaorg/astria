@@ -5,14 +5,13 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use tendermint::abci::request::{
-    BeginBlock,
-    EndBlock,
-};
 use tracing::instrument;
 
 use crate::{
-    component::Component,
+    component::{
+        Component,
+        PrepareStateInfo,
+    },
     fees,
 };
 
@@ -133,18 +132,17 @@ impl Component for FeesComponent {
         Ok(())
     }
 
-    #[instrument(name = "FeesComponent::begin_block", skip_all)]
-    async fn begin_block<S: fees::StateWriteExt + 'static>(
+    #[instrument(name = "FeesComponent::prepare_state_for_tx_execution", skip_all)]
+    async fn prepare_state_for_tx_execution<S: fees::StateWriteExt + 'static>(
         _state: &mut Arc<S>,
-        _begin_block: &BeginBlock,
+        _prepare_state_for_tx_execution: &PrepareStateInfo,
     ) -> Result<()> {
         Ok(())
     }
 
-    #[instrument(name = "FeesComponent::end_block", skip_all)]
-    async fn end_block<S: fees::StateWriteExt + 'static>(
+    #[instrument(name = "FeesComponent::handle_post_tx_execution", skip_all)]
+    async fn handle_post_tx_execution<S: fees::StateWriteExt + 'static>(
         _state: &mut Arc<S>,
-        _end_block: &EndBlock,
     ) -> Result<()> {
         Ok(())
     }

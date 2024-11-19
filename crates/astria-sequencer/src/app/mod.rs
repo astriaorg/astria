@@ -73,7 +73,6 @@ use tendermint::{
         Event,
     },
     account,
-    block::Header,
     AppHash,
     Hash,
 };
@@ -109,7 +108,10 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    component::Component as _,
+    component::{
+        Component as _,
+        PrepareStateInfo,
+    },
     fees::{
         component::FeesComponent,
         StateReadExt as _,
@@ -207,8 +209,8 @@ pub(crate) struct App {
 
     // This is set to the executed hash of the proposal during `process_proposal`
     //
-    // If it does not match the hash given during `begin_block`, then we clear and
-    // reset the execution results cache + state delta. Transactions are re-executed.
+    // If it does not match the hash given during `prepare_state_for_tx_execution`, then we clear
+    // and reset the execution results cache + state delta. Transactions are re-executed.
     // If it does match, we utilize cached results to reduce computation.
     //
     // Resets to default hash at the beginning of `prepare_proposal`, and `process_proposal` if
@@ -682,7 +684,8 @@ impl App {
     }
 
     /// sets up the state for execution of the block's transactions.
-    /// set the current height and timestamp, and calls `begin_block` on all components.
+    /// set the current height and timestamp, and calls `prepare_state_for_tx_execution` on all
+    /// components.
     ///
     /// this *must* be called anytime before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
@@ -697,42 +700,19 @@ impl App {
         // reset recost flag
         self.recost_mempool = false;
 
-        // call begin_block on all components
-        // NOTE: the fields marked `unused` are not used by any of the components;
-        // however, we need to still construct a `BeginBlock` type for now as
-        // the penumbra IBC implementation still requires it as a parameter.
-        let begin_block: abci::request::BeginBlock = abci::request::BeginBlock {
-            hash: Hash::default(), // unused
-            byzantine_validators: block_data.misbehavior.clone(),
-            header: Header {
-                app_hash: self.app_hash.clone(),
-                chain_id: chain_id.clone(),
-                consensus_hash: Hash::default(),      // unused
-                data_hash: Some(Hash::default()),     // unused
-                evidence_hash: Some(Hash::default()), // unused
-                height: block_data.height,
-                last_block_id: None,                      // unused
-                last_commit_hash: Some(Hash::default()),  // unused
-                last_results_hash: Some(Hash::default()), // unused
-                next_validators_hash: block_data.next_validators_hash,
-                proposer_address: block_data.proposer_address,
-                time: block_data.time,
-                validators_hash: Hash::default(), // unused
-                version: tendermint::block::header::Version {
-                    // unused
-                    app: 0,
-                    block: 0,
-                },
-            },
-            last_commit_info: tendermint::abci::types::CommitInfo {
-                round: 0u16.into(), // unused
-                votes: vec![],
-            }, // unused
+        let prepare_state_info = PrepareStateInfo {
+            app_hash: self.app_hash.clone(),
+            byzantine_validators: block_data.misbehavior,
+            chain_id,
+            height: block_data.height,
+            next_validators_hash: block_data.next_validators_hash,
+            proposer_address: block_data.proposer_address,
+            time: block_data.time,
         };
 
-        self.begin_block(&begin_block)
+        self.start_block(&prepare_state_info)
             .await
-            .wrap_err("begin_block failed")?;
+            .wrap_err("prepare_state_for_tx_execution failed")?;
 
         Ok(())
     }
@@ -766,7 +746,9 @@ impl App {
             .await
             .wrap_err("failed to get sudo address from state")?;
 
-        let end_block = self.end_block(height.value(), &sudo_address).await?;
+        let (validator_updates, events) = self
+            .component_post_execution_state_updates(&sudo_address)
+            .await?;
 
         // get deposits for this block from state's ephemeral cache and put them to storage.
         let mut state_tx = StateDelta::new(self.state.clone());
@@ -804,15 +786,14 @@ impl App {
             .wrap_err("failed to write sequencer block to state")?;
 
         let result = PostTransactionExecutionResult {
-            events: end_block.events,
-            validator_updates: end_block.validator_updates,
-            consensus_param_updates: end_block.consensus_param_updates,
+            events,
+            validator_updates,
             tx_results: finalize_block_tx_results,
         };
 
         state_tx.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
 
-        // events that occur after end_block are ignored here;
+        // events that occur after handle_post_tx_execution are ignored here;
         // there should be none anyways.
         let _ = self.apply(state_tx);
 
@@ -931,7 +912,7 @@ impl App {
         let finalize_block = abci::response::FinalizeBlock {
             events: post_transaction_execution_result.events,
             validator_updates: post_transaction_execution_result.validator_updates,
-            consensus_param_updates: post_transaction_execution_result.consensus_param_updates,
+            consensus_param_updates: None,
             app_hash,
             tx_results: post_transaction_execution_result.tx_results,
         };
@@ -976,34 +957,34 @@ impl App {
         Ok(app_hash)
     }
 
-    #[instrument(name = "App::begin_block", skip_all)]
-    async fn begin_block(
+    #[instrument(name = "App::start_block", skip_all)]
+    async fn start_block(
         &mut self,
-        begin_block: &abci::request::BeginBlock,
+        prepare_state_info: &PrepareStateInfo,
     ) -> Result<Vec<abci::Event>> {
         let mut state_tx = StateDelta::new(self.state.clone());
 
         state_tx
-            .put_block_height(begin_block.header.height.into())
+            .put_block_height(prepare_state_info.height.into())
             .wrap_err("failed to put block height")?;
         state_tx
-            .put_block_timestamp(begin_block.header.time)
+            .put_block_timestamp(prepare_state_info.time)
             .wrap_err("failed to put block timestamp")?;
 
-        // call begin_block on all components
+        // call prepare_state_for_tx_execution on all components
         let mut arc_state_tx = Arc::new(state_tx);
-        AccountsComponent::begin_block(&mut arc_state_tx, begin_block)
+        AccountsComponent::prepare_state_for_tx_execution(&mut arc_state_tx, prepare_state_info)
             .await
-            .wrap_err("begin_block failed on AccountsComponent")?;
-        AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
+            .wrap_err("prepare_state_for_tx_execution failed on AccountsComponent")?;
+        AuthorityComponent::prepare_state_for_tx_execution(&mut arc_state_tx, prepare_state_info)
             .await
-            .wrap_err("begin_block failed on AuthorityComponent")?;
-        IbcComponent::begin_block(&mut arc_state_tx, begin_block)
+            .wrap_err("prepare_state_for_tx_execution failed on AuthorityComponent")?;
+        IbcComponent::prepare_state_for_tx_execution(&mut arc_state_tx, prepare_state_info)
             .await
-            .wrap_err("begin_block failed on IbcComponent")?;
-        FeesComponent::begin_block(&mut arc_state_tx, begin_block)
+            .wrap_err("prepare_state_for_tx_execution failed on IbcComponent")?;
+        FeesComponent::prepare_state_for_tx_execution(&mut arc_state_tx, prepare_state_info)
             .await
-            .wrap_err("begin_block failed on FeesComponent")?;
+            .wrap_err("prepare_state_for_tx_execution failed on FeesComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1049,34 +1030,27 @@ impl App {
         Ok(events)
     }
 
-    #[instrument(name = "App::end_block", skip_all)]
-    async fn end_block(
+    #[instrument(name = "App::component_post_execution_state_updates", skip_all)]
+    async fn component_post_execution_state_updates(
         &mut self,
-        height: u64,
         fee_recipient: &[u8; 20],
-    ) -> Result<abci::response::EndBlock> {
+    ) -> Result<(Vec<tendermint::validator::Update>, Vec<Event>)> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
-        let end_block = abci::request::EndBlock {
-            height: height
-                .try_into()
-                .expect("a block height should be able to fit in an i64"),
-        };
-
-        // call end_block on all components
-        AccountsComponent::end_block(&mut arc_state_tx, &end_block)
+        // call handle_post_tx_execution on all components
+        AccountsComponent::handle_post_tx_execution(&mut arc_state_tx)
             .await
-            .wrap_err("end_block failed on AccountsComponent")?;
-        AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
+            .wrap_err("handle_post_tx_execution failed on AccountsComponent")?;
+        AuthorityComponent::handle_post_tx_execution(&mut arc_state_tx)
             .await
-            .wrap_err("end_block failed on AuthorityComponent")?;
-        FeesComponent::end_block(&mut arc_state_tx, &end_block)
+            .wrap_err("handle_post_tx_execution failed on AuthorityComponent")?;
+        FeesComponent::handle_post_tx_execution(&mut arc_state_tx)
             .await
-            .wrap_err("end_block failed on FeesComponent")?;
-        IbcComponent::end_block(&mut arc_state_tx, &end_block)
+            .wrap_err("handle_post_tx_execution failed on FeesComponent")?;
+        IbcComponent::handle_post_tx_execution(&mut arc_state_tx)
             .await
-            .wrap_err("end_block failed on IbcComponent")?;
+            .wrap_err("handle_post_tx_execution failed on IbcComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1102,13 +1076,12 @@ impl App {
         }
 
         let events = self.apply(state_tx);
-        Ok(abci::response::EndBlock {
-            validator_updates: validator_updates
+        Ok((
+            validator_updates
                 .try_into_cometbft()
                 .wrap_err("failed converting astria validators to cometbft compatible type")?,
             events,
-            ..Default::default()
-        })
+        ))
     }
 
     #[instrument(name = "App::commit", skip_all)]
@@ -1194,7 +1167,6 @@ struct PostTransactionExecutionResult {
     events: Vec<Event>,
     tx_results: Vec<ExecTxResult>,
     validator_updates: Vec<tendermint::validator::Update>,
-    consensus_param_updates: Option<tendermint::consensus::Params>,
 }
 
 #[derive(PartialEq)]

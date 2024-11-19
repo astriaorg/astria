@@ -58,7 +58,7 @@ impl ActionHandler for ValidatorUpdate {
             ensure!(validator_set.len() != 1, "cannot remove the last validator");
         }
 
-        // add validator update in non-consensus state to be used in end_block
+        // add validator update in non-consensus state to be used in handle_post_tx_execution
         let mut validator_updates = state
             .get_validator_updates()
             .await

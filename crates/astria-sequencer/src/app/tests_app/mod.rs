@@ -46,8 +46,6 @@ use tendermint::{
     },
     account,
     block::{
-        header::Version,
-        Header,
         Height,
         Round,
     },
@@ -76,28 +74,6 @@ use crate::{
     fees::StateReadExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
 };
-
-fn default_tendermint_header() -> Header {
-    Header {
-        app_hash: AppHash::try_from(vec![]).unwrap(),
-        chain_id: "test".to_string().try_into().unwrap(),
-        consensus_hash: Hash::default(),
-        data_hash: Some(Hash::try_from([0u8; 32].to_vec()).unwrap()),
-        evidence_hash: Some(Hash::default()),
-        height: Height::default(),
-        last_block_id: None,
-        last_commit_hash: Some(Hash::default()),
-        last_results_hash: Some(Hash::default()),
-        next_validators_hash: Hash::default(),
-        proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
-        time: Time::now(),
-        validators_hash: Hash::default(),
-        version: Version {
-            app: 0,
-            block: 0,
-        },
-    }
-}
 
 #[tokio::test]
 async fn app_genesis_and_init_chain() {
@@ -147,7 +123,7 @@ async fn app_pre_execute_transactions() {
 }
 
 #[tokio::test]
-async fn app_begin_block_remove_byzantine_validators() {
+async fn app_prepare_state_for_tx_execution_remove_byzantine_validators() {
     use tendermint::abci::types;
 
     let initial_validator_set = vec![
@@ -174,18 +150,17 @@ async fn app_begin_block_remove_byzantine_validators() {
         total_voting_power: 101u32.into(),
     };
 
-    let mut begin_block = abci::request::BeginBlock {
-        header: default_tendermint_header(),
-        hash: Hash::default(),
-        last_commit_info: CommitInfo {
-            votes: vec![],
-            round: Round::default(),
-        },
+    let prepare_state_info = PrepareStateInfo {
+        app_hash: AppHash::try_from(vec![]).unwrap(),
         byzantine_validators: vec![misbehavior],
+        chain_id: "test".to_string().try_into().unwrap(),
+        height: 1u8.into(),
+        next_validators_hash: Hash::default(),
+        proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
+        time: Time::now(),
     };
-    begin_block.header.height = 1u8.into();
 
-    app.begin_block(&begin_block).await.unwrap();
+    app.start_block(&prepare_state_info).await.unwrap();
 
     // assert that validator with pubkey_a is removed
     let validator_set = app.state.get_validator_set().await.unwrap();
@@ -876,7 +851,7 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
 }
 
 #[tokio::test]
-async fn app_end_block_validator_updates() {
+async fn app_handle_post_tx_execution_validator_updates() {
     let initial_validator_set = vec![
         ValidatorUpdate {
             power: 100,
@@ -912,10 +887,13 @@ async fn app_end_block_validator_updates() {
         .unwrap();
     app.apply(state_tx);
 
-    let resp = app.end_block(1, &proposer_address).await.unwrap();
+    let (validator_updates, _) = app
+        .component_post_execution_state_updates(&proposer_address)
+        .await
+        .unwrap();
     // we only assert length here as the ordering of the updates is not guaranteed
     // and validator::Update does not implement Ord
-    assert_eq!(resp.validator_updates.len(), validator_updates.len());
+    assert_eq!(validator_updates.len(), validator_updates.len());
 
     // validator with pubkey_a should be removed (power set to 0)
     // validator with pubkey_b should be updated

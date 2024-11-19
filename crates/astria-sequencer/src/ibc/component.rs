@@ -9,14 +9,20 @@ use penumbra_ibc::{
     component::Ibc,
     genesis::Content,
 };
-use tendermint::abci::request::{
-    BeginBlock,
-    EndBlock,
+use tendermint::{
+    abci::{
+        self,
+    },
+    block::Header,
+    Hash,
 };
 use tracing::instrument;
 
 use crate::{
-    component::Component,
+    component::{
+        Component,
+        PrepareStateInfo,
+    },
     ibc::{
         host_interface::AstriaHost,
         state_ext::StateWriteExt,
@@ -53,21 +59,47 @@ impl Component for IbcComponent {
         Ok(())
     }
 
-    #[instrument(name = "IbcComponent::begin_block", skip_all)]
-    async fn begin_block<S: StateWriteExt + 'static>(
+    #[instrument(name = "IbcComponent::prepare_state_for_tx_execution", skip_all)]
+    async fn prepare_state_for_tx_execution<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
-        begin_block: &BeginBlock,
+        prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
-        Ibc::begin_block::<AstriaHost, S>(state, begin_block).await;
+        let begin_block: abci::request::BeginBlock = abci::request::BeginBlock {
+            hash: Hash::default(),
+            byzantine_validators: prepare_state_info.byzantine_validators.clone(),
+            header: Header {
+                app_hash: prepare_state_info.app_hash.clone(),
+                chain_id: prepare_state_info.chain_id.clone(),
+                consensus_hash: Hash::default(),
+                data_hash: Some(Hash::default()),
+                evidence_hash: Some(Hash::default()),
+                height: prepare_state_info.height,
+                last_block_id: None,
+                last_commit_hash: Some(Hash::default()),
+                last_results_hash: Some(Hash::default()),
+                next_validators_hash: prepare_state_info.next_validators_hash,
+                proposer_address: prepare_state_info.proposer_address,
+                time: prepare_state_info.time,
+                validators_hash: Hash::default(),
+                version: tendermint::block::header::Version {
+                    app: 0,
+                    block: 0,
+                },
+            },
+            last_commit_info: tendermint::abci::types::CommitInfo {
+                round: 0u16.into(),
+                votes: vec![],
+            },
+        };
+        Ibc::begin_block::<AstriaHost, S>(state, &begin_block).await;
         Ok(())
     }
 
-    #[instrument(name = "IbcComponent::end_block", skip_all)]
-    async fn end_block<S: StateWriteExt + 'static>(
-        state: &mut Arc<S>,
-        end_block: &EndBlock,
+    #[instrument(name = "IbcComponent::handle_post_tx_execution", skip_all)]
+    async fn handle_post_tx_execution<S: StateWriteExt + 'static>(
+        _state: &mut Arc<S>,
     ) -> Result<()> {
-        Ibc::end_block(state, end_block).await;
+        // There is no need to call `Ibc::end_block`. It is a no-op.
         Ok(())
     }
 }
