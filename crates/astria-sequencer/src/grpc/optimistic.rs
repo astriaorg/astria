@@ -14,7 +14,7 @@ use astria_core::{
     },
     primitive::v1::RollupId,
     sequencerblock::v1::{
-        optimistic_block::SequencerBlockCommit,
+        optimistic::SequencerBlockCommit,
         SequencerBlock,
     },
     Protobuf,

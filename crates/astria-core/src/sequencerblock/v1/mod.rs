@@ -1,6 +1,6 @@
 pub mod block;
 pub mod celestia;
-pub mod optimistic_block;
+pub mod optimistic;
 
 pub use block::{
     RollupTransactions,
