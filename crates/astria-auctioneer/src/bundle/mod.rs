@@ -1,4 +1,8 @@
 use astria_core::{
+    crypto::{
+        Signature,
+        VerificationKey,
+    },
     generated::bundle::v1alpha1::{
         self as raw,
     },
@@ -18,6 +22,8 @@ use astria_eyre::eyre::{
 use bytes::Bytes;
 pub(crate) use client::BundleStream;
 use prost::Message as _;
+
+use crate::sequencer_key::SequencerKey;
 
 mod client;
 
@@ -71,19 +77,18 @@ impl Bundle {
         self,
         nonce: u32,
         rollup_id: RollupId,
+        sequencer_key: SequencerKey,
         fee_asset: asset::Denom,
         chain_id: String,
     ) -> TransactionBody {
-        let data = self.into_raw().encode_to_vec();
-
-        // TODO: sign the bundle data and put it in a `SignedBundle` message or something (need to
-        // update protos for this)
+        let allocation = Allocation::new(self, sequencer_key);
+        let allocation_data = allocation.into_raw().encode_to_vec();
 
         TransactionBody::builder()
             .actions(vec![
                 RollupDataSubmission {
                     rollup_id,
-                    data: data.into(),
+                    data: allocation_data.into(),
                     fee_asset,
                 }
                 .into(),
@@ -104,5 +109,39 @@ impl Bundle {
 
     pub(crate) fn base_sequencer_block_hash(&self) -> [u8; 32] {
         self.base_sequencer_block_hash
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct Allocation {
+    signature: Signature,
+    verification_key: VerificationKey,
+    payload: Bundle,
+}
+
+impl Allocation {
+    fn new(bundle: Bundle, sequencer_key: SequencerKey) -> Self {
+        let bundle_data = bundle.clone().into_raw().encode_to_vec();
+        let signature = sequencer_key.signing_key().sign(&bundle_data);
+        let verification_key = sequencer_key.signing_key().verification_key();
+        Self {
+            signature,
+            verification_key,
+            payload: bundle,
+        }
+    }
+
+    fn into_raw(self) -> raw::Allocation {
+        let Self {
+            signature,
+            verification_key,
+            payload,
+        } = self;
+
+        raw::Allocation {
+            signature: Bytes::copy_from_slice(&signature.to_bytes()),
+            public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
+            payload: Some(payload.into_raw()),
+        }
     }
 }

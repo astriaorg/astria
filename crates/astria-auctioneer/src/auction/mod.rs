@@ -265,6 +265,7 @@ impl Auction {
             .into_transaction_body(
                 nonce,
                 self.rollup_id,
+                self.sequencer_key.clone(),
                 self.fee_asset_denomination.clone(),
                 self.sequencer_chain_id,
             );
