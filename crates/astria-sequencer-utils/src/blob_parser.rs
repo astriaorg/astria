@@ -13,7 +13,7 @@ use std::{
 
 use astria_core::{
     brotli::decompress_bytes,
-    generated::sequencerblock::v1::{
+    generated::astria::sequencerblock::v1::{
         rollup_data::Value as RawRollupDataValue,
         Deposit as RawDeposit,
         RollupData as RawRollupData,

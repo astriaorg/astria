@@ -445,7 +445,7 @@ fn get_base_deposit_fee() {
         .slice(&[0u8; ADDRESS_LEN][..])
         .try_build()
         .unwrap();
-    let raw_deposit = astria_core::generated::sequencerblock::v1::Deposit {
+    let raw_deposit = astria_core::generated::astria::sequencerblock::v1::Deposit {
         bridge_address: Some(bridge_address.to_raw()),
         rollup_id: Some(RollupId::from_unhashed_bytes([0; ROLLUP_ID_LEN]).to_raw()),
         amount: Some(1000.into()),
