@@ -10,7 +10,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1 as raw,
+    generated::astria::protocol::transaction::v1 as raw,
     primitive::v1::asset::IbcPrefixed,
     protocol::{
         abci::AbciErrorCode,

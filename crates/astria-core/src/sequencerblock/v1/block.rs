@@ -784,8 +784,9 @@ impl SequencerBlock {
 
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
-            let raw_tx = crate::generated::protocol::transaction::v1::Transaction::decode(&*elem)
-                .map_err(SequencerBlockError::transaction_protobuf_decode)?;
+            let raw_tx =
+                crate::generated::astria::protocol::transaction::v1::Transaction::decode(&*elem)
+                    .map_err(SequencerBlockError::transaction_protobuf_decode)?;
             let tx = Transaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in tx.into_unsigned().into_actions() {
@@ -1363,7 +1364,7 @@ impl FilteredSequencerBlockError {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(into = "crate::generated::sequencerblock::v1::Deposit")
+    serde(into = "crate::generated::astria::sequencerblock::v1::Deposit")
 )]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.

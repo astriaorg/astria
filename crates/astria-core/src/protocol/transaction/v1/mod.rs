@@ -11,7 +11,7 @@ use crate::{
         SigningKey,
         VerificationKey,
     },
-    generated::protocol::transaction::v1 as raw,
+    generated::astria::protocol::transaction::v1 as raw,
     primitive::v1::{
         TransactionId,
         ADDRESS_LEN,

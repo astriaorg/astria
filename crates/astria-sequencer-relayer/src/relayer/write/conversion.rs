@@ -10,7 +10,7 @@ use std::{
 
 use astria_core::{
     brotli::compress_bytes,
-    generated::sequencerblock::v1::{
+    generated::astria::sequencerblock::v1::{
         SubmittedMetadata,
         SubmittedMetadataList,
         SubmittedRollupData,
