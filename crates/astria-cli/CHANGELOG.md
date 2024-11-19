@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `fee-assets` subcommand to `sequencer` CLI [#1816](https://github.com/astriaorg/astria/pull/1816).
+
 ### Fixed
 
 - Fixed ICS20 withdrawal source when using channel with more than one
