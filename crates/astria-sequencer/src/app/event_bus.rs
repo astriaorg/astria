@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use astria_core::sequencerblock::v1::{
-    optimistic_block::SequencerBlockCommit,
+    optimistic::SequencerBlockCommit,
     SequencerBlock,
 };
 use tokio::sync::watch::{
