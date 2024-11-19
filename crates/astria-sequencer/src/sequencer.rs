@@ -1,5 +1,5 @@
 use astria_core::generated::sequencerblock::{
-    optimisticblock::v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer,
+    optimistic::v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer,
     v1::sequencer_service_server::SequencerServiceServer,
 };
 use astria_eyre::{
