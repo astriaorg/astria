@@ -249,11 +249,14 @@ fn start_grpc_server(
         .add_service(SequencerServiceServer::new(sequencer_api))
         .add_optional_service(optimistic_block_service_server);
 
-    let mut optimistic_block_inner_handle = Fuse::terminated();
-    if !no_optimistic_blocks {
-        optimistic_block_inner_handle =
-            tokio::task::spawn(async move { optimistic_block_service_inner.run().await }).fuse();
-    }
+    // let mut optimistic_block_inner_handle = Fuse::terminated();
+    let optimistic_block_inner_handle = {
+        if no_optimistic_blocks {
+            Fuse::terminated()
+        } else {
+            tokio::task::spawn(async move { optimistic_block_service_inner.run().await }).fuse()
+        }
+    };
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
 
