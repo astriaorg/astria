@@ -57,28 +57,31 @@ use crate::app::event_bus::{
 
 const STREAM_TASKS_SHUTDOWN_DURATION: Duration = Duration::from_secs(5);
 
-struct GetOptimisticBlockStreamInnerRequest {
+struct StartOptimisticBlockStreamRequest {
     rollup_id: RollupId,
     tx: mpsc::Sender<Result<GetOptimisticBlockStreamResponse, Status>>,
 }
 
-struct GetBlockCommitmentStreamInnerRequest {
+struct StartBlockCommitmentStreamRequest {
     tx: mpsc::Sender<tonic::Result<GetBlockCommitmentStreamResponse>>,
 }
 
 enum NewStreamRequest {
-    OptimisticBlockStream(GetOptimisticBlockStreamInnerRequest),
-    BlockCommitmentStream(GetBlockCommitmentStreamInnerRequest),
+    OptimisticBlockStream(StartOptimisticBlockStreamRequest),
+    BlockCommitmentStream(StartBlockCommitmentStreamRequest),
 }
 
 pub(crate) struct OptimisticBlockInner {
     event_bus: EventBus,
     stream_request_receiver: mpsc::Receiver<NewStreamRequest>,
     stream_tasks: JoinSet<Result<(), eyre::Report>>,
-    server_cancellation_token: CancellationToken,
+    cancellation_token: CancellationToken,
 }
 
-async fn block_commitment_stream_task(
+// the below streams are free standing functions as implementing them as methods on
+// OptimisticBlockInner will cause lifetime issues with the self reference. This is because the
+// Joinset requires that the future being spawned should have a static lifetime.
+async fn block_commitment_stream(
     mut finalize_block_sender: EventReceiver<Arc<SequencerBlockCommit>>,
     tx: mpsc::Sender<tonic::Result<GetBlockCommitmentStreamResponse>>,
     cancellation_token: CancellationToken,
@@ -114,7 +117,7 @@ async fn block_commitment_stream_task(
     }
 }
 
-async fn optimistic_stream_task(
+async fn optimistic_stream(
     mut process_proposal_block_receiver: EventReceiver<Arc<SequencerBlock>>,
     rollup_id: RollupId,
     tx: mpsc::Sender<Result<GetOptimisticBlockStreamResponse, Status>>,
@@ -163,43 +166,43 @@ impl OptimisticBlockInner {
             event_bus,
             stream_request_receiver,
             stream_tasks: JoinSet::new(),
-            server_cancellation_token,
+            cancellation_token: server_cancellation_token,
         }
     }
 
     fn handle_optimistic_block_stream_request(
         &mut self,
-        request: GetOptimisticBlockStreamInnerRequest,
+        request: StartOptimisticBlockStreamRequest,
     ) {
-        let GetOptimisticBlockStreamInnerRequest {
+        let StartOptimisticBlockStreamRequest {
             rollup_id,
             tx,
         } = request;
 
         let process_proposal_block_receiver = self.event_bus.subscribe_process_proposal_blocks();
 
-        self.stream_tasks.spawn(optimistic_stream_task(
+        self.stream_tasks.spawn(optimistic_stream(
             process_proposal_block_receiver,
             rollup_id,
             tx,
-            self.server_cancellation_token.child_token(),
+            self.cancellation_token.child_token(),
         ));
     }
 
     fn handle_block_commitment_stream_request(
         &mut self,
-        request: GetBlockCommitmentStreamInnerRequest,
+        request: StartBlockCommitmentStreamRequest,
     ) {
-        let GetBlockCommitmentStreamInnerRequest {
+        let StartBlockCommitmentStreamRequest {
             tx,
         } = request;
 
         let finalize_block_sender = self.event_bus.subscribe_finalize_blocks();
 
-        self.stream_tasks.spawn(block_commitment_stream_task(
+        self.stream_tasks.spawn(block_commitment_stream(
             finalize_block_sender,
             tx,
-            self.server_cancellation_token.child_token(),
+            self.cancellation_token.child_token(),
         ));
     }
 
@@ -207,7 +210,7 @@ impl OptimisticBlockInner {
         loop {
             tokio::select! {
                 biased;
-                () = self.server_cancellation_token.cancelled() => {
+                () = self.cancellation_token.cancelled() => {
                     break;
                 },
                 Some(inner_stream_request) = self.stream_request_receiver.recv() => {
@@ -282,7 +285,7 @@ impl OptimisticBlockFacade {
     }
 
     #[instrument(skip_all)]
-    async fn send_optimistic_block_stream_request(
+    async fn spawn_optimistic_block_stream(
         &self,
         get_optimistic_block_stream_request: GetOptimisticBlockStreamRequest,
     ) -> eyre::Result<Receiver<tonic::Result<GetOptimisticBlockStreamResponse>>> {
@@ -298,11 +301,10 @@ impl OptimisticBlockFacade {
         let (tx, rx) =
             tokio::sync::mpsc::channel::<tonic::Result<GetOptimisticBlockStreamResponse>>(128);
 
-        let request =
-            NewStreamRequest::OptimisticBlockStream(GetOptimisticBlockStreamInnerRequest {
-                rollup_id,
-                tx,
-            });
+        let request = NewStreamRequest::OptimisticBlockStream(StartOptimisticBlockStreamRequest {
+            rollup_id,
+            tx,
+        });
 
         self.stream_request_sender.send(request).await?;
 
@@ -310,7 +312,7 @@ impl OptimisticBlockFacade {
     }
 
     #[instrument(skip_all)]
-    async fn send_block_commitment_stream_request(
+    async fn spawn_block_commitment_stream_request(
         &self,
     ) -> Result<
         Receiver<tonic::Result<GetBlockCommitmentStreamResponse>>,
@@ -319,10 +321,9 @@ impl OptimisticBlockFacade {
         let (tx, rx) =
             tokio::sync::mpsc::channel::<tonic::Result<GetBlockCommitmentStreamResponse>>(128);
 
-        let request =
-            NewStreamRequest::BlockCommitmentStream(GetBlockCommitmentStreamInnerRequest {
-                tx,
-            });
+        let request = NewStreamRequest::BlockCommitmentStream(StartBlockCommitmentStreamRequest {
+            tx,
+        });
 
         self.stream_request_sender.send(request).await?;
 
@@ -345,7 +346,7 @@ impl OptimisticBlockService for OptimisticBlockFacade {
         let get_optimistic_block_stream_request = request.into_inner();
 
         let rx = match self
-            .send_optimistic_block_stream_request(get_optimistic_block_stream_request)
+            .spawn_optimistic_block_stream(get_optimistic_block_stream_request)
             .await
         {
             Ok(rx) => rx,
@@ -366,7 +367,7 @@ impl OptimisticBlockService for OptimisticBlockFacade {
         self: Arc<Self>,
         _request: Request<GetBlockCommitmentStreamRequest>,
     ) -> Result<Response<Self::GetBlockCommitmentStreamStream>, Status> {
-        let rx = match self.send_block_commitment_stream_request().await {
+        let rx = match self.spawn_block_commitment_stream_request().await {
             Ok(rx) => rx,
             Err(e) => {
                 return Err(Status::internal(format!(
