@@ -37,7 +37,7 @@ use astria_core::{
     },
     sequencerblock::v1::{
         block::SequencerBlock,
-        optimistic_block::SequencerBlockCommit,
+        optimistic::SequencerBlockCommit,
     },
     Protobuf as _,
 };
