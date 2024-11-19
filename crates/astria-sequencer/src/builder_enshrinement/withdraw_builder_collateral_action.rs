@@ -1,7 +1,9 @@
-use cnidarium::StateWrite;
 use astria_core::protocol::transaction::v1::action::WithdrawBuilderCollateral;
+use cnidarium::StateWrite;
+
 use crate::app::ActionHandler;
 
+#[async_trait::async_trait]
 impl ActionHandler for WithdrawBuilderCollateral {
     async fn check_stateless(&self) -> astria_eyre::Result<()> {
         // no need of any stateless checks

@@ -1,9 +1,8 @@
-use cnidarium::StateWrite;
 use astria_core::protocol::transaction::v1::action::StakeBuilder;
+use astria_eyre::eyre::Result;
+use cnidarium::StateWrite;
+
 use crate::app::ActionHandler;
-use astria_eyre::eyre::{
-    Result,
-};
 
 #[async_trait::async_trait]
 impl ActionHandler for StakeBuilder {

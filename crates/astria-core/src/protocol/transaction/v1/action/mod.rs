@@ -2151,12 +2151,14 @@ impl StakeBuilderError {
     fn field_not_set(field: &'static str) -> Self {
         Self(StakeBuilderErrorKind::FieldNotSet(field))
     }
+
     #[must_use]
     fn address(source: AddressError) -> Self {
         Self(StakeBuilderErrorKind::Address {
             source,
         })
     }
+
     #[must_use]
     fn fee_asset(source: asset::ParseDenomError) -> Self {
         Self(StakeBuilderErrorKind::FeeAsset {
@@ -2219,8 +2221,8 @@ impl Protobuf for StakeBuilder {
         let Some(builder_address) = proto.builder_address else {
             return Err(StakeBuilderError::field_not_set("to"));
         };
-        let builder_address = Address::try_from_raw(&builder_address)
-            .map_err(StakeBuilderError::address)?;
+        let builder_address =
+            Address::try_from_raw(&builder_address).map_err(StakeBuilderError::address)?;
 
         let asset = proto.asset.parse().map_err(StakeBuilderError::fee_asset)?;
         let fee_asset = proto
@@ -2258,12 +2260,14 @@ impl UnstakeBuilderError {
     fn field_not_set(field: &'static str) -> Self {
         Self(UnstakeBuilderErrorKind::FieldNotSet(field))
     }
+
     #[must_use]
     fn address(source: AddressError) -> Self {
         Self(UnstakeBuilderErrorKind::Address {
             source,
         })
     }
+
     #[must_use]
     fn fee_asset(source: asset::ParseDenomError) -> Self {
         Self(UnstakeBuilderErrorKind::FeeAsset {
@@ -2318,8 +2322,8 @@ impl Protobuf for UnstakeBuilder {
         let Some(builder_address) = proto.builder_address else {
             return Err(UnstakeBuilderError::field_not_set("to"));
         };
-        let builder_address = Address::try_from_raw(&builder_address)
-            .map_err(UnstakeBuilderError::address)?;
+        let builder_address =
+            Address::try_from_raw(&builder_address).map_err(UnstakeBuilderError::address)?;
 
         let fee_asset = proto
             .fee_asset
@@ -2353,12 +2357,14 @@ impl WithdrawBuilderCollateralError {
     fn field_not_set(field: &'static str) -> Self {
         Self(WithdrawBuilderCollateralErrorKind::FieldNotSet(field))
     }
+
     #[must_use]
     fn address(source: AddressError) -> Self {
         Self(WithdrawBuilderCollateralErrorKind::Address {
             source,
         })
     }
+
     #[must_use]
     fn fee_asset(source: asset::ParseDenomError) -> Self {
         Self(WithdrawBuilderCollateralErrorKind::FeeAsset {
