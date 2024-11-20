@@ -862,7 +862,6 @@ async fn app_handle_post_tx_execution_validator_updates() {
     ];
 
     let mut app = initialize_app(None, initial_validator_set).await;
-    let proposer_address = [0u8; 20];
 
     let validator_updates = vec![
         ValidatorUpdate {
@@ -885,10 +884,8 @@ async fn app_handle_post_tx_execution_validator_updates() {
         .unwrap();
     app.apply(state_tx);
 
-    let (returned_validator_updates, _) = app
-        .component_post_execution_state_updates(&proposer_address)
-        .await
-        .unwrap();
+    let (returned_validator_updates, _) =
+        app.component_post_execution_state_updates().await.unwrap();
     // we only assert length here as the ordering of the updates is not guaranteed
     // and validator::Update does not implement Ord
     assert_eq!(returned_validator_updates.len(), validator_updates.len());

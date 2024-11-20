@@ -90,10 +90,7 @@ pub(crate) use self::{
     },
 };
 use crate::{
-    accounts::{
-        component::AccountsComponent,
-        StateWriteExt as _,
-    },
+    accounts::component::AccountsComponent,
     address::StateWriteExt as _,
     assets::StateWriteExt as _,
     authority::{
@@ -112,10 +109,7 @@ use crate::{
         Component as _,
         PrepareStateInfo,
     },
-    fees::{
-        component::FeesComponent,
-        StateReadExt as _,
-    },
+    fees::component::FeesComponent,
     grpc::StateWriteExt as _,
     ibc::component::IbcComponent,
     mempool::{
@@ -737,15 +731,8 @@ impl App {
             .get_chain_id()
             .await
             .wrap_err("failed to get chain ID from state")?;
-        let sudo_address = self
-            .state
-            .get_sudo_address()
-            .await
-            .wrap_err("failed to get sudo address from state")?;
 
-        let (validator_updates, events) = self
-            .component_post_execution_state_updates(&sudo_address)
-            .await?;
+        let (validator_updates, events) = self.component_post_execution_state_updates().await?;
 
         // get deposits for this block from state's ephemeral cache and put them to storage.
         let mut state_tx = StateDelta::new(self.state.clone());
@@ -1029,7 +1016,6 @@ impl App {
     #[instrument(name = "App::component_post_execution_state_updates", skip_all)]
     async fn component_post_execution_state_updates(
         &mut self,
-        fee_recipient: &[u8; 20],
     ) -> Result<(Vec<tendermint::validator::Update>, Vec<Event>)> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -1060,16 +1046,6 @@ impl App {
 
         // clear validator updates
         state_tx.clear_validator_updates();
-
-        // gather block fees and transfer them to the block proposer
-        let fees = self.state.get_block_fees();
-
-        for fee in fees {
-            state_tx
-                .increase_balance(fee_recipient, fee.asset(), fee.amount())
-                .await
-                .wrap_err("failed to increase fee recipient balance")?;
-        }
 
         let events = self.apply(state_tx);
         Ok((
