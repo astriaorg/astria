@@ -919,6 +919,8 @@ impl SequencerBlock {
             rollup_transactions_proof: self.rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof,
+            extended_commit_info: self.extended_commit_info,
+            extended_commit_info_proof: self.extended_commit_info_proof,
         }
     }
 
@@ -945,6 +947,8 @@ impl SequencerBlock {
             rollup_transactions_proof: self.rollup_transactions_proof.clone(),
             all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof.clone(),
+            extended_commit_info: self.extended_commit_info.clone(),
+            extended_commit_info_proof: self.extended_commit_info_proof.clone(),
         }
     }
 
@@ -1191,6 +1195,10 @@ pub struct FilteredSequencerBlockParts {
     pub all_rollup_ids: Vec<RollupId>,
     // proof that `rollup_ids` is included in `data_hash`
     pub rollup_ids_proof: merkle::Proof,
+    // extended commit info for the block, if vote extensions were enabled at this height
+    pub extended_commit_info: Option<Bytes>,
+    // proof that the extended commit info is included in the cometbft block data (if it exists)
+    pub extended_commit_info_proof: Option<merkle::Proof>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1209,6 +1217,10 @@ pub struct FilteredSequencerBlock {
     all_rollup_ids: Vec<RollupId>,
     // proof that `rollup_ids` is included in `data_hash`
     rollup_ids_proof: merkle::Proof,
+    // extended commit info for the block, if vote extensions were enabled at this height
+    extended_commit_info: Option<Bytes>,
+    // proof that the extended commit info is included in the cometbft block data (if it exists)
+    extended_commit_info_proof: Option<merkle::Proof>,
 }
 
 impl FilteredSequencerBlock {
@@ -1253,6 +1265,16 @@ impl FilteredSequencerBlock {
     }
 
     #[must_use]
+    pub fn extended_commit_info(&self) -> Option<&Bytes> {
+        self.extended_commit_info.as_ref()
+    }
+
+    #[must_use]
+    pub fn extended_commit_info_proof(&self) -> Option<&merkle::Proof> {
+        self.extended_commit_info_proof.as_ref()
+    }
+
+    #[must_use]
     pub fn into_raw(self) -> raw::FilteredSequencerBlock {
         let Self {
             block_hash,
@@ -1260,6 +1282,8 @@ impl FilteredSequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
             ..
         } = self;
         raw::FilteredSequencerBlock {
@@ -1272,6 +1296,8 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             all_rollup_ids: self.all_rollup_ids.iter().map(RollupId::to_raw).collect(),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
+            extended_commit_info: extended_commit_info.map(Into::into),
+            extended_commit_info_proof: extended_commit_info_proof.map(merkle::Proof::into_raw),
         }
     }
 
@@ -1311,7 +1337,8 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
-            ..
+            extended_commit_info,
+            extended_commit_info_proof,
         } = raw;
 
         let block_hash = block_hash
@@ -1387,6 +1414,30 @@ impl FilteredSequencerBlock {
             return Err(FilteredSequencerBlockError::rollup_ids_not_in_sequencer_block());
         }
 
+        let extended_commit_info = extended_commit_info.map(Into::into);
+        let extended_commit_info_proof = if let Some(extended_commit_info) = &extended_commit_info {
+            let Some(extended_commit_info_proof) = extended_commit_info_proof else {
+                return Err(FilteredSequencerBlockError::field_not_set(
+                    "extended_commit_info_proof",
+                ));
+            };
+            let extended_commit_info_proof =
+                merkle::Proof::try_from_raw(extended_commit_info_proof)
+                    .map_err(FilteredSequencerBlockError::id_proof_invalid)?;
+
+            if !extended_commit_info_proof
+                .verify(&Sha256::digest(extended_commit_info), header.data_hash)
+            {
+                return Err(
+                    FilteredSequencerBlockError::extended_commit_info_not_in_sequencer_block(),
+                );
+            }
+
+            Some(extended_commit_info_proof)
+        } else {
+            None
+        };
+
         Ok(Self {
             block_hash,
             header,
@@ -1394,6 +1445,8 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         })
     }
 
@@ -1407,6 +1460,8 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = self;
         FilteredSequencerBlockParts {
             block_hash,
@@ -1415,6 +1470,8 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         }
     }
 }
@@ -1453,6 +1510,10 @@ enum FilteredSequencerBlockErrorKind {
     TransactionProofInvalid(merkle::audit::InvalidProof),
     #[error("failed constructing a rollup ID proof from the raw protobuf rollup ID proof")]
     IdProofInvalid(merkle::audit::InvalidProof),
+    #[error(
+        "the extended commit info in the sequencer block was not included in the block's data hash"
+    )]
+    ExtendedCommitInfoNotInSequencerBlock,
 }
 
 impl FilteredSequencerBlockError {
@@ -1502,6 +1563,10 @@ impl FilteredSequencerBlockError {
 
     fn id_proof_invalid(source: merkle::audit::InvalidProof) -> Self {
         Self(FilteredSequencerBlockErrorKind::IdProofInvalid(source))
+    }
+
+    fn extended_commit_info_not_in_sequencer_block() -> Self {
+        Self(FilteredSequencerBlockErrorKind::ExtendedCommitInfoNotInSequencerBlock)
     }
 }
 

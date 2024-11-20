@@ -225,6 +225,12 @@ impl serde::Serialize for FilteredSequencerBlock {
         if self.rollup_ids_proof.is_some() {
             len += 1;
         }
+        if self.extended_commit_info.is_some() {
+            len += 1;
+        }
+        if self.extended_commit_info_proof.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.FilteredSequencerBlock", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
@@ -244,6 +250,13 @@ impl serde::Serialize for FilteredSequencerBlock {
         }
         if let Some(v) = self.rollup_ids_proof.as_ref() {
             struct_ser.serialize_field("rollupIdsProof", v)?;
+        }
+        if let Some(v) = self.extended_commit_info.as_ref() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("extendedCommitInfo", pbjson::private::base64::encode(&v).as_str())?;
+        }
+        if let Some(v) = self.extended_commit_info_proof.as_ref() {
+            struct_ser.serialize_field("extendedCommitInfoProof", v)?;
         }
         struct_ser.end()
     }
@@ -266,6 +279,10 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
             "allRollupIds",
             "rollup_ids_proof",
             "rollupIdsProof",
+            "extended_commit_info",
+            "extendedCommitInfo",
+            "extended_commit_info_proof",
+            "extendedCommitInfoProof",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -276,6 +293,8 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
             RollupTransactionsProof,
             AllRollupIds,
             RollupIdsProof,
+            ExtendedCommitInfo,
+            ExtendedCommitInfoProof,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -303,6 +322,8 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
                             "rollupTransactionsProof" | "rollup_transactions_proof" => Ok(GeneratedField::RollupTransactionsProof),
                             "allRollupIds" | "all_rollup_ids" => Ok(GeneratedField::AllRollupIds),
                             "rollupIdsProof" | "rollup_ids_proof" => Ok(GeneratedField::RollupIdsProof),
+                            "extendedCommitInfo" | "extended_commit_info" => Ok(GeneratedField::ExtendedCommitInfo),
+                            "extendedCommitInfoProof" | "extended_commit_info_proof" => Ok(GeneratedField::ExtendedCommitInfoProof),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -328,6 +349,8 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
                 let mut rollup_transactions_proof__ = None;
                 let mut all_rollup_ids__ = None;
                 let mut rollup_ids_proof__ = None;
+                let mut extended_commit_info__ = None;
+                let mut extended_commit_info_proof__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::BlockHash => {
@@ -368,6 +391,20 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
                             }
                             rollup_ids_proof__ = map_.next_value()?;
                         }
+                        GeneratedField::ExtendedCommitInfo => {
+                            if extended_commit_info__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("extendedCommitInfo"));
+                            }
+                            extended_commit_info__ = 
+                                map_.next_value::<::std::option::Option<::pbjson::private::BytesDeserialize<_>>>()?.map(|x| x.0)
+                            ;
+                        }
+                        GeneratedField::ExtendedCommitInfoProof => {
+                            if extended_commit_info_proof__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("extendedCommitInfoProof"));
+                            }
+                            extended_commit_info_proof__ = map_.next_value()?;
+                        }
                     }
                 }
                 Ok(FilteredSequencerBlock {
@@ -377,6 +414,8 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
                     rollup_transactions_proof: rollup_transactions_proof__,
                     all_rollup_ids: all_rollup_ids__.unwrap_or_default(),
                     rollup_ids_proof: rollup_ids_proof__,
+                    extended_commit_info: extended_commit_info__,
+                    extended_commit_info_proof: extended_commit_info_proof__,
                 })
             }
         }

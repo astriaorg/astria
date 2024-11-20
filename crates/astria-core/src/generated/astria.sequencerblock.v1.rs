@@ -59,8 +59,11 @@ pub struct SequencerBlock {
     /// / The block hash of the cometbft block that corresponds to this sequencer block.
     #[prost(bytes = "bytes", tag = "5")]
     pub block_hash: ::prost::bytes::Bytes,
+    /// / The extended commit info for the block, if vote extensions were enabled at this height.
     #[prost(bytes = "bytes", optional, tag = "6")]
     pub extended_commit_info: ::core::option::Option<::prost::bytes::Bytes>,
+    /// / The proof that the extended commit info is included in the cometbft block data (if it
+    /// / exists), specifically the third item in the data field.
     #[prost(message, optional, tag = "7")]
     pub extended_commit_info_proof: ::core::option::Option<
         super::super::primitive::v1::Proof,
@@ -190,6 +193,15 @@ pub struct FilteredSequencerBlock {
     /// the rollup transactions.
     #[prost(message, optional, tag = "6")]
     pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
+    /// / The extended commit info for the block, if vote extensions were enabled at this height.
+    #[prost(bytes = "bytes", optional, tag = "7")]
+    pub extended_commit_info: ::core::option::Option<::prost::bytes::Bytes>,
+    /// / The proof that the extended commit info is included in the cometbft block data (if it
+    /// / exists), specifically the third item in the data field.
+    #[prost(message, optional, tag = "8")]
+    pub extended_commit_info_proof: ::core::option::Option<
+        super::super::primitive::v1::Proof,
+    >,
 }
 impl ::prost::Name for FilteredSequencerBlock {
     const NAME: &'static str = "FilteredSequencerBlock";
