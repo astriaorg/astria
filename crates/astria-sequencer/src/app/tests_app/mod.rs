@@ -109,7 +109,6 @@ async fn app_pre_execute_transactions() {
         height: 1u8.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
-        proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
     };
 
     app.pre_execute_transactions(block_data.clone())
@@ -156,7 +155,6 @@ async fn app_prepare_state_for_tx_execution_remove_byzantine_validators() {
         chain_id: "test".to_string().try_into().unwrap(),
         height: 1u8.into(),
         next_validators_hash: Hash::default(),
-        proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
         time: Time::now(),
     };
 
@@ -887,13 +885,13 @@ async fn app_handle_post_tx_execution_validator_updates() {
         .unwrap();
     app.apply(state_tx);
 
-    let (validator_updates, _) = app
+    let (returned_validator_updates, _) = app
         .component_post_execution_state_updates(&proposer_address)
         .await
         .unwrap();
     // we only assert length here as the ordering of the updates is not guaranteed
     // and validator::Update does not implement Ord
-    assert_eq!(validator_updates.len(), validator_updates.len());
+    assert_eq!(returned_validator_updates.len(), validator_updates.len());
 
     // validator with pubkey_a should be removed (power set to 0)
     // validator with pubkey_b should be updated

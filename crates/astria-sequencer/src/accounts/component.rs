@@ -50,7 +50,7 @@ impl Component for AccountsComponent {
     #[instrument(name = "AccountsComponent::prepare_state_for_tx_execution", skip_all)]
     async fn prepare_state_for_tx_execution<S: accounts::StateWriteExt + 'static>(
         _state: &mut Arc<S>,
-        _prepare_state_for_tx_execution: &PrepareStateInfo,
+        _prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
         Ok(())
     }

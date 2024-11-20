@@ -379,7 +379,6 @@ impl App {
             height: prepare_proposal.height,
             time: prepare_proposal.time,
             next_validators_hash: prepare_proposal.next_validators_hash,
-            proposer_address: prepare_proposal.proposer_address,
         };
 
         self.pre_execute_transactions(block_data)
@@ -481,7 +480,6 @@ impl App {
             height: process_proposal.height,
             time: process_proposal.time,
             next_validators_hash: process_proposal.next_validators_hash,
-            proposer_address: process_proposal.proposer_address,
         };
 
         self.pre_execute_transactions(block_data)
@@ -706,7 +704,6 @@ impl App {
             chain_id,
             height: block_data.height,
             next_validators_hash: block_data.next_validators_hash,
-            proposer_address: block_data.proposer_address,
             time: block_data.time,
         };
 
@@ -838,7 +835,6 @@ impl App {
                 height,
                 time,
                 next_validators_hash: finalize_block.next_validators_hash,
-                proposer_address,
             };
 
             self.pre_execute_transactions(block_data)
@@ -1150,7 +1146,6 @@ struct BlockData {
     height: tendermint::block::Height,
     time: tendermint::Time,
     next_validators_hash: Hash,
-    proposer_address: account::Id,
 }
 
 fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<Transaction> {

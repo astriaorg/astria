@@ -13,6 +13,7 @@ use tendermint::{
     abci::{
         self,
     },
+    account::Id,
     block::Header,
     Hash,
 };
@@ -78,7 +79,7 @@ impl Component for IbcComponent {
                 last_commit_hash: Some(Hash::default()),
                 last_results_hash: Some(Hash::default()),
                 next_validators_hash: prepare_state_info.next_validators_hash,
-                proposer_address: prepare_state_info.proposer_address,
+                proposer_address: Id::new([0; 20]),
                 time: prepare_state_info.time,
                 validators_hash: Hash::default(),
                 version: tendermint::block::header::Version {

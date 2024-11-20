@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use cnidarium::StateWrite;
 use tendermint::{
     abci::types,
-    account,
     block,
     chain,
     AppHash,
@@ -19,7 +18,6 @@ pub(crate) struct PrepareStateInfo {
     pub(crate) chain_id: chain::Id,
     pub(crate) height: block::Height,
     pub(crate) next_validators_hash: Hash,
-    pub(crate) proposer_address: account::Id,
     pub(crate) time: Time,
 }
 
@@ -49,7 +47,7 @@ pub(crate) trait Component {
     /// it returns, so that `state.get_mut().is_some()` on completion.
     async fn prepare_state_for_tx_execution<S: StateWrite + 'static>(
         state: &mut Arc<S>,
-        prepare_state_for_tx_execution: &PrepareStateInfo,
+        prepare_state_info: &PrepareStateInfo,
     ) -> Result<()>;
 
     /// Handles necessary state changes for the given component after transaction execution, ending

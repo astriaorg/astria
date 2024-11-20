@@ -50,14 +50,14 @@ impl Component for AuthorityComponent {
     #[instrument(name = "AuthorityComponent::prepare_state_for_tx_execution", skip_all)]
     async fn prepare_state_for_tx_execution<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
-        prepare_state_for_tx_execution: &PrepareStateInfo,
+        prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
         let mut current_set = state
             .get_validator_set()
             .await
             .wrap_err("failed getting validator set")?;
 
-        for misbehaviour in &prepare_state_for_tx_execution.byzantine_validators {
+        for misbehaviour in &prepare_state_info.byzantine_validators {
             current_set.remove(&misbehaviour.validator.address);
         }
 
