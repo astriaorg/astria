@@ -388,7 +388,7 @@ enum SubmittedMetadataErrorKind {
     RollupIdsNotInCometBftBlock,
     #[error(
         "failed constructing a Merkle Hash Tree Proof for the extended commit info from the raw \
-         raw source type"
+         source type"
     )]
     ExtendedCommitInfoProof {
         source: <merkle::Proof as Protobuf>::Error,

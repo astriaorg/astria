@@ -717,4 +717,40 @@ mod tests {
             .expect("should have ids proof in state");
         assert_eq!(*block.rollup_ids_proof(), ids_proof);
     }
+
+    #[tokio::test]
+    async fn get_extended_commit_info_by_block_hash() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+
+        let info = state
+            .get_extended_commit_info(block.block_hash())
+            .await
+            .expect("should have commit info in state");
+        assert_eq!(block.extended_commit_info(), info.as_ref());
+    }
+
+    #[tokio::test]
+    async fn get_extended_commit_info_proof_by_block_hash() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+
+        let proof = state
+            .get_extended_commit_info_proof_by_block_hash(block.block_hash())
+            .await
+            .expect("should have commit info proof in state");
+        assert_eq!(block.extended_commit_info_proof(), proof.as_ref());
+    }
 }

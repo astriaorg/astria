@@ -272,6 +272,11 @@ impl ProposalHandler {
         }
 
         if extended_commit_info.votes.is_empty() {
+            ensure!(
+                last_commit.round == extended_commit_info.round,
+                "last commit round does not match extended commit round"
+            );
+
             // it's okay for the extended commit info to be empty,
             // as it's possible the proposer did not receive valid vote extensions from >2/3 staking
             // power.

@@ -70,6 +70,8 @@ mod tests {
         insta::assert_snapshot!(rollup_ids_by_hash(&HASH));
         insta::assert_snapshot!(rollup_transactions_proof_by_hash(&HASH));
         insta::assert_snapshot!(rollup_ids_proof_by_hash(&HASH));
+        insta::assert_snapshot!(extended_commit_info_by_hash(&HASH));
+        insta::assert_snapshot!(extended_commit_info_proof_by_hash(&HASH));
     }
 
     #[test]
@@ -80,5 +82,7 @@ mod tests {
         assert!(rollup_ids_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
         assert!(rollup_transactions_proof_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
         assert!(rollup_ids_proof_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
+        assert!(extended_commit_info_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
+        assert!(extended_commit_info_proof_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
     }
 }
