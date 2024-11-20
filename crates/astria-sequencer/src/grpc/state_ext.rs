@@ -16,6 +16,7 @@ use astria_eyre::{
     },
 };
 use async_trait::async_trait;
+use bytes::Bytes;
 use cnidarium::{
     StateRead,
     StateWrite,
@@ -148,6 +149,42 @@ pub(crate) trait StateReadExt: StateRead {
             .and_then(|value| storage::Proof::try_from(value).map(merkle::Proof::from))
             .wrap_err("invalid rollup IDs proof bytes")
     }
+
+    #[instrument(skip_all)]
+    async fn get_extended_commit_info(&self, hash: &[u8; 32]) -> Result<Option<Bytes>> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(keys::extended_commit_info_by_hash(hash).as_bytes())
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read extended commit info by block hash from state")?
+        else {
+            return Ok(None);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::ExtendedCommitInfo::try_from(value).map(|info| Some(info.into()))
+            })
+            .wrap_err("invalid extended commit info bytes")
+    }
+
+    #[instrument(skip_all)]
+    async fn get_extended_commit_info_proof_by_block_hash(
+        &self,
+        hash: &[u8; 32],
+    ) -> Result<Option<merkle::Proof>> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(keys::extended_commit_info_proof_by_hash(hash).as_bytes())
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read extended commit info proof by block hash from state")?
+        else {
+            return Ok(None);
+        };
+        let proof = StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::Proof::try_from(value).map(merkle::Proof::from))
+            .wrap_err("invalid extended commit info proof bytes")?;
+        Ok(Some(proof))
+    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -162,6 +199,8 @@ pub(crate) trait StateWriteExt: StateWrite {
         // 4. for each rollup ID in the block, map block hash + rollup ID to rollup data
         // 5. block hash to rollup transactions proof
         // 6. block hash to rollup IDs proof
+        // 7. block hash to extended commit info, if it exists
+        // 8. block hash to extended commit info proof, if it exists
 
         let SequencerBlockParts {
             block_hash,
@@ -169,6 +208,8 @@ pub(crate) trait StateWriteExt: StateWrite {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = block.into_parts();
 
         put_block_hash(self, header.height(), block_hash)?;
@@ -176,7 +217,14 @@ pub(crate) trait StateWriteExt: StateWrite {
         put_block_header(self, &block_hash, header)?;
         put_rollups_transactions(self, &block_hash, rollup_transactions.into_iter())?;
         put_rollups_transactions_proof(self, &block_hash, rollup_transactions_proof)?;
-        put_rollup_ids_proof(self, &block_hash, rollup_ids_proof)
+        put_rollup_ids_proof(self, &block_hash, rollup_ids_proof)?;
+        if let Some(extended_commit_info) = extended_commit_info {
+            put_extended_commit_info(self, &block_hash, &extended_commit_info)?;
+        }
+        if let Some(extended_commit_info_proof) = extended_commit_info_proof {
+            put_extended_commit_info_proof(self, &block_hash, &extended_commit_info_proof)?;
+        }
+        Ok(())
     }
 }
 
@@ -201,6 +249,14 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
         .get_rollup_ids_proof_by_block_hash(hash)
         .await
         .wrap_err("failed to get rollup ids proof by block hash")?;
+    let extended_commit_info = state
+        .get_extended_commit_info(hash)
+        .await
+        .wrap_err("failed to get extended commit info by block hash")?;
+    let extended_commit_info_proof = state
+        .get_extended_commit_info_proof_by_block_hash(hash)
+        .await
+        .wrap_err("failed to get extended commit info proof by block hash")?;
 
     #[expect(
         clippy::default_trait_access,
@@ -212,6 +268,8 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
         rollup_transactions: Default::default(),
         rollup_transactions_proof,
         rollup_ids_proof,
+        extended_commit_info,
+        extended_commit_info_proof,
     };
 
     for rollup_id in rollup_ids {
@@ -326,6 +384,33 @@ fn put_rollup_ids_proof<S: StateWrite + ?Sized>(
         .serialize()
         .context("failed to serialize rollup ids proof")?;
     state.nonverifiable_put_raw(keys::rollup_ids_proof_by_hash(block_hash).into(), bytes);
+    Ok(())
+}
+
+fn put_extended_commit_info<S: StateWrite + ?Sized>(
+    state: &mut S,
+    block_hash: &[u8; 32],
+    extended_commit_info: &Bytes,
+) -> Result<()> {
+    let bytes = StoredValue::from(storage::ExtendedCommitInfo::from(extended_commit_info))
+        .serialize()
+        .context("failed to serialize extended commit info")?;
+    state.nonverifiable_put_raw(keys::extended_commit_info_by_hash(block_hash).into(), bytes);
+    Ok(())
+}
+
+fn put_extended_commit_info_proof<S: StateWrite + ?Sized>(
+    state: &mut S,
+    block_hash: &[u8; 32],
+    proof: &merkle::Proof,
+) -> Result<()> {
+    let bytes = StoredValue::from(storage::Proof::from(proof))
+        .serialize()
+        .context("failed to serialize extended commit info proof")?;
+    state.nonverifiable_put_raw(
+        keys::extended_commit_info_proof_by_hash(block_hash).into(),
+        bytes,
+    );
     Ok(())
 }
 
@@ -631,5 +716,41 @@ mod tests {
             .await
             .expect("should have ids proof in state");
         assert_eq!(*block.rollup_ids_proof(), ids_proof);
+    }
+
+    #[tokio::test]
+    async fn get_extended_commit_info_by_block_hash() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+
+        let info = state
+            .get_extended_commit_info(block.block_hash())
+            .await
+            .expect("should have commit info in state");
+        assert_eq!(block.extended_commit_info(), info.as_ref());
+    }
+
+    #[tokio::test]
+    async fn get_extended_commit_info_proof_by_block_hash() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let block = make_test_sequencer_block(2u32);
+        state
+            .put_sequencer_block(block.clone())
+            .expect("writing block to database should work");
+
+        let proof = state
+            .get_extended_commit_info_proof_by_block_hash(block.block_hash())
+            .await
+            .expect("should have commit info proof in state");
+        assert_eq!(block.extended_commit_info_proof(), proof.as_ref());
     }
 }

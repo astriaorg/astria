@@ -322,11 +322,17 @@ mod tests {
     fn validate_sequencer_blob_last_commit_none_ok() {
         let rollup_transactions_root = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]).root();
         let rollup_ids_root = merkle::Tree::new().root();
+        let extended_commit_info = b"extended_commit_info".to_vec();
 
-        let tree = merkle_tree_from_transactions([rollup_transactions_root, rollup_ids_root]);
+        let tree = merkle_tree_from_transactions([
+            rollup_transactions_root.as_slice(),
+            rollup_ids_root.as_slice(),
+            &extended_commit_info,
+        ]);
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
+        let extended_commit_info_proof = tree.construct_proof(2).unwrap();
 
         let (validator_set, proposer_address, commit) =
             make_test_validator_set_and_commit(1, "test-chain".try_into().unwrap());
@@ -350,6 +356,8 @@ mod tests {
             rollup_ids: vec![],
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info: Some(extended_commit_info.into()),
+            extended_commit_info_proof: Some(extended_commit_info_proof),
         }
         .try_into_celestia_sequencer_blob()
         .unwrap();
@@ -367,11 +375,17 @@ mod tests {
             astria_core::primitive::v1::derive_merkle_tree_from_rollup_txs(&grouped_txs);
         let rollup_transactions_root = rollup_transactions_tree.root();
         let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
+        let extended_commit_info = b"extended_commit_info".to_vec();
 
-        let tree = merkle_tree_from_transactions([rollup_transactions_root, rollup_ids_root]);
+        let tree = merkle_tree_from_transactions([
+            rollup_transactions_root.as_slice(),
+            rollup_ids_root.as_slice(),
+            &extended_commit_info,
+        ]);
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
+        let extended_commit_info_proof = tree.construct_proof(2).unwrap();
 
         let (validator_set, proposer_address, commit) =
             make_test_validator_set_and_commit(1, "test-chain".try_into().unwrap());
@@ -395,6 +409,8 @@ mod tests {
             rollup_ids: vec![rollup_id],
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info: Some(extended_commit_info.into()),
+            extended_commit_info_proof: Some(extended_commit_info_proof),
         }
         .try_into_celestia_sequencer_blob()
         .unwrap();
