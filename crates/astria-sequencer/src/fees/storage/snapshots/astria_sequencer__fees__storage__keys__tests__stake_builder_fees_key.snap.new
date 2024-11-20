@@ -1,0 +1,6 @@
+---
+source: crates/astria-sequencer/src/fees/storage/keys.rs
+assertion_line: 87
+expression: STAKE_BUILDER
+---
+fees/stake_builder

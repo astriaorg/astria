@@ -106,6 +106,20 @@ pub mod protocol {
             }
         }
     }
+
+    #[path = ""]
+    pub mod enshrinedbuilder {
+        pub mod v1alpha1 {
+            include!("astria.protocol.enshrinedbuilder.v1alpha1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.protocol.enshrinedbuilder.v1alpha1.serde.rs");
+            }
+        }
+    }
+
     #[path = ""]
     pub mod genesis {
         pub mod v1 {

@@ -286,6 +286,24 @@ impl From<BridgeSudoChange> for Action {
     }
 }
 
+impl From<StakeBuilder> for Action {
+    fn from(value: StakeBuilder) -> Self {
+        Self::StakeBuilder(value)
+    }
+}
+
+impl From<UnstakeBuilder> for Action {
+    fn from(value: UnstakeBuilder) -> Self {
+        Self::UnstakeBuilder(value)
+    }
+}
+
+impl From<WithdrawBuilderCollateral> for Action {
+    fn from(value: WithdrawBuilderCollateral) -> Self {
+        Self::WithdrawBuilderCollateral(value)
+    }
+}
+
 impl From<FeeChange> for Action {
     fn from(value: FeeChange) -> Self {
         Self::FeeChange(value)

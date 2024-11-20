@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package astria.protocol.enshrinedbuilder.v1alpha1;
+
+import "astria/primitive/v1/types.proto";
+import "google/protobuf/timestamp.proto";
+
+message StakedBuilderEntry {
+  astria.primitive.v1.Address creator_address = 1;
+  astria.primitive.v1.Address builder_address = 2;
+  astria.primitive.v1.Uint128 staked_amount = 3;
+  string asset = 4;
+}
+
+message UnstakedBuilderEntry {
+  astria.primitive.v1.Address creator_address = 1;
+  astria.primitive.v1.Address builder_address = 2;
+  google.protobuf.Timestamp time = 3;
+  string asset = 4;
+}

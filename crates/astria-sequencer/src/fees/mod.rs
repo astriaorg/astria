@@ -333,13 +333,22 @@ impl FeeHandler for IbcRelay {
 impl FeeHandler for StakeBuilder {
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> astria_eyre::Result<()> {
-        state
+        let stake_builder_fee_component = state
             .get_stake_builder_fees()
             .await
             .wrap_err("error fetching stake builder fees")?
             .ok_or_else(|| {
                 eyre::eyre!("stake builder fees not found, so this action is disabled")
             })?;
+        check_and_pay_fees(
+            self,
+            stake_builder_fee_component.base,
+            stake_builder_fee_component.multiplier,
+            state,
+            &self.fee_asset,
+        )
+        .await
+        .wrap_err("failed to check and pay fees for stake builder")?;
         Ok(())
     }
 
@@ -352,13 +361,22 @@ impl FeeHandler for StakeBuilder {
 impl FeeHandler for UnstakeBuilder {
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> astria_eyre::Result<()> {
-        state
+        let unstake_builder_fee_component = state
             .get_unstake_builder_fees()
             .await
             .wrap_err("error fetching unstake builder fees")?
             .ok_or_else(|| {
                 eyre::eyre!("unstake builder fees not found, so this action is disabled")
             })?;
+        check_and_pay_fees(
+            self,
+            unstake_builder_fee_component.base,
+            unstake_builder_fee_component.multiplier,
+            state,
+            &self.fee_asset,
+        )
+        .await
+        .wrap_err("failed to check and pay fees for unstake builder")?;
         Ok(())
     }
 
@@ -371,7 +389,7 @@ impl FeeHandler for UnstakeBuilder {
 impl FeeHandler for WithdrawBuilderCollateral {
     #[instrument(skip_all, err)]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> astria_eyre::Result<()> {
-        state
+        let withdraw_builder_collateral_fee_component = state
             .get_withdraw_builder_collateral_fees()
             .await
             .wrap_err("error fetching withdraw builder collateral fees")?
@@ -380,6 +398,15 @@ impl FeeHandler for WithdrawBuilderCollateral {
                     "withdraw builder collateral fees not found, so this action is disabled"
                 )
             })?;
+        check_and_pay_fees(
+            self,
+            withdraw_builder_collateral_fee_component.base,
+            withdraw_builder_collateral_fee_component.multiplier,
+            state,
+            &self.fee_asset,
+        )
+        .await
+        .wrap_err("failed to check and pay fees for withdraw builder collateral")?;
         Ok(())
     }
 

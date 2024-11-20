@@ -16,7 +16,10 @@ use astria_core::{
             BridgeSudoChangeFeeComponents,
             InitBridgeAccountFeeComponents,
             RollupDataSubmissionFeeComponents,
+            StakeBuilderFeeComponents,
             TransferFeeComponents,
+            UnstakeBuilderFeeComponents,
+            WithdrawBuilderCollateralFeeComponents,
         },
         transaction::v1::{
             action::{
@@ -24,7 +27,10 @@ use astria_core::{
                 BridgeSudoChange,
                 InitBridgeAccount,
                 RollupDataSubmission,
+                StakeBuilder,
                 Transfer,
+                UnstakeBuilder,
+                WithdrawBuilderCollateral,
             },
             TransactionBody,
         },
@@ -45,6 +51,7 @@ use crate::{
         test_utils::{
             get_alice_signing_key,
             get_bridge_signing_key,
+            get_builder_signing_key,
         },
         ActionHandler as _,
     },
@@ -266,6 +273,146 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let expected_fees = transfer_base
         + (base_deposit_fee(&test_deposit.asset, &test_deposit.destination_chain_address)
             * bridge_lock_byte_cost_multiplier);
+    assert_eq!(total_block_fees, expected_fees);
+}
+
+#[tokio::test]
+async fn ensure_correct_block_fees_stake_builder() {
+    let alice = get_alice_signing_key();
+    let builder = get_builder_signing_key();
+    let builder_address = astria_address(&builder.address_bytes());
+
+    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let snapshot = storage.latest_snapshot();
+    let mut state = StateDelta::new(snapshot);
+
+    let transfer_base = 1;
+
+    let stake_builder_multiplier = 1;
+
+    state
+        .put_stake_builder_fees(StakeBuilderFeeComponents {
+            base: transfer_base,
+            multiplier: stake_builder_multiplier,
+        })
+        .unwrap();
+
+    let actions = vec![
+        StakeBuilder {
+            builder_address,
+            amount: 1,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into(),
+    ];
+
+    let tx = TransactionBody::builder()
+        .actions(actions)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+    let signed_tx = Arc::new(tx.sign(&alice));
+    signed_tx.check_and_execute(&mut state).await.unwrap();
+
+    let total_block_fees: u128 = state
+        .get_block_fees()
+        .into_iter()
+        .map(|fee| fee.amount())
+        .sum();
+    let expected_fees = transfer_base;
+    assert_eq!(total_block_fees, expected_fees);
+}
+
+#[tokio::test]
+async fn ensure_correct_block_fees_unstake_builder() {
+    let alice = get_alice_signing_key();
+    let builder = get_builder_signing_key();
+    let builder_address = astria_address(&builder.address_bytes());
+
+    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let snapshot = storage.latest_snapshot();
+    let mut state = StateDelta::new(snapshot);
+
+    let transfer_base = 1;
+
+    let stake_builder_multiplier = 1;
+
+    state
+        .put_unstake_builder_fees(UnstakeBuilderFeeComponents {
+            base: transfer_base,
+            multiplier: stake_builder_multiplier,
+        })
+        .unwrap();
+
+    let actions = vec![
+        UnstakeBuilder {
+            builder_address,
+            fee_asset: nria().into(),
+        }
+        .into(),
+    ];
+
+    let tx = TransactionBody::builder()
+        .actions(actions)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+    let signed_tx = Arc::new(tx.sign(&alice));
+    signed_tx.check_and_execute(&mut state).await.unwrap();
+
+    let total_block_fees: u128 = state
+        .get_block_fees()
+        .into_iter()
+        .map(|fee| fee.amount())
+        .sum();
+    let expected_fees = transfer_base;
+    assert_eq!(total_block_fees, expected_fees);
+}
+
+#[tokio::test]
+async fn ensure_correct_block_fees_withdraw_builder_collateral() {
+    let alice = get_alice_signing_key();
+    let builder = get_builder_signing_key();
+    let builder_address = astria_address(&builder.address_bytes());
+
+    let (_, storage) = initialize_app_with_storage(None, vec![]).await;
+    let snapshot = storage.latest_snapshot();
+    let mut state = StateDelta::new(snapshot);
+
+    let transfer_base = 1;
+
+    let stake_builder_multiplier = 1;
+
+    state
+        .put_withdraw_builder_collateral_fees(WithdrawBuilderCollateralFeeComponents {
+            base: transfer_base,
+            multiplier: stake_builder_multiplier,
+        })
+        .unwrap();
+
+    let actions = vec![
+        WithdrawBuilderCollateral {
+            builder_address,
+            fee_asset: nria().into(),
+        }
+        .into(),
+    ];
+
+    let tx = TransactionBody::builder()
+        .actions(actions)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+    let signed_tx = Arc::new(tx.sign(&alice));
+    signed_tx.check_and_execute(&mut state).await.unwrap();
+
+    let total_block_fees: u128 = state
+        .get_block_fees()
+        .into_iter()
+        .map(|fee| fee.amount())
+        .sum();
+    let expected_fees = transfer_base;
     assert_eq!(total_block_fees, expected_fees);
 }
 

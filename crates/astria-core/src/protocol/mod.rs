@@ -13,6 +13,7 @@ pub mod genesis;
 pub mod memos;
 pub mod transaction;
 
+mod enshrinedbuilder;
 #[cfg(any(feature = "test-utils", test))]
 pub mod test_utils;
 

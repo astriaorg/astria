@@ -83,6 +83,15 @@ pub(crate) fn get_bridge_signing_key() -> SigningKey {
     SigningKey::from(bridge_secret_bytes)
 }
 
+pub(crate) fn get_builder_signing_key() -> SigningKey {
+    let bridge_secret_bytes: [u8; 32] =
+        hex::decode("25c590ecead288b4e4685a66aaa29d8ee296d41136dc7ef83cd3e6912cb88be2")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    SigningKey::from(bridge_secret_bytes)
+}
+
 pub(crate) async fn initialize_app(
     genesis_state: Option<GenesisAppState>,
     genesis_validators: Vec<ValidatorUpdate>,
