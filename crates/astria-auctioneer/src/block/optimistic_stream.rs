@@ -1,7 +1,7 @@
 use std::pin::Pin;
 
 use astria_core::{
-    generated::sequencerblock::optimisticblock::v1alpha1::GetOptimisticBlockStreamResponse,
+    generated::sequencerblock::optimistic::v1alpha1::GetOptimisticBlockStreamResponse,
     primitive::v1::RollupId,
 };
 use astria_eyre::eyre::{

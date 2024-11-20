@@ -166,14 +166,14 @@ pub mod sequencerblock {
         }
     }
 
-    pub mod optimisticblock {
+    pub mod optimistic {
         pub mod v1alpha1 {
-            include!("astria.sequencerblock.optimisticblock.v1alpha1.rs");
+            include!("astria.sequencerblock.optimistic.v1alpha1.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("astria.sequencerblock.optimisticblock.v1alpha1.serde.rs");
+                include!("astria.sequencerblock.optimistic.v1alpha1.serde.rs");
             }
         }
     }

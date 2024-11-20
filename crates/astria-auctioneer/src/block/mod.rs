@@ -3,7 +3,7 @@ use astria_core::{
     generated::{
         bundle::v1alpha1 as raw_bundle,
         sequencerblock::{
-            optimisticblock::v1alpha1 as raw_optimistic_block,
+            optimistic::v1alpha1 as raw_optimistic_block,
             v1::{
                 self as raw_sequencer_block,
             },
