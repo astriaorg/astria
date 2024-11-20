@@ -22,6 +22,10 @@ use super::{
     raw,
 };
 use crate::{
+    connect::types::v2::{
+        CurrencyPair,
+        CurrencyPairError,
+    },
     primitive::v1::{
         asset,
         derive_merkle_tree_from_rollup_txs,
@@ -1647,6 +1651,125 @@ enum DepositErrorKind {
     TransactionIdError(#[source] TransactionIdError),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Price {
+    currency_pair: CurrencyPair,
+    price: u128,
+    decimals: u64,
+}
+
+impl Price {
+    #[must_use]
+    pub fn into_raw(self) -> raw::Price {
+        let Self {
+            currency_pair,
+            price,
+            decimals,
+        } = self;
+        raw::Price {
+            currency_pair: Some(currency_pair.into_raw()),
+            price: Some(price.into()),
+            decimals,
+        }
+    }
+
+    /// Attempts to transform the price from its raw representation.
+    ///
+    /// # Errors
+    ///
+    /// - if the currency pair is invalid
+    /// - if the price is unset
+    pub fn try_from_raw(raw: raw::Price) -> Result<Self, PriceError> {
+        let raw::Price {
+            currency_pair,
+            price,
+            decimals,
+        } = raw;
+        let Some(currency_pair) = currency_pair else {
+            return Err(PriceError::field_not_set("currency_pair"));
+        };
+        let currency_pair =
+            CurrencyPair::try_from_raw(currency_pair).map_err(PriceError::currency)?;
+        let price = price.ok_or(PriceError::field_not_set("price"))?.into();
+        Ok(Self {
+            currency_pair,
+            price,
+            decimals,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct PriceError(PriceErrorKind);
+
+impl PriceError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(PriceErrorKind::FieldNotSet(field))
+    }
+
+    fn currency(source: CurrencyPairError) -> Self {
+        Self(PriceErrorKind::Currency(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum PriceErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the currency pair is invalid")]
+    Currency(#[source] CurrencyPairError),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OracleData {
+    prices: Vec<Price>,
+}
+
+impl OracleData {
+    #[must_use]
+    pub fn into_raw(self) -> raw::OracleData {
+        raw::OracleData {
+            prices: self.prices.into_iter().map(Price::into_raw).collect(),
+        }
+    }
+
+    /// Attempts to transform the oracle data from its raw representation.
+    ///
+    /// # Errors
+    ///
+    /// - if the prices are unset
+    pub fn try_from_raw(raw: raw::OracleData) -> Result<Self, OracleDataError> {
+        let raw::OracleData {
+            prices,
+        } = raw;
+        let prices = prices
+            .into_iter()
+            .map(Price::try_from_raw)
+            .collect::<Result<_, _>>()
+            .map_err(OracleDataError::prices)?;
+        Ok(Self {
+            prices,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct OracleDataError(OracleDataErrorKind);
+
+impl OracleDataError {
+    fn prices(source: PriceError) -> Self {
+        Self(OracleDataErrorKind::Prices(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum OracleDataErrorKind {
+    #[error("failed to validate `prices` field")]
+    Prices(#[source] PriceError),
+}
+
 /// A piece of data that is sent to a rollup execution node.
 ///
 /// The data can be either sequenced data (originating from a [`RollupDataSubmission`]
@@ -1658,6 +1781,7 @@ enum DepositErrorKind {
 pub enum RollupData {
     SequencedData(Bytes),
     Deposit(Box<Deposit>),
+    OracleData(Box<OracleData>),
 }
 
 impl RollupData {
@@ -1669,6 +1793,9 @@ impl RollupData {
             },
             Self::Deposit(deposit) => raw::RollupData {
                 value: Some(raw::rollup_data::Value::Deposit(deposit.into_raw())),
+            },
+            Self::OracleData(oracle_data) => raw::RollupData {
+                value: Some(raw::rollup_data::Value::OracleData(oracle_data.into_raw())),
             },
         }
     }
@@ -1689,6 +1816,12 @@ impl RollupData {
                 .map(Box::new)
                 .map(Self::Deposit)
                 .map_err(RollupDataError::deposit),
+            Some(raw::rollup_data::Value::OracleData(oracle_data)) => {
+                Ok(OracleData::try_from_raw(oracle_data)
+                    .map(Box::new)
+                    .map(Self::OracleData)
+                    .map_err(RollupDataError::oracle_data)?)
+            }
             None => Err(RollupDataError::field_not_set("data")),
         }
     }
@@ -1706,6 +1839,10 @@ impl RollupDataError {
     fn deposit(source: DepositError) -> Self {
         Self(RollupDataErrorKind::Deposit(source))
     }
+
+    fn oracle_data(source: OracleDataError) -> Self {
+        Self(RollupDataErrorKind::OracleData(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1714,4 +1851,6 @@ enum RollupDataErrorKind {
     FieldNotSet(&'static str),
     #[error("failed to validate `deposit` field")]
     Deposit(#[source] DepositError),
+    #[error("failed to validate `oracle_data` field")]
+    OracleData(#[source] OracleDataError),
 }

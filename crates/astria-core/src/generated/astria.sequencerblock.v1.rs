@@ -207,7 +207,7 @@ impl ::prost::Name for FilteredSequencerBlock {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RollupData {
-    #[prost(oneof = "rollup_data::Value", tags = "1, 2")]
+    #[prost(oneof = "rollup_data::Value", tags = "1, 2, 3")]
     pub value: ::core::option::Option<rollup_data::Value>,
 }
 /// Nested message and enum types in `RollupData`.
@@ -219,10 +219,44 @@ pub mod rollup_data {
         SequencedData(::prost::bytes::Bytes),
         #[prost(message, tag = "2")]
         Deposit(super::Deposit),
+        #[prost(message, tag = "3")]
+        OracleData(super::OracleData),
     }
 }
 impl ::prost::Name for RollupData {
     const NAME: &'static str = "RollupData";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OracleData {
+    #[prost(message, repeated, tag = "1")]
+    pub prices: ::prost::alloc::vec::Vec<Price>,
+}
+impl ::prost::Name for OracleData {
+    const NAME: &'static str = "OracleData";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Price {
+    #[prost(message, optional, tag = "1")]
+    pub currency_pair: ::core::option::Option<
+        super::super::super::connect::types::v2::CurrencyPair,
+    >,
+    #[prost(message, optional, tag = "2")]
+    pub price: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    #[prost(uint64, tag = "3")]
+    pub decimals: u64,
+}
+impl ::prost::Name for Price {
+    const NAME: &'static str = "Price";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
