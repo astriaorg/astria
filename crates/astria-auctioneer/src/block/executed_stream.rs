@@ -13,7 +13,7 @@ use astria_eyre::eyre::{
 };
 use futures::{
     Stream,
-    StreamExt,
+    StreamExt as _,
 };
 use pin_project_lite::pin_project;
 use telemetry::display::base64;
