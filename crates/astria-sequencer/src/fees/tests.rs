@@ -30,6 +30,7 @@ use astria_core::{
         },
     },
     sequencerblock::v1::block::Deposit,
+    Protobuf as _,
 };
 use cnidarium::StateDelta;
 
