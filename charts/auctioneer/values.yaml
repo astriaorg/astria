@@ -1,4 +1,4 @@
-global:
+justglobal:
   namespaceOverride: ""
   replicaCount: 1
   # Whether to use tty readable logging for astria services, when false use json.
@@ -7,10 +7,10 @@ global:
 
 images:
   auctioneer:
-    repo: ghcr.io/astriaorg/astria-auctioneer
+    repo: ghcr.io/astriaorg/auctioneer
     pullPolicy: IfNotPresent
-    tag: "test"
-    devTag: "test"
+    tag: "final-testing-2"
+    devTag: "final-testing-2"
 
 config:
   sequencerGrpcEndpoint: ""

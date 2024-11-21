@@ -11,8 +11,8 @@ images:
     repo: ghcr.io/astriaorg/go-ethereum
     pullPolicy: IfNotPresent
     tag: 0.16.0
-    devTag: final-testing-auctioneer-1
-    overrideTag: "final-testing-auctioneer-1"
+    devTag: final-testing-auctioneer-9
+    overrideTag: "final-testing-auctioneer-9"
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
@@ -70,7 +70,8 @@ genesis:
     #   minBaseFee: 0
     #   elasticityMultiplier: 2
     #   baseFeeChangeDenominator: 8
-
+#  trustedBuilderAddresses:
+#    1: "astria1vf7plerpn2kz4s30rmtphdjlms67lafeducfyn"
   ## Standard Eth Genesis config values
   # An EVM chain number id, different from the astria rollup name
   chainId: ""
