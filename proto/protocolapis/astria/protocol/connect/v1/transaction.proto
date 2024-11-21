@@ -6,11 +6,11 @@ import "astria_vendored/tendermint/abci/types.proto";
 import "connect/types/v2/currency_pair.proto";
 
 message ExtendedCommitInfoWithCurrencyPairMapping {
-    astria_vendored.tendermint.abci.ExtendedCommitInfo extended_commit_info = 1;
-    repeated IdWithCurrencyPair id_to_currency_pair = 2;
+  astria_vendored.tendermint.abci.ExtendedCommitInfo extended_commit_info = 1;
+  repeated IdWithCurrencyPair id_to_currency_pair = 2;
 }
 
 message IdWithCurrencyPair {
-    uint64 id = 1;
-    .connect.types.v2.CurrencyPair currency_pair = 2;
+  uint64 id = 1;
+  .connect.types.v2.CurrencyPair currency_pair = 2;
 }
