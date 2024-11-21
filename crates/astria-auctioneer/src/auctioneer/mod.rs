@@ -6,6 +6,7 @@ use std::{
 use astria_eyre::eyre::{
     self,
 };
+use inner::Inner;
 use pin_project_lite::pin_project;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -20,7 +21,7 @@ use crate::{
 mod inner;
 
 pin_project! {
-    /// Handle to the [`Auctioneer`] service, returned by [`Auctioneer::spawn`].
+    /// The [`Auctioneer`] service returned by [`Auctioneer::spawn`].
     pub struct Auctioneer {
         shutdown_token: CancellationToken,
         task: Option<JoinHandle<eyre::Result<()>>>,
@@ -28,14 +29,13 @@ pin_project! {
 }
 
 impl Auctioneer {
-    /// Creates an [`Auctioneer`] service and runs it, returning a handle to the taks and shutdown
-    /// token.
+    /// Spawns the [`Auctioneer`] service.
     ///
     /// # Errors
     /// Returns an error if the Auctioneer cannot be initialized.
     pub fn spawn(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let shutdown_token = CancellationToken::new();
-        let inner = inner::Auctioneer::new(cfg, metrics, shutdown_token.child_token())?;
+        let inner = Inner::new(cfg, metrics, shutdown_token.child_token())?;
         let task = tokio::spawn(inner.run());
 
         Ok(Self {
@@ -44,13 +44,13 @@ impl Auctioneer {
         })
     }
 
-    /// Initiates shutdown of the Auctioneer and returns its result.
+    /// Shuts down Auctioneer, in turn waiting for its components to shut down.
     ///
     /// # Errors
-    /// Returns an error if the Auctioneer exited with an error.
+    /// Returns an error if an error occured during shutdown.
     ///
     /// # Panics
-    /// Panics if shutdown is called twice.
+    /// Panics if called twice.
     #[instrument(skip_all, err)]
     pub async fn shutdown(&mut self) -> eyre::Result<()> {
         self.shutdown_token.cancel();
