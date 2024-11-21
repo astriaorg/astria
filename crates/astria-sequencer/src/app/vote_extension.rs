@@ -286,8 +286,8 @@ impl ProposalHandler {
                     return None;
                 }
             };
-            Some(Ok((id, currency_pair)))
-        }).collect::<Result<IndexMap<CurrencyPairId, CurrencyPair>>>()?;
+            Some((id, currency_pair))
+        }).collect::<IndexMap<CurrencyPairId, CurrencyPair>>();
 
         let tx = ExtendedCommitInfoWithCurrencyPairMapping::new(
             extended_commit_info,
