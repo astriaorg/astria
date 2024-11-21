@@ -1,3 +1,80 @@
+impl serde::Serialize for BlockIdFlag {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let variant = match self {
+            Self::Unknown => "BLOCK_ID_FLAG_UNKNOWN",
+            Self::Absent => "BLOCK_ID_FLAG_ABSENT",
+            Self::Commit => "BLOCK_ID_FLAG_COMMIT",
+            Self::Nil => "BLOCK_ID_FLAG_NIL",
+        };
+        serializer.serialize_str(variant)
+    }
+}
+impl<'de> serde::Deserialize<'de> for BlockIdFlag {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "BLOCK_ID_FLAG_UNKNOWN",
+            "BLOCK_ID_FLAG_ABSENT",
+            "BLOCK_ID_FLAG_COMMIT",
+            "BLOCK_ID_FLAG_NIL",
+        ];
+
+        struct GeneratedVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = BlockIdFlag;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, "expected one of: {:?}", &FIELDS)
+            }
+
+            fn visit_i64<E>(self, v: i64) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                i32::try_from(v)
+                    .ok()
+                    .and_then(|x| x.try_into().ok())
+                    .ok_or_else(|| {
+                        serde::de::Error::invalid_value(serde::de::Unexpected::Signed(v), &self)
+                    })
+            }
+
+            fn visit_u64<E>(self, v: u64) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                i32::try_from(v)
+                    .ok()
+                    .and_then(|x| x.try_into().ok())
+                    .ok_or_else(|| {
+                        serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(v), &self)
+                    })
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match value {
+                    "BLOCK_ID_FLAG_UNKNOWN" => Ok(BlockIdFlag::Unknown),
+                    "BLOCK_ID_FLAG_ABSENT" => Ok(BlockIdFlag::Absent),
+                    "BLOCK_ID_FLAG_COMMIT" => Ok(BlockIdFlag::Commit),
+                    "BLOCK_ID_FLAG_NIL" => Ok(BlockIdFlag::Nil),
+                    _ => Err(serde::de::Error::unknown_variant(value, FIELDS)),
+                }
+            }
+        }
+        deserializer.deserialize_any(GeneratedVisitor)
+    }
+}
 impl serde::Serialize for ExtendedCommitInfo {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -141,7 +218,7 @@ impl serde::Serialize for ExtendedVoteInfo {
             struct_ser.serialize_field("extensionSignature", pbjson::private::base64::encode(&self.extension_signature).as_str())?;
         }
         if self.block_id_flag != 0 {
-            let v = super::types::BlockIdFlag::try_from(self.block_id_flag)
+            let v = BlockIdFlag::try_from(self.block_id_flag)
                 .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.block_id_flag)))?;
             struct_ser.serialize_field("blockIdFlag", &v)?;
         }
@@ -246,7 +323,7 @@ impl<'de> serde::Deserialize<'de> for ExtendedVoteInfo {
                             if block_id_flag__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("blockIdFlag"));
                             }
-                            block_id_flag__ = Some(map_.next_value::<super::types::BlockIdFlag>()? as i32);
+                            block_id_flag__ = Some(map_.next_value::<BlockIdFlag>()? as i32);
                         }
                     }
                 }

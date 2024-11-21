@@ -7,7 +7,10 @@ pub mod types;
 pub mod transaction {
     pub mod v1 {
         use indexmap::IndexMap;
-        use tendermint::abci::types::ExtendedCommitInfo;
+        use tendermint::{
+            abci::types::ExtendedCommitInfo,
+            block::Round,
+        };
 
         use crate::{
             connect::types::v2::{
@@ -89,8 +92,8 @@ pub mod transaction {
 
         #[derive(Debug, Clone)]
         pub struct ExtendedCommitInfoWithCurrencyPairMapping {
-            extended_commit_info: ExtendedCommitInfo,
-            id_to_currency_pair: IndexMap<CurrencyPairId, CurrencyPair>,
+            pub extended_commit_info: ExtendedCommitInfo,
+            pub id_to_currency_pair: IndexMap<CurrencyPairId, CurrencyPair>,
         }
 
         impl ExtendedCommitInfoWithCurrencyPairMapping {
@@ -103,6 +106,27 @@ pub mod transaction {
                     extended_commit_info,
                     id_to_currency_pair,
                 }
+            }
+
+            #[must_use]
+            pub fn empty(round: Round) -> Self {
+                Self {
+                    extended_commit_info: ExtendedCommitInfo {
+                        round,
+                        votes: Vec::new(),
+                    },
+                    id_to_currency_pair: IndexMap::new(),
+                }
+            }
+
+            #[must_use]
+            pub fn extended_commit_info(&self) -> &ExtendedCommitInfo {
+                &self.extended_commit_info
+            }
+
+            #[must_use]
+            pub fn id_to_currency_pair(&self) -> &IndexMap<CurrencyPairId, CurrencyPair> {
+                &self.id_to_currency_pair
             }
 
             pub fn try_from_raw(
@@ -148,12 +172,10 @@ pub mod transaction {
                 })
             }
 
-            pub fn into_raw(
-                value: ExtendedCommitInfoWithCurrencyPairMapping,
-            ) -> raw::ExtendedCommitInfoWithCurrencyPairMapping {
+            pub fn into_raw(self) -> raw::ExtendedCommitInfoWithCurrencyPairMapping {
                 let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
-                    value.extended_commit_info.into();
-                let id_to_currency_pair = value
+                    self.extended_commit_info.into();
+                let id_to_currency_pair = self
                     .id_to_currency_pair
                     .into_iter()
                     .map(

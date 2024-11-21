@@ -44,7 +44,7 @@ pub struct ExtendedVoteInfo {
     #[prost(bytes = "bytes", tag = "4")]
     pub extension_signature: ::prost::bytes::Bytes,
     /// block_id_flag indicates whether the validator voted for a block, nil, or did not vote at all
-    #[prost(enumeration = "::tendermint_proto::types::BlockIdFlag", tag = "5")]
+    #[prost(enumeration = "BlockIdFlag", tag = "5")]
     pub block_id_flag: i32,
 }
 impl ::prost::Name for ExtendedVoteInfo {
@@ -67,5 +67,37 @@ impl ::prost::Name for Validator {
     const PACKAGE: &'static str = "astria_vendored.tendermint.abci";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria_vendored.tendermint.abci.{}", Self::NAME)
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum BlockIdFlag {
+    Unknown = 0,
+    Absent = 1,
+    Commit = 2,
+    Nil = 3,
+}
+impl BlockIdFlag {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            BlockIdFlag::Unknown => "BLOCK_ID_FLAG_UNKNOWN",
+            BlockIdFlag::Absent => "BLOCK_ID_FLAG_ABSENT",
+            BlockIdFlag::Commit => "BLOCK_ID_FLAG_COMMIT",
+            BlockIdFlag::Nil => "BLOCK_ID_FLAG_NIL",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "BLOCK_ID_FLAG_UNKNOWN" => Some(Self::Unknown),
+            "BLOCK_ID_FLAG_ABSENT" => Some(Self::Absent),
+            "BLOCK_ID_FLAG_COMMIT" => Some(Self::Commit),
+            "BLOCK_ID_FLAG_NIL" => Some(Self::Nil),
+            _ => None,
+        }
     }
 }

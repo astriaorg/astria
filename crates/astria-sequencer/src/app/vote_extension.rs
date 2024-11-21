@@ -1,12 +1,17 @@
-use std::collections::HashMap;
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use astria_core::{
     connect::{
         abci::v2::OracleVoteExtension,
         oracle::v2::QuotePrice,
         service::v2::QueryPricesResponse,
+        transaction::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         types::v2::{
             CurrencyPair,
+            CurrencyPairId,
             Price,
         },
     },
@@ -22,6 +27,7 @@ use astria_core::{
 use astria_eyre::eyre::{
     bail,
     ensure,
+    eyre,
     ContextCompat as _,
     Result,
     WrapErr as _,
@@ -118,7 +124,7 @@ impl Handler {
                 .wrap_err("failed to get max number of currency pairs")?;
 
         let response = match verify_vote_extension(vote.vote_extension, max_num_currency_pairs) {
-            Ok(()) => abci::response::VerifyVoteExtension::Accept,
+            Ok(_) => abci::response::VerifyVoteExtension::Accept,
             Err(e) => {
                 tracing::warn!(error = %e, "failed to verify vote extension");
                 abci::response::VerifyVoteExtension::Reject
@@ -132,7 +138,7 @@ impl Handler {
 fn verify_vote_extension(
     oracle_vote_extension_bytes: bytes::Bytes,
     max_num_currency_pairs: u64,
-) -> Result<()> {
+) -> Result<HashSet<u64>> {
     let oracle_vote_extension = RawOracleVoteExtension::decode(oracle_vote_extension_bytes)
         .wrap_err("failed to decode oracle vote extension")?;
 
@@ -141,14 +147,16 @@ fn verify_vote_extension(
         "number of oracle vote extension prices exceeds max expected number of currency pairs"
     );
 
-    for prices in oracle_vote_extension.prices.values() {
+    let mut ids = HashSet::with_capacity(oracle_vote_extension.prices.len());
+    for (id, price) in oracle_vote_extension.prices {
         ensure!(
-            prices.len() <= MAXIMUM_PRICE_BYTE_LEN,
+            price.len() <= MAXIMUM_PRICE_BYTE_LEN,
             "encoded price length exceeded {MAXIMUM_PRICE_BYTE_LEN}"
         );
+        ids.insert(id);
     }
 
-    Ok(())
+    Ok(ids)
 }
 
 // see https://github.com/skip-mev/connect/blob/158cde8a4b774ac4eec5c6d1a2c16de6a8c6abb5/abci/ve/vote_extension.go#L290
@@ -195,14 +203,6 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
     })
 }
 
-pub(crate) struct ValidatedExtendedCommitInfo(ExtendedCommitInfo);
-
-impl ValidatedExtendedCommitInfo {
-    pub(crate) fn into_inner(self) -> ExtendedCommitInfo {
-        self.0
-    }
-}
-
 pub(crate) struct ProposalHandler;
 
 impl ProposalHandler {
@@ -214,14 +214,17 @@ impl ProposalHandler {
         state: &S,
         height: u64,
         mut extended_commit_info: ExtendedCommitInfo,
-    ) -> Result<ValidatedExtendedCommitInfo> {
+    ) -> Result<ExtendedCommitInfoWithCurrencyPairMapping> {
         if height == 1 {
             // we're proposing block 1, so nothing to validate
             info!(
                 "skipping vote extension proposal for block 1, as there were no previous vote \
                  extensions"
             );
-            return Ok(ValidatedExtendedCommitInfo(extended_commit_info));
+            return Ok(ExtendedCommitInfoWithCurrencyPairMapping::new(
+                extended_commit_info,
+                IndexMap::new(),
+            ));
         }
 
         let max_num_currency_pairs =
@@ -229,30 +232,50 @@ impl ProposalHandler {
                 .await
                 .wrap_err("failed to get max number of currency pairs")?;
 
+        let mut all_ids = HashSet::new();
         for vote in &mut extended_commit_info.votes {
-            if let Err(e) =
-                verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs)
-            {
-                let address = state
-                    .try_base_prefixed(vote.validator.address.as_slice())
-                    .await
-                    .wrap_err("failed to construct validator address with base prefix")?;
-                debug!(
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                    validator = address.to_string(),
-                    "failed to verify vote extension; pruning from proposal"
-                );
-                vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
-                vote.extension_signature = None;
-                vote.vote_extension.clear();
-            }
+            let ids =
+                match verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs) {
+                    Ok(ids) => ids,
+                    Err(e) => {
+                        let address = state
+                            .try_base_prefixed(vote.validator.address.as_slice())
+                            .await
+                            .wrap_err("failed to construct validator address with base prefix")?;
+                        debug!(
+                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            validator = address.to_string(),
+                            "failed to verify vote extension; pruning from proposal"
+                        );
+                        vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
+                        vote.extension_signature = None;
+                        vote.vote_extension.clear();
+                        continue;
+                    }
+                };
+            all_ids.extend(ids);
         }
 
         validate_vote_extensions(state, height, &extended_commit_info)
             .await
             .wrap_err("failed to validate vote extensions in prepare_proposal")?;
 
-        Ok(ValidatedExtendedCommitInfo(extended_commit_info))
+        let mut id_to_currency_pair = IndexMap::with_capacity(all_ids.len());
+        // TODO futures stream
+        for id in all_ids {
+            let id = CurrencyPairId::new(id);
+            let currency_pair = DefaultCurrencyPairStrategy::from_id(state, id)
+                .await
+                .wrap_err("failed to get currency pair for id")?
+                .ok_or(eyre!("currency pair should exist in state"))?;
+            id_to_currency_pair.insert(id, currency_pair);
+        }
+        let tx = ExtendedCommitInfoWithCurrencyPairMapping::new(
+            extended_commit_info,
+            id_to_currency_pair,
+        );
+
+        Ok(tx)
     }
 
     // called during process_proposal; validates the proposed extended commit info.
@@ -260,8 +283,13 @@ impl ProposalHandler {
         state: &S,
         height: u64,
         last_commit: &CommitInfo,
-        extended_commit_info: &ExtendedCommitInfo,
+        extended_commit_info: &ExtendedCommitInfoWithCurrencyPairMapping,
     ) -> Result<()> {
+        let ExtendedCommitInfoWithCurrencyPairMapping {
+            extended_commit_info,
+            id_to_currency_pair,
+        } = extended_commit_info;
+
         if height == 1 {
             // we're processing block 1, so nothing to validate (no last commit yet)
             info!(
@@ -270,6 +298,10 @@ impl ProposalHandler {
             );
             return Ok(());
         }
+
+        validate_id_to_currency_pair_mapping(state, id_to_currency_pair)
+            .await
+            .wrap_err("failed to validate id_to_currency_pair mapping")?;
 
         if extended_commit_info.votes.is_empty() {
             ensure!(
@@ -303,6 +335,28 @@ impl ProposalHandler {
 
         Ok(())
     }
+}
+
+async fn validate_id_to_currency_pair_mapping<S: StateReadExt>(
+    state: &S,
+    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
+) -> Result<()> {
+    // TODO: futures stream
+    for (id, currency_pair) in id_to_currency_pair {
+        let expected_currency_pair = DefaultCurrencyPairStrategy::from_id(state, *id)
+            .await
+            .wrap_err("failed to get currency pair for id")?
+            .ok_or(eyre!("currency pair should exist in state"))?;
+        ensure!(
+            currency_pair == &expected_currency_pair,
+            format!(
+                "currency pair {} was not expected {} given id {}",
+                currency_pair, expected_currency_pair, id
+            )
+        );
+    }
+
+    Ok(())
 }
 
 // see https://github.com/skip-mev/connect/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L111
@@ -476,10 +530,15 @@ fn validate_extended_commit_against_last_commit(
 
 pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
     state: &mut S,
-    extended_commit_info: ExtendedCommitInfo,
+    extended_commit_info: ExtendedCommitInfoWithCurrencyPairMapping,
     timestamp: Timestamp,
     height: u64,
 ) -> Result<()> {
+    let ExtendedCommitInfoWithCurrencyPairMapping {
+        extended_commit_info,
+        id_to_currency_pair,
+    } = extended_commit_info;
+
     let votes = extended_commit_info
         .votes
         .iter()
@@ -492,7 +551,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         .collect::<Result<Vec<_>>>()
         .wrap_err("failed to extract oracle vote extension from extended commit info")?;
 
-    let prices = aggregate_oracle_votes(state, votes)
+    let prices = aggregate_oracle_votes(votes, id_to_currency_pair)
         .await
         .wrap_err("failed to aggregate oracle votes")?;
 
@@ -515,9 +574,9 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
     Ok(())
 }
 
-async fn aggregate_oracle_votes<S: StateReadExt>(
-    state: &S,
+async fn aggregate_oracle_votes(
     votes: Vec<OracleVoteExtension>,
+    id_to_currency_pair: IndexMap<CurrencyPairId, CurrencyPair>,
 ) -> Result<HashMap<CurrencyPair, Price>> {
     // validators are not weighted right now, so we just take the median price for each currency
     // pair
@@ -527,12 +586,12 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
     let mut currency_pair_to_price_list = HashMap::new();
     for vote in votes {
         for (id, price) in vote.prices {
-            let Some(currency_pair) = DefaultCurrencyPairStrategy::from_id(state, id)
-                .await
-                .wrap_err("failed to get currency pair from id")?
-            else {
-                continue;
-            };
+            let currency_pair = id_to_currency_pair
+                .get(&id)
+                .ok_or(eyre!(
+                    "currency pair not found for id; this should not happen"
+                ))?
+                .clone();
             currency_pair_to_price_list
                 .entry(currency_pair)
                 .and_modify(|prices: &mut Vec<Price>| prices.push(price))
