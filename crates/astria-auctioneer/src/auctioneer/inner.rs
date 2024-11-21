@@ -21,7 +21,7 @@ use tracing::{
 
 use crate::{
     auction,
-    flatten_result,
+    flatten_join_result,
     optimistic_executor,
     Config,
     Metrics,
@@ -111,7 +111,7 @@ impl Auctioneer {
             },
 
             Some((name, res)) = self.tasks.join_next() => {
-                flatten_result(res)
+                flatten_join_result(res)
                     .wrap_err_with(|| format!("task `{name}` failed"))
                     .map(|()| "task `{name}` exited unexpectedly")
             }
@@ -133,7 +133,7 @@ impl Auctioneer {
         let shutdown_loop = async {
             while let Some((name, res)) = self.tasks.join_next().await {
                 let message = "task shut down";
-                match flatten_result(res) {
+                match flatten_join_result(res) {
                     Ok(()) => {
                         info!(name, message);
                     }

@@ -30,7 +30,7 @@ use super::{
     Id,
     SequencerKey,
 };
-use crate::flatten_result;
+use crate::flatten_join_result;
 
 pub(crate) struct Builder {
     pub(crate) metrics: &'static crate::Metrics,
@@ -194,7 +194,7 @@ impl Manager {
                 .remove(&auction_id)
                 .expect("handle should always exist for running auction");
 
-            Some((auction_id, flatten_result(result)))
+            Some((auction_id, flatten_join_result(result)))
         } else {
             None
         }

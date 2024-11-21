@@ -1,17 +1,18 @@
-use std::future::Future;
+use std::{
+    future::Future,
+    task::Poll,
+};
 
 use astria_eyre::eyre::{
     self,
 };
 use pin_project_lite::pin_project;
-use tokio::task::{
-    JoinError,
-    JoinHandle,
-};
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::{
+    flatten_join_result,
     Config,
     Metrics,
 };
@@ -51,22 +52,21 @@ impl Auctioneer {
     /// # Panics
     /// Panics if shutdown is called twice.
     #[instrument(skip_all, err)]
-    pub async fn shutdown(&mut self) -> Result<eyre::Result<()>, JoinError> {
+    pub async fn shutdown(&mut self) -> eyre::Result<()> {
         self.shutdown_token.cancel();
-        self.task
-            .take()
-            .expect("shutdown must not be called twice")
-            .await
+        flatten_join_result(
+            self.task
+                .take()
+                .expect("shutdown must not be called twice")
+                .await,
+        )
     }
 }
 
 impl Future for Auctioneer {
-    type Output = Result<eyre::Result<()>, tokio::task::JoinError>;
+    type Output = eyre::Result<()>;
 
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         use futures::future::FutureExt as _;
 
         let this = self.project();
@@ -74,6 +74,6 @@ impl Future for Auctioneer {
             .task
             .as_mut()
             .expect("the Auctioneer handle must not be polled after shutdown");
-        task.poll_unpin(cx)
+        task.poll_unpin(cx).map(flatten_join_result)
     }
 }
