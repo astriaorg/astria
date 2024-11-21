@@ -9,6 +9,8 @@ use astria_core::{
     sequencerblock::v1::block::{
         FilteredSequencerBlock,
         FilteredSequencerBlockParts,
+        OracleData,
+        RollupData,
     },
 };
 use astria_eyre::eyre::{
@@ -704,6 +706,7 @@ impl ExecutableBlock {
             transactions,
             ..
         } = block;
+        // TODO: handle extended commit info parsing
         let timestamp = convert_tendermint_time_to_protobuf_timestamp(header.time());
         Self {
             hash: block_hash,
@@ -718,6 +721,7 @@ impl ExecutableBlock {
             block_hash,
             header,
             mut rollup_transactions,
+            extended_commit_info,
             ..
         } = block.into_parts();
         let height = header.height();
@@ -726,6 +730,10 @@ impl ExecutableBlock {
             .swap_remove(&id)
             .map(|txs| txs.transactions().to_vec())
             .unwrap_or_default();
+
+        if let Some(extended_commit_info) = extended_commit_info {
+            let oracle_data = parse_extended_commit_info_into_oracle_data(extended_commit_info);
+        }
         Self {
             hash: block_hash,
             height,
@@ -733,6 +741,15 @@ impl ExecutableBlock {
             transactions,
         }
     }
+}
+
+fn parse_extended_commit_info_into_oracle_data(extended_commit_info: Vec<u8>) -> RollupData {
+    let extended_commit_info =
+        tendermint_proto::tendermint::v0_38::abci::ExtendedCommitInfo::decode(
+            &extended_commit_info,
+        )
+        .expect("failed to decode extended commit info");
+    RollupData::OracleData(oracle_data)
 }
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
