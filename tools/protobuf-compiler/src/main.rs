@@ -66,6 +66,7 @@ fn main() {
         .btree_map([".connect"])
         .bytes([
             ".astria",
+            ".astria_vendored.tendermint.abci",
             ".connect",
             ".celestia",
             ".connect",
@@ -75,6 +76,7 @@ fn main() {
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
+        .extern_path(".astria_vendored.tendermint.types.BlockIDFlag", "::tendermint_proto::types::BlockIdFlag")
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
         .type_attribute(
             ".astria.protocol.genesis.v1.IbcParameters",

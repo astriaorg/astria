@@ -48,3 +48,10 @@ message Header {
   bytes evidence_hash = 13;
   bytes proposer_address = 14;
 }
+
+enum BlockIDFlag {
+	BLOCK_ID_FLAG_UNKNOWN = 0;
+	BLOCK_ID_FLAG_ABSENT = 1;
+	BLOCK_ID_FLAG_COMMIT = 2;
+	BLOCK_ID_FLAG_NIL = 3;
+}
