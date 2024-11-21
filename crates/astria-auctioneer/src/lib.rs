@@ -23,7 +23,7 @@ pub use metrics::Metrics;
 pub use telemetry;
 use tokio::task::JoinError;
 
-fn flatten_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {
+fn flatten_join_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {
     match res {
         Ok(Ok(val)) => Ok(val),
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),

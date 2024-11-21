@@ -5,7 +5,11 @@ use astria_auctioneer::{
     Config,
     BUILD_INFO,
 };
-use astria_eyre::eyre::WrapErr as _;
+use astria_eyre::eyre::{
+    self,
+    eyre,
+    WrapErr as _,
+};
 use tokio::{
     select,
     signal::unix::{
@@ -16,6 +20,7 @@ use tokio::{
 use tracing::{
     error,
     info,
+    instrument,
     warn,
 };
 
@@ -25,8 +30,17 @@ async fn main() -> ExitCode {
 
     eprintln!("{}", telemetry::display::json(&BUILD_INFO));
 
-    let cfg: Config = config::get().expect("failed to read configuration");
-    eprintln!("{}", telemetry::display::json(&cfg),);
+    let cfg: Config = match config::get() {
+        Err(err) => {
+            eprintln!("failed to read configuration:\n{err:?}");
+            return ExitCode::FAILURE;
+        }
+        Ok(cfg) => cfg,
+    };
+    eprintln!(
+        "starting with configuration:\n{}",
+        telemetry::display::json(&cfg),
+    );
 
     let mut telemetry_conf = telemetry::configure()
         .set_no_otel(cfg.no_otel)
@@ -66,22 +80,32 @@ async fn main() -> ExitCode {
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
 
-    select! {
-        _ = sigterm.recv() => {
-            info!("received SIGTERM; shutting down");
-            if let Err(error) = auctioneer.shutdown().await {
-                warn!(%error, "encountered an error while shutting down");
-            }
-            info!("auctioneer stopped");
+    let exit_reason = select! {
+        _ = sigterm.recv() => Ok("received shutdown signal"),
+        res = &mut auctioneer => {
+            res.and_then(|()| Err(eyre!("auctioneer task exited unexpectedly")))
+        }
+    };
+
+    shutdown(exit_reason, auctioneer).await
+}
+
+#[instrument(skip_all)]
+async fn shutdown(reason: eyre::Result<&'static str>, mut service: Auctioneer) -> ExitCode {
+    let message = "shutting down";
+    let exit_code = match reason {
+        Ok(reason) => {
+            info!(reason, message);
+            if let Err(error) = service.shutdown().await {
+                warn!(%error, "encountered errors during shutdown")
+            };
             ExitCode::SUCCESS
         }
-
-        res = &mut auctioneer => {
-            error!(
-                error = res.err().map(tracing::field::display),
-                "auctioneer task exited unexpectedly"
-            );
+        Err(reason) => {
+            error!(%reason, message);
             ExitCode::FAILURE
         }
-    }
+    };
+    info!("shutdown target reached");
+    exit_code
 }
