@@ -38,9 +38,9 @@ use astria_eyre::eyre::{
     OptionExt,
     WrapErr as _,
 };
+use futures::StreamExt as _;
 use telemetry::display::base64;
 use tokio::select;
-use tokio_stream::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 use tracing::{
     error,

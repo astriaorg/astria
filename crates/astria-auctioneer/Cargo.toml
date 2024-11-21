@@ -8,9 +8,6 @@ readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
-[[bin]]
-name = "astria-auctioneer"
-
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = ["serde", "client"] }
@@ -21,8 +18,6 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
   "display",
 ] }
 
-async-trait = { workspace = true }
-axum = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
@@ -33,8 +28,6 @@ pin-project-lite = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-sha2 = { workspace = true }
-thiserror = { workspace = true }
 tokio = { workspace = true, features = [
   "macros",
   "rt-multi-thread",
@@ -49,17 +42,9 @@ tonic = { workspace = true }
 tokio-stream = { workspace = true, features = ["net"] }
 
 [dev-dependencies]
-astria-core = { path = "../astria-core", features = ["client"] }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
-insta = { workspace = true, features = ["json"] }
-tempfile = { workspace = true }
-test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
-  "geth",
-] }
-tokio-test = { workspace = true }
-wiremock = { workspace = true }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
