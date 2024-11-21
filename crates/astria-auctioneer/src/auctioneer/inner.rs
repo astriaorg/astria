@@ -37,7 +37,6 @@ pub(super) struct Auctioneer {
 
 impl Auctioneer {
     const OPTIMISTIC_EXECUTOR: &'static str = "optimistic_executor";
-    const _BUNDLE_COLLECTOR: &'static str = "bundle_collector";
 
     /// Creates an [`Auctioneer`] service from a [`Config`] and [`Metrics`].
     pub(super) fn new(
