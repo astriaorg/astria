@@ -27,7 +27,8 @@ use crate::{
     Metrics,
 };
 
-pub(super) struct Auctioneer {
+/// The implementation of the auctioneer business logic.
+pub(super) struct Inner {
     /// Used to signal the service to shutdown
     shutdown_token: CancellationToken,
 
@@ -35,7 +36,7 @@ pub(super) struct Auctioneer {
     tasks: JoinMap<&'static str, eyre::Result<()>>,
 }
 
-impl Auctioneer {
+impl Inner {
     const OPTIMISTIC_EXECUTOR: &'static str = "optimistic_executor";
 
     /// Creates an [`Auctioneer`] service from a [`Config`] and [`Metrics`].
