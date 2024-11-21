@@ -15,7 +15,7 @@ use astria_eyre::eyre::{
 };
 use futures::{
     Stream,
-    StreamExt,
+    StreamExt as _,
 };
 use prost::Name;
 use tonic::transport::{
