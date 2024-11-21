@@ -8,7 +8,6 @@ use astria_core::{
         abci::v2::OracleVoteExtension,
         oracle::v2::QuotePrice,
         service::v2::QueryPricesResponse,
-        transaction::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         types::v2::{
             CurrencyPair,
             CurrencyPairId,
@@ -23,6 +22,7 @@ use astria_core::{
             QueryPricesRequest,
         },
     },
+    protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
 };
 use astria_eyre::eyre::{
     bail,
@@ -551,8 +551,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         .collect::<Result<Vec<_>>>()
         .wrap_err("failed to extract oracle vote extension from extended commit info")?;
 
-    let prices = aggregate_oracle_votes(votes, id_to_currency_pair)
-        .await
+    let prices = aggregate_oracle_votes(votes, &id_to_currency_pair)
         .wrap_err("failed to aggregate oracle votes")?;
 
     for (currency_pair, price) in prices {
@@ -574,9 +573,9 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
     Ok(())
 }
 
-async fn aggregate_oracle_votes(
+fn aggregate_oracle_votes(
     votes: Vec<OracleVoteExtension>,
-    id_to_currency_pair: IndexMap<CurrencyPairId, CurrencyPair>,
+    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
 ) -> Result<HashMap<CurrencyPair, Price>> {
     // validators are not weighted right now, so we just take the median price for each currency
     // pair

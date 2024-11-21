@@ -247,16 +247,18 @@ mod tests {
     };
 
     use astria_core::{
-        connect::transaction::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         crypto::{
             SigningKey,
             VerificationKey,
         },
         primitive::v1::RollupId,
-        protocol::transaction::v1::{
-            action::RollupDataSubmission,
-            Transaction,
-            TransactionBody,
+        protocol::{
+            connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+            transaction::v1::{
+                action::RollupDataSubmission,
+                Transaction,
+                TransactionBody,
+            },
         },
         Protobuf as _,
     };

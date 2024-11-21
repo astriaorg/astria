@@ -24,13 +24,13 @@ use std::{
 };
 
 use astria_core::{
-    connect::transaction::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     generated::protocol::{
         connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
         transaction::v1 as raw,
     },
     protocol::{
         abci::AbciErrorCode,
+        connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         genesis::v1::GenesisAppState,
         transaction::v1::{
             action::{
