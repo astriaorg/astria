@@ -32,6 +32,10 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use futures::{
+    StreamExt as _,
+    TryStreamExt,
+};
 use indexmap::IndexMap;
 use prost::Message as _;
 use tendermint::{
@@ -166,7 +170,6 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
     rsp: QueryPricesResponse,
 ) -> Result<OracleVoteExtension> {
     use astria_core::connect::types::v2::CurrencyPairId;
-    use futures::StreamExt as _;
 
     let futures = futures::stream::FuturesUnordered::new();
     for (currency_pair, price) in rsp.prices {
@@ -260,16 +263,32 @@ impl ProposalHandler {
             .await
             .wrap_err("failed to validate vote extensions in prepare_proposal")?;
 
-        let mut id_to_currency_pair = IndexMap::with_capacity(all_ids.len());
-        // TODO futures stream
+        let futures = futures::stream::FuturesUnordered::new();
         for id in all_ids {
             let id = CurrencyPairId::new(id);
-            let currency_pair = DefaultCurrencyPairStrategy::from_id(state, id)
-                .await
-                .wrap_err("failed to get currency pair for id")?
-                .ok_or(eyre!("currency pair should exist in state"))?;
-            id_to_currency_pair.insert(id, currency_pair);
+            futures
+                .push(async move { (DefaultCurrencyPairStrategy::from_id(state, id).await, id) });
         }
+        let result = futures
+            .collect::<Vec<(Result<Option<CurrencyPair>>, CurrencyPairId)>>()
+            .await;
+        let id_to_currency_pair = result.into_iter().filter_map(|(result, id)| {
+            let currency_pair = match result {
+                Ok(Some(currency_pair)) => currency_pair,
+                Ok(None) => {
+                    debug!(%id, "currency pair not found in state; skipping");
+                    return None;
+                }
+                Err(e) => {
+                    // FIXME: this event can be removed once all instrumented functions
+                    // can generate an error event.
+                    warn!(%id, error = AsRef::<dyn std::error::Error>::as_ref(&e), "failed to fetch currency pair for ID; skipping");
+                    return None;
+                }
+            };
+            Some(Ok((id, currency_pair)))
+        }).collect::<Result<IndexMap<CurrencyPairId, CurrencyPair>>>()?;
+
         let tx = ExtendedCommitInfoWithCurrencyPairMapping::new(
             extended_commit_info,
             id_to_currency_pair,
@@ -341,20 +360,24 @@ async fn validate_id_to_currency_pair_mapping<S: StateReadExt>(
     state: &S,
     id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
 ) -> Result<()> {
-    // TODO: futures stream
+    let mut futures = futures::stream::FuturesUnordered::new();
     for (id, currency_pair) in id_to_currency_pair {
-        let expected_currency_pair = DefaultCurrencyPairStrategy::from_id(state, *id)
-            .await
-            .wrap_err("failed to get currency pair for id")?
-            .ok_or(eyre!("currency pair should exist in state"))?;
-        ensure!(
-            currency_pair == &expected_currency_pair,
-            format!(
-                "currency pair {} was not expected {} given id {}",
-                currency_pair, expected_currency_pair, id
-            )
-        );
+        futures.push(async move {
+            let expected_currency_pair = DefaultCurrencyPairStrategy::from_id(state, *id)
+                .await
+                .wrap_err("failed to get currency pair for id")?
+                .ok_or(eyre!("currency pair should exist in state"))?;
+            ensure!(
+                currency_pair == &expected_currency_pair,
+                format!(
+                    "currency pair {} was not expected {} given id {}",
+                    currency_pair, expected_currency_pair, id
+                )
+            );
+            Ok(())
+        });
     }
+    while futures.try_next().await?.is_some() {}
 
     Ok(())
 }
@@ -551,9 +574,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         .collect::<Result<Vec<_>>>()
         .wrap_err("failed to extract oracle vote extension from extended commit info")?;
 
-    let prices = aggregate_oracle_votes(votes, &id_to_currency_pair)
-        .wrap_err("failed to aggregate oracle votes")?;
-
+    let prices = aggregate_oracle_votes(votes, &id_to_currency_pair);
     for (currency_pair, price) in prices {
         let price = QuotePrice {
             price,
@@ -576,7 +597,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
 fn aggregate_oracle_votes(
     votes: Vec<OracleVoteExtension>,
     id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
-) -> Result<HashMap<CurrencyPair, Price>> {
+) -> HashMap<CurrencyPair, Price> {
     // validators are not weighted right now, so we just take the median price for each currency
     // pair
     //
@@ -585,12 +606,13 @@ fn aggregate_oracle_votes(
     let mut currency_pair_to_price_list = HashMap::new();
     for vote in votes {
         for (id, price) in vote.prices {
-            let currency_pair = id_to_currency_pair
-                .get(&id)
-                .ok_or(eyre!(
-                    "currency pair not found for id; this should not happen"
-                ))?
-                .clone();
+            let Some(currency_pair) = id_to_currency_pair.get(&id) else {
+                // it's possible for a vote to contain some currency pair ID that didn't exist
+                // in state. this probably shouldn't happen if validators are running the right
+                // code, but it doesn't invalidate their entire vote extension, so
+                // it's kept in the block anyways.
+                continue;
+            };
             currency_pair_to_price_list
                 .entry(currency_pair)
                 .and_modify(|prices: &mut Vec<Price>| prices.push(price))
@@ -622,10 +644,10 @@ fn aggregate_oracle_votes(
             price_list.get(midpoint).copied()
         }
         .unwrap_or_else(|| Price::new(0));
-        prices.insert(currency_pair, median_price);
+        prices.insert(currency_pair.clone(), median_price);
     }
 
-    Ok(prices)
+    prices
 }
 
 #[cfg(test)]
