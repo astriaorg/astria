@@ -43,7 +43,7 @@ pub(crate) struct Bundle {
 }
 
 impl Bundle {
-    fn try_from_raw(raw: raw::Bundle) -> eyre::Result<Self> {
+    pub(crate) fn try_from_raw(raw: raw::Bundle) -> eyre::Result<Self> {
         let raw::Bundle {
             fee,
             transactions,
