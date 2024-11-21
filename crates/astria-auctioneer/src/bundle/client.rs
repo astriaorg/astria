@@ -13,12 +13,14 @@ use astria_eyre::eyre::{
     OptionExt,
     WrapErr as _,
 };
-use axum::http::Uri;
 use futures::{
     Stream,
     StreamExt,
 };
-use tonic::transport::Endpoint;
+use tonic::transport::{
+    Endpoint,
+    Uri,
+};
 use tracing::{
     instrument,
     warn,
