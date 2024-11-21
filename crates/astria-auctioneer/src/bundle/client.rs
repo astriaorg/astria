@@ -10,13 +10,14 @@ use astria_core::generated::bundle::v1alpha1::{
 };
 use astria_eyre::eyre::{
     self,
-    OptionExt,
+    eyre,
     WrapErr as _,
 };
 use futures::{
     Stream,
     StreamExt,
 };
+use prost::Name;
 use tonic::transport::{
     Endpoint,
     Uri,
@@ -99,8 +100,11 @@ fn make_retry_cfg(
         )
 }
 
-pub(crate) struct BundleStream {
-    client: Pin<Box<tonic::Streaming<GetBundleStreamResponse>>>,
+pin_project_lite::pin_project! {
+    pub(crate) struct BundleStream {
+        #[pin]
+        inner: tonic::Streaming<GetBundleStreamResponse>,
+    }
 }
 
 impl BundleStream {
@@ -113,7 +117,7 @@ impl BundleStream {
             .wrap_err("failed to get bundle stream")?;
 
         Ok(Self {
-            client: Box::pin(stream),
+            inner: stream,
         })
     }
 }
@@ -125,16 +129,26 @@ impl Stream for BundleStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let Some(res) = futures::ready!(self.client.poll_next_unpin(cx)) else {
+        let Some(res) = futures::ready!(self.inner.poll_next_unpin(cx)) else {
             return std::task::Poll::Ready(None);
         };
 
         let raw = res
-            .wrap_err("received gRPC error")?
+            .wrap_err("failed receiving streamed message from server")?
             .bundle
-            .ok_or_eyre("bundle stream response did not contain bundle")?;
+            .ok_or_else(|| {
+                eyre!(
+                    "message field not set: `{}.bundle`",
+                    GetBundleStreamResponse::full_name()
+                )
+            })?;
 
-        let bundle = Bundle::try_from_raw(raw).wrap_err("failed to parse raw Bundle")?;
+        let bundle = Bundle::try_from_raw(raw).wrap_err_with(|| {
+            format!(
+                "failed to validate received `{}`",
+                astria_core::generated::bundle::v1alpha1::Bundle::full_name()
+            )
+        })?;
 
         std::task::Poll::Ready(Some(Ok(bundle)))
     }
