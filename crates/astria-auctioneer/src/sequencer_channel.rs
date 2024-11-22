@@ -79,12 +79,9 @@ impl SequencerChannel {
     }
 }
 
-pin_project_lite::pin_project! {
-    /// A stream for receiving committed blocks from the sequencer.
-    pub(crate) struct BlockCommitmentStream {
-        #[pin]
-        inner: tonic::Streaming<GetBlockCommitmentStreamResponse>,
-    }
+/// A stream for receiving committed blocks from the sequencer.
+pub(crate) struct BlockCommitmentStream {
+    inner: tonic::Streaming<GetBlockCommitmentStreamResponse>,
 }
 
 impl BlockCommitmentStream {
@@ -128,11 +125,8 @@ impl Stream for BlockCommitmentStream {
     }
 }
 
-pin_project_lite::pin_project! {
-    pub(crate) struct OptimisticBlockStream {
-        #[pin]
-        inner: tonic::Streaming<GetOptimisticBlockStreamResponse>,
-    }
+pub(crate) struct OptimisticBlockStream {
+    inner: tonic::Streaming<GetOptimisticBlockStreamResponse>,
 }
 
 impl OptimisticBlockStream {
