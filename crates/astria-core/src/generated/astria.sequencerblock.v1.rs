@@ -59,14 +59,16 @@ pub struct SequencerBlock {
     /// / The block hash of the cometbft block that corresponds to this sequencer block.
     #[prost(bytes = "bytes", tag = "5")]
     pub block_hash: ::prost::bytes::Bytes,
-    /// / The extended commit info for the block, if vote extensions were enabled at this height.
-    #[prost(bytes = "bytes", optional, tag = "6")]
-    pub extended_commit_info: ::core::option::Option<::prost::bytes::Bytes>,
-    /// / The proof that the extended commit info is included in the cometbft block data (if it
-    /// / exists), specifically the third item in the data field.
+    /// The hashes of any upgrade changes applied during this block and their proof.
+    #[prost(message, optional, tag = "6")]
+    pub upgrade_change_hashes_with_proof: ::core::option::Option<
+        UpgradeChangeHashesWithProof,
+    >,
+    /// The extended commit info with proof for the block, if vote extensions were enabled at this
+    /// height.
     #[prost(message, optional, tag = "7")]
-    pub extended_commit_info_proof: ::core::option::Option<
-        super::super::primitive::v1::Proof,
+    pub extended_commit_info_with_proof: ::core::option::Option<
+        ExtendedCommitInfoWithProof,
     >,
 }
 impl ::prost::Name for SequencerBlock {
@@ -193,14 +195,16 @@ pub struct FilteredSequencerBlock {
     /// the rollup transactions.
     #[prost(message, optional, tag = "6")]
     pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
-    /// / The extended commit info for the block, if vote extensions were enabled at this height.
-    #[prost(bytes = "bytes", optional, tag = "7")]
-    pub extended_commit_info: ::core::option::Option<::prost::bytes::Bytes>,
-    /// / The proof that the extended commit info is included in the cometbft block data (if it
-    /// / exists), specifically the third item in the data field.
+    /// The hashes of any upgrade changes applied during this block and their proof.
+    #[prost(message, optional, tag = "7")]
+    pub upgrade_change_hashes_with_proof: ::core::option::Option<
+        UpgradeChangeHashesWithProof,
+    >,
+    /// The extended commit info with proof for the block, if vote extensions were enabled at this
+    /// height.
     #[prost(message, optional, tag = "8")]
-    pub extended_commit_info_proof: ::core::option::Option<
-        super::super::primitive::v1::Proof,
+    pub extended_commit_info_with_proof: ::core::option::Option<
+        ExtendedCommitInfoWithProof,
     >,
 }
 impl ::prost::Name for FilteredSequencerBlock {
@@ -237,6 +241,44 @@ pub mod rollup_data {
 }
 impl ::prost::Name for RollupData {
     const NAME: &'static str = "RollupData";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpgradeChangeHashesWithProof {
+    /// The SHA256 digests of all upgrade changes applied during this block, if an upgrade was
+    /// activated at this height.
+    #[prost(bytes = "bytes", repeated, tag = "1")]
+    pub upgrade_change_hashes: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
+    /// The proof that the change hashes are included in the cometbft block data (if it exists),
+    /// specifically the third item in the data field.
+    #[prost(message, optional, tag = "2")]
+    pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
+}
+impl ::prost::Name for UpgradeChangeHashesWithProof {
+    const NAME: &'static str = "UpgradeChangeHashesWithProof";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExtendedCommitInfoWithProof {
+    /// The extended commit info for the block, if vote extensions were enabled at this height.
+    #[prost(bytes = "bytes", tag = "1")]
+    pub extended_commit_info: ::prost::bytes::Bytes,
+    /// The proof that the extended commit info is included in the cometbft block data (if it
+    /// exists). If no upgrade change hashes exist in the block, this will be the third item in the
+    /// cometbft block data field, otherwise it will be fourth.
+    #[prost(message, optional, tag = "2")]
+    pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
+}
+impl ::prost::Name for ExtendedCommitInfoWithProof {
+    const NAME: &'static str = "ExtendedCommitInfoWithProof";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
@@ -372,11 +414,16 @@ pub struct SubmittedMetadata {
     /// Corresponds to `astria.sequencerblock.v1.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
-    #[prost(bytes = "bytes", optional, tag = "6")]
-    pub extended_commit_info: ::core::option::Option<::prost::bytes::Bytes>,
+    /// The hashes of any upgrade changes applied during this block and their proof.
+    #[prost(message, optional, tag = "6")]
+    pub upgrade_change_hashes_with_proof: ::core::option::Option<
+        UpgradeChangeHashesWithProof,
+    >,
+    /// The extended commit info with proof for the block, if vote extensions were enabled at this
+    /// height.
     #[prost(message, optional, tag = "7")]
-    pub extended_commit_info_proof: ::core::option::Option<
-        super::super::primitive::v1::Proof,
+    pub extended_commit_info_with_proof: ::core::option::Option<
+        ExtendedCommitInfoWithProof,
     >,
 }
 impl ::prost::Name for SubmittedMetadata {
@@ -440,6 +487,31 @@ pub struct GetPendingNonceResponse {
 }
 impl ::prost::Name for GetPendingNonceResponse {
     const NAME: &'static str = "GetPendingNonceResponse";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetUpgradesInfoRequest {}
+impl ::prost::Name for GetUpgradesInfoRequest {
+    const NAME: &'static str = "GetUpgradesInfoRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetUpgradesInfoResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub applied: ::prost::alloc::vec::Vec<super::super::upgrades::v1::ChangeInfo>,
+    #[prost(message, repeated, tag = "2")]
+    pub scheduled: ::prost::alloc::vec::Vec<super::super::upgrades::v1::ChangeInfo>,
+}
+impl ::prost::Name for GetUpgradesInfoResponse {
+    const NAME: &'static str = "GetUpgradesInfoResponse";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
@@ -622,6 +694,37 @@ pub mod sequencer_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        /// Returns info about the sequencer upgrades applied and scheduled.
+        pub async fn get_upgrades_info(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetUpgradesInfoRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::GetUpgradesInfoResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.sequencerblock.v1.SequencerService/GetUpgradesInfo",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1.SequencerService",
+                        "GetUpgradesInfo",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -652,6 +755,14 @@ pub mod sequencer_service_server {
             request: tonic::Request<super::GetPendingNonceRequest>,
         ) -> std::result::Result<
             tonic::Response<super::GetPendingNonceResponse>,
+            tonic::Status,
+        >;
+        /// Returns info about the sequencer upgrades applied and scheduled.
+        async fn get_upgrades_info(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetUpgradesInfoRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::GetUpgradesInfoResponse>,
             tonic::Status,
         >;
     }
@@ -866,6 +977,53 @@ pub mod sequencer_service_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = GetPendingNonceSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/astria.sequencerblock.v1.SequencerService/GetUpgradesInfo" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetUpgradesInfoSvc<T: SequencerService>(pub Arc<T>);
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<super::GetUpgradesInfoRequest>
+                    for GetUpgradesInfoSvc<T> {
+                        type Response = super::GetUpgradesInfoResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetUpgradesInfoRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as SequencerService>::get_upgrades_info(inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetUpgradesInfoSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

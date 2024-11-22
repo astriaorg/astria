@@ -1,4 +1,10 @@
 pub mod v2 {
+    use std::io::{
+        self,
+        Write,
+    };
+
+    use borsh::BorshSerialize;
     use pbjson_types::Timestamp;
 
     use crate::{
@@ -32,6 +38,15 @@ pub mod v2 {
     impl From<QuotePrice> for raw::QuotePrice {
         fn from(quote_price: QuotePrice) -> Self {
             quote_price.into_raw()
+        }
+    }
+
+    impl BorshSerialize for QuotePrice {
+        fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+            self.price.serialize(writer)?;
+            self.block_timestamp.seconds.serialize(writer)?;
+            self.block_timestamp.nanos.serialize(writer)?;
+            self.block_height.serialize(writer)
         }
     }
 
@@ -162,7 +177,7 @@ pub mod v2 {
         QuotePriceParseError(#[source] QuotePriceError),
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, BorshSerialize)]
     pub struct CurrencyPairGenesis {
         pub currency_pair: CurrencyPair,
         pub currency_pair_price: Option<QuotePrice>,
@@ -285,7 +300,7 @@ pub mod v2 {
         CurrencyPairPrice(#[source] QuotePriceError),
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, BorshSerialize)]
     pub struct GenesisState {
         pub currency_pair_genesis: Vec<CurrencyPairGenesis>,
         pub next_id: CurrencyPairId,

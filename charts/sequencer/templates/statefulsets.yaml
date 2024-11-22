@@ -45,6 +45,8 @@ spec:
             - mountPath: /sequencer
               name: sequencer-shared-storage-vol
               subPath: {{ .Values.moniker }}/sequencer
+            - mountPath: /sequencer-upgrades
+              name: sequencer-upgrades-volume
           ports:
             - containerPort: {{ .Values.ports.sequencerABCI }}
               name: sequencer-abci
@@ -124,6 +126,10 @@ spec:
           configMap:
             name: {{ .Values.moniker }}-cometbft-init-scripts
             defaultMode: 0777
+        - name: sequencer-upgrades-volume
+          configMap:
+            name: {{ .Values.moniker }}-sequencer-upgrades
+            defaultMode: 0400
         - name: sequencer-shared-storage-vol
           {{- if .Values.storage.enabled }}
           persistentVolumeClaim:

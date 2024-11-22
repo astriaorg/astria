@@ -4,6 +4,7 @@ mod proof;
 mod rollup_ids;
 mod rollup_transactions;
 mod sequencer_block_header;
+mod upgrade_change_hashes;
 
 use borsh::{
     BorshDeserialize,
@@ -17,6 +18,7 @@ pub(in crate::grpc) use self::{
     rollup_ids::RollupIds,
     rollup_transactions::RollupTransactions,
     sequencer_block_header::SequencerBlockHeader,
+    upgrade_change_hashes::UpgradeChangeHashes,
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -29,5 +31,6 @@ enum ValueImpl<'a> {
     SequencerBlockHeader(SequencerBlockHeader<'a>),
     RollupTransactions(RollupTransactions<'a>),
     Proof(Proof<'a>),
+    UpgradeChangeHashes(UpgradeChangeHashes<'a>),
     ExtendedCommitInfo(ExtendedCommitInfo<'a>),
 }

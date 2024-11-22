@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package astria.upgrades.v1;
+
+import "astria/protocol/genesis/v1/types.proto";
+
+// A JSON-encoded form of this message is used as the upgrades file for the Sequencer.
+message Upgrades {
+  Upgrade1 upgrade_1 = 1;
+}
+
+// Info specific to a given upgrade.
+//
+// All upgrades have this info at a minimum.
+message BaseUpgradeInfo {
+  // The upgrade should be applied during the lifecycle of the block at this height.
+  uint64 activation_height = 1;
+  // The app version running after the upgrade is applied.
+  uint64 app_version = 2;
+}
+
+// Upgrade 1 of the Sequencer network.
+message Upgrade1 {
+  message ConnectOracleChange {
+    // The Connect oracle genesis data.
+    astria.protocol.genesis.v1.ConnectGenesis genesis = 1;
+  }
+
+  message ValidatorUpdateActionChange {}
+
+  BaseUpgradeInfo base_info = 1;
+  ConnectOracleChange connect_oracle_change = 2;
+  ValidatorUpdateActionChange validator_update_action_change = 3;
+}
+
+// Brief details of a given upgrade change.
+//
+// This is NOT part of the upgrades file schema, rather it is used by the sequencer gRPC service in
+// the `GetUpgradesInfo` response.
+message ChangeInfo {
+  // The block height at which this change was applied.
+  uint64 activation_height = 1;
+  // The human-readable name assigned to to this change.
+  string change_name = 2;
+  // The app version running after the change was applied.
+  uint64 app_version = 3;
+  // The SHA256 digest of this change after Borsh-encoding. The digest is base64 (standard) encoded.
+  string base64_hash = 4;
+}

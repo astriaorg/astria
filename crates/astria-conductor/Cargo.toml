@@ -72,7 +72,7 @@ jsonrpsee = { version = "0.20", features = ["client-core", "macros"] }
 astria-core = { path = "../astria-core", features = [
   "server",
   "test-utils",
-  "brotli",
+  "unchecked-constructors",
 ] }
 astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [

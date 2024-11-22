@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 
+use borsh::BorshSerialize;
 pub use penumbra_ibc::params::IBCParameters;
 use penumbra_ibc::IbcRelay;
 
@@ -46,12 +47,7 @@ use crate::{
     Protobuf,
 };
 
-#[derive(Clone, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Deserialize, serde::Serialize),
-    serde(try_from = "raw::ConnectGenesis", into = "raw::ConnectGenesis")
-)]
+#[derive(Clone, Debug, BorshSerialize)]
 pub struct ConnectGenesis {
     market_map: market_map::v2::GenesisState,
     oracle: oracle::v2::GenesisState,

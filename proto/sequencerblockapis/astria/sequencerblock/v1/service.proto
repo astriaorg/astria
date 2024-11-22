@@ -4,6 +4,7 @@ package astria.sequencerblock.v1;
 
 import "astria/primitive/v1/types.proto";
 import "astria/sequencerblock/v1/block.proto";
+import "astria/upgrades/v1/upgrades.proto";
 import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
 
@@ -29,6 +30,13 @@ message GetPendingNonceResponse {
   uint32 inner = 1;
 }
 
+message GetUpgradesInfoRequest {}
+
+message GetUpgradesInfoResponse {
+  repeated astria.upgrades.v1.ChangeInfo applied = 1;
+  repeated astria.upgrades.v1.ChangeInfo scheduled = 2;
+}
+
 service SequencerService {
   // Given a block height, returns the sequencer block at that height.
   rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock) {
@@ -47,5 +55,10 @@ service SequencerService {
   // Returns the pending nonce for the given account.
   rpc GetPendingNonce(GetPendingNonceRequest) returns (GetPendingNonceResponse) {
     option (google.api.http) = {get: "/v1/sequencer/pendingnonce/{account}"};
+  }
+
+  // Returns info about the sequencer upgrades applied and scheduled.
+  rpc GetUpgradesInfo(GetUpgradesInfoRequest) returns (GetUpgradesInfoResponse) {
+    option (google.api.http) = {get: "/v1/sequencer/upgrades"};
   }
 }

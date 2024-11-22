@@ -6,20 +6,22 @@ use sha2::{
 
 use super::{
     block::{
+        ExtendedCommitInfoWithProof,
         RollupTransactionsParts,
         SequencerBlock,
         SequencerBlockHeader,
         SequencerBlockHeaderError,
+        UpgradeChangeHashesWithProof,
     },
     raw,
     IncorrectRollupIdLength,
     RollupId,
 };
 use crate::{
-    generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
-    protocol::connect::v1::{
-        ExtendedCommitInfoWithCurrencyPairMapping,
-        ExtendedCommitInfoWithCurrencyPairMappingError,
+    protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+    sequencerblock::v1::block::{
+        ExtendedCommitInfoError,
+        UpgradeChangeHashesError,
     },
     Protobuf,
 };
@@ -42,8 +44,8 @@ impl PreparedBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes_with_proof,
+            extended_commit_info_with_proof,
         } = block.into_parts();
 
         let head = SubmittedMetadata {
@@ -52,8 +54,8 @@ impl PreparedBlock {
             rollup_ids: rollup_transactions.keys().copied().collect(),
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes_with_proof,
+            extended_commit_info_with_proof,
         };
 
         let mut tail = Vec::with_capacity(rollup_transactions.len());
@@ -272,12 +274,10 @@ impl SubmittedRollupData {
         let sequencer_block_hash = sequencer_block_hash.as_ref().try_into().map_err(|_| {
             SubmittedRollupDataError::sequencer_block_hash(sequencer_block_hash.len())
         })?;
-        let proof = 'proof: {
-            let Some(proof) = proof else {
-                break 'proof Err(SubmittedRollupDataError::field_not_set("proof"));
-            };
-            merkle::Proof::try_from_raw(proof).map_err(SubmittedRollupDataError::proof)
-        }?;
+        let Some(proof) = proof else {
+            return Err(SubmittedRollupDataError::field_not_set("proof"));
+        };
+        let proof = merkle::Proof::try_from_raw(proof).map_err(SubmittedRollupDataError::proof)?;
         Ok(Self {
             sequencer_block_hash,
             rollup_id,
@@ -351,31 +351,19 @@ impl SubmittedMetadataError {
         }
     }
 
-    fn extended_commit_info_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
+    fn upgrade_change_hashes(source: UpgradeChangeHashesError) -> Self {
         Self {
-            kind: SubmittedMetadataErrorKind::ExtendedCommitInfoProof {
+            kind: SubmittedMetadataErrorKind::UpgradeChangeHashes {
                 source,
             },
         }
     }
 
-    fn extended_commit_info_not_in_sequencer_block() -> Self {
+    fn extended_commit_info(source: ExtendedCommitInfoError) -> Self {
         Self {
-            kind: SubmittedMetadataErrorKind::ExtendedCommitInfoNotInSequencerBlock,
-        }
-    }
-
-    fn decode_extended_commit_info(source: prost::DecodeError) -> Self {
-        Self {
-            kind: SubmittedMetadataErrorKind::DecodeExtendedCommitInfo(source),
-        }
-    }
-
-    fn invalid_extended_commit_info(
-        source: ExtendedCommitInfoWithCurrencyPairMappingError,
-    ) -> Self {
-        Self {
-            kind: SubmittedMetadataErrorKind::InvalidExtendedCommitInfo(source),
+            kind: SubmittedMetadataErrorKind::ExtendedCommitInfo {
+                source,
+            },
         }
     }
 }
@@ -413,21 +401,10 @@ enum SubmittedMetadataErrorKind {
     RollupTransactionsNotInCometBftBlock,
     #[error("the Merkle Tree Hash of the rollup IDs was not a leaf in the sequencer block data")]
     RollupIdsNotInCometBftBlock,
-    #[error(
-        "failed constructing a Merkle Hash Tree Proof for the extended commit info from the raw \
-         source type"
-    )]
-    ExtendedCommitInfoProof {
-        source: <merkle::Proof as Protobuf>::Error,
-    },
-    #[error(
-        "the extended commit info in the sequencer block was not included in the block's data hash"
-    )]
-    ExtendedCommitInfoNotInSequencerBlock,
-    #[error("failed decoding the extended commit info from the raw protobuf")]
-    DecodeExtendedCommitInfo(prost::DecodeError),
-    #[error("failed constructing the extended commit info proof from the raw protobuf")]
-    InvalidExtendedCommitInfo(ExtendedCommitInfoWithCurrencyPairMappingError),
+    #[error("upgrade change hashes or proof error")]
+    UpgradeChangeHashes { source: UpgradeChangeHashesError },
+    #[error("extended commit info or proof error")]
+    ExtendedCommitInfo { source: ExtendedCommitInfoError },
 }
 
 /// A shadow of [`SubmittedMetadata`] with public access to its fields.
@@ -440,7 +417,7 @@ pub struct UncheckedSubmittedMetadata {
     /// The original `CometBFT` header that is the input to this blob's original sequencer block.
     /// Corresponds to `astria.SequencerBlock.header`.
     pub header: SequencerBlockHeader,
-    /// The rollup rollup IDs for which `SubmittedRollupData`s were submitted to celestia.
+    /// The rollup IDs for which `SubmittedRollupData`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1.RollupTransactions.id` field
     /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     pub rollup_ids: Vec<RollupId>,
@@ -454,11 +431,16 @@ pub struct UncheckedSubmittedMetadata {
     /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
     /// `astria.SequencerBlock.rollup_ids_proof`.
     pub rollup_ids_proof: merkle::Proof,
-    /// The extended commit info for the block, if vote extensions were enabled at this height.
-    pub extended_commit_info: Option<Bytes>,
-    /// The proof that the extended commit info is included in the cometbft block data (if it
-    /// exists), specifically the third item in the data field.
-    pub extended_commit_info_proof: Option<merkle::Proof>,
+    /// The hashes of any upgrade changes applied during this block and their proof.
+    ///
+    /// If this is `Some`, then the hashes are the third item in the cometbft block's `data`.
+    pub upgrade_change_hashes_with_proof: Option<UpgradeChangeHashesWithProof>,
+    /// The extended commit info for the block and its proof, if vote extensions were enabled at
+    /// this height.
+    ///
+    /// This is normally the third item in the cometbft block's `data`, but is the fourth if the
+    /// block also has upgrade change hashes.
+    pub extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
 }
 
 impl UncheckedSubmittedMetadata {
@@ -483,48 +465,54 @@ impl UncheckedSubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes_with_proof,
+            extended_commit_info_with_proof,
         } = raw;
-        let header = 'header: {
-            let Some(header) = header else {
-                break 'header Err(SubmittedMetadataError::field_not_set("header"));
-            };
-            SequencerBlockHeader::try_from_raw(header).map_err(SubmittedMetadataError::header)
-        }?;
+        let Some(header) = header else {
+            return Err(SubmittedMetadataError::field_not_set("header"));
+        };
+        let header =
+            SequencerBlockHeader::try_from_raw(header).map_err(SubmittedMetadataError::header)?;
+
         let rollup_ids: Vec<_> = rollup_ids
             .into_iter()
             .map(RollupId::try_from_raw)
             .collect::<Result<_, _>>()
             .map_err(SubmittedMetadataError::rollup_ids)?;
 
-        let rollup_transactions_proof = 'transactions_proof: {
-            let Some(rollup_transactions_proof) = rollup_transactions_proof else {
-                break 'transactions_proof Err(SubmittedMetadataError::field_not_set(
-                    "rollup_transactions_root",
-                ));
-            };
-            merkle::Proof::try_from_raw(rollup_transactions_proof)
-                .map_err(SubmittedMetadataError::rollup_transactions_proof)
-        }?;
+        let Some(rollup_transactions_proof) = rollup_transactions_proof else {
+            return Err(SubmittedMetadataError::field_not_set(
+                "rollup_transactions_proof",
+            ));
+        };
+        let rollup_transactions_proof = merkle::Proof::try_from_raw(rollup_transactions_proof)
+            .map_err(SubmittedMetadataError::rollup_transactions_proof)?;
 
-        let rollup_ids_proof = 'ids_proof: {
-            let Some(rollup_ids_proof) = rollup_ids_proof else {
-                break 'ids_proof Err(SubmittedMetadataError::field_not_set("rollup_ids_proof"));
-            };
-            merkle::Proof::try_from_raw(rollup_ids_proof)
-                .map_err(SubmittedMetadataError::rollup_ids_proof)
-        }?;
+        let Some(rollup_ids_proof) = rollup_ids_proof else {
+            return Err(SubmittedMetadataError::field_not_set("rollup_ids_proof"));
+        };
+        let rollup_ids_proof = merkle::Proof::try_from_raw(rollup_ids_proof)
+            .map_err(SubmittedMetadataError::rollup_ids_proof)?;
 
         let block_hash = block_hash
             .as_ref()
             .try_into()
             .map_err(|_| SubmittedMetadataError::block_hash(block_hash.len()))?;
 
-        let extended_commit_info_proof = extended_commit_info_proof
-            .map(merkle::Proof::try_from_raw)
-            .transpose()
-            .map_err(SubmittedMetadataError::extended_commit_info_proof)?;
+        let data_hash = *header.data_hash();
+        let upgrade_change_hashes_with_proof = upgrade_change_hashes_with_proof
+            .map(|raw| {
+                UpgradeChangeHashesWithProof::try_from_raw(raw, data_hash)
+                    .map_err(SubmittedMetadataError::upgrade_change_hashes)
+            })
+            .transpose()?;
+
+        let extended_commit_info_with_proof = extended_commit_info_with_proof
+            .map(|raw| {
+                ExtendedCommitInfoWithProof::try_from_raw(raw, data_hash)
+                    .map_err(SubmittedMetadataError::extended_commit_info)
+            })
+            .transpose()?;
 
         Ok(Self {
             block_hash,
@@ -532,8 +520,8 @@ impl UncheckedSubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes_with_proof,
+            extended_commit_info_with_proof,
         })
     }
 }
@@ -558,11 +546,16 @@ pub struct SubmittedMetadata {
     /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
     /// `astria.SequencerBlock.rollup_ids_proof`.
     rollup_ids_proof: merkle::Proof,
-    /// The extended commit info for the block, if vote extensions were enabled at this height.
-    extended_commit_info: Option<Bytes>,
-    /// The proof that the extended commit info is included in the cometbft block data (if it
-    /// exists).
-    extended_commit_info_proof: Option<merkle::Proof>,
+    /// The hashes of any upgrade changes applied during this block and their proof.
+    ///
+    /// If this is `Some`, then the hashes are the third item in the cometbft block's `data`.
+    upgrade_change_hashes_with_proof: Option<UpgradeChangeHashesWithProof>,
+    /// The extended commit info for the block and its proof, if vote extensions were enabled at
+    /// this height.
+    ///
+    /// This is normally the third item in the cometbft block's `data`, but is the fourth if the
+    /// block also has upgrade change hashes.
+    extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
 }
 
 /// An iterator over rollup IDs.
@@ -620,32 +613,12 @@ impl SubmittedMetadata {
         self.rollup_ids.contains(&rollup_id)
     }
 
-    /// Returns the decoded `ExtendedCommitInfoWithCurrencyPairMapping` contained in this blob.
-    ///
-    /// # Panics
-    ///
-    /// - if the `extended_commit_info` field is not a valid protobuf
-    ///   `ExtendedCommitInfoWithCurrencyPairMapping`; this should not happen as this type can only
-    ///   be constructed with a valid protobuf.
+    /// Returns the `ExtendedCommitInfoWithCurrencyPairMapping` contained in this blob.
     #[must_use]
-    pub fn decoded_extended_commit_info(
-        &self,
-    ) -> Option<ExtendedCommitInfoWithCurrencyPairMapping> {
-        use prost::Message as _;
-
-        let extended_commit_info = self.extended_commit_info.clone()?;
-
-        let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info)
-            .expect(
-                "must be a valid protobuf as the type was verified when constructing the \
-                 sequencer block",
-            );
-        Some(
-            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).expect(
-                "must be a valid ExtendedCommitInfoWithCurrencyPairMapping as the type was \
-                 verified when constructing the sequencer block",
-            ),
-        )
+    pub fn extended_commit_info(&self) -> Option<&ExtendedCommitInfoWithCurrencyPairMapping> {
+        self.extended_commit_info_with_proof
+            .as_ref()
+            .map(ExtendedCommitInfoWithProof::extended_commit_info)
     }
 
     /// Converts into the unchecked representation fo this type.
@@ -657,8 +630,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes_with_proof,
+            extended_commit_info_with_proof,
         } = self;
         UncheckedSubmittedMetadata {
             block_hash,
@@ -666,8 +639,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes_with_proof,
+            extended_commit_info_with_proof,
         }
     }
 
@@ -678,16 +651,14 @@ impl SubmittedMetadata {
     pub fn try_from_unchecked(
         unchecked: UncheckedSubmittedMetadata,
     ) -> Result<Self, SubmittedMetadataError> {
-        use prost::Message as _;
-
         let UncheckedSubmittedMetadata {
             block_hash,
             header,
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes_with_proof,
+            extended_commit_info_with_proof,
         } = unchecked;
 
         if !rollup_transactions_proof.verify(
@@ -697,33 +668,8 @@ impl SubmittedMetadata {
             return Err(SubmittedMetadataError::rollup_transactions_not_in_cometbft_block());
         }
 
-        if !super::are_rollup_ids_included(
-            rollup_ids.iter().copied(),
-            &rollup_ids_proof,
-            *header.data_hash(),
-        ) {
+        if !super::are_rollup_ids_included(&rollup_ids, &rollup_ids_proof, *header.data_hash()) {
             return Err(SubmittedMetadataError::rollup_ids_not_in_cometbft_block());
-        }
-
-        // verify `extended_commit_info` proof and is well-formed
-        if let Some(ref extended_commit_info_proof) = extended_commit_info_proof {
-            let Some(ref extended_commit_info) = extended_commit_info else {
-                return Err(SubmittedMetadataError::field_not_set(
-                    "extended_commit_info",
-                ));
-            };
-
-            if !extended_commit_info_proof
-                .verify(&Sha256::digest(extended_commit_info), *header.data_hash())
-            {
-                return Err(SubmittedMetadataError::extended_commit_info_not_in_sequencer_block());
-            }
-
-            let raw_info =
-                RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
-                    .map_err(SubmittedMetadataError::decode_extended_commit_info)?;
-            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
-                .map_err(SubmittedMetadataError::invalid_extended_commit_info)?;
         }
 
         Ok(Self {
@@ -732,8 +678,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes_with_proof,
+            extended_commit_info_with_proof,
         })
     }
 
@@ -745,8 +691,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes_with_proof,
+            extended_commit_info_with_proof,
         } = self;
         raw::SubmittedMetadata {
             block_hash: Bytes::copy_from_slice(&block_hash),
@@ -754,8 +700,10 @@ impl SubmittedMetadata {
             rollup_ids: rollup_ids.into_iter().map(RollupId::into_raw).collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
-            extended_commit_info,
-            extended_commit_info_proof: extended_commit_info_proof.map(merkle::Proof::into_raw),
+            upgrade_change_hashes_with_proof: upgrade_change_hashes_with_proof
+                .map(UpgradeChangeHashesWithProof::into_raw),
+            extended_commit_info_with_proof: extended_commit_info_with_proof
+                .map(ExtendedCommitInfoWithProof::into_raw),
         }
     }
 

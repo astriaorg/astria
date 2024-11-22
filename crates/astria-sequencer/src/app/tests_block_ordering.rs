@@ -1,13 +1,7 @@
-use std::ops::Deref;
-
 use astria_core::{
-    protocol::transaction::v1::{
-        action::group::Group,
-        Transaction,
-    },
+    protocol::transaction::v1::action::group::Group,
     Protobuf as _,
 };
-use bytes::Bytes;
 use prost::Message;
 use tendermint::{
     abci::{
@@ -28,9 +22,9 @@ use tendermint::{
 use super::test_utils::get_alice_signing_key;
 use crate::app::{
     benchmark_and_test_utils::{
-        initialize_app_with_storage,
         mock_balances,
         mock_tx_cost,
+        AppInitializer,
     },
     test_utils::{
         get_bob_signing_key,
@@ -42,44 +36,37 @@ use crate::app::{
 
 #[tokio::test]
 async fn app_process_proposal_ordering_ok() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     // create transactions that should pass with expected ordering
-    let txs: Vec<Transaction> = vec![
+    let txs = vec![
         MockTxBuilder::new()
             .group(Group::BundleableGeneral)
             .signer(get_alice_signing_key())
-            .build()
-            .deref()
-            .clone(),
+            .build(),
         MockTxBuilder::new()
             .group(Group::UnbundleableGeneral)
             .signer(get_bob_signing_key())
-            .build()
-            .deref()
-            .clone(),
+            .build(),
         MockTxBuilder::new()
             .group(Group::BundleableSudo)
             .signer(get_judy_signing_key())
-            .build()
-            .deref()
-            .clone(),
+            .build(),
         MockTxBuilder::new()
             .group(Group::UnbundleableSudo)
             .nonce(1)
             .signer(get_judy_signing_key())
-            .build()
-            .deref()
-            .clone(),
+            .build(),
     ];
 
+    let height = tendermint::block::Height::from(2_u8);
     let process_proposal = ProcessProposal {
         hash: Hash::Sha256([1; 32]),
-        height: 1u32.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: transactions_with_extended_commit_info_and_commitments(&txs, None),
+        txs: transactions_with_extended_commit_info_and_commitments(height, &txs, None),
         proposed_last_commit: Some(CommitInfo {
             votes: vec![],
             round: 0u16.into(),
@@ -99,31 +86,28 @@ async fn app_process_proposal_ordering_ok() {
 async fn app_process_proposal_ordering_fail() {
     // Tests that process proposal will reject blocks that contain transactions that are out of
     // order.
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     // create transactions that should fail due to incorrect ordering
-    let txs: Vec<Transaction> = vec![
+    let txs = vec![
         MockTxBuilder::new()
             .group(Group::UnbundleableGeneral)
             .signer(get_bob_signing_key())
-            .build()
-            .deref()
-            .clone(),
+            .build(),
         MockTxBuilder::new()
             .group(Group::BundleableGeneral)
             .signer(get_alice_signing_key())
-            .build()
-            .deref()
-            .clone(),
+            .build(),
     ];
 
+    let height = tendermint::block::Height::from(2_u8);
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
-        height: 1u32.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: transactions_with_extended_commit_info_and_commitments(&txs, None),
+        txs: transactions_with_extended_commit_info_and_commitments(height, &txs, None),
         proposed_last_commit: Some(CommitInfo {
             votes: vec![],
             round: 0u16.into(),
@@ -155,7 +139,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     //
     // The block building process should handle this in a way that allows the transactions to
     // both eventually be included.
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     // create transactions that should fail due to incorrect ordering if both are included in the
     // same block
@@ -199,8 +183,8 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         .expect("incorrect account ordering shouldn't cause blocks to fail");
 
     assert_eq!(
-        prepare_proposal_result.txs.last().unwrap(),
-        &Into::<Bytes>::into(tx_0.to_raw().encode_to_vec()),
+        prepare_proposal_result.txs.last().unwrap().to_vec(),
+        tx_0.to_raw().encode_to_vec(),
         "expected to contain first transaction"
     );
 
@@ -213,7 +197,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
 
     // commit state for next prepare proposal
     app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
 
     let prepare_args = PrepareProposal {
         max_tx_bytes: 600_000,
@@ -234,8 +218,8 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         .expect("incorrect account ordering shouldn't cause blocks to fail");
 
     assert_eq!(
-        prepare_proposal_result.txs.last().unwrap(),
-        &Into::<Bytes>::into(tx_1.to_raw().encode_to_vec()),
+        prepare_proposal_result.txs.last().unwrap().to_vec(),
+        tx_1.to_raw().encode_to_vec(),
         "expected to contain second transaction"
     );
 

@@ -25,6 +25,7 @@ pub(crate) mod storage;
 #[cfg(test)]
 pub(crate) mod test_utils;
 pub(crate) mod transaction;
+pub(crate) mod upgrades;
 mod utils;
 
 pub use build_info::BUILD_INFO;

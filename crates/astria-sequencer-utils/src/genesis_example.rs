@@ -167,7 +167,7 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
         accounts: accounts().into_iter().map(Protobuf::into_raw).collect(),
         address_prefixes: Some(address_prefixes()),
         authority_sudo_address: Some(alice().to_raw()),
-        chain_id: "test-1".into(),
+        chain_id: "test".into(),
         ibc_sudo_address: Some(alice().to_raw()),
         ibc_relayer_addresses: vec![alice().to_raw(), bob().to_raw()],
         native_asset_base_denomination: "nria".parse().unwrap(),

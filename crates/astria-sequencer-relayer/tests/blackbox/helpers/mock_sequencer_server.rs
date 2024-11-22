@@ -4,17 +4,23 @@ use std::{
 };
 
 use astria_core::{
-    generated::astria::sequencerblock::v1::{
-        sequencer_service_server::{
-            SequencerService,
-            SequencerServiceServer,
+    generated::{
+        astria::sequencerblock::v1::{
+            sequencer_service_server::{
+                SequencerService,
+                SequencerServiceServer,
+            },
+            FilteredSequencerBlock as RawFilteredSequencerBlock,
+            GetFilteredSequencerBlockRequest,
+            GetPendingNonceRequest,
+            GetPendingNonceResponse,
+            GetSequencerBlockRequest,
+            SequencerBlock as RawSequencerBlock,
         },
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
-        GetFilteredSequencerBlockRequest,
-        GetPendingNonceRequest,
-        GetPendingNonceResponse,
-        GetSequencerBlockRequest,
-        SequencerBlock as RawSequencerBlock,
+        sequencerblock::v1::{
+            GetUpgradesInfoRequest,
+            GetUpgradesInfoResponse,
+        },
     },
     primitive::v1::RollupId,
     protocol::test_utils::ConfigureSequencerBlock,
@@ -128,6 +134,13 @@ impl SequencerService for SequencerServiceImpl {
         self: Arc<Self>,
         _request: Request<GetPendingNonceRequest>,
     ) -> Result<Response<GetPendingNonceResponse>, Status> {
+        unimplemented!()
+    }
+
+    async fn get_upgrades_info(
+        self: Arc<Self>,
+        _request: Request<GetUpgradesInfoRequest>,
+    ) -> Result<Response<GetUpgradesInfoResponse>, Status> {
         unimplemented!()
     }
 }
