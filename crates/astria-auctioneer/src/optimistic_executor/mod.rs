@@ -54,13 +54,12 @@ use tracing::{
 
 use crate::{
     auction,
-    block::{
-        self,
-        executed_stream::ExecutedBlockStream,
-    },
-    bundle::{
-        Bundle,
+    block,
+    bundle::Bundle,
+    rollup_channel::{
         BundleStream,
+        ExecuteOptimisticBlockStream,
+        RollupChannel,
     },
     sequencer_channel::{
         BlockCommitmentStream,
@@ -87,7 +86,7 @@ pub(crate) struct Startup {
     shutdown_token: CancellationToken,
     sequencer_channel: SequencerChannel,
     rollup_id: RollupId,
-    rollup_grpc_endpoint: String,
+    rollup_channel: RollupChannel,
     auctions: auction::Manager,
 }
 
@@ -98,30 +97,29 @@ impl Startup {
             shutdown_token,
             mut sequencer_channel,
             rollup_id,
-            rollup_grpc_endpoint,
+            rollup_channel,
             auctions,
         } = self;
 
-        let (execution_stream_handle, executed_blocks) =
-            ExecutedBlockStream::connect(rollup_id, rollup_grpc_endpoint.clone())
-                .await
-                .wrap_err("failed to initialize executed block stream")?;
+        let executed_blocks = rollup_channel
+            .open_execute_optimistic_block_stream()
+            .await
+            .wrap_err("opening stream to execute optimistic blocks on rollup failed")?;
 
         let mut optimistic_blocks = sequencer_channel
             .open_get_optimistic_block_stream(rollup_id)
             .await
             .wrap_err("opening stream to receive optimistic blocks from sequencer failed")?;
 
-        // TODO: create a way to forward the optimistic blocks to the execution stream.
-
         let block_commitments = sequencer_channel
             .open_get_block_commitment_stream()
             .await
             .wrap_err("opening stream to receive block commitments from sequencer failed")?;
 
-        let bundle_stream = BundleStream::connect(rollup_grpc_endpoint)
+        let bundle_stream = rollup_channel
+            .open_bundle_stream()
             .await
-            .wrap_err("failed to initialize bundle stream")?;
+            .wrap_err("opening stream to receive bundles from rollup failed")?;
 
         let optimistic_block = optimistic_blocks
             .next()
@@ -139,7 +137,7 @@ impl Startup {
             bundle_stream,
             auctions,
             current_block,
-            execution_stream_handle,
+            rollup_id,
         })
     }
 }
@@ -151,11 +149,11 @@ pub(crate) struct Running {
     shutdown_token: CancellationToken,
     optimistic_blocks: OptimisticBlockStream,
     block_commitments: BlockCommitmentStream,
-    executed_blocks: ExecutedBlockStream,
+    executed_blocks: ExecuteOptimisticBlockStream,
     bundle_stream: BundleStream,
     auctions: auction::Manager,
     current_block: block::Current,
-    execution_stream_handle: crate::block::executed_stream::Handle,
+    rollup_id: RollupId,
 }
 
 impl Running {
@@ -231,8 +229,12 @@ impl Running {
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
         self.auctions.new_auction(new_auction_id);
 
-        self.execution_stream_handle
-            .try_send_block_to_execute(optimistic_block)
+        let base_block = crate::block::Optimistic::new(optimistic_block)
+            .try_into_base_block(self.rollup_id)
+            // FIXME: give this their proper wire names
+            .wrap_err("failed to create BaseBlock from FilteredSequencerBlock")?;
+        self.executed_blocks
+            .try_send(base_block)
             .wrap_err("failed to forward block to execution stream")?;
 
         Ok(())
