@@ -24,9 +24,13 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1 as raw,
+    generated::protocol::{
+        connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
+        transaction::v1 as raw,
+    },
     protocol::{
         abci::AbciErrorCode,
+        connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         genesis::v1::GenesisAppState,
         transaction::v1::{
             action::{
@@ -79,7 +83,6 @@ use tendermint::{
     AppHash,
     Hash,
 };
-use tendermint_proto::abci::ExtendedCommitInfo;
 use tracing::{
     debug,
     info,
@@ -450,21 +453,17 @@ impl App {
             )
             .await
             {
-                Ok(info) => info.into_inner(),
+                Ok(info) => info,
                 Err(e) => {
                     warn!(
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to generate extended commit info"
                     );
-                    tendermint::abci::types::ExtendedCommitInfo {
-                        round,
-                        votes: Vec::new(),
-                    }
+                    ExtendedCommitInfoWithCurrencyPairMapping::empty(round)
                 }
             };
 
-            let mut encoded_extended_commit_info =
-                ExtendedCommitInfo::from(extended_commit_info).encode_to_vec();
+            let mut encoded_extended_commit_info = extended_commit_info.into_raw().encode_to_vec();
             let max_tx_bytes = usize::try_from(prepare_proposal.max_tx_bytes)
                 .wrap_err("failed to convert max_tx_bytes to usize")?;
 
@@ -614,6 +613,10 @@ impl App {
             .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
 
         if vote_extensions_enable_height <= process_proposal.height.value() {
+            let Some(last_commit) = process_proposal.proposed_last_commit else {
+                bail!("proposed last commit is empty; this should not occur")
+            };
+
             // if vote extensions are enabled, the third transaction in the block should be the
             // extended commit info
             let extended_commit_info_bytes = txs
@@ -621,15 +624,14 @@ impl App {
                 .wrap_err("no extended commit info in proposal")?;
 
             // decode the extended commit info and validate it
+            let extended_commit_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(
+                extended_commit_info_bytes.as_ref(),
+            )
+            .wrap_err("failed to decode extended commit info")?;
             let extended_commit_info =
-                ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
-                    .wrap_err("failed to decode extended commit info")?;
-            let extended_commit_info = extended_commit_info
-                .try_into()
-                .wrap_err("failed to convert extended commit info from proto to native")?;
-            let Some(last_commit) = process_proposal.proposed_last_commit else {
-                bail!("proposed last commit is empty; this should not occur")
-            };
+                ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(extended_commit_info)
+                    .wrap_err("failed to convert extended commit info from proto to native")?;
+
             ProposalHandler::validate_proposal(
                 &self.state,
                 process_proposal.height.value(),
@@ -1199,11 +1201,13 @@ impl App {
 
                 let extended_commit_info_bytes =
                     finalize_block.txs.get(2).expect("asserted length above");
+                let extended_commit_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(
+                    extended_commit_info_bytes.as_ref(),
+                )
+                .wrap_err("failed to decode extended commit info")?;
                 let extended_commit_info =
-                    ExtendedCommitInfo::decode(extended_commit_info_bytes.as_ref())
-                        .wrap_err("failed to decode extended commit info")?
-                        .try_into()
-                        .context("failed to validate decoded extended commit info")?;
+                    ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(extended_commit_info)
+                        .wrap_err("failed to convert extended commit info from proto to native")?;
                 let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
                     StateDelta::new(self.state.clone());
                 crate::app::vote_extension::apply_prices_from_vote_extensions(

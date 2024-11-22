@@ -66,6 +66,7 @@ fn main() {
         .btree_map([".connect"])
         .bytes([
             ".astria",
+            ".astria_vendored.tendermint.abci",
             ".connect",
             ".celestia",
             ".connect",

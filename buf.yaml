@@ -62,6 +62,8 @@ modules:
       ignore_only:
         PACKAGE_VERSION_SUFFIX:
           - proto/protocolapis/astria_vendored/tendermint
+        ENUM_ZERO_VALUE_SUFFIX:
+          - proto/protocolapis/astria_vendored/tendermint
       disallow_comment_ignores: true
     breaking:
       use:
