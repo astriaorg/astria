@@ -6,6 +6,7 @@ use astria_core::{
         ExecuteOptimisticBlockStreamResponse,
     },
     primitive::v1::RollupId,
+    sequencerblock::v1::block::FilteredSequencerBlock,
 };
 use astria_eyre::eyre::{
     self,
@@ -35,9 +36,14 @@ pub(crate) struct Handle {
 }
 
 impl Handle {
-    pub(crate) fn try_send_block_to_execute(&mut self, block: Optimistic) -> eyre::Result<()> {
+    pub(crate) fn try_send_block_to_execute(
+        &mut self,
+        filtered_sequencer_block: FilteredSequencerBlock,
+    ) -> eyre::Result<()> {
         self.blocks_to_execute_tx
-            .try_send(block)
+            .try_send(Optimistic {
+                filtered_sequencer_block,
+            })
             .wrap_err("failed to send block to execute")?;
 
         Ok(())

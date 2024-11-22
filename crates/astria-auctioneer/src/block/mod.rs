@@ -31,9 +31,7 @@ use telemetry::display::base64;
 
 use crate::bundle::Bundle;
 
-pub(crate) mod commitment_stream;
 pub(crate) mod executed_stream;
-pub(crate) mod optimistic_stream;
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
 fn convert_tendermint_time_to_protobuf_timestamp(
@@ -56,14 +54,6 @@ pub(crate) struct Optimistic {
 }
 
 impl Optimistic {
-    pub(crate) fn try_from_raw(
-        raw: raw_sequencer_block::FilteredSequencerBlock,
-    ) -> eyre::Result<Self> {
-        Ok(Self {
-            filtered_sequencer_block: FilteredSequencerBlock::try_from_raw(raw)?,
-        })
-    }
-
     /// Converts this [`Optimistic`] into a [`BaseBlock`] for the given `rollup_id`.
     /// If there are no transactions for the given `rollup_id`, this will return a `BaseBlock`
     /// with no transactions.
@@ -166,6 +156,8 @@ impl Executed {
 }
 
 #[derive(Debug, Clone)]
+// FIXME: This is called a `Commitment` but is produced from a `SequencerBlockCommit`.
+// This is very confusing.
 pub(crate) struct Commitment {
     /// The height of the sequencer block that was committed.
     sequencer_height: u64,
@@ -204,9 +196,11 @@ pub(crate) struct Current {
 
 impl Current {
     /// Creates a new `Current` with the given `optimistic_block`.
-    pub(crate) fn with_optimistic(optimistic_block: Optimistic) -> Self {
+    pub(crate) fn with_optimistic(filtered_sequencer_block: FilteredSequencerBlock) -> Self {
         Self {
-            optimistic: optimistic_block,
+            optimistic: Optimistic {
+                filtered_sequencer_block,
+            },
             executed: None,
             commitment: None,
         }

@@ -7,9 +7,9 @@ mod build_info;
 mod bundle;
 pub mod config;
 pub(crate) mod metrics;
-mod optimistic_block_client;
 mod optimistic_execution_client;
 mod optimistic_executor;
+mod sequencer_channel;
 mod sequencer_key;
 
 use astria_eyre::{

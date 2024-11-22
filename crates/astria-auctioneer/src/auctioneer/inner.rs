@@ -83,7 +83,8 @@ impl Inner {
             rollup_grpc_endpoint,
             auctions,
         }
-        .build();
+        .build()
+        .wrap_err("failed to construct optimistic executor")?;
 
         tasks.spawn(Self::OPTIMISTIC_EXECUTOR, async {
             optimistic_executor
