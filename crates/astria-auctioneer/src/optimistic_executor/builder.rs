@@ -1,9 +1,14 @@
 use astria_core::primitive::v1::RollupId;
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use tokio_util::sync::CancellationToken;
 
 use super::Startup;
 use crate::{
     auction,
+    sequencer_channel::SequencerChannel,
     Metrics,
 };
 
@@ -23,7 +28,7 @@ pub(crate) struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn build(self) -> Startup {
+    pub(crate) fn build(self) -> eyre::Result<Startup> {
         let Self {
             metrics,
             shutdown_token,
@@ -34,14 +39,20 @@ impl Builder {
         } = self;
 
         let rollup_id = RollupId::from_unhashed_bytes(&rollup_id);
+        let sequencer_channel =
+            SequencerChannel::create(&sequencer_grpc_endpoint).wrap_err_with(|| {
+                format!(
+                    "failed to create a gRPC channel to Sequencer at `{sequencer_grpc_endpoint}`"
+                )
+            })?;
 
-        Startup {
+        Ok(Startup {
             metrics,
             shutdown_token,
-            sequencer_grpc_endpoint,
             rollup_id,
             rollup_grpc_endpoint,
+            sequencer_channel,
             auctions,
-        }
+        })
     }
 }

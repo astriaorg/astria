@@ -31,7 +31,10 @@
 //! We assume this is highly unlikely, as the rollup node's should filter the bundles it streams
 //! by its optimistic head block hash.
 
-use astria_core::primitive::v1::RollupId;
+use astria_core::{
+    primitive::v1::RollupId,
+    sequencerblock::v1::block::FilteredSequencerBlock,
+};
 use astria_eyre::eyre::{
     self,
     eyre,
@@ -53,15 +56,17 @@ use crate::{
     auction,
     block::{
         self,
-        commitment_stream::BlockCommitmentStream,
         executed_stream::ExecutedBlockStream,
-        optimistic_stream::OptimisticBlockStream,
     },
     bundle::{
         Bundle,
         BundleStream,
     },
-    optimistic_block_client::OptimisticBlockClient,
+    sequencer_channel::{
+        BlockCommitmentStream,
+        OptimisticBlockStream,
+        SequencerChannel,
+    },
 };
 
 mod builder;
@@ -80,7 +85,7 @@ pub(crate) struct Startup {
     #[allow(dead_code)]
     metrics: &'static crate::Metrics,
     shutdown_token: CancellationToken,
-    sequencer_grpc_endpoint: String,
+    sequencer_channel: SequencerChannel,
     rollup_id: RollupId,
     rollup_grpc_endpoint: String,
     auctions: auction::Manager,
@@ -91,7 +96,7 @@ impl Startup {
         let Self {
             metrics,
             shutdown_token,
-            sequencer_grpc_endpoint,
+            mut sequencer_channel,
             rollup_id,
             rollup_grpc_endpoint,
             auctions,
@@ -102,19 +107,17 @@ impl Startup {
                 .await
                 .wrap_err("failed to initialize executed block stream")?;
 
-        let sequencer_client = OptimisticBlockClient::new(&sequencer_grpc_endpoint)
-            .wrap_err("failed to initialize sequencer grpc client")?;
-        let mut optimistic_blocks = OptimisticBlockStream::connect(
-            rollup_id,
-            sequencer_client.clone(),
-            execution_stream_handle,
-        )
-        .await
-        .wrap_err("failed to initialize optimsitic block stream")?;
-
-        let block_commitments = BlockCommitmentStream::connect(sequencer_client)
+        let mut optimistic_blocks = sequencer_channel
+            .open_get_optimistic_block_stream(rollup_id)
             .await
-            .wrap_err("failed to initialize block commitment stream")?;
+            .wrap_err("opening stream to receive optimistic blocks from sequencer failed")?;
+
+        // TODO: create a way to forward the optimistic blocks to the execution stream.
+
+        let block_commitments = sequencer_channel
+            .open_get_block_commitment_stream()
+            .await
+            .wrap_err("opening stream to receive block commitments from sequencer failed")?;
 
         let bundle_stream = BundleStream::connect(rollup_grpc_endpoint)
             .await
@@ -136,6 +139,7 @@ impl Startup {
             bundle_stream,
             auctions,
             current_block,
+            execution_stream_handle,
         })
     }
 }
@@ -151,6 +155,7 @@ pub(crate) struct Running {
     bundle_stream: BundleStream,
     auctions: auction::Manager,
     current_block: block::Current,
+    execution_stream_handle: crate::block::executed_stream::Handle,
 }
 
 impl Running {
@@ -170,7 +175,6 @@ impl Running {
 
                     res = self.optimistic_blocks.next() => {
                         let res = break_for_closed_stream!(res, "optimistic block stream closed");
-
                         let _ = self.handle_optimistic_block(res);
                     },
 
@@ -207,7 +211,7 @@ impl Running {
     #[instrument(skip(self), fields(auction.old_id = %base64(self.current_block.sequencer_block_hash())), err)]
     fn handle_optimistic_block(
         &mut self,
-        optimistic_block: eyre::Result<block::Optimistic>,
+        optimistic_block: eyre::Result<FilteredSequencerBlock>,
     ) -> eyre::Result<()> {
         let optimistic_block = optimistic_block.wrap_err("failed to receive optimistic block")?;
 
@@ -218,7 +222,7 @@ impl Running {
             .wrap_err("failed to abort auction")?;
 
         info!(
-            optimistic_block.sequencer_block_hash = %base64(optimistic_block.sequencer_block_hash()),
+            optimistic_block.sequencer_block_hash = %base64(optimistic_block.block_hash()),
             "received optimistic block, aborting old auction and starting new auction"
         );
 
@@ -226,6 +230,10 @@ impl Running {
         let new_auction_id =
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
         self.auctions.new_auction(new_auction_id);
+
+        self.execution_stream_handle
+            .try_send_block_to_execute(optimistic_block)
+            .wrap_err("failed to forward block to execution stream")?;
 
         Ok(())
     }
