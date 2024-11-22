@@ -57,6 +57,8 @@ evm-rollup:
       #   minBaseFee: 0
       #   elasticityMultiplier: 2
     #   baseFeeChangeDenominator: 8
+    auctioneerAddresses:
+      1: "astria1ferdmm38w7zr4ankmntst0g0qg8e7ygeu3vxcy"
 
     ## Standard Eth Genesis config values
     # Configuration of Eth forks, setting to 0 will enable from height,
@@ -86,6 +88,7 @@ evm-rollup:
     logLevel: "debug"
 
     conductor:
+      # Determines what will drive block execution, options are:
       # Determines what will drive block execution, options are:
       # - "SoftOnly" -> blocks are only pulled from the sequencer
       # - "FirmOnly" -> blocks are only pulled from DA
