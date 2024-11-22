@@ -56,11 +56,8 @@ impl BundleClient {
     }
 }
 
-pin_project_lite::pin_project! {
-    pub(crate) struct BundleStream {
-        #[pin]
-        inner: tonic::Streaming<GetBundleStreamResponse>,
-    }
+pub(crate) struct BundleStream {
+    inner: tonic::Streaming<GetBundleStreamResponse>,
 }
 
 impl BundleStream {

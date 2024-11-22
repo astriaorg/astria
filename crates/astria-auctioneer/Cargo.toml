@@ -24,7 +24,6 @@ hex = { workspace = true }
 humantime = { workspace = true }
 itertools = { workspace = true }
 pbjson-types = { workspace = true }
-pin-project-lite = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

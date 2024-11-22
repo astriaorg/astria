@@ -7,7 +7,6 @@ use astria_eyre::eyre::{
     self,
 };
 use inner::Inner;
-use pin_project_lite::pin_project;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
@@ -20,12 +19,10 @@ use crate::{
 
 mod inner;
 
-pin_project! {
-    /// The [`Auctioneer`] service returned by [`Auctioneer::spawn`].
-    pub struct Auctioneer {
-        shutdown_token: CancellationToken,
-        task: Option<JoinHandle<eyre::Result<()>>>,
-    }
+/// The [`Auctioneer`] service returned by [`Auctioneer::spawn`].
+pub struct Auctioneer {
+    shutdown_token: CancellationToken,
+    task: Option<JoinHandle<eyre::Result<()>>>,
 }
 
 impl Auctioneer {
@@ -66,11 +63,13 @@ impl Auctioneer {
 impl Future for Auctioneer {
     type Output = eyre::Result<()>;
 
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Self::Output> {
         use futures::future::FutureExt as _;
 
-        let this = self.project();
-        let task = this
+        let task = self
             .task
             .as_mut()
             .expect("the Auctioneer handle must not be polled after shutdown");

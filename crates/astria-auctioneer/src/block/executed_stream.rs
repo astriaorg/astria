@@ -16,7 +16,6 @@ use futures::{
     Stream,
     StreamExt as _,
 };
-use pin_project_lite::pin_project;
 use telemetry::display::base64;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -50,12 +49,9 @@ impl Handle {
     }
 }
 
-pin_project! {
-    /// A stream for receiving optimistic execution results from the rollup node.
-    pub(crate) struct ExecutedBlockStream {
-        #[pin]
-        client: tonic::Streaming<ExecuteOptimisticBlockStreamResponse>,
-    }
+/// A stream for receiving optimistic execution results from the rollup node.
+pub(crate) struct ExecutedBlockStream {
+    client: tonic::Streaming<ExecuteOptimisticBlockStreamResponse>,
 }
 
 impl ExecutedBlockStream {
