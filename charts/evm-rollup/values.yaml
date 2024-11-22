@@ -8,10 +8,10 @@ global:
 
 images:
   geth:
-    repo: ghcr.io/astriaorg/astria-geth
+    repo: ghcr.io/astriaorg/flame
     pullPolicy: IfNotPresent
-    tag: "auctioneer"
-    devTag: "auctioneer"
+    tag: "sha-e389b82"
+    devTag: "sha-e389b82"
     overrideTag: ""
   conductor:
     repo: ghcr.io/astriaorg/conductor
