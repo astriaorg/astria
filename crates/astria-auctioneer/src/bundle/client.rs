@@ -1,7 +1,4 @@
-use std::{
-    pin::Pin,
-    time::Duration,
-};
+use std::pin::Pin;
 
 use astria_core::generated::bundle::v1alpha1::{
     bundle_service_client::BundleServiceClient,
@@ -22,13 +19,7 @@ use tonic::transport::{
     Endpoint,
     Uri,
 };
-use tracing::{
-    instrument,
-    warn,
-    Instrument,
-    Span,
-};
-use tryhard::backoff_strategies::ExponentialBackoff;
+use tracing::instrument;
 
 use super::Bundle;
 
@@ -55,49 +46,14 @@ impl BundleClient {
     pub(crate) async fn get_bundle_stream(
         &mut self,
     ) -> eyre::Result<tonic::Streaming<GetBundleStreamResponse>> {
-        let span = tracing::Span::current();
-        let retry_cfg = make_retry_cfg("get bundle stream".into(), span);
-        let client = self.inner.clone();
-
-        let stream = tryhard::retry_fn(|| {
-            let mut client = client.clone();
-            async move { client.get_bundle_stream(GetBundleStreamRequest {}).await }
-        })
-        .with_config(retry_cfg)
-        .in_current_span()
-        .await
-        .wrap_err("failed to get bundle stream")?
-        .into_inner();
-
+        let mut client = self.inner.clone();
+        let stream = client
+            .get_bundle_stream(GetBundleStreamRequest {})
+            .await
+            .wrap_err("failed to open bundle stream")?
+            .into_inner();
         Ok(stream)
     }
-}
-
-fn make_retry_cfg(
-    msg: String,
-    span: Span,
-) -> tryhard::RetryFutureConfig<
-    ExponentialBackoff,
-    impl Fn(u32, Option<Duration>, &tonic::Status) -> futures::future::Ready<()>,
-> {
-    tryhard::RetryFutureConfig::new(1024)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(2))
-        .on_retry(
-            move |attempt: u32, next_delay: Option<Duration>, error: &tonic::Status| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    parent: &span,
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn std::error::Error,
-                    "attempt to {msg} failed; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        )
 }
 
 pin_project_lite::pin_project! {
