@@ -6,6 +6,7 @@ use astria_core::{
         CommitmentState,
     },
     primitive::v1::RollupId,
+    protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     sequencerblock::v1::block::{
         FilteredSequencerBlock,
         FilteredSequencerBlockParts,
@@ -717,6 +718,8 @@ impl ExecutableBlock {
     }
 
     fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> Self {
+        use prost::Message as _;
+
         let FilteredSequencerBlockParts {
             block_hash,
             header,
@@ -732,8 +735,10 @@ impl ExecutableBlock {
             .unwrap_or_default();
 
         if let Some(extended_commit_info) = extended_commit_info {
-            let oracle_data = parse_extended_commit_info_into_oracle_data(extended_commit_info);
+            let info = astria_core::generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info).expect("TODO");
+            let info = ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(info).expect("TODO");
         }
+
         Self {
             hash: block_hash,
             height,
@@ -741,15 +746,6 @@ impl ExecutableBlock {
             transactions,
         }
     }
-}
-
-fn parse_extended_commit_info_into_oracle_data(extended_commit_info: Vec<u8>) -> RollupData {
-    let extended_commit_info =
-        tendermint_proto::tendermint::v0_38::abci::ExtendedCommitInfo::decode(
-            &extended_commit_info,
-        )
-        .expect("failed to decode extended commit info");
-    RollupData::OracleData(oracle_data)
 }
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].

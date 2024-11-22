@@ -16,6 +16,7 @@ use astria_core::{
     generated::sequencerblock::v1::{
         rollup_data::Value as RawRollupDataValue,
         Deposit as RawDeposit,
+        OracleData as RawOracleData,
         RollupData as RawRollupData,
         SubmittedMetadata as RawSubmittedMetadata,
         SubmittedMetadataList as RawSubmittedMetadataList,
@@ -27,6 +28,7 @@ use astria_core::{
         block::{
             Deposit,
             DepositError,
+            OracleDataError,
             SequencerBlockHeader,
         },
         celestia::{
@@ -46,7 +48,10 @@ use base64::{
     prelude::BASE64_STANDARD,
     Engine,
 };
-use clap::ValueEnum;
+use clap::{
+    builder::Str,
+    ValueEnum,
+};
 use colour::write_blue;
 use ethers_core::types::{
     transaction::eip2930::AccessListItem,
@@ -564,6 +569,23 @@ impl Display for PrintableDeposit {
     }
 }
 
+#[derive(Serialize, Debug)]
+struct PrintableOracleData {}
+
+impl TryFrom<&RawOracleData> for PrintableOracleData {
+    type Error = OracleDataError;
+
+    fn try_from(value: &RawOracleData) -> std::result::Result<Self, Self::Error> {
+        todo!()
+    }
+}
+
+impl Display for PrintableOracleData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
 #[expect(clippy::large_enum_variant, reason = "not performance-critical")]
 #[derive(Serialize, Debug)]
 enum RollupDataDetails {
@@ -571,6 +593,8 @@ enum RollupDataDetails {
     Transaction(RollupTransaction),
     #[serde(rename = "deposit")]
     Deposit(PrintableDeposit),
+    #[serde(rename = "oracle_data")]
+    OracleData(PrintableOracleData),
     /// Tx doesn't decode as `RawRollupData`.  Wrapped value is base-64-encoded input data.
     #[serde(rename = "not_tx_or_deposit")]
     NotTxOrDeposit(String),
@@ -585,6 +609,10 @@ enum RollupDataDetails {
     /// Wrapped value is decoding error and the debug contents of the raw (protobuf) deposit.
     #[serde(rename = "unparseable_deposit")]
     UnparseableDeposit(String),
+    /// Tx parses as `RawRollupData::OracleData`, but its value doesn't decode as a `OracleData`.
+    /// Wrapped value is decoding error and the debug contents of the raw (protobuf) oracle data.
+    #[serde(rename = "unparseable_oracle_data")]
+    UnparseableOracleData(String),
 }
 
 impl From<&Vec<u8>> for RollupDataDetails {
@@ -608,6 +636,16 @@ impl From<&Vec<u8>> for RollupDataDetails {
                     }
                 }
             }
+            Some(RawRollupDataValue::OracleData(raw_oracle_data)) => {
+                match PrintableOracleData::try_from(&raw_oracle_data) {
+                    Ok(printable_oracle_data) => {
+                        RollupDataDetails::OracleData(printable_oracle_data)
+                    }
+                    Err(error) => RollupDataDetails::UnparseableOracleData(format!(
+                        "{raw_oracle_data:?}: {error}"
+                    )),
+                }
+            }
         }
     }
 }
@@ -623,6 +661,10 @@ impl Display for RollupDataDetails {
                 colored_label_ln(f, "deposit")?;
                 write!(indent(f), "{deposit}")
             }
+            RollupDataDetails::OracleData(oracle_data) => {
+                colored_label_ln(f, "oracle data")?;
+                write!(indent(f), "{oracle_data}")
+            }
             RollupDataDetails::NotTxOrDeposit(value) => colored(f, "not tx or deposit", value),
             RollupDataDetails::EmptyBytes => {
                 write!(f, "empty rollup data")
@@ -632,6 +674,9 @@ impl Display for RollupDataDetails {
             }
             RollupDataDetails::UnparseableDeposit(error) => {
                 colored(f, "unparseable deposit", error)
+            }
+            RollupDataDetails::UnparseableOracleData(error) => {
+                colored(f, "unparseable oracle data", error)
             }
         }
     }

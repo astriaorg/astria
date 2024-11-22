@@ -1,63 +1,68 @@
+use std::collections::HashMap;
+
+use indexmap::IndexMap;
 use prost::Message as _;
 use tendermint::abci::types::ExtendedCommitInfo;
 
 use crate::{
-    connect::abci::v2::OracleVoteExtension,
+    connect::{
+        abci::v2::{
+            OracleVoteExtension,
+            OracleVoteExtensionError,
+        },
+        types::v2::{
+            CurrencyPair,
+            CurrencyPairId,
+            Price,
+        },
+    },
     generated::connect::abci::v2::OracleVoteExtension as RawOracleVoteExtension,
-    sequencerblock::v1::block::RollupData,
 };
 
-pub fn parse_extended_commit_info_into_oracle_data(extended_commit_info: Vec<u8>) -> RollupData {
-    let extended_commit_info =
-        tendermint_proto::abci::ExtendedCommitInfo::decode(&extended_commit_info)
-            .expect("failed to decode extended commit info");
-    RollupData::OracleData(oracle_data)
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct Error(ErrorKind);
+
+impl Error {
+    fn decode_error(err: prost::DecodeError) -> Self {
+        Self(ErrorKind::DecodeError(err))
+    }
+
+    fn invalid_oracle_vote_extension(err: OracleVoteExtensionError) -> Self {
+        Self(ErrorKind::InvalidOracleVoteExtension(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ErrorKind {
+    #[error("failed to decode oracle vote extension")]
+    DecodeError(#[from] prost::DecodeError),
+    #[error("failed to convert raw oracle vote extension to native")]
+    InvalidOracleVoteExtension(#[from] OracleVoteExtensionError),
 }
 
 pub async fn calculate_prices_from_vote_extensions(
     extended_commit_info: ExtendedCommitInfo,
-    timestamp: Timestamp,
-    height: u64,
-) -> Result<()> {
+    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
+) -> Result<HashMap<CurrencyPair, Price>, Error> {
     let votes = extended_commit_info
         .votes
         .iter()
         .map(|vote| {
             let raw = RawOracleVoteExtension::decode(vote.vote_extension.clone())
-                .wrap_err("failed to decode oracle vote extension")?;
-            OracleVoteExtension::try_from_raw(raw)
-                .wrap_err("failed to validate oracle vote extension")
+                .map_err(Error::decode_error)?;
+            OracleVoteExtension::try_from_raw(raw).map_err(Error::invalid_oracle_vote_extension)
         })
-        .collect::<Result<Vec<_>>>()
-        .wrap_err("failed to extract oracle vote extension from extended commit info")?;
+        .collect::<Result<Vec<_>, Error>>()?;
 
-    let prices = aggregate_oracle_votes(state, votes)
-        .await
-        .wrap_err("failed to aggregate oracle votes")?;
-
-    for (currency_pair, price) in prices {
-        let price = QuotePrice {
-            price,
-            block_timestamp: astria_core::Timestamp {
-                seconds: timestamp.seconds,
-                nanos: timestamp.nanos,
-            },
-            block_height: height,
-        };
-
-        state
-            .put_price_for_currency_pair(currency_pair, price)
-            .await
-            .wrap_err("failed to put price")?;
-    }
-
-    Ok(())
+    let prices = aggregate_oracle_votes(votes, id_to_currency_pair);
+    Ok(prices)
 }
 
-async fn aggregate_oracle_votes<S: StateReadExt>(
-    state: &S,
+fn aggregate_oracle_votes(
     votes: Vec<OracleVoteExtension>,
-) -> Result<HashMap<CurrencyPair, Price>> {
+    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
+) -> HashMap<CurrencyPair, Price> {
     // validators are not weighted right now, so we just take the median price for each currency
     // pair
     //
@@ -66,10 +71,11 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
     let mut currency_pair_to_price_list = HashMap::new();
     for vote in votes {
         for (id, price) in vote.prices {
-            let Some(currency_pair) = DefaultCurrencyPairStrategy::from_id(state, id)
-                .await
-                .wrap_err("failed to get currency pair from id")?
-            else {
+            let Some(currency_pair) = id_to_currency_pair.get(&id) else {
+                // it's possible for a vote to contain some currency pair ID that didn't exist
+                // in state. this probably shouldn't happen if validators are running the right
+                // code, but it doesn't invalidate their entire vote extension, so
+                // it's kept in the block anyways.
                 continue;
             };
             currency_pair_to_price_list
@@ -103,8 +109,8 @@ async fn aggregate_oracle_votes<S: StateReadExt>(
             price_list.get(midpoint).copied()
         }
         .unwrap_or_else(|| Price::new(0));
-        prices.insert(currency_pair, median_price);
+        prices.insert(currency_pair.clone(), median_price);
     }
 
-    Ok(prices)
+    prices
 }
