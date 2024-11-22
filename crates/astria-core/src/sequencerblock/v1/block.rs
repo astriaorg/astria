@@ -37,7 +37,7 @@ use crate::{
         Transaction,
         TransactionError,
     },
-    Protobuf as _,
+    Protobuf,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -1267,6 +1267,27 @@ impl FilteredSequencerBlock {
             all_rollup_ids,
             rollup_ids_proof,
         }
+    }
+}
+
+impl Protobuf for FilteredSequencerBlock {
+    type Error = FilteredSequencerBlockError;
+    type Raw = raw::FilteredSequencerBlock;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw.clone())
+    }
+
+    fn try_from_raw(raw: Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw)
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        self.clone().into_raw()
+    }
+
+    fn into_raw(self) -> Self::Raw {
+        self.into_raw()
     }
 }
 
