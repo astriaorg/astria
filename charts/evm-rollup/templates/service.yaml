@@ -13,6 +13,9 @@ spec:
     - name: ws-rpc-svc
       port: {{ .Values.ports.wsRPC }}
       targetPort: ws-rpc
+    - name: execution-grpc-svc
+      port: {{ .Values.ports.executionGRPC }}
+      targetPort: execution-grpc
 ---
 {{- if .Values.metrics.enabled }}
 kind: Service
