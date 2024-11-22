@@ -193,6 +193,7 @@ impl GethServer for GethImpl {
 /// A mocked geth server for subscribing to new transactions.
 ///
 /// Allows for explicitly pushing transactions to subscribed clients.
+#[derive(Debug)]
 pub struct Geth {
     /// The local address to which the mocked jsonrpc server is bound.
     local_addr: SocketAddr,

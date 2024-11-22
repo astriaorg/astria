@@ -19,9 +19,11 @@ use wiremock::{
     ResponseTemplate,
 };
 
-pub async fn start() -> MockServer {
+use super::TEST_CHAIN_ID;
+
+pub async fn start(chain_id: Option<&str>) -> MockServer {
     let server = MockServer::start().await;
-    mount_genesis(&server, "test-chain-1").await;
+    mount_genesis(&server, chain_id.unwrap_or(TEST_CHAIN_ID)).await;
     server
 }
 
