@@ -31,8 +31,6 @@ use telemetry::display::base64;
 
 use crate::bundle::Bundle;
 
-pub(crate) mod executed_stream;
-
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
 fn convert_tendermint_time_to_protobuf_timestamp(
     value: sequencer_client::tendermint::Time,
@@ -54,6 +52,12 @@ pub(crate) struct Optimistic {
 }
 
 impl Optimistic {
+    pub(crate) fn new(filtered_sequencer_block: FilteredSequencerBlock) -> Self {
+        Self {
+            filtered_sequencer_block,
+        }
+    }
+
     /// Converts this [`Optimistic`] into a [`BaseBlock`] for the given `rollup_id`.
     /// If there are no transactions for the given `rollup_id`, this will return a `BaseBlock`
     /// with no transactions.

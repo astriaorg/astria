@@ -20,12 +20,9 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use bytes::Bytes;
-pub(crate) use client::BundleStream;
 use prost::Message as _;
 
 use crate::sequencer_key::SequencerKey;
-
-mod client;
 
 // TODO: this should probably be moved to astria_core::bundle?
 #[derive(Debug, Clone)]

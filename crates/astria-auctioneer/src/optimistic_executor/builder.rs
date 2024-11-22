@@ -8,6 +8,7 @@ use tokio_util::sync::CancellationToken;
 use super::Startup;
 use crate::{
     auction,
+    rollup_channel::RollupChannel,
     sequencer_channel::SequencerChannel,
     Metrics,
 };
@@ -39,6 +40,9 @@ impl Builder {
         } = self;
 
         let rollup_id = RollupId::from_unhashed_bytes(&rollup_id);
+        let rollup_channel = RollupChannel::create(&rollup_grpc_endpoint).wrap_err_with(|| {
+            format!("failed to create a gRPC channel to rollup at `{rollup_grpc_endpoint}`")
+        })?;
         let sequencer_channel =
             SequencerChannel::create(&sequencer_grpc_endpoint).wrap_err_with(|| {
                 format!(
@@ -50,7 +54,7 @@ impl Builder {
             metrics,
             shutdown_token,
             rollup_id,
-            rollup_grpc_endpoint,
+            rollup_channel,
             sequencer_channel,
             auctions,
         })
