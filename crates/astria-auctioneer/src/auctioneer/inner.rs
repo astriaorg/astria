@@ -6,7 +6,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    OptionExt as _,
+    OptionExt,
     WrapErr as _,
 };
 use futures::StreamExt as _;
@@ -36,11 +36,12 @@ use crate::{
     Metrics,
 };
 
-macro_rules! break_for_closed_stream {
-    ($stream_res:expr, $msg:expr) => {
-        match $stream_res {
-            Some(val) => val,
-            None => break Err(::astria_eyre::eyre::eyre!($msg)),
+/// To break from a loop instead of using the `?` operator.
+macro_rules! try_break {
+    ($res:expr) => {
+        match $res {
+            Ok(val) => val,
+            Err(err) => break Err(err),
         }
     };
 }
@@ -225,30 +226,26 @@ impl Running {
                     },
 
                     Some((id, res)) = self.auctions.join_next() => {
-                        res.wrap_err_with(|| format!("auction failed for block {}", base64(id)))?;
+                        try_break!(res.wrap_err_with(|| format!("auction failed for block `{}`", base64(id))));
                     },
 
                     res = self.optimistic_blocks.next() => {
-                        let res = break_for_closed_stream!(res, "optimistic block stream closed");
+                        let res = try_break!(res.ok_or_eyre("optimistic block stream closed"));
                         let _ = self.handle_optimistic_block(res);
                     },
 
                     res = self.block_commitments.next() => {
-                        let res = break_for_closed_stream!(res, "block commitment stream closed");
-
+                        let res = try_break!(res.ok_or_eyre("block commitment stream closed"));
                         let _ = self.handle_block_commitment(res);
-
                     },
 
                     res = self.executed_blocks.next() => {
-                        let res = break_for_closed_stream!(res, "executed block stream closed");
-
+                        let res = try_break!(res.ok_or_eyre("executed block stream closed"));
                         let _ = self.handle_executed_block(res);
                     }
 
                     Some(res) = self.bundles.next() => {
                         let bundle = res.wrap_err("failed to get bundle")?;
-
                         let _ = self.handle_bundle(bundle);
                     }
                 }
