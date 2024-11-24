@@ -18,6 +18,8 @@ use crate::{
 };
 
 mod inner;
+mod running;
+mod starting;
 
 /// The [`Auctioneer`] service returned by [`Auctioneer::spawn`].
 pub struct Auctioneer {
