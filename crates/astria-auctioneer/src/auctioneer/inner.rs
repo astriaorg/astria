@@ -255,12 +255,7 @@ impl Running {
             }
         };
 
-        match reason {
-            Ok(msg) => info!(%msg, "shutting down"),
-            Err(err) => error!(%err, "shutting down due to error"),
-        };
-
-        Ok(RunState::Cancelled)
+        self.shutdown(reason)
     }
 
     #[instrument(skip(self), fields(auction.old_id = %base64(self.current_block.sequencer_block_hash())), err)]
@@ -370,5 +365,15 @@ impl Running {
             .wrap_err("failed to submit bundle to auction")?;
 
         Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn shutdown(self, reason: eyre::Result<&'static str>) -> eyre::Result<RunState> {
+        let message: &str = "shutting down";
+        match reason {
+            Ok(reason) => info!(%reason, message),
+            Err(reason) => error!(%reason, message),
+        };
+        Ok(RunState::Cancelled)
     }
 }
