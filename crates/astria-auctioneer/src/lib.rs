@@ -7,8 +7,6 @@ mod build_info;
 mod bundle;
 pub mod config;
 pub(crate) mod metrics;
-// mod optimistic_execution_client;
-mod optimistic_executor;
 mod rollup_channel;
 mod sequencer_channel;
 mod sequencer_key;

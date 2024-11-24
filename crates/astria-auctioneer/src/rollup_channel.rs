@@ -22,12 +22,17 @@ use tonic::transport::Channel;
 
 use crate::bundle::Bundle;
 
+pub(crate) fn open(endpoint: &str) -> eyre::Result<RollupChannel> {
+    RollupChannel::create(&endpoint)
+        .wrap_err_with(|| format!("failed to create a gRPC channel to rollup at `{endpoint}`"))
+}
+
 pub(crate) struct RollupChannel {
     inner: Channel,
 }
 
 impl RollupChannel {
-    pub(crate) fn create(uri: &str) -> eyre::Result<Self> {
+    fn create(uri: &str) -> eyre::Result<Self> {
         let channel = Channel::from_shared(uri.to_string())
             .wrap_err("failed to open a channel to the provided uri")?
             .connect_timeout(Duration::from_secs(5))

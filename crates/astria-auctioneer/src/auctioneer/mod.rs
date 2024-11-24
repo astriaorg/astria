@@ -72,7 +72,7 @@ impl Future for Auctioneer {
         let task = self
             .task
             .as_mut()
-            .expect("the Auctioneer handle must not be polled after shutdown");
+            .expect("auctioneer must not be polled after shutdown");
         task.poll_unpin(cx).map(flatten_join_result)
     }
 }
