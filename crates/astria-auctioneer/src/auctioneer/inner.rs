@@ -368,6 +368,10 @@ impl Running {
     async fn shutdown(mut self, reason: eyre::Result<&'static str>) -> eyre::Result<RunState> {
         const WAIT_BEFORE_ABORT: Duration = Duration::from_secs(25);
 
+        // Necessary if we got here because of another reason than receiving an external
+        // shutdown signal.
+        self.shutdown_token.cancel();
+
         let message = format!(
             "waiting {} for all constituent tasks to shutdown before aborting",
             humantime::format_duration(WAIT_BEFORE_ABORT),
