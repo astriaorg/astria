@@ -252,7 +252,7 @@ impl Running {
             }
         };
 
-        self.shutdown(reason)
+        self.shutdown(reason).await
     }
 
     #[instrument(skip(self), fields(auction.old_id = %base64(self.current_block.sequencer_block_hash())), err)]
@@ -365,12 +365,32 @@ impl Running {
     }
 
     #[instrument(skip_all)]
-    fn shutdown(self, reason: eyre::Result<&'static str>) -> eyre::Result<RunState> {
-        let message: &str = "shutting down";
+    async fn shutdown(mut self, reason: eyre::Result<&'static str>) -> eyre::Result<RunState> {
+        const WAIT_BEFORE_ABORT: Duration = Duration::from_secs(25);
+
+        let message = format!(
+            "waiting {} for all constituent tasks to shutdown before aborting",
+            humantime::format_duration(WAIT_BEFORE_ABORT),
+        );
         match reason {
             Ok(reason) => info!(%reason, message),
             Err(reason) => error!(%reason, message),
         };
+        let shutdown_auctions = async {
+            while let Some((id, res)) = self.auctions.join_next().await {
+                if let Err(error) = res {
+                    // FIXME: probide a display impl for this ID
+                    warn!(?id, %error, "auction ended with an error");
+                }
+            }
+        };
+        // NOTE: we don't care if this elapses. We will abort all auctions anyway
+        // and report if there were any still running.
+        let _ = tokio::time::timeout(WAIT_BEFORE_ABORT, shutdown_auctions).await;
+        let aborted = self.auctions.abort_all();
+        if aborted > 0 {
+            warn!("aborted `{aborted}` auctions still running after grace period",);
+        }
         Ok(RunState::Cancelled)
     }
 }

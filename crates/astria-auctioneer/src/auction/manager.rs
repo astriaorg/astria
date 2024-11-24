@@ -199,4 +199,10 @@ impl Manager {
             None
         }
     }
+
+    pub(crate) fn abort_all(&mut self) -> usize {
+        let number_of_live_auctions = self.running_auctions.len();
+        self.running_auctions.abort_all();
+        number_of_live_auctions
+    }
 }
