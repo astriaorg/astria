@@ -4,11 +4,14 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::optimisticblock::v1alpha1::{
-        GetBlockCommitmentStreamRequest,
-        GetBlockCommitmentStreamResponse,
-        GetOptimisticBlockStreamRequest,
-        GetOptimisticBlockStreamResponse,
+    generated::sequencerblock::{
+        optimisticblock::v1alpha1::{
+            GetBlockCommitmentStreamRequest,
+            GetBlockCommitmentStreamResponse,
+            GetOptimisticBlockStreamRequest,
+            GetOptimisticBlockStreamResponse,
+        },
+        v1::sequencer_service_client::SequencerServiceClient,
     },
     primitive::v1::RollupId,
     sequencerblock::v1::block::FilteredSequencerBlock,
@@ -49,6 +52,10 @@ impl SequencerChannel {
         Ok(Self {
             inner: channel,
         })
+    }
+
+    pub(crate) fn to_sequencer_service_client(&self) -> SequencerServiceClient<Channel> {
+        SequencerServiceClient::new(self.inner.clone())
     }
 
     pub(crate) async fn open_get_block_commitment_stream(

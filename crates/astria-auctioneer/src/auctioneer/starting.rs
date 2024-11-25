@@ -71,7 +71,7 @@ impl Starting {
         let auctions = crate::auction::manager::Builder {
             metrics,
             shutdown_token: shutdown_token.clone(),
-            sequencer_grpc_endpoint: sequencer_grpc_endpoint.clone(),
+            sequencer_grpc_client: sequencer_channel.to_sequencer_service_client(),
             sequencer_abci_endpoint,
             latency_margin: Duration::from_millis(latency_margin_ms),
             sequencer_private_key_path,
