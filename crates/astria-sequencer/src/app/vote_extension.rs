@@ -38,6 +38,7 @@ use futures::{
     TryStreamExt,
 };
 use indexmap::IndexMap;
+use itertools::Itertools as _;
 use prost::Message as _;
 use telemetry::display::base64;
 use tendermint::{
@@ -230,7 +231,7 @@ impl ProposalHandler {
                 .await
                 .wrap_err("failed to get max number of currency pairs")?;
 
-        let mut all_ids = HashSet::new();
+        let mut all_currency_pair_ids = HashSet::new();
         for vote in &mut extended_commit_info.votes {
             let ids =
                 match verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs) {
@@ -251,14 +252,14 @@ impl ProposalHandler {
                         continue;
                     }
                 };
-            all_ids.extend(ids);
+            all_currency_pair_ids.extend(ids);
         }
 
         validate_vote_extensions(state, height, &extended_commit_info)
             .await
             .wrap_err("failed to validate vote extensions in prepare_proposal")?;
 
-        let id_to_currency_pair = id_to_currency_pair(&state, all_ids).await;
+        let id_to_currency_pair = get_id_to_currency_pair(&state, all_currency_pair_ids).await;
         let tx = ExtendedCommitInfoWithCurrencyPairMapping::new(
             extended_commit_info,
             id_to_currency_pair,
@@ -288,10 +289,6 @@ impl ProposalHandler {
             return Ok(());
         }
 
-        validate_id_to_currency_pair_mapping(state, id_to_currency_pair)
-            .await
-            .wrap_err("failed to validate id_to_currency_pair mapping")?;
-
         if extended_commit_info.votes.is_empty() {
             ensure!(
                 last_commit.round == extended_commit_info.round,
@@ -317,19 +314,23 @@ impl ProposalHandler {
                 .await
                 .wrap_err("failed to get max number of currency pairs")?;
 
+        let mut all_currency_pair_ids = HashSet::new();
         for vote in &extended_commit_info.votes {
-            verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs)
+            let ids = verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs)
                 .wrap_err("failed to verify vote extension in validate_proposal")?;
+            all_currency_pair_ids.extend(ids);
         }
 
-        Ok(())
+        validate_id_to_currency_pair_mapping(state, all_currency_pair_ids, id_to_currency_pair)
+            .await
     }
 }
 
-async fn id_to_currency_pair<S: StateReadExt>(
+async fn get_id_to_currency_pair<S: StateReadExt>(
     state: &S,
     all_ids: HashSet<u64>,
 ) -> IndexMap<CurrencyPairId, CurrencyPair> {
+    let num_pairs = all_ids.len();
     let mut id_to_currency_pair_stream = all_ids
         .into_iter()
         .map(|id| async move {
@@ -341,7 +342,7 @@ async fn id_to_currency_pair<S: StateReadExt>(
         })
         .collect::<FuturesUnordered<_>>();
 
-    let mut id_to_currency_pair = IndexMap::with_capacity(id_to_currency_pair_stream.len());
+    let mut id_to_currency_pair = IndexMap::with_capacity(num_pairs);
     while let Some((id, result)) = id_to_currency_pair_stream.next().await {
         match result {
             Ok(Some(currency_pair)) => {
@@ -354,8 +355,8 @@ async fn id_to_currency_pair<S: StateReadExt>(
                 // FIXME: this event can be removed once all instrumented functions
                 // can generate an error event.
                 warn!(
-                %id, error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                "failed to fetch currency pair for ID; skipping"
+                    %id, error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed to fetch currency pair for ID; skipping"
                 );
             }
         }
@@ -365,28 +366,37 @@ async fn id_to_currency_pair<S: StateReadExt>(
 
 async fn validate_id_to_currency_pair_mapping<S: StateReadExt>(
     state: &S,
+    all_ids: HashSet<u64>,
     id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
 ) -> Result<()> {
-    let mut futures = futures::stream::FuturesUnordered::new();
-    for (id, currency_pair) in id_to_currency_pair {
-        futures.push(async move {
-            let expected_currency_pair = DefaultCurrencyPairStrategy::from_id(state, *id)
-                .await
-                .wrap_err("failed to get currency pair for id")?
-                .ok_or(eyre!("currency pair should exist in state"))?;
-            ensure!(
-                currency_pair == &expected_currency_pair,
-                format!(
-                    "currency pair {} was not expected {} given id {}",
-                    currency_pair, expected_currency_pair, id
-                )
-            );
-            Ok(())
-        });
+    let mut expected_mapping = get_id_to_currency_pair(state, all_ids).await;
+    if expected_mapping == *id_to_currency_pair {
+        return Ok(());
     }
-    while futures.try_next().await?.is_some() {}
 
-    Ok(())
+    let mut error_msgs = vec![];
+    let mut actual_mapping = id_to_currency_pair.clone();
+    for (pair_id, expected_pair) in expected_mapping.drain(..) {
+        if let Some(actual_pair) = actual_mapping.swap_remove(&pair_id) {
+            if expected_pair != actual_pair {
+                error_msgs.push(format!(
+                    "mismatch (expected `{expected_pair}` but got `{actual_pair}` for id \
+                     {pair_id})"
+                ));
+            }
+        } else {
+            error_msgs.push(format!(
+                "missing (expected `{expected_pair}` for id {pair_id})"
+            ));
+        }
+    }
+    for (pair_id, extra_pair) in actual_mapping {
+        error_msgs.push(format!("unexpected (got `{extra_pair}` for id {pair_id})"));
+    }
+    Err(eyre!(
+        "failed to validate currency pair mapping: [{}]",
+        error_msgs.iter().join(", ")
+    ))
 }
 
 // see https://github.com/skip-mev/connect/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L111
@@ -929,13 +939,15 @@ mod test {
     }
 
     #[track_caller]
-    fn assert_err_contains<T: Debug, E: ToString>(result: Result<T, E>, message: &str) {
+    fn assert_err_contains<T: Debug, E: ToString>(result: Result<T, E>, messages: &[&str]) {
         let actual_message = result.unwrap_err().to_string();
-        assert!(
-            actual_message.contains(message),
-            "error expected to contain `{message}`, but the actual error message is \
-             `{actual_message}`"
-        );
+        for message in messages {
+            assert!(
+                actual_message.contains(message),
+                "error expected to contain `{message}`, but the actual error message is \
+                 `{actual_message}`"
+            );
+        }
     }
 
     /// Should fail validation if any validator votes more than once.
@@ -959,7 +971,7 @@ mod test {
         let extended_commit_info = extended_commit_info(message.round, votes);
         assert_err_contains(
             validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
-            "voted twice",
+            &["voted twice"],
         );
     }
 
@@ -986,7 +998,7 @@ mod test {
         let extended_commit_info = extended_commit_info(message.round, votes);
         assert_err_contains(
             validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
-            "vote extension signature is missing for validator",
+            &["vote extension signature is missing for validator"],
         );
     }
 
@@ -1013,7 +1025,7 @@ mod test {
         let extended_commit_info = extended_commit_info(message.round, votes);
         assert_err_contains(
             validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
-            "non-commit vote extension present for validator",
+            &["non-commit vote extension present for validator"],
         );
     }
 
@@ -1040,7 +1052,7 @@ mod test {
         let extended_commit_info = extended_commit_info(message.round, votes);
         assert_err_contains(
             validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
-            "non-commit extension signature present for validator",
+            &["non-commit extension signature present for validator"],
         );
     }
 
@@ -1068,7 +1080,7 @@ mod test {
         let extended_commit_info = extended_commit_info(message.round, votes);
         assert_err_contains(
             validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
-            "not found in validator set",
+            &["not found in validator set"],
         );
     }
 
@@ -1094,7 +1106,7 @@ mod test {
         let extended_commit_info = extended_commit_info(message.round, votes);
         assert_err_contains(
             validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
-            "failed to verify signature for vote extension",
+            &["failed to verify signature for vote extension"],
         );
     }
 
@@ -1110,7 +1122,7 @@ mod test {
         let extended_commit_info = extended_commit_info(1, vec![]);
         assert_err_contains(
             validate_vote_extensions(&state, 2, &extended_commit_info).await,
-            "total voting power is zero",
+            &["total voting power is zero"],
         );
     }
 
@@ -1137,7 +1149,7 @@ mod test {
         let extended_commit_info = extended_commit_info(message.round, votes);
         assert_err_contains(
             validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
-            "submitted voting power is less than required voting power",
+            &["submitted voting power is less than required voting power"],
         );
     }
 
@@ -1177,7 +1189,7 @@ mod test {
         let last_commit = last_commit([&signer_a, &signer_b, &signer_c], message.round);
         assert_err_contains(
             validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
-            "last commit round does not match extended commit round",
+            &["last commit round does not match extended commit round"],
         );
     }
 
@@ -1199,7 +1211,7 @@ mod test {
         let last_commit = last_commit([&signer_a, &signer_b, &signer_c], message.round);
         assert_err_contains(
             validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
-            "last commit votes length does not match extended commit votes length",
+            &["last commit votes length does not match extended commit votes length"],
         );
     }
 
@@ -1223,7 +1235,7 @@ mod test {
         let last_commit = last_commit([&signer_a, &signer_b, &bad_signer], message.round);
         assert_err_contains(
             validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
-            "last commit vote address does not match extended commit vote address",
+            &["last commit vote address does not match extended commit vote address"],
         );
     }
 
@@ -1250,7 +1262,7 @@ mod test {
         let last_commit = last_commit([&signer_a, &signer_b, &bad_signer], message.round);
         assert_err_contains(
             validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
-            "last commit vote power does not match extended commit vote power",
+            &["last commit vote power does not match extended commit vote power"],
         );
     }
 
@@ -1275,7 +1287,7 @@ mod test {
         last_commit.votes.last_mut().unwrap().sig_info = Flag(tendermint::block::BlockIdFlag::Nil);
         assert_err_contains(
             validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info),
-            "last commit vote sig info does not match extended commit vote sig info",
+            &["last commit vote sig info does not match extended commit vote sig info"],
         );
     }
 
@@ -1300,6 +1312,97 @@ mod test {
     }
 
     #[tokio::test]
+    async fn validate_id_to_currency_pair_mapping_missing_pair() {
+        let Fixture {
+            state,
+            _storage,
+            ..
+        } = Fixture::new().await;
+
+        let ids_missing_pairs = HashSet::from_iter([0]);
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_missing_pairs).await;
+        let all_ids = HashSet::from_iter([0, 1, 2]);
+        assert_err_contains(
+            validate_id_to_currency_pair_mapping(&state, all_ids, &id_to_currency_pairs).await,
+            &[
+                "failed to validate currency pair mapping:",
+                "missing (expected `BTC/USD` for id 1)",
+                "missing (expected `TIA/USD` for id 2)",
+            ],
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_id_to_currency_pair_mapping_extra_pair() {
+        let Fixture {
+            state,
+            _storage,
+            ..
+        } = Fixture::new().await;
+
+        let ids_extra_pair = HashSet::from_iter([0, 1, 2]);
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_extra_pair).await;
+        let all_ids = HashSet::from_iter([0]);
+        assert_err_contains(
+            validate_id_to_currency_pair_mapping(&state, all_ids, &id_to_currency_pairs).await,
+            &[
+                "failed to validate currency pair mapping:",
+                "unexpected (got `BTC/USD` for id 1)",
+                "unexpected (got `TIA/USD` for id 2)",
+            ],
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_id_to_currency_pair_mapping_pair_mismatch() {
+        let Fixture {
+            state,
+            _storage,
+            ..
+        } = Fixture::new().await;
+
+        let all_ids = HashSet::from_iter([0, 1, 2]);
+        let mut id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids.clone()).await;
+        *id_to_currency_pairs
+            .get_mut(&CurrencyPairId::new(0))
+            .unwrap() = "ABC/DEF".parse().unwrap();
+        *id_to_currency_pairs
+            .get_mut(&CurrencyPairId::new(1))
+            .unwrap() = "GHI/JKL".parse().unwrap();
+        assert_err_contains(
+            validate_id_to_currency_pair_mapping(&state, all_ids, &id_to_currency_pairs).await,
+            &[
+                "failed to validate currency pair mapping:",
+                "mismatch (expected `ETH/USD` but got `ABC/DEF` for id 0)",
+                "mismatch (expected `BTC/USD` but got `GHI/JKL` for id 1)",
+            ],
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_id_to_currency_pair_mapping_ok() {
+        let Fixture {
+            state,
+            _storage,
+            ..
+        } = Fixture::new().await;
+
+        let all_ids = HashSet::from_iter([0, 1, 2]);
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids.clone()).await;
+        // Ensure the random order of `all_ids` has no bearing on the internal equality check.
+        let first_element = *all_ids.iter().next().unwrap();
+        loop {
+            let ids: HashSet<u64> = all_ids.iter().copied().collect();
+            if *ids.iter().next().unwrap() != first_element {
+                validate_id_to_currency_pair_mapping(&state, ids, &id_to_currency_pairs)
+                    .await
+                    .unwrap();
+                return;
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn aggregate_oracle_votes_ok() {
         let Fixture {
             state,
@@ -1313,7 +1416,7 @@ mod test {
             oracle_vote_extension([11, 21, 31]),
         ];
         let all_ids = HashSet::from_iter([0, 1, 2]);
-        let id_to_currency_pairs = id_to_currency_pair(&state, all_ids).await;
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids).await;
         let aggregated_prices: BTreeMap<_, _> =
             aggregate_oracle_votes(votes, &id_to_currency_pairs).collect();
         assert_eq!(3, aggregated_prices.len());
@@ -1338,7 +1441,7 @@ mod test {
             oracle_vote_extension([11, 21, 31, 41, 51]),
         ];
         let all_ids = HashSet::from_iter([0, 1, 2]);
-        let id_to_currency_pairs = id_to_currency_pair(&state, all_ids).await;
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids).await;
         let aggregated_prices: BTreeMap<_, _> =
             aggregate_oracle_votes(votes, &id_to_currency_pairs).collect();
         assert_eq!(3, aggregated_prices.len());
@@ -1436,7 +1539,7 @@ mod test {
                 &unsorted_extended_commit_info,
             )
             .await,
-            "last commit vote address does not match extended commit vote address",
+            &["last commit vote address does not match extended commit vote address"],
         );
     }
 }
