@@ -90,8 +90,7 @@ impl Running {
             }
 
             Some(res) = self.bundles.next() => {
-                let bundle = res.wrap_err("failed to get bundle")?;
-                let _ = self.handle_bundle(bundle);
+                let _ = self.handle_bundle(res);
             }
         );
         Ok(())
@@ -186,7 +185,8 @@ impl Running {
     }
 
     #[instrument(skip_all, fields(auction.id = %base64(self.current_block.sequencer_block_hash())))]
-    fn handle_bundle(&mut self, bundle: crate::bundle::Bundle) -> eyre::Result<()> {
+    fn handle_bundle(&mut self, bundle: eyre::Result<crate::bundle::Bundle>) -> eyre::Result<()> {
+        let bundle = bundle.wrap_err("received problematic bundle")?;
         if let Err(e) = self.current_block.ensure_bundle_is_valid(&bundle) {
             warn!(
                 curent_block.sequencer_block_hash = %base64(self.current_block.sequencer_block_hash()),

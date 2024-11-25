@@ -100,7 +100,7 @@ impl Stream for BundleStream {
         };
 
         let raw = res
-            .wrap_err("failed receiving streamed message from server")?
+            .wrap_err("error while receiving streamed message from server")?
             .bundle
             .ok_or_else(|| {
                 eyre!(
@@ -111,7 +111,7 @@ impl Stream for BundleStream {
 
         let bundle = Bundle::try_from_raw(raw).wrap_err_with(|| {
             format!(
-                "failed to validate received `{}`",
+                "failed to validate received message `{}`",
                 astria_core::generated::bundle::v1alpha1::Bundle::full_name()
             )
         })?;
