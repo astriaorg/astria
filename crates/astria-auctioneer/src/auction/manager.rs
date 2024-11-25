@@ -51,7 +51,7 @@ pub(crate) struct Builder {
     /// The chain ID for sequencer transactions
     pub(crate) sequencer_chain_id: String,
     /// The rollup ID for the `RollupDataSubmission`s with auction results
-    pub(crate) rollup_id: String,
+    pub(crate) rollup_id: RollupId,
 }
 
 impl Builder {
@@ -79,8 +79,6 @@ impl Builder {
         let sequencer_abci_client =
             sequencer_client::HttpClient::new(sequencer_abci_endpoint.as_str())
                 .wrap_err("failed constructing sequencer abci client")?;
-
-        let rollup_id = RollupId::from_unhashed_bytes(&rollup_id);
 
         Ok(Manager {
             metrics,

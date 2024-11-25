@@ -64,6 +64,7 @@ impl Starting {
             ..
         } = config;
 
+        let rollup_id = RollupId::from_unhashed_bytes(rollup_id);
         let rollup_channel = crate::rollup_channel::open(&rollup_grpc_endpoint)?;
         let sequencer_channel = crate::sequencer_channel::open(&sequencer_grpc_endpoint)?;
 
@@ -78,7 +79,7 @@ impl Starting {
             sequencer_address_prefix,
             fee_asset_denomination,
             sequencer_chain_id,
-            rollup_id: rollup_id.clone(),
+            rollup_id,
         }
         .build()
         .wrap_err("failed to initialize auction manager")?;
@@ -86,7 +87,7 @@ impl Starting {
         Ok(Starting {
             auctions,
             rollup_channel,
-            rollup_id: RollupId::from_unhashed_bytes(&rollup_id),
+            rollup_id,
             sequencer_channel,
             shutdown_token,
         })
