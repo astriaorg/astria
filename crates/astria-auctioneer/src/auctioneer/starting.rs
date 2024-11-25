@@ -7,6 +7,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use futures::StreamExt as _;
+use tokio::select;
 use tokio_util::sync::CancellationToken;
 
 use super::{
@@ -14,8 +15,16 @@ use super::{
     running::Running,
 };
 use crate::{
-    rollup_channel::RollupChannel,
-    sequencer_channel::SequencerChannel,
+    rollup_channel::{
+        BundleStream,
+        ExecuteOptimisticBlockStream,
+        RollupChannel,
+    },
+    sequencer_channel::{
+        BlockCommitmentStream,
+        OptimisticBlockStream,
+        SequencerChannel,
+    },
     Config,
     Metrics,
 };
@@ -84,41 +93,31 @@ impl Starting {
     }
 
     pub(super) async fn run(self) -> eyre::Result<RunState> {
+        select!(
+            biased;
+
+            () = self.shutdown_token.clone().cancelled_owned() => Ok(RunState::Cancelled),
+            res = self.start_running() => res,
+        )
+    }
+
+    async fn start_running(self) -> eyre::Result<RunState> {
         let Self {
             auctions,
-            rollup_id,
             rollup_channel,
+            rollup_id,
             sequencer_channel,
             shutdown_token,
         } = self;
-
-        let executed_blocks = rollup_channel
-            .open_execute_optimistic_block_stream()
-            .await
-            .wrap_err("opening stream to execute optimistic blocks on rollup failed")?;
-
-        let mut optimistic_blocks = sequencer_channel
-            .open_get_optimistic_block_stream(rollup_id)
-            .await
-            .wrap_err("opening stream to receive optimistic blocks from sequencer failed")?;
-
-        let block_commitments = sequencer_channel
-            .open_get_block_commitment_stream()
-            .await
-            .wrap_err("opening stream to receive block commitments from sequencer failed")?;
-
-        let bundles = rollup_channel
-            .open_bundle_stream()
-            .await
-            .wrap_err("opening stream to receive bundles from rollup failed")?;
-
-        let optimistic_block = optimistic_blocks
-            .next()
-            .await
-            .ok_or_eyre("optimistic stream closed during startup?")?
-            .wrap_err("failed to get optimistic block during startup")?;
-        let current_block = crate::block::Current::with_optimistic(optimistic_block);
-
+        let (bundles, executed_blocks, block_commitments, (optimistic_blocks, current_block)) = tokio::try_join!(
+            open_bundle_stream(rollup_channel.clone()),
+            open_execute_optimistic_block_stream(rollup_channel.clone()),
+            open_block_commitment_stream(sequencer_channel.clone()),
+            open_optimistic_block_stream_and_get_current_block(
+                sequencer_channel.clone(),
+                rollup_id
+            ),
+        )?;
         Ok(Running {
             auctions,
             block_commitments,
@@ -131,4 +130,49 @@ impl Starting {
         }
         .into())
     }
+}
+
+async fn open_optimistic_block_stream_and_get_current_block(
+    chan: SequencerChannel,
+    rollup_id: RollupId,
+) -> eyre::Result<(OptimisticBlockStream, crate::block::Current)> {
+    let mut the_stream = chan
+        .open_get_optimistic_block_stream(rollup_id)
+        .await
+        .wrap_err_with(|| {
+            format!(
+                "failed to open optimistic block stream to Sequencer node for rollup ID \
+                 `{rollup_id}`"
+            )
+        })?;
+    let optimistic_block = the_stream
+        .next()
+        .await
+        .ok_or_eyre("optimistic block stream closed before yielding the current block")?
+        .wrap_err(
+            "failed to get current optimistic block after opening a stream to the Sequencer node",
+        )?;
+    let current_block = crate::block::Current::with_optimistic(optimistic_block);
+    Ok((the_stream, current_block))
+}
+
+async fn open_block_commitment_stream(
+    chan: SequencerChannel,
+) -> eyre::Result<BlockCommitmentStream> {
+    chan.open_get_block_commitment_stream()
+        .await
+        .wrap_err("failed to open block commitment stream to sequencer node")
+}
+
+async fn open_bundle_stream(chan: RollupChannel) -> eyre::Result<BundleStream> {
+    chan.open_bundle_stream()
+        .await
+        .wrap_err("failed to open `bundle stream` to rollup node")
+}
+async fn open_execute_optimistic_block_stream(
+    chan: RollupChannel,
+) -> eyre::Result<ExecuteOptimisticBlockStream> {
+    chan.open_execute_optimistic_block_stream()
+        .await
+        .wrap_err("failed to open `execute optimistic block stream` to rollup node")
 }

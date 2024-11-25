@@ -33,6 +33,7 @@ pub(crate) fn open(endpoint: &str) -> eyre::Result<SequencerChannel> {
         .wrap_err_with(|| format!("failed to create a gRPC channel to Sequencer at `{endpoint}`"))
 }
 
+#[derive(Clone)]
 pub(crate) struct SequencerChannel {
     inner: Channel,
 }

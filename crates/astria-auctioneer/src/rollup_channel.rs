@@ -27,6 +27,7 @@ pub(crate) fn open(endpoint: &str) -> eyre::Result<RollupChannel> {
         .wrap_err_with(|| format!("failed to create a gRPC channel to rollup at `{endpoint}`"))
 }
 
+#[derive(Clone)]
 pub(crate) struct RollupChannel {
     inner: Channel,
 }
