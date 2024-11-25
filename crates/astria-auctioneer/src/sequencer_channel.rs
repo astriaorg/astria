@@ -51,7 +51,7 @@ impl SequencerChannel {
     }
 
     pub(crate) async fn open_get_block_commitment_stream(
-        &mut self,
+        &self,
     ) -> eyre::Result<BlockCommitmentStream> {
         use astria_core::generated::sequencerblock::optimisticblock::v1alpha1::
             optimistic_block_service_client::OptimisticBlockServiceClient;
@@ -65,7 +65,7 @@ impl SequencerChannel {
     }
 
     pub(crate) async fn open_get_optimistic_block_stream(
-        &mut self,
+        &self,
         rollup_id: RollupId,
     ) -> eyre::Result<OptimisticBlockStream> {
         use astria_core::generated::sequencerblock::optimisticblock::v1alpha1::{
