@@ -1179,7 +1179,16 @@ impl App {
                     .iter()
                     .any(|act| act.is_fee_asset_change() || act.is_fee_change());
 
-        Ok(delta_delta.apply().1)
+        // index all event attributes
+        let mut events = delta_delta.apply().1;
+        for event in &mut events {
+            event
+                .attributes
+                .iter_mut()
+                .for_each(|attr| attr.index = true);
+        }
+
+        Ok(events)
     }
 
     #[instrument(name = "App::end_block", skip_all)]

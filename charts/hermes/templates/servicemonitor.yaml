@@ -2,14 +2,14 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: hermes-relayer-metrics
+  name: {{ include "hermes.fullname" . }}-metrics
   labels:
     app: {{ include "hermes.fullname" . }}
     {{- with .Values.serviceMonitor.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  jobLabel: hermes-relayer-metric
+  jobLabel: {{ include "hermes.fullname" . }}-metric
   namespaceSelector:
     matchNames:
       - {{ include "hermes.namespace" . }}
