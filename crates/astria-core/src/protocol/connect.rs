@@ -112,16 +112,6 @@ pub mod v1 {
             }
         }
 
-        #[must_use]
-        pub fn extended_commit_info(&self) -> &ExtendedCommitInfo {
-            &self.extended_commit_info
-        }
-
-        #[must_use]
-        pub fn id_to_currency_pair(&self) -> &IndexMap<CurrencyPairId, CurrencyPair> {
-            &self.id_to_currency_pair
-        }
-
         /// Converts from a protobuf `ExtendedCommitInfoWithCurrencyPairMapping` to the native type.
         ///
         /// # Errors
@@ -141,9 +131,7 @@ pub mod v1 {
                 );
             };
             let extended_commit_info = ExtendedCommitInfo::try_from(
-                <astria_vendored::tendermint::abci::ExtendedCommitInfo as Into<
-                    tendermint_proto::abci::ExtendedCommitInfo,
-                >>::into(extended_commit_info),
+                tendermint_proto::abci::ExtendedCommitInfo::from(extended_commit_info),
             )
             .map_err(ExtendedCommitInfoWithCurrencyPairMappingError::extended_commit_info)?;
             let id_to_currency_pair = raw
