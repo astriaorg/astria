@@ -4,14 +4,16 @@ use astria_eyre::eyre::{
 };
 use tokio_util::sync::CancellationToken;
 
-use super::{
-    running::Running,
-    starting::Starting,
-};
 use crate::{
     Config,
     Metrics,
 };
+
+mod running;
+mod starting;
+
+use running::Running;
+use starting::Starting;
 
 /// The implementation of the auctioneer business logic.
 pub(super) struct Inner {
@@ -25,7 +27,7 @@ impl Inner {
         metrics: &'static Metrics,
         shutdown_token: CancellationToken,
     ) -> eyre::Result<Self> {
-        let run_state = super::starting::run_state(cfg, shutdown_token, metrics)
+        let run_state = starting::run_state(cfg, shutdown_token, metrics)
             .wrap_err("failed initializating in starting state")?;
         Ok(Self {
             run_state,
@@ -55,7 +57,7 @@ impl Inner {
     }
 }
 
-pub(super) enum RunState {
+enum RunState {
     Cancelled,
     Starting(Starting),
     Running(Running),
