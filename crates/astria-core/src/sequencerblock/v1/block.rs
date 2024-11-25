@@ -272,6 +272,16 @@ impl SequencerBlockError {
     fn invalid_rollup_ids_proof() -> Self {
         Self(SequencerBlockErrorKind::InvalidRollupIdsProof)
     }
+
+    fn extended_commit_info_proof_invalid(source: merkle::audit::InvalidProof) -> Self {
+        Self(SequencerBlockErrorKind::ExtendedCommitInfoProofInvalid(
+            source,
+        ))
+    }
+
+    fn invalid_extended_commit_info_proof() -> Self {
+        Self(SequencerBlockErrorKind::InvalidExtendedCommitInfoProof)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -352,6 +362,13 @@ enum SequencerBlockErrorKind {
          data_hash given the rollup IDs proof"
     )]
     InvalidRollupIdsProof,
+    #[error("the extended commit info proof was invalid")]
+    ExtendedCommitInfoProofInvalid(#[source] merkle::audit::InvalidProof),
+    #[error(
+        "the extended commit info did not verify against data_hash given the extended commit info \
+         proof"
+    )]
+    InvalidExtendedCommitInfoProof,
 }
 
 /// The individual parts that make up a [`SequencerBlockHeader`].
@@ -593,208 +610,64 @@ pub struct SequencerBlockParts {
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     pub rollup_transactions_proof: merkle::Proof,
     pub rollup_ids_proof: merkle::Proof,
+    pub extended_commit_info: Option<Bytes>,
+    pub extended_commit_info_proof: Option<merkle::Proof>,
 }
 
-/// `SequencerBlock` is constructed from a tendermint/cometbft block by
-/// converting its opaque `data` bytes into sequencer specific types.
-#[derive(Clone, Debug, PartialEq)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "we want consistent and specific naming"
-)]
-pub struct SequencerBlock {
-    /// The result of hashing the cometbft header. Guaranteed to not be `None` as compared to
-    /// the cometbft/tendermint-rs return type.
-    block_hash: [u8; 32],
-    /// the block header, which contains the cometbft header and additional sequencer-specific
-    /// commitments.
-    header: SequencerBlockHeader,
-    /// The collection of rollup transactions that were included in this block.
-    rollup_transactions: IndexMap<RollupId, RollupTransactions>,
-    /// The proof that the rollup transactions are included in the `CometBFT` block this
-    /// sequencer block is derived form. This proof together with
-    /// `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
-    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
-    /// rollup transactions.
-    rollup_transactions_proof: merkle::Proof,
-    /// The proof that the rollup IDs listed in `rollup_transactions` are included
-    /// in the `CometBFT` block this sequencer block is derived form. This proof together
-    /// with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
-    /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
-    /// the rollup transactions.
-    rollup_ids_proof: merkle::Proof,
+pub struct SequencerBlockBuilder {
+    pub block_hash: [u8; 32],
+    pub chain_id: tendermint::chain::Id,
+    pub height: tendermint::block::Height,
+    pub time: Time,
+    pub proposer_address: account::Id,
+    pub data: Vec<Bytes>,
+    pub deposits: HashMap<RollupId, Vec<Deposit>>,
+    pub with_extended_commit_info: bool,
 }
 
-impl SequencerBlock {
-    /// Returns the hash of the `CometBFT` block this sequencer block is derived from.
-    ///
-    /// This is done by hashing the `CometBFT` header stored in this block.
-    #[must_use]
-    pub fn block_hash(&self) -> &[u8; 32] {
-        &self.block_hash
-    }
-
-    #[must_use]
-    pub fn header(&self) -> &SequencerBlockHeader {
-        &self.header
-    }
-
-    /// The height stored in this sequencer block.
-    #[must_use]
-    pub fn height(&self) -> tendermint::block::Height {
-        self.header.height
-    }
-
-    #[must_use]
-    pub fn rollup_transactions(&self) -> &IndexMap<RollupId, RollupTransactions> {
-        &self.rollup_transactions
-    }
-
-    #[must_use]
-    pub fn rollup_transactions_proof(&self) -> &merkle::Proof {
-        &self.rollup_transactions_proof
-    }
-
-    #[must_use]
-    pub fn rollup_ids_proof(&self) -> &merkle::Proof {
-        &self.rollup_ids_proof
-    }
-
-    /// Converts a [`SequencerBlock`] into its [`SequencerBlockParts`].
-    #[must_use]
-    pub fn into_parts(self) -> SequencerBlockParts {
-        let Self {
-            block_hash,
-            header,
-            rollup_transactions,
-            rollup_transactions_proof,
-            rollup_ids_proof,
-        } = self;
-        SequencerBlockParts {
-            block_hash,
-            header,
-            rollup_transactions,
-            rollup_transactions_proof,
-            rollup_ids_proof,
-        }
-    }
-
-    /// Returns the map of rollup transactions, consuming `self`.
-    #[must_use]
-    pub fn into_rollup_transactions(self) -> IndexMap<RollupId, RollupTransactions> {
-        self.rollup_transactions
-    }
-
-    #[must_use]
-    pub fn into_raw(self) -> raw::SequencerBlock {
-        let Self {
-            block_hash,
-            header,
-            rollup_transactions,
-            rollup_transactions_proof,
-            rollup_ids_proof,
-        } = self;
-        raw::SequencerBlock {
-            block_hash: Bytes::copy_from_slice(&block_hash),
-            header: Some(header.into_raw()),
-            rollup_transactions: rollup_transactions
-                .into_values()
-                .map(RollupTransactions::into_raw)
-                .collect(),
-            rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
-            rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
-        }
-    }
-
-    #[must_use]
-    pub fn into_filtered_block<I, R>(mut self, rollup_ids: I) -> FilteredSequencerBlock
-    where
-        I: IntoIterator<Item = R>,
-        RollupId: From<R>,
-    {
-        let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
-
-        let mut filtered_rollup_transactions = IndexMap::new();
-        for id in rollup_ids {
-            let id = id.into();
-            if let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) {
-                filtered_rollup_transactions.insert(id, rollup_transactions);
-            };
-        }
-
-        FilteredSequencerBlock {
-            block_hash: self.block_hash,
-            header: self.header,
-            rollup_transactions: filtered_rollup_transactions,
-            rollup_transactions_proof: self.rollup_transactions_proof,
-            all_rollup_ids,
-            rollup_ids_proof: self.rollup_ids_proof,
-        }
-    }
-
-    #[must_use]
-    pub fn to_filtered_block<I, R>(&self, rollup_ids: I) -> FilteredSequencerBlock
-    where
-        I: IntoIterator<Item = R>,
-        RollupId: From<R>,
-    {
-        let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
-
-        let mut filtered_rollup_transactions = IndexMap::new();
-        for id in rollup_ids {
-            let id = id.into();
-            if let Some(rollup_transactions) = self.rollup_transactions.get(&id).cloned() {
-                filtered_rollup_transactions.insert(id, rollup_transactions);
-            };
-        }
-
-        FilteredSequencerBlock {
-            block_hash: self.block_hash,
-            header: self.header.clone(),
-            rollup_transactions: filtered_rollup_transactions,
-            rollup_transactions_proof: self.rollup_transactions_proof.clone(),
-            all_rollup_ids,
-            rollup_ids_proof: self.rollup_ids_proof.clone(),
-        }
-    }
-
-    /// Turn the sequencer block into a [`SubmittedMetadata`] and list of [`SubmittedRollupData`].
-    #[must_use]
-    pub fn split_for_celestia(self) -> (SubmittedMetadata, Vec<SubmittedRollupData>) {
-        celestia::PreparedBlock::from_sequencer_block(self).into_parts()
-    }
-
-    /// Converts from relevant header fields and the block data.
+impl SequencerBlockBuilder {
+    /// Attempts to build a [`SequencerBlock`] from the provided data.
     ///
     /// # Errors
-    /// TODO(https://github.com/astriaorg/astria/issues/612)
+    ///
+    /// - if the first transaction in the data is not the 32-byte rollup transactions root.
+    /// - if the second transaction in the data is not the 32-byte rollup IDs root.
+    /// - if `with_extended_commit_info` is set to `true` and the third transaction in the data is
+    ///   not the extended commit info.
+    /// - if any transaction in the data cannot be decoded.
+    /// - if the rollup transactions root does not match the reconstructed root.
+    /// - if the rollup IDs root does not match the reconstructed root.
     ///
     /// # Panics
     ///
     /// - if a rollup data merkle proof cannot be constructed.
-    pub fn try_from_block_info_and_data(
-        block_hash: [u8; 32],
-        chain_id: tendermint::chain::Id,
-        height: tendermint::block::Height,
-        time: Time,
-        proposer_address: account::Id,
-        data: Vec<Bytes>,
-        deposits: HashMap<RollupId, Vec<Deposit>>,
-    ) -> Result<Self, SequencerBlockError> {
+    pub fn try_build(self) -> Result<SequencerBlock, SequencerBlockError> {
         use prost::Message as _;
+
+        let SequencerBlockBuilder {
+            block_hash,
+            chain_id,
+            height,
+            time,
+            proposer_address,
+            data,
+            deposits,
+            with_extended_commit_info,
+        } = self;
 
         let InitialDataElements {
             data_root_hash,
-            // This iterator over `data` has been advanced by 3 steps while retrieving the initial
-            // elements. The next element to be yielded will be the first of the actual rollup txs.
+            // This iterator over `data` has been advanced to skip the injected transactions while
+            // retrieving the initial elements. The next element to be yielded will be
+            // the first of the actual user-submitted txs.
             data_iter,
-            // TODO: this needs to go into the block header
-            _extended_commit_info,
+            extended_commit_info,
+            extended_commit_info_proof,
             rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_root,
             rollup_ids_proof,
-        } = take_initial_elements_from_data(data)?;
+        } = take_initial_elements_from_data(data, with_extended_commit_info)?;
 
         let mut rollup_datas = IndexMap::new();
         for elem in data_iter {
@@ -803,7 +676,7 @@ impl SequencerBlock {
             let tx = Transaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in tx.into_unsigned().into_actions() {
-                // XXX: The fee asset is dropped. We shjould explain why that's ok.
+                // XXX: The fee asset is dropped. We should explain why that's ok.
                 if let action::Action::RollupDataSubmission(action::RollupDataSubmission {
                     rollup_id,
                     data,
@@ -866,7 +739,7 @@ impl SequencerBlock {
         }
         rollup_transactions.sort_unstable_keys();
 
-        Ok(Self {
+        Ok(SequencerBlock {
             block_hash,
             header: SequencerBlockHeader {
                 chain_id,
@@ -879,7 +752,202 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         })
+    }
+}
+
+/// `SequencerBlock` is constructed from a tendermint/cometbft block by
+/// converting its opaque `data` bytes into sequencer specific types.
+#[derive(Clone, Debug, PartialEq)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "we want consistent and specific naming"
+)]
+pub struct SequencerBlock {
+    /// The result of hashing the cometbft header. Guaranteed to not be `None` as compared to
+    /// the cometbft/tendermint-rs return type.
+    block_hash: [u8; 32],
+    /// the block header, which contains the cometbft header and additional sequencer-specific
+    /// commitments.
+    header: SequencerBlockHeader,
+    /// The collection of rollup transactions that were included in this block.
+    rollup_transactions: IndexMap<RollupId, RollupTransactions>,
+    /// The proof that the rollup transactions are included in the `CometBFT` block this
+    /// sequencer block is derived form. This proof together with
+    /// `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+    /// rollup transactions.
+    rollup_transactions_proof: merkle::Proof,
+    /// The proof that the rollup IDs listed in `rollup_transactions` are included
+    /// in the `CometBFT` block this sequencer block is derived form. This proof together
+    /// with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+    /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
+    /// the rollup transactions.
+    rollup_ids_proof: merkle::Proof,
+    /// The extended commit info for the block, if vote extensions were enabled at this height.
+    extended_commit_info: Option<Bytes>,
+    /// The proof that the extended commit info is included in the cometbft block data (if it
+    /// exists), specifically the third item in the data field.
+    extended_commit_info_proof: Option<merkle::Proof>,
+}
+
+impl SequencerBlock {
+    /// Returns the hash of the `CometBFT` block this sequencer block is derived from.
+    ///
+    /// This is done by hashing the `CometBFT` header stored in this block.
+    #[must_use]
+    pub fn block_hash(&self) -> &[u8; 32] {
+        &self.block_hash
+    }
+
+    #[must_use]
+    pub fn header(&self) -> &SequencerBlockHeader {
+        &self.header
+    }
+
+    /// The height stored in this sequencer block.
+    #[must_use]
+    pub fn height(&self) -> tendermint::block::Height {
+        self.header.height
+    }
+
+    #[must_use]
+    pub fn rollup_transactions(&self) -> &IndexMap<RollupId, RollupTransactions> {
+        &self.rollup_transactions
+    }
+
+    #[must_use]
+    pub fn rollup_transactions_proof(&self) -> &merkle::Proof {
+        &self.rollup_transactions_proof
+    }
+
+    #[must_use]
+    pub fn rollup_ids_proof(&self) -> &merkle::Proof {
+        &self.rollup_ids_proof
+    }
+
+    #[must_use]
+    pub fn extended_commit_info(&self) -> Option<&Bytes> {
+        self.extended_commit_info.as_ref()
+    }
+
+    #[must_use]
+    pub fn extended_commit_info_proof(&self) -> Option<&merkle::Proof> {
+        self.extended_commit_info_proof.as_ref()
+    }
+
+    /// Converts a [`SequencerBlock`] into its [`SequencerBlockParts`].
+    #[must_use]
+    pub fn into_parts(self) -> SequencerBlockParts {
+        let Self {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
+        } = self;
+        SequencerBlockParts {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
+        }
+    }
+
+    /// Returns the map of rollup transactions, consuming `self`.
+    #[must_use]
+    pub fn into_rollup_transactions(self) -> IndexMap<RollupId, RollupTransactions> {
+        self.rollup_transactions
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> raw::SequencerBlock {
+        let Self {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
+        } = self;
+        raw::SequencerBlock {
+            block_hash: Bytes::copy_from_slice(&block_hash),
+            header: Some(header.into_raw()),
+            rollup_transactions: rollup_transactions
+                .into_values()
+                .map(RollupTransactions::into_raw)
+                .collect(),
+            rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
+            rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
+            extended_commit_info: extended_commit_info.map(Into::into),
+            extended_commit_info_proof: extended_commit_info_proof.map(merkle::Proof::into_raw),
+        }
+    }
+
+    #[must_use]
+    pub fn into_filtered_block<I, R>(mut self, rollup_ids: I) -> FilteredSequencerBlock
+    where
+        I: IntoIterator<Item = R>,
+        RollupId: From<R>,
+    {
+        let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
+
+        let mut filtered_rollup_transactions = IndexMap::new();
+        for id in rollup_ids {
+            let id = id.into();
+            if let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) {
+                filtered_rollup_transactions.insert(id, rollup_transactions);
+            };
+        }
+
+        FilteredSequencerBlock {
+            block_hash: self.block_hash,
+            header: self.header,
+            rollup_transactions: filtered_rollup_transactions,
+            rollup_transactions_proof: self.rollup_transactions_proof,
+            all_rollup_ids,
+            rollup_ids_proof: self.rollup_ids_proof,
+        }
+    }
+
+    #[must_use]
+    pub fn to_filtered_block<I, R>(&self, rollup_ids: I) -> FilteredSequencerBlock
+    where
+        I: IntoIterator<Item = R>,
+        RollupId: From<R>,
+    {
+        let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
+
+        let mut filtered_rollup_transactions = IndexMap::new();
+        for id in rollup_ids {
+            let id = id.into();
+            if let Some(rollup_transactions) = self.rollup_transactions.get(&id).cloned() {
+                filtered_rollup_transactions.insert(id, rollup_transactions);
+            };
+        }
+
+        FilteredSequencerBlock {
+            block_hash: self.block_hash,
+            header: self.header.clone(),
+            rollup_transactions: filtered_rollup_transactions,
+            rollup_transactions_proof: self.rollup_transactions_proof.clone(),
+            all_rollup_ids,
+            rollup_ids_proof: self.rollup_ids_proof.clone(),
+        }
+    }
+
+    /// Turn the sequencer block into a [`SubmittedMetadata`] and list of [`SubmittedRollupData`].
+    #[must_use]
+    pub fn split_for_celestia(self) -> (SubmittedMetadata, Vec<SubmittedRollupData>) {
+        celestia::PreparedBlock::from_sequencer_block(self).into_parts()
     }
 
     /// Converts from the raw decoded protobuf representation of this type.
@@ -902,6 +970,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = raw;
 
         let block_hash = block_hash
@@ -962,12 +1032,31 @@ impl SequencerBlock {
             return Err(SequencerBlockError::rollup_ids_not_in_sequencer_block());
         }
 
+        let extended_commit_info_proof = extended_commit_info_proof
+            .map(merkle::Proof::try_from_raw)
+            .transpose()
+            .map_err(SequencerBlockError::extended_commit_info_proof_invalid)?;
+        if let Some(extended_commit_info) = &extended_commit_info {
+            let Some(extended_commit_info_proof) = &extended_commit_info_proof else {
+                return Err(SequencerBlockError::field_not_set(
+                    "extended_commit_info_proof",
+                ));
+            };
+
+            if !extended_commit_info_proof.verify(&Sha256::digest(extended_commit_info), data_hash)
+            {
+                return Err(SequencerBlockError::invalid_extended_commit_info_proof());
+            }
+        }
+
         Ok(Self {
             block_hash,
             header,
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         })
     }
 
@@ -986,6 +1075,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = parts;
         Self {
             block_hash,
@@ -993,6 +1084,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         }
     }
 }
@@ -1000,7 +1093,8 @@ impl SequencerBlock {
 struct InitialDataElements {
     data_root_hash: [u8; 32],
     data_iter: IntoIter<Bytes>,
-    _extended_commit_info: Bytes,
+    extended_commit_info: Option<Bytes>,
+    extended_commit_info_proof: Option<merkle::Proof>,
     rollup_transactions_root: [u8; 32],
     rollup_transactions_proof: merkle::Proof,
     rollup_ids_root: [u8; 32],
@@ -1009,14 +1103,11 @@ struct InitialDataElements {
 
 fn take_initial_elements_from_data(
     data: Vec<Bytes>,
+    with_extended_commit_info: bool,
 ) -> Result<InitialDataElements, SequencerBlockError> {
     let tree = merkle_tree_from_data(&data);
     let data_root_hash = tree.root();
     let mut data_iter = data.into_iter();
-
-    let extended_commit_info = data_iter
-        .next()
-        .ok_or(SequencerBlockError::no_extended_commit_info())?;
 
     let rollup_transactions_root: [u8; 32] = data_iter
         .next()
@@ -1026,7 +1117,7 @@ fn take_initial_elements_from_data(
         .map_err(|_| {
             SequencerBlockError::incorrect_rollup_transactions_root_length(data_iter.len())
         })?;
-    let rollup_transactions_proof = tree.construct_proof(1).expect(
+    let rollup_transactions_proof = tree.construct_proof(0).expect(
         "the leaf must exist in the tree as `rollup_transactions_root` was created from the same \
          index in `data` used to construct the tree",
     );
@@ -1037,15 +1128,29 @@ fn take_initial_elements_from_data(
         .as_ref()
         .try_into()
         .map_err(|_| SequencerBlockError::incorrect_rollup_ids_root_length(data_iter.len()))?;
-    let rollup_ids_proof = tree.construct_proof(2).expect(
+    let rollup_ids_proof = tree.construct_proof(1).expect(
         "the leaf must exist in the tree as `rollup_ids_root` was created from the same index in \
          `data` used to construct the tree",
     );
 
+    let (extended_commit_info, extended_commit_info_proof) = if with_extended_commit_info {
+        let extended_commit_info = data_iter
+            .next()
+            .ok_or(SequencerBlockError::no_extended_commit_info())?;
+        let extended_commit_info_proof = tree.construct_proof(2).expect(
+            "the leaf must exist in the tree as `extended_commit_info` was created from the same \
+             index in `data` used to construct the tree",
+        );
+        (Some(extended_commit_info), Some(extended_commit_info_proof))
+    } else {
+        (None, None)
+    };
+
     Ok(InitialDataElements {
         data_root_hash,
         data_iter,
-        _extended_commit_info: extended_commit_info,
+        extended_commit_info,
+        extended_commit_info_proof,
         rollup_transactions_root,
         rollup_transactions_proof,
         rollup_ids_root,

@@ -74,4 +74,6 @@ message SubmittedMetadata {
   // The proof that the rollup IDs are included in sequencer block.
   // Corresponds to `astria.sequencerblock.v1.SequencerBlock.rollup_ids_proof`.
   astria.primitive.v1.Proof rollup_ids_proof = 5;
+  optional bytes extended_commit_info = 6;
+  astria.primitive.v1.Proof extended_commit_info_proof = 7;
 }

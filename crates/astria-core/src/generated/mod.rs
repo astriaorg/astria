@@ -98,6 +98,11 @@ pub mod astria {
             pub mod v1;
         }
         #[path = ""]
+        pub mod connect {
+            #[path = "astria.protocol.connect.v1.rs"]
+            pub mod v1;
+        }
+        #[path = ""]
         pub mod fees {
             #[path = "astria.protocol.fees.v1.rs"]
             pub mod v1 {

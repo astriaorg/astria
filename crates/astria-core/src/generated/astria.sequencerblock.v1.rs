@@ -59,6 +59,12 @@ pub struct SequencerBlock {
     /// / The block hash of the cometbft block that corresponds to this sequencer block.
     #[prost(bytes = "bytes", tag = "5")]
     pub block_hash: ::prost::bytes::Bytes,
+    #[prost(bytes = "bytes", optional, tag = "6")]
+    pub extended_commit_info: ::core::option::Option<::prost::bytes::Bytes>,
+    #[prost(message, optional, tag = "7")]
+    pub extended_commit_info_proof: ::core::option::Option<
+        super::super::primitive::v1::Proof,
+    >,
 }
 impl ::prost::Name for SequencerBlock {
     const NAME: &'static str = "SequencerBlock";
@@ -320,6 +326,12 @@ pub struct SubmittedMetadata {
     /// Corresponds to `astria.sequencerblock.v1.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
+    #[prost(bytes = "bytes", optional, tag = "6")]
+    pub extended_commit_info: ::core::option::Option<::prost::bytes::Bytes>,
+    #[prost(message, optional, tag = "7")]
+    pub extended_commit_info_proof: ::core::option::Option<
+        super::super::primitive::v1::Proof,
+    >,
 }
 impl ::prost::Name for SubmittedMetadata {
     const NAME: &'static str = "SubmittedMetadata";

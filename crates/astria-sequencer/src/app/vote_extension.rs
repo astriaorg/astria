@@ -10,6 +10,7 @@ use astria_core::{
         service::v2::QueryPricesResponse,
         types::v2::{
             CurrencyPair,
+            CurrencyPairId,
             Price,
         },
     },
@@ -21,18 +22,19 @@ use astria_core::{
             QueryPricesRequest,
         },
     },
+    protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
 };
 use astria_eyre::eyre::{
     bail,
     ensure,
     eyre,
-    OptionExt,
+    OptionExt as _,
     Result,
     WrapErr as _,
 };
 use futures::{
     stream::FuturesUnordered,
-    StreamExt,
+    StreamExt as _,
     TryStreamExt,
 };
 use indexmap::IndexMap;
@@ -127,7 +129,7 @@ impl Handler {
                 .wrap_err("failed to get max number of currency pairs")?;
 
         let response = match verify_vote_extension(vote.vote_extension, max_num_currency_pairs) {
-            Ok(()) => abci::response::VerifyVoteExtension::Accept,
+            Ok(_) => abci::response::VerifyVoteExtension::Accept,
             Err(e) => {
                 warn!(error = %e, "failed to verify vote extension");
                 abci::response::VerifyVoteExtension::Reject
@@ -141,7 +143,7 @@ impl Handler {
 fn verify_vote_extension(
     oracle_vote_extension_bytes: bytes::Bytes,
     max_num_currency_pairs: u64,
-) -> Result<()> {
+) -> Result<HashSet<u64>> {
     let oracle_vote_extension = RawOracleVoteExtension::decode(oracle_vote_extension_bytes)
         .wrap_err("failed to decode oracle vote extension")?;
 
@@ -157,14 +159,16 @@ fn verify_vote_extension(
         "number of oracle vote extension prices exceeds max expected number of currency pairs"
     );
 
-    for prices in oracle_vote_extension.prices.values() {
+    let mut ids = HashSet::with_capacity(oracle_vote_extension.prices.len());
+    for (id, price) in oracle_vote_extension.prices {
         ensure!(
-            prices.len() <= MAXIMUM_PRICE_BYTE_LEN,
+            price.len() <= MAXIMUM_PRICE_BYTE_LEN,
             "encoded price length exceeded {MAXIMUM_PRICE_BYTE_LEN} bytes"
         );
+        ids.insert(id);
     }
 
-    Ok(())
+    Ok(ids)
 }
 
 // see https://github.com/skip-mev/connect/blob/158cde8a4b774ac4eec5c6d1a2c16de6a8c6abb5/abci/ve/vote_extension.go#L290
@@ -197,14 +201,6 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
     })
 }
 
-pub(crate) struct ValidatedExtendedCommitInfo(ExtendedCommitInfo);
-
-impl ValidatedExtendedCommitInfo {
-    pub(crate) fn into_inner(self) -> ExtendedCommitInfo {
-        self.0
-    }
-}
-
 pub(crate) struct ProposalHandler;
 
 impl ProposalHandler {
@@ -216,14 +212,17 @@ impl ProposalHandler {
         state: &S,
         height: u64,
         mut extended_commit_info: ExtendedCommitInfo,
-    ) -> Result<ValidatedExtendedCommitInfo> {
+    ) -> Result<ExtendedCommitInfoWithCurrencyPairMapping> {
         if height == 1 {
             // we're proposing block 1, so nothing to validate
             info!(
                 "skipping vote extension proposal for block 1, as there were no previous vote \
                  extensions"
             );
-            return Ok(ValidatedExtendedCommitInfo(extended_commit_info));
+            return Ok(ExtendedCommitInfoWithCurrencyPairMapping::new(
+                extended_commit_info,
+                IndexMap::new(),
+            ));
         }
 
         let max_num_currency_pairs =
@@ -231,30 +230,41 @@ impl ProposalHandler {
                 .await
                 .wrap_err("failed to get max number of currency pairs")?;
 
+        let mut all_ids = HashSet::new();
         for vote in &mut extended_commit_info.votes {
-            if let Err(e) =
-                verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs)
-            {
-                let address = state
-                    .try_base_prefixed(vote.validator.address.as_slice())
-                    .await
-                    .wrap_err("failed to construct validator address with base prefix")?;
-                debug!(
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                    validator = address.to_string(),
-                    "failed to verify vote extension; pruning from proposal"
-                );
-                vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
-                vote.extension_signature = None;
-                vote.vote_extension.clear();
-            }
+            let ids =
+                match verify_vote_extension(vote.vote_extension.clone(), max_num_currency_pairs) {
+                    Ok(ids) => ids,
+                    Err(e) => {
+                        let address = state
+                            .try_base_prefixed(vote.validator.address.as_slice())
+                            .await
+                            .wrap_err("failed to construct validator address with base prefix")?;
+                        debug!(
+                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            validator = address.to_string(),
+                            "failed to verify vote extension; pruning from proposal"
+                        );
+                        vote.sig_info = Flag(tendermint::block::BlockIdFlag::Absent);
+                        vote.extension_signature = None;
+                        vote.vote_extension.clear();
+                        continue;
+                    }
+                };
+            all_ids.extend(ids);
         }
 
         validate_vote_extensions(state, height, &extended_commit_info)
             .await
             .wrap_err("failed to validate vote extensions in prepare_proposal")?;
 
-        Ok(ValidatedExtendedCommitInfo(extended_commit_info))
+        let id_to_currency_pair = id_to_currency_pair(&state, all_ids).await;
+        let tx = ExtendedCommitInfoWithCurrencyPairMapping::new(
+            extended_commit_info,
+            id_to_currency_pair,
+        );
+
+        Ok(tx)
     }
 
     // called during process_proposal; validates the proposed extended commit info.
@@ -262,14 +272,35 @@ impl ProposalHandler {
         state: &S,
         height: u64,
         last_commit: &CommitInfo,
-        extended_commit_info: &ExtendedCommitInfo,
+        extended_commit_info: &ExtendedCommitInfoWithCurrencyPairMapping,
     ) -> Result<()> {
+        let ExtendedCommitInfoWithCurrencyPairMapping {
+            extended_commit_info,
+            id_to_currency_pair,
+        } = extended_commit_info;
+
         if height == 1 {
             // we're processing block 1, so nothing to validate (no last commit yet)
             info!(
                 "skipping vote extension validation for block 1, as there were no previous vote \
                  extensions"
             );
+            return Ok(());
+        }
+
+        validate_id_to_currency_pair_mapping(state, id_to_currency_pair)
+            .await
+            .wrap_err("failed to validate id_to_currency_pair mapping")?;
+
+        if extended_commit_info.votes.is_empty() {
+            ensure!(
+                last_commit.round == extended_commit_info.round,
+                "last commit round does not match extended commit round"
+            );
+
+            // it's okay for the extended commit info to be empty,
+            // as it's possible the proposer did not receive valid vote extensions from >2/3 staking
+            // power.
             return Ok(());
         }
 
@@ -293,6 +324,69 @@ impl ProposalHandler {
 
         Ok(())
     }
+}
+
+async fn id_to_currency_pair<S: StateReadExt>(
+    state: &S,
+    all_ids: HashSet<u64>,
+) -> IndexMap<CurrencyPairId, CurrencyPair> {
+    let mut id_to_currency_pair_stream = all_ids
+        .into_iter()
+        .map(|id| async move {
+            let pair_id = CurrencyPairId::new(id);
+            let res = DefaultCurrencyPairStrategy::from_id(state, pair_id)
+                .await
+                .wrap_err_with(|| format!("failed to get currency pair from id {id}"));
+            (pair_id, res)
+        })
+        .collect::<FuturesUnordered<_>>();
+
+    let mut id_to_currency_pair = IndexMap::with_capacity(id_to_currency_pair_stream.len());
+    while let Some((id, result)) = id_to_currency_pair_stream.next().await {
+        match result {
+            Ok(Some(currency_pair)) => {
+                let _ = id_to_currency_pair.insert(id, currency_pair);
+            }
+            Ok(None) => {
+                debug!(%id, "currency pair not found in state; skipping");
+            }
+            Err(e) => {
+                // FIXME: this event can be removed once all instrumented functions
+                // can generate an error event.
+                warn!(
+                %id, error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                "failed to fetch currency pair for ID; skipping"
+                );
+            }
+        }
+    }
+    id_to_currency_pair
+}
+
+async fn validate_id_to_currency_pair_mapping<S: StateReadExt>(
+    state: &S,
+    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
+) -> Result<()> {
+    let mut futures = futures::stream::FuturesUnordered::new();
+    for (id, currency_pair) in id_to_currency_pair {
+        futures.push(async move {
+            let expected_currency_pair = DefaultCurrencyPairStrategy::from_id(state, *id)
+                .await
+                .wrap_err("failed to get currency pair for id")?
+                .ok_or(eyre!("currency pair should exist in state"))?;
+            ensure!(
+                currency_pair == &expected_currency_pair,
+                format!(
+                    "currency pair {} was not expected {} given id {}",
+                    currency_pair, expected_currency_pair, id
+                )
+            );
+            Ok(())
+        });
+    }
+    while futures.try_next().await?.is_some() {}
+
+    Ok(())
 }
 
 // see https://github.com/skip-mev/connect/blob/5b07f91d6c0110e617efda3f298f147a31da0f25/abci/ve/utils.go#L111
@@ -453,17 +547,22 @@ fn validate_extended_commit_against_last_commit(
     Ok(())
 }
 
-pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
+pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
     state: &mut S,
-    extended_commit_info: ExtendedCommitInfo,
+    extended_commit_info: ExtendedCommitInfoWithCurrencyPairMapping,
     timestamp: Timestamp,
     height: u64,
 ) -> Result<()> {
+    let ExtendedCommitInfoWithCurrencyPairMapping {
+        extended_commit_info,
+        id_to_currency_pair,
+    } = extended_commit_info;
+
     let votes = extended_commit_info
         .votes
-        .iter()
+        .into_iter()
         .map(|vote| {
-            let raw = RawOracleVoteExtension::decode(vote.vote_extension.clone())
+            let raw = RawOracleVoteExtension::decode(vote.vote_extension)
                 .wrap_err("failed to decode oracle vote extension")?;
             OracleVoteExtension::try_from_raw(raw)
                 .wrap_err("failed to validate oracle vote extension")
@@ -471,10 +570,7 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         .collect::<Result<Vec<_>>>()
         .wrap_err("failed to extract oracle vote extension from extended commit info")?;
 
-    let prices = aggregate_oracle_votes(state, votes)
-        .await
-        .wrap_err("failed to aggregate oracle votes")?;
-
+    let prices = aggregate_oracle_votes(votes, &id_to_currency_pair);
     for (currency_pair, price) in prices {
         let price = QuotePrice {
             price,
@@ -494,40 +590,35 @@ pub(crate) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
     Ok(())
 }
 
-async fn aggregate_oracle_votes<S: StateReadExt>(
-    state: &S,
+fn aggregate_oracle_votes(
     votes: Vec<OracleVoteExtension>,
-) -> Result<impl Iterator<Item = (CurrencyPair, Price)>> {
+    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
+) -> impl Iterator<Item = (CurrencyPair, Price)> {
     // validators are not weighted right now, so we just take the median price for each currency
     // pair
     //
     // skip uses a stake-weighted median: https://github.com/skip-mev/connect/blob/19a916122110cfd0e98d93978107d7ada1586918/pkg/math/voteweighted/voteweighted.go#L59
     // we can implement this later, when we have stake weighting.
-    let mut currency_pair_stream = votes
-        .into_iter()
-        .flat_map(|vote| vote.prices)
-        .map(|(id, price)| async move {
-            DefaultCurrencyPairStrategy::from_id(state, id)
-                .await
-                .wrap_err_with(|| format!("failed to get currency pair from id {id}"))
-                .map(|maybe_currency_pair| (maybe_currency_pair, price))
-        })
-        .collect::<FuturesUnordered<_>>();
-
     let mut currency_pair_to_price_list = HashMap::new();
-    while let Some(result) = currency_pair_stream.next().await {
-        let (maybe_currency_pair, price) = result?;
-        let Some(currency_pair) = maybe_currency_pair else {
-            continue;
-        };
-        currency_pair_to_price_list
-            .entry(currency_pair)
-            .and_modify(|prices: &mut Vec<_>| prices.push(price))
-            .or_insert(vec![price]);
+    for vote in votes {
+        for (id, price) in vote.prices {
+            let Some(currency_pair) = id_to_currency_pair.get(&id).cloned() else {
+                // it's possible for a vote to contain some currency pair ID that didn't exist
+                // in state. this probably shouldn't happen if validators are running the right
+                // code, but it doesn't invalidate their entire vote extension, so
+                // it's kept in the block anyways.
+                continue;
+            };
+            currency_pair_to_price_list
+                .entry(currency_pair)
+                .and_modify(|prices: &mut Vec<Price>| prices.push(price))
+                .or_insert(vec![price]);
+        }
     }
-    Ok(currency_pair_to_price_list
+
+    currency_pair_to_price_list
         .into_iter()
-        .map(|(currency_pair, price_list)| (currency_pair, median(price_list))))
+        .map(|(currency_pair, price_list)| (currency_pair, median(price_list)))
 }
 
 fn median(mut price_list: Vec<Price>) -> Price {
@@ -1221,10 +1312,10 @@ mod test {
             oracle_vote_extension([10, 20, 30]),
             oracle_vote_extension([11, 21, 31]),
         ];
-        let aggregated_prices: BTreeMap<_, _> = aggregate_oracle_votes(&state, votes)
-            .await
-            .unwrap()
-            .collect();
+        let all_ids = HashSet::from_iter([0, 1, 2]);
+        let id_to_currency_pairs = id_to_currency_pair(&state, all_ids).await;
+        let aggregated_prices: BTreeMap<_, _> =
+            aggregate_oracle_votes(votes, &id_to_currency_pairs).collect();
         assert_eq!(3, aggregated_prices.len());
         assert_eq!(Some(&Price::new(10)), aggregated_prices.get(&pair_0().0));
         assert_eq!(Some(&Price::new(20)), aggregated_prices.get(&pair_1().0));
@@ -1246,10 +1337,10 @@ mod test {
             oracle_vote_extension([10, 20, 30, 40, 50]),
             oracle_vote_extension([11, 21, 31, 41, 51]),
         ];
-        let aggregated_prices: BTreeMap<_, _> = aggregate_oracle_votes(&state, votes)
-            .await
-            .unwrap()
-            .collect();
+        let all_ids = HashSet::from_iter([0, 1, 2]);
+        let id_to_currency_pairs = id_to_currency_pair(&state, all_ids).await;
+        let aggregated_prices: BTreeMap<_, _> =
+            aggregate_oracle_votes(votes, &id_to_currency_pairs).collect();
         assert_eq!(3, aggregated_prices.len());
         assert_eq!(Some(&Price::new(10)), aggregated_prices.get(&pair_0().0));
         assert_eq!(Some(&Price::new(20)), aggregated_prices.get(&pair_1().0));
@@ -1306,7 +1397,7 @@ mod test {
             extended_vote_info_commit(&signer_b, &message),
             extended_vote_info_commit(&signer_c, &message),
         ];
-        let validated_extended_commit_info = ProposalHandler::prepare_proposal(
+        let extended_commit_info_with_currency_pair_mapping = ProposalHandler::prepare_proposal(
             &state,
             height(&message) + 1,
             extended_commit_info(message.round, votes),
@@ -1319,7 +1410,7 @@ mod test {
             &state,
             height(&message) + 1,
             &last_commit,
-            &validated_extended_commit_info.0,
+            &extended_commit_info_with_currency_pair_mapping,
         )
         .await
         .unwrap();
@@ -1330,7 +1421,13 @@ mod test {
             extended_vote_info_commit(&signer_c, &message),
             extended_vote_info_commit(&signer_b, &message),
         ];
-        let unsorted_extended_commit_info = extended_commit_info(message.round, votes);
+        let unsorted_extended_commit_info = ExtendedCommitInfoWithCurrencyPairMapping {
+            extended_commit_info: extended_commit_info(message.round, votes),
+            id_to_currency_pair: extended_commit_info_with_currency_pair_mapping
+                .id_to_currency_pair
+                .clone(),
+        };
+
         assert_err_contains(
             ProposalHandler::validate_proposal(
                 &state,
