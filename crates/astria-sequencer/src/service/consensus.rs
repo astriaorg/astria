@@ -252,10 +252,13 @@ mod tests {
             VerificationKey,
         },
         primitive::v1::RollupId,
-        protocol::transaction::v1::{
-            action::RollupDataSubmission,
-            Transaction,
-            TransactionBody,
+        protocol::{
+            connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+            transaction::v1::{
+                action::RollupDataSubmission,
+                Transaction,
+                TransactionBody,
+            },
         },
         Protobuf as _,
     };
@@ -316,11 +319,8 @@ mod tests {
     }
 
     fn new_process_proposal_request(txs: Vec<Transaction>) -> request::ProcessProposal {
-        let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo = ExtendedCommitInfo {
-            round: 0u16.into(),
-            votes: vec![],
-        }
-        .into();
+        let extended_commit_info =
+            ExtendedCommitInfoWithCurrencyPairMapping::empty(0u16.into()).into_raw();
         let commitments = generate_rollup_datas_commitment(&txs, HashMap::new());
         let txs = commitments
             .into_iter()
@@ -460,7 +460,12 @@ mod tests {
             .unwrap();
         let expected_txs = commitments
             .into_iter()
-            .chain(std::iter::once(b"".to_vec().into()))
+            .chain(std::iter::once(
+                ExtendedCommitInfoWithCurrencyPairMapping::empty(0u16.into())
+                    .into_raw()
+                    .encode_to_vec()
+                    .into(),
+            ))
             .collect();
         assert_eq!(
             prepare_proposal_response,
