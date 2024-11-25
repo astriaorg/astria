@@ -88,7 +88,7 @@ impl Starting {
             auctions,
             rollup_id,
             rollup_channel,
-            mut sequencer_channel,
+            sequencer_channel,
             shutdown_token,
         } = self;
 
