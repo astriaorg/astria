@@ -33,16 +33,6 @@ use crate::{
     },
 };
 
-/// To break from a loop instead of using the `?` operator.
-macro_rules! try_break {
-    ($res:expr) => {
-        match $res {
-            Ok(val) => val,
-            Err(err) => break Err(err),
-        }
-    };
-}
-
 pub(super) struct Running {
     pub(in crate::auctioneer) auctions: crate::auction::Manager,
     pub(in crate::auctioneer) block_commitments: BlockCommitmentStream,
@@ -62,38 +52,49 @@ impl Running {
                 select! {
                     biased;
 
-                    () = self.shutdown_token.cancelled() => {
+                    () = self.shutdown_token.clone().cancelled_owned() => {
                         break Ok("received shutdown signal");
                     },
 
-                    Some((id, res)) = self.auctions.join_next() => {
-                        try_break!(res.wrap_err_with(|| format!("auction failed for block `{}`", base64(id))));
-                    },
-
-                    res = self.optimistic_blocks.next() => {
-                        let res = try_break!(res.ok_or_eyre("optimistic block stream closed"));
-                        let _ = self.handle_optimistic_block(res);
-                    },
-
-                    res = self.block_commitments.next() => {
-                        let res = try_break!(res.ok_or_eyre("block commitment stream closed"));
-                        let _ = self.handle_block_commitment(res);
-                    },
-
-                    res = self.executed_blocks.next() => {
-                        let res = try_break!(res.ok_or_eyre("executed block stream closed"));
-                        let _ = self.handle_executed_block(res);
-                    }
-
-                    Some(res) = self.bundles.next() => {
-                        let bundle = res.wrap_err("failed to get bundle")?;
-                        let _ = self.handle_bundle(bundle);
+                    res = self.handle_event() => {
+                        if let Err(err) = res {
+                            break Err(err);
+                        }
                     }
                 }
             }
         };
 
         self.shutdown(reason).await
+    }
+
+    async fn handle_event(&mut self) -> eyre::Result<()> {
+        select!(
+            Some((id, res)) = self.auctions.join_next() => {
+                res.wrap_err_with(|| format!("auction failed for block `{}`", base64(id)))?;
+            },
+
+            res = self.optimistic_blocks.next() => {
+                let res = res.ok_or_eyre("optimistic block stream closed")?;
+                let _ = self.handle_optimistic_block(res);
+            },
+
+            res = self.block_commitments.next() => {
+                let res = res.ok_or_eyre("block commitment stream closed")?;
+                let _ = self.handle_block_commitment(res);
+            },
+
+            res = self.executed_blocks.next() => {
+                let res = res.ok_or_eyre("executed block stream closed")?;
+                let _ = self.handle_executed_block(res);
+            }
+
+            Some(res) = self.bundles.next() => {
+                let bundle = res.wrap_err("failed to get bundle")?;
+                let _ = self.handle_bundle(bundle);
+            }
+        );
+        Ok(())
     }
 
     #[instrument(skip(self), fields(auction.old_id = %base64(self.current_block.sequencer_block_hash())), err)]
