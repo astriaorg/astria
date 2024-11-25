@@ -20,7 +20,7 @@ use tracing::{
     warn,
 };
 
-use super::inner::RunState;
+use super::RunState;
 use crate::{
     auction,
     rollup_channel::{
@@ -34,14 +34,14 @@ use crate::{
 };
 
 pub(super) struct Running {
-    pub(in crate::auctioneer) auctions: crate::auction::Manager,
-    pub(in crate::auctioneer) block_commitments: BlockCommitmentStream,
-    pub(in crate::auctioneer) bundles: BundleStream,
-    pub(in crate::auctioneer) current_block: crate::block::Current,
-    pub(in crate::auctioneer) executed_blocks: ExecuteOptimisticBlockStream,
-    pub(in crate::auctioneer) optimistic_blocks: OptimisticBlockStream,
-    pub(in crate::auctioneer) rollup_id: RollupId,
-    pub(in crate::auctioneer) shutdown_token: CancellationToken,
+    pub(super) auctions: crate::auction::Manager,
+    pub(super) block_commitments: BlockCommitmentStream,
+    pub(super) bundles: BundleStream,
+    pub(super) current_block: crate::block::Current,
+    pub(super) executed_blocks: ExecuteOptimisticBlockStream,
+    pub(super) optimistic_blocks: OptimisticBlockStream,
+    pub(super) rollup_id: RollupId,
+    pub(super) shutdown_token: CancellationToken,
 }
 
 impl Running {

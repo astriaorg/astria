@@ -11,8 +11,8 @@ use tokio::select;
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    inner::RunState,
-    running::Running,
+    RunState,
+    Running,
 };
 use crate::{
     rollup_channel::{
