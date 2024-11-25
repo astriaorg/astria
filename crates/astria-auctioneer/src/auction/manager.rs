@@ -18,7 +18,7 @@ use tokio_util::{
     sync::CancellationToken,
     task::JoinMap,
 };
-use tonic::transport::Endpoint;
+use tonic::transport::Channel;
 use tracing::{
     info,
     instrument,
@@ -37,7 +37,7 @@ pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
 
     /// The gRPC endpoint for the sequencer service used by auctions.
-    pub(crate) sequencer_grpc_endpoint: String,
+    pub(crate) sequencer_grpc_client: SequencerServiceClient<Channel>,
     /// The ABCI endpoint for the sequencer service used by auctions.
     pub(crate) sequencer_abci_endpoint: String,
     /// The amount of time to run the auction timer for.
@@ -59,7 +59,7 @@ impl Builder {
         let Self {
             metrics,
             shutdown_token,
-            sequencer_grpc_endpoint,
+            sequencer_grpc_client,
             sequencer_abci_endpoint,
             latency_margin,
             fee_asset_denomination,
@@ -75,12 +75,6 @@ impl Builder {
             .try_build()
             .wrap_err("failed to load sequencer private key")?;
         info!(address = %sequencer_key.address(), "loaded sequencer signer");
-
-        let sequencer_grpc_uri: tonic::transport::Uri = sequencer_grpc_endpoint
-            .parse()
-            .wrap_err("failed to parse sequencer grpc endpoint as URI")?;
-        let sequencer_grpc_client =
-            SequencerServiceClient::new(Endpoint::from(sequencer_grpc_uri).connect_lazy());
 
         let sequencer_abci_client =
             sequencer_client::HttpClient::new(sequencer_abci_endpoint.as_str())

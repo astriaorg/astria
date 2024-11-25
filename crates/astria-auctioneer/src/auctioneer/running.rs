@@ -101,7 +101,8 @@ impl Running {
         &mut self,
         optimistic_block: eyre::Result<FilteredSequencerBlock>,
     ) -> eyre::Result<()> {
-        let optimistic_block = optimistic_block.wrap_err("failed to receive optimistic block")?;
+        let optimistic_block =
+            optimistic_block.wrap_err("encountered problems receiving optimistic block message")?;
 
         let old_auction_id =
             auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
