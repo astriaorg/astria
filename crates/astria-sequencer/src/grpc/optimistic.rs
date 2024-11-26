@@ -55,7 +55,7 @@ use crate::app::event_bus::{
     EventReceiver,
 };
 
-const STREAM_TASKS_SHUTDOWN_DURATION: Duration = Duration::from_secs(5);
+const STREAM_TASKS_SHUTDOWN_DURATION: Duration = Duration::from_secs(1);
 const OPTIMISTIC_STREAM_SPAN: &str = "optimistic_stream";
 const BLOCK_COMMITMENT_STREAM_SPAN: &str = "block_commitment_stream";
 
@@ -317,9 +317,7 @@ async fn block_commitment_stream(
             finalized_block_res = finalized_blocks_receiver.receive() => {
                 match finalized_block_res {
                     Ok(finalized_block) => {
-                        let span = info_span!(BLOCK_COMMITMENT_STREAM_SPAN);
-
-                        let res = span.in_scope(|| {
+                        let res = info_span!(BLOCK_COMMITMENT_STREAM_SPAN).in_scope(|| {
                             let Hash::Sha256(block_hash) = finalized_block.hash else {
                                 warn!("block hash is empty; this should not occur");
                                 return Ok(());
@@ -368,9 +366,7 @@ async fn optimistic_stream(
             process_proposal_block_res = process_proposal_blocks_receiver.receive() => {
                 match process_proposal_block_res {
                     Ok(process_proposal_block) => {
-                        let span = info_span!(OPTIMISTIC_STREAM_SPAN);
-
-                        let res = span.in_scope(|| {
+                        let res = info_span!(OPTIMISTIC_STREAM_SPAN).in_scope(|| {
                             let filtered_optimistic_block = process_proposal_block
                                 .to_filtered_block(vec![rollup_id]);
                             let raw_filtered_optimistic_block = filtered_optimistic_block.into_raw();
