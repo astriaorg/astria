@@ -318,24 +318,31 @@ async fn block_commitment_stream(
                 match finalized_block_res {
                     Ok(finalized_block) => {
                         let span = info_span!(BLOCK_COMMITMENT_STREAM_SPAN);
-                        let _guard = span.enter();
 
-                        let Hash::Sha256(block_hash) = finalized_block.hash else {
-                            warn!("block hash is empty; this should not occur");
-                            continue;
-                        };
+                        let res = span.in_scope(|| {
+                            let Hash::Sha256(block_hash) = finalized_block.hash else {
+                                warn!("block hash is empty; this should not occur");
+                                return Ok(());
+                            };
 
-                        let sequencer_block_commit = SequencerBlockCommit::new(finalized_block.height.value(), block_hash);
+                            let sequencer_block_commit = SequencerBlockCommit::new(finalized_block.height.value(), block_hash);
 
-                        let get_block_commitment_stream_response = GetBlockCommitmentStreamResponse {
-                            commitment: Some(sequencer_block_commit.to_raw()),
-                        };
+                            let get_block_commitment_stream_response = GetBlockCommitmentStreamResponse {
+                                commitment: Some(sequencer_block_commit.to_raw()),
+                            };
 
-                        if let Err(error) = tx.try_send(Ok(get_block_commitment_stream_response)) {
-                            error!(%error, "forwarding block commitment stream to client failed");
-                            break Err(error).wrap_err("forwarding block commitment stream to client failed")
-                        };
-                        trace!("forwarded block commitment stream to client");
+                            if let Err(error) = tx.try_send(Ok(get_block_commitment_stream_response)) {
+                                error!(%error, "forwarding block commitment stream to client failed");
+                                return Err(error).wrap_err("forwarding block commitment stream to client failed");
+                            };
+                            trace!("forwarded block commitment stream to client");
+
+                            Ok(())
+                        });
+
+                        if let Err(e) = res {
+                            break Err(e);
+                        }
                     },
                     Err(e) => {
                         break Err(e).wrap_err("finalized block sender has been dropped with error")
@@ -362,21 +369,29 @@ async fn optimistic_stream(
                 match process_proposal_block_res {
                     Ok(process_proposal_block) => {
                         let span = info_span!(OPTIMISTIC_STREAM_SPAN);
-                        let _guard = span.enter();
 
-                        let filtered_optimistic_block = process_proposal_block
-                            .to_filtered_block(vec![rollup_id]);
-                        let raw_filtered_optimistic_block = filtered_optimistic_block.into_raw();
+                        let res = span.in_scope(|| {
+                            let filtered_optimistic_block = process_proposal_block
+                                .to_filtered_block(vec![rollup_id]);
+                            let raw_filtered_optimistic_block = filtered_optimistic_block.into_raw();
 
-                        let get_optimistic_block_stream_response = GetOptimisticBlockStreamResponse {
-                            block: Some(raw_filtered_optimistic_block),
-                        };
+                            let get_optimistic_block_stream_response = GetOptimisticBlockStreamResponse {
+                                block: Some(raw_filtered_optimistic_block),
+                            };
 
-                        if let Err(error) = tx.try_send(Ok(get_optimistic_block_stream_response)) {
-                            error!(%error, "forwarding optimistic block stream to client failed");
-                            break Err(error).wrap_err("forwarding optimistic block stream to client failed")
+                            if let Err(error) = tx.try_send(Ok(get_optimistic_block_stream_response)) {
+                                error!(%error, "forwarding optimistic block stream to client failed");
+                                return Err(error).wrap_err("forwarding optimistic block stream to client failed")
+                            }
+                            trace!("forwarded optimistic block stream to client");
+
+                            Ok(())
+                        });
+
+                        if let Err(e) = res {
+                            break Err(e);
                         }
-                        trace!("forwarded optimistic block stream to client");
+
                     },
                     Err(e) => {
                         break Err(e).wrap_err("process proposal block sender has been dropped with error")
