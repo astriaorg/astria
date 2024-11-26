@@ -35,10 +35,7 @@ use astria_core::{
             Transaction,
         },
     },
-    sequencerblock::v1::{
-        block::SequencerBlock,
-        optimistic::SequencerBlockCommit,
-    },
+    sequencerblock::v1::block::SequencerBlock,
     Protobuf as _,
 };
 use astria_eyre::{
@@ -99,7 +96,10 @@ use crate::{
         ActionHandler as _,
     },
     address::StateWriteExt as _,
-    app::event_bus::EventBus,
+    app::event_bus::{
+        EventBus,
+        EventBusSubscription,
+    },
     assets::StateWriteExt as _,
     authority::{
         component::{
@@ -236,11 +236,7 @@ pub(crate) struct App {
     )]
     app_hash: AppHash,
 
-    // This contains the channels to send the optimistically executed block
-    // whenever `process_proposal` is run and the information of the committed
-    // block whenever `finalize_block` is run.
-    // it is set to `None` when optimistic block execution is disabled as per the
-    // `no_optimistic_block` config.
+    // the sequencer event bus, used to send and receive events between components within the app
     event_bus: EventBus,
 
     metrics: &'static Metrics,
@@ -283,8 +279,8 @@ impl App {
         })
     }
 
-    pub(crate) fn get_event_bus(&self) -> EventBus {
-        self.event_bus.clone()
+    pub(crate) fn event_bus_subscription(&self) -> EventBusSubscription {
+        self.event_bus.subscribe()
     }
 
     #[instrument(name = "App:init_chain", skip_all)]
@@ -463,7 +459,8 @@ impl App {
                     .await
                     .wrap_err("failed to run post execute transactions handler")?;
 
-                self.event_bus.send_process_proposal_block(sequencer_block);
+                self.event_bus
+                    .send_process_proposal_block(Arc::new(sequencer_block));
 
                 return Ok(());
             }
@@ -554,6 +551,8 @@ impl App {
         );
 
         self.executed_proposal_hash = process_proposal.hash;
+
+        // TODO - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
         let sequencer_block = self
             .post_execute_transactions(
                 process_proposal.hash,
@@ -566,7 +565,8 @@ impl App {
             .await
             .wrap_err("failed to run post execute transactions handler")?;
 
-        self.event_bus.send_process_proposal_block(sequencer_block);
+        self.event_bus
+            .send_process_proposal_block(Arc::new(sequencer_block));
 
         Ok(())
     }
@@ -994,6 +994,8 @@ impl App {
         finalize_block: abci::request::FinalizeBlock,
         storage: Storage,
     ) -> Result<abci::response::FinalizeBlock> {
+        let finalize_block_arc = Arc::new(finalize_block.clone());
+
         // If we previously executed txs in a different proposal than is being processed,
         // reset cached state changes.
         if self.executed_proposal_hash != finalize_block.hash {
@@ -1093,7 +1095,7 @@ impl App {
             .prepare_commit(storage)
             .await
             .wrap_err("failed to prepare commit")?;
-        let finalize_block = abci::response::FinalizeBlock {
+        let finalize_block_response = abci::response::FinalizeBlock {
             events: post_transaction_execution_result.events,
             validator_updates: post_transaction_execution_result.validator_updates,
             consensus_param_updates: post_transaction_execution_result.consensus_param_updates,
@@ -1101,14 +1103,9 @@ impl App {
             tx_results: post_transaction_execution_result.tx_results,
         };
 
-        let Hash::Sha256(block_hash) = block_hash else {
-            bail!("block hash is empty; this should not occur")
-        };
+        self.event_bus.send_finalized_block(finalize_block_arc);
 
-        self.event_bus
-            .send_finalize_block(SequencerBlockCommit::new(height.value(), block_hash));
-
-        Ok(finalize_block)
+        Ok(finalize_block_response)
     }
 
     #[instrument(skip_all, err)]

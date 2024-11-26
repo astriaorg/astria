@@ -32,7 +32,7 @@ pub struct Config {
     pub pretty_print: bool,
     /// The maximum number of transactions that can be parked in the mempool.
     pub mempool_parked_max_tx_count: usize,
-    /// Set to true to disable the optimistic block grpc stream.
+    /// Disables streaming optimistic blocks over grpc.
     pub no_optimistic_blocks: bool,
 }
 
