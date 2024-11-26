@@ -8,6 +8,8 @@ use tokio::sync::watch::{
 };
 use tokio_util::sync::CancellationToken;
 
+/// [EventReceiver] is a struct that contains the receiver side of the events sent by the Sequencer App.
+/// The listeners of the events can receive the latest value of the event by calling the `receive` method.
 #[derive(Clone)]
 pub(crate) struct EventReceiver<T> {
     // The receiver side of the watch which is read for the latest value of the event.
@@ -35,7 +37,8 @@ where
     }
 }
 
-#[derive(Clone)]
+/// [EventSender] is a struct that contains the sender side of the events sent by the Sequencer App.
+/// At any given time, it sends the latest value of the event.
 struct EventSender<T> {
     // The sender side of the watch which is used to send the latest value of the event.
     // We use an Option here to allow for the sender to be initialized with a None value
@@ -72,6 +75,7 @@ impl<T> EventSender<T> {
     }
 }
 
+/// [EventBusSubscription] is a struct that contains [EventReceiver] of various events that can be subscribed.
 #[derive(Clone)]
 pub(crate) struct EventBusSubscription {
     process_proposal_blocks: EventReceiver<Arc<SequencerBlock>>,
@@ -88,6 +92,13 @@ impl EventBusSubscription {
     }
 }
 
+/// The Sequencer [EventBus] is used to send and receive events between different components of the
+/// sequencer. Components of Sequencer can subscribe to the EventBus via the `subscribe` method which
+/// returns a [EventBusSubscription] objects that contains receivers of various events which are of type
+/// [EventReceiver].
+///
+/// The EventBus is implemented using [tokio::sync::watch] which allows for multiple receivers to receive
+/// the event at any given time.
 pub(super) struct EventBus {
     process_proposal_block_sender: EventSender<Arc<SequencerBlock>>,
     finalized_block_sender: EventSender<Arc<FinalizeBlock>>,
