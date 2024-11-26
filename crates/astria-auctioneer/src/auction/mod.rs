@@ -64,7 +64,6 @@ use sequencer_client::{
     Address,
     SequencerClientExt,
 };
-use telemetry::display::base64;
 use tokio::{
     select,
     sync::mpsc,
@@ -96,9 +95,13 @@ impl Id {
     }
 }
 
-impl AsRef<[u8]> for Id {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
+impl std::fmt::Display for Id {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use base64::{
+            display::Base64Display,
+            engine::general_purpose::STANDARD,
+        };
+        Base64Display::new(self.0.as_ref(), &STANDARD).fmt(f)
     }
 }
 
@@ -201,7 +204,7 @@ impl Auction {
                     match cmd {
                         Command::Abort => {
                             // abort the auction early
-                            break Err(eyre!("auction {id} received abort signal", id = base64(&self.id)));
+                            break Err(eyre!("auction {} received abort signal", self.id));
                         },
                         Command::StartProcessingBids => {
                             if auction_is_open {
@@ -230,13 +233,13 @@ impl Auction {
                 Some(bundle) = self.new_bundles_rx.recv(), if auction_is_open => {
                     if allocation_rule.bid(bundle.clone()) {
                         info!(
-                            auction.id = %base64(self.id),
+                            auction.id = %self.id,
                             bundle.bid = %bundle.bid(),
                             "received new highest bid"
                         );
                     } else {
                         debug!(
-                            auction.id = %base64(self.id),
+                            auction.id = %self.id,
                             bundle.bid = %bundle.bid(),
                             "received bid lower than current highest bid, discarding"
                         );
@@ -283,11 +286,11 @@ impl Auction {
                 match result {
                     Ok(resp) => {
                         // TODO: handle failed submission instead of just logging the result
-                        info!(auction.id = %base64(self.id), auction.result = %resp.log, "auction result submitted to sequencer");
+                        info!(auction.id = %self.id, auction.result = %resp.log, "auction result submitted to sequencer");
                         Ok(())
                     },
                     Err(e) => {
-                        error!(auction.id = %base64(self.id), err = %e, "failed to submit auction result to sequencer");
+                        error!(auction.id = %self.id, err = %e, "failed to submit auction result to sequencer");
                         Err(e).wrap_err("failed to submit auction result to sequencer")
                     },
                 }

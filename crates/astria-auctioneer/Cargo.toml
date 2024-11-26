@@ -39,6 +39,7 @@ tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
 tonic = { workspace = true }
 tokio-stream = { workspace = true, features = ["net"] }
+base64.workspace = true
 
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = [
