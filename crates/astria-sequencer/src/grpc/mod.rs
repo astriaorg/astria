@@ -33,8 +33,10 @@ use crate::{
     mempool::Mempool,
 };
 
+// we provide a shutdown time mainly for the optimistic block service tasks to shutdown
+// gracefully
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(7);
-const GRPC_SERVER_SHUTDOWN_SPAN: &str = "grpc_server_shutdown";
+const SHUTDOWN_SPAN: &str = "grpc_server_shutdown";
 
 pub(crate) fn start_server(
     storage: &cnidarium::Storage,
@@ -120,7 +122,7 @@ pub(crate) fn start_server(
         // give time for the optimistic block service to shutdown all the streaming tasks.
         tokio::time::sleep(SHUTDOWN_TIMEOUT).await;
 
-        let span = info_span!(GRPC_SERVER_SHUTDOWN_SPAN);
+        let span = info_span!(SHUTDOWN_SPAN);
         span.in_scope(|| {
             match reason {
                 Ok(reason) => {
