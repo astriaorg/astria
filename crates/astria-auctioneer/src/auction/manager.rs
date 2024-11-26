@@ -82,7 +82,7 @@ impl Builder {
 
         Ok(Manager {
             metrics,
-            shutdown_token,
+            cancellation_token: shutdown_token,
             sequencer_grpc_client,
             sequencer_abci_client,
             latency_margin,
@@ -98,7 +98,7 @@ impl Builder {
 
 pub(crate) struct Manager {
     metrics: &'static crate::Metrics,
-    shutdown_token: CancellationToken,
+    cancellation_token: CancellationToken,
     sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
     sequencer_abci_client: sequencer_client::HttpClient,
     latency_margin: std::time::Duration,
@@ -115,7 +115,7 @@ impl Manager {
     pub(crate) fn new_auction(&mut self, auction_id: Id) {
         let (handle, auction) = super::Builder {
             metrics: self.metrics,
-            shutdown_token: self.shutdown_token.child_token(),
+            cancellation_token: self.cancellation_token.child_token(),
             sequencer_grpc_client: self.sequencer_grpc_client.clone(),
             sequencer_abci_client: self.sequencer_abci_client.clone(),
             latency_margin: self.latency_margin,
@@ -135,12 +135,9 @@ impl Manager {
     pub(crate) fn abort_auction(&mut self, auction_id: Id) -> eyre::Result<()> {
         let handle = self
             .auction_handles
-            .get_mut(&auction_id)
+            .get(&auction_id)
             .ok_or_eyre("unable to get handle for the given auction")?;
-
-        handle
-            .try_abort()
-            .wrap_err("failed to send command to abort auction")?;
+        handle.cancel();
         Ok(())
     }
 
