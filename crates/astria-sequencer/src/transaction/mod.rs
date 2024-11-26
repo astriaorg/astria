@@ -40,15 +40,13 @@ use crate::{
         ActionHandler,
         StateReadExt as _,
     },
+    authorization::AuthorizationHandler,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
     },
     fees::FeeHandler,
-    ibc::{
-        host_interface::AstriaHost,
-        StateReadExt as _,
-    },
+    ibc::host_interface::AstriaHost,
 };
 
 #[derive(Debug)]
@@ -158,7 +156,6 @@ impl ActionHandler for Transaction {
     // FIXME (https://github.com/astriaorg/astria/issues/1584): because most lines come from delegating (and error wrapping) to the
     // individual actions. This could be tidied up by implementing `ActionHandler for Action`
     // and letting it delegate.
-    #[expect(clippy::too_many_lines, reason = "should be refactored")]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         // Add the current signed transaction into the ephemeral state in case
         // downstream actions require access to it.
@@ -239,16 +236,10 @@ impl ActionHandler for Transaction {
                     // access to the the signer through state. However, what's the correct
                     // ibc AppHandler call to do it? Can we just update one of the trait methods
                     // of crate::ibc::ics20_transfer::Ics20Transfer?
-                    ensure!(
-                        state
-                            .is_ibc_relayer(self)
-                            .await
-                            .wrap_err("failed to check if address is IBC relayer")?,
-                        "only IBC sudo address can execute IBC actions"
-                    );
                     let action = act
                         .clone()
                         .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
+                    action.check_authorization(&state, &self).await?;
                     action
                         .check_and_execute(&mut state)
                         .await
@@ -285,10 +276,18 @@ impl ActionHandler for Transaction {
     }
 }
 
-async fn check_execute_and_pay_fees<T: ActionHandler + FeeHandler + Sync, S: StateWrite>(
+async fn check_execute_and_pay_fees<
+    T: ActionHandler + FeeHandler + AuthorizationHandler + Sync,
+    S: StateWrite,
+>(
     action: &T,
     mut state: S,
 ) -> Result<()> {
+    let from = state
+        .get_transaction_context()
+        .expect("transaction source must be present in state when executing an action")
+        .address_bytes();
+    action.check_authorization(&state, &from).await?;
     action.check_and_execute(&mut state).await?;
     action.check_and_pay_fees(&mut state).await?;
     Ok(())

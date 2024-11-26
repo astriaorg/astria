@@ -13,12 +13,10 @@ use tokio::pin;
 
 use crate::{
     app::ActionHandler,
-    authority::StateReadExt as _,
     fees::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
@@ -30,17 +28,6 @@ impl ActionHandler for FeeChange {
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the fee
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-        // ensure signer is the valid `sudo` key in state
-        let sudo_address = state
-            .get_sudo_address()
-            .await
-            .wrap_err("failed to get sudo address from state")?;
-        ensure!(sudo_address == from, "signer is not the sudo key");
-
         match self {
             Self::Transfer(fees) => state
                 .put_transfer_fees(*fees)
@@ -95,18 +82,6 @@ impl ActionHandler for FeeAssetChange {
     }
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-        let authority_sudo_address = state
-            .get_sudo_address()
-            .await
-            .wrap_err("failed to get authority sudo address")?;
-        ensure!(
-            authority_sudo_address == from,
-            "unauthorized address for fee asset change"
-        );
         match self {
             FeeAssetChange::Addition(asset) => {
                 state

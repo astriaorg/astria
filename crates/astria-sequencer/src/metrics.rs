@@ -34,6 +34,7 @@ pub struct Metrics {
     check_tx_duration_seconds_fetch_balances: Histogram,
     check_tx_duration_seconds_fetch_tx_cost: Histogram,
     check_tx_duration_seconds_insert_to_app_mempool: Histogram,
+    check_tx_duration_seconds_check_authorization: Histogram,
     actions_per_transaction_in_mempool: Histogram,
     transaction_in_mempool_size_bytes: Histogram,
     transactions_in_mempool_total: Gauge,
@@ -138,6 +139,11 @@ impl Metrics {
         duration: Duration,
     ) {
         self.check_tx_duration_seconds_insert_to_app_mempool
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_check_authorization(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_authorization
             .record(duration);
     }
 
@@ -311,6 +317,8 @@ impl telemetry::Metrics for Metrics {
             .register_with_labels(&[(CHECK_TX_STAGE, "check for removal".to_string())])?;
         let check_tx_duration_seconds_insert_to_app_mempool = check_tx_duration_factory
             .register_with_labels(&[(CHECK_TX_STAGE, "insert to app mempool".to_string())])?;
+        let check_tx_duration_seconds_check_authorization = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "authorization check".to_string())])?;
 
         let actions_per_transaction_in_mempool = builder
             .new_histogram_factory(
@@ -377,6 +385,7 @@ impl telemetry::Metrics for Metrics {
             check_tx_duration_seconds_fetch_balances,
             check_tx_duration_seconds_fetch_tx_cost,
             check_tx_duration_seconds_insert_to_app_mempool,
+            check_tx_duration_seconds_check_authorization,
             actions_per_transaction_in_mempool,
             transaction_in_mempool_size_bytes,
             transactions_in_mempool_total,
@@ -406,6 +415,7 @@ metric_names!(const METRICS_NAMES:
     CHECK_TX_DURATION_SECONDS_FETCH_NONCE,
     CHECK_TX_DURATION_SECONDS_FETCH_TX_COST,
     CHECK_TX_DURATION_SECONDS_CHECK_TRACKED,
+    CHECK_TX_DURATION_SECONDS_CHECK_AUTHORIZATION,
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
     TRANSACTIONS_IN_MEMPOOL_TOTAL,
@@ -419,6 +429,7 @@ mod tests {
     use super::{
         ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
         CHECK_TX_DURATION_SECONDS,
+        CHECK_TX_DURATION_SECONDS_CHECK_AUTHORIZATION,
         CHECK_TX_REMOVED_ACCOUNT_BALANCE,
         CHECK_TX_REMOVED_EXPIRED,
         CHECK_TX_REMOVED_FAILED_EXECUTION,
@@ -500,6 +511,10 @@ mod tests {
         assert_const(
             TRANSACTIONS_IN_MEMPOOL_PARKED,
             "transactions_in_mempool_parked",
+        );
+        assert_const(
+            CHECK_TX_DURATION_SECONDS_CHECK_AUTHORIZATION,
+            "check_tx_duration_seconds_check_authorization",
         );
         assert_const(MEMPOOL_RECOSTED, "mempool_recosted");
         assert_const(INTERNAL_LOGIC_ERROR, "internal_logic_error");

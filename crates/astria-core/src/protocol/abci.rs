@@ -26,6 +26,7 @@ impl AbciErrorCode {
     pub const NONCE_TAKEN: Self = Self(unsafe { NonZeroU32::new_unchecked(15) });
     pub const ACCOUNT_SIZE_LIMIT: Self = Self(unsafe { NonZeroU32::new_unchecked(16) });
     pub const PARKED_FULL: Self = Self(unsafe { NonZeroU32::new_unchecked(17) });
+    pub const AUTHORIZATION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(18) });
 }
 
 impl AbciErrorCode {
@@ -64,6 +65,7 @@ impl AbciErrorCode {
                 "the account has reached the maximum number of parked transactions".into()
             }
             Self::PARKED_FULL => "the mempool is out of space for more parked transactions".into(),
+            Self::AUTHORIZATION_FAILED => "the transaction failed authorization checks".into(),
             Self(other) => {
                 format!("invalid error code {other}: should be unreachable (this is a bug)")
             }

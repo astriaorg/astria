@@ -1,6 +1,9 @@
 use std::num::NonZeroU32;
 
-use astria_core::Protobuf as _;
+use astria_core::{
+    protocol::transaction::v1::Group,
+    Protobuf as _,
+};
 use prost::Message as _;
 use telemetry::Metrics;
 use tendermint::{
@@ -14,7 +17,10 @@ use tendermint::{
 use crate::{
     app::{
         benchmark_and_test_utils::genesis_state,
-        test_utils::MockTxBuilder,
+        test_utils::{
+            get_bob_signing_key,
+            MockTxBuilder,
+        },
         App,
     },
     mempool::{
@@ -167,4 +173,40 @@ async fn recheck_adds_non_tracked_tx() {
 
     // mempool should contain single transaction still
     assert_eq!(mempool.len().await, 1);
+}
+
+#[tokio::test]
+async fn unauthorized_sudo_signers_rejected() {
+    // The mempool should not allow incorrect sudo signers.
+    let storage = cnidarium::TempStorage::new().await.unwrap();
+    let snapshot = storage.latest_snapshot();
+
+    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+    let mut mempool = Mempool::new(metrics, 100);
+    let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
+    let genesis_state = genesis_state();
+
+    app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
+        .await
+        .unwrap();
+    app.commit(storage.clone()).await;
+
+    let tx = MockTxBuilder::new()
+        .group(Group::UnbundleableSudo)
+        .signer(get_bob_signing_key())
+        .build();
+    let req = CheckTx {
+        tx: tx.to_raw().encode_to_vec().into(),
+        kind: CheckTxKind::New,
+    };
+
+    let rsp = super::handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await;
+    assert_eq!(
+        rsp.code,
+        Code::Err(NonZeroU32::new(18).unwrap()),
+        "{rsp:#?}"
+    );
+
+    // mempool should not contain any transactions
+    assert_eq!(mempool.len().await, 0);
 }

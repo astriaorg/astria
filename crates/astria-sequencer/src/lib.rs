@@ -3,6 +3,7 @@ pub(crate) mod address;
 pub(crate) mod app;
 pub(crate) mod assets;
 pub(crate) mod authority;
+pub(crate) mod authorization;
 #[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
