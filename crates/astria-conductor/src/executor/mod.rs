@@ -710,31 +710,29 @@ impl ExecutableBlock {
     async fn from_reconstructed(block: ReconstructedBlock) -> eyre::Result<Self> {
         use prost::Message as _;
 
-        // let extended_commit_info = block.decoded_extended_commit_info();
-
         let ReconstructedBlock {
             block_hash,
             header,
             transactions,
+            extended_commit_info,
             ..
         } = block;
-        // TODO: handle extended commit info parsing
         let timestamp = convert_tendermint_time_to_protobuf_timestamp(header.time());
 
-        // let transactions = if let Some(extended_commit_info) = extended_commit_info {
-        //     let prices = astria_core::connect::utils::calculate_prices_from_vote_extensions(
-        //         extended_commit_info.extended_commit_info,
-        //         &extended_commit_info.id_to_currency_pair,
-        //     )
-        //     .await
-        //     .wrap_err("failed to calculate prices from vote extensions")?;
-        //     let rollup_data = RollupData::OracleData(Box::new(prices_to_oracle_data(prices)));
-        //     std::iter::once(rollup_data.into_raw().encode_to_vec().into())
-        //         .chain(transactions.into_iter())
-        //         .collect()
-        // } else {
-        //     transactions
-        // };
+        let transactions = if let Some(extended_commit_info) = extended_commit_info {
+            let prices = astria_core::connect::utils::calculate_prices_from_vote_extensions(
+                extended_commit_info.extended_commit_info,
+                &extended_commit_info.id_to_currency_pair,
+            )
+            .await
+            .wrap_err("failed to calculate prices from vote extensions")?;
+            let rollup_data = RollupData::OracleData(Box::new(prices_to_oracle_data(prices)));
+            std::iter::once(rollup_data.into_raw().encode_to_vec().into())
+                .chain(transactions.into_iter())
+                .collect()
+        } else {
+            transactions
+        };
 
         Ok(Self {
             hash: block_hash,

@@ -15,7 +15,14 @@ use super::{
     IncorrectRollupIdLength,
     RollupId,
 };
-use crate::Protobuf;
+use crate::{
+    generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
+    protocol::connect::v1::{
+        ExtendedCommitInfoWithCurrencyPairMapping,
+        ExtendedCommitInfoWithCurrencyPairMappingError,
+    },
+    Protobuf,
+};
 
 /// A [`super::SequencerBlock`] split and prepared for submission to a data availability provider.
 ///
@@ -351,6 +358,26 @@ impl SubmittedMetadataError {
             },
         }
     }
+
+    fn extended_commit_info_not_in_sequencer_block() -> Self {
+        Self {
+            kind: SubmittedMetadataErrorKind::ExtendedCommitInfoNotInSequencerBlock,
+        }
+    }
+
+    fn decode_extended_commit_info(source: prost::DecodeError) -> Self {
+        Self {
+            kind: SubmittedMetadataErrorKind::DecodeExtendedCommitInfo(source),
+        }
+    }
+
+    fn invalid_extended_commit_info(
+        source: ExtendedCommitInfoWithCurrencyPairMappingError,
+    ) -> Self {
+        Self {
+            kind: SubmittedMetadataErrorKind::InvalidExtendedCommitInfo(source),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -393,6 +420,14 @@ enum SubmittedMetadataErrorKind {
     ExtendedCommitInfoProof {
         source: <merkle::Proof as Protobuf>::Error,
     },
+    #[error(
+        "the extended commit info in the sequencer block was not included in the block's data hash"
+    )]
+    ExtendedCommitInfoNotInSequencerBlock,
+    #[error("failed decoding the extended commit info from the raw protobuf")]
+    DecodeExtendedCommitInfo(prost::DecodeError),
+    #[error("failed constructing the extended commit info proof from the raw protobuf")]
+    InvalidExtendedCommitInfo(ExtendedCommitInfoWithCurrencyPairMappingError),
 }
 
 /// A shadow of [`SubmittedMetadata`] with public access to its fields.
@@ -585,6 +620,30 @@ impl SubmittedMetadata {
         self.rollup_ids.contains(&rollup_id)
     }
 
+    #[must_use]
+    pub fn decoded_extended_commit_info(
+        &self,
+    ) -> Option<ExtendedCommitInfoWithCurrencyPairMapping> {
+        use prost::Message as _;
+
+        let Some(ref extended_commit_info) = self.extended_commit_info else {
+            return None;
+        };
+
+        let raw_info =
+            RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
+                .expect(
+                    "must be a valid protobuf as the type was verified when constructing the \
+                     sequencer block",
+                );
+        Some(
+            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).expect(
+                "must be a valid ExtendedCommitInfoWithCurrencyPairMapping as the type was \
+                 verified when constructing the sequencer block",
+            ),
+        )
+    }
+
     /// Converts into the unchecked representation fo this type.
     #[must_use]
     pub fn into_unchecked(self) -> UncheckedSubmittedMetadata {
@@ -615,6 +674,8 @@ impl SubmittedMetadata {
     pub fn try_from_unchecked(
         unchecked: UncheckedSubmittedMetadata,
     ) -> Result<Self, SubmittedMetadataError> {
+        use prost::Message as _;
+
         let UncheckedSubmittedMetadata {
             block_hash,
             header,
@@ -638,6 +699,27 @@ impl SubmittedMetadata {
             *header.data_hash(),
         ) {
             return Err(SubmittedMetadataError::rollup_ids_not_in_cometbft_block());
+        }
+
+        // verify `extended_commit_info` proof and is well-formed
+        if let Some(ref extended_commit_info_proof) = extended_commit_info_proof {
+            let Some(ref extended_commit_info) = extended_commit_info else {
+                return Err(SubmittedMetadataError::field_not_set(
+                    "extended_commit_info",
+                ));
+            };
+
+            if !extended_commit_info_proof
+                .verify(&Sha256::digest(extended_commit_info), *header.data_hash())
+            {
+                return Err(SubmittedMetadataError::extended_commit_info_not_in_sequencer_block());
+            }
+
+            let raw_info =
+                RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
+                    .map_err(SubmittedMetadataError::decode_extended_commit_info)?;
+            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
+                .map_err(SubmittedMetadataError::invalid_extended_commit_info)?;
         }
 
         Ok(Self {
