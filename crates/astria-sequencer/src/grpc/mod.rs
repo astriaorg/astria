@@ -121,14 +121,15 @@ pub(crate) fn start_server(
         tokio::time::sleep(SHUTDOWN_TIMEOUT).await;
 
         let span = info_span!(GRPC_SERVER_SHUTDOWN_SPAN);
-        let _guard = span.enter();
-        match reason {
-            Ok(reason) => {
-                info!(reason);
-            }
-            Err(reason) => {
-                warn!(reason);
-            }
-        };
+        span.in_scope(|| {
+            match reason {
+                Ok(reason) => {
+                    info!(reason);
+                }
+                Err(reason) => {
+                    warn!(reason);
+                }
+            };
+        });
     }))
 }
