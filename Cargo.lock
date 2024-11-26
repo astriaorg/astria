@@ -507,6 +507,7 @@ dependencies = [
  "astria-eyre",
  "astria-sequencer-client",
  "astria-telemetry",
+ "base64 0.21.7",
  "bytes",
  "futures",
  "hex",

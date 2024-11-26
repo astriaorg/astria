@@ -71,7 +71,7 @@ impl Running {
     async fn handle_event(&mut self) -> eyre::Result<()> {
         select!(
             Some((id, res)) = self.auctions.join_next() => {
-                res.wrap_err_with(|| format!("auction failed for block `{}`", base64(id)))?;
+                res.wrap_err_with(|| format!("auction failed for block `{id}`"))?;
             },
 
             res = self.optimistic_blocks.next() => {
