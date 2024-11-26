@@ -9,8 +9,8 @@
 //!    submit it to the sequencer.
 //!
 //! ## Aborting an Auction
-//! The auction may also be aborted at any point before the timer expires by receiving a
-//! `Command::Abort`. This will cause the auction to return early without submitting a winner,
+//! The auction may also be aborted at any point before the timer expires.
+//! This will cause the auction to return early without submitting a winner,
 //! effectively discarding any bundles that were processed.
 //! This is used for leveraging optimsitic execution, running an auction for block data that has
 //! been proposed in the sequencer network's cometBFT but not yet finalized.
@@ -112,21 +112,17 @@ mod allocation_rule;
 enum Command {
     StartProcessingBids,
     StartTimer,
-    Abort,
 }
 
 pub(crate) struct Handle {
+    cancellation_token: CancellationToken,
     commands_tx: mpsc::Sender<Command>,
     new_bundles_tx: mpsc::Sender<Bundle>,
 }
 
 impl Handle {
-    pub(crate) fn try_abort(&mut self) -> eyre::Result<()> {
-        self.commands_tx
-            .try_send(Command::Abort)
-            .wrap_err("unable to send abort command to auction")?;
-
-        Ok(())
+    pub(crate) fn cancel(&self) {
+        self.cancellation_token.cancel();
     }
 
     pub(crate) fn start_processing_bids(&mut self) -> eyre::Result<()> {
@@ -156,7 +152,7 @@ impl Handle {
 pub(crate) struct Auction {
     #[allow(dead_code)]
     metrics: &'static Metrics,
-    shutdown_token: CancellationToken,
+    cancellation_token: CancellationToken,
 
     /// The sequencer's gRPC client, used for fetching pending nonces
     sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
@@ -193,7 +189,7 @@ impl Auction {
             select! {
                 biased;
 
-                () = self.shutdown_token.cancelled() => break Err(eyre!("received shutdown signal")),
+                () = self.cancellation_token.cancelled() => break Err(eyre!("received shutdown signal")),
 
                 // get the auction winner when the timer expires
                 _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
@@ -202,10 +198,6 @@ impl Auction {
 
                 Some(cmd) = self.commands_rx.recv() => {
                     match cmd {
-                        Command::Abort => {
-                            // abort the auction early
-                            break Err(eyre!("auction {} received abort signal", self.id));
-                        },
                         Command::StartProcessingBids => {
                             if auction_is_open {
                                 break Err(eyre!("auction received signal to start processing bids twice"));
@@ -279,7 +271,7 @@ impl Auction {
             biased;
 
             // TODO: should this be Ok(())? or Ok("received shutdown signal")?
-            () = self.shutdown_token.cancelled() => Err(eyre!("received shutdown signal during auction result submission")),
+            () = self.cancellation_token.cancelled() => Err(eyre!("received shutdown signal during auction result submission")),
 
             result = submit_transaction(self.sequencer_abci_client.clone(), transaction, self.metrics) => {
                 // TODO: how to handle submission failure better?

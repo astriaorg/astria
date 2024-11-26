@@ -20,7 +20,7 @@ use crate::Metrics;
 
 pub(crate) struct Builder {
     pub(crate) metrics: &'static Metrics,
-    pub(crate) shutdown_token: CancellationToken,
+    pub(crate) cancellation_token: CancellationToken,
 
     /// The endpoint for the sequencer gRPC service used to get pending nonces
     pub(crate) sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
@@ -45,7 +45,7 @@ impl Builder {
     pub(crate) fn build(self) -> (Handle, Auction) {
         let Self {
             metrics,
-            shutdown_token,
+            cancellation_token,
             sequencer_grpc_client,
             sequencer_abci_client,
             latency_margin,
@@ -62,7 +62,7 @@ impl Builder {
 
         let auction = Auction {
             metrics,
-            shutdown_token,
+            cancellation_token: cancellation_token.clone(),
             sequencer_grpc_client,
             sequencer_abci_client,
             commands_rx,
@@ -77,6 +77,7 @@ impl Builder {
 
         (
             Handle {
+                cancellation_token,
                 commands_tx,
                 new_bundles_tx,
             },
