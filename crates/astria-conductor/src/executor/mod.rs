@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
 use astria_core::{
+    connect::types::v2::{
+        CurrencyPair,
+        Price,
+    },
     execution::v1::{
         Block,
         CommitmentState,
     },
     primitive::v1::RollupId,
-    protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     sequencerblock::v1::block::{
         FilteredSequencerBlock,
         FilteredSequencerBlockParts,
@@ -397,7 +400,9 @@ impl Executor {
     ))]
     async fn execute_soft(&mut self, block: FilteredSequencerBlock) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
-        let executable_block = ExecutableBlock::from_sequencer(block, self.state.rollup_id());
+        let executable_block = ExecutableBlock::from_sequencer(block, self.state.rollup_id())
+            .await
+            .wrap_err("failed to construct executable block")?;
 
         let expected_height = self.state.next_expected_soft_sequencer_height();
         match executable_block.height.cmp(&expected_height) {
@@ -461,7 +466,9 @@ impl Executor {
     ))]
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
-        let executable_block = ExecutableBlock::from_reconstructed(block);
+        let executable_block = ExecutableBlock::from_reconstructed(block)
+            .await
+            .wrap_err("failed to construct executable block")?;
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;
         ensure!(
@@ -700,7 +707,11 @@ struct ExecutableBlock {
 }
 
 impl ExecutableBlock {
-    fn from_reconstructed(block: ReconstructedBlock) -> Self {
+    async fn from_reconstructed(block: ReconstructedBlock) -> eyre::Result<Self> {
+        use prost::Message as _;
+
+        // let extended_commit_info = block.decoded_extended_commit_info();
+
         let ReconstructedBlock {
             block_hash,
             header,
@@ -709,22 +720,38 @@ impl ExecutableBlock {
         } = block;
         // TODO: handle extended commit info parsing
         let timestamp = convert_tendermint_time_to_protobuf_timestamp(header.time());
-        Self {
+
+        // let transactions = if let Some(extended_commit_info) = extended_commit_info {
+        //     let prices = astria_core::connect::utils::calculate_prices_from_vote_extensions(
+        //         extended_commit_info.extended_commit_info,
+        //         &extended_commit_info.id_to_currency_pair,
+        //     )
+        //     .await
+        //     .wrap_err("failed to calculate prices from vote extensions")?;
+        //     let rollup_data = RollupData::OracleData(Box::new(prices_to_oracle_data(prices)));
+        //     std::iter::once(rollup_data.into_raw().encode_to_vec().into())
+        //         .chain(transactions.into_iter())
+        //         .collect()
+        // } else {
+        //     transactions
+        // };
+
+        Ok(Self {
             hash: block_hash,
             height: header.height(),
             timestamp,
             transactions,
-        }
+        })
     }
 
-    fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> Self {
+    async fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> eyre::Result<Self> {
         use prost::Message as _;
 
+        let extended_commit_info = block.decoded_extended_commit_info();
         let FilteredSequencerBlockParts {
             block_hash,
             header,
             mut rollup_transactions,
-            extended_commit_info,
             ..
         } = block.into_parts();
         let height = header.height();
@@ -734,18 +761,42 @@ impl ExecutableBlock {
             .map(|txs| txs.transactions().to_vec())
             .unwrap_or_default();
 
-        if let Some(extended_commit_info) = extended_commit_info {
-            let info = astria_core::generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info).expect("TODO");
-            let info = ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(info).expect("TODO");
-        }
+        let transactions = if let Some(extended_commit_info) = extended_commit_info {
+            let prices = astria_core::connect::utils::calculate_prices_from_vote_extensions(
+                extended_commit_info.extended_commit_info,
+                &extended_commit_info.id_to_currency_pair,
+            )
+            .await
+            .wrap_err("failed to calculate prices from vote extensions")?;
+            let rollup_data = RollupData::OracleData(Box::new(prices_to_oracle_data(prices)));
+            std::iter::once(rollup_data.into_raw().encode_to_vec().into())
+                .chain(transactions.into_iter())
+                .collect()
+        } else {
+            transactions
+        };
 
-        Self {
+        Ok(Self {
             hash: block_hash,
             height,
             timestamp,
             transactions,
-        }
+        })
     }
+}
+
+fn prices_to_oracle_data(prices: HashMap<CurrencyPair, Price>) -> OracleData {
+    let prices = prices
+        .into_iter()
+        .map(|(currency_pair, price)| {
+            astria_core::sequencerblock::v1::block::Price::new(
+                currency_pair,
+                price.get(),
+                0, // TODO
+            )
+        })
+        .collect();
+    OracleData::new(prices)
 }
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].

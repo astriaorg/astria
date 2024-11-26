@@ -5,6 +5,7 @@ use std::{
 
 use bytes::Bytes;
 use indexmap::IndexMap;
+use prost::Message as _;
 use sha2::Sha256;
 use tendermint::{
     account,
@@ -26,6 +27,7 @@ use crate::{
         CurrencyPair,
         CurrencyPairError,
     },
+    generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
     primitive::v1::{
         asset,
         derive_merkle_tree_from_rollup_txs,
@@ -36,10 +38,16 @@ use crate::{
         TransactionId,
         TransactionIdError,
     },
-    protocol::transaction::v1::{
-        action,
-        Transaction,
-        TransactionError,
+    protocol::{
+        connect::v1::{
+            ExtendedCommitInfoWithCurrencyPairMapping,
+            ExtendedCommitInfoWithCurrencyPairMappingError,
+        },
+        transaction::v1::{
+            action,
+            Transaction,
+            TransactionError,
+        },
     },
     Protobuf as _,
 };
@@ -286,6 +294,16 @@ impl SequencerBlockError {
     fn invalid_extended_commit_info_proof() -> Self {
         Self(SequencerBlockErrorKind::InvalidExtendedCommitInfoProof)
     }
+
+    fn decode_extended_commit_info(source: prost::DecodeError) -> Self {
+        Self(SequencerBlockErrorKind::DecodeExtendedCommitInfo(source))
+    }
+
+    fn invalid_extended_commit_info(
+        source: ExtendedCommitInfoWithCurrencyPairMappingError,
+    ) -> Self {
+        Self(SequencerBlockErrorKind::InvalidExtendedCommitInfo(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -373,6 +391,10 @@ enum SequencerBlockErrorKind {
          proof"
     )]
     InvalidExtendedCommitInfoProof,
+    #[error("failed decoding the extended commit info")]
+    DecodeExtendedCommitInfo(#[source] prost::DecodeError),
+    #[error("the extended commit info could not be converted from proto to native")]
+    InvalidExtendedCommitInfo(#[source] ExtendedCommitInfoWithCurrencyPairMappingError),
 }
 
 /// The individual parts that make up a [`SequencerBlockHeader`].
@@ -646,8 +668,6 @@ impl SequencerBlockBuilder {
     ///
     /// - if a rollup data merkle proof cannot be constructed.
     pub fn try_build(self) -> Result<SequencerBlock, SequencerBlockError> {
-        use prost::Message as _;
-
         let SequencerBlockBuilder {
             block_hash,
             chain_id,
@@ -791,6 +811,11 @@ pub struct SequencerBlock {
     /// the rollup transactions.
     rollup_ids_proof: merkle::Proof,
     /// The extended commit info for the block, if vote extensions were enabled at this height.
+    ///
+    /// This is verified to be of the form `ExtendedCommitInfoWithCurrencyPairMapping` when the
+    /// type is constructed, but is left as `Bytes` so that it can be verified against the
+    /// `data_hash` using the `extended_commit_info_proof` (as re-encoding the protobuf type
+    /// may not be deterministic).
     extended_commit_info: Option<Bytes>,
     /// The proof that the extended commit info is included in the cometbft block data (if it
     /// exists), specifically the third item in the data field.
@@ -840,6 +865,28 @@ impl SequencerBlock {
     #[must_use]
     pub fn extended_commit_info_proof(&self) -> Option<&merkle::Proof> {
         self.extended_commit_info_proof.as_ref()
+    }
+
+    #[must_use]
+    pub fn decoded_extended_commit_info(
+        &self,
+    ) -> Option<ExtendedCommitInfoWithCurrencyPairMapping> {
+        let Some(ref extended_commit_info) = self.extended_commit_info else {
+            return None;
+        };
+
+        let raw_info =
+            RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
+                .expect(
+                    "must be a valid protobuf as the type was verified when constructing the \
+                     sequencer block",
+                );
+        Some(
+            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).expect(
+                "must be a valid ExtendedCommitInfoWithCurrencyPairMapping as the type was \
+                 verified when constructing the sequencer block",
+            ),
+        )
     }
 
     /// Converts a [`SequencerBlock`] into its [`SequencerBlockParts`].
@@ -1055,6 +1102,12 @@ impl SequencerBlock {
             {
                 return Err(SequencerBlockError::invalid_extended_commit_info_proof());
             }
+
+            let raw_info =
+                RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
+                    .map_err(SequencerBlockError::decode_extended_commit_info)?;
+            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
+                .map_err(SequencerBlockError::invalid_extended_commit_info)?;
         }
 
         Ok(Self {
@@ -1149,6 +1202,12 @@ fn take_initial_elements_from_data(
             "the leaf must exist in the tree as `extended_commit_info` was created from the same \
              index in `data` used to construct the tree",
         );
+
+        let raw_info =
+            RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
+                .map_err(SequencerBlockError::decode_extended_commit_info)?;
+        ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
+            .map_err(SequencerBlockError::invalid_extended_commit_info)?;
         (Some(extended_commit_info), Some(extended_commit_info_proof))
     } else {
         (None, None)
@@ -1272,6 +1331,28 @@ impl FilteredSequencerBlock {
     #[must_use]
     pub fn extended_commit_info_proof(&self) -> Option<&merkle::Proof> {
         self.extended_commit_info_proof.as_ref()
+    }
+
+    #[must_use]
+    pub fn decoded_extended_commit_info(
+        &self,
+    ) -> Option<ExtendedCommitInfoWithCurrencyPairMapping> {
+        let Some(ref extended_commit_info) = self.extended_commit_info else {
+            return None;
+        };
+
+        let raw_info =
+            RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
+                .expect(
+                    "must be a valid protobuf as the type was verified when constructing the \
+                     sequencer block",
+                );
+        Some(
+            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).expect(
+                "must be a valid ExtendedCommitInfoWithCurrencyPairMapping as the type was \
+                 verified when constructing the sequencer block",
+            ),
+        )
     }
 
     #[must_use]
@@ -1414,7 +1495,6 @@ impl FilteredSequencerBlock {
             return Err(FilteredSequencerBlockError::rollup_ids_not_in_sequencer_block());
         }
 
-        let extended_commit_info = extended_commit_info.map(Into::into);
         let extended_commit_info_proof = if let Some(extended_commit_info) = &extended_commit_info {
             let Some(extended_commit_info_proof) = extended_commit_info_proof else {
                 return Err(FilteredSequencerBlockError::field_not_set(
@@ -1432,6 +1512,12 @@ impl FilteredSequencerBlock {
                     FilteredSequencerBlockError::extended_commit_info_not_in_sequencer_block(),
                 );
             }
+
+            let raw_info =
+                RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
+                    .map_err(FilteredSequencerBlockError::decode_extended_commit_info)?;
+            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
+                .map_err(FilteredSequencerBlockError::invalid_extended_commit_info)?;
 
             Some(extended_commit_info_proof)
         } else {
@@ -1514,6 +1600,10 @@ enum FilteredSequencerBlockErrorKind {
         "the extended commit info in the sequencer block was not included in the block's data hash"
     )]
     ExtendedCommitInfoNotInSequencerBlock,
+    #[error("failed decoding the extended commit info from the raw protobuf")]
+    DecodeExtendedCommitInfo(prost::DecodeError),
+    #[error("failed constructing the extended commit info proof from the raw protobuf")]
+    InvalidExtendedCommitInfo(ExtendedCommitInfoWithCurrencyPairMappingError),
 }
 
 impl FilteredSequencerBlockError {
@@ -1567,6 +1657,20 @@ impl FilteredSequencerBlockError {
 
     fn extended_commit_info_not_in_sequencer_block() -> Self {
         Self(FilteredSequencerBlockErrorKind::ExtendedCommitInfoNotInSequencerBlock)
+    }
+
+    fn decode_extended_commit_info(source: prost::DecodeError) -> Self {
+        Self(FilteredSequencerBlockErrorKind::DecodeExtendedCommitInfo(
+            source,
+        ))
+    }
+
+    fn invalid_extended_commit_info(
+        source: ExtendedCommitInfoWithCurrencyPairMappingError,
+    ) -> Self {
+        Self(FilteredSequencerBlockErrorKind::InvalidExtendedCommitInfo(
+            source,
+        ))
     }
 }
 
@@ -1725,6 +1829,30 @@ pub struct Price {
 
 impl Price {
     #[must_use]
+    pub fn new(currency_pair: CurrencyPair, price: u128, decimals: u64) -> Self {
+        Self {
+            currency_pair,
+            price,
+            decimals,
+        }
+    }
+
+    #[must_use]
+    pub fn currency_pair(&self) -> &CurrencyPair {
+        &self.currency_pair
+    }
+
+    #[must_use]
+    pub fn price(&self) -> u128 {
+        self.price
+    }
+
+    #[must_use]
+    pub fn decimals(&self) -> u64 {
+        self.decimals
+    }
+
+    #[must_use]
     pub fn into_raw(self) -> raw::Price {
         let Self {
             currency_pair,
@@ -1792,6 +1920,18 @@ pub struct OracleData {
 }
 
 impl OracleData {
+    #[must_use]
+    pub fn new(prices: Vec<Price>) -> Self {
+        Self {
+            prices,
+        }
+    }
+
+    #[must_use]
+    pub fn prices(&self) -> &[Price] {
+        &self.prices
+    }
+
     #[must_use]
     pub fn into_raw(self) -> raw::OracleData {
         raw::OracleData {

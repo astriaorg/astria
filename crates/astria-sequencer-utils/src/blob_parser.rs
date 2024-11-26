@@ -28,6 +28,7 @@ use astria_core::{
         block::{
             Deposit,
             DepositError,
+            OracleData,
             OracleDataError,
             SequencerBlockHeader,
         },
@@ -48,10 +49,7 @@ use base64::{
     prelude::BASE64_STANDARD,
     Engine,
 };
-use clap::{
-    builder::Str,
-    ValueEnum,
-};
+use clap::ValueEnum;
 use colour::write_blue;
 use ethers_core::types::{
     transaction::eip2930::AccessListItem,
@@ -570,19 +568,40 @@ impl Display for PrintableDeposit {
 }
 
 #[derive(Serialize, Debug)]
-struct PrintableOracleData {}
+struct PrintableOracleData {
+    prices: Vec<(String, u128, u64)>,
+}
 
 impl TryFrom<&RawOracleData> for PrintableOracleData {
     type Error = OracleDataError;
 
-    fn try_from(value: &RawOracleData) -> std::result::Result<Self, Self::Error> {
-        todo!()
+    fn try_from(value: &RawOracleData) -> Result<Self, Self::Error> {
+        let oracle_data = OracleData::try_from_raw(value.clone())?;
+        Ok(PrintableOracleData {
+            prices: oracle_data
+                .prices()
+                .iter()
+                .map(|price| {
+                    (
+                        price.currency_pair().to_string(),
+                        price.price(),
+                        price.decimals(),
+                    )
+                })
+                .collect(),
+        })
     }
 }
 
 impl Display for PrintableOracleData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        todo!()
+        for (currency_pair, price, decimals) in &self.prices {
+            colored_label_ln(f, "price")?;
+            colored_ln(f, "currency pair", currency_pair)?;
+            colored_ln(f, "price", price)?;
+            colored_ln(f, "decimals", decimals)?;
+        }
+        Ok(())
     }
 }
 
