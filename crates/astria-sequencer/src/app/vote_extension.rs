@@ -1311,6 +1311,30 @@ mod test {
         validate_extended_commit_against_last_commit(&last_commit, &extended_commit_info).unwrap();
     }
 
+    // When constructing the mapping, if an ID doesn't have a corresponding CurrencyPair in storage,
+    // it should just get omitted from the mapping rather than triggering an error.
+    #[tokio::test]
+    async fn get_id_to_currency_pair_mapping_should_allow_missing_id() {
+        let Fixture {
+            state,
+            _storage,
+            ..
+        } = Fixture::new().await;
+
+        // No mapping for IDs 3 and 4.
+        let ids_missing_pairs = HashSet::from_iter([0, 1, 2, 3, 4]);
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_missing_pairs.clone()).await;
+        assert_eq!(3, id_to_currency_pairs.len());
+        assert!(id_to_currency_pairs.contains_key(&CurrencyPairId::new(0)));
+        assert!(id_to_currency_pairs.contains_key(&CurrencyPairId::new(1)));
+        assert!(id_to_currency_pairs.contains_key(&CurrencyPairId::new(2)));
+
+        // Check that validation using this same set of IDs passes.
+        validate_id_to_currency_pair_mapping(&state, ids_missing_pairs, &id_to_currency_pairs)
+            .await
+            .unwrap();
+    }
+
     #[tokio::test]
     async fn validate_id_to_currency_pair_mapping_missing_pair() {
         let Fixture {
