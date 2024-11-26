@@ -35,7 +35,7 @@ use crate::{
 
 // we provide a shutdown time mainly for the optimistic block service tasks to shutdown
 // gracefully
-const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(7);
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(1500);
 const SHUTDOWN_SPAN: &str = "grpc_server_shutdown";
 
 pub(crate) fn start_server(
@@ -122,8 +122,7 @@ pub(crate) fn start_server(
         // give time for the optimistic block service to shutdown all the streaming tasks.
         tokio::time::sleep(SHUTDOWN_TIMEOUT).await;
 
-        let span = info_span!(SHUTDOWN_SPAN);
-        span.in_scope(|| {
+        info_span!(SHUTDOWN_SPAN).in_scope(|| {
             match reason {
                 Ok(reason) => {
                     info!(reason);
