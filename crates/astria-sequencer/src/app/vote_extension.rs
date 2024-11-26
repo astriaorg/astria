@@ -53,6 +53,7 @@ use tendermint_proto::google::protobuf::Timestamp;
 use tonic::transport::Channel;
 use tracing::{
     debug,
+    error,
     info,
     instrument,
     warn,
@@ -628,25 +629,32 @@ fn aggregate_oracle_votes(
 
     currency_pair_to_price_list
         .into_iter()
-        .map(|(currency_pair, price_list)| (currency_pair, median(price_list)))
+        .filter_map(|(currency_pair, price_list)| match median(price_list) {
+            Ok(median_price) => Some((currency_pair, median_price)),
+            Err(error) => {
+                error!(%currency_pair, %error, "skipped storing currency pair");
+                None
+            }
+        })
 }
 
-fn median(mut price_list: Vec<Price>) -> Price {
+/// Returns the median value from `price_list`, or an error if the list is empty.
+fn median(mut price_list: Vec<Price>) -> Result<Price> {
     price_list.sort_unstable();
     let midpoint = price_list
         .len()
         .checked_div(2)
         .expect("can't fail as divisor is not zero");
     if price_list.len() % 2 == 1 {
-        return price_list
+        return Ok(price_list
             .get(midpoint)
             .copied()
-            .expect("`midpoint` is a valid index");
+            .expect("`midpoint` is a valid index"));
     }
 
     let Some(lower_index) = midpoint.checked_sub(1) else {
-        // We can only get here if `price_list` is empty; just return 0.
-        return Price::new(0);
+        // We can only get here if `price_list` is empty; this is not supported, so return an error.
+        bail!("cannot provide median price of empty price list");
     };
 
     // `price_list.len()` >= 2 if we got to here, meaning `midpoint` and `lower_index` must both be
@@ -669,12 +677,13 @@ fn median(mut price_list: Vec<Price>) -> Price {
         .expect("can't fail as both operands are <= MAX/2");
     // If `higher_price` and `lower_price` are both odd, we rounded down twice when halving them,
     // so add 1 to the sum.
-    if higher_price.get() % 2 == 1 && lower_price.get() % 2 == 1 {
+    let median = if higher_price.get() % 2 == 1 && lower_price.get() % 2 == 1 {
         sum.checked_add(Price::new(1))
             .expect("can't fail as we rounded down twice while halving the prices")
     } else {
         sum
-    }
+    };
+    Ok(median)
 }
 
 #[cfg(test)]
@@ -1480,31 +1489,39 @@ mod test {
             prices.into_iter().map(Price::new).collect()
         }
 
-        // Empty set should yield 0.
-        assert_eq!(0, median(vec![]).get());
+        // Empty set should yield error.
+        assert_err_contains(
+            median(vec![]),
+            &["cannot provide median price of empty price list"],
+        );
 
         // Should handle a set with 1 entry.
-        assert_eq!(1, median(prices([1])).get());
+        assert_eq!(1, median(prices([1])).unwrap().get());
 
         // Should handle a set with 2 entries.
-        assert_eq!(15, median(prices([20, 10])).get());
+        assert_eq!(15, median(prices([20, 10])).unwrap().get());
 
         // Should handle a larger set with odd number of entries.
-        assert_eq!(10, median(prices([21, 22, 23, 1, 2, 10, 3])).get());
+        assert_eq!(10, median(prices([21, 22, 23, 1, 2, 10, 3])).unwrap().get());
 
         // Should handle a larger set with even number of entries.
-        assert_eq!(12, median(prices([21, 22, 23, 1, 2, 3])).get());
+        assert_eq!(12, median(prices([21, 22, 23, 1, 2, 3])).unwrap().get());
 
         // Should round down if required.
-        assert_eq!(17, median(prices([10, 15, 20, 25])).get());
+        assert_eq!(17, median(prices([10, 15, 20, 25])).unwrap().get());
 
         // Should handle large values in a set with odd number of entries.
-        assert_eq!(u128::MAX, median(prices([u128::MAX, u128::MAX, 1])).get());
+        assert_eq!(
+            u128::MAX,
+            median(prices([u128::MAX, u128::MAX, 1])).unwrap().get()
+        );
 
         // Should handle large values in a set with even number of entries.
         assert_eq!(
             u128::MAX - 1,
-            median(prices([u128::MAX, u128::MAX, u128::MAX - 1, u128::MAX - 1])).get()
+            median(prices([u128::MAX, u128::MAX, u128::MAX - 1, u128::MAX - 1]))
+                .unwrap()
+                .get()
         );
     }
 
