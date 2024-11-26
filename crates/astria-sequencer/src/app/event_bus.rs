@@ -8,8 +8,8 @@ use tokio::sync::watch::{
 };
 use tokio_util::sync::CancellationToken;
 
-/// `EventReceiver` is a struct that contains the receiver side of the events sent by the Sequencer
-/// App. The listeners of the events can receive the latest value of the event by calling the
+/// `EventReceiver` contains the receiver side of the events sent by the Sequencer App.
+/// The listeners of the events can receive the latest value of the event by calling the
 /// `receive` method.
 #[derive(Clone)]
 pub(crate) struct EventReceiver<T> {
@@ -38,7 +38,7 @@ where
     }
 }
 
-/// `EventSender` is a struct that contains the sender side of the events sent by the Sequencer App.
+/// `EventSender` contains the sender side of the events sent by the Sequencer App.
 /// At any given time, it sends the latest value of the event.
 struct EventSender<T> {
     // The sender side of the watch which is used to send the latest value of the event.
@@ -76,8 +76,7 @@ impl<T> EventSender<T> {
     }
 }
 
-/// `EventBusSubscription` is a struct that contains [`EventReceiver`] of various events that can be
-/// subscribed.
+/// `EventBusSubscription` contains [`EventReceiver`] of various events that can be subscribed.
 #[derive(Clone)]
 pub(crate) struct EventBusSubscription {
     process_proposal_blocks: EventReceiver<Arc<SequencerBlock>>,
