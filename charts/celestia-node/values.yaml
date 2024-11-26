@@ -10,6 +10,7 @@ config:
   network: mocha-4
   chainId: mocha-4
   coreIp: "full.consensus.mocha-4.celestia-mocha.com"
+  enablePruner: false
   type: light
   tokenAuthLevel: read  # can set to nil or false to disable rpc auth
   coreGrpcPort: 9090
@@ -19,7 +20,7 @@ config:
 
 images:
   pullPolicy: IfNotPresent
-  node: ghcr.io/celestiaorg/celestia-node:v0.16.0-rc0
+  node: ghcr.io/celestiaorg/celestia-node:v0.18.3-mocha
 
 ports:
   celestia:

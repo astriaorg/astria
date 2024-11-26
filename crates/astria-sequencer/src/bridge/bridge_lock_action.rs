@@ -20,6 +20,7 @@ use crate::{
     },
     address::StateReadExt as _,
     app::ActionHandler,
+    assets::StateReadExt as _,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -68,11 +69,21 @@ impl ActionHandler for BridgeLock {
             .expect("current source should be set before executing action")
             .source_action_index;
 
+        // map asset to trace prefixed asset for deposit, if it is not already
+        let deposit_asset = match self.asset.as_trace_prefixed() {
+            Some(asset) => asset.clone(),
+            None => state
+                .map_ibc_to_trace_prefixed_asset(&allowed_asset)
+                .await
+                .wrap_err("failed to map IBC asset to trace prefixed asset")?
+                .ok_or_eyre("mapping from IBC prefixed bridge asset to trace prefixed not found")?,
+        };
+
         let deposit = Deposit {
             bridge_address: self.to,
             rollup_id,
             amount: self.amount,
-            asset: self.asset.clone(),
+            asset: deposit_asset.into(),
             destination_chain_address: self.destination_chain_address.clone(),
             source_transaction_id,
             source_action_index,
@@ -92,5 +103,94 @@ impl ActionHandler for BridgeLock {
         state.cache_deposit_event(deposit);
         state.record(deposit_abci_event);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use astria_core::{
+        primitive::v1::{
+            asset,
+            TransactionId,
+        },
+        protocol::transaction::v1::action::BridgeLock,
+    };
+    use cnidarium::StateDelta;
+
+    use crate::{
+        accounts::{
+            AddressBytes,
+            StateWriteExt as _,
+        },
+        address::StateWriteExt as _,
+        app::ActionHandler as _,
+        assets::StateWriteExt as _,
+        benchmark_and_test_utils::{
+            astria_address,
+            nria,
+            ASTRIA_PREFIX,
+        },
+        bridge::{
+            StateReadExt,
+            StateWriteExt as _,
+        },
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
+    };
+
+    #[tokio::test]
+    async fn bridge_lock_maps_ibc_to_trace_prefixed_for_deposit() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let trace_asset = "trace_asset"
+            .parse::<asset::denom::TracePrefixed>()
+            .unwrap();
+        let ibc_asset = trace_asset.to_ibc_prefixed();
+        let transfer_amount = 100;
+        let bridge_address = astria_address(&[3; 20]);
+        let from_address = astria_address(&[1; 20]);
+
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *from_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            source_action_index: 0,
+        });
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state
+            .put_bridge_account_rollup_id(&bridge_address, [0; 32].into())
+            .unwrap();
+        state
+            .put_bridge_account_ibc_asset(&bridge_address, ibc_asset)
+            .unwrap();
+        state.put_ibc_asset(trace_asset.clone()).unwrap();
+        state
+            .put_account_balance(&from_address, &trace_asset, transfer_amount)
+            .unwrap();
+
+        let bridge_lock_action = BridgeLock {
+            to: bridge_address,
+            amount: transfer_amount,
+            asset: ibc_asset.into(),
+            fee_asset: nria().into(),
+            destination_chain_address: "ethan_was_here".to_string(),
+        };
+
+        bridge_lock_action
+            .check_and_execute(&mut state)
+            .await
+            .unwrap();
+
+        let deposits = state
+            .get_cached_block_deposits()
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        assert_eq!(deposits.len(), 1);
+        assert!(deposits[0].asset.as_trace_prefixed().is_some());
     }
 }

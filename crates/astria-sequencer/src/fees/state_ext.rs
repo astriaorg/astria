@@ -42,10 +42,7 @@ use cnidarium::{
 };
 use futures::Stream;
 use pin_project_lite::pin_project;
-use tendermint::abci::{
-    Event,
-    EventAttributeIndexExt as _,
-};
+use tendermint::abci::Event;
 use tracing::instrument;
 
 use super::{
@@ -574,10 +571,10 @@ fn construct_tx_fee_event(fee: &Fee) -> Event {
     Event::new(
         "tx.fees",
         [
-            ("actionName", fee.action_name.to_string()).index(),
-            ("asset", fee.asset.to_string()).index(),
-            ("feeAmount", fee.amount.to_string()).index(),
-            ("positionInTransaction", fee.source_action_index.to_string()).index(),
+            ("actionName", fee.action_name.to_string()),
+            ("asset", fee.asset.to_string()),
+            ("feeAmount", fee.amount.to_string()),
+            ("positionInTransaction", fee.source_action_index.to_string()),
         ],
     )
 }
