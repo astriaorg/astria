@@ -3,10 +3,8 @@ use std::time::Duration;
 use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre::{
     self,
-    OptionExt as _,
     WrapErr as _,
 };
-use futures::StreamExt as _;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 
@@ -110,20 +108,16 @@ impl Starting {
             sequencer_channel,
             shutdown_token,
         } = self;
-        let (bundles, executed_blocks, block_commitments, (optimistic_blocks, current_block)) = tokio::try_join!(
+        let (bundles, executed_blocks, block_commitments, optimistic_blocks) = tokio::try_join!(
             open_bundle_stream(rollup_channel.clone()),
             open_execute_optimistic_block_stream(rollup_channel.clone()),
             open_block_commitment_stream(sequencer_channel.clone()),
-            open_optimistic_block_stream_and_get_current_block(
-                sequencer_channel.clone(),
-                rollup_id
-            ),
+            open_optimistic_block_stream(sequencer_channel.clone(), rollup_id),
         )?;
         Ok(Running {
             auctions,
             block_commitments,
             bundles,
-            current_block,
             executed_blocks,
             optimistic_blocks,
             rollup_id,
@@ -133,28 +127,18 @@ impl Starting {
     }
 }
 
-async fn open_optimistic_block_stream_and_get_current_block(
+async fn open_optimistic_block_stream(
     chan: SequencerChannel,
     rollup_id: RollupId,
-) -> eyre::Result<(OptimisticBlockStream, crate::block::Current)> {
-    let mut the_stream = chan
-        .open_get_optimistic_block_stream(rollup_id)
+) -> eyre::Result<OptimisticBlockStream> {
+    chan.open_get_optimistic_block_stream(rollup_id)
         .await
         .wrap_err_with(|| {
             format!(
                 "failed to open optimistic block stream to Sequencer node for rollup ID \
                  `{rollup_id}`"
             )
-        })?;
-    let optimistic_block = the_stream
-        .next()
-        .await
-        .ok_or_eyre("optimistic block stream closed before yielding the current block")?
-        .wrap_err(
-            "failed to get current optimistic block after opening a stream to the Sequencer node",
-        )?;
-    let current_block = crate::block::Current::with_optimistic(optimistic_block);
-    Ok((the_stream, current_block))
+        })
 }
 
 async fn open_block_commitment_stream(

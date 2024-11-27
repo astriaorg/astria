@@ -10,7 +10,6 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use futures::StreamExt as _;
-use telemetry::display::base64;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{
@@ -22,7 +21,6 @@ use tracing::{
 
 use super::RunState;
 use crate::{
-    auction,
     rollup_channel::{
         BundleStream,
         ExecuteOptimisticBlockStream,
@@ -37,7 +35,6 @@ pub(super) struct Running {
     pub(super) auctions: crate::auction::Manager,
     pub(super) block_commitments: BlockCommitmentStream,
     pub(super) bundles: BundleStream,
-    pub(super) current_block: crate::block::Current,
     pub(super) executed_blocks: ExecuteOptimisticBlockStream,
     pub(super) optimistic_blocks: OptimisticBlockStream,
     pub(super) rollup_id: RollupId,
@@ -96,29 +93,17 @@ impl Running {
         Ok(())
     }
 
-    #[instrument(skip(self), fields(auction.old_id = %base64(self.current_block.sequencer_block_hash())), err)]
+    // #[instrument(skip(self), fields(auction.old_id =
+    // %base64(self.current_block.sequencer_block_hash())), err)]
     fn handle_optimistic_block(
         &mut self,
         optimistic_block: eyre::Result<FilteredSequencerBlock>,
     ) -> eyre::Result<()> {
         let optimistic_block =
-            optimistic_block.wrap_err("encountered problems receiving optimistic block message")?;
+            optimistic_block.wrap_err("encountered problem receiving optimistic block message")?;
 
-        let old_auction_id =
-            auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
-        self.auctions
-            .abort_auction(old_auction_id)
-            .wrap_err("failed to abort auction")?;
-
-        info!(
-            optimistic_block.sequencer_block_hash = %base64(optimistic_block.block_hash()),
-            "received optimistic block, aborting old auction and starting new auction"
-        );
-
-        self.current_block = crate::block::Current::with_optimistic(optimistic_block.clone());
-        let new_auction_id =
-            auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
-        self.auctions.new_auction(new_auction_id);
+        // FIXME: Don't clone this; find a better way.
+        self.auctions.new_auction(optimistic_block.clone());
 
         let base_block = crate::block::Optimistic::new(optimistic_block)
             .try_into_base_block(self.rollup_id)
@@ -131,79 +116,41 @@ impl Running {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(auction.id = %base64(self.current_block.sequencer_block_hash())), err)]
+    // #[instrument(skip_all, fields(auction.id =
+    // %base64(self.current_block.sequencer_block_hash())), err)]
     fn handle_block_commitment(
         &mut self,
         block_commitment: eyre::Result<crate::block::Commitment>,
     ) -> eyre::Result<()> {
         let block_commitment = block_commitment.wrap_err("failed to receive block commitment")?;
 
-        if let Err(e) = self.current_block.commitment(block_commitment.clone()) {
-            warn!(
-                current_block.sequencer_block_hash = %base64(self.current_block.sequencer_block_hash()),
-                block_commitment.sequencer_block_hash = %base64(block_commitment.sequencer_block_hash()),
-                "received block commitment for the wrong block"
-            );
-            return Err(e).wrap_err("failed to handle block commitment");
-        }
-
-        let auction_id =
-            auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
-
         self.auctions
-            .start_timer(auction_id)
+            .start_timer(block_commitment)
             .wrap_err("failed to start timer")?;
 
         Ok(())
     }
 
-    #[instrument(skip_all, fields(auction.id = %base64(self.current_block.sequencer_block_hash())))]
+    // #[instrument(skip_all, fields(auction.id =
+    // %base64(self.current_block.sequencer_block_hash())))]
     fn handle_executed_block(
         &mut self,
         executed_block: eyre::Result<crate::block::Executed>,
     ) -> eyre::Result<()> {
         let executed_block = executed_block.wrap_err("failed to receive executed block")?;
-
-        if let Err(e) = self.current_block.execute(executed_block.clone()) {
-            warn!(
-                // TODO: nicer display for the current block
-                current_block.sequencer_block_hash = %base64(self.current_block.sequencer_block_hash()),
-                executed_block.sequencer_block_hash = %base64(executed_block.sequencer_block_hash()),
-                executed_block.rollup_block_hash = %base64(executed_block.rollup_block_hash()),
-                "received optimistic execution result for wrong sequencer block"
-            );
-            return Err(e).wrap_err("failed to handle executed block");
-        }
-
-        let auction_id =
-            auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
-
         self.auctions
-            .start_processing_bids(auction_id)
+            .start_processing_bids(executed_block)
             .wrap_err("failed to start processing bids")?;
-
         Ok(())
     }
 
-    #[instrument(skip_all, fields(auction.id = %base64(self.current_block.sequencer_block_hash())))]
+    // #[instrument(skip_all, fields(auction.id =
+    // %base64(self.current_block.sequencer_block_hash())))]
     fn handle_bundle(&mut self, bundle: eyre::Result<crate::bundle::Bundle>) -> eyre::Result<()> {
         let bundle = bundle.wrap_err("received problematic bundle")?;
-        if let Err(e) = self.current_block.ensure_bundle_is_valid(&bundle) {
-            warn!(
-                curent_block.sequencer_block_hash = %base64(self.current_block.sequencer_block_hash()),
-                bundle.sequencer_block_hash = %base64(bundle.base_sequencer_block_hash()),
-                bundle.parent_rollup_block_hash = %base64(bundle.parent_rollup_block_hash()),
-                "incoming bundle does not match current block, ignoring"
-            );
-            return Err(e).wrap_err("failed to handle bundle");
-        }
-
-        let auction_id =
-            auction::Id::from_sequencer_block_hash(self.current_block.sequencer_block_hash());
         self.auctions
-            .try_send_bundle(auction_id, bundle)
-            .wrap_err("failed to submit bundle to auction")?;
-
+            .forward_bundle_to_auction(bundle)
+            .wrap_err("failed to forward bundle to auction")?;
         Ok(())
     }
 

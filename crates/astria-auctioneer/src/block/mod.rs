@@ -103,6 +103,8 @@ impl Optimistic {
         *self.filtered_sequencer_block.block_hash()
     }
 
+    // TODO: Actually consider removing this because the height seems superfluouos.
+    #[expect(dead_code, reason = "to quiet the warnings for now")]
     pub(crate) fn sequencer_height(&self) -> u64 {
         self.filtered_sequencer_block.height().into()
     }
@@ -150,13 +152,14 @@ impl Executed {
             .expect("rollup block hash must be 32 bytes")
     }
 
-    pub(crate) fn rollup_block_hash(&self) -> [u8; 32] {
-        self.block
-            .hash()
-            .as_ref()
-            .try_into()
-            .expect("rollup block hash must be 32 bytes")
-    }
+    // TODO: consider removing this
+    // pub(crate) fn rollup_block_hash(&self) -> [u8; 32] {
+    //     self.block
+    //         .hash()
+    //         .as_ref()
+    //         .try_into()
+    //         .expect("rollup block hash must be 32 bytes")
+    // }
 }
 
 #[derive(Debug, Clone)]
@@ -187,6 +190,9 @@ impl Commitment {
         self.sequnecer_block_hash
     }
 
+    /// The height of the sequencer block that was committed.
+    // TODO: Actually consider removing this because the height seems superfluouos.
+    #[expect(dead_code, reason = "to quiet the warnings for now")]
     pub(crate) fn sequencer_height(&self) -> u64 {
         self.sequencer_height
     }
@@ -213,28 +219,33 @@ impl Current {
     /// Updates the `Current` with the given `executed_block`.
     /// This will fail if the `executed_block` does not match the `optimistic_block`'s sequencer
     /// block hash.
-    pub(crate) fn execute(&mut self, executed_block: Executed) -> eyre::Result<()> {
-        if executed_block.sequencer_block_hash() != self.optimistic.sequencer_block_hash() {
-            return Err(eyre!("block hash mismatch"));
+    pub(crate) fn execute(&mut self, executed_block: Executed) -> bool {
+        let executed_matches_optimistic =
+            executed_block.sequencer_block_hash() != self.optimistic.sequencer_block_hash();
+        if executed_matches_optimistic {
+            // TODO: What to do if we overwrote it (if we had already received an execute block
+            // with the same ID)? Emit a warning? Just overwrite?
+            let _ = self.executed.replace(executed_block);
         }
-
-        self.executed = Some(executed_block);
-        Ok(())
+        executed_matches_optimistic
     }
 
-    /// Updates the `Current` with the given `block_commitment`.
-    /// This will fail if the `block_commitment` does not match the `optimistic_block`'s sequencer
-    /// block hash.
-    pub(crate) fn commitment(&mut self, block_commitment: Commitment) -> eyre::Result<()> {
-        if block_commitment.sequencer_block_hash() != self.optimistic.sequencer_block_hash() {
-            return Err(eyre!("block hash mismatch"));
+    /// Updates the currently tracked block with the provided `block_commitment` if
+    /// the contained sequencer block hash matches that of the tracked block.
+    ///
+    /// Returns if the the block was updated.
+    pub(crate) fn commitment(&mut self, block_commitment: Commitment) -> bool {
+        let hashes_match =
+            block_commitment.sequencer_block_hash() == self.optimistic.sequencer_block_hash();
+        // TODO: Also checking the height seems excessive: just the block hash should be enough.
+        // if block_commitment.sequencer_height() != self.optimistic.sequencer_height() {
+        //     return Err(eyre!("block height mismatch"));
+        // }
+        if hashes_match {
+            // TODO: What to do if the block commitment was previously received?
+            let _ = self.commitment.replace(block_commitment);
         }
-        if block_commitment.sequencer_height() != self.optimistic.sequencer_height() {
-            return Err(eyre!("block height mismatch"));
-        }
-
-        self.commitment = Some(block_commitment);
-        Ok(())
+        hashes_match
     }
 
     pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
