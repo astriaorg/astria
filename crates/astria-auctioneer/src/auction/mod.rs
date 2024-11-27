@@ -50,7 +50,6 @@ use astria_core::{
         asset,
         RollupId,
     },
-    protocol::transaction::v1::Transaction,
 };
 use astria_eyre::eyre::{
     self,
@@ -60,7 +59,6 @@ use astria_eyre::eyre::{
 };
 pub(crate) use builder::Builder;
 use sequencer_client::{
-    tendermint_rpc::endpoint::broadcast::tx_sync,
     Address,
     SequencerClientExt,
 };
@@ -166,6 +164,7 @@ pub(crate) struct Auction {
 }
 
 impl Auction {
+    #[instrument(skip_all, fields(id = %self.id))]
     pub(crate) async fn run(mut self) -> eyre::Result<()> {
         let mut latency_margin_timer = None;
         // TODO: do we want to make this configurable to allow for more complex allocation rules?
@@ -254,25 +253,29 @@ impl Auction {
 
         let transaction = transaction_body.sign(self.sequencer_key.signing_key());
 
-        let submission_result = select! {
-            biased;
-
-            result = submit_transaction(self.sequencer_abci_client.clone(), transaction) => {
-                // TODO: how to handle submission failure better?
-                match result {
-                    Ok(resp) => {
-                        // TODO: handle failed submission instead of just logging the result
-                        info!(auction.id = %self.id, auction.result = %resp.log, "auction result submitted to sequencer");
-                        Ok(())
-                    },
-                    Err(e) => {
-                        error!(auction.id = %self.id, err = %e, "failed to submit auction result to sequencer");
-                        Err(e).wrap_err("failed to submit auction result to sequencer")
-                    },
-                }
+        // NOTE: Submit fire-and-forget style. If the submission didn't make it in time,
+        // it's likey lost.
+        // TODO: We can consider providing a very tight retry mechanism. Maybe resubmit once
+        // if the response didn't take too long? But it's probably a bad idea to even try.
+        match self
+            .sequencer_abci_client
+            .submit_transaction_sync(transaction)
+            .await
+            .wrap_err("submission of the auction failed; it's likely lost")
+        {
+            Ok(resp) => {
+                // TODO: provide tx_sync response hash? Does it have extra meaning?
+                info!(
+                    response.log = %resp.log,
+                    response.code = resp.code.value(),
+                    "auction winner submitted to sequencer",
+                );
             }
-        };
-        submission_result
+            Err(error) => {
+                error!(%error, "failed to submit auction winner to sequencer; it's likely lost");
+            }
+        }
+        Ok(())
     }
 }
 
@@ -320,42 +323,4 @@ async fn get_pending_nonce(
     .inner;
 
     Ok(nonce)
-}
-
-async fn submit_transaction(
-    client: sequencer_client::HttpClient,
-    transaction: Transaction,
-) -> eyre::Result<tx_sync::Response> {
-    let span = tracing::Span::current();
-    let retry_cfg = tryhard::RetryFutureConfig::new(1024)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(2))
-        .on_retry(
-            move |attempt: u32,
-                  next_delay: Option<Duration>,
-                  error: &sequencer_client::extension_trait::Error| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    parent: &span,
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn std::error::Error,
-                    "attempt to submit transaction failed; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
-    tryhard::retry_fn(|| {
-        let client = client.clone();
-        let transaction = transaction.clone();
-
-        async move { client.submit_transaction_sync(transaction).await }
-    })
-    .with_config(retry_cfg)
-    .in_current_span()
-    .await
-    .wrap_err("failed to submit transaction")
 }
