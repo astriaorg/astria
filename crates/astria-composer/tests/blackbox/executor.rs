@@ -208,7 +208,6 @@ async fn chain_id_mismatch_returns_error() {
     let test_composer = spawn_composer(&["test1"], Some(bad_chain_id), false).await;
     let err = test_composer.composer.await.unwrap().unwrap_err();
     for cause in err.chain() {
-        println!("{cause}");
         if cause.to_string().contains(&format!(
             "expected chain ID `{TEST_CHAIN_ID}`, but received `{bad_chain_id}`"
         )) {
