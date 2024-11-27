@@ -16,7 +16,6 @@ use tracing::{
     error,
     info,
     instrument,
-    warn,
 };
 
 use super::RunState;
@@ -67,10 +66,6 @@ impl Running {
 
     async fn handle_event(&mut self) -> eyre::Result<()> {
         select!(
-            Some((id, res)) = self.auctions.join_next() => {
-                res.wrap_err_with(|| format!("auction failed for block `{id}`"))?;
-            },
-
             res = self.optimistic_blocks.next() => {
                 let res = res.ok_or_eyre("optimistic block stream closed")?;
                 let _ = self.handle_optimistic_block(res);
@@ -86,11 +81,20 @@ impl Running {
                 let _ = self.handle_executed_block(res);
             }
 
+            Some(res) = self.auctions.next_winner() => {
+                let _ = self.handle_auction_winner(res);
+            }
+
             Some(res) = self.bundles.next() => {
                 let _ = self.handle_bundle(res);
             }
         );
         Ok(())
+    }
+
+    #[instrument(skip_all, err)]
+    fn handle_auction_winner(&self, res: eyre::Result<()>) -> eyre::Result<()> {
+        res
     }
 
     // #[instrument(skip(self), fields(auction.old_id =
@@ -170,21 +174,7 @@ impl Running {
             Ok(reason) => info!(%reason, message),
             Err(reason) => error!(%reason, message),
         };
-        let shutdown_auctions = async {
-            while let Some((id, res)) = self.auctions.join_next().await {
-                if let Err(error) = res {
-                    // FIXME: probide a display impl for this ID
-                    warn!(?id, %error, "auction ended with an error");
-                }
-            }
-        };
-        // NOTE: we don't care if this elapses. We will abort all auctions anyway
-        // and report if there were any still running.
-        let _ = tokio::time::timeout(WAIT_BEFORE_ABORT, shutdown_auctions).await;
-        let aborted = self.auctions.abort_all();
-        if aborted > 0 {
-            warn!("aborted `{aborted}` auctions still running after grace period",);
-        }
+        self.auctions.abort();
         reason.map(|_| RunState::Cancelled)
     }
 }

@@ -1,7 +1,5 @@
 /// The auction Manager is responsible for managing running auction futures and their
 /// associated handles.
-use std::collections::HashMap;
-
 use astria_core::{
     generated::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
     primitive::v1::{
@@ -12,13 +10,9 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    OptionExt as _,
     WrapErr as _,
 };
-use tokio_util::{
-    sync::CancellationToken,
-    task::JoinMap,
-};
+use tokio::task::JoinHandle;
 use tonic::transport::Channel;
 use tracing::{
     info,
@@ -28,8 +22,6 @@ use tracing::{
 
 use super::{
     Bundle,
-    Handle,
-    Id,
     SequencerKey,
 };
 use crate::{
@@ -39,7 +31,6 @@ use crate::{
 
 pub(crate) struct Builder {
     pub(crate) metrics: &'static crate::Metrics,
-    pub(crate) shutdown_token: CancellationToken,
 
     /// The gRPC endpoint for the sequencer service used by auctions.
     pub(crate) sequencer_grpc_client: SequencerServiceClient<Channel>,
@@ -63,7 +54,6 @@ impl Builder {
     pub(crate) fn build(self) -> eyre::Result<Manager> {
         let Self {
             metrics,
-            shutdown_token,
             sequencer_grpc_client,
             sequencer_abci_endpoint,
             latency_margin,
@@ -87,39 +77,44 @@ impl Builder {
 
         Ok(Manager {
             metrics,
-            cancellation_token: shutdown_token,
             sequencer_grpc_client,
             sequencer_abci_client,
             latency_margin,
-            running_auctions: JoinMap::new(),
-            auction_handles: HashMap::new(),
+            running_auction: None,
             sequencer_key,
             fee_asset_denomination,
             sequencer_chain_id,
             rollup_id,
-
-            current_block: None,
         })
     }
 }
 
+struct RunningAuction {
+    id: crate::auction::Id,
+    height: u64,
+    parent_block_of_executed: Option<[u8; 32]>,
+    // TODO: Rename this to AuctionSender or smth like that
+    sender: crate::auction::Handle,
+    task: JoinHandle<eyre::Result<()>>,
+}
+
+impl RunningAuction {
+    fn abort(&self) {
+        self.task.abort()
+    }
+}
+
 pub(crate) struct Manager {
-    metrics: &'static crate::Metrics,
-    cancellation_token: CancellationToken,
     sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
+    #[allow(dead_code)]
+    metrics: &'static crate::Metrics,
     sequencer_abci_client: sequencer_client::HttpClient,
     latency_margin: std::time::Duration,
-    // FIXME: Having a joinmap here is actually weird: if a new block arrives
-    // the old auction should always be nuked. Either the optimistic block was
-    // replaced (proposed block rejected), or a new block is being built (auctioneer
-    // failed to submit the winning allocation in time).
-    running_auctions: JoinMap<Id, eyre::Result<()>>,
-    auction_handles: HashMap<Id, Handle>,
+    running_auction: Option<RunningAuction>,
     sequencer_key: SequencerKey,
     fee_asset_denomination: asset::Denom,
     sequencer_chain_id: String,
     rollup_id: RollupId,
-    current_block: Option<crate::block::Current>,
 }
 
 impl Manager {
@@ -128,27 +123,27 @@ impl Manager {
     #[instrument(skip(self))]
     pub(crate) fn new_auction(&mut self, block: FilteredSequencerBlock) {
         let new_auction_id = crate::auction::Id::from_sequencer_block_hash(*block.block_hash());
+        let height = block.height().into();
 
-        if let Some(old_block) = self
-            .current_block
-            .replace(crate::block::Current::with_optimistic(block))
-        {
-            // TODO: Track the ID in the "current block" (or get rid of it altogether?)
-            let old_auction_id =
-                crate::auction::Id::from_sequencer_block_hash(old_block.sequencer_block_hash());
+        if let Some(running_auction) = self.running_auction.take() {
+            // NOTE: We just throw away the old auction after aborting it. Is there
+            // value in `.join`ing it after the abort except for ensuring that it
+            // did indeed abort? What if the running auction is not tracked inside
+            // the "auction manager", but the auction manager is turned into a simpler
+            // factory so that the running auction is running inside the auctioneer?
+            // Then the auctioneer would always have the previous/old auction and could
+            // decide what to do with it. That might make this a cleaner implementation.
+            let old_auction_id = running_auction.id;
             info!(
                 %new_auction_id,
                 %old_auction_id,
                 "received optimistic block, aborting old auction and starting new auction"
             );
 
-            // TODO: provide feedback if the auction didn't exist?;
-            let _ = self.abort_auction(old_auction_id);
+            running_auction.abort();
         }
 
         let (handle, auction) = super::Builder {
-            metrics: self.metrics,
-            cancellation_token: self.cancellation_token.child_token(),
             sequencer_grpc_client: self.sequencer_grpc_client.clone(),
             sequencer_abci_client: self.sequencer_abci_client.clone(),
             latency_margin: self.latency_margin,
@@ -160,33 +155,27 @@ impl Manager {
         }
         .build();
 
-        // spawn and save handle
-        self.running_auctions.spawn(new_auction_id, auction.run());
-        self.auction_handles.insert(new_auction_id, handle);
-    }
-
-    fn abort_auction(&mut self, auction_id: Id) -> eyre::Result<()> {
-        let handle = self
-            .auction_handles
-            .get(&auction_id)
-            .ok_or_eyre("unable to get handle for the given auction")?;
-        handle.cancel();
-        Ok(())
+        self.running_auction = Some(RunningAuction {
+            id: new_auction_id,
+            height,
+            parent_block_of_executed: None,
+            sender: handle,
+            task: tokio::task::spawn(auction.run()),
+        });
     }
 
     #[instrument(skip(self))]
     // pub(crate) fn start_timer(&mut self, auction_id: Id) -> eyre::Result<()> {
     pub(crate) fn start_timer(&mut self, block_commitment: Commitment) -> eyre::Result<()> {
-        let auction_id =
+        let id_according_to_block =
             crate::auction::Id::from_sequencer_block_hash(block_commitment.sequencer_block_hash());
 
-        if let Some(current_block) = &mut self.current_block {
-            if current_block.commitment(block_commitment) {
-                let handle = self
-                    .auction_handles
-                    .get_mut(&auction_id)
-                    .ok_or_eyre("unable to get handle for the given auction")?;
-                handle
+        if let Some(auction) = &mut self.running_auction {
+            if auction.id == id_according_to_block
+                && block_commitment.sequencer_height() == auction.height
+            {
+                auction
+                    .sender
                     .start_timer()
                     .wrap_err("failed to send command to start timer to auction")?;
             } else {
@@ -198,9 +187,8 @@ impl Manager {
                 // %base64(block_commitment.sequencer_block_hash()),     "received
                 // block commitment for the wrong block" );
                 info!(
-                    "not starting the auction timer because the sequencer block hash of the \
-                     commitment hash did not match
-                    not match that of the currently running auction"
+                    "not starting the auction timer because sequencer block hash and height of \
+                     the commitment did not match that of the running auction",
                 );
             }
         } else {
@@ -219,11 +207,20 @@ impl Manager {
         &mut self,
         block: crate::block::Executed,
     ) -> eyre::Result<()> {
-        let auction_id =
+        let id_according_to_block =
             crate::auction::Id::from_sequencer_block_hash(block.sequencer_block_hash());
 
-        if let Some(current_block) = &mut self.current_block {
-            if !current_block.execute(block) {
+        if let Some(auction) = &mut self.running_auction {
+            if auction.id == id_according_to_block {
+                // TODO: What if it was already set? Overwrite? Replace? Drop?
+                let _ = auction
+                    .parent_block_of_executed
+                    .replace(block.parent_rollup_block_hash());
+                auction
+                    .sender
+                    .start_processing_bids()
+                    .wrap_err("failed to send command to start processing bids")?;
+            } else {
                 // TODO: bring back the fields to track the dropped block and current block
                 // warn!(
                 //     // TODO: nicer display for the current block
@@ -239,15 +236,6 @@ impl Manager {
                      executed block from the rollup with a sequencer block hash that does not \
                      match that of the currently running auction; dropping the executed block"
                 );
-            } else {
-                let handle = self
-                    .auction_handles
-                    .get_mut(&auction_id)
-                    .ok_or_eyre("unable to get handle for the given auction")?;
-
-                handle
-                    .start_processing_bids()
-                    .wrap_err("failed to send command to start processing bids")?;
             }
         } else {
             info!(
@@ -259,13 +247,34 @@ impl Manager {
     }
 
     pub(crate) fn forward_bundle_to_auction(&mut self, bundle: Bundle) -> eyre::Result<()> {
-        let auction_id =
+        let id_according_to_bundle =
             crate::auction::Id::from_sequencer_block_hash(bundle.base_sequencer_block_hash());
-        if let Some(current_block) = &mut self.current_block {
-            if let Err(e) = current_block
-                .ensure_bundle_is_valid(&bundle)
-                .wrap_err("failed to handle bundle")
-            {
+        if let Some(auction) = &mut self.running_auction {
+            // TODO: remember to check the parent rollup block hash, i.e.:
+            //
+            // if let Some(bundle.rollup_parent_block_hash) =
+            // current_auction/block.parent_rollup_block_hash() {     ensure!(
+            //         bundle.parent_rollup_block_hash() == rollup_parent_block_hash,
+            //         "bundle's rollup parent block hash {bundle_hash} does not match current
+            // rollup \          parent block hash {current_hash}",
+            //         bundle_hash = base64(bundle.parent_rollup_block_hash()),
+            //         current_hash = base64(rollup_parent_block_hash)
+            //     );
+            // }
+            let Some(parent_block_of_executed) = auction.parent_block_of_executed else {
+                eyre::bail!(
+                    "received a new bundle but the current auction has not yet
+                    received an execute block from the rollup; dropping the bundle"
+                );
+            };
+            let ids_match = auction.id == id_according_to_bundle;
+            let parent_blocks_match = parent_block_of_executed == bundle.parent_rollup_block_hash();
+            if ids_match && parent_blocks_match {
+                auction
+                    .sender
+                    .try_send_bundle(bundle)
+                    .wrap_err("failed to add bundle to auction")?;
+            } else {
                 warn!(
                     // TODO: Add these fields back in. Is it even necessary to return the error?
                     // Can't we just fire the event here? necessary?
@@ -277,13 +286,7 @@ impl Manager {
                     // %base64(bundle.parent_rollup_block_hash()),
                     "incoming bundle does not match current block, ignoring"
                 );
-                return Err(e);
-            } else {
-                self.auction_handles
-                    .get_mut(&auction_id)
-                    .ok_or_eyre("unable to get handle for the given auction")?
-                    .try_send_bundle(bundle)
-                    .wrap_err("failed to add bundle to auction")?;
+                eyre::bail!("auction ID and ID according to bundle don't match");
             }
         } else {
             info!(
@@ -294,22 +297,15 @@ impl Manager {
         Ok(())
     }
 
-    pub(crate) async fn join_next(&mut self) -> Option<(Id, eyre::Result<()>)> {
-        if let Some((auction_id, result)) = self.running_auctions.join_next().await {
-            // TODO: get rid of this expect somehow
-            self.auction_handles
-                .remove(&auction_id)
-                .expect("handle should always exist for running auction");
-
-            Some((auction_id, flatten_join_result(result)))
-        } else {
-            None
-        }
+    pub(crate) async fn next_winner(&mut self) -> Option<eyre::Result<()>> {
+        let auction = self.running_auction.as_mut()?;
+        Some(flatten_join_result((&mut auction.task).await))
     }
 
-    pub(crate) fn abort_all(&mut self) -> usize {
-        let number_of_live_auctions = self.running_auctions.len();
-        self.running_auctions.abort_all();
-        number_of_live_auctions
+    pub(crate) fn abort(&mut self) {
+        // TODO: Do we need to wait for it to finish?
+        if let Some(auction) = self.running_auction.take() {
+            auction.abort()
+        }
     }
 }
