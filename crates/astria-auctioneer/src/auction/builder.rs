@@ -8,7 +8,6 @@ use astria_core::{
     },
 };
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 
 use super::{
     Auction,
@@ -16,12 +15,7 @@ use super::{
     Id,
     SequencerKey,
 };
-use crate::Metrics;
-
 pub(crate) struct Builder {
-    pub(crate) metrics: &'static Metrics,
-    pub(crate) cancellation_token: CancellationToken,
-
     /// The endpoint for the sequencer gRPC service used to get pending nonces
     pub(crate) sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
     /// The endpoint for the sequencer ABCI service used to submit transactions
@@ -44,8 +38,6 @@ pub(crate) struct Builder {
 impl Builder {
     pub(crate) fn build(self) -> (Handle, Auction) {
         let Self {
-            metrics,
-            cancellation_token,
             sequencer_grpc_client,
             sequencer_abci_client,
             latency_margin,
@@ -61,8 +53,6 @@ impl Builder {
         let (new_bundles_tx, new_bundles_rx) = mpsc::channel(16);
 
         let auction = Auction {
-            metrics,
-            cancellation_token: cancellation_token.clone(),
             sequencer_grpc_client,
             sequencer_abci_client,
             commands_rx,
@@ -77,7 +67,6 @@ impl Builder {
 
         (
             Handle {
-                cancellation_token,
                 commands_tx,
                 new_bundles_tx,
             },

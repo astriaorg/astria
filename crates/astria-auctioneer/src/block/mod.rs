@@ -21,15 +21,11 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    ensure,
     eyre,
     Context,
 };
 use bytes::Bytes;
 use prost::Message as _;
-use telemetry::display::base64;
-
-use crate::bundle::Bundle;
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
 fn convert_tendermint_time_to_protobuf_timestamp(
@@ -98,16 +94,6 @@ impl Optimistic {
             timestamp,
         })
     }
-
-    pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
-        *self.filtered_sequencer_block.block_hash()
-    }
-
-    // TODO: Actually consider removing this because the height seems superfluouos.
-    #[expect(dead_code, reason = "to quiet the warnings for now")]
-    pub(crate) fn sequencer_height(&self) -> u64 {
-        self.filtered_sequencer_block.height().into()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -151,15 +137,6 @@ impl Executed {
             .try_into()
             .expect("rollup block hash must be 32 bytes")
     }
-
-    // TODO: consider removing this
-    // pub(crate) fn rollup_block_hash(&self) -> [u8; 32] {
-    //     self.block
-    //         .hash()
-    //         .as_ref()
-    //         .try_into()
-    //         .expect("rollup block hash must be 32 bytes")
-    // }
 }
 
 #[derive(Debug, Clone)]
@@ -191,93 +168,7 @@ impl Commitment {
     }
 
     /// The height of the sequencer block that was committed.
-    // TODO: Actually consider removing this because the height seems superfluouos.
-    #[expect(dead_code, reason = "to quiet the warnings for now")]
     pub(crate) fn sequencer_height(&self) -> u64 {
         self.sequencer_height
-    }
-}
-
-pub(crate) struct Current {
-    optimistic: Optimistic,
-    executed: Option<Executed>,
-    commitment: Option<Commitment>,
-}
-
-impl Current {
-    /// Creates a new `Current` with the given `optimistic_block`.
-    pub(crate) fn with_optimistic(filtered_sequencer_block: FilteredSequencerBlock) -> Self {
-        Self {
-            optimistic: Optimistic {
-                filtered_sequencer_block,
-            },
-            executed: None,
-            commitment: None,
-        }
-    }
-
-    /// Updates the `Current` with the given `executed_block`.
-    /// This will fail if the `executed_block` does not match the `optimistic_block`'s sequencer
-    /// block hash.
-    pub(crate) fn execute(&mut self, executed_block: Executed) -> bool {
-        let executed_matches_optimistic =
-            executed_block.sequencer_block_hash() != self.optimistic.sequencer_block_hash();
-        if executed_matches_optimistic {
-            // TODO: What to do if we overwrote it (if we had already received an execute block
-            // with the same ID)? Emit a warning? Just overwrite?
-            let _ = self.executed.replace(executed_block);
-        }
-        executed_matches_optimistic
-    }
-
-    /// Updates the currently tracked block with the provided `block_commitment` if
-    /// the contained sequencer block hash matches that of the tracked block.
-    ///
-    /// Returns if the the block was updated.
-    pub(crate) fn commitment(&mut self, block_commitment: Commitment) -> bool {
-        let hashes_match =
-            block_commitment.sequencer_block_hash() == self.optimistic.sequencer_block_hash();
-        // TODO: Also checking the height seems excessive: just the block hash should be enough.
-        // if block_commitment.sequencer_height() != self.optimistic.sequencer_height() {
-        //     return Err(eyre!("block height mismatch"));
-        // }
-        if hashes_match {
-            // TODO: What to do if the block commitment was previously received?
-            let _ = self.commitment.replace(block_commitment);
-        }
-        hashes_match
-    }
-
-    pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
-        self.optimistic.sequencer_block_hash()
-    }
-
-    pub(crate) fn parent_rollup_block_hash(&self) -> Option<[u8; 32]> {
-        self.executed
-            .as_ref()
-            .map(Executed::parent_rollup_block_hash)
-    }
-
-    /// Ensures that the given `bundle` is valid for the current block state.
-    pub(crate) fn ensure_bundle_is_valid(&self, bundle: &Bundle) -> eyre::Result<()> {
-        ensure!(
-            bundle.base_sequencer_block_hash() == self.sequencer_block_hash(),
-            "incoming bundle's sequencer block hash {bundle_hash} does not match current \
-             sequencer block hash {current_hash}",
-            bundle_hash = base64(bundle.base_sequencer_block_hash()),
-            current_hash = base64(self.sequencer_block_hash())
-        );
-
-        if let Some(rollup_parent_block_hash) = self.parent_rollup_block_hash() {
-            ensure!(
-                bundle.parent_rollup_block_hash() == rollup_parent_block_hash,
-                "bundle's rollup parent block hash {bundle_hash} does not match current rollup \
-                 parent block hash {current_hash}",
-                bundle_hash = base64(bundle.parent_rollup_block_hash()),
-                current_hash = base64(rollup_parent_block_hash)
-            );
-        }
-
-        Ok(())
     }
 }

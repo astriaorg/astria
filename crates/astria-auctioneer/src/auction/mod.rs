@@ -68,7 +68,6 @@ use tokio::{
     select,
     sync::mpsc,
 };
-use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
     error,
@@ -81,7 +80,6 @@ use tracing::{
 use crate::{
     bundle::Bundle,
     sequencer_key::SequencerKey,
-    Metrics,
 };
 
 pub(crate) mod manager;
@@ -115,16 +113,11 @@ enum Command {
 }
 
 pub(crate) struct Handle {
-    cancellation_token: CancellationToken,
     commands_tx: mpsc::Sender<Command>,
     new_bundles_tx: mpsc::Sender<Bundle>,
 }
 
 impl Handle {
-    pub(crate) fn cancel(&self) {
-        self.cancellation_token.cancel();
-    }
-
     pub(crate) fn start_processing_bids(&mut self) -> eyre::Result<()> {
         self.commands_tx
             .try_send(Command::StartProcessingBids)
@@ -150,10 +143,6 @@ impl Handle {
 }
 
 pub(crate) struct Auction {
-    #[allow(dead_code)]
-    metrics: &'static Metrics,
-    cancellation_token: CancellationToken,
-
     /// The sequencer's gRPC client, used for fetching pending nonces
     sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
     /// The sequencer's ABCI client, used for submitting transactions
@@ -189,8 +178,6 @@ impl Auction {
             select! {
                 biased;
 
-                () = self.cancellation_token.cancelled() => break Err(eyre!("received shutdown signal")),
-
                 // get the auction winner when the timer expires
                 _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
                     break Ok(allocation_rule.winner());
@@ -216,7 +203,7 @@ impl Auction {
                             nonce_fetch = {
                                 let client = self.sequencer_grpc_client.clone();
                                 let &address = self.sequencer_key.address();
-                                Some(tokio::task::spawn(async move { get_pending_nonce(client, address, self.metrics).await }))
+                                Some(tokio::task::spawn(async move { get_pending_nonce(client, address).await }))
                             };
                         }
                     }
@@ -270,10 +257,7 @@ impl Auction {
         let submission_result = select! {
             biased;
 
-            // TODO: should this be Ok(())? or Ok("received shutdown signal")?
-            () = self.cancellation_token.cancelled() => Err(eyre!("received shutdown signal during auction result submission")),
-
-            result = submit_transaction(self.sequencer_abci_client.clone(), transaction, self.metrics) => {
+            result = submit_transaction(self.sequencer_abci_client.clone(), transaction) => {
                 // TODO: how to handle submission failure better?
                 match result {
                     Ok(resp) => {
@@ -296,8 +280,6 @@ impl Auction {
 async fn get_pending_nonce(
     client: SequencerServiceClient<tonic::transport::Channel>,
     address: Address,
-    // TODO: emit metrics here
-    #[allow(unused_variables)] metrics: &'static Metrics,
 ) -> eyre::Result<u32> {
     let span = tracing::Span::current();
     let retry_cfg = tryhard::RetryFutureConfig::new(1024)
@@ -343,8 +325,6 @@ async fn get_pending_nonce(
 async fn submit_transaction(
     client: sequencer_client::HttpClient,
     transaction: Transaction,
-    // TODO: emit metrics here
-    #[allow(unused_variables)] metrics: &'static Metrics,
 ) -> eyre::Result<tx_sync::Response> {
     let span = tracing::Span::current();
     let retry_cfg = tryhard::RetryFutureConfig::new(1024)
