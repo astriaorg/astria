@@ -272,32 +272,14 @@ impl Composer {
             wait_for_collectors(&geth_collector_statuses, composer_status_sender.clone());
         let executor_startup_fut = wait_for_executor(executor_status, composer_status_sender);
 
-        let startup_success = match join!(collectors_startup_fut, executor_startup_fut) {
-            (Ok(()), Ok(())) => true,
-            (Err(e), _) => {
-                error!(%e, "geth collectors failed to become ready");
-                let _ = exit_err.set(e);
-                false
-            }
-            (_, Err(e)) => {
-                error!(%e, "executor failed to become ready");
-                let _ = exit_err.set(e);
-                false
+        match join!(collectors_startup_fut, executor_startup_fut) {
+            (Ok(()), Ok(())) => {}
+            (Err(e), Ok(())) => error!(%e, "geth collectors failed to become ready"),
+            (Ok(()), Err(e)) => error!(%e, "executor failed to become ready"),
+            (Err(collector_err), Err(executor_err)) => {
+                error!(%collector_err, %executor_err, "geth collectors and executor failed to become ready");
             }
         };
-
-        if !startup_success {
-            return ShutdownInfo {
-                api_server_shutdown_token,
-                composer_shutdown_token: shutdown_token,
-                api_server_task_handle: Some(api_task),
-                executor_task_handle: Some(executor_task),
-                grpc_server_task_handle: None,
-                geth_collector_tasks,
-            }
-            .run()
-            .await;
-        }
 
         // run the grpc server
         let mut grpc_server_handle = tokio::spawn(async move {
