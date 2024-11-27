@@ -1,3 +1,4 @@
+pub use astria_core_crypto as crypto;
 pub use pbjson_types::Timestamp;
 use prost::Name;
 
@@ -13,10 +14,7 @@ compile_error!(
     reason = "cannot prevent allow attributes in generated files"
 )]
 pub mod generated;
-
 pub mod connect;
-pub mod crypto;
-pub mod display;
 pub mod execution;
 pub mod primitive;
 pub mod protocol;
