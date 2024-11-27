@@ -189,7 +189,7 @@ pub mod v2 {
         ParseQuote { source: ParseQuoteError },
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CurrencyPair {
         base: Base,
         quote: Quote,
@@ -335,7 +335,7 @@ pub mod v2 {
         }
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CurrencyPairId(u64);
 
     impl std::fmt::Display for CurrencyPairId {
