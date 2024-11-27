@@ -88,6 +88,7 @@ pub(crate) struct Startup {
 
 impl Startup {
     pub(crate) async fn startup(self) -> eyre::Result<Running> {
+        info!("BHARATH: Starting Optimistic Executor");
         let Self {
             metrics,
             shutdown_token,
@@ -97,11 +98,13 @@ impl Startup {
             auctions,
         } = self;
 
+        info!("BHARATH: Connecting to executed block stream!");
         let (execution_stream_handle, executed_blocks) =
             ExecutedBlockStream::connect(rollup_id, rollup_grpc_endpoint.clone())
                 .await
                 .wrap_err("failed to initialize executed block stream")?;
 
+        info!("BHARATH: Connecting to optimistic block client!");
         let sequencer_client = OptimisticBlockClient::new(&sequencer_grpc_endpoint)
             .wrap_err("failed to initialize sequencer grpc client")?;
         let mut optimistic_blocks = OptimisticBlockStream::connect(
@@ -112,14 +115,17 @@ impl Startup {
         .await
         .wrap_err("failed to initialize optimsitic block stream")?;
 
+        info!("BHARATH: Connecting to block commitment stream!");
         let block_commitments = BlockCommitmentStream::connect(sequencer_client)
             .await
             .wrap_err("failed to initialize block commitment stream")?;
 
+        info!("BHARATH: Connecting to bundle stream!");
         let bundle_stream = BundleStream::connect(rollup_grpc_endpoint)
             .await
             .wrap_err("failed to initialize bundle stream")?;
 
+        info!("BHARATH: Getting optimistic block during startup!");
         let optimistic_block = optimistic_blocks
             .next()
             .await
@@ -156,6 +162,7 @@ pub(crate) struct Running {
 impl Running {
     pub(crate) async fn run(mut self) -> eyre::Result<()> {
         let reason: eyre::Result<&str> = {
+            info!("BHARATH: Running Optimistic Executor");
             // This is a long running loop. Errors are emitted inside the handlers.
             loop {
                 select! {
@@ -235,6 +242,7 @@ impl Running {
         &mut self,
         block_commitment: eyre::Result<block::Commitment>,
     ) -> eyre::Result<()> {
+        info!("BHARATH: Handling block commitment: {}", );
         let block_commitment = block_commitment.wrap_err("failed to receive block commitment")?;
 
         if let Err(e) = self.current_block.commitment(block_commitment.clone()) {

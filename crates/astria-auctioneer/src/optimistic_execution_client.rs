@@ -1,4 +1,5 @@
 use std::time::Duration;
+use futures::StreamExt;
 
 use astria_core::{
     generated::bundle::v1alpha1::{

@@ -64,7 +64,7 @@ impl OptimisticBlockClient {
         let retry_cfg = make_retry_cfg("stream optimistic blocks".into(), span);
         let client = self.inner.clone();
 
-        let stream = tryhard::retry_fn(|| {
+        let mut stream = tryhard::retry_fn(|| {
             let mut client = client.clone();
             let req = GetOptimisticBlockStreamRequest {
                 rollup_id: Some(rollup_id.into_raw()),
