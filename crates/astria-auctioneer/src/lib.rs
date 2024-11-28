@@ -10,6 +10,7 @@ pub(crate) mod metrics;
 mod rollup_channel;
 mod sequencer_channel;
 mod sequencer_key;
+mod streaming_utils;
 
 use astria_eyre::{
     eyre,
