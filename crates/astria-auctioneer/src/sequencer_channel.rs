@@ -4,16 +4,16 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::{
-        optimisticblock::v1alpha1::{
-            GetBlockCommitmentStreamRequest,
-            GetBlockCommitmentStreamResponse,
-            GetOptimisticBlockStreamRequest,
-            GetOptimisticBlockStreamResponse,
-        },
-        v1::sequencer_service_client::SequencerServiceClient,
+    generated::sequencerblock::optimisticblock::v1alpha1::{
+        GetBlockCommitmentStreamRequest,
+        GetBlockCommitmentStreamResponse,
+        GetOptimisticBlockStreamRequest,
+        GetOptimisticBlockStreamResponse,
     },
-    primitive::v1::RollupId,
+    primitive::v1::{
+        Address,
+        RollupId,
+    },
     sequencerblock::v1::block::FilteredSequencerBlock,
     Protobuf as _,
 };
@@ -23,6 +23,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use futures::{
+    Future,
     Stream,
     StreamExt as _,
 };
@@ -32,7 +33,7 @@ use tonic::transport::Channel;
 use crate::block::Commitment;
 
 pub(crate) fn open(endpoint: &str) -> eyre::Result<SequencerChannel> {
-    SequencerChannel::create(&endpoint)
+    SequencerChannel::create(endpoint)
         .wrap_err_with(|| format!("failed to create a gRPC channel to Sequencer at `{endpoint}`"))
 }
 
@@ -54,8 +55,27 @@ impl SequencerChannel {
         })
     }
 
-    pub(crate) fn to_sequencer_service_client(&self) -> SequencerServiceClient<Channel> {
-        SequencerServiceClient::new(self.inner.clone())
+    pub(crate) fn get_pending_nonce(
+        &self,
+        address: Address,
+    ) -> impl Future<Output = eyre::Result<u32>> {
+        use astria_core::generated::sequencerblock::v1::{
+            sequencer_service_client::SequencerServiceClient,
+            GetPendingNonceRequest,
+        };
+
+        let mut client = SequencerServiceClient::new(self.inner.clone());
+        async move {
+            let nonce = client
+                .get_pending_nonce(GetPendingNonceRequest {
+                    address: Some(address.into_raw()),
+                })
+                .await
+                .wrap_err("failed to fetch most recent pending nonce")?
+                .into_inner()
+                .inner;
+            Ok(nonce)
+        }
     }
 
     pub(crate) async fn open_get_block_commitment_stream(

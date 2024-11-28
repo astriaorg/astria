@@ -41,15 +41,9 @@ mod builder;
 use std::time::Duration;
 
 use allocation_rule::FirstPrice;
-use astria_core::{
-    generated::sequencerblock::v1::{
-        sequencer_service_client::SequencerServiceClient,
-        GetPendingNonceRequest,
-    },
-    primitive::v1::{
-        asset,
-        RollupId,
-    },
+use astria_core::primitive::v1::{
+    asset,
+    RollupId,
 };
 use astria_eyre::eyre::{
     self,
@@ -58,10 +52,7 @@ use astria_eyre::eyre::{
     OptionExt as _,
 };
 pub(crate) use builder::Builder;
-use sequencer_client::{
-    Address,
-    SequencerClientExt,
-};
+use sequencer_client::SequencerClientExt;
 use tokio::{
     select,
     sync::mpsc,
@@ -71,11 +62,10 @@ use tracing::{
     error,
     info,
     instrument,
-    warn,
-    Instrument,
 };
 
 use crate::{
+    auctioneer::PendingNonceSubscriber,
     bundle::Bundle,
     sequencer_key::SequencerKey,
 };
@@ -141,8 +131,6 @@ impl Handle {
 }
 
 pub(crate) struct Auction {
-    /// The sequencer's gRPC client, used for fetching pending nonces
-    sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
     /// The sequencer's ABCI client, used for submitting transactions
     sequencer_abci_client: sequencer_client::HttpClient,
     /// Channel for receiving commands sent via the handle
@@ -161,6 +149,7 @@ pub(crate) struct Auction {
     sequencer_chain_id: String,
     /// Rollup ID to submit the auction result to
     rollup_id: RollupId,
+    pending_nonce: PendingNonceSubscriber,
 }
 
 impl Auction {
@@ -170,8 +159,6 @@ impl Auction {
         // TODO: do we want to make this configurable to allow for more complex allocation rules?
         let mut allocation_rule = FirstPrice::new();
         let mut auction_is_open = false;
-
-        let mut nonce_fetch: Option<tokio::task::JoinHandle<eyre::Result<u32>>> = None;
 
         let auction_result = loop {
             select! {
@@ -197,13 +184,6 @@ impl Auction {
 
                             // set the timer
                             latency_margin_timer = Some(tokio::time::sleep(self.latency_margin));
-
-                            // we wait for commit because we want the pending nonce from the committed block
-                            nonce_fetch = {
-                                let client = self.sequencer_grpc_client.clone();
-                                let &address = self.sequencer_key.address();
-                                Some(tokio::task::spawn(async move { get_pending_nonce(client, address).await }))
-                            };
                         }
                     }
                 }
@@ -227,24 +207,12 @@ impl Auction {
             }
         };
 
-        // TODO: separate the rest of this to a different object, e.g. AuctionResult?
-        // TODO: flatten this or get rid of the option somehow?
-        // await the nonce fetch result
-        let nonce = nonce_fetch
-            .expect(
-                "should have received commit and fetched pending nonce before exiting the auction \
-                 loop",
-            )
-            .await
-            .wrap_err("get_pending_nonce task failed")?
-            .wrap_err("failed to fetch nonce")?;
-
-        // serialize, sign and submit to the sequencer
+        // TODO: report the pending nonce that we ended up using.
         let transaction_body = auction_result
             .wrap_err("auction failed unexpectedly")?
             .ok_or_eyre("auction ended with no winning bid")?
             .into_transaction_body(
-                nonce,
+                self.pending_nonce.get(),
                 self.rollup_id,
                 self.sequencer_key.clone(),
                 self.fee_asset_denomination.clone(),
@@ -257,6 +225,9 @@ impl Auction {
         // it's likey lost.
         // TODO: We can consider providing a very tight retry mechanism. Maybe resubmit once
         // if the response didn't take too long? But it's probably a bad idea to even try.
+        // Can we detect if a submission failed due to a bad nonce? In this case, we could
+        // immediately ("optimistically") submit with the most recent pending nonce (if the
+        // publisher updated it in the meantime) or just nonce + 1 (if it didn't yet update)?
         match self
             .sequencer_abci_client
             .submit_transaction_sync(transaction)
@@ -277,50 +248,4 @@ impl Auction {
         }
         Ok(())
     }
-}
-
-#[instrument(skip_all, fields(%address, err))]
-async fn get_pending_nonce(
-    client: SequencerServiceClient<tonic::transport::Channel>,
-    address: Address,
-) -> eyre::Result<u32> {
-    let span = tracing::Span::current();
-    let retry_cfg = tryhard::RetryFutureConfig::new(1024)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(2))
-        .on_retry(
-            move |attempt: u32, next_delay: Option<Duration>, error: &tonic::Status| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    parent: &span,
-                    attempt,
-                    wait_duration,
-                    error = error as &dyn std::error::Error,
-                    "attempt to get pending nonce failed; retrying after backoff",
-                );
-                futures::future::ready(())
-            },
-        );
-
-    let nonce = tryhard::retry_fn(|| {
-        let mut client = client.clone();
-
-        async move {
-            client
-                .get_pending_nonce(GetPendingNonceRequest {
-                    address: Some(address.into_raw()),
-                })
-                .await
-        }
-    })
-    .with_config(retry_cfg)
-    .in_current_span()
-    .await
-    .wrap_err("failed to get pending nonce")?
-    .into_inner()
-    .inner;
-
-    Ok(nonce)
 }
