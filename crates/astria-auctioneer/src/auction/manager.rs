@@ -1,7 +1,6 @@
 /// The auction Manager is responsible for managing running auction futures and their
 /// associated handles.
 use astria_core::{
-    generated::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
     primitive::v1::{
         asset,
         RollupId,
@@ -13,7 +12,6 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use tokio::task::JoinHandle;
-use tonic::transport::Channel;
 use tracing::{
     info,
     instrument,
@@ -25,6 +23,7 @@ use super::{
     SequencerKey,
 };
 use crate::{
+    auctioneer::PendingNonceSubscriber,
     block::Commitment,
     flatten_join_result,
 };
@@ -32,44 +31,33 @@ use crate::{
 pub(crate) struct Builder {
     pub(crate) metrics: &'static crate::Metrics,
 
-    /// The gRPC endpoint for the sequencer service used by auctions.
-    pub(crate) sequencer_grpc_client: SequencerServiceClient<Channel>,
     /// The ABCI endpoint for the sequencer service used by auctions.
     pub(crate) sequencer_abci_endpoint: String,
     /// The amount of time to run the auction timer for.
     pub(crate) latency_margin: std::time::Duration,
     /// The private key used to sign sequencer transactions.
-    pub(crate) sequencer_private_key_path: String,
-    /// The prefix for the address used to sign sequencer transactions
-    pub(crate) sequencer_address_prefix: String,
+    pub(crate) sequencer_key: SequencerKey,
     /// The denomination of the fee asset used in the sequencer transactions
     pub(crate) fee_asset_denomination: asset::Denom,
     /// The chain ID for sequencer transactions
     pub(crate) sequencer_chain_id: String,
     /// The rollup ID for the `RollupDataSubmission`s with auction results
     pub(crate) rollup_id: RollupId,
+    pub(crate) pending_nonce: PendingNonceSubscriber,
 }
 
 impl Builder {
     pub(crate) fn build(self) -> eyre::Result<Manager> {
         let Self {
             metrics,
-            sequencer_grpc_client,
             sequencer_abci_endpoint,
             latency_margin,
             fee_asset_denomination,
             rollup_id,
-            sequencer_private_key_path,
-            sequencer_address_prefix,
+            sequencer_key,
             sequencer_chain_id,
+            pending_nonce,
         } = self;
-
-        let sequencer_key = SequencerKey::builder()
-            .path(sequencer_private_key_path)
-            .prefix(sequencer_address_prefix)
-            .try_build()
-            .wrap_err("failed to load sequencer private key")?;
-        info!(address = %sequencer_key.address(), "loaded sequencer signer");
 
         let sequencer_abci_client =
             sequencer_client::HttpClient::new(sequencer_abci_endpoint.as_str())
@@ -77,7 +65,6 @@ impl Builder {
 
         Ok(Manager {
             metrics,
-            sequencer_grpc_client,
             sequencer_abci_client,
             latency_margin,
             running_auction: None,
@@ -85,6 +72,7 @@ impl Builder {
             fee_asset_denomination,
             sequencer_chain_id,
             rollup_id,
+            pending_nonce,
         })
     }
 }
@@ -105,7 +93,6 @@ impl RunningAuction {
 }
 
 pub(crate) struct Manager {
-    sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
     #[allow(dead_code)]
     metrics: &'static crate::Metrics,
     sequencer_abci_client: sequencer_client::HttpClient,
@@ -115,6 +102,7 @@ pub(crate) struct Manager {
     fee_asset_denomination: asset::Denom,
     sequencer_chain_id: String,
     rollup_id: RollupId,
+    pending_nonce: PendingNonceSubscriber,
 }
 
 impl Manager {
@@ -144,7 +132,6 @@ impl Manager {
         }
 
         let (handle, auction) = super::Builder {
-            sequencer_grpc_client: self.sequencer_grpc_client.clone(),
             sequencer_abci_client: self.sequencer_abci_client.clone(),
             latency_margin: self.latency_margin,
             auction_id: new_auction_id,
@@ -152,6 +139,7 @@ impl Manager {
             fee_asset_denomination: self.fee_asset_denomination.clone(),
             sequencer_chain_id: self.sequencer_chain_id.clone(),
             rollup_id: self.rollup_id,
+            pending_nonce: self.pending_nonce.clone(),
         }
         .build();
 

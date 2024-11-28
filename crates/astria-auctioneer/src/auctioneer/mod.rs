@@ -18,6 +18,7 @@ use crate::{
 };
 
 mod inner;
+pub(crate) use inner::PendingNonceSubscriber;
 
 /// The [`Auctioneer`] service returned by [`Auctioneer::spawn`].
 pub struct Auctioneer {

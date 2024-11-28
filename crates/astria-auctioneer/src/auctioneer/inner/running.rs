@@ -1,21 +1,36 @@
-use std::time::Duration;
+use std::{
+    self,
+    time::Duration,
+};
 
 use astria_core::{
-    primitive::v1::RollupId,
+    primitive::v1::{
+        Address,
+        RollupId,
+    },
     sequencerblock::v1::block::FilteredSequencerBlock,
 };
 use astria_eyre::eyre::{
     self,
+    bail,
     OptionExt as _,
     WrapErr as _,
 };
-use futures::StreamExt as _;
-use tokio::select;
+use futures::{
+    Future,
+    StreamExt as _,
+};
+use tokio::{
+    select,
+    task::JoinHandle,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{
     error,
     info,
+    info_span,
     instrument,
+    warn,
 };
 
 use super::RunState;
@@ -27,8 +42,88 @@ use crate::{
     sequencer_channel::{
         BlockCommitmentStream,
         OptimisticBlockStream,
+        SequencerChannel,
     },
 };
+
+#[derive(Clone, Debug)]
+pub(crate) struct PendingNonceSubscriber {
+    inner: tokio::sync::watch::Receiver<u32>,
+}
+
+impl PendingNonceSubscriber {
+    pub(crate) fn get(&self) -> u32 {
+        *self.inner.borrow()
+    }
+}
+
+/// Fetches the latest pending nonce for a given address every 500ms.
+// TODO: should this provide some kind of feedback mechanism from the
+// auction submission? Automatic incrementing for example? Notificatoin
+// that the nonce was actually bad?
+pub(crate) struct PendingNoncePublisher {
+    sender: tokio::sync::watch::Sender<u32>,
+    task: JoinHandle<()>,
+}
+
+impl PendingNoncePublisher {
+    pub(crate) fn subscribe(&self) -> PendingNonceSubscriber {
+        PendingNonceSubscriber {
+            inner: self.sender.subscribe(),
+        }
+    }
+
+    pub(crate) fn new(channel: SequencerChannel, address: Address) -> Self {
+        use tokio::time::{
+            timeout_at,
+            MissedTickBehavior,
+        };
+        // TODO: make this configurable. Right now they assume a Sequencer block time of 2s,
+        // so this is fetching nonce up to 4 times a block.
+        const FETCH_INTERVAL: Duration = Duration::from_millis(500);
+        const FETCH_TIMEOUT: Duration = FETCH_INTERVAL.saturating_mul(2);
+        let (tx, _) = tokio::sync::watch::channel(0);
+        Self {
+            sender: tx.clone(),
+            task: tokio::task::spawn(async move {
+                let mut interval = tokio::time::interval(FETCH_INTERVAL);
+                interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+                let mut fetch = None;
+                loop {
+                    select!(
+                        instant = interval.tick(), if fetch.is_none() => {
+                            fetch = Some(Box::pin(
+                                timeout_at(instant + FETCH_TIMEOUT, channel.get_pending_nonce(address))));
+                        }
+                        res = async { fetch.as_mut().unwrap().await }, if fetch.is_some() => {
+                            fetch.take();
+                            let span = info_span!("fetch pending nonce");
+                            match res.map_err(eyre::Report::new) {
+                                Ok(Ok(nonce)) => {
+                                    info!(nonce, %address, "received new pending from sequencer");
+                                    tx.send_replace(nonce);
+                                }
+                                Ok(Err(error)) | Err(error) => span.in_scope(|| warn!(%error, "failed fetching pending nonce")),
+                            }
+                        }
+                    )
+                }
+            }),
+        }
+    }
+}
+
+impl Future for PendingNoncePublisher {
+    type Output = Result<(), tokio::task::JoinError>;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        use futures::FutureExt as _;
+        self.task.poll_unpin(cx)
+    }
+}
 
 pub(super) struct Running {
     pub(super) auctions: crate::auction::Manager,
@@ -36,6 +131,7 @@ pub(super) struct Running {
     pub(super) bundles: BundleStream,
     pub(super) executed_blocks: ExecuteOptimisticBlockStream,
     pub(super) optimistic_blocks: OptimisticBlockStream,
+    pub(super) pending_nonce: PendingNoncePublisher,
     pub(super) rollup_id: RollupId,
     pub(super) shutdown_token: CancellationToken,
 }
@@ -88,6 +184,13 @@ impl Running {
             Some(res) = self.bundles.next() => {
                 let _ = self.handle_bundle(res);
             }
+
+            res = &mut self.pending_nonce => {
+                match res {
+                    Ok(()) => bail!("endless pending nonce publisher task exicted unexpectedly"),
+                    Err(err) => return Err(err).wrap_err("pending nonce publisher task panicked"),
+                }
+             }
         );
         Ok(())
     }

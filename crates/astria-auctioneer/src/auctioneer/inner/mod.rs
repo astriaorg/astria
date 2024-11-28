@@ -12,6 +12,8 @@ use crate::{
 mod running;
 mod starting;
 
+// TODO: Don't export this all the way out of this module
+pub(crate) use running::PendingNonceSubscriber;
 use running::Running;
 use starting::Starting;
 

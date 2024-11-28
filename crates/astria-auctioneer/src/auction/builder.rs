@@ -1,11 +1,8 @@
 use std::time::Duration;
 
-use astria_core::{
-    generated::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
-    primitive::v1::{
-        asset,
-        RollupId,
-    },
+use astria_core::primitive::v1::{
+    asset,
+    RollupId,
 };
 use tokio::sync::mpsc;
 
@@ -15,9 +12,8 @@ use super::{
     Id,
     SequencerKey,
 };
+use crate::auctioneer::PendingNonceSubscriber;
 pub(crate) struct Builder {
-    /// The endpoint for the sequencer gRPC service used to get pending nonces
-    pub(crate) sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
     /// The endpoint for the sequencer ABCI service used to submit transactions
     pub(crate) sequencer_abci_client: sequencer_client::HttpClient,
     /// The amount of time to wait after a commit before closing the auction for bids and
@@ -33,12 +29,12 @@ pub(crate) struct Builder {
     pub(crate) sequencer_chain_id: String,
     /// The rollup ID used for `RollupDataSubmission` with the auction result
     pub(crate) rollup_id: RollupId,
+    pub(crate) pending_nonce: PendingNonceSubscriber,
 }
 
 impl Builder {
     pub(crate) fn build(self) -> (Handle, Auction) {
         let Self {
-            sequencer_grpc_client,
             sequencer_abci_client,
             latency_margin,
             auction_id,
@@ -46,6 +42,7 @@ impl Builder {
             rollup_id,
             sequencer_key,
             sequencer_chain_id,
+            pending_nonce,
         } = self;
 
         // TODO: get the capacities from config or something instead of using a magic number
@@ -53,7 +50,6 @@ impl Builder {
         let (new_bundles_tx, new_bundles_rx) = mpsc::channel(16);
 
         let auction = Auction {
-            sequencer_grpc_client,
             sequencer_abci_client,
             commands_rx,
             new_bundles_rx,
@@ -63,6 +59,7 @@ impl Builder {
             fee_asset_denomination,
             sequencer_chain_id,
             rollup_id,
+            pending_nonce,
         };
 
         (
