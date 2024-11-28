@@ -15,16 +15,8 @@ use super::{
 };
 use crate::{
     auctioneer::inner::running::PendingNoncePublisher,
-    rollup_channel::{
-        BundleStream,
-        ExecuteOptimisticBlockStream,
-        RollupChannel,
-    },
-    sequencer_channel::{
-        BlockCommitmentStream,
-        OptimisticBlockStream,
-        SequencerChannel,
-    },
+    rollup_channel::RollupChannel,
+    sequencer_channel::SequencerChannel,
     sequencer_key::SequencerKey,
     Config,
     Metrics,
@@ -122,57 +114,16 @@ impl Starting {
             sequencer_channel,
             shutdown_token,
         } = self;
-        let (bundles, executed_blocks, block_commitments, optimistic_blocks) = tokio::try_join!(
-            open_bundle_stream(rollup_channel.clone()),
-            open_execute_optimistic_block_stream(rollup_channel.clone()),
-            open_block_commitment_stream(sequencer_channel.clone()),
-            open_optimistic_block_stream(sequencer_channel.clone(), rollup_id),
-        )?;
         Ok(Running {
             auctions,
-            block_commitments,
-            bundles,
-            executed_blocks,
-            optimistic_blocks,
+            block_commitments: sequencer_channel.open_get_block_commitment_stream(),
+            bundles: rollup_channel.open_bundle_stream(),
+            executed_blocks: rollup_channel.open_execute_optimistic_block_stream(),
+            optimistic_blocks: sequencer_channel.open_get_optimistic_block_stream(rollup_id),
             rollup_id,
             shutdown_token,
             pending_nonce,
         }
         .into())
     }
-}
-
-async fn open_optimistic_block_stream(
-    chan: SequencerChannel,
-    rollup_id: RollupId,
-) -> eyre::Result<OptimisticBlockStream> {
-    chan.open_get_optimistic_block_stream(rollup_id)
-        .await
-        .wrap_err_with(|| {
-            format!(
-                "failed to open optimistic block stream to Sequencer node for rollup ID \
-                 `{rollup_id}`"
-            )
-        })
-}
-
-async fn open_block_commitment_stream(
-    chan: SequencerChannel,
-) -> eyre::Result<BlockCommitmentStream> {
-    chan.open_get_block_commitment_stream()
-        .await
-        .wrap_err("failed to open block commitment stream to sequencer node")
-}
-
-async fn open_bundle_stream(chan: RollupChannel) -> eyre::Result<BundleStream> {
-    chan.open_bundle_stream()
-        .await
-        .wrap_err("failed to open `bundle stream` to rollup node")
-}
-async fn open_execute_optimistic_block_stream(
-    chan: RollupChannel,
-) -> eyre::Result<ExecuteOptimisticBlockStream> {
-    chan.open_execute_optimistic_block_stream()
-        .await
-        .wrap_err("failed to open `execute optimistic block stream` to rollup node")
 }

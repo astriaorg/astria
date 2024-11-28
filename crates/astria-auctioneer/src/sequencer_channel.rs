@@ -1,5 +1,10 @@
 use std::{
     pin::Pin,
+    task::{
+        ready,
+        Context,
+        Poll,
+    },
     time::Duration,
 };
 
@@ -23,6 +28,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use futures::{
+    stream::BoxStream,
     Future,
     Stream,
     StreamExt as _,
@@ -30,7 +36,10 @@ use futures::{
 use prost::Name;
 use tonic::transport::Channel;
 
-use crate::block::Commitment;
+use crate::{
+    block::Commitment,
+    streaming_utils::restarting_stream,
+};
 
 pub(crate) fn open(endpoint: &str) -> eyre::Result<SequencerChannel> {
     SequencerChannel::create(endpoint)
@@ -78,62 +87,89 @@ impl SequencerChannel {
         }
     }
 
-    pub(crate) async fn open_get_block_commitment_stream(
-        &self,
-    ) -> eyre::Result<BlockCommitmentStream> {
+    pub(crate) fn open_get_block_commitment_stream(&self) -> BlockCommitmentStream {
         use astria_core::generated::sequencerblock::optimisticblock::v1alpha1::
             optimistic_block_service_client::OptimisticBlockServiceClient;
-        let mut client = OptimisticBlockServiceClient::new(self.inner.clone());
-        let stream = client
-            .get_block_commitment_stream(GetBlockCommitmentStreamRequest {})
-            .await
-            .wrap_err("failed to open block commitment stream")?
-            .into_inner();
-        Ok(BlockCommitmentStream::new(stream))
+        let chan = self.inner.clone();
+        let inner = restarting_stream(move || {
+            let chan = chan.clone();
+            async move {
+                let inner = OptimisticBlockServiceClient::new(chan)
+                    .get_block_commitment_stream(GetBlockCommitmentStreamRequest {})
+                    .await
+                    // TODO: Don't quietly swallow this error. Provide some form of
+                    // logging.
+                    .ok()?
+                    .into_inner();
+                Some(InnerBlockCommitmentStream {
+                    inner,
+                })
+            }
+        })
+        .boxed();
+        BlockCommitmentStream {
+            inner,
+        }
     }
 
-    pub(crate) async fn open_get_optimistic_block_stream(
+    pub(crate) fn open_get_optimistic_block_stream(
         &self,
         rollup_id: RollupId,
-    ) -> eyre::Result<OptimisticBlockStream> {
+    ) -> OptimisticBlockStream {
         use astria_core::generated::sequencerblock::optimisticblock::v1alpha1::{
             optimistic_block_service_client::OptimisticBlockServiceClient,
             GetOptimisticBlockStreamRequest,
         };
-        let mut client = OptimisticBlockServiceClient::new(self.inner.clone());
-        let stream = client
-            .get_optimistic_block_stream(GetOptimisticBlockStreamRequest {
-                rollup_id: Some(rollup_id.into_raw()),
-            })
-            .await
-            .wrap_err("failed to open optimistic block stream")?
-            .into_inner();
-        Ok(OptimisticBlockStream::new(stream))
-    }
-}
 
-/// A stream for receiving committed blocks from the sequencer.
-pub(crate) struct BlockCommitmentStream {
-    inner: tonic::Streaming<GetBlockCommitmentStreamResponse>,
-}
-
-impl BlockCommitmentStream {
-    fn new(inner: tonic::Streaming<GetBlockCommitmentStreamResponse>) -> Self {
-        Self {
+        let chan = self.inner.clone();
+        let inner = restarting_stream(move || {
+            let chan = chan.clone();
+            async move {
+                let mut client = OptimisticBlockServiceClient::new(chan);
+                let inner = client
+                    .get_optimistic_block_stream(GetOptimisticBlockStreamRequest {
+                        rollup_id: Some(rollup_id.into_raw()),
+                    })
+                    .await
+                    // TODO: Don't quietly swallow this error. Provide some form of
+                    // logging.
+                    .ok()?
+                    .into_inner();
+                Some(InnerOptimisticBlockStream {
+                    inner,
+                })
+            }
+        })
+        .boxed();
+        OptimisticBlockStream {
             inner,
         }
     }
 }
 
+/// A stream for receiving committed blocks from the sequencer.
+pub(crate) struct BlockCommitmentStream {
+    inner: BoxStream<'static, eyre::Result<Commitment>>,
+}
+
 impl Stream for BlockCommitmentStream {
     type Item = eyre::Result<Commitment>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.inner.poll_next_unpin(cx)
+    }
+}
+
+struct InnerBlockCommitmentStream {
+    inner: tonic::Streaming<GetBlockCommitmentStreamResponse>,
+}
+
+impl Stream for InnerBlockCommitmentStream {
+    type Item = eyre::Result<Commitment>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let Some(res) = std::task::ready!(self.inner.poll_next_unpin(cx)) else {
-            return std::task::Poll::Ready(None);
+            return Poll::Ready(None);
         };
 
         let raw = res
@@ -154,34 +190,37 @@ impl Stream for BlockCommitmentStream {
             )
         })?;
 
-        std::task::Poll::Ready(Some(Ok(commitment)))
+        Poll::Ready(Some(Ok(commitment)))
     }
 }
 
 pub(crate) struct OptimisticBlockStream {
-    inner: tonic::Streaming<GetOptimisticBlockStreamResponse>,
-}
-
-impl OptimisticBlockStream {
-    fn new(inner: tonic::Streaming<GetOptimisticBlockStreamResponse>) -> Self {
-        Self {
-            inner,
-        }
-    }
+    inner: BoxStream<'static, eyre::Result<FilteredSequencerBlock>>,
 }
 
 impl Stream for OptimisticBlockStream {
     type Item = eyre::Result<FilteredSequencerBlock>;
 
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.inner.poll_next_unpin(cx)
+    }
+}
+
+struct InnerOptimisticBlockStream {
+    inner: tonic::Streaming<GetOptimisticBlockStreamResponse>,
+}
+
+impl Stream for InnerOptimisticBlockStream {
+    type Item = eyre::Result<FilteredSequencerBlock>;
+
     fn poll_next(
         mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context,
+        cx: &mut Context,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let Some(res) = futures::ready!(self.inner.poll_next_unpin(cx)) else {
-            return std::task::Poll::Ready(None);
+        let Some(item) = ready!(self.inner.poll_next_unpin(cx)) else {
+            return Poll::Ready(None);
         };
-
-        let raw = res
+        let raw = item
             .wrap_err("failed receiving message over stream")?
             .block
             .ok_or_else(|| {

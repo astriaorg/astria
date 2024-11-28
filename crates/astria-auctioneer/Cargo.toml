@@ -38,8 +38,9 @@ tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
 tonic = { workspace = true }
-tokio-stream = { workspace = true, features = ["net"] }
+tokio-stream = { workspace = true, features = ["sync"] }
 base64.workspace = true
+pin-project-lite = "0.2.15"
 
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = [
