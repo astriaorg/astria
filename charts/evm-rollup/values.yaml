@@ -8,11 +8,11 @@ global:
 
 images:
   geth:
-    repo: ghcr.io/astriaorg/go-ethereum
+    repo: ghcr.io/astriaorg/astria-geth
     pullPolicy: IfNotPresent
     tag: 0.16.0
-    devTag: final-testing-auctioneer-9
-    overrideTag: "final-testing-auctioneer-9"
+    devTag: auctioneer-final-3
+    overrideTag: "auctioneer-final-3"
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent

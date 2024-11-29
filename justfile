@@ -46,6 +46,7 @@ _crate_short_name crate quiet="":
     astria-conductor) short_name=conductor ;;
     astria-sequencer) short_name=sequencer ;;
     astria-sequencer-relayer) short_name=sequencer-relayer ;;
+    astria-auctioneer) short_name=auctioneer ;;
     *) echo "{{crate}} is not a supported binary" && exit 2
   esac
   [ -z {{quiet}} ] && echo $short_name || true

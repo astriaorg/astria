@@ -39,7 +39,7 @@
         "astriaFeeCollectors": {{ toPrettyJson .Values.genesis.feeCollectors | indent 8 | trim }},
         "astriaEIP1559Params": {{ toPrettyJson .Values.genesis.eip1559Params | indent 8 | trim }},
         "astriaSequencerAddressPrefix": "{{ .Values.genesis.sequencerAddressPrefix }}",
-        "astriaTrustedBuilderAddresses": {{ toPrettyJson .Values.genesis.trustedBuilderAddresses | indent 8 | trim }}
+        "astriaAuctioneerAddresses": {{ toPrettyJson .Values.genesis.trustedBuilderAddresses | indent 8 | trim }}
         {{- if not .Values.global.dev }}
         {{- else }}
         {{- end }}
