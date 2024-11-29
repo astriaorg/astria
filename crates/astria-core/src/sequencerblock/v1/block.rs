@@ -1,5 +1,7 @@
 use std::{
     collections::HashMap,
+    fmt::Display,
+    ops::Deref,
     vec::IntoIter,
 };
 
@@ -580,11 +582,68 @@ enum SequencerBlockHeaderErrorKind {
 /// Exists to provide convenient access to fields of a [`SequencerBlock`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SequencerBlockParts {
-    pub block_hash: [u8; 32],
+    pub block_hash: BlockHash,
     pub header: SequencerBlockHeader,
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     pub rollup_transactions_proof: merkle::Proof,
     pub rollup_ids_proof: merkle::Proof,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BlockHash([u8; 32]);
+
+impl BlockHash {
+    pub fn new(inner: [u8; 32]) -> Self {
+        Self(inner)
+    }
+
+    pub fn get(&self) -> [u8; 32] {
+        self.0
+    }
+}
+
+impl AsRef<[u8]> for BlockHash {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Deref for BlockHash {
+    type Target = [u8; 32];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("block hash requires 32 bytes, but slice contained `{actual}`")]
+pub struct BlockHashFromSliceError {
+    actual: usize,
+    source: std::array::TryFromSliceError,
+}
+
+impl<'a> TryFrom<&'a [u8]> for BlockHash {
+    type Error = BlockHashFromSliceError;
+
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        let inner = value.try_into().map_err(|source| Self::Error {
+            actual: value.len(),
+            source,
+        })?;
+        Ok(Self(inner))
+    }
+}
+
+// The display impl follows that of the pbjson derivation.
+impl Display for BlockHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use base64::{
+            display::Base64Display,
+            engine::general_purpose::STANDARD,
+        };
+        Base64Display::new(&self.0, &STANDARD).fmt(f)
+    }
 }
 
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
@@ -597,7 +656,7 @@ pub struct SequencerBlockParts {
 pub struct SequencerBlock {
     /// The result of hashing the cometbft header. Guaranteed to not be `None` as compared to
     /// the cometbft/tendermint-rs return type.
-    block_hash: [u8; 32],
+    block_hash: BlockHash,
     /// the block header, which contains the cometbft header and additional sequencer-specific
     /// commitments.
     header: SequencerBlockHeader,
@@ -622,7 +681,7 @@ impl SequencerBlock {
     ///
     /// This is done by hashing the `CometBFT` header stored in this block.
     #[must_use]
-    pub fn block_hash(&self) -> &[u8; 32] {
+    pub fn block_hash(&self) -> &BlockHash {
         &self.block_hash
     }
 
@@ -687,7 +746,7 @@ impl SequencerBlock {
             rollup_ids_proof,
         } = self;
         raw::SequencerBlock {
-            block_hash: Bytes::copy_from_slice(&block_hash),
+            block_hash: Bytes::copy_from_slice(block_hash.as_ref()),
             header: Some(header.into_raw()),
             rollup_transactions: rollup_transactions
                 .into_values()
@@ -863,7 +922,7 @@ impl SequencerBlock {
         );
 
         Ok(Self {
-            block_hash,
+            block_hash: BlockHash(block_hash),
             header: SequencerBlockHeader {
                 chain_id,
                 height,
@@ -1032,7 +1091,7 @@ where
 /// Exists to provide convenient access to fields of a [`FilteredSequencerBlock`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct FilteredSequencerBlockParts {
-    pub block_hash: [u8; 32],
+    pub block_hash: BlockHash,
     pub header: SequencerBlockHeader,
     // filtered set of rollup transactions
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
@@ -1050,7 +1109,7 @@ pub struct FilteredSequencerBlockParts {
     reason = "we want consistent and specific naming"
 )]
 pub struct FilteredSequencerBlock {
-    block_hash: [u8; 32],
+    block_hash: BlockHash,
     header: SequencerBlockHeader,
     // filtered set of rollup transactions
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
@@ -1064,7 +1123,7 @@ pub struct FilteredSequencerBlock {
 
 impl FilteredSequencerBlock {
     #[must_use]
-    pub fn block_hash(&self) -> &[u8; 32] {
+    pub fn block_hash(&self) -> &BlockHash {
         &self.block_hash
     }
 
@@ -1114,7 +1173,7 @@ impl FilteredSequencerBlock {
             ..
         } = self;
         raw::FilteredSequencerBlock {
-            block_hash: Bytes::copy_from_slice(&block_hash),
+            block_hash: Bytes::copy_from_slice(&*block_hash),
             header: Some(header.into_raw()),
             rollup_transactions: rollup_transactions
                 .into_values()

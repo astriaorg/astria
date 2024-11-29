@@ -642,7 +642,7 @@ pub fn make_commit(height: u32) -> tendermint::block::Commit {
         height: height.into(),
         round: 0u16.into(),
         block_id: Some(tendermint::block::Id {
-            hash: tendermint::Hash::Sha256(block_hash),
+            hash: tendermint::Hash::Sha256(block_hash.get()),
             part_set_header: tendermint::block::parts::Header::default(),
         }),
         timestamp: Some(timestamp),
@@ -657,7 +657,7 @@ pub fn make_commit(height: u32) -> tendermint::block::Commit {
         height: height.into(),
         round: 0u16.into(),
         block_id: tendermint::block::Id {
-            hash: tendermint::Hash::Sha256(block_hash),
+            hash: tendermint::Hash::Sha256(block_hash.get()),
             part_set_header: tendermint::block::parts::Header::default(),
         },
         signatures: vec![tendermint::block::CommitSig::BlockIdFlagCommit {
