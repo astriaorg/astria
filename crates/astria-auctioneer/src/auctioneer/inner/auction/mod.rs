@@ -37,7 +37,6 @@
 //! as it received the signal to start the timer. This corresponds to the sequencer block being
 //! committed, thus providing the latest pending nonce.
 
-mod builder;
 use std::time::Duration;
 
 use allocation_rule::FirstPrice;
@@ -71,8 +70,11 @@ use crate::{
 };
 
 mod allocation_rule;
-pub(super) mod manager;
-pub(super) use manager::Manager;
+mod builder;
+pub(super) mod factory;
+mod running;
+pub(super) use factory::Factory;
+pub(super) use running::Running;
 
 #[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
 struct Id([u8; 32]);

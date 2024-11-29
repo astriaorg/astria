@@ -49,10 +49,11 @@ mod auction;
 
 /// The implementation of the auctioneer business logic.
 pub(super) struct Inner {
-    auctions: auction::Manager,
+    auction_factory: auction::Factory,
     block_commitments: BlockCommitmentStream,
     bundles: BundleStream,
     executed_blocks: ExecuteOptimisticBlockStream,
+    running_auction: Option<auction::Running>,
     optimistic_blocks: OptimisticBlockStream,
     pending_nonce: PendingNoncePublisher,
     rollup_id: RollupId,
@@ -93,27 +94,30 @@ impl Inner {
         let pending_nonce =
             PendingNoncePublisher::new(sequencer_channel.clone(), *sequencer_key.address());
 
+        let sequencer_abci_client =
+            sequencer_client::HttpClient::new(sequencer_abci_endpoint.as_str())
+                .wrap_err("failed constructing sequencer abci client")?;
+
         // TODO: Rearchitect this thing
-        let auctions = auction::manager::Builder {
+        let auction_factory = auction::Factory {
             metrics,
-            sequencer_abci_endpoint,
+            sequencer_abci_client,
             latency_margin: Duration::from_millis(latency_margin_ms),
             sequencer_key: sequencer_key.clone(),
             fee_asset_denomination,
             sequencer_chain_id,
             rollup_id,
             pending_nonce: pending_nonce.subscribe(),
-        }
-        .build()
-        .wrap_err("failed to initialize auction manager")?;
+        };
 
         Ok(Self {
-            auctions,
+            auction_factory,
             block_commitments: sequencer_channel.open_get_block_commitment_stream(),
             bundles: rollup_channel.open_bundle_stream(),
             executed_blocks: rollup_channel.open_execute_optimistic_block_stream(),
             optimistic_blocks: sequencer_channel.open_get_optimistic_block_stream(rollup_id),
             rollup_id,
+            running_auction: None,
             shutdown_token,
             pending_nonce,
         })
@@ -161,7 +165,7 @@ impl Inner {
                 let _ = self.handle_executed_block(res);
             }
 
-            Some(res) = self.auctions.next_winner() => {
+            res = async { self.running_auction.as_mut().unwrap().next_winner().await }, if self.running_auction.is_some() => {
                 let _ = self.handle_auction_winner(res);
             }
 
@@ -194,7 +198,23 @@ impl Inner {
             optimistic_block.wrap_err("encountered problem receiving optimistic block message")?;
 
         // FIXME: Don't clone this; find a better way.
-        self.auctions.new_auction(optimistic_block.clone());
+        let new_auction = self.auction_factory.start_new(optimistic_block.clone());
+        if let Some(old_auction) = self.running_auction.replace(new_auction) {
+            // NOTE: We just throw away the old auction after aborting it. Is there
+            // value in `.join`ing it after the abort except for ensuring that it
+            // did indeed abort? What if the running auction is not tracked inside
+            // the "auction manager", but the auction manager is turned into a simpler
+            // factory so that the running auction is running inside the auctioneer?
+            // Then the auctioneer would always have the previous/old auction and could
+            // decide what to do with it. That might make this a cleaner implementation.
+            // let old_auction_id = running_auction.id;
+            // info!(
+            //     %new_auction_id,
+            //     %old_auction_id,
+            //     "received optimistic block, aborting old auction and starting new auction"
+            // );
+            old_auction.abort();
+        }
 
         let base_block = crate::block::Optimistic::new(optimistic_block)
             .try_into_base_block(self.rollup_id)
@@ -215,9 +235,13 @@ impl Inner {
     ) -> eyre::Result<()> {
         let block_commitment = block_commitment.wrap_err("failed to receive block commitment")?;
 
-        self.auctions
-            .start_timer(block_commitment)
-            .wrap_err("failed to start timer")?;
+        if let Some(running_auction) = &mut self.running_auction {
+            running_auction
+                .start_timer(block_commitment)
+                .wrap_err("failed to start timer")?;
+        } else {
+            // TODO: emit an event?
+        }
 
         Ok(())
     }
@@ -229,9 +253,13 @@ impl Inner {
         executed_block: eyre::Result<crate::block::Executed>,
     ) -> eyre::Result<()> {
         let executed_block = executed_block.wrap_err("failed to receive executed block")?;
-        self.auctions
-            .start_processing_bids(executed_block)
-            .wrap_err("failed to start processing bids")?;
+        if let Some(running_auction) = &mut self.running_auction {
+            running_auction
+                .start_processing_bids(executed_block)
+                .wrap_err("failed to start processing bids")?;
+        } else {
+            // TODO: emit an event?
+        }
         Ok(())
     }
 
@@ -239,9 +267,13 @@ impl Inner {
     // %base64(self.current_block.sequencer_block_hash())))]
     fn handle_bundle(&mut self, bundle: eyre::Result<crate::bundle::Bundle>) -> eyre::Result<()> {
         let bundle = bundle.wrap_err("received problematic bundle")?;
-        self.auctions
-            .forward_bundle_to_auction(bundle)
-            .wrap_err("failed to forward bundle to auction")?;
+        if let Some(running_auction) = &mut self.running_auction {
+            running_auction
+                .forward_bundle_to_auction(bundle)
+                .wrap_err("failed to forward bundle to auction")?;
+        } else {
+            // TODO: emit an event?
+        }
         Ok(())
     }
 
@@ -261,7 +293,9 @@ impl Inner {
             Ok(reason) => info!(%reason, message),
             Err(reason) => error!(%reason, message),
         };
-        self.auctions.abort();
+        if let Some(running_auction) = self.running_auction.take() {
+            running_auction.abort();
+        }
         reason.map(|_| ())
     }
 }
