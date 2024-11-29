@@ -3,9 +3,7 @@ use astria_core::{
         Signature,
         VerificationKey,
     },
-    generated::bundle::v1alpha1::{
-        self as raw,
-    },
+    generated::bundle::v1alpha1 as raw,
     primitive::v1::{
         asset,
         RollupId,
@@ -14,6 +12,7 @@ use astria_core::{
         action::RollupDataSubmission,
         TransactionBody,
     },
+    sequencerblock::v1::block::BlockHash,
 };
 use astria_eyre::eyre::{
     self,
@@ -36,7 +35,7 @@ pub(crate) struct Bundle {
     prev_rollup_block_hash: [u8; 32],
     /// The hash of the sequencer block used to derive the rollup block that this bundle is based
     /// on.
-    base_sequencer_block_hash: [u8; 32],
+    base_sequencer_block_hash: BlockHash,
 }
 
 impl Bundle {
@@ -65,7 +64,7 @@ impl Bundle {
         raw::Bundle {
             fee: self.fee,
             transactions: self.transactions,
-            base_sequencer_block_hash: Bytes::copy_from_slice(&self.base_sequencer_block_hash),
+            base_sequencer_block_hash: Bytes::copy_from_slice(&*self.base_sequencer_block_hash),
             prev_rollup_block_hash: Bytes::copy_from_slice(&self.prev_rollup_block_hash),
         }
     }
@@ -104,8 +103,8 @@ impl Bundle {
         self.prev_rollup_block_hash
     }
 
-    pub(crate) fn base_sequencer_block_hash(&self) -> [u8; 32] {
-        self.base_sequencer_block_hash
+    pub(crate) fn base_sequencer_block_hash(&self) -> &BlockHash {
+        &self.base_sequencer_block_hash
     }
 }
 

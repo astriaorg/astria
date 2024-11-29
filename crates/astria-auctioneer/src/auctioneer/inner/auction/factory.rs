@@ -38,7 +38,7 @@ impl Factory {
         &mut self,
         block: FilteredSequencerBlock,
     ) -> Running {
-        let new_auction_id = super::Id::from_sequencer_block_hash(*block.block_hash());
+        let new_auction_id = super::Id::from_sequencer_block_hash(block.block_hash());
         let height = block.height().into();
 
         let (handle, auction) = super::Builder {

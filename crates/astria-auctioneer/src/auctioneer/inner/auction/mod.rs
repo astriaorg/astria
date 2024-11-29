@@ -40,9 +40,12 @@
 use std::time::Duration;
 
 use allocation_rule::FirstPrice;
-use astria_core::primitive::v1::{
-    asset,
-    RollupId,
+use astria_core::{
+    primitive::v1::{
+        asset,
+        RollupId,
+    },
+    sequencerblock::v1::block::BlockHash,
 };
 use astria_eyre::eyre::{
     self,
@@ -80,8 +83,8 @@ pub(super) use running::Running;
 struct Id([u8; 32]);
 
 impl Id {
-    pub(super) fn from_sequencer_block_hash(block_hash: [u8; 32]) -> Self {
-        Self(block_hash)
+    pub(super) fn from_sequencer_block_hash(block_hash: &BlockHash) -> Self {
+        Self(block_hash.get())
     }
 }
 

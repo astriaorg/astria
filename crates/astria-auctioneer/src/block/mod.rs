@@ -4,14 +4,13 @@ use astria_core::{
         bundle::v1alpha1 as raw_bundle,
         sequencerblock::{
             optimisticblock::v1alpha1 as raw_optimistic_block,
-            v1::{
-                self as raw_sequencer_block,
-            },
+            v1 as raw_sequencer_block,
         },
     },
     primitive::v1::RollupId,
     sequencerblock::v1::{
         block::{
+            BlockHash,
             FilteredSequencerBlock,
             FilteredSequencerBlockParts,
         },
@@ -89,7 +88,7 @@ impl Optimistic {
         let timestamp = Some(convert_tendermint_time_to_protobuf_timestamp(header.time()));
 
         Ok(raw_bundle::BaseBlock {
-            sequencer_block_hash: Bytes::copy_from_slice(&block_hash),
+            sequencer_block_hash: Bytes::copy_from_slice(&*block_hash),
             transactions,
             timestamp,
         })
@@ -101,7 +100,7 @@ pub(crate) struct Executed {
     /// The rollup block metadata that resulted from executing the optimistic block.
     block: execution::v1::Block,
     /// The hash of the sequencer block that was executed optimistically.
-    sequencer_block_hash: [u8; 32],
+    sequencer_block_hash: BlockHash,
 }
 
 impl Executed {
@@ -126,8 +125,8 @@ impl Executed {
         })
     }
 
-    pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
-        self.sequencer_block_hash
+    pub(crate) fn sequencer_block_hash(&self) -> &BlockHash {
+        &self.sequencer_block_hash
     }
 
     pub(crate) fn parent_rollup_block_hash(&self) -> [u8; 32] {
@@ -146,7 +145,7 @@ pub(crate) struct Commitment {
     /// The height of the sequencer block that was committed.
     sequencer_height: u64,
     /// The hash of the sequencer block that was committed.
-    sequnecer_block_hash: [u8; 32],
+    sequnecer_block_hash: BlockHash,
 }
 
 impl Commitment {
@@ -163,8 +162,8 @@ impl Commitment {
         })
     }
 
-    pub(crate) fn sequencer_block_hash(&self) -> [u8; 32] {
-        self.sequnecer_block_hash
+    pub(crate) fn sequencer_block_hash(&self) -> &BlockHash {
+        &self.sequnecer_block_hash
     }
 
     /// The height of the sequencer block that was committed.
