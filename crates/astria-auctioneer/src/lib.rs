@@ -1,6 +1,5 @@
 //! TODO: Add a description
 
-mod auction;
 mod auctioneer;
 mod block;
 mod build_info;

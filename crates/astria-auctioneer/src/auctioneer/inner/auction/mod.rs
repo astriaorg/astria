@@ -51,7 +51,7 @@ use astria_eyre::eyre::{
     Context,
     OptionExt as _,
 };
-pub(crate) use builder::Builder;
+pub(super) use builder::Builder;
 use sequencer_client::SequencerClientExt;
 use tokio::{
     select,
@@ -64,19 +64,21 @@ use tracing::{
     instrument,
 };
 
+use super::PendingNonceSubscriber;
 use crate::{
-    auctioneer::PendingNonceSubscriber,
     bundle::Bundle,
     sequencer_key::SequencerKey,
 };
 
-pub(crate) mod manager;
+mod allocation_rule;
+pub(super) mod manager;
+pub(super) use manager::Manager;
 
 #[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
-pub(crate) struct Id([u8; 32]);
+struct Id([u8; 32]);
 
 impl Id {
-    pub(crate) fn from_sequencer_block_hash(block_hash: [u8; 32]) -> Self {
+    pub(super) fn from_sequencer_block_hash(block_hash: [u8; 32]) -> Self {
         Self(block_hash)
     }
 }
@@ -91,29 +93,25 @@ impl std::fmt::Display for Id {
     }
 }
 
-pub(crate) use manager::Manager;
-
-mod allocation_rule;
-
 enum Command {
     StartProcessingBids,
     StartTimer,
 }
 
-pub(crate) struct Handle {
+pub(super) struct Handle {
     commands_tx: mpsc::Sender<Command>,
     new_bundles_tx: mpsc::Sender<Bundle>,
 }
 
 impl Handle {
-    pub(crate) fn start_processing_bids(&mut self) -> eyre::Result<()> {
+    pub(super) fn start_processing_bids(&mut self) -> eyre::Result<()> {
         self.commands_tx
             .try_send(Command::StartProcessingBids)
             .wrap_err("unable to send command to start processing bids to auction")?;
         Ok(())
     }
 
-    pub(crate) fn start_timer(&mut self) -> eyre::Result<()> {
+    pub(super) fn start_timer(&mut self) -> eyre::Result<()> {
         self.commands_tx
             .try_send(Command::StartTimer)
             .wrap_err("unable to send command to start time to auction")?;
@@ -121,7 +119,7 @@ impl Handle {
         Ok(())
     }
 
-    pub(crate) fn try_send_bundle(&mut self, bundle: Bundle) -> eyre::Result<()> {
+    pub(super) fn try_send_bundle(&mut self, bundle: Bundle) -> eyre::Result<()> {
         self.new_bundles_tx
             .try_send(bundle)
             .wrap_err("bid channel full")?;
@@ -130,7 +128,7 @@ impl Handle {
     }
 }
 
-pub(crate) struct Auction {
+struct Auction {
     /// The sequencer's ABCI client, used for submitting transactions
     sequencer_abci_client: sequencer_client::HttpClient,
     /// Channel for receiving commands sent via the handle
@@ -154,7 +152,7 @@ pub(crate) struct Auction {
 
 impl Auction {
     #[instrument(skip_all, fields(id = %self.id))]
-    pub(crate) async fn run(mut self) -> eyre::Result<()> {
+    pub(super) async fn run(mut self) -> eyre::Result<()> {
         let mut latency_margin_timer = None;
         // TODO: do we want to make this configurable to allow for more complex allocation rules?
         let mut allocation_rule = FirstPrice::new();

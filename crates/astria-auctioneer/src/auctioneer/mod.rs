@@ -17,8 +17,6 @@ use crate::{
 };
 
 mod inner;
-use inner::Inner;
-pub(crate) use inner::PendingNonceSubscriber;
 
 /// The [`Auctioneer`] service returned by [`Auctioneer::spawn`].
 pub struct Auctioneer {
@@ -33,7 +31,7 @@ impl Auctioneer {
     /// Returns an error if the Auctioneer cannot be initialized.
     pub fn spawn(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let shutdown_token = CancellationToken::new();
-        let inner = Inner::new(cfg, metrics, shutdown_token.child_token())?;
+        let inner = inner::Inner::new(cfg, metrics, shutdown_token.child_token())?;
         let task = tokio::spawn(inner.run());
 
         Ok(Self {
