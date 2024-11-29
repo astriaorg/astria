@@ -6,7 +6,6 @@ use std::{
 use astria_eyre::eyre::{
     self,
 };
-use inner::Inner;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
@@ -18,6 +17,7 @@ use crate::{
 };
 
 mod inner;
+use inner::Inner;
 pub(crate) use inner::PendingNonceSubscriber;
 
 /// The [`Auctioneer`] service returned by [`Auctioneer::spawn`].
