@@ -165,8 +165,8 @@ impl Inner {
                 let _ = self.handle_executed_block(res);
             }
 
-            res = async { self.running_auction.as_mut().unwrap().next_winner().await }, if self.running_auction.is_some() => {
-                let _ = self.handle_auction_winner(res);
+            res = async { self.running_auction.as_mut().unwrap().await }, if self.running_auction.is_some() => {
+                let _ = self.handle_auction_result(res);
             }
 
             Some(res) = self.bundles.next() => {
@@ -184,7 +184,7 @@ impl Inner {
     }
 
     #[instrument(skip_all, err)]
-    fn handle_auction_winner(&self, res: eyre::Result<()>) -> eyre::Result<()> {
+    fn handle_auction_result(&self, res: eyre::Result<()>) -> eyre::Result<()> {
         res
     }
 

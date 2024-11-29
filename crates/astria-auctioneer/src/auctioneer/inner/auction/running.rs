@@ -2,6 +2,10 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use futures::{
+    Future,
+    FutureExt,
+};
 use tokio::task::JoinHandle;
 use tracing::{
     info,
@@ -136,8 +140,16 @@ impl Running {
         }
         Ok(())
     }
+}
 
-    pub(in crate::auctioneer::inner) async fn next_winner(&mut self) -> eyre::Result<()> {
-        flatten_join_result((&mut self.task).await)
+impl Future for Running {
+    type Output = eyre::Result<()>;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let res = std::task::ready!(self.task.poll_unpin(cx));
+        std::task::Poll::Ready(flatten_join_result(res))
     }
 }
