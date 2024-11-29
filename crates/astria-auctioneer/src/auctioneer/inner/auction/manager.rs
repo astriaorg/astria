@@ -20,34 +20,34 @@ use tracing::{
 
 use super::{
     Bundle,
+    PendingNonceSubscriber,
     SequencerKey,
 };
 use crate::{
-    auctioneer::PendingNonceSubscriber,
     block::Commitment,
     flatten_join_result,
 };
 
-pub(crate) struct Builder {
-    pub(crate) metrics: &'static crate::Metrics,
+pub(in crate::auctioneer::inner) struct Builder {
+    pub(in crate::auctioneer::inner) metrics: &'static crate::Metrics,
 
     /// The ABCI endpoint for the sequencer service used by auctions.
-    pub(crate) sequencer_abci_endpoint: String,
+    pub(in crate::auctioneer::inner) sequencer_abci_endpoint: String,
     /// The amount of time to run the auction timer for.
-    pub(crate) latency_margin: std::time::Duration,
+    pub(in crate::auctioneer::inner) latency_margin: std::time::Duration,
     /// The private key used to sign sequencer transactions.
-    pub(crate) sequencer_key: SequencerKey,
+    pub(in crate::auctioneer::inner) sequencer_key: SequencerKey,
     /// The denomination of the fee asset used in the sequencer transactions
-    pub(crate) fee_asset_denomination: asset::Denom,
+    pub(in crate::auctioneer::inner) fee_asset_denomination: asset::Denom,
     /// The chain ID for sequencer transactions
-    pub(crate) sequencer_chain_id: String,
+    pub(in crate::auctioneer::inner) sequencer_chain_id: String,
     /// The rollup ID for the `RollupDataSubmission`s with auction results
-    pub(crate) rollup_id: RollupId,
-    pub(crate) pending_nonce: PendingNonceSubscriber,
+    pub(in crate::auctioneer::inner) rollup_id: RollupId,
+    pub(in crate::auctioneer::inner) pending_nonce: PendingNonceSubscriber,
 }
 
 impl Builder {
-    pub(crate) fn build(self) -> eyre::Result<Manager> {
+    pub(in crate::auctioneer::inner) fn build(self) -> eyre::Result<Manager> {
         let Self {
             metrics,
             sequencer_abci_endpoint,
@@ -78,11 +78,11 @@ impl Builder {
 }
 
 struct RunningAuction {
-    id: crate::auction::Id,
+    id: super::Id,
     height: u64,
     parent_block_of_executed: Option<[u8; 32]>,
     // TODO: Rename this to AuctionSender or smth like that
-    sender: crate::auction::Handle,
+    sender: super::Handle,
     task: JoinHandle<eyre::Result<()>>,
 }
 
@@ -92,7 +92,7 @@ impl RunningAuction {
     }
 }
 
-pub(crate) struct Manager {
+pub(in crate::auctioneer::inner) struct Manager {
     #[allow(dead_code)]
     metrics: &'static crate::Metrics,
     sequencer_abci_client: sequencer_client::HttpClient,
@@ -106,11 +106,11 @@ pub(crate) struct Manager {
 }
 
 impl Manager {
-    // pub(crate) fn new_auction(&mut self, auction_id: Id) {
+    // pub(in crate::auctioneer::inner) fn new_auction(&mut self, auction_id: Id) {
     // TODO: Add some better instrumentation.
     #[instrument(skip(self))]
-    pub(crate) fn new_auction(&mut self, block: FilteredSequencerBlock) {
-        let new_auction_id = crate::auction::Id::from_sequencer_block_hash(*block.block_hash());
+    pub(in crate::auctioneer::inner) fn new_auction(&mut self, block: FilteredSequencerBlock) {
+        let new_auction_id = super::Id::from_sequencer_block_hash(*block.block_hash());
         let height = block.height().into();
 
         if let Some(running_auction) = self.running_auction.take() {
@@ -153,10 +153,14 @@ impl Manager {
     }
 
     #[instrument(skip(self))]
-    // pub(crate) fn start_timer(&mut self, auction_id: Id) -> eyre::Result<()> {
-    pub(crate) fn start_timer(&mut self, block_commitment: Commitment) -> eyre::Result<()> {
+    // pub(in crate::auctioneer::inner) fn start_timer(&mut self, auction_id: Id) ->
+    // eyre::Result<()> {
+    pub(in crate::auctioneer::inner) fn start_timer(
+        &mut self,
+        block_commitment: Commitment,
+    ) -> eyre::Result<()> {
         let id_according_to_block =
-            crate::auction::Id::from_sequencer_block_hash(block_commitment.sequencer_block_hash());
+            super::Id::from_sequencer_block_hash(block_commitment.sequencer_block_hash());
 
         if let Some(auction) = &mut self.running_auction {
             if auction.id == id_according_to_block
@@ -190,13 +194,14 @@ impl Manager {
     }
 
     #[instrument(skip(self))]
-    // pub(crate) fn start_processing_bids(&mut self, auction_id: Id) -> eyre::Result<()> {
-    pub(crate) fn start_processing_bids(
+    // pub(in crate::auctioneer::inner) fn start_processing_bids(&mut self, auction_id: Id) ->
+    // eyre::Result<()> {
+    pub(in crate::auctioneer::inner) fn start_processing_bids(
         &mut self,
         block: crate::block::Executed,
     ) -> eyre::Result<()> {
         let id_according_to_block =
-            crate::auction::Id::from_sequencer_block_hash(block.sequencer_block_hash());
+            super::Id::from_sequencer_block_hash(block.sequencer_block_hash());
 
         if let Some(auction) = &mut self.running_auction {
             if auction.id == id_according_to_block {
@@ -234,9 +239,12 @@ impl Manager {
         Ok(())
     }
 
-    pub(crate) fn forward_bundle_to_auction(&mut self, bundle: Bundle) -> eyre::Result<()> {
+    pub(in crate::auctioneer::inner) fn forward_bundle_to_auction(
+        &mut self,
+        bundle: Bundle,
+    ) -> eyre::Result<()> {
         let id_according_to_bundle =
-            crate::auction::Id::from_sequencer_block_hash(bundle.base_sequencer_block_hash());
+            super::Id::from_sequencer_block_hash(bundle.base_sequencer_block_hash());
         if let Some(auction) = &mut self.running_auction {
             // TODO: remember to check the parent rollup block hash, i.e.:
             //
@@ -285,12 +293,12 @@ impl Manager {
         Ok(())
     }
 
-    pub(crate) async fn next_winner(&mut self) -> Option<eyre::Result<()>> {
+    pub(in crate::auctioneer::inner) async fn next_winner(&mut self) -> Option<eyre::Result<()>> {
         let auction = self.running_auction.as_mut()?;
         Some(flatten_join_result((&mut auction.task).await))
     }
 
-    pub(crate) fn abort(&mut self) {
+    pub(in crate::auctioneer::inner) fn abort(&mut self) {
         // TODO: Do we need to wait for it to finish?
         if let Some(auction) = self.running_auction.take() {
             auction.abort()

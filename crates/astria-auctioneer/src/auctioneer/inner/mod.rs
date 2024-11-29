@@ -45,9 +45,11 @@ use crate::{
     Metrics,
 };
 
+mod auction;
+
 /// The implementation of the auctioneer business logic.
 pub(super) struct Inner {
-    auctions: crate::auction::Manager,
+    auctions: auction::Manager,
     block_commitments: BlockCommitmentStream,
     bundles: BundleStream,
     executed_blocks: ExecuteOptimisticBlockStream,
@@ -92,7 +94,7 @@ impl Inner {
             PendingNoncePublisher::new(sequencer_channel.clone(), *sequencer_key.address());
 
         // TODO: Rearchitect this thing
-        let auctions = crate::auction::manager::Builder {
+        let auctions = auction::manager::Builder {
             metrics,
             sequencer_abci_endpoint,
             latency_margin: Duration::from_millis(latency_margin_ms),
@@ -265,12 +267,12 @@ impl Inner {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct PendingNonceSubscriber {
+struct PendingNonceSubscriber {
     inner: tokio::sync::watch::Receiver<u32>,
 }
 
 impl PendingNonceSubscriber {
-    pub(crate) fn get(&self) -> u32 {
+    fn get(&self) -> u32 {
         *self.inner.borrow()
     }
 }
@@ -291,7 +293,7 @@ impl PendingNoncePublisher {
         }
     }
 
-    pub(crate) fn new(channel: SequencerChannel, address: Address) -> Self {
+    fn new(channel: SequencerChannel, address: Address) -> Self {
         use tokio::time::{
             timeout_at,
             MissedTickBehavior,

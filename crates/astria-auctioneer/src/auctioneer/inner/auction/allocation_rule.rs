@@ -16,7 +16,7 @@ impl FirstPrice {
     /// Submit a bundle with a bid.
     ///
     /// Returns `true` if the bid is accepted as the highest bid.
-    pub(crate) fn bid(&mut self, bundle: Bundle) -> bool {
+    pub(super) fn bid(&mut self, bundle: Bundle) -> bool {
         if bundle.bid() > self.highest_bid.as_ref().map_or(0, Bundle::bid) {
             self.highest_bid = Some(bundle);
             true
@@ -26,7 +26,7 @@ impl FirstPrice {
     }
 
     /// Returns the winner of the auction, if one exists.
-    pub(crate) fn winner(self) -> Option<Bundle> {
+    pub(super) fn winner(self) -> Option<Bundle> {
         self.highest_bid
     }
 }
