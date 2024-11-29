@@ -168,6 +168,8 @@ impl Stream for InnerBlockCommitmentStream {
     type Item = eyre::Result<Commitment>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        use astria_core::generated::sequencerblock::optimisticblock::v1alpha1 as raw;
+
         let Some(res) = std::task::ready!(self.inner.poll_next_unpin(cx)) else {
             return Poll::Ready(None);
         };
@@ -182,7 +184,6 @@ impl Stream for InnerBlockCommitmentStream {
                 )
             })?;
 
-        use astria_core::generated::sequencerblock::optimisticblock::v1alpha1 as raw;
         let commitment = Commitment::try_from_raw(&raw).wrap_err_with(|| {
             format!(
                 "failed to validate message `{}` received from server",

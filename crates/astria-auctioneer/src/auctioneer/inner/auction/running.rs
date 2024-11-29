@@ -30,7 +30,7 @@ pub(in crate::auctioneer::inner) struct Running {
 
 impl Running {
     pub(in crate::auctioneer::inner) fn abort(&self) {
-        self.task.abort()
+        self.task.abort();
     }
 
     #[instrument(skip(self))]

@@ -18,6 +18,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
   "display",
 ] }
 
+base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
@@ -39,7 +40,7 @@ tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
 tonic = { workspace = true }
 tokio-stream = { workspace = true, features = ["sync"] }
-base64.workspace = true
+
 pin-project-lite = "0.2.15"
 
 [dev-dependencies]
