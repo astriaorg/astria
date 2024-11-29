@@ -35,7 +35,7 @@ use crate::{
 };
 
 pub(crate) fn open(endpoint: &str) -> eyre::Result<RollupChannel> {
-    RollupChannel::create(&endpoint)
+    RollupChannel::create(endpoint)
         .wrap_err_with(|| format!("failed to create a gRPC channel to rollup at `{endpoint}`"))
 }
 
@@ -66,7 +66,7 @@ impl RollupChannel {
                 let inner = BundleServiceClient::new(chan)
                     .get_bundle_stream(GetBundleStreamRequest {})
                     .await
-                    .map(|rsp| rsp.into_inner())
+                    .map(tonic::Response::into_inner)
                     // TODO: Don't quietly swallow this error. Provide some form of
                     // logging.
                     .ok()?;
@@ -109,7 +109,7 @@ impl RollupChannel {
                 let inner = OptimisticExecutionServiceClient::new(chan)
                     .execute_optimistic_block_stream(out_stream)
                     .await
-                    .map(|rsp| rsp.into_inner())
+                    .map(tonic::Response::into_inner)
                     // TODO: Don't quietly swallow this error. Provide some form of
                     // logging.
                     .ok()?;

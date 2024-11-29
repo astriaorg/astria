@@ -74,7 +74,7 @@ impl Bundle {
         self,
         nonce: u32,
         rollup_id: RollupId,
-        sequencer_key: SequencerKey,
+        sequencer_key: &SequencerKey,
         fee_asset: asset::Denom,
         chain_id: String,
     ) -> TransactionBody {
@@ -117,7 +117,7 @@ pub(crate) struct Allocation {
 }
 
 impl Allocation {
-    fn new(bundle: Bundle, sequencer_key: SequencerKey) -> Self {
+    fn new(bundle: Bundle, sequencer_key: &SequencerKey) -> Self {
         let bundle_data = bundle.clone().into_raw().encode_to_vec();
         let signature = sequencer_key.signing_key().sign(&bundle_data);
         let verification_key = sequencer_key.signing_key().verification_key();

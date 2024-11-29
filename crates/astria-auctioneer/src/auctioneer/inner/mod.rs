@@ -360,7 +360,7 @@ impl PendingNoncePublisher {
                                 Ok(Err(error)) | Err(error) => span.in_scope(|| warn!(%error, "failed fetching pending nonce")),
                             }
                         }
-                    )
+                    );
                 }
             }),
         }

@@ -77,21 +77,20 @@ where
         if this.running_stream.is_some() {
             debug_assert!(this.opening_stream.is_none());
 
-            match ready!(
+            if let Some(item) = ready!(
                 this.running_stream
                     .as_mut()
                     .as_pin_mut()
                     .expect("inside a branch that checks running_stream == Some")
                     .poll_next_unpin(cx)
             ) {
-                Some(item) => return Poll::Ready(Some(item)),
-                None => {
-                    Pin::set(&mut this.running_stream, None);
-                    Pin::set(&mut this.opening_stream, Some((*this.f)()));
-                    return Poll::Pending;
-                }
-            };
-        };
+                return Poll::Ready(Some(item));
+            }
+
+            Pin::set(&mut this.running_stream, None);
+            Pin::set(&mut this.opening_stream, Some((*this.f)()));
+            return Poll::Pending;
+        }
 
         Poll::Ready(None)
     }
