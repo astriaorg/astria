@@ -6,13 +6,17 @@ use futures::{
     Future,
     FutureExt,
 };
-use tokio::task::JoinHandle;
+use tokio::{
+    sync::mpsc,
+    task::JoinHandle,
+};
 use tracing::{
     info,
     instrument,
     warn,
 };
 
+use super::Command;
 use crate::{
     block::Commitment,
     bundle::Bundle,
@@ -24,7 +28,8 @@ pub(in crate::auctioneer::inner) struct Running {
     pub(super) height: u64,
     pub(super) parent_block_of_executed: Option<[u8; 32]>,
     // TODO: Rename this to AuctionSender or smth like that
-    pub(super) sender: super::Handle,
+    pub(super) commands: mpsc::Sender<Command>,
+    pub(super) bundles: mpsc::Sender<Bundle>,
     pub(super) task: JoinHandle<eyre::Result<()>>,
 }
 
@@ -48,8 +53,8 @@ impl Running {
             super::Id::from_sequencer_block_hash(block_commitment.sequencer_block_hash());
 
         if self.id == id_according_to_block && block_commitment.sequencer_height() == self.height {
-            self.sender
-                .start_timer()
+            self.commands
+                .try_send(Command::StartTimer)
                 .wrap_err("failed to send command to start timer to auction")?;
         } else {
             // TODO: provide better information on the blocks/currently running auction.
@@ -83,8 +88,8 @@ impl Running {
             let _ = self
                 .parent_block_of_executed
                 .replace(block.parent_rollup_block_hash());
-            self.sender
-                .start_processing_bids()
+            self.commands
+                .try_send(Command::StartProcessingBids)
                 .wrap_err("failed to send command to start processing bids")?;
         } else {
             // TODO: bring back the fields to track the dropped block and current block
@@ -125,8 +130,8 @@ impl Running {
         let ids_match = self.id == id_according_to_bundle;
         let parent_blocks_match = parent_block_of_executed == bundle.parent_rollup_block_hash();
         if ids_match && parent_blocks_match {
-            self.sender
-                .try_send_bundle(bundle)
+            self.bundles
+                .try_send(bundle)
                 .wrap_err("failed to add bundle to auction")?;
         } else {
             warn!(

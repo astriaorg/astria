@@ -53,7 +53,6 @@ use astria_eyre::eyre::{
     Context,
     OptionExt as _,
 };
-pub(super) use builder::Builder;
 use sequencer_client::SequencerClientExt;
 use tokio::{
     select,
@@ -73,7 +72,6 @@ use crate::{
 };
 
 mod allocation_rule;
-mod builder;
 pub(super) mod factory;
 mod running;
 pub(super) use factory::Factory;
@@ -103,43 +101,13 @@ enum Command {
     StartTimer,
 }
 
-pub(super) struct Handle {
-    commands_tx: mpsc::Sender<Command>,
-    new_bundles_tx: mpsc::Sender<Bundle>,
-}
-
-impl Handle {
-    pub(super) fn start_processing_bids(&mut self) -> eyre::Result<()> {
-        self.commands_tx
-            .try_send(Command::StartProcessingBids)
-            .wrap_err("unable to send command to start processing bids to auction")?;
-        Ok(())
-    }
-
-    pub(super) fn start_timer(&mut self) -> eyre::Result<()> {
-        self.commands_tx
-            .try_send(Command::StartTimer)
-            .wrap_err("unable to send command to start time to auction")?;
-
-        Ok(())
-    }
-
-    pub(super) fn try_send_bundle(&mut self, bundle: Bundle) -> eyre::Result<()> {
-        self.new_bundles_tx
-            .try_send(bundle)
-            .wrap_err("bid channel full")?;
-
-        Ok(())
-    }
-}
-
 struct Auction {
     /// The sequencer's ABCI client, used for submitting transactions
     sequencer_abci_client: sequencer_client::HttpClient,
     /// Channel for receiving commands sent via the handle
     commands_rx: mpsc::Receiver<Command>,
     /// Channel for receiving new bundles
-    new_bundles_rx: mpsc::Receiver<Bundle>,
+    bundles_rx: mpsc::Receiver<Bundle>,
     /// The time between receiving a block commitment
     latency_margin: Duration,
     /// The ID of the auction
@@ -191,7 +159,7 @@ impl Auction {
                     }
                 }
 
-                Some(bundle) = self.new_bundles_rx.recv(), if auction_is_open => {
+                Some(bundle) = self.bundles_rx.recv(), if auction_is_open => {
                     if allocation_rule.bid(bundle.clone()) {
                         info!(
                             auction.id = %self.id,
