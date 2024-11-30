@@ -24,10 +24,12 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::{
     error,
+    field,
     info,
     info_span,
     instrument,
     warn,
+    Span,
 };
 
 use crate::{
@@ -165,8 +167,8 @@ impl Inner {
                 let _ = self.handle_executed_block(res);
             }
 
-            res = async { self.running_auction.as_mut().unwrap().await }, if self.running_auction.is_some() => {
-                let _ = self.handle_auction_result(res);
+            (id, res) = async { self.running_auction.as_mut().unwrap().await }, if self.running_auction.is_some() => {
+                let _ = self.handle_auction_result(id, res);
             }
 
             Some(res) = self.bundles.next() => {
@@ -183,13 +185,20 @@ impl Inner {
         Ok(())
     }
 
-    #[instrument(skip_all, err)]
-    fn handle_auction_result(&self, res: eyre::Result<()>) -> eyre::Result<()> {
+    /// Handles the result of an auction.
+    ///
+    /// This method only exists to emit the auction result (only error right now) under a right
+    /// span.
+    #[instrument(skip_all, fields(%auction_id), err)]
+    fn handle_auction_result(
+        &self,
+        auction_id: auction::Id,
+        res: eyre::Result<()>,
+    ) -> eyre::Result<()> {
         res
     }
 
-    // #[instrument(skip(self), fields(auction.old_id =
-    // %base64(self.current_block.sequencer_block_hash())), err)]
+    #[instrument(skip(self), fields(block_hash = field::Empty), err)]
     fn handle_optimistic_block(
         &mut self,
         optimistic_block: eyre::Result<FilteredSequencerBlock>,
@@ -197,25 +206,21 @@ impl Inner {
         let optimistic_block =
             optimistic_block.wrap_err("encountered problem receiving optimistic block message")?;
 
+        Span::current().record("block_hash", field::display(optimistic_block.block_hash()));
+
         // FIXME: Don't clone this; find a better way.
         let new_auction = self.auction_factory.start_new(optimistic_block.clone());
+        info!(auction_id = %new_auction.id(), "started new auction");
+
         if let Some(old_auction) = self.running_auction.replace(new_auction) {
             // NOTE: We just throw away the old auction after aborting it. Is there
             // value in `.join`ing it after the abort except for ensuring that it
-            // did indeed abort? What if the running auction is not tracked inside
-            // the "auction manager", but the auction manager is turned into a simpler
-            // factory so that the running auction is running inside the auctioneer?
-            // Then the auctioneer would always have the previous/old auction and could
-            // decide what to do with it. That might make this a cleaner implementation.
-            // let old_auction_id = running_auction.id;
-            // info!(
-            //     %new_auction_id,
-            //     %old_auction_id,
-            //     "received optimistic block, aborting old auction and starting new auction"
-            // );
+            // did indeed abort?
             old_auction.abort();
+            info!(auction_id = %old_auction.id(), "terminated old auction");
         }
 
+        // TODO: do conversion && sending in one operation
         let base_block = crate::block::Optimistic::new(optimistic_block)
             .try_into_base_block(self.rollup_id)
             // FIXME: give this their proper wire names
@@ -227,52 +232,79 @@ impl Inner {
         Ok(())
     }
 
-    // #[instrument(skip_all, fields(auction.id =
-    // %base64(self.current_block.sequencer_block_hash())), err)]
+    #[instrument(skip(self), fields(block_hash = field::Empty), err)]
     fn handle_block_commitment(
         &mut self,
         block_commitment: eyre::Result<crate::block::Commitment>,
     ) -> eyre::Result<()> {
         let block_commitment = block_commitment.wrap_err("failed to receive block commitment")?;
+        Span::current().record(
+            "block_hash",
+            field::display(block_commitment.sequencer_block_hash()),
+        );
 
         if let Some(running_auction) = &mut self.running_auction {
             running_auction
                 .start_timer(block_commitment)
                 .wrap_err("failed to start timer")?;
+            info!(auction_id = %running_auction.id(), "started auction timer");
         } else {
-            // TODO: emit an event?
+            info!(
+                "received a block commitment but did not start auction timer because no auction \
+                 was running"
+            );
         }
 
         Ok(())
     }
 
-    // #[instrument(skip_all, fields(auction.id =
-    // %base64(self.current_block.sequencer_block_hash())))]
+    #[instrument(skip(self), fields(block_hash = field::Empty), err)]
     fn handle_executed_block(
         &mut self,
         executed_block: eyre::Result<crate::block::Executed>,
     ) -> eyre::Result<()> {
         let executed_block = executed_block.wrap_err("failed to receive executed block")?;
+        Span::current().record(
+            "block_hash",
+            field::display(executed_block.sequencer_block_hash()),
+        );
         if let Some(running_auction) = &mut self.running_auction {
             running_auction
                 .start_processing_bids(executed_block)
                 .wrap_err("failed to start processing bids")?;
+            info!(
+                auction_id = %running_auction.id(),
+                "set auction to start processing bids based on executed block",
+            );
         } else {
-            // TODO: emit an event?
+            info!(
+                "received an executed block but did not set auction to start processing bids \
+                 because no auction was running"
+            );
         }
         Ok(())
     }
 
-    // #[instrument(skip_all, fields(auction.id =
-    // %base64(self.current_block.sequencer_block_hash())))]
+    #[instrument(skip(self), fields(block_hash = field::Empty), err)]
     fn handle_bundle(&mut self, bundle: eyre::Result<crate::bundle::Bundle>) -> eyre::Result<()> {
         let bundle = bundle.wrap_err("received problematic bundle")?;
+        Span::current().record(
+            "block_hash",
+            field::display(bundle.base_sequencer_block_hash()),
+        );
         if let Some(running_auction) = &mut self.running_auction {
             running_auction
                 .forward_bundle_to_auction(bundle)
                 .wrap_err("failed to forward bundle to auction")?;
+            info!(
+                auction_id = %running_auction.id(),
+                "forwarded bundle to auction"
+            )
         } else {
-            // TODO: emit an event?
+            info!(
+                "received a bundle but did not forward it to the auction because no auction was \
+                 running",
+            );
         }
         Ok(())
     }
