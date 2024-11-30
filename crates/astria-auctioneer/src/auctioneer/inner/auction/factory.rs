@@ -36,7 +36,7 @@ impl Factory {
     #[instrument(skip(self))]
     pub(in crate::auctioneer::inner) fn start_new(
         &mut self,
-        block: FilteredSequencerBlock,
+        block: &FilteredSequencerBlock,
     ) -> Running {
         let new_auction_id = super::Id::from_sequencer_block_hash(block.block_hash());
         let height = block.height().into();
