@@ -23,19 +23,18 @@ use crate::{
     flatten_join_result,
 };
 
-pub(in crate::auctioneer::inner) struct Running {
+pub(in crate::auctioneer::inner) struct Auction {
     pub(super) id: super::Id,
     pub(super) height: u64,
     pub(super) parent_block_of_executed: Option<[u8; 32]>,
-    // TODO: Rename this to AuctionSender or smth like that
     pub(super) commands: mpsc::Sender<Command>,
     pub(super) bundles: mpsc::Sender<Bundle>,
-    pub(super) task: JoinHandle<eyre::Result<()>>,
+    pub(super) worker: JoinHandle<eyre::Result<()>>,
 }
 
-impl Running {
+impl Auction {
     pub(in crate::auctioneer::inner) fn abort(&self) {
-        self.task.abort();
+        self.worker.abort();
     }
 
     pub(in crate::auctioneer::inner) fn id(&self) -> &super::Id {
@@ -151,14 +150,14 @@ impl Running {
     }
 }
 
-impl Future for Running {
+impl Future for Auction {
     type Output = (super::Id, eyre::Result<()>);
 
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        let res = std::task::ready!(self.task.poll_unpin(cx));
+        let res = std::task::ready!(self.worker.poll_unpin(cx));
         std::task::Poll::Ready((self.id, flatten_join_result(res)))
     }
 }

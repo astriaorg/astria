@@ -12,8 +12,8 @@ use tokio::sync::mpsc;
 use super::{
     Auction,
     PendingNonceSubscriber,
-    Running,
     SequencerKey,
+    Worker,
 };
 
 pub(in crate::auctioneer::inner) struct Factory {
@@ -32,7 +32,7 @@ impl Factory {
     pub(in crate::auctioneer::inner) fn start_new(
         &self,
         block: &FilteredSequencerBlock,
-    ) -> Running {
+    ) -> Auction {
         let auction_id = super::Id::from_sequencer_block_hash(block.block_hash());
         let height = block.height().into();
 
@@ -40,7 +40,7 @@ impl Factory {
         let (commands_tx, commands_rx) = mpsc::channel(16);
         let (bundles_tx, bundles_rx) = mpsc::channel(16);
 
-        let auction = Auction {
+        let auction = Worker {
             sequencer_abci_client: self.sequencer_abci_client.clone(),
             commands_rx,
             bundles_rx,
@@ -53,13 +53,13 @@ impl Factory {
             pending_nonce: self.pending_nonce.clone(),
         };
 
-        Running {
+        Auction {
             id: auction_id,
             height,
             parent_block_of_executed: None,
             commands: commands_tx,
             bundles: bundles_tx,
-            task: tokio::task::spawn(auction.run()),
+            worker: tokio::task::spawn(auction.run()),
         }
     }
 }
