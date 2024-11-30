@@ -37,45 +37,41 @@
 //! as it received the signal to start the timer. This corresponds to the sequencer block being
 //! committed, thus providing the latest pending nonce.
 
-use std::time::Duration;
-
-use allocation_rule::FirstPrice;
 use astria_core::{
-    primitive::v1::{
-        asset,
-        RollupId,
-    },
+    self,
     sequencerblock::v1::block::BlockHash,
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     Context,
-    OptionExt as _,
 };
-use sequencer_client::SequencerClientExt;
+use futures::{
+    Future,
+    FutureExt as _,
+};
 use tokio::{
-    select,
     sync::mpsc,
+    task::JoinHandle,
 };
 use tracing::{
-    debug,
-    error,
     info,
     instrument,
+    warn,
 };
 
 use super::PendingNonceSubscriber;
 use crate::{
+    block::Commitment,
     bundle::Bundle,
+    flatten_join_result,
     sequencer_key::SequencerKey,
 };
 
-mod allocation_rule;
 pub(super) mod factory;
-mod running;
 pub(super) use factory::Factory;
-pub(super) use running::Auction;
+mod allocation_rule;
+mod worker;
+use worker::Worker;
 
 #[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
 pub(super) struct Id([u8; 32]);
@@ -101,122 +97,137 @@ enum Command {
     StartTimer,
 }
 
-struct Worker {
-    /// The sequencer's ABCI client, used for submitting transactions
-    sequencer_abci_client: sequencer_client::HttpClient,
-    /// Channel for receiving commands sent via the handle
-    commands_rx: mpsc::Receiver<Command>,
-    /// Channel for receiving new bundles
-    bundles_rx: mpsc::Receiver<Bundle>,
-    /// The time between receiving a block commitment
-    latency_margin: Duration,
-    /// The ID of the auction
+pub(super) struct Auction {
     id: Id,
-    /// The key used to sign transactions on the sequencer
-    sequencer_key: SequencerKey,
-    /// Fee asset for submitting transactions
-    fee_asset_denomination: asset::Denom,
-    /// The chain ID used for sequencer transactions
-    sequencer_chain_id: String,
-    /// Rollup ID to submit the auction result to
-    rollup_id: RollupId,
-    pending_nonce: PendingNonceSubscriber,
+    height: u64,
+    parent_block_of_executed: Option<[u8; 32]>,
+    commands: mpsc::Sender<Command>,
+    bundles: mpsc::Sender<Bundle>,
+    worker: JoinHandle<eyre::Result<()>>,
 }
 
-impl Worker {
-    #[instrument(skip_all, fields(id = %self.id))]
-    pub(super) async fn run(mut self) -> eyre::Result<()> {
-        let mut latency_margin_timer = None;
-        // TODO: do we want to make this configurable to allow for more complex allocation rules?
-        let mut allocation_rule = FirstPrice::new();
-        let mut auction_is_open = false;
+impl Auction {
+    pub(super) fn abort(&self) {
+        self.worker.abort();
+    }
 
-        let auction_result = loop {
-            select! {
-                biased;
+    pub(in crate::auctioneer::inner) fn id(&self) -> &Id {
+        &self.id
+    }
 
-                // get the auction winner when the timer expires
-                _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
-                    break Ok(allocation_rule.winner());
-                }
+    #[instrument(skip(self))]
+    // pub(in crate::auctioneer::inner) fn start_timer(&mut self, auction_id: Id) ->
+    // eyre::Result<()> {
+    pub(super) fn start_timer(&mut self, block_commitment: Commitment) -> eyre::Result<()> {
+        let id_according_to_block =
+            Id::from_sequencer_block_hash(block_commitment.sequencer_block_hash());
 
-                Some(cmd) = self.commands_rx.recv() => {
-                    match cmd {
-                        Command::StartProcessingBids => {
-                            if auction_is_open {
-                                break Err(eyre!("auction received signal to start processing bids twice"));
-                            }
-                            auction_is_open = true;
-                        },
-                        Command::StartTimer  => {
-                            if !auction_is_open {
-                                break Err(eyre!("auction received signal to start timer before signal to start processing bids"));
-                            }
-
-                            // set the timer
-                            latency_margin_timer = Some(tokio::time::sleep(self.latency_margin));
-                        }
-                    }
-                }
-
-                Some(bundle) = self.bundles_rx.recv(), if auction_is_open => {
-                    if allocation_rule.bid(bundle.clone()) {
-                        info!(
-                            auction.id = %self.id,
-                            bundle.bid = %bundle.bid(),
-                            "received new highest bid"
-                        );
-                    } else {
-                        debug!(
-                            auction.id = %self.id,
-                            bundle.bid = %bundle.bid(),
-                            "received bid lower than current highest bid, discarding"
-                        );
-                    }
-                }
-
-            }
-        };
-
-        // TODO: report the pending nonce that we ended up using.
-        let transaction_body = auction_result
-            .wrap_err("auction failed unexpectedly")?
-            .ok_or_eyre("auction ended with no winning bid")?
-            .into_transaction_body(
-                self.pending_nonce.get(),
-                self.rollup_id,
-                &self.sequencer_key,
-                self.fee_asset_denomination.clone(),
-                self.sequencer_chain_id,
+        if self.id == id_according_to_block && block_commitment.sequencer_height() == self.height {
+            self.commands
+                .try_send(Command::StartTimer)
+                .wrap_err("failed to send command to start timer to auction")?;
+        } else {
+            // TODO: provide better information on the blocks/currently running auction.
+            // warn!(
+            //     current_block.sequencer_block_hash =
+            // %base64(self.current_block.sequencer_block_hash()),
+            //     block_commitment.sequencer_block_hash =
+            // %base64(block_commitment.sequencer_block_hash()),     "received
+            // block commitment for the wrong block" );
+            info!(
+                "not starting the auction timer because sequencer block hash and height of the \
+                 commitment did not match that of the running auction",
             );
+        }
 
-        let transaction = transaction_body.sign(self.sequencer_key.signing_key());
+        Ok(())
+    }
 
-        // NOTE: Submit fire-and-forget style. If the submission didn't make it in time,
-        // it's likey lost.
-        // TODO: We can consider providing a very tight retry mechanism. Maybe resubmit once
-        // if the response didn't take too long? But it's probably a bad idea to even try.
-        // Can we detect if a submission failed due to a bad nonce? In this case, we could
-        // immediately ("optimistically") submit with the most recent pending nonce (if the
-        // publisher updated it in the meantime) or just nonce + 1 (if it didn't yet update)?
-        match self
-            .sequencer_abci_client
-            .submit_transaction_sync(transaction)
-            .await
-            .wrap_err("submission of the auction failed; it's likely lost")
-        {
-            Ok(resp) => {
-                // TODO: provide tx_sync response hash? Does it have extra meaning?
-                info!(
-                    response.log = %resp.log,
-                    response.code = resp.code.value(),
-                    "auction winner submitted to sequencer",
-                );
-            }
-            Err(error) => {
-                error!(%error, "failed to submit auction winner to sequencer; it's likely lost");
-            }
+    #[instrument(skip(self))]
+    // pub(in crate::auctioneer::inner) fn start_processing_bids(&mut self, auction_id: Id) ->
+    // eyre::Result<()> {
+    pub(in crate::auctioneer::inner) fn start_processing_bids(
+        &mut self,
+        block: crate::block::Executed,
+    ) -> eyre::Result<()> {
+        let id_according_to_block = Id::from_sequencer_block_hash(block.sequencer_block_hash());
+
+        if self.id == id_according_to_block {
+            // TODO: What if it was already set? Overwrite? Replace? Drop?
+            let _ = self
+                .parent_block_of_executed
+                .replace(block.parent_rollup_block_hash());
+            self.commands
+                .try_send(Command::StartProcessingBids)
+                .wrap_err("failed to send command to start processing bids")?;
+        } else {
+            // TODO: bring back the fields to track the dropped block and current block
+            // warn!(
+            //     // TODO: nicer display for the current block
+            //     current_block.sequencer_block_hash =
+            // %base64(self.current_block.sequencer_block_hash()),
+            //     executed_block.sequencer_block_hash =
+            // %base64(executed_block.sequencer_block_hash()),
+            //     executed_block.rollup_block_hash =
+            // %base64(executed_block.rollup_block_hash()),     "received
+            // optimistic execution result for wrong sequencer block" );
+            warn!(
+                "not starting to process bids in the current auction because we received an \
+                 executed block from the rollup with a sequencer block hash that does not match \
+                 that of the currently running auction; dropping the executed block"
+            );
+        }
+
+        Ok(())
+    }
+
+    pub(in crate::auctioneer::inner) fn forward_bundle_to_auction(
+        &mut self,
+        bundle: Bundle,
+    ) -> eyre::Result<()> {
+        let id_according_to_bundle =
+            Id::from_sequencer_block_hash(bundle.base_sequencer_block_hash());
+
+        // TODO: emit some more information about auctoin ID, expected vs actual parent block hash,
+        // tacked block hash, provided block hash, etc.
+        let Some(parent_block_of_executed) = self.parent_block_of_executed else {
+            eyre::bail!(
+                "received a new bundle but the current auction has not yet
+                    received an execute block from the rollup; dropping the bundle"
+            );
+        };
+        let ids_match = self.id == id_according_to_bundle;
+        let parent_blocks_match = parent_block_of_executed == bundle.parent_rollup_block_hash();
+        if ids_match && parent_blocks_match {
+            self.bundles
+                .try_send(bundle)
+                .wrap_err("failed to add bundle to auction")?;
+        } else {
+            warn!(
+                // TODO: Add these fields back in. Is it even necessary to return the error?
+                // Can't we just fire the event here? necessary?
+                //
+                // curent_block.sequencer_block_hash = %base64(self.
+                // current_block.sequencer_block_hash()),
+                // bundle.sequencer_block_hash = %base64(bundle.base_sequencer_block_hash()),
+                // bundle.parent_rollup_block_hash =
+                // %base64(bundle.parent_rollup_block_hash()),
+                "incoming bundle does not match current block, ignoring"
+            );
+            eyre::bail!("auction ID and ID according to bundle don't match");
         }
         Ok(())
+    }
+}
+
+impl Future for Auction {
+    type Output = (Id, eyre::Result<()>);
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let res = std::task::ready!(self.worker.poll_unpin(cx));
+        std::task::Poll::Ready((self.id, flatten_join_result(res)))
     }
 }
