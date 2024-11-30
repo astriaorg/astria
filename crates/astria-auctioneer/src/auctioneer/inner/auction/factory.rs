@@ -7,8 +7,10 @@ use astria_core::{
     },
     sequencerblock::v1::block::FilteredSequencerBlock,
 };
+use tokio::sync::mpsc;
 
 use super::{
+    Auction,
     PendingNonceSubscriber,
     Running,
     SequencerKey,
@@ -31,26 +33,32 @@ impl Factory {
         &self,
         block: &FilteredSequencerBlock,
     ) -> Running {
-        let new_auction_id = super::Id::from_sequencer_block_hash(block.block_hash());
+        let auction_id = super::Id::from_sequencer_block_hash(block.block_hash());
         let height = block.height().into();
 
-        let (handle, auction) = super::Builder {
+        // TODO: get the capacities from config or something instead of using a magic number
+        let (commands_tx, commands_rx) = mpsc::channel(16);
+        let (bundles_tx, bundles_rx) = mpsc::channel(16);
+
+        let auction = Auction {
             sequencer_abci_client: self.sequencer_abci_client.clone(),
+            commands_rx,
+            bundles_rx,
             latency_margin: self.latency_margin,
-            auction_id: new_auction_id,
+            id: auction_id,
             sequencer_key: self.sequencer_key.clone(),
             fee_asset_denomination: self.fee_asset_denomination.clone(),
             sequencer_chain_id: self.sequencer_chain_id.clone(),
             rollup_id: self.rollup_id,
             pending_nonce: self.pending_nonce.clone(),
-        }
-        .build();
+        };
 
         Running {
-            id: new_auction_id,
+            id: auction_id,
             height,
             parent_block_of_executed: None,
-            sender: handle,
+            commands: commands_tx,
+            bundles: bundles_tx,
             task: tokio::task::spawn(auction.run()),
         }
     }
