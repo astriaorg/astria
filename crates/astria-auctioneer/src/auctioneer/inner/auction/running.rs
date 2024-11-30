@@ -33,6 +33,10 @@ impl Running {
         self.task.abort();
     }
 
+    pub(in crate::auctioneer::inner) fn id(&self) -> &super::Id {
+        &self.id
+    }
+
     #[instrument(skip(self))]
     // pub(in crate::auctioneer::inner) fn start_timer(&mut self, auction_id: Id) ->
     // eyre::Result<()> {
@@ -143,13 +147,13 @@ impl Running {
 }
 
 impl Future for Running {
-    type Output = eyre::Result<()>;
+    type Output = (super::Id, eyre::Result<()>);
 
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         let res = std::task::ready!(self.task.poll_unpin(cx));
-        std::task::Poll::Ready(flatten_join_result(res))
+        std::task::Poll::Ready((self.id, flatten_join_result(res)))
     }
 }

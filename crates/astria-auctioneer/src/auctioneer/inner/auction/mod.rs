@@ -80,7 +80,7 @@ pub(super) use factory::Factory;
 pub(super) use running::Running;
 
 #[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
-struct Id([u8; 32]);
+pub(super) struct Id([u8; 32]);
 
 impl Id {
     pub(super) fn from_sequencer_block_hash(block_hash: &BlockHash) -> Self {
