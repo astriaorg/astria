@@ -75,7 +75,7 @@ mod allocation_rule;
 pub(super) mod factory;
 mod running;
 pub(super) use factory::Factory;
-pub(super) use running::Running;
+pub(super) use running::Auction;
 
 #[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
 pub(super) struct Id([u8; 32]);
@@ -101,7 +101,7 @@ enum Command {
     StartTimer,
 }
 
-struct Auction {
+struct Worker {
     /// The sequencer's ABCI client, used for submitting transactions
     sequencer_abci_client: sequencer_client::HttpClient,
     /// Channel for receiving commands sent via the handle
@@ -123,7 +123,7 @@ struct Auction {
     pending_nonce: PendingNonceSubscriber,
 }
 
-impl Auction {
+impl Worker {
     #[instrument(skip_all, fields(id = %self.id))]
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         let mut latency_margin_timer = None;
