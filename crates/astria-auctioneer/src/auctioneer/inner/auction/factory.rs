@@ -7,10 +7,6 @@ use astria_core::{
     },
     sequencerblock::v1::block::FilteredSequencerBlock,
 };
-use tracing::{
-    instrument,
-    warn,
-};
 
 use super::{
     PendingNonceSubscriber,
@@ -31,11 +27,8 @@ pub(in crate::auctioneer::inner) struct Factory {
 }
 
 impl Factory {
-    // pub(in crate::auctioneer::inner) fn new_auction(&mut self, auction_id: Id) {
-    // TODO: Add some better instrumentation.
-    #[instrument(skip(self))]
     pub(in crate::auctioneer::inner) fn start_new(
-        &mut self,
+        &self,
         block: &FilteredSequencerBlock,
     ) -> Running {
         let new_auction_id = super::Id::from_sequencer_block_hash(block.block_hash());
