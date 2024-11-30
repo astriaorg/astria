@@ -227,8 +227,7 @@ impl Inner {
 
         Span::current().record("block_hash", field::display(optimistic_block.block_hash()));
 
-        // FIXME: Don't clone this; find a better way.
-        let new_auction = self.auction_factory.start_new(optimistic_block.clone());
+        let new_auction = self.auction_factory.start_new(&optimistic_block);
         info!(auction_id = %new_auction.id(), "started new auction");
 
         if let Some(old_auction) = self.running_auction.replace(new_auction) {
