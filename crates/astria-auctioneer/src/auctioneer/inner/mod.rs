@@ -14,6 +14,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use futures::{
+    stream::FuturesUnordered,
     Future,
     StreamExt as _,
 };
@@ -29,6 +30,7 @@ use tracing::{
     info_span,
     instrument,
     warn,
+    Level,
     Span,
 };
 
@@ -54,6 +56,7 @@ pub(super) struct Inner {
     auction_factory: auction::Factory,
     block_commitments: BlockCommitmentStream,
     bundles: BundleStream,
+    cancelled_auctions: FuturesUnordered<auction::Running>,
     executed_blocks: ExecuteOptimisticBlockStream,
     running_auction: Option<auction::Running>,
     optimistic_blocks: OptimisticBlockStream,
@@ -116,6 +119,7 @@ impl Inner {
             auction_factory,
             block_commitments: sequencer_channel.open_get_block_commitment_stream(),
             bundles: rollup_channel.open_bundle_stream(),
+            cancelled_auctions: FuturesUnordered::new(),
             executed_blocks: rollup_channel.open_execute_optimistic_block_stream(),
             optimistic_blocks: sequencer_channel.open_get_optimistic_block_stream(rollup_id),
             rollup_id,
@@ -168,7 +172,7 @@ impl Inner {
             }
 
             (id, res) = async { self.running_auction.as_mut().unwrap().await }, if self.running_auction.is_some() => {
-                let _ = self.handle_auction_result(id, res);
+                let _ = self.handle_completed_auction(id, res);
             }
 
             Some(res) = self.bundles.next() => {
@@ -181,16 +185,31 @@ impl Inner {
                     Err(err) => return Err(err).wrap_err("pending nonce publisher task panicked"),
                 }
              }
+
+             Some((id, res)) = self.cancelled_auctions.next() => {
+                 let _ = self.handle_cancelled_auction(id, res);
+             }
         );
         Ok(())
     }
 
-    /// Handles the result of an auction.
+    /// Handles the result of an auction running to completion.
     ///
-    /// This method only exists to emit the auction result (only error right now) under a right
-    /// span.
+    /// This method only exists to emit the auction result (only error right now) under a span.
     #[instrument(skip_all, fields(%auction_id), err)]
-    fn handle_auction_result(
+    fn handle_completed_auction(
+        &self,
+        auction_id: auction::Id,
+        res: eyre::Result<()>,
+    ) -> eyre::Result<()> {
+        res
+    }
+
+    /// Handles the result of cancelled auctions.
+    ///
+    /// This method only exists to emit the auction result (only error right now) under a span.
+    #[instrument(skip_all, fields(%auction_id), err(level = Level::INFO))]
+    fn handle_cancelled_auction(
         &self,
         auction_id: auction::Id,
         res: eyre::Result<()>,
@@ -213,11 +232,9 @@ impl Inner {
         info!(auction_id = %new_auction.id(), "started new auction");
 
         if let Some(old_auction) = self.running_auction.replace(new_auction) {
-            // NOTE: We just throw away the old auction after aborting it. Is there
-            // value in `.join`ing it after the abort except for ensuring that it
-            // did indeed abort?
             old_auction.abort();
-            info!(auction_id = %old_auction.id(), "terminated old auction");
+            info!(auction_id = %old_auction.id(), "cancelled old auction");
+            self.cancelled_auctions.push(old_auction);
         }
 
         // TODO: do conversion && sending in one operation
