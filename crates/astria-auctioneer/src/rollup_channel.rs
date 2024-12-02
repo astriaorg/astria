@@ -48,7 +48,6 @@ impl RollupChannel {
     fn create(uri: &str) -> eyre::Result<Self> {
         let channel = Channel::from_shared(uri.to_string())
             .wrap_err("failed to open a channel to the provided uri")?
-            .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(2))
             .connect_lazy();
 
