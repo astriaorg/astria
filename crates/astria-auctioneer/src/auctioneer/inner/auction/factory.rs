@@ -33,7 +33,8 @@ impl Factory {
         &self,
         block: &FilteredSequencerBlock,
     ) -> Auction {
-        let auction_id = super::Id::from_sequencer_block_hash(block.block_hash());
+        let id = super::Id::from_sequencer_block_hash(block.block_hash());
+        let block_hash = *block.block_hash();
         let height = block.height().into();
 
         // TODO: get the capacities from config or something instead of using a magic number
@@ -45,7 +46,7 @@ impl Factory {
             commands_rx,
             bundles_rx,
             latency_margin: self.latency_margin,
-            id: auction_id,
+            id,
             sequencer_key: self.sequencer_key.clone(),
             fee_asset_denomination: self.fee_asset_denomination.clone(),
             sequencer_chain_id: self.sequencer_chain_id.clone(),
@@ -54,7 +55,8 @@ impl Factory {
         };
 
         Auction {
-            id: auction_id,
+            id,
+            block_hash,
             height,
             parent_block_of_executed: None,
             commands: commands_tx,
