@@ -5,7 +5,6 @@ use std::{
         Context,
         Poll,
     },
-    time::Duration,
 };
 
 use astria_core::generated::bundle::v1alpha1::{
@@ -27,11 +26,14 @@ use futures::{
 use prost::Name as _;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
-use tonic::transport::Channel;
 
 use crate::{
     bundle::Bundle,
-    streaming_utils::restarting_stream,
+    streaming_utils::{
+        make_instrumented_channel,
+        restarting_stream,
+        InstrumentedChannel,
+    },
 };
 
 pub(crate) fn open(endpoint: &str) -> eyre::Result<RollupChannel> {
@@ -41,18 +43,13 @@ pub(crate) fn open(endpoint: &str) -> eyre::Result<RollupChannel> {
 
 #[derive(Clone)]
 pub(crate) struct RollupChannel {
-    inner: Channel,
+    inner: InstrumentedChannel,
 }
 
 impl RollupChannel {
     fn create(uri: &str) -> eyre::Result<Self> {
-        let channel = Channel::from_shared(uri.to_string())
-            .wrap_err("failed to open a channel to the provided uri")?
-            .timeout(Duration::from_secs(2))
-            .connect_lazy();
-
         Ok(Self {
-            inner: channel,
+            inner: make_instrumented_channel(uri)?,
         })
     }
 

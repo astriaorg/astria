@@ -4,15 +4,63 @@ use std::{
         ready,
         Poll,
     },
+    time::Duration,
 };
 
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
+use bytes::Bytes;
 use futures::{
     Future,
     FutureExt as _,
     Stream,
     StreamExt as _,
 };
+use http::{
+    Request,
+    Response,
+};
+use http_body::combinators::UnsyncBoxBody;
 use pin_project_lite::pin_project;
+use tonic::{
+    transport::Channel,
+    Status,
+};
+use tower::{
+    util::BoxCloneService,
+    ServiceBuilder,
+};
+use tower_http::{
+    map_response_body::MapResponseBodyLayer,
+    trace::{
+        DefaultMakeSpan,
+        TraceLayer,
+    },
+};
+
+pub(crate) type InstrumentedChannel = BoxCloneService<
+    Request<UnsyncBoxBody<Bytes, Status>>,
+    Response<UnsyncBoxBody<Bytes, hyper::Error>>,
+    tonic::transport::Error,
+>;
+
+pub(crate) fn make_instrumented_channel(uri: &str) -> eyre::Result<InstrumentedChannel> {
+    let channel = Channel::from_shared(uri.to_string())
+        .wrap_err("failed to create a channel to the provided uri")?
+        .timeout(Duration::from_secs(2))
+        .connect_lazy();
+
+    let channel = ServiceBuilder::new()
+        .layer(MapResponseBodyLayer::new(UnsyncBoxBody::new))
+        .layer(
+            TraceLayer::new_for_grpc().make_span_with(DefaultMakeSpan::new().include_headers(true)),
+        )
+        .service(channel);
+
+    Ok(InstrumentedChannel::new(channel))
+}
 
 pub(crate) fn restarting_stream<F, Fut, S>(f: F) -> RestartingStream<F, Fut, S>
 where
