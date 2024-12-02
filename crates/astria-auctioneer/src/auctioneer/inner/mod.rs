@@ -251,13 +251,10 @@ impl Inner {
     #[instrument(skip(self), fields(block_hash = field::Empty), err)]
     fn handle_block_commitment(
         &mut self,
-        block_commitment: eyre::Result<crate::block::Commitment>,
+        commitment: eyre::Result<crate::block::Commitment>,
     ) -> eyre::Result<()> {
-        let block_commitment = block_commitment.wrap_err("failed to receive block commitment")?;
-        Span::current().record(
-            "block_hash",
-            field::display(block_commitment.sequencer_block_hash()),
-        );
+        let block_commitment = commitment.wrap_err("failed to receive block commitment")?;
+        Span::current().record("block_hash", field::display(block_commitment.block_hash()));
 
         if let Some(running_auction) = &mut self.running_auction {
             running_auction

@@ -43,21 +43,19 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    ensure,
     Context,
 };
 use futures::{
     Future,
     FutureExt as _,
 };
+use telemetry::display::base64;
 use tokio::{
     sync::mpsc,
     task::JoinHandle,
 };
-use tracing::{
-    info,
-    instrument,
-    warn,
-};
+use tracing::instrument;
 
 use super::PendingNonceSubscriber;
 use crate::{
@@ -99,6 +97,7 @@ enum Command {
 
 pub(super) struct Auction {
     id: Id,
+    block_hash: BlockHash,
     height: u64,
     parent_block_of_executed: Option<[u8; 32]>,
     commands: mpsc::Sender<Command>,
@@ -115,79 +114,54 @@ impl Auction {
         &self.id
     }
 
-    #[instrument(skip(self))]
-    // pub(in crate::auctioneer::inner) fn start_timer(&mut self, auction_id: Id) ->
-    // eyre::Result<()> {
-    pub(super) fn start_timer(&mut self, block_commitment: Commitment) -> eyre::Result<()> {
-        let id_according_to_block =
-            Id::from_sequencer_block_hash(block_commitment.sequencer_block_hash());
-
-        if self.id == id_according_to_block && block_commitment.sequencer_height() == self.height {
-            self.commands
-                .try_send(Command::StartTimer)
-                .wrap_err("failed to send command to start timer to auction")?;
-        } else {
-            // TODO: provide better information on the blocks/currently running auction.
-            // warn!(
-            //     current_block.sequencer_block_hash =
-            // %base64(self.current_block.sequencer_block_hash()),
-            //     block_commitment.sequencer_block_hash =
-            // %base64(block_commitment.sequencer_block_hash()),     "received
-            // block commitment for the wrong block" );
-            info!(
-                "not starting the auction timer because sequencer block hash and height of the \
-                 commitment did not match that of the running auction",
-            );
-        }
-
-        Ok(())
+    #[instrument(skip_all, fields(id = %self.id), err)]
+    pub(super) fn start_timer(&mut self, commitment: Commitment) -> eyre::Result<()> {
+        ensure!(
+            &self.block_hash == commitment.block_hash() && self.height == commitment.height(),
+            "commitment does not match auction; auction.block_hash = `{}`, auction.height = `{}`, \
+             commitment.block_hash = `{}`, commitment.height = `{}`",
+            self.block_hash,
+            self.height,
+            commitment.block_hash(),
+            commitment.height(),
+        );
+        self.commands
+            .try_send(Command::StartTimer)
+            .wrap_err("failed to send command to start timer to auction")
     }
 
-    #[instrument(skip(self))]
-    // pub(in crate::auctioneer::inner) fn start_processing_bids(&mut self, auction_id: Id) ->
-    // eyre::Result<()> {
+    #[instrument(skip_all, fields(id = %self.id), err)]
     pub(in crate::auctioneer::inner) fn start_processing_bids(
         &mut self,
         block: crate::block::Executed,
     ) -> eyre::Result<()> {
-        let id_according_to_block = Id::from_sequencer_block_hash(block.sequencer_block_hash());
-
-        if self.id == id_according_to_block {
-            // TODO: What if it was already set? Overwrite? Replace? Drop?
-            let _ = self
-                .parent_block_of_executed
-                .replace(block.parent_rollup_block_hash());
-            self.commands
-                .try_send(Command::StartProcessingBids)
-                .wrap_err("failed to send command to start processing bids")?;
-        } else {
-            // TODO: bring back the fields to track the dropped block and current block
-            // warn!(
-            //     // TODO: nicer display for the current block
-            //     current_block.sequencer_block_hash =
-            // %base64(self.current_block.sequencer_block_hash()),
-            //     executed_block.sequencer_block_hash =
-            // %base64(executed_block.sequencer_block_hash()),
-            //     executed_block.rollup_block_hash =
-            // %base64(executed_block.rollup_block_hash()),     "received
-            // optimistic execution result for wrong sequencer block" );
-            warn!(
-                "not starting to process bids in the current auction because we received an \
-                 executed block from the rollup with a sequencer block hash that does not match \
-                 that of the currently running auction; dropping the executed block"
-            );
-        }
-
-        Ok(())
+        ensure!(
+            &self.block_hash == block.sequencer_block_hash(),
+            "executed block does not match auction; auction.block_hash = `{}`, \
+             executed.block_hash = `{}`",
+            &self.block_hash,
+            block.sequencer_block_hash(),
+        );
+        // TODO: What if it was already set? Overwrite? Replace? Drop?
+        let _ = self
+            .parent_block_of_executed
+            .replace(block.parent_rollup_block_hash());
+        self.commands
+            .try_send(Command::StartProcessingBids)
+            .wrap_err("failed to send command to start processing bids")
     }
 
+    // TODO: Use a refinement type for the parente rollup block hash
+    #[instrument(skip_all, fields(
+        id = %self.id,
+        bundle.sequencer_block_hash = %bundle.base_sequencer_block_hash(),
+        bundle.parent_roll_block_hash = %base64(bundle.parent_rollup_block_hash()),
+
+    ), err)]
     pub(in crate::auctioneer::inner) fn forward_bundle_to_auction(
         &mut self,
         bundle: Bundle,
     ) -> eyre::Result<()> {
-        let id_according_to_bundle =
-            Id::from_sequencer_block_hash(bundle.base_sequencer_block_hash());
-
         // TODO: emit some more information about auctoin ID, expected vs actual parent block hash,
         // tacked block hash, provided block hash, etc.
         let Some(parent_block_of_executed) = self.parent_block_of_executed else {
@@ -196,27 +170,19 @@ impl Auction {
                     received an execute block from the rollup; dropping the bundle"
             );
         };
-        let ids_match = self.id == id_according_to_bundle;
-        let parent_blocks_match = parent_block_of_executed == bundle.parent_rollup_block_hash();
-        if ids_match && parent_blocks_match {
-            self.bundles
-                .try_send(bundle)
-                .wrap_err("failed to add bundle to auction")?;
-        } else {
-            warn!(
-                // TODO: Add these fields back in. Is it even necessary to return the error?
-                // Can't we just fire the event here? necessary?
-                //
-                // curent_block.sequencer_block_hash = %base64(self.
-                // current_block.sequencer_block_hash()),
-                // bundle.sequencer_block_hash = %base64(bundle.base_sequencer_block_hash()),
-                // bundle.parent_rollup_block_hash =
-                // %base64(bundle.parent_rollup_block_hash()),
-                "incoming bundle does not match current block, ignoring"
-            );
-            eyre::bail!("auction ID and ID according to bundle don't match");
-        }
-        Ok(())
+        ensure!(
+            &self.block_hash == bundle.base_sequencer_block_hash()
+                && parent_block_of_executed == bundle.parent_rollup_block_hash(),
+            "bundle does not match auction; auction.sequenecer_block_hash = `{}`, \
+             auction.parent_block_hash = `{}`, bundle. = `{}`, bundle.height = `{}`",
+            self.block_hash,
+            base64(parent_block_of_executed),
+            bundle.base_sequencer_block_hash(),
+            base64(bundle.parent_rollup_block_hash()),
+        );
+        self.bundles
+            .try_send(bundle)
+            .wrap_err("failed to submit bundle to auction")
     }
 }
 

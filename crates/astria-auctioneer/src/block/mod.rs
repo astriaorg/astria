@@ -143,9 +143,9 @@ impl Executed {
 // This is very confusing.
 pub(crate) struct Commitment {
     /// The height of the sequencer block that was committed.
-    sequencer_height: u64,
+    height: u64,
     /// The hash of the sequencer block that was committed.
-    sequnecer_block_hash: BlockHash,
+    block_hash: BlockHash,
 }
 
 impl Commitment {
@@ -153,8 +153,8 @@ impl Commitment {
         raw: &raw_optimistic_block::SequencerBlockCommit,
     ) -> eyre::Result<Self> {
         Ok(Self {
-            sequencer_height: raw.height,
-            sequnecer_block_hash: raw
+            height: raw.height,
+            block_hash: raw
                 .block_hash
                 .as_ref()
                 .try_into()
@@ -162,12 +162,12 @@ impl Commitment {
         })
     }
 
-    pub(crate) fn sequencer_block_hash(&self) -> &BlockHash {
-        &self.sequnecer_block_hash
+    pub(crate) fn block_hash(&self) -> &BlockHash {
+        &self.block_hash
     }
 
     /// The height of the sequencer block that was committed.
-    pub(crate) fn sequencer_height(&self) -> u64 {
-        self.sequencer_height
+    pub(crate) fn height(&self) -> u64 {
+        self.height
     }
 }
