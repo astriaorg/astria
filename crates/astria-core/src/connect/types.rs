@@ -5,6 +5,10 @@ pub mod v2 {
         str::FromStr,
     };
 
+    use base64::{
+        display::Base64Display,
+        prelude::BASE64_STANDARD,
+    };
     use bytes::Bytes;
 
     use crate::generated::connect::types::v2 as raw;
@@ -53,7 +57,10 @@ pub mod v2 {
     }
 
     #[derive(Debug, thiserror::Error)]
-    #[error("failed decoding `{}` as u128 integer", crate::display::base64(.input))]
+    #[error(
+        "failed decoding `{}` as u128 integer",
+        Base64Display::new(.input, &BASE64_STANDARD)
+    )]
     pub struct DecodePriceError {
         input: Bytes,
     }
@@ -189,7 +196,7 @@ pub mod v2 {
         ParseQuote { source: ParseQuoteError },
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CurrencyPair {
         base: Base,
         quote: Quote,
@@ -335,7 +342,7 @@ pub mod v2 {
         }
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CurrencyPairId(u64);
 
     impl std::fmt::Display for CurrencyPairId {

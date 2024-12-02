@@ -401,7 +401,6 @@ impl Executor {
     async fn execute_soft(&mut self, block: FilteredSequencerBlock) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         let executable_block = ExecutableBlock::from_sequencer(block, self.state.rollup_id())
-            .await
             .wrap_err("failed to construct executable block")?;
 
         let expected_height = self.state.next_expected_soft_sequencer_height();
@@ -467,7 +466,6 @@ impl Executor {
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
         let executable_block = ExecutableBlock::from_reconstructed(block)
-            .await
             .wrap_err("failed to construct executable block")?;
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;
@@ -707,7 +705,7 @@ struct ExecutableBlock {
 }
 
 impl ExecutableBlock {
-    async fn from_reconstructed(block: ReconstructedBlock) -> eyre::Result<Self> {
+    fn from_reconstructed(block: ReconstructedBlock) -> eyre::Result<Self> {
         use prost::Message as _;
 
         let ReconstructedBlock {
@@ -724,11 +722,10 @@ impl ExecutableBlock {
                 extended_commit_info.extended_commit_info,
                 &extended_commit_info.id_to_currency_pair,
             )
-            .await
             .wrap_err("failed to calculate prices from vote extensions")?;
             let rollup_data = RollupData::OracleData(Box::new(prices_to_oracle_data(prices)));
             std::iter::once(rollup_data.into_raw().encode_to_vec().into())
-                .chain(transactions.into_iter())
+                .chain(transactions)
                 .collect()
         } else {
             transactions
@@ -742,7 +739,7 @@ impl ExecutableBlock {
         })
     }
 
-    async fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> eyre::Result<Self> {
+    fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> eyre::Result<Self> {
         use prost::Message as _;
 
         let extended_commit_info = block.decoded_extended_commit_info();
@@ -764,11 +761,10 @@ impl ExecutableBlock {
                 extended_commit_info.extended_commit_info,
                 &extended_commit_info.id_to_currency_pair,
             )
-            .await
             .wrap_err("failed to calculate prices from vote extensions")?;
             let rollup_data = RollupData::OracleData(Box::new(prices_to_oracle_data(prices)));
             std::iter::once(rollup_data.into_raw().encode_to_vec().into())
-                .chain(transactions.into_iter())
+                .chain(transactions)
                 .collect()
         } else {
             transactions

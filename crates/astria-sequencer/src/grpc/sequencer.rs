@@ -208,7 +208,7 @@ impl SequencerService for SequencerServer {
             ));
         };
 
-        let address = Address::try_from_raw(&address).map_err(|e| {
+        let address = Address::try_from_raw(address).map_err(|e| {
             info!(
                 error = %e,
                 "failed to parse address from request",

@@ -285,14 +285,8 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::InvalidRollupIdsProof)
     }
 
-    fn extended_commit_info_proof_invalid(source: merkle::audit::InvalidProof) -> Self {
-        Self(SequencerBlockErrorKind::ExtendedCommitInfoProofInvalid(
-            source,
-        ))
-    }
-
-    fn invalid_extended_commit_info_proof() -> Self {
-        Self(SequencerBlockErrorKind::InvalidExtendedCommitInfoProof)
+    fn extended_commit_info(source: ExtendedCommitInfoError) -> Self {
+        Self(SequencerBlockErrorKind::ExtendedCommitInfo(source))
     }
 
     fn decode_extended_commit_info(source: prost::DecodeError) -> Self {
@@ -384,16 +378,11 @@ enum SequencerBlockErrorKind {
          data_hash given the rollup IDs proof"
     )]
     InvalidRollupIdsProof,
-    #[error("the extended commit info proof was invalid")]
-    ExtendedCommitInfoProofInvalid(#[source] merkle::audit::InvalidProof),
-    #[error(
-        "the extended commit info did not verify against data_hash given the extended commit info \
-         proof"
-    )]
-    InvalidExtendedCommitInfoProof,
-    #[error("failed decoding the extended commit info")]
+    #[error("extended commit info or proof error")]
+    ExtendedCommitInfo(#[source] ExtendedCommitInfoError),
+    #[error("failed to decode extended commit info")]
     DecodeExtendedCommitInfo(#[source] prost::DecodeError),
-    #[error("the extended commit info could not be converted from proto to native")]
+    #[error("failed to convert raw extended commit info to native")]
     InvalidExtendedCommitInfo(#[source] ExtendedCommitInfoWithCurrencyPairMappingError),
 }
 
@@ -867,20 +856,24 @@ impl SequencerBlock {
         self.extended_commit_info_proof.as_ref()
     }
 
+    /// Returns the decoded `ExtendedCommitInfoWithCurrencyPairMapping` contained in this block.
+    ///
+    /// # Panics
+    ///
+    /// - if the `extended_commit_info` field is not a valid protobuf
+    ///   `ExtendedCommitInfoWithCurrencyPairMapping`; this should not happen as this type can only
+    ///   be constructed with a valid protobuf.
     #[must_use]
     pub fn decoded_extended_commit_info(
         &self,
     ) -> Option<ExtendedCommitInfoWithCurrencyPairMapping> {
-        let Some(ref extended_commit_info) = self.extended_commit_info else {
-            return None;
-        };
+        let extended_commit_info = self.extended_commit_info.clone()?;
 
-        let raw_info =
-            RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
-                .expect(
-                    "must be a valid protobuf as the type was verified when constructing the \
-                     sequencer block",
-                );
+        let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info)
+            .expect(
+                "must be a valid protobuf as the type was verified when constructing the \
+                 sequencer block",
+            );
         Some(
             ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).expect(
                 "must be a valid ExtendedCommitInfoWithCurrencyPairMapping as the type was \
@@ -1087,28 +1080,12 @@ impl SequencerBlock {
             return Err(SequencerBlockError::rollup_ids_not_in_sequencer_block());
         }
 
-        let extended_commit_info_proof = extended_commit_info_proof
-            .map(merkle::Proof::try_from_raw)
-            .transpose()
-            .map_err(SequencerBlockError::extended_commit_info_proof_invalid)?;
-        if let Some(extended_commit_info) = &extended_commit_info {
-            let Some(extended_commit_info_proof) = &extended_commit_info_proof else {
-                return Err(SequencerBlockError::field_not_set(
-                    "extended_commit_info_proof",
-                ));
-            };
-
-            if !extended_commit_info_proof.verify(&Sha256::digest(extended_commit_info), data_hash)
-            {
-                return Err(SequencerBlockError::invalid_extended_commit_info_proof());
-            }
-
-            let raw_info =
-                RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
-                    .map_err(SequencerBlockError::decode_extended_commit_info)?;
-            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
-                .map_err(SequencerBlockError::invalid_extended_commit_info)?;
-        }
+        let extended_commit_info_proof = get_and_verify_extended_commit_info_proof(
+            extended_commit_info.clone(),
+            extended_commit_info_proof,
+            data_hash,
+        )
+        .map_err(SequencerBlockError::extended_commit_info)?;
 
         Ok(Self {
             block_hash,
@@ -1149,6 +1126,86 @@ impl SequencerBlock {
             extended_commit_info_proof,
         }
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct ExtendedCommitInfoError(ExtendedCommitInfoErrorKind);
+
+impl ExtendedCommitInfoError {
+    fn proof_not_set() -> Self {
+        Self(ExtendedCommitInfoErrorKind::ProofNotSet)
+    }
+
+    fn invalid_extended_commit_info_proof(source: merkle::audit::InvalidProof) -> Self {
+        Self(ExtendedCommitInfoErrorKind::InvalidExtendedCommitInfoProof(
+            source,
+        ))
+    }
+
+    fn extended_commit_info_not_in_sequencer_block() -> Self {
+        Self(ExtendedCommitInfoErrorKind::ExtendedCommitInfoNotInSequencerBlock)
+    }
+
+    fn decode_extended_commit_info(source: prost::DecodeError) -> Self {
+        Self(ExtendedCommitInfoErrorKind::DecodeExtendedCommitInfo(
+            source,
+        ))
+    }
+
+    fn invalid_extended_commit_info(
+        source: ExtendedCommitInfoWithCurrencyPairMappingError,
+    ) -> Self {
+        Self(ExtendedCommitInfoErrorKind::InvalidExtendedCommitInfo(
+            source,
+        ))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ExtendedCommitInfoErrorKind {
+    #[error("the extended commit info was not set")]
+    ProofNotSet,
+    #[error("failed to convert into native extended commit info proof from the raw protobuf")]
+    InvalidExtendedCommitInfoProof(#[source] merkle::audit::InvalidProof),
+    #[error(
+        "the extended commit info in the sequencer block was not included in the block's data hash"
+    )]
+    ExtendedCommitInfoNotInSequencerBlock,
+    #[error("failed decoding the extended commit info from the raw protobuf")]
+    DecodeExtendedCommitInfo(prost::DecodeError),
+    #[error("failed constructing the extended commit info proof from the raw protobuf")]
+    InvalidExtendedCommitInfo(ExtendedCommitInfoWithCurrencyPairMappingError),
+}
+
+fn get_and_verify_extended_commit_info_proof(
+    extended_commit_info: Option<Bytes>,
+    extended_commit_info_proof: Option<crate::generated::primitive::v1::Proof>,
+    data_hash: [u8; 32],
+) -> Result<Option<merkle::Proof>, ExtendedCommitInfoError> {
+    use sha2::Digest as _;
+
+    let extended_commit_info_proof = if let Some(extended_commit_info) = extended_commit_info {
+        let Some(extended_commit_info_proof) = extended_commit_info_proof else {
+            return Err(ExtendedCommitInfoError::proof_not_set());
+        };
+        let extended_commit_info_proof = merkle::Proof::try_from_raw(extended_commit_info_proof)
+            .map_err(ExtendedCommitInfoError::invalid_extended_commit_info_proof)?;
+
+        if !extended_commit_info_proof.verify(&Sha256::digest(&extended_commit_info), data_hash) {
+            return Err(ExtendedCommitInfoError::extended_commit_info_not_in_sequencer_block());
+        }
+
+        let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info)
+            .map_err(ExtendedCommitInfoError::decode_extended_commit_info)?;
+        ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
+            .map_err(ExtendedCommitInfoError::invalid_extended_commit_info)?;
+
+        Some(extended_commit_info_proof)
+    } else {
+        None
+    };
+    Ok(extended_commit_info_proof)
 }
 
 struct InitialDataElements {
@@ -1333,20 +1390,24 @@ impl FilteredSequencerBlock {
         self.extended_commit_info_proof.as_ref()
     }
 
+    /// Returns the decoded `ExtendedCommitInfoWithCurrencyPairMapping` contained in this block.
+    ///
+    /// # Panics
+    ///
+    /// - if the `extended_commit_info` field is not a valid protobuf
+    ///   `ExtendedCommitInfoWithCurrencyPairMapping`; this should not happen as this type can only
+    ///   be constructed with a valid protobuf.
     #[must_use]
     pub fn decoded_extended_commit_info(
         &self,
     ) -> Option<ExtendedCommitInfoWithCurrencyPairMapping> {
-        let Some(ref extended_commit_info) = self.extended_commit_info else {
-            return None;
-        };
+        let extended_commit_info = self.extended_commit_info.clone()?;
 
-        let raw_info =
-            RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
-                .expect(
-                    "must be a valid protobuf as the type was verified when constructing the \
-                     sequencer block",
-                );
+        let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info)
+            .expect(
+                "must be a valid protobuf as the type was verified when constructing the \
+                 sequencer block",
+            );
         Some(
             ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).expect(
                 "must be a valid ExtendedCommitInfoWithCurrencyPairMapping as the type was \
@@ -1495,34 +1556,12 @@ impl FilteredSequencerBlock {
             return Err(FilteredSequencerBlockError::rollup_ids_not_in_sequencer_block());
         }
 
-        let extended_commit_info_proof = if let Some(extended_commit_info) = &extended_commit_info {
-            let Some(extended_commit_info_proof) = extended_commit_info_proof else {
-                return Err(FilteredSequencerBlockError::field_not_set(
-                    "extended_commit_info_proof",
-                ));
-            };
-            let extended_commit_info_proof =
-                merkle::Proof::try_from_raw(extended_commit_info_proof)
-                    .map_err(FilteredSequencerBlockError::id_proof_invalid)?;
-
-            if !extended_commit_info_proof
-                .verify(&Sha256::digest(extended_commit_info), header.data_hash)
-            {
-                return Err(
-                    FilteredSequencerBlockError::extended_commit_info_not_in_sequencer_block(),
-                );
-            }
-
-            let raw_info =
-                RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
-                    .map_err(FilteredSequencerBlockError::decode_extended_commit_info)?;
-            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
-                .map_err(FilteredSequencerBlockError::invalid_extended_commit_info)?;
-
-            Some(extended_commit_info_proof)
-        } else {
-            None
-        };
+        let extended_commit_info_proof = get_and_verify_extended_commit_info_proof(
+            extended_commit_info.clone(),
+            extended_commit_info_proof,
+            header.data_hash,
+        )
+        .map_err(FilteredSequencerBlockError::extended_commit_info)?;
 
         Ok(Self {
             block_hash,
@@ -1596,14 +1635,8 @@ enum FilteredSequencerBlockErrorKind {
     TransactionProofInvalid(merkle::audit::InvalidProof),
     #[error("failed constructing a rollup ID proof from the raw protobuf rollup ID proof")]
     IdProofInvalid(merkle::audit::InvalidProof),
-    #[error(
-        "the extended commit info in the sequencer block was not included in the block's data hash"
-    )]
-    ExtendedCommitInfoNotInSequencerBlock,
-    #[error("failed decoding the extended commit info from the raw protobuf")]
-    DecodeExtendedCommitInfo(prost::DecodeError),
-    #[error("failed constructing the extended commit info proof from the raw protobuf")]
-    InvalidExtendedCommitInfo(ExtendedCommitInfoWithCurrencyPairMappingError),
+    #[error("extended commit info or proof error")]
+    ExtendedCommitInfo(#[source] ExtendedCommitInfoError),
 }
 
 impl FilteredSequencerBlockError {
@@ -1655,22 +1688,8 @@ impl FilteredSequencerBlockError {
         Self(FilteredSequencerBlockErrorKind::IdProofInvalid(source))
     }
 
-    fn extended_commit_info_not_in_sequencer_block() -> Self {
-        Self(FilteredSequencerBlockErrorKind::ExtendedCommitInfoNotInSequencerBlock)
-    }
-
-    fn decode_extended_commit_info(source: prost::DecodeError) -> Self {
-        Self(FilteredSequencerBlockErrorKind::DecodeExtendedCommitInfo(
-            source,
-        ))
-    }
-
-    fn invalid_extended_commit_info(
-        source: ExtendedCommitInfoWithCurrencyPairMappingError,
-    ) -> Self {
-        Self(FilteredSequencerBlockErrorKind::InvalidExtendedCommitInfo(
-            source,
-        ))
+    fn extended_commit_info(source: ExtendedCommitInfoError) -> Self {
+        Self(FilteredSequencerBlockErrorKind::ExtendedCommitInfo(source))
     }
 }
 
@@ -1747,7 +1766,7 @@ impl Deposit {
             return Err(DepositError::field_not_set("bridge_address"));
         };
         let bridge_address =
-            Address::try_from_raw(&bridge_address).map_err(DepositError::address)?;
+            Address::try_from_raw(bridge_address).map_err(DepositError::address)?;
         let amount = amount.ok_or(DepositError::field_not_set("amount"))?.into();
         let Some(rollup_id) = rollup_id else {
             return Err(DepositError::field_not_set("rollup_id"));

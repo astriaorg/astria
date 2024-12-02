@@ -620,22 +620,26 @@ impl SubmittedMetadata {
         self.rollup_ids.contains(&rollup_id)
     }
 
+    /// Returns the decoded `ExtendedCommitInfoWithCurrencyPairMapping` contained in this blob.
+    ///
+    /// # Panics
+    ///
+    /// - if the `extended_commit_info` field is not a valid protobuf
+    ///   `ExtendedCommitInfoWithCurrencyPairMapping`; this should not happen as this type can only
+    ///   be constructed with a valid protobuf.
     #[must_use]
     pub fn decoded_extended_commit_info(
         &self,
     ) -> Option<ExtendedCommitInfoWithCurrencyPairMapping> {
         use prost::Message as _;
 
-        let Some(ref extended_commit_info) = self.extended_commit_info else {
-            return None;
-        };
+        let extended_commit_info = self.extended_commit_info.clone()?;
 
-        let raw_info =
-            RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
-                .expect(
-                    "must be a valid protobuf as the type was verified when constructing the \
-                     sequencer block",
-                );
+        let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info)
+            .expect(
+                "must be a valid protobuf as the type was verified when constructing the \
+                 sequencer block",
+            );
         Some(
             ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).expect(
                 "must be a valid ExtendedCommitInfoWithCurrencyPairMapping as the type was \

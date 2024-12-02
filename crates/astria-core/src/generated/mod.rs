@@ -58,7 +58,7 @@ pub mod astria {
     pub mod execution {
         pub mod v1 {
             include!("astria.execution.v1.rs");
-    
+
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
@@ -107,7 +107,7 @@ pub mod astria {
             #[path = "astria.protocol.fees.v1.rs"]
             pub mod v1 {
                 include!("astria.protocol.fees.v1.rs");
-    
+
                 #[cfg(feature = "serde")]
                 mod _serde_impls {
                     use super::*;
@@ -119,7 +119,7 @@ pub mod astria {
         pub mod genesis {
             pub mod v1 {
                 include!("astria.protocol.genesis.v1.rs");
-    
+
                 #[cfg(feature = "serde")]
                 mod _serde_impls {
                     use super::*;
@@ -131,7 +131,7 @@ pub mod astria {
         pub mod memos {
             pub mod v1 {
                 include!("astria.protocol.memos.v1.rs");
-    
+
                 #[cfg(feature = "serde")]
                 mod _serde_impls {
                     use super::*;

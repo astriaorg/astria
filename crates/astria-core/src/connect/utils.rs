@@ -41,28 +41,36 @@ enum ErrorKind {
     InvalidOracleVoteExtension(#[from] OracleVoteExtensionError),
 }
 
-pub async fn calculate_prices_from_vote_extensions(
+/// Calculates the median price for each currency pair from the given vote extensions in the
+/// `extended_commit_info`.
+///
+/// # Errors
+///
+/// - if any of the vote extensions cannot be decoded into a protobuf `OracleVoteExtension` message
+/// - if any of the vote extensions cannot be converted from prootobuf to native
+///   `OracleVoteExtension`
+pub fn calculate_prices_from_vote_extensions(
     extended_commit_info: ExtendedCommitInfo,
     id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
 ) -> Result<HashMap<CurrencyPair, Price>, Error> {
     let votes = extended_commit_info
         .votes
-        .iter()
+        .into_iter()
         .map(|vote| {
-            let raw = RawOracleVoteExtension::decode(vote.vote_extension.clone())
-                .map_err(Error::decode_error)?;
+            let raw =
+                RawOracleVoteExtension::decode(vote.vote_extension).map_err(Error::decode_error)?;
             OracleVoteExtension::try_from_raw(raw).map_err(Error::invalid_oracle_vote_extension)
         })
         .collect::<Result<Vec<_>, Error>>()?;
 
-    let prices = aggregate_oracle_votes(votes, id_to_currency_pair);
+    let prices = aggregate_oracle_votes(votes, id_to_currency_pair).collect();
     Ok(prices)
 }
 
 fn aggregate_oracle_votes(
     votes: Vec<OracleVoteExtension>,
     id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
-) -> HashMap<CurrencyPair, Price> {
+) -> impl Iterator<Item = (CurrencyPair, Price)> {
     // validators are not weighted right now, so we just take the median price for each currency
     // pair
     //
@@ -71,7 +79,7 @@ fn aggregate_oracle_votes(
     let mut currency_pair_to_price_list = HashMap::new();
     for vote in votes {
         for (id, price) in vote.prices {
-            let Some(currency_pair) = id_to_currency_pair.get(&id) else {
+            let Some(currency_pair) = id_to_currency_pair.get(&id).cloned() else {
                 // it's possible for a vote to contain some currency pair ID that didn't exist
                 // in state. this probably shouldn't happen if validators are running the right
                 // code, but it doesn't invalidate their entire vote extension, so
@@ -85,32 +93,171 @@ fn aggregate_oracle_votes(
         }
     }
 
-    let mut prices = HashMap::new();
-    for (currency_pair, mut price_list) in currency_pair_to_price_list {
-        price_list.sort_unstable();
-        let midpoint = price_list
-            .len()
-            .checked_div(2)
-            .expect("has a result because RHS is not 0");
-        let median_price = if price_list.len() % 2 == 0 {
-            'median_from_even: {
-                let Some(left) = price_list.get(midpoint) else {
-                    break 'median_from_even None;
-                };
-                let Some(right_idx) = midpoint.checked_add(1) else {
-                    break 'median_from_even None;
-                };
-                let Some(right) = price_list.get(right_idx).copied() else {
-                    break 'median_from_even None;
-                };
-                left.checked_add(right).and_then(|sum| sum.checked_div(2))
-            }
-        } else {
-            price_list.get(midpoint).copied()
-        }
-        .unwrap_or_else(|| Price::new(0));
-        prices.insert(currency_pair.clone(), median_price);
+    currency_pair_to_price_list
+        .into_iter()
+        .filter_map(|(currency_pair, price_list)| {
+            median(price_list).map(|median| (currency_pair, median))
+        })
+}
+
+/// Returns the median value from `price_list`, or an error if the list is empty.
+fn median(mut price_list: Vec<Price>) -> Option<Price> {
+    price_list.sort_unstable();
+    let midpoint = price_list
+        .len()
+        .checked_div(2)
+        .expect("can't fail as divisor is not zero");
+    if price_list.len() % 2 == 1 {
+        return Some(
+            price_list
+                .get(midpoint)
+                .copied()
+                .expect("`midpoint` is a valid index"),
+        );
     }
 
-    prices
+    let Some(lower_index) = midpoint.checked_sub(1) else {
+        // We can only get here if `price_list` is empty; this is not supported, so return None.
+        return None;
+    };
+
+    // `price_list.len()` >= 2 if we got to here, meaning `midpoint` and `lower_index` must both be
+    // valid indices of `price_list`.
+    let higher_price = price_list
+        .get(midpoint)
+        .expect("`midpoint` is a valid index");
+    let lower_price = price_list
+        .get(lower_index)
+        .expect("`lower_index` is a valid index");
+    // Avoid overflow by halving both values first.
+    let half_high = higher_price
+        .checked_div(2)
+        .expect("can't fail as divisor is not zero");
+    let half_low = lower_price
+        .checked_div(2)
+        .expect("can't fail as divisor is not zero");
+    let sum = half_high
+        .checked_add(half_low)
+        .expect("can't fail as both operands are <= MAX/2");
+    // If `higher_price` and `lower_price` are both odd, we rounded down twice when halving them,
+    // so add 1 to the sum.
+    let median = if higher_price.get() % 2 == 1 && lower_price.get() % 2 == 1 {
+        sum.checked_add(Price::new(1))
+            .expect("can't fail as we rounded down twice while halving the prices")
+    } else {
+        sum
+    };
+    Some(median)
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::BTreeMap;
+
+    use indexmap::indexmap;
+
+    use super::*;
+
+    fn pair_0() -> (CurrencyPair, CurrencyPairId) {
+        ("ETH/USD".parse().unwrap(), CurrencyPairId::new(0))
+    }
+
+    fn pair_1() -> (CurrencyPair, CurrencyPairId) {
+        ("BTC/USD".parse().unwrap(), CurrencyPairId::new(1))
+    }
+
+    fn pair_2() -> (CurrencyPair, CurrencyPairId) {
+        ("TIA/USD".parse().unwrap(), CurrencyPairId::new(2))
+    }
+
+    fn oracle_vote_extension<I: IntoIterator<Item = u128>>(prices: I) -> OracleVoteExtension {
+        OracleVoteExtension {
+            prices: prices
+                .into_iter()
+                .enumerate()
+                .map(|(index, price)| (CurrencyPairId::new(index as u64), Price::new(price)))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn aggregate_oracle_votes_ok() {
+        let votes = vec![
+            oracle_vote_extension([9, 19, 29]),
+            oracle_vote_extension([10, 20, 30]),
+            oracle_vote_extension([11, 21, 31]),
+        ];
+        let id_to_currency_pairs = indexmap! {
+            CurrencyPairId::new(0) => pair_0().0,
+            CurrencyPairId::new(1) => pair_1().0,
+            CurrencyPairId::new(2) => pair_2().0,
+        };
+        let aggregated_prices: BTreeMap<_, _> =
+            aggregate_oracle_votes(votes, &id_to_currency_pairs).collect();
+        assert_eq!(3, aggregated_prices.len());
+        assert_eq!(Some(&Price::new(10)), aggregated_prices.get(&pair_0().0));
+        assert_eq!(Some(&Price::new(20)), aggregated_prices.get(&pair_1().0));
+        assert_eq!(Some(&Price::new(30)), aggregated_prices.get(&pair_2().0));
+    }
+
+    #[test]
+    fn aggregate_oracle_votes_should_skip_unknown_pairs() {
+        // Last two entries in each vote should be ignored as we haven't stored state for them in
+        // storage, so there is no mapping of their `CurrencyPairId` to `CurrencyPair`.
+        let votes = vec![
+            oracle_vote_extension([9, 19, 29, 39, 49]),
+            oracle_vote_extension([10, 20, 30, 40, 50]),
+            oracle_vote_extension([11, 21, 31, 41, 51]),
+        ];
+        let id_to_currency_pairs = indexmap! {
+            CurrencyPairId::new(0) => pair_0().0,
+            CurrencyPairId::new(1) => pair_1().0,
+            CurrencyPairId::new(2) => pair_2().0,
+        };
+        let aggregated_prices: BTreeMap<_, _> =
+            aggregate_oracle_votes(votes, &id_to_currency_pairs).collect();
+        assert_eq!(3, aggregated_prices.len());
+        assert_eq!(Some(&Price::new(10)), aggregated_prices.get(&pair_0().0));
+        assert_eq!(Some(&Price::new(20)), aggregated_prices.get(&pair_1().0));
+        assert_eq!(Some(&Price::new(30)), aggregated_prices.get(&pair_2().0));
+    }
+
+    #[test]
+    fn should_calculate_median() {
+        fn prices<I: IntoIterator<Item = u128>>(prices: I) -> Vec<Price> {
+            prices.into_iter().map(Price::new).collect()
+        }
+
+        // Empty set should return None.
+        assert!(median(vec![]).is_none(),);
+
+        // Should handle a set with 1 entry.
+        assert_eq!(1, median(prices([1])).unwrap().get());
+
+        // Should handle a set with 2 entries.
+        assert_eq!(15, median(prices([20, 10])).unwrap().get());
+
+        // Should handle a larger set with odd number of entries.
+        assert_eq!(10, median(prices([21, 22, 23, 1, 2, 10, 3])).unwrap().get());
+
+        // Should handle a larger set with even number of entries.
+        assert_eq!(12, median(prices([21, 22, 23, 1, 2, 3])).unwrap().get());
+
+        // Should round down if required.
+        assert_eq!(17, median(prices([10, 15, 20, 25])).unwrap().get());
+
+        // Should handle large values in a set with odd number of entries.
+        assert_eq!(
+            u128::MAX,
+            median(prices([u128::MAX, u128::MAX, 1])).unwrap().get()
+        );
+
+        // Should handle large values in a set with even number of entries.
+        assert_eq!(
+            u128::MAX - 1,
+            median(prices([u128::MAX, u128::MAX, u128::MAX - 1, u128::MAX - 1]))
+                .unwrap()
+                .get()
+        );
+    }
 }

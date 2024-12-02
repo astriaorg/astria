@@ -70,7 +70,10 @@ use sha2::{
     Digest as _,
     Sha256,
 };
-use telemetry::display::json;
+use telemetry::display::{
+    base64,
+    json,
+};
 use tendermint::{
     abci::{
         self,
@@ -540,7 +543,11 @@ impl App {
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip_all)]
+    #[instrument(
+        name = "App::process_proposal",
+        skip_all,
+        fields(proposer=%base64(&process_proposal.proposer_address.as_bytes())))
+    ]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
@@ -1210,7 +1217,7 @@ impl App {
                         .wrap_err("failed to convert extended commit info from proto to native")?;
                 let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
                     StateDelta::new(self.state.clone());
-                crate::app::vote_extension::apply_prices_from_vote_extensions(
+                vote_extension::apply_prices_from_vote_extensions(
                     &mut state_tx,
                     extended_commit_info,
                     finalize_block.time.into(),
@@ -1431,7 +1438,16 @@ impl App {
                     .iter()
                     .any(|act| act.is_fee_asset_change() || act.is_fee_change());
 
-        Ok(state_tx.apply().1)
+        // index all event attributes
+        let mut events = state_tx.apply().1;
+        for event in &mut events {
+            event
+                .attributes
+                .iter_mut()
+                .for_each(|attr| attr.index = true);
+        }
+
+        Ok(events)
     }
 
     #[instrument(name = "App::end_block", skip_all)]

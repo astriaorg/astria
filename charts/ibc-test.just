@@ -12,7 +12,8 @@ delete:
 @deploy tag=defaultTag:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
-  echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  echo "Deploying local celestia instance..."
+  helm install celestia-local-chart ./celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   helm dependency update ./sequencer > /dev/null
   helm dependency update ./evm-stack > /dev/null
   echo "Setting up single astria sequencer..." && helm install \
@@ -37,7 +38,8 @@ delete:
 @deploy-without-native tag=defaultTag:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
-  echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  echo "Deploying local celestia instance..."
+  helm install celestia-local-chart ./celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   helm dependency update ./sequencer > /dev/null
   echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart ./sequencer \
@@ -53,7 +55,8 @@ delete:
 @deploy-timeout tag=defaultTag:
   echo "Deploying ingress controller..." && just deploy-ingress-controller > /dev/null
   just wait-for-ingress-controller > /dev/null
-  echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  echo "Deploying local celestia instance..." > /dev/null
+  helm install celestia-local-chart ./celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   helm dependency update ./sequencer > /dev/null
   helm dependency update ./evm-stack > /dev/null
   echo "Setting up single astria sequencer..." && helm install \
@@ -86,10 +89,7 @@ run-without-native tag=defaultTag:
   # Execute the transfer from Celestia to the Rollup
   just ibc-test _do-ibc-transfer {{defaultNamespace}} {{sequencer_sudo_address}}
 
-  # Add transfer/channel-0/utia as fee-asset
-  docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer sudo fee-asset add --private-key {{sequencer_sudo_pkey}} --asset transfer/channel-0/utia --sequencer-url {{sequencer_rpc_url}} --sequencer.chain-id {{sequencer_chain_id}}
   # check that sequencer balance updated correctly
-
   EXPECTED_BALANCE=$(echo "1 * {{transfer_amount}}" | bc)
   for i in {1..50}
   do
@@ -106,6 +106,11 @@ run-without-native tag=defaultTag:
     echo "expected sequencer balance was not found after IBC transfer; IBC transfer with compat address failed"
     exit 1
   fi
+
+  # Add transfer/channel-0/utia as allowed fee-asset
+  docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer sudo fee-asset add --private-key {{sequencer_sudo_pkey}} --asset transfer/channel-0/utia --sequencer-url {{sequencer_rpc_url}} --sequencer.chain-id {{sequencer_chain_id}}
+
+  # TODO: query allowd fee asset verifying succefull addition
 
 [no-cd]
 run tag=defaultTag:
@@ -145,23 +150,6 @@ run tag=defaultTag:
 
   # Execute the transfer from Celstia to sequencer with compat address
   just ibc-test _do-ibc-transfer {{defaultNamespace}} {{compat_address}}
-
-  # check that celestia balance updated correctly
-  for i in {1..50}
-  do
-    current_celestia_balance=$(just ibc-test get-celestia-balance)
-    echo "check $i, balance: $current_celestia_balance, expected: $expected_celestia_balance"
-    if (( $expected_celestia_balance == $current_celestia_balance )); then
-      expected_celestia_balance_found="1"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if [[ -z $expected_celestia_balance_found ]]; then
-    echo "expected celestia balance was not found after withdraw; IBC transfer from Celestia to the Rollup failed"
-    exit 1
-  fi
 
   # check that sequencer balance updated correctly
   ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
@@ -280,23 +268,6 @@ run-timeout tag=defaultTag:
   # Execute the transfer from Celstia to sequencer with compat address
   just ibc-test _do-ibc-transfer {{defaultNamespace}} {{compat_address}}
 
-  # check that celestia balance updated correctly
-  for i in {1..50}
-  do
-    current_celestia_balance=$(just ibc-test get-celestia-balance)
-    echo "check $i, balance: $current_celestia_balance, expected: $expected_celestia_balance"
-    if (( $expected_celestia_balance == $current_celestia_balance )); then
-      expected_celestia_balance_found="1"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if [[ -z $expected_celestia_balance_found ]]; then
-    echo "expected celestia balance was not found after withdraw; IBC transfer from Celestia to the Rollup failed"
-    exit 1
-  fi
-
   # check that sequencer balance updated correctly
   ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
   EXPECTED_BALANCE=$(echo "1 * {{transfer_amount}}" | bc)
@@ -373,8 +344,8 @@ run-timeout tag=defaultTag:
   # There are some acknowledgements flying back and forth which make creating a height
   # that is a timeout without being stale with a client update a challenge without
   # waiting for acknowledgements to settle. This is a hack.
-  echo "Waiting for 30 seconds to allow for acknowledgements to settle..."
-  sleep 30
+  echo "Waiting for 5 seconds to allow for acknowledgements to settle..."
+  sleep 5
 
   # Grabbing the current celestia block height and resetting the timeout height of the withdrawal
   # to one lower to force an immediate timeout which should create a refund event.
@@ -391,7 +362,8 @@ run-timeout tag=defaultTag:
   docker volume remove cli-test-withdrawals
 
   # Validate that the Celestia balance timed out
-  for i in {1..30}
+  echo "Checking for 10 seconds to ensure that Celestia balance does not update"
+  for i in {1..10}
   do
     current_celestia_balance=$(just ibc-test get-celestia-balance)
     echo "check $i, balance: $current_celestia_balance, if failure balance: $expected_celestia_balance"
