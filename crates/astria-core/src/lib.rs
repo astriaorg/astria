@@ -1,3 +1,4 @@
+pub use astria_core_crypto as crypto;
 use prost::Name;
 
 #[cfg(not(target_pointer_width = "64"))]
@@ -13,7 +14,6 @@ compile_error!(
 )]
 pub mod generated;
 
-pub mod crypto;
 pub mod execution;
 pub mod primitive;
 pub mod protocol;
