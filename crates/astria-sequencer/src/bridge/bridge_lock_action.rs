@@ -67,7 +67,7 @@ impl ActionHandler for BridgeLock {
         let source_action_index = state
             .get_transaction_context()
             .expect("current source should be set before executing action")
-            .source_action_index;
+            .position_in_transaction;
 
         // map asset to trace prefixed asset for deposit, if it is not already
         let deposit_asset = match self.asset.as_trace_prefixed() {
@@ -157,7 +157,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: *from_address.address_bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         state

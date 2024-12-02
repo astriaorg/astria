@@ -67,7 +67,7 @@ pub(crate) struct Fee {
     action_name: String,
     asset: asset::Denom,
     amount: u128,
-    source_action_index: u64,
+    position_in_transaction: u64,
 }
 
 impl Fee {
@@ -339,7 +339,7 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
         .get_transaction_context()
         .expect("transaction source must be present in state when executing an action");
     let from = transaction_context.address_bytes();
-    let source_action_index = transaction_context.source_action_index;
+    let position_in_transaction = transaction_context.position_in_transaction;
 
     ensure!(
         state
@@ -349,7 +349,7 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
         "invalid fee asset",
     );
     state
-        .add_fee_to_block_fees::<_, T>(fee_asset, total_fees, source_action_index)
+        .add_fee_to_block_fees::<_, T>(fee_asset, total_fees, position_in_transaction)
         .wrap_err("failed to add to block fees")?;
     state
         .decrease_balance(&from, fee_asset, total_fees)

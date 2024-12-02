@@ -212,7 +212,7 @@ impl ActionHandler for Transaction {
 
         // FIXME: this should create one span per `check_and_execute`
         for (i, action) in (0..).zip(self.actions().iter()) {
-            transaction_context.source_action_index = i;
+            transaction_context.position_in_transaction = i;
             state.put_transaction_context(transaction_context);
 
             match action {
