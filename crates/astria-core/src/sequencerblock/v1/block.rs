@@ -1842,13 +1842,17 @@ enum DepositErrorKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Price {
     currency_pair: CurrencyPair,
-    price: u128,
+    price: crate::connect::types::v2::Price,
     decimals: u64,
 }
 
 impl Price {
     #[must_use]
-    pub fn new(currency_pair: CurrencyPair, price: u128, decimals: u64) -> Self {
+    pub fn new(
+        currency_pair: CurrencyPair,
+        price: crate::connect::types::v2::Price,
+        decimals: u64,
+    ) -> Self {
         Self {
             currency_pair,
             price,
@@ -1862,7 +1866,7 @@ impl Price {
     }
 
     #[must_use]
-    pub fn price(&self) -> u128 {
+    pub fn price(&self) -> crate::connect::types::v2::Price {
         self.price
     }
 
@@ -1880,7 +1884,7 @@ impl Price {
         } = self;
         raw::Price {
             currency_pair: Some(currency_pair.into_raw()),
-            price: Some(price.into()),
+            price: Some(price.get().into()),
             decimals,
         }
     }
@@ -1902,7 +1906,9 @@ impl Price {
         };
         let currency_pair =
             CurrencyPair::try_from_raw(currency_pair).map_err(PriceError::currency)?;
-        let price = price.ok_or(PriceError::field_not_set("price"))?.into();
+        let price = crate::connect::types::v2::Price::new(
+            price.ok_or(PriceError::field_not_set("price"))?.into(),
+        );
         Ok(Self {
             currency_pair,
             price,

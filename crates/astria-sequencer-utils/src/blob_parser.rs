@@ -584,7 +584,7 @@ impl TryFrom<&RawOracleData> for PrintableOracleData {
                 .map(|price| {
                     (
                         price.currency_pair().to_string(),
-                        price.price(),
+                        price.price().get(),
                         price.decimals(),
                     )
                 })

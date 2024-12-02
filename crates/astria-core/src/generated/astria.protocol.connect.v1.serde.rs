@@ -122,6 +122,9 @@ impl serde::Serialize for IdWithCurrencyPair {
         if self.currency_pair.is_some() {
             len += 1;
         }
+        if self.decimals != 0 {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.connect.v1.IdWithCurrencyPair", len)?;
         if self.id != 0 {
             #[allow(clippy::needless_borrow)]
@@ -129,6 +132,10 @@ impl serde::Serialize for IdWithCurrencyPair {
         }
         if let Some(v) = self.currency_pair.as_ref() {
             struct_ser.serialize_field("currencyPair", v)?;
+        }
+        if self.decimals != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("decimals", ToString::to_string(&self.decimals).as_str())?;
         }
         struct_ser.end()
     }
@@ -143,12 +150,14 @@ impl<'de> serde::Deserialize<'de> for IdWithCurrencyPair {
             "id",
             "currency_pair",
             "currencyPair",
+            "decimals",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Id,
             CurrencyPair,
+            Decimals,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -172,6 +181,7 @@ impl<'de> serde::Deserialize<'de> for IdWithCurrencyPair {
                         match value {
                             "id" => Ok(GeneratedField::Id),
                             "currencyPair" | "currency_pair" => Ok(GeneratedField::CurrencyPair),
+                            "decimals" => Ok(GeneratedField::Decimals),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -193,6 +203,7 @@ impl<'de> serde::Deserialize<'de> for IdWithCurrencyPair {
             {
                 let mut id__ = None;
                 let mut currency_pair__ = None;
+                let mut decimals__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Id => {
@@ -209,11 +220,20 @@ impl<'de> serde::Deserialize<'de> for IdWithCurrencyPair {
                             }
                             currency_pair__ = map_.next_value()?;
                         }
+                        GeneratedField::Decimals => {
+                            if decimals__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("decimals"));
+                            }
+                            decimals__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
                     }
                 }
                 Ok(IdWithCurrencyPair {
                     id: id__.unwrap_or_default(),
                     currency_pair: currency_pair__,
+                    decimals: decimals__.unwrap_or_default(),
                 })
             }
         }

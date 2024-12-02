@@ -24,6 +24,8 @@ pub struct IdWithCurrencyPair {
     pub currency_pair: ::core::option::Option<
         super::super::super::super::connect::types::v2::CurrencyPair,
     >,
+    #[prost(uint64, tag = "3")]
+    pub decimals: u64,
 }
 impl ::prost::Name for IdWithCurrencyPair {
     const NAME: &'static str = "IdWithCurrencyPair";

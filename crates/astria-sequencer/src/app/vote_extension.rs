@@ -6,7 +6,6 @@ use astria_core::{
         oracle::v2::QuotePrice,
         service::v2::QueryPricesResponse,
         types::v2::{
-            CurrencyPair,
             CurrencyPairId,
             Price,
         },
@@ -19,7 +18,10 @@ use astria_core::{
             QueryPricesRequest,
         },
     },
-    protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+    protocol::connect::v1::{
+        CurrencyPairInfo,
+        ExtendedCommitInfoWithCurrencyPairMapping,
+    },
 };
 use astria_eyre::eyre::{
     bail,
@@ -256,7 +258,9 @@ impl ProposalHandler {
             .await
             .wrap_err("failed to validate vote extensions in prepare_proposal")?;
 
-        let id_to_currency_pair = get_id_to_currency_pair(&state, all_currency_pair_ids).await;
+        let id_to_currency_pair = get_id_to_currency_pair(&state, all_currency_pair_ids)
+            .await
+            .wrap_err("failed to get id to currency pair mapping")?;
         let tx = ExtendedCommitInfoWithCurrencyPairMapping::new(
             extended_commit_info,
             id_to_currency_pair,
@@ -326,7 +330,14 @@ impl ProposalHandler {
 async fn get_id_to_currency_pair<S: StateReadExt>(
     state: &S,
     all_ids: HashSet<u64>,
-) -> IndexMap<CurrencyPairId, CurrencyPair> {
+) -> Result<IndexMap<CurrencyPairId, CurrencyPairInfo>> {
+    use crate::connect::market_map::state_ext::StateReadExt as _;
+    let market_map = state
+        .get_market_map()
+        .await
+        .wrap_err("failed to get market map")?
+        .ok_or(eyre!("market map was not set"))?;
+
     let num_pairs = all_ids.len();
     let mut id_to_currency_pair_stream = all_ids
         .into_iter()
@@ -343,7 +354,17 @@ async fn get_id_to_currency_pair<S: StateReadExt>(
     while let Some((id, result)) = id_to_currency_pair_stream.next().await {
         match result {
             Ok(Some(currency_pair)) => {
-                let _ = id_to_currency_pair.insert(id, currency_pair);
+                let currency_pair_str = currency_pair.to_string();
+                let info = CurrencyPairInfo {
+                    currency_pair,
+                    decimals: market_map
+                        .markets
+                        .get(&currency_pair_str)
+                        .ok_or(eyre!("currency pair did not exist in market map"))?
+                        .ticker
+                        .decimals,
+                };
+                let _ = id_to_currency_pair.insert(id, info);
             }
             Ok(None) => {
                 debug!(%id, "currency pair not found in state; skipping");
@@ -358,15 +379,17 @@ async fn get_id_to_currency_pair<S: StateReadExt>(
             }
         }
     }
-    id_to_currency_pair
+    Ok(id_to_currency_pair)
 }
 
 async fn validate_id_to_currency_pair_mapping<S: StateReadExt>(
     state: &S,
     all_ids: HashSet<u64>,
-    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
+    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPairInfo>,
 ) -> Result<()> {
-    let mut expected_mapping = get_id_to_currency_pair(state, all_ids).await;
+    let mut expected_mapping = get_id_to_currency_pair(state, all_ids)
+        .await
+        .wrap_err("failed to get id to currency pair mapping")?;
     if expected_mapping == *id_to_currency_pair {
         return Ok(());
     }
@@ -570,9 +593,9 @@ pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         &id_to_currency_pair,
     )
     .wrap_err("failed to calculate prices from vote extensions")?;
-    for (currency_pair, price) in prices {
-        let price = QuotePrice {
-            price,
+    for price in prices {
+        let quote_price = QuotePrice {
+            price: price.price(),
             block_timestamp: astria_core::Timestamp {
                 seconds: timestamp.seconds,
                 nanos: timestamp.nanos,
@@ -581,7 +604,7 @@ pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         };
 
         state
-            .put_price_for_currency_pair(currency_pair, price)
+            .put_price_for_currency_pair(price.currency_pair().clone(), quote_price)
             .await
             .wrap_err("failed to put price")?;
     }
@@ -598,8 +621,14 @@ mod test {
 
     use astria_core::{
         connect::{
+            market_map::v2::{
+                Market,
+                MarketMap,
+                Ticker,
+            },
             oracle::v2::CurrencyPairState,
             types::v2::{
+                CurrencyPair,
                 CurrencyPairId,
                 CurrencyPairNonce,
             },
@@ -628,6 +657,7 @@ mod test {
             StateWriteExt as _,
             ValidatorSet,
         },
+        connect::market_map::state_ext::StateWriteExt as _,
     };
 
     const CHAIN_ID: &str = "test-0";
@@ -813,6 +843,10 @@ mod test {
             state.put_validator_set(validator_set).unwrap();
             state.put_base_prefix("astria".to_string()).unwrap();
 
+            let mut market_map = MarketMap {
+                markets: IndexMap::new(),
+            };
+
             for (pair, pair_id) in [pair_0(), pair_1(), pair_2()] {
                 let pair_state = CurrencyPairState {
                     price: QuotePrice {
@@ -826,9 +860,25 @@ mod test {
                     nonce: CurrencyPairNonce::new(1),
                     id: pair_id,
                 };
-                state.put_currency_pair_state(pair, pair_state).unwrap();
+                state
+                    .put_currency_pair_state(pair.clone(), pair_state)
+                    .unwrap();
+                market_map.markets.insert(
+                    pair.to_string(),
+                    Market {
+                        ticker: Ticker {
+                            currency_pair: pair,
+                            decimals: 6,
+                            min_provider_count: 0,
+                            enabled: true,
+                            metadata_json: String::new(),
+                        },
+                        provider_configs: Vec::new(),
+                    },
+                );
             }
             state.put_num_currency_pairs(3).unwrap();
+            state.put_market_map(market_map).unwrap();
 
             Self {
                 signer_a,
@@ -1225,7 +1275,9 @@ mod test {
 
         // No mapping for IDs 3 and 4.
         let ids_missing_pairs = HashSet::from_iter([0, 1, 2, 3, 4]);
-        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_missing_pairs.clone()).await;
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_missing_pairs.clone())
+            .await
+            .unwrap();
         assert_eq!(3, id_to_currency_pairs.len());
         assert!(id_to_currency_pairs.contains_key(&CurrencyPairId::new(0)));
         assert!(id_to_currency_pairs.contains_key(&CurrencyPairId::new(1)));
@@ -1246,14 +1298,18 @@ mod test {
         } = Fixture::new().await;
 
         let ids_missing_pairs = HashSet::from_iter([0]);
-        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_missing_pairs).await;
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_missing_pairs)
+            .await
+            .unwrap();
         let all_ids = HashSet::from_iter([0, 1, 2]);
         assert_err_contains(
             validate_id_to_currency_pair_mapping(&state, all_ids, &id_to_currency_pairs).await,
             &[
                 "failed to validate currency pair mapping:",
-                "missing (expected `BTC/USD` for id 1)",
-                "missing (expected `TIA/USD` for id 2)",
+                "missing (expected `CurrencyPairInfo { currency_pair: BTC/USD, decimals: 6 }` for \
+                 id 1)",
+                "missing (expected `CurrencyPairInfo { currency_pair: TIA/USD, decimals: 6 }` for \
+                 id 2)",
             ],
         );
     }
@@ -1267,14 +1323,18 @@ mod test {
         } = Fixture::new().await;
 
         let ids_extra_pair = HashSet::from_iter([0, 1, 2]);
-        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_extra_pair).await;
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_extra_pair)
+            .await
+            .unwrap();
         let all_ids = HashSet::from_iter([0]);
         assert_err_contains(
             validate_id_to_currency_pair_mapping(&state, all_ids, &id_to_currency_pairs).await,
             &[
                 "failed to validate currency pair mapping:",
-                "unexpected (got `BTC/USD` for id 1)",
-                "unexpected (got `TIA/USD` for id 2)",
+                "unexpected (got `CurrencyPairInfo { currency_pair: BTC/USD, decimals: 6 }` for \
+                 id 1)",
+                "unexpected (got `CurrencyPairInfo { currency_pair: TIA/USD, decimals: 6 }` for \
+                 id 2)",
             ],
         );
     }
@@ -1288,19 +1348,25 @@ mod test {
         } = Fixture::new().await;
 
         let all_ids = HashSet::from_iter([0, 1, 2]);
-        let mut id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids.clone()).await;
-        *id_to_currency_pairs
+        let mut id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids.clone())
+            .await
+            .unwrap();
+        id_to_currency_pairs
             .get_mut(&CurrencyPairId::new(0))
-            .unwrap() = "ABC/DEF".parse().unwrap();
-        *id_to_currency_pairs
+            .unwrap()
+            .currency_pair = "ABC/DEF".parse().unwrap();
+        id_to_currency_pairs
             .get_mut(&CurrencyPairId::new(1))
-            .unwrap() = "GHI/JKL".parse().unwrap();
+            .unwrap()
+            .currency_pair = "GHI/JKL".parse().unwrap();
         assert_err_contains(
             validate_id_to_currency_pair_mapping(&state, all_ids, &id_to_currency_pairs).await,
             &[
                 "failed to validate currency pair mapping:",
-                "mismatch (expected `ETH/USD` but got `ABC/DEF` for id 0)",
-                "mismatch (expected `BTC/USD` but got `GHI/JKL` for id 1)",
+                "mismatch (expected `CurrencyPairInfo { currency_pair: ETH/USD, decimals: 6 }` \
+                 but got `CurrencyPairInfo { currency_pair: ABC/DEF, decimals: 6 }` for id 0)",
+                "mismatch (expected `CurrencyPairInfo { currency_pair: BTC/USD, decimals: 6 }` \
+                 but got `CurrencyPairInfo { currency_pair: GHI/JKL, decimals: 6 }` for id 1)",
             ],
         );
     }
@@ -1314,7 +1380,9 @@ mod test {
         } = Fixture::new().await;
 
         let all_ids = HashSet::from_iter([0, 1, 2]);
-        let id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids.clone()).await;
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids.clone())
+            .await
+            .unwrap();
         // Ensure the random order of `all_ids` has no bearing on the internal equality check.
         let first_element = *all_ids.iter().next().unwrap();
         loop {

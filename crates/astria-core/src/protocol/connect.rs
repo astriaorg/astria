@@ -83,17 +83,33 @@ pub mod v1 {
         }
     }
 
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    pub struct CurrencyPairInfo {
+        pub currency_pair: CurrencyPair,
+        pub decimals: u64,
+    }
+
+    impl std::fmt::Display for CurrencyPairInfo {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(
+                f,
+                "CurrencyPairInfo {{ currency_pair: {}, decimals: {} }}",
+                self.currency_pair, self.decimals
+            )
+        }
+    }
+
     #[derive(Debug, Clone)]
     pub struct ExtendedCommitInfoWithCurrencyPairMapping {
         pub extended_commit_info: ExtendedCommitInfo,
-        pub id_to_currency_pair: IndexMap<CurrencyPairId, CurrencyPair>,
+        pub id_to_currency_pair: IndexMap<CurrencyPairId, CurrencyPairInfo>,
     }
 
     impl ExtendedCommitInfoWithCurrencyPairMapping {
         #[must_use]
         pub fn new(
             extended_commit_info: ExtendedCommitInfo,
-            id_to_currency_pair: IndexMap<CurrencyPairId, CurrencyPair>,
+            id_to_currency_pair: IndexMap<CurrencyPairId, CurrencyPairInfo>,
         ) -> Self {
             Self {
                 extended_commit_info,
@@ -148,10 +164,16 @@ pub mod v1 {
                     };
                     let currency_pair = CurrencyPair::try_from_raw(currency_pair)
                         .map_err(ExtendedCommitInfoWithCurrencyPairMappingError::currency_pair)?;
-                    Ok((currency_pair_id, currency_pair))
+                    Ok((
+                        currency_pair_id,
+                        CurrencyPairInfo {
+                            currency_pair,
+                            decimals: id_with_currency_pair.decimals,
+                        },
+                    ))
                 })
                 .collect::<Result<
-                    IndexMap<CurrencyPairId, CurrencyPair>,
+                    IndexMap<CurrencyPairId, CurrencyPairInfo>,
                     ExtendedCommitInfoWithCurrencyPairMappingError,
                 >>()?;
             Ok(Self {
@@ -168,9 +190,10 @@ pub mod v1 {
                 .id_to_currency_pair
                 .into_iter()
                 .map(
-                    |(currency_pair_id, currency_pair)| raw::IdWithCurrencyPair {
+                    |(currency_pair_id, currency_pair_info)| raw::IdWithCurrencyPair {
                         id: currency_pair_id.get(),
-                        currency_pair: Some(currency_pair.into_raw()),
+                        currency_pair: Some(currency_pair_info.currency_pair.into_raw()),
+                        decimals: currency_pair_info.decimals,
                     },
                 )
                 .collect();

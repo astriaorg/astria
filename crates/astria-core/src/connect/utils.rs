@@ -11,12 +11,12 @@ use crate::{
             OracleVoteExtensionError,
         },
         types::v2::{
-            CurrencyPair,
             CurrencyPairId,
             Price,
         },
     },
     generated::connect::abci::v2::OracleVoteExtension as RawOracleVoteExtension,
+    protocol::connect::v1::CurrencyPairInfo,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -51,8 +51,8 @@ enum ErrorKind {
 ///   `OracleVoteExtension`
 pub fn calculate_prices_from_vote_extensions(
     extended_commit_info: ExtendedCommitInfo,
-    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
-) -> Result<HashMap<CurrencyPair, Price>, Error> {
+    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPairInfo>,
+) -> Result<Vec<crate::sequencerblock::v1::block::Price>, Error> {
     let votes = extended_commit_info
         .votes
         .into_iter()
@@ -69,8 +69,8 @@ pub fn calculate_prices_from_vote_extensions(
 
 fn aggregate_oracle_votes(
     votes: Vec<OracleVoteExtension>,
-    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
-) -> impl Iterator<Item = (CurrencyPair, Price)> {
+    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPairInfo>,
+) -> impl Iterator<Item = crate::sequencerblock::v1::block::Price> {
     // validators are not weighted right now, so we just take the median price for each currency
     // pair
     //
@@ -95,8 +95,14 @@ fn aggregate_oracle_votes(
 
     currency_pair_to_price_list
         .into_iter()
-        .filter_map(|(currency_pair, price_list)| {
-            median(price_list).map(|median| (currency_pair, median))
+        .filter_map(|(currency_pair_info, price_list)| {
+            median(price_list).map(|median| {
+                crate::sequencerblock::v1::block::Price::new(
+                    currency_pair_info.currency_pair,
+                    median,
+                    currency_pair_info.decimals,
+                )
+            })
         })
 }
 
@@ -152,22 +158,25 @@ fn median(mut price_list: Vec<Price>) -> Option<Price> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::BTreeMap;
-
     use indexmap::indexmap;
 
     use super::*;
 
-    fn pair_0() -> (CurrencyPair, CurrencyPairId) {
-        ("ETH/USD".parse().unwrap(), CurrencyPairId::new(0))
-    }
-
-    fn pair_1() -> (CurrencyPair, CurrencyPairId) {
-        ("BTC/USD".parse().unwrap(), CurrencyPairId::new(1))
-    }
-
-    fn pair_2() -> (CurrencyPair, CurrencyPairId) {
-        ("TIA/USD".parse().unwrap(), CurrencyPairId::new(2))
+    fn get_id_to_currency_pair_mapping() -> IndexMap<CurrencyPairId, CurrencyPairInfo> {
+        indexmap! {
+            CurrencyPairId::new(0) => CurrencyPairInfo {
+                currency_pair: "ETH/USD".parse().unwrap(),
+                decimals: 0,
+            },
+            CurrencyPairId::new(1) => CurrencyPairInfo {
+                currency_pair: "BTC/USD".parse().unwrap(),
+                decimals: 0,
+            },
+            CurrencyPairId::new(2) => CurrencyPairInfo {
+                currency_pair: "TIA/USD".parse().unwrap(),
+                decimals: 0,
+            },
+        }
     }
 
     fn oracle_vote_extension<I: IntoIterator<Item = u128>>(prices: I) -> OracleVoteExtension {
@@ -187,17 +196,12 @@ mod test {
             oracle_vote_extension([10, 20, 30]),
             oracle_vote_extension([11, 21, 31]),
         ];
-        let id_to_currency_pairs = indexmap! {
-            CurrencyPairId::new(0) => pair_0().0,
-            CurrencyPairId::new(1) => pair_1().0,
-            CurrencyPairId::new(2) => pair_2().0,
-        };
-        let aggregated_prices: BTreeMap<_, _> =
-            aggregate_oracle_votes(votes, &id_to_currency_pairs).collect();
-        assert_eq!(3, aggregated_prices.len());
-        assert_eq!(Some(&Price::new(10)), aggregated_prices.get(&pair_0().0));
-        assert_eq!(Some(&Price::new(20)), aggregated_prices.get(&pair_1().0));
-        assert_eq!(Some(&Price::new(30)), aggregated_prices.get(&pair_2().0));
+        let id_to_currency_pairs = get_id_to_currency_pair_mapping();
+        let mut aggregated_prices = aggregate_oracle_votes(votes, &id_to_currency_pairs);
+        assert_eq!(3, aggregated_prices.size_hint().0);
+        assert_eq!(Price::new(10), aggregated_prices.next().unwrap().price());
+        assert_eq!(Price::new(20), aggregated_prices.next().unwrap().price());
+        assert_eq!(Price::new(30), aggregated_prices.next().unwrap().price());
     }
 
     #[test]
@@ -209,17 +213,12 @@ mod test {
             oracle_vote_extension([10, 20, 30, 40, 50]),
             oracle_vote_extension([11, 21, 31, 41, 51]),
         ];
-        let id_to_currency_pairs = indexmap! {
-            CurrencyPairId::new(0) => pair_0().0,
-            CurrencyPairId::new(1) => pair_1().0,
-            CurrencyPairId::new(2) => pair_2().0,
-        };
-        let aggregated_prices: BTreeMap<_, _> =
-            aggregate_oracle_votes(votes, &id_to_currency_pairs).collect();
-        assert_eq!(3, aggregated_prices.len());
-        assert_eq!(Some(&Price::new(10)), aggregated_prices.get(&pair_0().0));
-        assert_eq!(Some(&Price::new(20)), aggregated_prices.get(&pair_1().0));
-        assert_eq!(Some(&Price::new(30)), aggregated_prices.get(&pair_2().0));
+        let id_to_currency_pairs = get_id_to_currency_pair_mapping();
+        let mut aggregated_prices = aggregate_oracle_votes(votes, &id_to_currency_pairs);
+        assert_eq!(3, aggregated_prices.size_hint().0);
+        assert_eq!(Price::new(10), aggregated_prices.next().unwrap().price());
+        assert_eq!(Price::new(20), aggregated_prices.next().unwrap().price());
+        assert_eq!(Price::new(30), aggregated_prices.next().unwrap().price());
     }
 
     #[test]

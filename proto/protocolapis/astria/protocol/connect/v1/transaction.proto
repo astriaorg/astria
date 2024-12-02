@@ -13,4 +13,5 @@ message ExtendedCommitInfoWithCurrencyPairMapping {
 message IdWithCurrencyPair {
   uint64 id = 1;
   .connect.types.v2.CurrencyPair currency_pair = 2;
+  uint64 decimals = 3;
 }

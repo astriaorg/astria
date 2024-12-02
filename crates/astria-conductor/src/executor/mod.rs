@@ -1,10 +1,6 @@
 use std::collections::HashMap;
 
 use astria_core::{
-    connect::types::v2::{
-        CurrencyPair,
-        Price,
-    },
     execution::v1::{
         Block,
         CommitmentState,
@@ -723,7 +719,7 @@ impl ExecutableBlock {
                 &extended_commit_info.id_to_currency_pair,
             )
             .wrap_err("failed to calculate prices from vote extensions")?;
-            let rollup_data = RollupData::OracleData(Box::new(prices_to_oracle_data(prices)));
+            let rollup_data = RollupData::OracleData(Box::new(OracleData::new(prices)));
             std::iter::once(rollup_data.into_raw().encode_to_vec().into())
                 .chain(transactions)
                 .collect()
@@ -762,7 +758,7 @@ impl ExecutableBlock {
                 &extended_commit_info.id_to_currency_pair,
             )
             .wrap_err("failed to calculate prices from vote extensions")?;
-            let rollup_data = RollupData::OracleData(Box::new(prices_to_oracle_data(prices)));
+            let rollup_data = RollupData::OracleData(Box::new(OracleData::new(prices)));
             std::iter::once(rollup_data.into_raw().encode_to_vec().into())
                 .chain(transactions)
                 .collect()
@@ -777,20 +773,6 @@ impl ExecutableBlock {
             transactions,
         })
     }
-}
-
-fn prices_to_oracle_data(prices: HashMap<CurrencyPair, Price>) -> OracleData {
-    let prices = prices
-        .into_iter()
-        .map(|(currency_pair, price)| {
-            astria_core::sequencerblock::v1::block::Price::new(
-                currency_pair,
-                price.get(),
-                0, // TODO
-            )
-        })
-        .collect();
-    OracleData::new(prices)
 }
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
