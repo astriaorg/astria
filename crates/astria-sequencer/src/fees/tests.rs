@@ -334,7 +334,7 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
     state.put_transaction_context(TransactionContext {
         address_bytes: from_address.bytes(),
         transaction_id,
-        source_action_index: 0,
+        position_in_transaction: 0,
     });
     state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
