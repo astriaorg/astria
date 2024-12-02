@@ -173,7 +173,7 @@ impl ActionHandler for action::Ics20Withdrawal {
     }
 }
 
-pub(in crate::action_handler) async fn create_ibc_packet_from_withdrawal<S: StateRead>(
+async fn create_ibc_packet_from_withdrawal<S: StateRead>(
     withdrawal: &action::Ics20Withdrawal,
     state: S,
 ) -> Result<IBCPacket<Unchecked>> {
@@ -222,7 +222,7 @@ pub(in crate::action_handler) async fn create_ibc_packet_from_withdrawal<S: Stat
 /// 1. Errors reading from DB
 /// 2. `action.bridge_address` is set, but `from` is not the withdrawer address.
 /// 3. `action.bridge_address` is unset, but `from` is a bridge account.
-pub(in crate::action_handler) async fn establish_withdrawal_target<'a, S: StateRead>(
+async fn establish_withdrawal_target<'a, S: StateRead>(
     action: &'a action::Ics20Withdrawal,
     state: &S,
     from: &'a [u8; 20],
