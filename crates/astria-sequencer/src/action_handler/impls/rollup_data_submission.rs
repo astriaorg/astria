@@ -3,11 +3,12 @@ use astria_eyre::eyre::{
     ensure,
     Result,
 };
+use async_trait::async_trait;
 use cnidarium::StateWrite;
 
-use crate::app::ActionHandler;
+use crate::action_handler::ActionHandler;
 
-#[async_trait::async_trait]
+#[async_trait]
 impl ActionHandler for RollupDataSubmission {
     async fn check_stateless(&self) -> Result<()> {
         // TODO: do we want to place a maximum on the size of the data?

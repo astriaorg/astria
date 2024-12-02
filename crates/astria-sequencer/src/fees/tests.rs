@@ -37,6 +37,7 @@ use cnidarium::StateDelta;
 use super::base_deposit_fee;
 use crate::{
     accounts::StateWriteExt as _,
+    action_handler::ActionHandler as _,
     address::StateWriteExt as _,
     app::{
         benchmark_and_test_utils::{
@@ -47,7 +48,6 @@ use crate::{
             get_alice_signing_key,
             get_bridge_signing_key,
         },
-        ActionHandler as _,
     },
     benchmark_and_test_utils::{
         assert_eyre_error,
