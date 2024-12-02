@@ -511,7 +511,10 @@ dependencies = [
  "bytes",
  "futures",
  "hex",
+ "http 0.2.12",
+ "http-body 0.4.6",
  "humantime",
+ "hyper 0.14.30",
  "itertools 0.12.1",
  "pbjson-types",
  "pin-project-lite",
@@ -522,6 +525,8 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.12",
  "tonic 0.10.2",
+ "tower 0.5.1",
+ "tower-http",
  "tracing",
  "tryhard",
 ]
@@ -709,7 +714,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.12",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tracing",
  "tryhard",
  "wiremock",
@@ -860,7 +865,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tower-abci",
  "tower-actor",
  "tower-http",
@@ -944,7 +949,7 @@ dependencies = [
  "tokio-test",
  "tokio-util 0.7.12",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tracing",
  "tryhard",
  "wiremock",
@@ -1169,7 +1174,7 @@ dependencies = [
  "serde_urlencoded",
  "sync_wrapper",
  "tokio",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
 ]
@@ -4771,7 +4776,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
- "tower",
+ "tower 0.4.13",
  "tracing",
  "url",
 ]
@@ -4808,7 +4813,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.12",
- "tower",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -5829,7 +5834,7 @@ dependencies = [
  "tendermint-light-client-verifier",
  "time",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -6024,7 +6029,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.12",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tower-service",
  "tracing",
 ]
@@ -8164,7 +8169,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-stream",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -8192,7 +8197,7 @@ dependencies = [
  "prost",
  "tokio",
  "tokio-stream",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -8246,6 +8251,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tower"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2873938d487c3cfb9aed7546dc9f2711d867c9f90c46b889989a2cb84eba6b4f"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "pin-project-lite",
+ "sync_wrapper",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
 name = "tower-abci"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8260,7 +8279,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.6.10",
- "tower",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -8275,7 +8294,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util 0.7.12",
- "tower",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -8295,6 +8314,7 @@ dependencies = [
  "pin-project-lite",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
