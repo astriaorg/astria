@@ -26,6 +26,11 @@ use futures::{
 use prost::Name as _;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
+use tracing::{
+    info_span,
+    warn,
+    Instrument as _,
+};
 
 use crate::{
     bundle::Bundle,
@@ -63,13 +68,13 @@ impl RollupChannel {
                     .get_bundle_stream(GetBundleStreamRequest {})
                     .await
                     .map(tonic::Response::into_inner)
-                    // TODO: Don't quietly swallow this error. Provide some form of
-                    // logging.
+                    .inspect_err(|error| warn!(%error, "request to open bundle stream failed"))
                     .ok()?;
                 Some(InnerBundleStream {
                     inner,
                 })
             }
+            .instrument(info_span!("request bundle stream"))
         })
         .boxed();
         BundleStream {
@@ -106,13 +111,13 @@ impl RollupChannel {
                     .execute_optimistic_block_stream(out_stream)
                     .await
                     .map(tonic::Response::into_inner)
-                    // TODO: Don't quietly swallow this error. Provide some form of
-                    // logging.
+                    .inspect_err(|error| warn!(%error, "request to open execute optimistic block stream failed"))
                     .ok()?;
                 Some(InnerExecuteOptimisticBlockStream {
                     inner,
                 })
             }
+            .instrument(info_span!("request execute optimistic block stream"))
         })
         .boxed();
 

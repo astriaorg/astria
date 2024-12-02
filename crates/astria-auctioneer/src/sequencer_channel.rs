@@ -33,6 +33,11 @@ use futures::{
     StreamExt as _,
 };
 use prost::Name;
+use tracing::{
+    info_span,
+    warn,
+    Instrument as _,
+};
 
 use crate::{
     block::Commitment,
@@ -92,14 +97,16 @@ impl SequencerChannel {
                 let inner = OptimisticBlockServiceClient::new(chan)
                     .get_block_commitment_stream(GetBlockCommitmentStreamRequest {})
                     .await
-                    // TODO: Don't quietly swallow this error. Provide some form of
-                    // logging.
+                    .inspect_err(
+                        |error| warn!(%error, "request to open block commitment stream failed"),
+                    )
                     .ok()?
                     .into_inner();
                 Some(InnerBlockCommitmentStream {
                     inner,
                 })
             }
+            .instrument(info_span!("request block commitment stream"))
         })
         .boxed();
         BlockCommitmentStream {
@@ -126,14 +133,16 @@ impl SequencerChannel {
                         rollup_id: Some(rollup_id.into_raw()),
                     })
                     .await
-                    // TODO: Don't quietly swallow this error. Provide some form of
-                    // logging.
+                    .inspect_err(
+                        |error| warn!(%error, "request to open optimistic block stream failed"),
+                    )
                     .ok()?
                     .into_inner();
                 Some(InnerOptimisticBlockStream {
                     inner,
                 })
             }
+            .instrument(info_span!("request optimistic block stream"))
         })
         .boxed();
         OptimisticBlockStream {

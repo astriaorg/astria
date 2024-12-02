@@ -50,6 +50,7 @@ pub(crate) fn make_instrumented_channel(uri: &str) -> eyre::Result<InstrumentedC
     let channel = Channel::from_shared(uri.to_string())
         .wrap_err("failed to create a channel to the provided uri")?
         .timeout(Duration::from_secs(2))
+        .connect_timeout(Duration::from_secs(5))
         .connect_lazy();
 
     let channel = ServiceBuilder::new()
