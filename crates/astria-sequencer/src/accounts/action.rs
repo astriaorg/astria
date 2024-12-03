@@ -31,7 +31,7 @@ impl ActionHandler for Transfer {
         Ok(())
     }
 
-    #[instrument(skip_all, err(level = Level::WARN))]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_execute<S: StateWrite>(&self, state: S) -> Result<()> {
         let from = state
             .get_transaction_context()
@@ -54,7 +54,7 @@ impl ActionHandler for Transfer {
     }
 }
 
-#[instrument(skip_all, err(level = Level::WARN))]
+#[instrument(skip_all, err(level = Level::DEBUG))]
 pub(crate) async fn execute_transfer<S, TAddress>(
     action: &Transfer,
     from: &TAddress,
@@ -77,7 +77,7 @@ where
     Ok(())
 }
 
-#[instrument(skip_all, err(level = Level::WARN))]
+#[instrument(skip_all, err(level = Level::DEBUG))]
 pub(crate) async fn check_transfer<S, TAddress>(
     action: &Transfer,
     from: &TAddress,

@@ -48,6 +48,7 @@ use tokio::{
 use tracing::{
     instrument,
     warn,
+    Level,
 };
 
 use super::{
@@ -219,7 +220,7 @@ pub(crate) async fn transaction_fee_request(
     }
 }
 
-#[instrument(skip_all, err)]
+#[instrument(skip_all, err(level = Level::INFO))]
 pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     tx: &TransactionBody,
     state: &S,

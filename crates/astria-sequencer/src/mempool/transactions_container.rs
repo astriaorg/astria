@@ -29,6 +29,7 @@ use tokio::time::{
 use tracing::{
     error,
     instrument,
+    Level,
 };
 
 use super::RemovalReason;
@@ -774,7 +775,7 @@ impl PendingTransactions {
 
     /// Returns a copy of transactions and their hashes sorted by nonce difference and then time
     /// first seen.
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     pub(super) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
         state: &S,

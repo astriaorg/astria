@@ -13,7 +13,10 @@ use tendermint::abci::request::{
     BeginBlock,
     EndBlock,
 };
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     component::Component,
@@ -53,7 +56,7 @@ impl Component for IbcComponent {
         Ok(())
     }
 
-    #[instrument(name = "IbcComponent::begin_block", skip_all, err)]
+    #[instrument(name = "IbcComponent::begin_block", skip_all, err(level = Level::WARN))]
     async fn begin_block<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         begin_block: &BeginBlock,
@@ -62,7 +65,7 @@ impl Component for IbcComponent {
         Ok(())
     }
 
-    #[instrument(name = "IbcComponent::end_block", skip_all, err)]
+    #[instrument(name = "IbcComponent::end_block", skip_all, er(level = Level::WARN))]
     async fn end_block<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         end_block: &EndBlock,

@@ -19,6 +19,7 @@ use tracing::{
     instrument,
     warn,
     Instrument,
+    Level,
 };
 
 use crate::app::App;
@@ -154,7 +155,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
@@ -164,7 +165,7 @@ impl Consensus {
             .await
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,

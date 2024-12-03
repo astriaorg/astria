@@ -29,6 +29,7 @@ use tokio::{
 use tracing::{
     error,
     instrument,
+    Level,
 };
 pub(crate) use transactions_container::InsertionError;
 use transactions_container::{
@@ -203,7 +204,7 @@ impl Mempool {
 
     /// Inserts a transaction into the mempool and does not allow for transaction replacement.
     /// Will return the reason for insertion failure if failure occurs.
-    #[instrument(skip_all, fields(tx_hash = %tx.id(), current_account_nonce), err)]
+    #[instrument(skip_all, fields(tx_hash = %tx.id(), current_account_nonce), err(level = Level::DEBUG))]
     pub(crate) async fn insert(
         &self,
         tx: Arc<Transaction>,
@@ -291,7 +292,7 @@ impl Mempool {
     /// Returns a copy of all transactions and their hashes ready for execution, sorted first by the
     /// difference between a transaction and the account's current nonce and then by the time that
     /// the transaction was first seen by the appside mempool.
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     pub(crate) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
         state: &S,

@@ -28,7 +28,10 @@ use tendermint::{
     },
     block::Height,
 };
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::StateReadExt as _,
@@ -36,7 +39,7 @@ use crate::{
     assets::StateReadExt as _,
 };
 
-#[instrument(skip_all, fields(%asset), err)]
+#[instrument(skip_all, fields(%asset), err(level = Level::DEBUG))]
 async fn ibc_to_trace<S: StateRead>(
     state: S,
     asset: &asset::IbcPrefixed,
@@ -48,7 +51,7 @@ async fn ibc_to_trace<S: StateRead>(
         .ok_or_eyre("asset not found when user has balance of it; this is a bug")
 }
 
-#[instrument(skip_all, fields(%address), err)]
+#[instrument(skip_all, fields(%address), err(level = Level::INFO))]
 async fn get_trace_prefixed_account_balances<S: StateRead>(
     state: &S,
     address: &Address,
@@ -153,7 +156,7 @@ pub(crate) async fn nonce_request(
     }
 }
 
-#[instrument(skip_all, fields(%height), err)]
+#[instrument(skip_all, fields(%height), err(level = Level::INFO))]
 async fn get_snapshot_and_height(storage: &Storage, height: Height) -> Result<(Snapshot, Height)> {
     let snapshot = match height.value() {
         0 => storage.latest_snapshot(),

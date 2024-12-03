@@ -26,7 +26,7 @@ impl ActionHandler for BridgeSudoChange {
         Ok(())
     }
 
-    #[instrument(skip_all, err(level = Level::WARN))]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

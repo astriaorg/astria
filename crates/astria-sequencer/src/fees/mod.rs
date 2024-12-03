@@ -82,7 +82,7 @@ impl Fee {
 
 #[async_trait::async_trait]
 impl FeeHandler for Transfer {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_transfer_fees()
@@ -100,7 +100,7 @@ impl FeeHandler for Transfer {
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeLock {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_bridge_lock_fees()
@@ -118,7 +118,7 @@ impl FeeHandler for BridgeLock {
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeSudoChange {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_bridge_sudo_change_fees()
@@ -136,7 +136,7 @@ impl FeeHandler for BridgeSudoChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for BridgeUnlock {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_bridge_unlock_fees()
@@ -154,7 +154,7 @@ impl FeeHandler for BridgeUnlock {
 
 #[async_trait::async_trait]
 impl FeeHandler for InitBridgeAccount {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_init_bridge_account_fees()
@@ -172,7 +172,7 @@ impl FeeHandler for InitBridgeAccount {
 
 #[async_trait::async_trait]
 impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_ics20_withdrawal_fees()
@@ -190,7 +190,7 @@ impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
 
 #[async_trait::async_trait]
 impl FeeHandler for RollupDataSubmission {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         let fees = state
             .get_rollup_data_submission_fees()
@@ -209,7 +209,7 @@ impl FeeHandler for RollupDataSubmission {
 
 #[async_trait::async_trait]
 impl FeeHandler for ValidatorUpdate {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_validator_update_fees()
@@ -226,7 +226,7 @@ impl FeeHandler for ValidatorUpdate {
 
 #[async_trait::async_trait]
 impl FeeHandler for SudoAddressChange {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_sudo_address_change_fees()
@@ -243,7 +243,7 @@ impl FeeHandler for SudoAddressChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for FeeChange {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_fee_change_fees()
@@ -260,7 +260,7 @@ impl FeeHandler for FeeChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcSudoChange {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_ibc_sudo_change_fees()
@@ -277,7 +277,7 @@ impl FeeHandler for IbcSudoChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelayerChange {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_ibc_relayer_change_fees()
@@ -294,7 +294,7 @@ impl FeeHandler for IbcRelayerChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for FeeAssetChange {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_fee_asset_change_fees()
@@ -311,7 +311,7 @@ impl FeeHandler for FeeAssetChange {
 
 #[async_trait::async_trait]
 impl FeeHandler for IbcRelay {
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::INFO))]
     async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
         state
             .get_ibc_relay_fees()
@@ -326,7 +326,7 @@ impl FeeHandler for IbcRelay {
     }
 }
 
-#[instrument(skip_all, err(level = Level::WARN))]
+#[instrument(skip_all, err(level = Level::DEBUG))]
 async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
     act: &T,
     base: u128,
