@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use astria_core::generated::bundle::v1alpha1::{
+use astria_core::generated::astria::bundle::v1alpha1::{
     bundle_service_client::BundleServiceClient,
     BaseBlock,
     ExecuteOptimisticBlockStreamResponse,
@@ -59,7 +59,7 @@ impl RollupChannel {
     }
 
     pub(crate) fn open_bundle_stream(&self) -> BundleStream {
-        use astria_core::generated::bundle::v1alpha1::GetBundleStreamRequest;
+        use astria_core::generated::astria::bundle::v1alpha1::GetBundleStreamRequest;
         let chan = self.inner.clone();
         let inner = restarting_stream(move || {
             let chan = chan.clone();
@@ -83,7 +83,7 @@ impl RollupChannel {
     }
 
     pub(crate) fn open_execute_optimistic_block_stream(&self) -> ExecuteOptimisticBlockStream {
-        use astria_core::generated::bundle::v1alpha1::{
+        use astria_core::generated::astria::bundle::v1alpha1::{
             optimistic_execution_service_client::OptimisticExecutionServiceClient,
             ExecuteOptimisticBlockStreamRequest,
         };
@@ -165,7 +165,7 @@ impl Stream for InnerBundleStream {
         let bundle = Bundle::try_from_raw(raw).wrap_err_with(|| {
             format!(
                 "failed to validate received message `{}`",
-                astria_core::generated::bundle::v1alpha1::Bundle::full_name()
+                astria_core::generated::astria::bundle::v1alpha1::Bundle::full_name()
             )
         })?;
 
@@ -215,7 +215,7 @@ impl Stream for InnerExecuteOptimisticBlockStream {
         let executed_block = crate::block::Executed::try_from_raw(message).wrap_err_with(|| {
             format!(
                 "failed to validate `{}`",
-                astria_core::generated::bundle::v1alpha1::ExecuteOptimisticBlockStreamResponse::full_name(),
+                astria_core::generated::astria::bundle::v1alpha1::ExecuteOptimisticBlockStreamResponse::full_name(),
             )
         })?;
         Poll::Ready(Some(Ok(executed_block)))

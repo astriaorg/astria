@@ -8,7 +8,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::optimisticblock::v1alpha1::{
+    generated::astria::sequencerblock::optimistic::v1alpha1::{
         GetBlockCommitmentStreamRequest,
         GetBlockCommitmentStreamResponse,
         GetOptimisticBlockStreamRequest,
@@ -68,7 +68,7 @@ impl SequencerChannel {
         &self,
         address: Address,
     ) -> impl Future<Output = eyre::Result<u32>> {
-        use astria_core::generated::sequencerblock::v1::{
+        use astria_core::generated::astria::sequencerblock::v1::{
             sequencer_service_client::SequencerServiceClient,
             GetPendingNonceRequest,
         };
@@ -88,7 +88,7 @@ impl SequencerChannel {
     }
 
     pub(crate) fn open_get_block_commitment_stream(&self) -> BlockCommitmentStream {
-        use astria_core::generated::sequencerblock::optimisticblock::v1alpha1::
+        use astria_core::generated::astria::sequencerblock::optimistic::v1alpha1::
             optimistic_block_service_client::OptimisticBlockServiceClient;
         let chan = self.inner.clone();
         let inner = restarting_stream(move || {
@@ -118,7 +118,7 @@ impl SequencerChannel {
         &self,
         rollup_id: RollupId,
     ) -> OptimisticBlockStream {
-        use astria_core::generated::sequencerblock::optimisticblock::v1alpha1::{
+        use astria_core::generated::astria::sequencerblock::optimistic::v1alpha1::{
             optimistic_block_service_client::OptimisticBlockServiceClient,
             GetOptimisticBlockStreamRequest,
         };
@@ -172,7 +172,7 @@ impl Stream for InnerBlockCommitmentStream {
     type Item = eyre::Result<Commitment>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        use astria_core::generated::sequencerblock::optimisticblock::v1alpha1 as raw;
+        use astria_core::generated::astria::sequencerblock::optimistic::v1alpha1 as raw;
 
         let Some(res) = std::task::ready!(self.inner.poll_next_unpin(cx)) else {
             return Poll::Ready(None);

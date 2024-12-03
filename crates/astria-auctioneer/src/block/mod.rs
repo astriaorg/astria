@@ -1,9 +1,9 @@
 use astria_core::{
     execution,
-    generated::{
+    generated::astria::{
         bundle::v1alpha1 as raw_bundle,
         sequencerblock::{
-            optimisticblock::v1alpha1 as raw_optimistic_block,
+            optimistic::v1alpha1 as raw_optimistic_block,
             v1 as raw_sequencer_block,
         },
     },
