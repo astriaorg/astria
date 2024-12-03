@@ -3,7 +3,7 @@ use astria_core::{
         Signature,
         VerificationKey,
     },
-    generated::bundle::v1alpha1 as raw,
+    generated::astria::bundle::v1alpha1 as raw,
     primitive::v1::{
         asset,
         RollupId,
