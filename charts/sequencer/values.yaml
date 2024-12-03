@@ -24,17 +24,26 @@ images:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
     tag: 1.0.0
-    devTag: latest
+    devTag: sha-77d8a02
+  connect:
+    repo: ghcr.io/skip-mev/connect-sidecar
+    pullPolicy: IfNotPresent
+    tag: v2
+    devTag: v2
 
 moniker: ""
 genesis:
   chainId: ""
-  genesisTime: ""  # '2023-09-22T17:22:35.092832Z'
+  genesisTime: "" # '2023-09-22T17:22:35.092832Z'
   addressPrefixes:
     base: "astria"
     ibcCompat: "astriacompat"
   authoritySudoAddress: ""
-  marketAdminAddress: ""
+  oracle:
+    marketAdminAddress: "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+    marketAuthorities:
+      - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+      - "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
   allowedFeeAssets: []
     # - nria
   ibc:
@@ -44,7 +53,7 @@ genesis:
     sudoAddress: ""
     relayerAddresses: []
   # Note large balances must be strings support templating with the u128 size account balances
-  genesisAccounts: []
+  genesisAccounts:  []
     # - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
     #   balance: "333333333333333333"
 
@@ -110,7 +119,52 @@ sequencer:
     parked:
       maxTxCount: 200
   oracle:
+    enabled: true
     clientTimeout: 1000
+    markets:
+      - name: "BTC/USD"
+        providerConfigs:
+          - name: "coingecko_api"
+            normalizeByPair:
+              Base: "USDT"
+              Quote: "USD"
+            offChainTicker: "bitcoin/usd"
+        ticker:
+          currencyPair:
+            Base: "BTC"
+            Quote: "USD"
+          decimals: "5"
+          enabled: true
+          minProviderCount: "1"
+      - name: "ETH/USD"
+        providerConfigs:
+          - name: "coingecko_api"
+            normalizeByPair:
+              Base: "USDT"
+              Quote: "USD"
+            offChainTicker: "ethereum/usd"
+        ticker:
+          currencyPair:
+            Base: "ETH"
+            Quote: "USD"
+          decimals: "6"
+          enabled: true
+          minProviderCount: "1"
+    currencyPairGenesis:
+      - currencyPair:
+          Base: "BTC"
+          Quote: "USD"
+        currencyPairPrice:
+          blockTimestamp: "2024-07-04T19:46:35+00:00"
+          price: "5834065777"
+      - currencyPair:
+          Base: "ETH"
+          Quote: "USD"
+        currencyPairPrice:
+          blockTimestamp: "2024-07-04T19:46:35+00:00"
+          price: "3138872234"
+        id: "1"
+    nextId: "2"
   metrics:
     enabled: false
   otel:
@@ -206,23 +260,23 @@ cometbft:
       devContent:
         priv_key:
           type: tendermint/PrivKeyEd25519
-          value: ""  # can override with a value for local testing
+          value: "" # can override with a value for local testing
       secret:
         resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
     privValidatorKey:
       filename: privValidatorKey.json
       devContent:
         # Ed25519 address of validator
-        address: ""  # can override with a value for local testing
+        address: "" # can override with a value for local testing
         # public key for the validator address
         pub_key:
           type: tendermint/PubKeyEd25519
-          value: ""  # can override with a value for local testing
+          value: "" # can override with a value for local testing
         # private key for the validator address
         # This is a secret key, should use a secret manager for production deployments
         priv_key:
           type: tendermint/PrivKeyEd25519
-          value: ""  # can override with a value for local testing
+          value: "" # can override with a value for local testing
       secret:
         resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
 

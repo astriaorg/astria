@@ -30,6 +30,11 @@ metadata:
 data:
   init-cometbft.sh: |
     {{- tpl (.Files.Get "files/scripts/init-cometbft.sh") $ | nindent 4 }}
+  {{- if not .Values.global.dev }}
+  {{- else }}
+  markets.json: |
+    {{- tpl (.Files.Get "files/scripts/markets.json") $ | nindent 4 }}
+  {{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -77,6 +82,6 @@ data:
   ASTRIA_SEQUENCER_ORACLE_CLIENT_TIMEOUT_MILLISECONDS: "{{ .Values.sequencer.oracle.clientTimeout }}"
   {{- if not .Values.global.dev }}
   {{- else }}
-  ASTRIA_SEQUENCER_NO_ORACLE: "true"
+  ASTRIA_SEQUENCER_NO_ORACLE: "{{ not .Values.sequencer.oracle.enabled }}"
   {{- end }}
 ---

@@ -94,6 +94,26 @@ spec:
             limits:
               cpu: {{ .Values.resources.cometbft.limits.cpu }}
               memory: {{ .Values.resources.cometbft.limits.memory }}
+        {{- if not .Values.global.dev }}
+        {{- else }}
+        - name: connect
+          image: "{{ include "connect.image" . }}"
+          imagePullPolicy: {{ .Values.images.connect.pullPolicy }}
+          volumeMounts:
+            - mountPath: /scripts
+              name: cometbft-init-scripts-volume
+          command: [ "connect"]
+          args:
+          - "--market-config-path"
+          - "/scripts/markets.json"
+          - "--port"
+          - "8081"
+          - "--log-std-out-level"
+          - "debug"
+          ports:
+            - containerPort: {{ .Values.ports.oracleGrpc }}
+              name: oracle-grpc
+        {{- end }}
       volumes:
         - name: cometbft-config-volume
           configMap:
