@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1::TransactionBody as RawBody,
+    generated::astria::protocol::transaction::v1::TransactionBody as RawBody,
     primitive::v1::asset::{
         self,
         Denom,

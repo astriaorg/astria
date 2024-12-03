@@ -1,3 +1,8 @@
+//! Generates Rust code of protobuf specs located in proto/ and writes
+//! the result to crates/astria-core/src/generated.
+//!
+//! This tool will delete everything in crates/astria-core/src/generated (except
+//! mod.rs).
 use std::{
     collections::{
         HashMap,
@@ -59,23 +64,16 @@ fn main() {
 
     let files = find_protos(src_dir);
 
+    purge_out_dir(&out_dir);
+
     tonic_build::configure()
         .build_client(true)
         .build_server(true)
         .emit_rerun_if_changed(false)
-        .bytes([
-            ".astria",
-            ".celestia",
-            ".cosmos",
-            ".tendermint",
-        ])
+        .bytes([".astria", ".celestia", ".cosmos", ".tendermint"])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
-        .extern_path(
-            ".astria_vendored.tendermint.abci.ValidatorUpdate",
-            "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
-        )
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
         .type_attribute(
             ".astria.protocol.genesis.v1.IbcParameters",
@@ -206,7 +204,8 @@ fn get_buf_from_env() -> PathBuf {
         "linux" => "You can download it from https://github.com/bufbuild/buf/releases; if you are on Arch Linux, install it from the AUR with `rua install buf` or another helper",
         _other =>  "Check if there is a precompiled version for your OS at https://github.com/bufbuild/buf/releases"
     };
-    let error_msg = "Could not find `buf` installation and this build crate cannot proceed without
+    let error_msg = "Could not find `buf` installation and this build crate cannot proceed \
+                     without
     this knowledge. If `buf` is installed and this crate had trouble finding
     it, you can set the `BUF` environment variable with the specific path to your
     installed `buf` binary.";
@@ -216,4 +215,26 @@ fn get_buf_from_env() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| which::which("buf").ok())
         .expect(&msg)
+}
+
+fn purge_out_dir(path: impl AsRef<Path>) {
+    for entry in read_dir(path)
+        .expect("should be able to read target folder for generated files")
+        .flatten()
+    {
+        // skip mod.rs as it's assumed to be the only non-generated file in the out dir.
+        if entry
+            .path()
+            .file_name()
+            .expect("every entry in the generated file out dir should have a name")
+            == "mod.rs"
+        {
+            continue;
+        }
+
+        std::fs::remove_file(entry.path()).expect(
+            "all entries in the out dir should be generated files, and the out dir is expected to \
+             have read, write, execute permissions set",
+        );
+    }
 }

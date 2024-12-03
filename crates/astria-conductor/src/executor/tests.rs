@@ -5,7 +5,7 @@ use astria_core::{
         CommitmentState,
         GenesisInfo,
     },
-    generated::execution::v1 as raw,
+    generated::astria::execution::v1 as raw,
     Protobuf as _,
 };
 use bytes::Bytes;

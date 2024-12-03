@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use astria_core::generated::sequencerblock::v1::sequencer_service_client::SequencerServiceClient;
+use astria_core::generated::astria::sequencerblock::v1::sequencer_service_client::SequencerServiceClient;
 use astria_eyre::eyre::{
     self,
     Context as _,
