@@ -39,6 +39,7 @@ pub struct Metrics {
     transactions_in_mempool_total: Gauge,
     transactions_in_mempool_parked: Gauge,
     mempool_recosted: Counter,
+    mempool_nonce_replacement: Counter,
     internal_logic_error: Counter,
 }
 
@@ -159,6 +160,10 @@ impl Metrics {
 
     pub(crate) fn increment_mempool_recosted(&self) {
         self.mempool_recosted.increment(1);
+    }
+
+    pub(crate) fn increment_mempool_nonce_replacement(&self) {
+        self.mempool_nonce_replacement.increment(1);
     }
 
     pub(crate) fn increment_internal_logic_error(&self) {
@@ -347,12 +352,15 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
-        let internal_logic_error = builder
+        let mempool_nonce_replacement = builder
             .new_counter_factory(
-                INTERNAL_LOGIC_ERROR,
-                "The number of times a transaction has been rejected due to logic errors in the \
-                 mempool",
+                MEMPOOL_NONCE_REPLACEMENT,
+                "The number of times users have replaced a nonce in the mempool",
             )?
+            .register()?;
+
+        let internal_logic_error = builder
+            .new_counter_factory(INTERNAL_LOGIC_ERROR, "The number of internal logic errors")?
             .register()?;
 
         Ok(Self {
@@ -382,6 +390,7 @@ impl telemetry::Metrics for Metrics {
             transactions_in_mempool_total,
             transactions_in_mempool_parked,
             mempool_recosted,
+            mempool_nonce_replacement,
             internal_logic_error,
         })
     }
@@ -411,6 +420,7 @@ metric_names!(const METRICS_NAMES:
     TRANSACTIONS_IN_MEMPOOL_TOTAL,
     TRANSACTIONS_IN_MEMPOOL_PARKED,
     MEMPOOL_RECOSTED,
+    MEMPOOL_NONCE_REPLACEMENT,
     INTERNAL_LOGIC_ERROR
 );
 
@@ -425,6 +435,7 @@ mod tests {
         CHECK_TX_REMOVED_FAILED_STATELESS,
         CHECK_TX_REMOVED_TOO_LARGE,
         INTERNAL_LOGIC_ERROR,
+        MEMPOOL_NONCE_REPLACEMENT,
         MEMPOOL_RECOSTED,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
         PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
@@ -502,6 +513,7 @@ mod tests {
             "transactions_in_mempool_parked",
         );
         assert_const(MEMPOOL_RECOSTED, "mempool_recosted");
+        assert_const(MEMPOOL_NONCE_REPLACEMENT, "mempool_nonce_replacement");
         assert_const(INTERNAL_LOGIC_ERROR, "internal_logic_error");
     }
 }

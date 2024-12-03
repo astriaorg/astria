@@ -301,6 +301,10 @@ impl TransactionsForAccount for PendingTransactionsForAccount {
         self.txs().contains_key(&previous_nonce) || ttx.signed_tx.nonce() == current_account_nonce
     }
 
+    fn nonce_replacement_enabled(&self) -> bool {
+        false
+    }
+
     fn has_balance_to_cover(
         &self,
         ttx: &TimemarkedTransaction,
@@ -377,6 +381,10 @@ impl<const MAX_TX_COUNT: usize> TransactionsForAccount
         true
     }
 
+    fn nonce_replacement_enabled(&self) -> bool {
+        true
+    }
+
     fn has_balance_to_cover(
         &self,
         _: &TimemarkedTransaction,
@@ -410,6 +418,9 @@ pub(super) trait TransactionsForAccount: Default {
         current_account_nonce: u32,
     ) -> bool;
 
+    /// Returns true if the container allows for nonce replacement.
+    fn nonce_replacement_enabled(&self) -> bool;
+
     /// Returns `Ok` if adding `ttx` would not break the balance precondition, i.e. enough
     /// balance to cover all transactions.
     /// Note: some implementations may clone the `current_account_balance` hashmap.
@@ -419,7 +430,9 @@ pub(super) trait TransactionsForAccount: Default {
         current_account_balance: &HashMap<IbcPrefixed, u128>,
     ) -> bool;
 
-    /// Adds transaction to the container. Note: does NOT allow for nonce replacement.
+    /// Adds transaction to the container.
+    ///
+    /// Returns the hash of the replaced transaction if a nonce replacement occured.
     ///
     /// Will fail if in `SequentialNonces` mode and adding the transaction would create a nonce gap.
     /// Will fail if adding the transaction would exceed balance constraints.
@@ -434,7 +447,7 @@ pub(super) trait TransactionsForAccount: Default {
         ttx: TimemarkedTransaction,
         current_account_nonce: u32,
         current_account_balances: &HashMap<IbcPrefixed, u128>,
-    ) -> Result<(), InsertionError> {
+    ) -> Result<Option<[u8; 32]>, InsertionError> {
         if self.is_at_tx_limit() {
             return Err(InsertionError::AccountSizeLimit);
         }
@@ -443,12 +456,28 @@ pub(super) trait TransactionsForAccount: Default {
             return Err(InsertionError::NonceTooLow);
         }
 
+        // check if the nonce is already taken
         if let Some(existing_ttx) = self.txs().get(&ttx.signed_tx.nonce()) {
-            return Err(if existing_ttx.tx_hash == ttx.tx_hash {
-                InsertionError::AlreadyPresent
+            return if existing_ttx.tx_hash == ttx.tx_hash {
+                Err(InsertionError::AlreadyPresent)
+            } else if self.nonce_replacement_enabled() {
+                let existing_hash = existing_ttx.tx_hash;
+
+                // replace the existing transaction and return the replaced hash for removal
+                let removed = self.txs_mut().insert(ttx.signed_tx.nonce(), ttx);
+                if let Some(removed) = removed {
+                    Ok(Some(removed.tx_hash))
+                } else {
+                    // this should never happen
+                    error!(
+                        tx_hash = %telemetry::display::hex(&existing_hash),
+                        "transaction replacement not found during 2nd lookup"
+                    );
+                    Ok(None)
+                }
             } else {
-                InsertionError::NonceTaken
-            });
+                Err(InsertionError::NonceTaken)
+            };
         }
 
         if !self.is_sequential_nonce_precondition_met(&ttx, current_account_nonce) {
@@ -461,7 +490,7 @@ pub(super) trait TransactionsForAccount: Default {
 
         self.txs_mut().insert(ttx.signed_tx.nonce(), ttx);
 
-        Ok(())
+        Ok(None)
     }
 
     /// Removes transactions with the given nonce and higher.
@@ -598,6 +627,8 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
 
     /// Adds the transaction to the container.
     ///
+    /// Returns the hash of the replaced transaction if a nonce replacement occured.
+    ///
     /// `current_account_nonce` should be the current nonce of the account associated with the
     /// transaction. If this ever decreases, the `TransactionsContainer` containers could become
     /// invalid.
@@ -606,22 +637,23 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         ttx: TimemarkedTransaction,
         current_account_nonce: u32,
         current_account_balances: &HashMap<IbcPrefixed, u128>,
-    ) -> Result<(), InsertionError> {
+    ) -> Result<Option<[u8; 32]>, InsertionError> {
         self.check_total_tx_count()?;
 
         match self.txs_mut().entry(*ttx.address()) {
             hash_map::Entry::Occupied(entry) => {
-                entry
+                return entry
                     .into_mut()
-                    .add(ttx, current_account_nonce, current_account_balances)?;
+                    .add(ttx, current_account_nonce, current_account_balances);
             }
             hash_map::Entry::Vacant(entry) => {
                 let mut txs = T::new();
+                // replacement shouldn't occur since container is empty
                 txs.add(ttx, current_account_nonce, current_account_balances)?;
                 entry.insert(txs);
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     /// Removes the given transaction and any transactions with higher nonces for the relevant
@@ -826,6 +858,38 @@ impl<const MAX_PARKED_TXS_PER_ACCOUNT: usize> ParkedTransactions<MAX_PARKED_TXS_
             tx_ttl,
             max_tx_count,
         }
+    }
+
+    /// Checks if the first transaction for an account matches the given transaction's nonce and if
+    /// it does removes it. This is used to remove transactions that were replaced by a transaction
+    /// that was able to be placed into pending.
+    ///
+    /// Returns the hash of the transaction that was removed.
+    pub(super) fn remove_replaced(
+        &mut self,
+        added_ttx: &TimemarkedTransaction,
+    ) -> Option<[u8; 32]> {
+        // Take the collection for this account out of `self` temporarily.
+        let mut account_txs = self.txs.remove(added_ttx.address())?;
+
+        let found_tx = if let Some(first_entry) = account_txs.txs_mut().first_entry() {
+            if first_entry.get().nonce() == added_ttx.nonce() {
+                let removed_hash = first_entry.get().tx_hash;
+                first_entry.remove();
+                Some(removed_hash)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Re-add the collection to `self` if it's not empty.
+        if !account_txs.txs().is_empty() {
+            let _ = self.txs.insert(*added_ttx.address(), account_txs);
+        }
+
+        found_tx
     }
 
     /// Removes and returns the transactions that can be promoted from parked to pending for
@@ -1487,14 +1551,9 @@ mod tests {
     fn transactions_container_add() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
         // transactions to add to accounts
-        let ttx_s0_0_0 = MockTTXBuilder::new().nonce(0).build();
-        // Same nonce and signer as `ttx_s0_0_0`, but different chain id.
-        let ttx_s0_0_1 = MockTTXBuilder::new()
-            .nonce(0)
-            .chain_id("different-chain-id")
-            .build();
-        let ttx_s0_2_0 = MockTTXBuilder::new().nonce(2).build();
-        let ttx_s1_0_0 = MockTTXBuilder::new()
+        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
+        let ttx_s0_2 = MockTTXBuilder::new().nonce(2).build();
+        let ttx_s1_0 = MockTTXBuilder::new()
             .nonce(0)
             .signer(get_bob_signing_key())
             .build();
@@ -1511,7 +1570,7 @@ mod tests {
         // adding too low nonce shouldn't create account
         assert_eq!(
             pending_txs
-                .add(ttx_s0_0_0.clone(), 1, &account_balances)
+                .add(ttx_s0_0.clone(), 1, &account_balances)
                 .unwrap_err(),
             InsertionError::NonceTooLow,
             "shouldn't be able to add nonce too low transaction"
@@ -1523,39 +1582,26 @@ mod tests {
 
         // add one transaction
         pending_txs
-            .add(ttx_s0_0_0.clone(), 0, &account_balances)
+            .add(ttx_s0_0.clone(), 0, &account_balances)
             .unwrap();
         assert_eq!(pending_txs.txs.len(), 1, "one account should exist");
 
         // re-adding transaction should fail
         assert_eq!(
-            pending_txs
-                .add(ttx_s0_0_0, 0, &account_balances)
-                .unwrap_err(),
+            pending_txs.add(ttx_s0_0, 0, &account_balances).unwrap_err(),
             InsertionError::AlreadyPresent,
             "re-adding same transaction should fail"
         );
 
-        // nonce replacement fails
-        assert_eq!(
-            pending_txs
-                .add(ttx_s0_0_1, 0, &account_balances)
-                .unwrap_err(),
-            InsertionError::NonceTaken,
-            "nonce replacement not supported"
-        );
-
         // nonce gaps not supported
         assert_eq!(
-            pending_txs
-                .add(ttx_s0_2_0, 0, &account_balances)
-                .unwrap_err(),
+            pending_txs.add(ttx_s0_2, 0, &account_balances).unwrap_err(),
             InsertionError::NonceGap,
             "gapped nonces in pending transactions not allowed"
         );
 
         // add transactions for account 2
-        pending_txs.add(ttx_s1_0_0, 0, &account_balances).unwrap();
+        pending_txs.add(ttx_s1_0, 0, &account_balances).unwrap();
 
         // check internal structures
         assert_eq!(pending_txs.txs.len(), 2, "two accounts should exist");
@@ -1584,6 +1630,63 @@ mod tests {
             2,
             "should only have two transactions tracked"
         );
+    }
+
+    #[test]
+    fn transactions_container_nonce_replacement_parked() {
+        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 10);
+        let account_balances = mock_balances(1, 1);
+
+        // create two transactions with same nonce but different hash
+        let tx_0 = MockTTXBuilder::new().nonce(0).chain_id("test-0").build();
+        let tx_1 = MockTTXBuilder::new().nonce(0).chain_id("test-1").build();
+
+        // add first transaction
+        parked_txs.add(tx_0.clone(), 0, &account_balances).unwrap();
+
+        // replacing transaction should return the replaced tx hash
+        let res = parked_txs.add(tx_1.clone(), 0, &account_balances);
+        assert_eq!(
+            res.unwrap(),
+            Some(tx_0.tx_hash),
+            "nonce replacement for parked should return the replaced tx hash"
+        );
+
+        // a single transaction should be in the parked txs
+        assert_eq!(
+            parked_txs.len(),
+            1,
+            "one transaction should be in the parked txs"
+        );
+
+        // the transaction should have been replaced
+        assert!(parked_txs.contains_tx(&tx_1.tx_hash));
+        assert!(!parked_txs.contains_tx(&tx_0.tx_hash));
+    }
+
+    #[test]
+    fn transactions_container_nonce_replacement_pending() {
+        let mut pending_txs = PendingTransactions::new(TX_TTL);
+        let account_balances = mock_balances(1, 1);
+
+        // create two transactions with same nonce but different hash
+        let tx_0 = MockTTXBuilder::new().nonce(0).chain_id("test-0").build();
+        let tx_1 = MockTTXBuilder::new().nonce(0).chain_id("test-1").build();
+
+        // add first transaction
+        pending_txs.add(tx_0.clone(), 0, &account_balances).unwrap();
+
+        // replacing transaction should fail
+        let res = pending_txs.add(tx_1.clone(), 0, &account_balances);
+        assert_eq!(
+            res,
+            Err(InsertionError::NonceTaken),
+            "nonce replacement for pending should fail"
+        );
+
+        // the transaction should not have been replaced
+        assert!(pending_txs.contains_tx(&tx_0.tx_hash));
+        assert!(!pending_txs.contains_tx(&tx_1.tx_hash));
     }
 
     #[test]
@@ -2111,6 +2214,69 @@ mod tests {
             0,
             "empty account should've been removed from container"
         );
+    }
+
+    #[tokio::test]
+    async fn parked_transactions_removed_replaced_works() {
+        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 100);
+        let account_balances = mock_balances(100, 100);
+
+        let ttx_1 = MockTTXBuilder::new().nonce(1).chain_id("test-1").build();
+        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
+
+        let replacement_tx = MockTTXBuilder::new().nonce(1).chain_id("test-2").build();
+
+        // add transactions to pending
+        parked_txs.add(ttx_1.clone(), 0, &account_balances).unwrap();
+        parked_txs.add(ttx_2.clone(), 0, &account_balances).unwrap();
+
+        // check for replacement should find the transaction with the matching nonce
+        let removed_tx = parked_txs.remove_replaced(&replacement_tx);
+        assert_eq!(removed_tx, Some(ttx_1.tx_hash));
+
+        // other transactions should still be in the container
+        assert_eq!(parked_txs.len(), 1);
+        assert!(parked_txs.contains_tx(&ttx_2.tx_hash));
+    }
+
+    #[tokio::test]
+    async fn parked_transactions_removed_replaced_empty_ok() {
+        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 100);
+
+        let replacement_tx = MockTTXBuilder::new().nonce(1).build();
+
+        // check for replacement should be fine on empty accounts
+        let removed_tx = parked_txs.remove_replaced(&replacement_tx);
+        assert_eq!(removed_tx, None);
+    }
+
+    #[tokio::test]
+    async fn parked_transactions_removed_replaced_wrong_nonces_ok() {
+        let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 100);
+        let account_balances = mock_balances(100, 100);
+
+        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
+        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
+
+        let replacement_tx_higher = MockTTXBuilder::new().nonce(2).build();
+        let replacement_tx_lower = MockTTXBuilder::new().nonce(0).build();
+
+        // add transactions to pending
+        parked_txs.add(ttx_1.clone(), 0, &account_balances).unwrap();
+        parked_txs.add(ttx_2.clone(), 0, &account_balances).unwrap();
+
+        // replacement for higher nonce should be ignored
+        let removed_tx = parked_txs.remove_replaced(&replacement_tx_higher);
+        assert_eq!(removed_tx, None);
+
+        // replacement for lower nonce should be ignored
+        let removed_tx = parked_txs.remove_replaced(&replacement_tx_lower);
+        assert_eq!(removed_tx, None);
+
+        // other transactions should still be in the container
+        assert_eq!(parked_txs.len(), 2);
+        assert!(parked_txs.contains_tx(&ttx_1.tx_hash));
+        assert!(parked_txs.contains_tx(&ttx_2.tx_hash));
     }
 
     #[tokio::test]
