@@ -98,10 +98,10 @@ pub(super) struct StateSender {
 }
 
 fn can_map_firm_to_sequencer_height(
-    genesis_info: GenesisInfo,
+    genesis_info: &GenesisInfo,
     commitment_state: &CommitmentState,
 ) -> Result<(), InvalidState> {
-    let sequencer_genesis_height = genesis_info.sequencer_genesis_block_height();
+    let sequencer_genesis_height = genesis_info.sequencer_start_block_height();
     let rollup_number = commitment_state.firm().number();
     if map_rollup_number_to_sequencer_height(sequencer_genesis_height, rollup_number).is_none() {
         Err(InvalidState {
@@ -115,10 +115,10 @@ fn can_map_firm_to_sequencer_height(
 }
 
 fn can_map_soft_to_sequencer_height(
-    genesis_info: GenesisInfo,
+    genesis_info: &GenesisInfo,
     commitment_state: &CommitmentState,
 ) -> Result<(), InvalidState> {
-    let sequencer_genesis_height = genesis_info.sequencer_genesis_block_height();
+    let sequencer_genesis_height = genesis_info.sequencer_start_block_height();
     let rollup_number = commitment_state.soft().number();
     if map_rollup_number_to_sequencer_height(sequencer_genesis_height, rollup_number).is_none() {
         Err(InvalidState {
@@ -137,8 +137,8 @@ impl StateSender {
         genesis_info: GenesisInfo,
         commitment_state: CommitmentState,
     ) -> Result<(), InvalidState> {
-        can_map_firm_to_sequencer_height(genesis_info, &commitment_state)?;
-        can_map_soft_to_sequencer_height(genesis_info, &commitment_state)?;
+        can_map_firm_to_sequencer_height(&genesis_info, &commitment_state)?;
+        can_map_soft_to_sequencer_height(&genesis_info, &commitment_state)?;
         self.inner.send_modify(move |state| {
             let old_state = state.replace(State::new(genesis_info, commitment_state));
             assert!(
@@ -154,8 +154,8 @@ impl StateSender {
         commitment_state: CommitmentState,
     ) -> Result<(), InvalidState> {
         let genesis_info = self.genesis_info();
-        can_map_firm_to_sequencer_height(genesis_info, &commitment_state)?;
-        can_map_soft_to_sequencer_height(genesis_info, &commitment_state)?;
+        can_map_firm_to_sequencer_height(&genesis_info, &commitment_state)?;
+        can_map_soft_to_sequencer_height(&genesis_info, &commitment_state)?;
         self.inner.send_modify(move |state| {
             state
                 .as_mut()
@@ -222,8 +222,9 @@ forward_impls!(
     [soft_hash -> Bytes],
     [celestia_block_variance -> u64],
     [rollup_id -> RollupId],
-    [sequencer_genesis_block_height -> SequencerHeight],
+    [sequencer_start_block_height -> SequencerHeight],
     [celestia_base_block_height -> u64],
+    [sequencer_stop_block_height -> SequencerHeight],
 );
 
 forward_impls!(
@@ -231,6 +232,8 @@ forward_impls!(
     [celestia_base_block_height -> u64],
     [celestia_block_variance -> u64],
     [rollup_id -> RollupId],
+    [sequencer_chain_id -> String],
+    [celestia_chain_id -> String],
 );
 
 /// `State` tracks the genesis info and commitment state of the remote rollup node.
@@ -253,8 +256,8 @@ impl State {
         self.commitment_state = commitment_state;
     }
 
-    fn genesis_info(&self) -> GenesisInfo {
-        self.genesis_info
+    fn genesis_info(&self) -> &GenesisInfo {
+        &self.genesis_info
     }
 
     fn firm(&self) -> &Block {
@@ -289,8 +292,20 @@ impl State {
         self.genesis_info.celestia_block_variance()
     }
 
-    fn sequencer_genesis_block_height(&self) -> SequencerHeight {
-        self.genesis_info.sequencer_genesis_block_height()
+    fn sequencer_start_block_height(&self) -> SequencerHeight {
+        self.genesis_info.sequencer_start_block_height()
+    }
+
+    fn sequencer_stop_block_height(&self) -> SequencerHeight {
+        self.genesis_info.sequencer_stop_block_height()
+    }
+
+    fn sequencer_chain_id(&self) -> String {
+        self.genesis_info.sequencer_chain_id().to_string()
+    }
+
+    fn celestia_chain_id(&self) -> String {
+        self.genesis_info.celestia_chain_id().to_string()
     }
 
     fn rollup_id(&self) -> RollupId {
@@ -299,14 +314,14 @@ impl State {
 
     fn next_expected_firm_sequencer_height(&self) -> Option<SequencerHeight> {
         map_rollup_number_to_sequencer_height(
-            self.sequencer_genesis_block_height(),
+            self.sequencer_start_block_height(),
             self.firm_number().saturating_add(1),
         )
     }
 
     fn next_expected_soft_sequencer_height(&self) -> Option<SequencerHeight> {
         map_rollup_number_to_sequencer_height(
-            self.sequencer_genesis_block_height(),
+            self.sequencer_start_block_height(),
             self.soft_number().saturating_add(1),
         )
     }
@@ -384,8 +399,11 @@ mod tests {
         let rollup_id = RollupId::new([24; 32]);
         GenesisInfo::try_from_raw(raw::GenesisInfo {
             rollup_id: Some(rollup_id.to_raw()),
-            sequencer_genesis_block_height: 10,
+            sequencer_start_block_height: 10,
+            sequencer_stop_block_height: 100,
             celestia_block_variance: 0,
+            sequencer_chain_id: "test-sequencer-0".to_string(),
+            celestia_chain_id: "test-celestia-0".to_string(),
         })
         .unwrap()
     }

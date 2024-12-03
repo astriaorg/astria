@@ -54,7 +54,8 @@ async fn simple() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_block_height: 1,
+        sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
     );
 
@@ -135,7 +136,8 @@ async fn submits_two_heights_in_succession() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_block_height: 1,
+        sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
     );
 
@@ -236,7 +238,7 @@ async fn submits_two_heights_in_succession() {
     )
     .await
     .expect(
-        "conductor should have executed the soft block and updated the soft commitment state \
+        "conductor should have executed the firm block and updated the firm commitment state \
          within 2000ms",
     );
 }
@@ -247,7 +249,8 @@ async fn skips_already_executed_heights() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_block_height: 1,
+        sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
     );
 
@@ -320,7 +323,7 @@ async fn skips_already_executed_heights() {
     )
     .await
     .expect(
-        "conductor should have executed the soft block and updated the soft commitment state \
+        "conductor should have executed the firm block and updated the firm commitment state \
          within 1000ms",
     );
 }
@@ -331,7 +334,8 @@ async fn fetch_from_later_celestia_height() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_block_height: 1,
+        sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
     );
 
@@ -447,7 +451,8 @@ async fn exits_on_celestia_chain_id_mismatch() {
         matcher::message_type::<GetGenesisInfoRequest>(),
     )
     .respond_with(GrpcResponse::constant_response(
-        genesis_info!(sequencer_genesis_block_height: 1,
+        genesis_info!(sequencer_start_block_height: 1,
+            sequencer_stop_block_height: 10,
             celestia_block_variance: 10,),
     ))
     .expect(0..)
@@ -512,4 +517,127 @@ async fn exits_on_celestia_chain_id_mismatch() {
             panic!("expected exit due to chain ID mismatch, but got a different error: {e:?}")
         }
     }
+}
+
+#[expect(clippy::too_many_lines, reason = "All lines reasonably necessary")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn conductor_restarts_after_reaching_stop_block_height() {
+    let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
+
+    mount_get_genesis_info!(
+        test_conductor,
+        sequencer_start_block_height: 1,
+        sequencer_stop_block_height: 3,
+        celestia_block_variance: 10,
+    );
+
+    mount_get_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        base_celestia_height: 1,
+    );
+
+    mount_sequencer_genesis!(test_conductor);
+
+    mount_celestia_header_network_head!(
+        test_conductor,
+        height: 2u32,
+    );
+
+    mount_celestia_blobs!(
+        test_conductor,
+        celestia_height: 1,
+        sequencer_heights: [3, 4],
+    );
+
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 3u32,
+    );
+
+    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+
+    // Mount height above stop block height so that the executor will initiate a restart
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 4u32,
+    );
+
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
+
+    let execute_block = mount_executed_block!(
+        test_conductor,
+        mock_name: "execute_block_twice",
+        number: 2,
+        hash: [2; 64],
+        parent: [1; 64],
+        expected_calls: 2, // Expected to be called again after restart
+    );
+
+    let update_commitment_state = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_twice",
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 2, // Expected to be called again after restart
+    );
+
+    // Will be validated for no calls upon dropping
+    let _no_execute_block = mount_executed_block!(
+        test_conductor,
+        mock_name: "should_not_execute_this_block",
+        number: 3,
+        hash: [3; 64],
+        parent: [2; 64],
+        expected_calls: 0,
+    );
+
+    // Will be validated for no calls upon dropping
+    let _no_update_commitment_state = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "should_not_update_this_commitment_state",
+        firm: (
+            number: 3,
+            hash: [3; 64],
+            parent: [2; 64],
+        ),
+        soft: (
+            number: 3,
+            hash: [3; 64],
+            parent: [2; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 0,
+    );
+
+    timeout(
+        Duration::from_millis(1000),
+        join(
+            execute_block.wait_until_satisfied(),
+            update_commitment_state.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect(
+        "conductor should have executed the firm block and updated the firm commitment state \
+         twice within 1000ms",
+    );
 }

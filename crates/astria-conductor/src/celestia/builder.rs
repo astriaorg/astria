@@ -23,8 +23,6 @@ pub(crate) struct Builder {
     pub(crate) executor: executor::Handle,
     pub(crate) sequencer_cometbft_client: SequencerClient,
     pub(crate) sequencer_requests_per_second: u32,
-    pub(crate) expected_celestia_chain_id: String,
-    pub(crate) expected_sequencer_chain_id: String,
     pub(crate) shutdown: CancellationToken,
     pub(crate) metrics: &'static Metrics,
 }
@@ -39,8 +37,6 @@ impl Builder {
             executor,
             sequencer_cometbft_client,
             sequencer_requests_per_second,
-            expected_celestia_chain_id,
-            expected_sequencer_chain_id,
             shutdown,
             metrics,
         } = self;
@@ -54,8 +50,6 @@ impl Builder {
             executor,
             sequencer_cometbft_client,
             sequencer_requests_per_second,
-            expected_celestia_chain_id,
-            expected_sequencer_chain_id,
             shutdown,
             metrics,
         })

@@ -68,6 +68,14 @@ pub(crate) struct StateNotInit;
 pub(crate) struct StateIsInit;
 
 #[derive(Debug, thiserror::Error)]
+pub(crate) enum StopHeightExceded {
+    #[error("firm height exceeded sequencer stop height")]
+    Celestia,
+    #[error("soft height met or exceeded sequencer stop height")]
+    Sequencer,
+}
+
+#[derive(Debug, thiserror::Error)]
 pub(crate) enum FirmSendError {
     #[error("executor was configured without firm commitments")]
     NotSet,
@@ -213,6 +221,14 @@ impl Handle<StateIsInit> {
 
     pub(crate) fn celestia_block_variance(&mut self) -> u64 {
         self.state.celestia_block_variance()
+    }
+
+    pub(crate) fn sequencer_chain_id(&self) -> String {
+        self.state.sequencer_chain_id()
+    }
+
+    pub(crate) fn celestia_chain_id(&self) -> String {
+        self.state.celestia_chain_id()
     }
 }
 
@@ -396,6 +412,32 @@ impl Executor {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         let executable_block = ExecutableBlock::from_sequencer(block, self.state.rollup_id());
 
+        // Stop executing soft blocks at the sequencer stop block height (exclusive). If we are also
+        // executing firm blocks, we let execution continue since one more firm block will be
+        // executed before `execute_firm` initiates a restart. If we are in soft-only mode, we
+        if executable_block.height >= self.state.sequencer_stop_block_height() {
+            let res = if self.mode.is_with_firm() {
+                info!(
+                    height = %executable_block.height,
+                    "received soft block whose height is greater than or equal to stop block height in {} mode. \
+                    dropping soft block and waiting for next firm block before attempting restart",
+                    self.mode,
+                );
+                Ok(())
+            } else {
+                info!(
+                    height = %executable_block.height,
+                    "received soft block whose height is greater than or equal to stop block \
+                    height in soft only mode. shutting down and attempting restart",
+                );
+                Err(StopHeightExceded::Sequencer).wrap_err(
+                    "soft height met or exceeded sequencer stop height, attempting restart with \
+                     new genesis info",
+                )
+            };
+            return res;
+        }
+
         let expected_height = self.state.next_expected_soft_sequencer_height();
         match executable_block.height.cmp(&expected_height) {
             std::cmp::Ordering::Less => {
@@ -413,7 +455,7 @@ impl Executor {
             std::cmp::Ordering::Equal => {}
         }
 
-        let genesis_height = self.state.sequencer_genesis_block_height();
+        let genesis_height = self.state.sequencer_start_block_height();
         let block_height = executable_block.height;
         let Some(block_number) =
             state::map_sequencer_height_to_rollup_height(genesis_height, block_height)
@@ -457,6 +499,18 @@ impl Executor {
         err,
     ))]
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
+        if block.header.height() > self.state.sequencer_stop_block_height() {
+            info!(
+                height = %block.header.height(),
+                "received firm block whose height is greater than stop block height. \
+                exiting and attempting restart with new genesis info",
+            );
+            return Err(StopHeightExceded::Celestia).wrap_err(
+                "firm height exceeded sequencer stop height, attempting restart with new genesis \
+                 info",
+            );
+        }
+
         let celestia_height = block.celestia_height;
         let executable_block = ExecutableBlock::from_reconstructed(block);
         let expected_height = self.state.next_expected_firm_sequencer_height();
@@ -466,7 +520,7 @@ impl Executor {
             "expected block at sequencer height {expected_height}, but got {block_height}",
         );
 
-        let genesis_height = self.state.sequencer_genesis_block_height();
+        let genesis_height = self.state.sequencer_start_block_height();
         let Some(block_number) =
             state::map_sequencer_height_to_rollup_height(genesis_height, block_height)
         else {

@@ -40,7 +40,8 @@ async fn executes_soft_first_then_updates_firm() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_block_height: 1,
+        sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
     );
 
@@ -174,7 +175,8 @@ async fn executes_firm_then_soft_at_next_height() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_block_height: 1,
+        sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
     );
 
@@ -333,7 +335,8 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_block_height: 1,
+        sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
     );
 
@@ -462,7 +465,8 @@ async fn conductor_restarts_on_permission_denied() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_block_height: 1,
+        sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
     );
 

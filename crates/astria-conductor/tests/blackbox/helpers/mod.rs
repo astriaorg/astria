@@ -337,6 +337,7 @@ impl TestConductor {
         mock_name: Option<&str>,
         expected_pbjson: S,
         response: Block,
+        expected_calls: u64,
     ) -> astria_grpc_mock::MockGuard {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
@@ -349,7 +350,7 @@ impl TestConductor {
         if let Some(name) = mock_name {
             mock = mock.with_name(name);
         }
-        mock.expect(1)
+        mock.expect(expected_calls)
             .mount_as_scoped(&self.mock_grpc.mock_server)
             .await
     }
@@ -522,8 +523,6 @@ pub(crate) fn make_config() -> Config {
         sequencer_cometbft_url: "http://127.0.0.1:26657".into(),
         sequencer_requests_per_second: 500,
         sequencer_block_time_ms: 2000,
-        expected_celestia_chain_id: CELESTIA_CHAIN_ID.into(),
-        expected_sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
         execution_rpc_url: "http://127.0.0.1:50051".into(),
         log: "info".into(),
         execution_commit_level: astria_conductor::config::CommitLevel::SoftAndFirm,

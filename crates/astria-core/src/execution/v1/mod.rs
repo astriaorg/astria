@@ -39,7 +39,7 @@ enum GenesisInfoErrorKind {
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::GenesisInfo`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(
     feature = "serde",
@@ -49,9 +49,15 @@ pub struct GenesisInfo {
     /// The rollup id which is used to identify the rollup txs.
     rollup_id: RollupId,
     /// The Sequencer block height which contains the first block of the rollup.
-    sequencer_genesis_block_height: tendermint::block::Height,
+    sequencer_start_block_height: tendermint::block::Height,
+    /// The Sequencer block height to stop at.
+    sequencer_stop_block_height: tendermint::block::Height,
     /// The allowed variance in the block height of celestia when looking for sequencer blocks.
     celestia_block_variance: u64,
+    /// The chain ID of the sequencer network.
+    sequencer_chain_id: String,
+    /// The chain ID of the celestia network.
+    celestia_chain_id: String,
 }
 
 impl GenesisInfo {
@@ -61,13 +67,28 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn sequencer_genesis_block_height(&self) -> tendermint::block::Height {
-        self.sequencer_genesis_block_height
+    pub fn sequencer_start_block_height(&self) -> tendermint::block::Height {
+        self.sequencer_start_block_height
+    }
+
+    #[must_use]
+    pub fn sequencer_stop_block_height(&self) -> tendermint::block::Height {
+        self.sequencer_stop_block_height
     }
 
     #[must_use]
     pub fn celestia_block_variance(&self) -> u64 {
         self.celestia_block_variance
+    }
+
+    #[must_use]
+    pub fn sequencer_chain_id(&self) -> &str {
+        &self.sequencer_chain_id
+    }
+
+    #[must_use]
+    pub fn celestia_chain_id(&self) -> &str {
+        &self.celestia_chain_id
     }
 }
 
@@ -84,8 +105,11 @@ impl Protobuf for GenesisInfo {
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let raw::GenesisInfo {
             rollup_id,
-            sequencer_genesis_block_height,
+            sequencer_start_block_height,
+            sequencer_stop_block_height,
             celestia_block_variance,
+            sequencer_chain_id,
+            celestia_chain_id,
         } = raw;
         let Some(rollup_id) = rollup_id else {
             return Err(Self::Error::no_rollup_id());
@@ -95,27 +119,42 @@ impl Protobuf for GenesisInfo {
 
         Ok(Self {
             rollup_id,
-            sequencer_genesis_block_height: (*sequencer_genesis_block_height).into(),
+            sequencer_start_block_height: (*sequencer_start_block_height).into(),
+            sequencer_stop_block_height: (*sequencer_stop_block_height).into(),
             celestia_block_variance: *celestia_block_variance,
+            sequencer_chain_id: sequencer_chain_id.clone(),
+            celestia_chain_id: celestia_chain_id.clone(),
         })
     }
 
     fn to_raw(&self) -> Self::Raw {
         let Self {
             rollup_id,
-            sequencer_genesis_block_height,
+            sequencer_start_block_height,
+            sequencer_stop_block_height,
             celestia_block_variance,
+            sequencer_chain_id,
+            celestia_chain_id,
         } = self;
 
-        let sequencer_genesis_block_height: u32 =
-            (*sequencer_genesis_block_height).value().try_into().expect(
+        let sequencer_start_block_height: u32 =
+            (*sequencer_start_block_height).value().try_into().expect(
                 "block height overflow, this should not happen since tendermint heights are i64 \
                  under the hood",
             );
+        let sequencer_stop_block_height: u32 =
+            (*sequencer_stop_block_height).value().try_into().expect(
+                "block height overflow, this should not happen since tendermint heights are i64 \
+                 under the hood",
+            );
+
         Self::Raw {
             rollup_id: Some(rollup_id.to_raw()),
-            sequencer_genesis_block_height,
+            sequencer_start_block_height,
+            sequencer_stop_block_height,
             celestia_block_variance: *celestia_block_variance,
+            sequencer_chain_id: sequencer_chain_id.clone(),
+            celestia_chain_id: celestia_chain_id.clone(),
         }
     }
 }

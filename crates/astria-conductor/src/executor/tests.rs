@@ -47,8 +47,11 @@ fn make_state(
 ) -> (StateSender, StateReceiver) {
     let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
         rollup_id: Some(ROLLUP_ID.to_raw()),
-        sequencer_genesis_block_height: 1,
+        sequencer_start_block_height: 1,
+        sequencer_stop_block_height: 100,
         celestia_block_variance: 1,
+        sequencer_chain_id: "test_sequencer-0".to_string(),
+        celestia_chain_id: "test_celestia-0".to_string(),
     })
     .unwrap();
     let commitment_state = CommitmentState::try_from_raw(raw::CommitmentState {
