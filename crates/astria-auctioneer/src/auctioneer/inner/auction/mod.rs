@@ -45,7 +45,9 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    bail,
     ensure,
+    eyre,
     Context,
 };
 use futures::{
@@ -54,7 +56,10 @@ use futures::{
 };
 use telemetry::display::base64;
 use tokio::{
-    sync::mpsc,
+    sync::{
+        mpsc,
+        oneshot,
+    },
     task::JoinHandle,
 };
 use tracing::instrument;
@@ -92,17 +97,13 @@ impl std::fmt::Display for Id {
     }
 }
 
-enum Command {
-    StartProcessingBids,
-    StartTimer,
-}
-
 pub(super) struct Auction {
     id: Id,
     block_hash: BlockHash,
     height: u64,
     parent_block_of_executed: Option<[u8; 32]>,
-    commands: mpsc::Sender<Command>,
+    start_bids: Option<oneshot::Sender<()>>,
+    start_timer: Option<oneshot::Sender<()>>,
     bundles: mpsc::UnboundedSender<Arc<Bundle>>,
     worker: JoinHandle<eyre::Result<()>>,
 }
@@ -116,6 +117,7 @@ impl Auction {
         &self.id
     }
 
+    // TODO: identify the commitment in span fields
     #[instrument(skip_all, fields(id = %self.id), err)]
     pub(super) fn start_timer(&mut self, commitment: Commitment) -> eyre::Result<()> {
         ensure!(
@@ -127,11 +129,18 @@ impl Auction {
             commitment.block_hash(),
             commitment.height(),
         );
-        self.commands
-            .try_send(Command::StartTimer)
-            .wrap_err("failed to send command to start timer to auction")
+        if let Some(start_timer) = self.start_timer.take() {
+            start_timer
+                .send(())
+                .map_err(|()| eyre!("the auction worker's start timer channel was already dropped"))
+        } else {
+            Err(eyre!(
+                "a previous commitment already triggered the start timer of the auction"
+            ))
+        }
     }
 
+    // TODO: identify the executed block in the span fields
     #[instrument(skip_all, fields(id = %self.id), err)]
     pub(in crate::auctioneer::inner) fn start_processing_bids(
         &mut self,
@@ -144,13 +153,21 @@ impl Auction {
             &self.block_hash,
             block.sequencer_block_hash(),
         );
-        // TODO: What if it was already set? Overwrite? Replace? Drop?
-        let _ = self
+
+        if let Some(start_bids) = self.start_bids.take() {
+            start_bids.send(()).map_err(|()| {
+                eyre!("the auction worker's start bids channel was already dropped")
+            })?;
+        } else {
+            bail!("a previous executed block already triggered the auction to start bids");
+        }
+
+        let _prev_block = self
             .parent_block_of_executed
             .replace(block.parent_rollup_block_hash());
-        self.commands
-            .try_send(Command::StartProcessingBids)
-            .wrap_err("failed to send command to start processing bids")
+        debug_assert!(_prev_block.is_some());
+
+        Ok(())
     }
 
     // TODO: Use a refinement type for the parente rollup block hash

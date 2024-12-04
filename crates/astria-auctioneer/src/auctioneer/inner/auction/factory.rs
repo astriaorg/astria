@@ -7,7 +7,10 @@ use astria_core::{
     },
     sequencerblock::v1::block::FilteredSequencerBlock,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{
+    mpsc,
+    oneshot,
+};
 
 use super::{
     Auction,
@@ -38,12 +41,14 @@ impl Factory {
         let height = block.height().into();
 
         // TODO: get the capacities from config or something instead of using a magic number
-        let (commands_tx, commands_rx) = mpsc::channel(16);
+        let (start_bids_tx, start_bids_rx) = oneshot::channel();
+        let (start_timer_tx, start_timer_rx) = oneshot::channel();
         let (bundles_tx, bundles_rx) = mpsc::unbounded_channel();
 
         let auction = Worker {
             sequencer_abci_client: self.sequencer_abci_client.clone(),
-            commands_rx,
+            start_processing_bids: Some(start_bids_rx),
+            start_timer: Some(start_timer_rx),
             bundles: bundles_rx,
             latency_margin: self.latency_margin,
             id,
@@ -59,7 +64,8 @@ impl Factory {
             block_hash,
             height,
             parent_block_of_executed: None,
-            commands: commands_tx,
+            start_bids: Some(start_bids_tx),
+            start_timer: Some(start_timer_tx),
             bundles: bundles_tx,
             worker: tokio::task::spawn(auction.run()),
         }
