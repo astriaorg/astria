@@ -114,6 +114,7 @@ impl Worker {
                 Ok(()) = async { self.start_bids.as_mut().unwrap().await }, if self.start_bids.is_some() => {
                     let mut channel = self.start_bids.take().expect("inside an arm that that checks start_bids == Some");
                     channel.close();
+                    // TODO: if the timer is already running, report how much time is left for the bids
                     auction_is_open = true;
                 }
 
