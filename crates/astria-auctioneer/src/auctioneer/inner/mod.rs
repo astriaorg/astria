@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use astria_core::{
     primitive::v1::{
@@ -301,7 +304,7 @@ impl Inner {
 
     #[instrument(skip(self), fields(block_hash = field::Empty), err)]
     fn handle_bundle(&mut self, bundle: eyre::Result<crate::bundle::Bundle>) -> eyre::Result<()> {
-        let bundle = bundle.wrap_err("received problematic bundle")?;
+        let bundle = Arc::new(bundle.wrap_err("received problematic bundle")?);
         Span::current().record(
             "block_hash",
             field::display(bundle.base_sequencer_block_hash()),

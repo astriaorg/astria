@@ -37,7 +37,10 @@
 //! as it received the signal to start the timer. This corresponds to the sequencer block being
 //! committed, thus providing the latest pending nonce.
 
-use std::time::Duration;
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use astria_core::primitive::v1::{
     asset,
@@ -55,7 +58,6 @@ use tokio::{
     sync::mpsc,
 };
 use tracing::{
-    debug,
     error,
     info,
     instrument,
@@ -77,7 +79,7 @@ pub(super) struct Worker {
     /// Channel for receiving commands sent via the handle
     pub(super) commands_rx: mpsc::Receiver<Command>,
     /// Channel for receiving new bundles
-    pub(super) bundles_rx: mpsc::Receiver<Bundle>,
+    pub(super) bundles: mpsc::Receiver<Arc<Bundle>>,
     /// The time between receiving a block commitment
     pub(super) latency_margin: Duration,
     /// The ID of the auction
@@ -129,38 +131,27 @@ impl Worker {
                     }
                 }
 
-                Some(bundle) = self.bundles_rx.recv(), if auction_is_open => {
-                    if allocation_rule.bid(bundle.clone()) {
-                        info!(
-                            auction.id = %self.id,
-                            bundle.bid = %bundle.bid(),
-                            "received new highest bid"
-                        );
-                    } else {
-                        debug!(
-                            auction.id = %self.id,
-                            bundle.bid = %bundle.bid(),
-                            "received bid lower than current highest bid, discarding"
-                        );
-                    }
+                Some(bundle) = self.bundles.recv(), if auction_is_open => {
+                    allocation_rule.bid(&bundle);
                 }
 
             }
         };
 
-        // TODO: report the pending nonce that we ended up using.
-        let transaction_body = auction_result
+        let winner = auction_result
             .wrap_err("auction failed unexpectedly")?
-            .ok_or_eyre("auction ended with no winning bid")?
+            .ok_or_eyre("auction ended with no winning bid")?;
+
+        // TODO: report the pending nonce that we ended up using.
+        let transaction = Arc::unwrap_or_clone(winner)
             .into_transaction_body(
                 self.pending_nonce.get(),
                 self.rollup_id,
                 &self.sequencer_key,
                 self.fee_asset_denomination.clone(),
                 self.sequencer_chain_id,
-            );
-
-        let transaction = transaction_body.sign(self.sequencer_key.signing_key());
+            )
+            .sign(self.sequencer_key.signing_key());
 
         // NOTE: Submit fire-and-forget style. If the submission didn't make it in time,
         // it's likey lost.

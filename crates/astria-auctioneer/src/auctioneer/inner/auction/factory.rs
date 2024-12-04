@@ -44,7 +44,7 @@ impl Factory {
         let auction = Worker {
             sequencer_abci_client: self.sequencer_abci_client.clone(),
             commands_rx,
-            bundles_rx,
+            bundles: bundles_rx,
             latency_margin: self.latency_margin,
             id,
             sequencer_key: self.sequencer_key.clone(),

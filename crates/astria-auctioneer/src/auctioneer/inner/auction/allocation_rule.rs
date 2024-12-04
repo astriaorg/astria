@@ -1,9 +1,16 @@
 //! The allocation rule is the mechanism by which the auction processes incoming bids and determines
 //! the winner.
+use std::sync::Arc;
+
+use tracing::{
+    info,
+    instrument,
+};
+
 use super::Bundle;
 
 pub(super) struct FirstPrice {
-    highest_bid: Option<Bundle>,
+    highest_bid: Option<Arc<Bundle>>,
 }
 
 impl FirstPrice {
@@ -16,21 +23,27 @@ impl FirstPrice {
     /// Submit a bundle with a bid.
     ///
     /// Returns `true` if the bid is accepted as the highest bid.
-    pub(super) fn bid(&mut self, candidate: Bundle) -> bool {
-        if let Some(current) = self.highest_bid.as_mut() {
-            let is_higher = candidate.bid() > current.bid();
-            if is_higher {
-                *current = candidate;
+    #[instrument(skip_all, fields(
+        current_winner.bid = self.highest_bid.as_ref().map(|bundle| bundle.bid()),
+        candidate.bid = candidate.bid(),
+    ))]
+    pub(super) fn bid(&mut self, candidate: &Arc<Bundle>) {
+        let winner = if let Some(current) = self.highest_bid.as_mut() {
+            if candidate.bid() > current.bid() {
+                *current = candidate.clone();
+                "candidate"
+            } else {
+                "incumbant"
             }
-            is_higher
         } else {
-            self.highest_bid = Some(candidate);
-            true
-        }
+            self.highest_bid = Some(candidate.clone());
+            "candidate"
+        };
+        info!("highest bidder is {winner}");
     }
 
     /// Returns the winner of the auction, if one exists.
-    pub(super) fn winner(self) -> Option<Bundle> {
+    pub(super) fn winner(self) -> Option<Arc<Bundle>> {
         self.highest_bid
     }
 }
