@@ -221,7 +221,7 @@ impl Inner {
         res
     }
 
-    #[instrument(skip(self), fields(block_hash = field::Empty), err)]
+    #[instrument(skip_all, fields(block_hash = field::Empty), err)]
     fn handle_optimistic_block(
         &mut self,
         optimistic_block: eyre::Result<FilteredSequencerBlock>,
@@ -252,7 +252,7 @@ impl Inner {
         Ok(())
     }
 
-    #[instrument(skip(self), fields(block_hash = field::Empty), err)]
+    #[instrument(skip_all, fields(block_hash = field::Empty), err)]
     fn handle_block_commitment(
         &mut self,
         commitment: eyre::Result<crate::block::Commitment>,
@@ -275,7 +275,7 @@ impl Inner {
         Ok(())
     }
 
-    #[instrument(skip(self), fields(block_hash = field::Empty), err)]
+    #[instrument(skip_all, fields(block_hash = field::Empty), err)]
     fn handle_executed_block(
         &mut self,
         executed_block: eyre::Result<crate::block::Executed>,
@@ -302,7 +302,7 @@ impl Inner {
         Ok(())
     }
 
-    #[instrument(skip(self), fields(block_hash = field::Empty), err)]
+    #[instrument(skip_all, fields(block_hash = field::Empty), err)]
     fn handle_bundle(&mut self, bundle: eyre::Result<crate::bundle::Bundle>) -> eyre::Result<()> {
         let bundle = Arc::new(bundle.wrap_err("received problematic bundle")?);
         Span::current().record(
