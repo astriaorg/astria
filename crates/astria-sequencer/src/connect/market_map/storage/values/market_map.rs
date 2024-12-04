@@ -85,7 +85,7 @@ impl<'a> From<Ticker<'a>> for DomainTicker {
 struct ProviderConfig<'a> {
     name: Cow<'a, str>,
     off_chain_ticker: Cow<'a, str>,
-    normalize_by_pair: CurrencyPair<'a>,
+    normalize_by_pair: Option<CurrencyPair<'a>>,
     invert: bool,
     metadata_json: Cow<'a, str>,
 }
@@ -95,7 +95,10 @@ impl<'a> From<&'a DomainProviderConfig> for ProviderConfig<'a> {
         ProviderConfig {
             name: Cow::Borrowed(&provider_config.name),
             off_chain_ticker: Cow::Borrowed(&provider_config.off_chain_ticker),
-            normalize_by_pair: CurrencyPair::from(&provider_config.normalize_by_pair),
+            normalize_by_pair: provider_config
+                .normalize_by_pair
+                .as_ref()
+                .map(CurrencyPair::from),
             invert: provider_config.invert,
             metadata_json: Cow::Borrowed(&provider_config.metadata_json),
         }
@@ -107,7 +110,9 @@ impl<'a> From<ProviderConfig<'a>> for DomainProviderConfig {
         DomainProviderConfig::unchecked_from_parts(
             provider_config.name.into_owned(),
             provider_config.off_chain_ticker.into_owned(),
-            DomainCurrencyPair::from(provider_config.normalize_by_pair),
+            provider_config
+                .normalize_by_pair
+                .map(DomainCurrencyPair::from),
             provider_config.invert,
             provider_config.metadata_json.into_owned(),
         )

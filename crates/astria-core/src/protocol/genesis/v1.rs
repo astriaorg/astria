@@ -1038,10 +1038,10 @@ mod tests {
                 provider_configs: vec![ProviderConfig {
                     name: "coingecko_api".to_string(),
                     off_chain_ticker: "ethereum/usd".to_string(),
-                    normalize_by_pair: CurrencyPair::from_parts(
+                    normalize_by_pair: Some(CurrencyPair::from_parts(
                         "USDT".parse().unwrap(),
                         "USD".parse().unwrap(),
-                    ),
+                    )),
                     invert: false,
                     metadata_json: String::new(),
                 }],
