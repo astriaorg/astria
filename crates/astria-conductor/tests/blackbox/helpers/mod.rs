@@ -305,19 +305,24 @@ impl TestConductor {
         mount_genesis(&self.mock_http, chain_id).await;
     }
 
-    pub async fn mount_get_genesis_info(&self, genesis_info: GenesisInfo) {
+    pub async fn mount_get_genesis_info(&self, genesis_info: GenesisInfo, up_to_n_times: u64) {
         use astria_core::generated::execution::v1::GetGenesisInfoRequest;
         astria_grpc_mock::Mock::for_rpc_given(
             "get_genesis_info",
             astria_grpc_mock::matcher::message_type::<GetGenesisInfoRequest>(),
         )
         .respond_with(astria_grpc_mock::response::constant_response(genesis_info))
+        .up_to_n_times(up_to_n_times)
         .expect(1..)
         .mount(&self.mock_grpc.mock_server)
         .await;
     }
 
-    pub async fn mount_get_commitment_state(&self, commitment_state: CommitmentState) {
+    pub async fn mount_get_commitment_state(
+        &self,
+        commitment_state: CommitmentState,
+        up_to_n_times: u64,
+    ) {
         use astria_core::generated::execution::v1::GetCommitmentStateRequest;
 
         astria_grpc_mock::Mock::for_rpc_given(
@@ -327,6 +332,7 @@ impl TestConductor {
         .respond_with(astria_grpc_mock::response::constant_response(
             commitment_state,
         ))
+        .up_to_n_times(up_to_n_times)
         .expect(1..)
         .mount(&self.mock_grpc.mock_server)
         .await;

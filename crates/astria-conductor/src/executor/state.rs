@@ -359,6 +359,7 @@ pub(super) fn map_sequencer_height_to_rollup_height(
         .value()
         .checked_sub(sequencer_genesis_height.value())?
         .checked_add(rollup_start_block_height)?
+        .checked_sub(1)? // offset rollup start block height value
         .try_into()
         .ok()
 }
