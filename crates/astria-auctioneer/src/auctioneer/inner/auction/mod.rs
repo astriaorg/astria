@@ -37,6 +37,8 @@
 //! as it received the signal to start the timer. This corresponds to the sequencer block being
 //! committed, thus providing the latest pending nonce.
 
+use std::sync::Arc;
+
 use astria_core::{
     self,
     sequencerblock::v1::block::BlockHash,
@@ -101,7 +103,7 @@ pub(super) struct Auction {
     height: u64,
     parent_block_of_executed: Option<[u8; 32]>,
     commands: mpsc::Sender<Command>,
-    bundles: mpsc::Sender<Bundle>,
+    bundles: mpsc::Sender<Arc<Bundle>>,
     worker: JoinHandle<eyre::Result<()>>,
 }
 
@@ -160,7 +162,7 @@ impl Auction {
     ), err)]
     pub(in crate::auctioneer::inner) fn forward_bundle_to_auction(
         &mut self,
-        bundle: Bundle,
+        bundle: Arc<Bundle>,
     ) -> eyre::Result<()> {
         // TODO: emit some more information about auctoin ID, expected vs actual parent block hash,
         // tacked block hash, provided block hash, etc.
