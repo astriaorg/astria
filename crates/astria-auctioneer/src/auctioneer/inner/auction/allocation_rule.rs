@@ -16,12 +16,16 @@ impl FirstPrice {
     /// Submit a bundle with a bid.
     ///
     /// Returns `true` if the bid is accepted as the highest bid.
-    pub(super) fn bid(&mut self, bundle: Bundle) -> bool {
-        if bundle.bid() > self.highest_bid.as_ref().map_or(0, Bundle::bid) {
-            self.highest_bid = Some(bundle);
-            true
+    pub(super) fn bid(&mut self, candidate: Bundle) -> bool {
+        if let Some(current) = self.highest_bid.as_mut() {
+            let is_higher = candidate.bid() > current.bid();
+            if is_higher {
+                *current = candidate;
+            }
+            is_higher
         } else {
-            false
+            self.highest_bid = Some(candidate);
+            true
         }
     }
 
