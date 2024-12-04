@@ -15,7 +15,10 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::RollupId,
+    primitive::v1::{
+        Address,
+        RollupId,
+    },
     protocol::{
         genesis::v1::Account,
         transaction::v1::{
@@ -50,25 +53,29 @@ use tendermint::{
 };
 
 use crate::{
-    app::test_utils::{
-        default_genesis_accounts,
-        get_alice_signing_key,
-        get_bridge_signing_key,
-        initialize_app,
-        initialize_app_with_storage,
-        proto_genesis_state,
-        BOB_ADDRESS,
-        CAROL_ADDRESS,
+    app::{
+        benchmark_and_test_utils::{
+            default_genesis_accounts,
+            initialize_app_with_storage,
+            proto_genesis_state,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+        },
+        test_utils::{
+            get_alice_signing_key,
+            get_bridge_signing_key,
+            initialize_app,
+        },
     },
     authority::StateReadExt as _,
-    bridge::StateWriteExt as _,
-    proposal::commitment::generate_rollup_datas_commitment,
-    test_utils::{
+    benchmark_and_test_utils::{
         astria_address,
         astria_address_from_hex_string,
         nria,
         ASTRIA_PREFIX,
     },
+    bridge::StateWriteExt as _,
+    proposal::commitment::generate_rollup_datas_commitment,
 };
 
 #[tokio::test]
@@ -186,8 +193,22 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     };
     let genesis_state = astria_core::generated::protocol::genesis::v1::GenesisAppState {
         accounts,
-        authority_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
-        ibc_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
+        authority_sudo_address: Some(
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(alice.address_bytes())
+                .try_build()
+                .unwrap()
+                .to_raw(),
+        ),
+        ibc_sudo_address: Some(
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(alice.address_bytes())
+                .try_build()
+                .unwrap()
+                .to_raw(),
+        ),
         ..proto_genesis_state()
     }
     .try_into()
@@ -197,7 +218,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
         power: 100,
-        verification_key: crate::test_utils::verification_key(1),
+        verification_key: crate::benchmark_and_test_utils::verification_key(1),
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");

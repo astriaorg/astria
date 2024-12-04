@@ -188,7 +188,7 @@ impl SequencerService for SequencerServer {
             ));
         };
 
-        let address = Address::try_from_raw(&address).map_err(|e| {
+        let address = Address::try_from_raw(address).map_err(|e| {
             info!(
                 error = %e,
                 "failed to parse address from request",
@@ -231,15 +231,15 @@ mod tests {
     use super::*;
     use crate::{
         app::{
-            test_utils::{
-                get_alice_signing_key,
+            benchmark_and_test_utils::{
                 mock_balances,
                 mock_tx_cost,
             },
+            test_utils::get_alice_signing_key,
             StateWriteExt as _,
         },
+        benchmark_and_test_utils::astria_address,
         grpc::StateWriteExt as _,
-        test_utils::astria_address,
     };
 
     fn make_test_sequencer_block(height: u32) -> SequencerBlock {

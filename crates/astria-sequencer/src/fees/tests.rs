@@ -30,21 +30,31 @@ use astria_core::{
         },
     },
     sequencerblock::v1::block::Deposit,
+    Protobuf as _,
 };
 use cnidarium::StateDelta;
 
 use super::base_deposit_fee;
 use crate::{
     accounts::StateWriteExt as _,
+    action_handler::ActionHandler as _,
     address::StateWriteExt as _,
     app::{
-        test_utils::{
-            get_alice_signing_key,
-            get_bridge_signing_key,
+        benchmark_and_test_utils::{
             initialize_app_with_storage,
             BOB_ADDRESS,
         },
-        ActionHandler as _,
+        test_utils::{
+            get_alice_signing_key,
+            get_bridge_signing_key,
+        },
+    },
+    benchmark_and_test_utils::{
+        assert_eyre_error,
+        astria_address,
+        astria_address_from_hex_string,
+        nria,
+        ASTRIA_PREFIX,
     },
     bridge::StateWriteExt as _,
     fees::{
@@ -52,14 +62,7 @@ use crate::{
         StateWriteExt as _,
         DEPOSIT_BASE_FEE,
     },
-    test_utils::{
-        assert_eyre_error,
-        astria_address,
-        astria_address_from_hex_string,
-        calculate_rollup_data_submission_fee_from_state,
-        nria,
-        ASTRIA_PREFIX,
-    },
+    test_utils::calculate_rollup_data_submission_fee_from_state,
     transaction::{
         StateWriteExt as _,
         TransactionContext,
@@ -331,7 +334,7 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
     state.put_transaction_context(TransactionContext {
         address_bytes: from_address.bytes(),
         transaction_id,
-        source_action_index: 0,
+        position_in_transaction: 0,
     });
     state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
