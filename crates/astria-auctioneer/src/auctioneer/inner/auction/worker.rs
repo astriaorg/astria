@@ -49,7 +49,6 @@ use astria_core::primitive::v1::{
 use astria_eyre::eyre::{
     self,
     bail,
-    eyre,
     Context,
     OptionExt as _,
 };
@@ -109,7 +108,7 @@ impl Worker {
 
                 _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
                     info!("timer is up; bids left unprocessed: {}", self.bundles.len());
-                    break Ok(allocation_rule.winner());
+                    break allocation_rule.winner();
                 }
 
                 Ok(()) = async { self.start_processing_bids.as_mut().unwrap().await }, if self.start_processing_bids.is_some() => {
@@ -122,10 +121,10 @@ impl Worker {
                     let mut channel = self.start_timer.take().expect("inside an arm that checks start_immer == Some");
                     channel.close();
                     if !auction_is_open {
-                        break Err(eyre!("auction received signal to start timer before signal to start processing bids"));
+                        info!("received signal to start the auction timer before signal to process bids; that's ok but eats into the time allotment of the auction");
                     }
 
-                    // set the timer
+                    // TODO: Emit an event to report start and endpoint of the auction.
                     latency_margin_timer = Some(tokio::time::sleep(self.latency_margin));
                 }
 
@@ -140,9 +139,7 @@ impl Worker {
             }
         };
 
-        let winner = auction_result
-            .wrap_err("auction failed unexpectedly")?
-            .ok_or_eyre("auction ended with no winning bid")?;
+        let winner = auction_result.ok_or_eyre("auction ended with no winning bid")?;
 
         // TODO: report the pending nonce that we ended up using.
         let transaction = Arc::unwrap_or_clone(winner)
