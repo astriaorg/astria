@@ -153,7 +153,7 @@ account is registered to, containing the information of the transfer.
   ||| which will receive the bridged funds. |
 
 * `BridgeUnlock`: transfers funds from a bridge account to a sequencer account.
-The signer of this transaciton *must* be the authorized withdrawer for this `bridge_address`.
+The signer of this transaction *must* be the authorized withdrawer for this `bridge_address`.
 Effectively similar to `Transfer`, it contains the following fields:
 
   | **Field** | **Type** | **Description** |
