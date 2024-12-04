@@ -8,6 +8,7 @@ mod block_height;
 mod bridge_account;
 mod bridge_lock;
 mod bridge_sudo_change;
+mod fee_assets;
 mod ics20_withdrawal;
 mod init_bridge_account;
 mod sign;
@@ -39,6 +40,7 @@ impl Command {
             SubCommand::Sign(sign) => sign.run(),
             SubCommand::BridgeSudoChange(bridge_sudo_change) => bridge_sudo_change.run().await,
             SubCommand::BridgeAccount(bridge_account) => bridge_account.run().await,
+            SubCommand::FeeAssets(fee_assets) => fee_assets.run().await,
         }
     }
 }
@@ -80,4 +82,6 @@ enum SubCommand {
     BridgeSudoChange(bridge_sudo_change::Command),
     /// Commands for interacting with the bridge account
     BridgeAccount(bridge_account::Command),
+    /// Command for interacting with allowed fee assets
+    FeeAssets(fee_assets::Command),
 }

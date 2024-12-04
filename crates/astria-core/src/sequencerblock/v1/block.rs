@@ -1428,7 +1428,7 @@ impl Deposit {
             return Err(DepositError::field_not_set("bridge_address"));
         };
         let bridge_address =
-            Address::try_from_raw(&bridge_address).map_err(DepositError::address)?;
+            Address::try_from_raw(bridge_address).map_err(DepositError::address)?;
         let amount = amount.ok_or(DepositError::field_not_set("amount"))?.into();
         let Some(rollup_id) = rollup_id else {
             return Err(DepositError::field_not_set("rollup_id"));

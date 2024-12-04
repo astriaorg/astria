@@ -10,7 +10,6 @@ use crate::{
             denom::ParseTracePrefixedError,
             ParseDenomError,
         },
-        try_construct_dummy_address_from_prefix,
         Address,
         AddressError,
         Bech32,
@@ -183,16 +182,18 @@ impl Protobuf for GenesisAppState {
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("authority_sudo_address"))
             .and_then(|addr| {
-                Address::try_from_raw(addr).map_err(Self::Error::authority_sudo_address)
+                Address::try_from_raw_ref(addr).map_err(Self::Error::authority_sudo_address)
             })?;
         let ibc_sudo_address = ibc_sudo_address
             .as_ref()
             .ok_or_else(|| Self::Error::field_not_set("ibc_sudo_address"))
-            .and_then(|addr| Address::try_from_raw(addr).map_err(Self::Error::ibc_sudo_address))?;
+            .and_then(|addr| {
+                Address::try_from_raw_ref(addr).map_err(Self::Error::ibc_sudo_address)
+            })?;
 
         let ibc_relayer_addresses = ibc_relayer_addresses
             .iter()
-            .map(Address::try_from_raw)
+            .map(Address::try_from_raw_ref)
             .collect::<Result<_, _>>()
             .map_err(Self::Error::ibc_relayer_addresses)?;
 
@@ -405,7 +406,7 @@ impl Protobuf for Account {
         let address = address
             .as_ref()
             .ok_or_else(|| AccountError::field_not_set("address"))
-            .and_then(|addr| Address::try_from_raw(addr).map_err(Self::Error::address))?;
+            .and_then(|addr| Address::try_from_raw_ref(addr).map_err(Self::Error::address))?;
         let balance = balance
             .ok_or_else(|| AccountError::field_not_set("balance"))
             .map(Into::into)?;
@@ -481,12 +482,22 @@ impl Protobuf for AddressPrefixes {
     type Raw = raw::AddressPrefixes;
 
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        fn dummy_addr<T: crate::primitive::v1::Format>(prefix: &str) -> Result<(), AddressError> {
+            Address::<T::Checksum>::builder()
+                .array([0u8; crate::primitive::v1::ADDRESS_LEN])
+                .prefix(prefix)
+                .try_build()
+                .map(|_| ())
+        }
+
         let Self::Raw {
             base,
             ibc_compat,
         } = raw;
-        try_construct_dummy_address_from_prefix::<Bech32m>(base).map_err(Self::Error::base)?;
-        try_construct_dummy_address_from_prefix::<Bech32>(ibc_compat).map_err(Self::Error::base)?;
+
+        dummy_addr::<Bech32m>(base).map_err(Self::Error::base)?;
+        dummy_addr::<Bech32>(ibc_compat).map_err(Self::Error::base)?;
+
         Ok(Self {
             base: base.to_string(),
             ibc_compat: ibc_compat.to_string(),
