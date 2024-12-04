@@ -336,7 +336,7 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
     let total_fees = base.saturating_add(act.variable_component().saturating_mul(multiplier));
     let transaction_context = state
         .get_transaction_context()
-        .expect("transaction source must be present in state when executing an action");
+        .ok_or_eyre("transaction source must be present in state when executing an action")?;
     let from = transaction_context.address_bytes();
     let position_in_transaction = transaction_context.position_in_transaction;
 
