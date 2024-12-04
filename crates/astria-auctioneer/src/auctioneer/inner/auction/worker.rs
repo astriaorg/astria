@@ -48,6 +48,7 @@ use astria_core::primitive::v1::{
 };
 use astria_eyre::eyre::{
     self,
+    bail,
     eyre,
     Context,
     OptionExt as _,
@@ -55,7 +56,7 @@ use astria_eyre::eyre::{
 use sequencer_client::SequencerClientExt;
 use tokio::{
     select,
-    sync::mpsc,
+    sync::oneshot,
 };
 use tracing::{
     error,
@@ -65,7 +66,6 @@ use tracing::{
 
 use super::{
     allocation_rule::FirstPrice,
-    Command,
     PendingNonceSubscriber,
 };
 use crate::{
@@ -76,8 +76,8 @@ use crate::{
 pub(super) struct Worker {
     /// The sequencer's ABCI client, used for submitting transactions
     pub(super) sequencer_abci_client: sequencer_client::HttpClient,
-    /// Channel for receiving commands sent via the handle
-    pub(super) commands_rx: mpsc::Receiver<Command>,
+    pub(super) start_processing_bids: Option<oneshot::Receiver<()>>,
+    pub(super) start_timer: Option<oneshot::Receiver<()>>,
     /// Channel for receiving new bundles
     pub(super) bundles: tokio::sync::mpsc::UnboundedReceiver<Arc<Bundle>>,
     /// The time between receiving a block commitment
@@ -107,37 +107,36 @@ impl Worker {
             select! {
                 biased;
 
-                // get the auction winner when the timer expires
                 _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
                     info!("timer is up; bids left unprocessed: {}", self.bundles.len());
                     break Ok(allocation_rule.winner());
                 }
 
-                Some(cmd) = self.commands_rx.recv() => {
-                    match cmd {
-                        Command::StartProcessingBids => {
-                            if auction_is_open {
-                                break Err(eyre!("auction received signal to start processing bids twice"));
-                            }
-                            auction_is_open = true;
-                        },
-                        Command::StartTimer  => {
-                            if !auction_is_open {
-                                break Err(eyre!("auction received signal to start timer before signal to start processing bids"));
-                            }
-
-                            // set the timer
-                            latency_margin_timer = Some(tokio::time::sleep(self.latency_margin));
-                        }
-                    }
+                Ok(()) = async { self.start_processing_bids.as_mut().unwrap().await }, if self.start_processing_bids.is_some() => {
+                    let mut channel = self.start_processing_bids.take().expect("inside an arm that that checks start_processing_bids == Some");
+                    channel.close();
+                    auction_is_open = true;
                 }
 
-                // TODO: this is an unbounded channel. Can we process multiple
-                // bids at a time?
+                Ok(()) = async { self.start_timer.as_mut().unwrap().await }, if self.start_timer.is_some() => {
+                    let mut channel = self.start_timer.take().expect("inside an arm that checks start_immer == Some");
+                    channel.close();
+                    if !auction_is_open {
+                        break Err(eyre!("auction received signal to start timer before signal to start processing bids"));
+                    }
+
+                    // set the timer
+                    latency_margin_timer = Some(tokio::time::sleep(self.latency_margin));
+                }
+
+                // TODO: this is an unbounded channel. Can we process multiple bids at a time?
                 Some(bundle) = self.bundles.recv(), if auction_is_open => {
                     allocation_rule.bid(&bundle);
                 }
 
+                else => {
+                    bail!("all channels are closed; this auction cannot continue")
+                }
             }
         };
 
