@@ -29,7 +29,7 @@ impl ActionHandler for InitBridgeAccount {
         Ok(())
     }
 
-    #[instrument(skip_all, err(level = Level::INFO))]
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

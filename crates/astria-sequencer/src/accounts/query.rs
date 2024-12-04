@@ -51,7 +51,7 @@ async fn ibc_to_trace<S: StateRead>(
         .ok_or_eyre("asset not found when user has balance of it; this is a bug")
 }
 
-#[instrument(skip_all, fields(%address), err(level = Level::INFO))]
+#[instrument(skip_all, fields(%address), err(level = Level::DEBUG))]
 async fn get_trace_prefixed_account_balances<S: StateRead>(
     state: &S,
     address: &Address,
@@ -156,7 +156,7 @@ pub(crate) async fn nonce_request(
     }
 }
 
-#[instrument(skip_all, fields(%height), err(level = Level::INFO))]
+#[instrument(skip_all, fields(%height), err(level = Level::DEBUG))]
 async fn get_snapshot_and_height(storage: &Storage, height: Height) -> Result<(Snapshot, Height)> {
     let snapshot = match height.value() {
         0 => storage.latest_snapshot(),

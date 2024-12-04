@@ -33,7 +33,7 @@ impl ActionHandler for FeeChange {
 
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the fee
-    #[instrument(skip_all, err(level = Level::INFO))]
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
         let from = state
             .get_transaction_context()
@@ -99,7 +99,7 @@ impl ActionHandler for FeeAssetChange {
         Ok(())
     }
 
-    #[instrument(skip_all, err(level = Level::INFO))]
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
         let from = state
             .get_transaction_context()

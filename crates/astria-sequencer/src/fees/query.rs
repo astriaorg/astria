@@ -220,7 +220,7 @@ pub(crate) async fn transaction_fee_request(
     }
 }
 
-#[instrument(skip_all, err(level = Level::INFO))]
+#[instrument(skip_all, err(level = Level::DEBUG))]
 pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     tx: &TransactionBody,
     state: &S,

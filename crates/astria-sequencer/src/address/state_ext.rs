@@ -59,7 +59,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("failed to construct address from byte slice and state-provided base prefix")
     }
 
-    #[instrument(skip_all, err(level = Level::DEBUG))]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_base_prefix(&self) -> Result<String> {
         let Some(bytes) = self
             .get_raw(keys::BASE_PREFIX)
@@ -74,7 +74,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("invalid base prefix bytes")
     }
 
-    #[instrument(skip_all, err(level = Level::DEBUG))]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_ibc_compat_prefix(&self) -> Result<String> {
         let Some(bytes) = self
             .get_raw(keys::IBC_COMPAT_PREFIX)

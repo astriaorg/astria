@@ -27,7 +27,7 @@ use crate::{
     fees::query::get_fees_for_transaction,
 };
 
-#[instrument(skip_all, fields(tx_hash = %tx.id()), err(level = Level::INFO))]
+#[instrument(skip_all, fields(tx_hash = %tx.id()), err(level = Level::DEBUG))]
 pub(crate) async fn check_chain_id_mempool<S: StateRead>(
     tx: &Transaction,
     state: &S,
@@ -42,7 +42,7 @@ pub(crate) async fn check_chain_id_mempool<S: StateRead>(
 
 // Checks that the account has enough balance to cover the total fees and transferred values
 // for all actions in the transaction.
-#[instrument(skip_all, fields(tx_hash = %tx.id()), err(level = Level::INFO))]
+#[instrument(skip_all, fields(tx_hash = %tx.id()), err(level = Level::DEBUG))]
 pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
     tx: &Transaction,
     state: &S,

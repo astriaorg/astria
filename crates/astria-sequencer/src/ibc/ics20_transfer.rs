@@ -305,7 +305,7 @@ impl AppHandlerCheck for Ics20Transfer {
     }
 }
 
-#[instrument(skip_all, fields(%source_port, %source_channel), err(level = Level::INFO))]
+#[instrument(skip_all, fields(%source_port, %source_channel), err(level = Level::DEBUG))]
 async fn refund_tokens_check<S: StateRead>(
     state: S,
     data: &[u8],
@@ -358,7 +358,7 @@ impl AppHandlerExecute for Ics20Transfer {
 
     async fn chan_close_init_execute<S: StateWrite>(_: S, _: &MsgChannelCloseInit) {}
 
-    #[instrument(skip_all, err(level = Level::INFO))]
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn recv_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgRecvPacket,
@@ -384,7 +384,7 @@ impl AppHandlerExecute for Ics20Transfer {
             .context("failed to write acknowledgement")
     }
 
-    #[instrument(skip_all, err(level = Level::INFO))]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn timeout_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgTimeout,
@@ -394,7 +394,7 @@ impl AppHandlerExecute for Ics20Transfer {
         })
     }
 
-    #[instrument(skip_all, err(level = Level::INFO))]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn acknowledge_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgAcknowledgement,
@@ -586,7 +586,7 @@ fn does_failed_transfer_come_from_rollup(
     serde_json::from_str::<Ics20WithdrawalFromRollup>(&packet_data.memo).ok()
 }
 
-#[instrument(skip_all, fields(%recipient, %asset, amount), err(level = Level::INFO))]
+#[instrument(skip_all, fields(%recipient, %asset, amount), err(level = Level::DEBUG))]
 async fn refund_tokens_to_sequencer_address<S: StateWrite>(
     mut state: S,
     recipient: &Address,
@@ -673,7 +673,7 @@ async fn parse_address_on_sequencer<S: StateRead>(state: &S, input: &str) -> Res
 
 /// Emits a deposit event signaling to the rollup that funds
 /// were added to `bridge_address`.
-#[instrument(skip_all, fields(%bridge_address, %asset, amount, memo), err(level = Level::INFO))]
+#[instrument(skip_all, fields(%bridge_address, %asset, amount, memo), err(level = Level::DEBUG))]
 async fn emit_bridge_lock_deposit<S: StateWrite>(
     mut state: S,
     bridge_address: Address,
@@ -704,7 +704,7 @@ async fn emit_bridge_lock_deposit<S: StateWrite>(
     .await
 }
 
-#[instrument(skip_all, fields(%bridge_address, destination_chain_address, %asset, amount), err(level = Level::INFO))]
+#[instrument(skip_all, fields(%bridge_address, destination_chain_address, %asset, amount), err(level = Level::DEBUG))]
 async fn emit_deposit<S: StateWrite>(
     mut state: S,
     bridge_address: &Address,
