@@ -198,10 +198,11 @@ impl Inner {
     /// This method only exists to emit the auction result (only error right now) under a span.
     #[instrument(skip_all, fields(%auction_id), err)]
     fn handle_completed_auction(
-        &self,
+        &mut self,
         auction_id: auction::Id,
         res: eyre::Result<()>,
     ) -> eyre::Result<()> {
+        self.running_auction.take();
         res
     }
 
