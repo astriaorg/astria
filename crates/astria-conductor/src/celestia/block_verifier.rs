@@ -319,16 +319,18 @@ mod tests {
     }
 
     fn make_test_extended_commit_info_bytes() -> Vec<u8> {
+        use astria_core::generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping;
+
         let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
             tendermint::abci::types::ExtendedCommitInfo {
                 round: 0u16.into(),
                 votes: vec![],
             }
             .into();
-        let extended_commit_info_with_mapping = astria_core::generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping {
-        extended_commit_info: Some(extended_commit_info.into()),
-        id_to_currency_pair: Vec::new(),
-    };
+        let extended_commit_info_with_mapping = ExtendedCommitInfoWithCurrencyPairMapping {
+            extended_commit_info: Some(extended_commit_info.into()),
+            id_to_currency_pair: Vec::new(),
+        };
         extended_commit_info_with_mapping.encode_to_vec()
     }
 
