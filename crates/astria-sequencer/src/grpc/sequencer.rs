@@ -134,6 +134,24 @@ impl SequencerService for SequencerServer {
                 Status::internal(format!("failed to get rollup ids proof from storage: {e}"))
             })?;
 
+        let extended_commit_info = snapshot
+            .get_extended_commit_info(&block_hash)
+            .await
+            .map_err(|e| {
+                Status::internal(format!(
+                    "failed to get extended commit info from storage: {e}"
+                ))
+            })?;
+
+        let extended_commit_info_proof = snapshot
+            .get_extended_commit_info_proof_by_block_hash(&block_hash)
+            .await
+            .map_err(|e| {
+                Status::internal(format!(
+                    "failed to get extended commit info proof from storage: {e}"
+                ))
+            })?;
+
         let mut all_rollup_ids = snapshot
             .get_rollup_ids_by_block_hash(&block_hash)
             .await
@@ -166,6 +184,8 @@ impl SequencerService for SequencerServer {
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
             all_rollup_ids,
+            extended_commit_info,
+            extended_commit_info_proof: extended_commit_info_proof.map(merkle::Proof::into_raw),
         };
 
         Ok(Response::new(block))

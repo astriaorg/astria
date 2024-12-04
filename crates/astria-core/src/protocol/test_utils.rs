@@ -166,7 +166,11 @@ impl ConfigureSequencerBlock {
                     votes: vec![],
                 }
                 .into();
-            let extended_commit_info_bytes = extended_commit_info.encode_to_vec();
+            let extended_commit_info_with_mapping = crate::generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping {
+                extended_commit_info: Some(extended_commit_info.into()),
+                id_to_currency_pair: Vec::new(),
+            };
+            let extended_commit_info_bytes = extended_commit_info_with_mapping.encode_to_vec();
             data.push(extended_commit_info_bytes);
         }
 

@@ -16,6 +16,7 @@ use astria_core::{
     generated::sequencerblock::v1::{
         rollup_data::Value as RawRollupDataValue,
         Deposit as RawDeposit,
+        OracleData as RawOracleData,
         RollupData as RawRollupData,
         SubmittedMetadata as RawSubmittedMetadata,
         SubmittedMetadataList as RawSubmittedMetadataList,
@@ -27,6 +28,8 @@ use astria_core::{
         block::{
             Deposit,
             DepositError,
+            OracleData,
+            OracleDataError,
             SequencerBlockHeader,
         },
         celestia::{
@@ -564,6 +567,44 @@ impl Display for PrintableDeposit {
     }
 }
 
+#[derive(Serialize, Debug)]
+struct PrintableOracleData {
+    prices: Vec<(String, u128, u64)>,
+}
+
+impl TryFrom<&RawOracleData> for PrintableOracleData {
+    type Error = OracleDataError;
+
+    fn try_from(value: &RawOracleData) -> Result<Self, Self::Error> {
+        let oracle_data = OracleData::try_from_raw(value.clone())?;
+        Ok(PrintableOracleData {
+            prices: oracle_data
+                .prices()
+                .iter()
+                .map(|price| {
+                    (
+                        price.currency_pair().to_string(),
+                        price.price().get(),
+                        price.decimals(),
+                    )
+                })
+                .collect(),
+        })
+    }
+}
+
+impl Display for PrintableOracleData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        for (currency_pair, price, decimals) in &self.prices {
+            colored_label_ln(f, "price")?;
+            colored_ln(f, "currency pair", currency_pair)?;
+            colored_ln(f, "price", price)?;
+            colored_ln(f, "decimals", decimals)?;
+        }
+        Ok(())
+    }
+}
+
 #[expect(clippy::large_enum_variant, reason = "not performance-critical")]
 #[derive(Serialize, Debug)]
 enum RollupDataDetails {
@@ -571,6 +612,8 @@ enum RollupDataDetails {
     Transaction(RollupTransaction),
     #[serde(rename = "deposit")]
     Deposit(PrintableDeposit),
+    #[serde(rename = "oracle_data")]
+    OracleData(PrintableOracleData),
     /// Tx doesn't decode as `RawRollupData`.  Wrapped value is base-64-encoded input data.
     #[serde(rename = "not_tx_or_deposit")]
     NotTxOrDeposit(String),
@@ -585,6 +628,10 @@ enum RollupDataDetails {
     /// Wrapped value is decoding error and the debug contents of the raw (protobuf) deposit.
     #[serde(rename = "unparseable_deposit")]
     UnparseableDeposit(String),
+    /// Tx parses as `RawRollupData::OracleData`, but its value doesn't decode as a `OracleData`.
+    /// Wrapped value is decoding error and the debug contents of the raw (protobuf) oracle data.
+    #[serde(rename = "unparseable_oracle_data")]
+    UnparseableOracleData(String),
 }
 
 impl From<&Vec<u8>> for RollupDataDetails {
@@ -608,6 +655,16 @@ impl From<&Vec<u8>> for RollupDataDetails {
                     }
                 }
             }
+            Some(RawRollupDataValue::OracleData(raw_oracle_data)) => {
+                match PrintableOracleData::try_from(&raw_oracle_data) {
+                    Ok(printable_oracle_data) => {
+                        RollupDataDetails::OracleData(printable_oracle_data)
+                    }
+                    Err(error) => RollupDataDetails::UnparseableOracleData(format!(
+                        "{raw_oracle_data:?}: {error}"
+                    )),
+                }
+            }
         }
     }
 }
@@ -623,6 +680,10 @@ impl Display for RollupDataDetails {
                 colored_label_ln(f, "deposit")?;
                 write!(indent(f), "{deposit}")
             }
+            RollupDataDetails::OracleData(oracle_data) => {
+                colored_label_ln(f, "oracle data")?;
+                write!(indent(f), "{oracle_data}")
+            }
             RollupDataDetails::NotTxOrDeposit(value) => colored(f, "not tx or deposit", value),
             RollupDataDetails::EmptyBytes => {
                 write!(f, "empty rollup data")
@@ -632,6 +693,9 @@ impl Display for RollupDataDetails {
             }
             RollupDataDetails::UnparseableDeposit(error) => {
                 colored(f, "unparseable deposit", error)
+            }
+            RollupDataDetails::UnparseableOracleData(error) => {
+                colored(f, "unparseable oracle data", error)
             }
         }
     }

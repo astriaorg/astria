@@ -318,11 +318,27 @@ mod tests {
         )
     }
 
+    fn make_test_extended_commit_info_bytes() -> Vec<u8> {
+        use astria_core::generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping;
+
+        let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
+            tendermint::abci::types::ExtendedCommitInfo {
+                round: 0u16.into(),
+                votes: vec![],
+            }
+            .into();
+        let extended_commit_info_with_mapping = ExtendedCommitInfoWithCurrencyPairMapping {
+            extended_commit_info: Some(extended_commit_info.into()),
+            id_to_currency_pair: Vec::new(),
+        };
+        extended_commit_info_with_mapping.encode_to_vec()
+    }
+
     #[test]
     fn validate_sequencer_blob_last_commit_none_ok() {
         let rollup_transactions_root = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]).root();
         let rollup_ids_root = merkle::Tree::new().root();
-        let extended_commit_info = b"extended_commit_info".to_vec();
+        let extended_commit_info = make_test_extended_commit_info_bytes();
 
         let tree = merkle_tree_from_transactions([
             rollup_transactions_root.as_slice(),
@@ -375,7 +391,7 @@ mod tests {
             astria_core::primitive::v1::derive_merkle_tree_from_rollup_txs(&grouped_txs);
         let rollup_transactions_root = rollup_transactions_tree.root();
         let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
-        let extended_commit_info = b"extended_commit_info".to_vec();
+        let extended_commit_info = make_test_extended_commit_info_bytes();
 
         let tree = merkle_tree_from_transactions([
             rollup_transactions_root.as_slice(),

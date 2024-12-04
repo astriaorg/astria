@@ -53,6 +53,7 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
         if let Some(header_blob) =
             remove_header_blob_matching_rollup_blob(&mut header_blobs, &rollup)
         {
+            let extended_commit_info = header_blob.decoded_extended_commit_info();
             let UncheckedSubmittedMetadata {
                 block_hash,
                 header,
@@ -63,6 +64,7 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
                 block_hash,
                 header,
                 transactions: rollup.into_unchecked().transactions,
+                extended_commit_info,
             });
         } else {
             let reason = if header_blobs.contains_key(rollup.sequencer_block_hash()) {
@@ -87,11 +89,13 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
                 "sequencer header blob contains the target rollup ID, but no matching rollup blob was found; dropping it",
             );
         } else {
+            let extended_commit_info = header_blob.decoded_extended_commit_info();
             reconstructed_blocks.push(ReconstructedBlock {
                 celestia_height,
                 block_hash: *header_blob.block_hash(),
                 header: header_blob.into_unchecked().header,
                 transactions: vec![],
+                extended_commit_info,
             });
         }
     }

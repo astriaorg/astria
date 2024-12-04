@@ -1,7 +1,4 @@
-use std::collections::{
-    HashMap,
-    HashSet,
-};
+use std::collections::HashSet;
 
 use astria_core::{
     connect::{
@@ -9,7 +6,6 @@ use astria_core::{
         oracle::v2::QuotePrice,
         service::v2::QueryPricesResponse,
         types::v2::{
-            CurrencyPair,
             CurrencyPairId,
             Price,
         },
@@ -22,7 +18,10 @@ use astria_core::{
             QueryPricesRequest,
         },
     },
-    protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+    protocol::connect::v1::{
+        CurrencyPairInfo,
+        ExtendedCommitInfoWithCurrencyPairMapping,
+    },
 };
 use astria_eyre::eyre::{
     bail,
@@ -53,7 +52,6 @@ use tendermint_proto::google::protobuf::Timestamp;
 use tonic::transport::Channel;
 use tracing::{
     debug,
-    error,
     info,
     instrument,
     warn,
@@ -260,7 +258,9 @@ impl ProposalHandler {
             .await
             .wrap_err("failed to validate vote extensions in prepare_proposal")?;
 
-        let id_to_currency_pair = get_id_to_currency_pair(&state, all_currency_pair_ids).await;
+        let id_to_currency_pair = get_id_to_currency_pair(&state, all_currency_pair_ids)
+            .await
+            .wrap_err("failed to get id to currency pair mapping")?;
         let tx = ExtendedCommitInfoWithCurrencyPairMapping::new(
             extended_commit_info,
             id_to_currency_pair,
@@ -330,7 +330,14 @@ impl ProposalHandler {
 async fn get_id_to_currency_pair<S: StateReadExt>(
     state: &S,
     all_ids: HashSet<u64>,
-) -> IndexMap<CurrencyPairId, CurrencyPair> {
+) -> Result<IndexMap<CurrencyPairId, CurrencyPairInfo>> {
+    use crate::connect::market_map::state_ext::StateReadExt as _;
+    let market_map = state
+        .get_market_map()
+        .await
+        .wrap_err("failed to get market map")?
+        .ok_or(eyre!("market map was not set"))?;
+
     let num_pairs = all_ids.len();
     let mut id_to_currency_pair_stream = all_ids
         .into_iter()
@@ -347,7 +354,17 @@ async fn get_id_to_currency_pair<S: StateReadExt>(
     while let Some((id, result)) = id_to_currency_pair_stream.next().await {
         match result {
             Ok(Some(currency_pair)) => {
-                let _ = id_to_currency_pair.insert(id, currency_pair);
+                let currency_pair_str = currency_pair.to_string();
+                let info = CurrencyPairInfo {
+                    currency_pair,
+                    decimals: market_map
+                        .markets
+                        .get(&currency_pair_str)
+                        .ok_or(eyre!("currency pair did not exist in market map"))?
+                        .ticker
+                        .decimals,
+                };
+                let _ = id_to_currency_pair.insert(id, info);
             }
             Ok(None) => {
                 debug!(%id, "currency pair not found in state; skipping");
@@ -362,15 +379,17 @@ async fn get_id_to_currency_pair<S: StateReadExt>(
             }
         }
     }
-    id_to_currency_pair
+    Ok(id_to_currency_pair)
 }
 
 async fn validate_id_to_currency_pair_mapping<S: StateReadExt>(
     state: &S,
     all_ids: HashSet<u64>,
-    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
+    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPairInfo>,
 ) -> Result<()> {
-    let mut expected_mapping = get_id_to_currency_pair(state, all_ids).await;
+    let mut expected_mapping = get_id_to_currency_pair(state, all_ids)
+        .await
+        .wrap_err("failed to get id to currency pair mapping")?;
     if expected_mapping == *id_to_currency_pair {
         return Ok(());
     }
@@ -569,22 +588,14 @@ pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         id_to_currency_pair,
     } = extended_commit_info;
 
-    let votes = extended_commit_info
-        .votes
-        .into_iter()
-        .map(|vote| {
-            let raw = RawOracleVoteExtension::decode(vote.vote_extension)
-                .wrap_err("failed to decode oracle vote extension")?;
-            OracleVoteExtension::try_from_raw(raw)
-                .wrap_err("failed to validate oracle vote extension")
-        })
-        .collect::<Result<Vec<_>>>()
-        .wrap_err("failed to extract oracle vote extension from extended commit info")?;
-
-    let prices = aggregate_oracle_votes(votes, &id_to_currency_pair);
-    for (currency_pair, price) in prices {
-        let price = QuotePrice {
-            price,
+    let prices = astria_core::connect::utils::calculate_prices_from_vote_extensions(
+        extended_commit_info,
+        &id_to_currency_pair,
+    )
+    .wrap_err("failed to calculate prices from vote extensions")?;
+    for price in prices {
+        let quote_price = QuotePrice {
+            price: price.price(),
             block_timestamp: astria_core::Timestamp {
                 seconds: timestamp.seconds,
                 nanos: timestamp.nanos,
@@ -593,97 +604,12 @@ pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         };
 
         state
-            .put_price_for_currency_pair(currency_pair, price)
+            .put_price_for_currency_pair(price.currency_pair().clone(), quote_price)
             .await
             .wrap_err("failed to put price")?;
     }
 
     Ok(())
-}
-
-fn aggregate_oracle_votes(
-    votes: Vec<OracleVoteExtension>,
-    id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPair>,
-) -> impl Iterator<Item = (CurrencyPair, Price)> {
-    // validators are not weighted right now, so we just take the median price for each currency
-    // pair
-    //
-    // skip uses a stake-weighted median: https://github.com/skip-mev/connect/blob/19a916122110cfd0e98d93978107d7ada1586918/pkg/math/voteweighted/voteweighted.go#L59
-    // we can implement this later, when we have stake weighting.
-    let mut currency_pair_to_price_list = HashMap::new();
-    for vote in votes {
-        for (id, price) in vote.prices {
-            let Some(currency_pair) = id_to_currency_pair.get(&id).cloned() else {
-                // it's possible for a vote to contain some currency pair ID that didn't exist
-                // in state. this probably shouldn't happen if validators are running the right
-                // code, but it doesn't invalidate their entire vote extension, so
-                // it's kept in the block anyways.
-                continue;
-            };
-            currency_pair_to_price_list
-                .entry(currency_pair)
-                .and_modify(|prices: &mut Vec<Price>| prices.push(price))
-                .or_insert(vec![price]);
-        }
-    }
-
-    currency_pair_to_price_list
-        .into_iter()
-        .filter_map(|(currency_pair, price_list)| match median(price_list) {
-            Ok(median_price) => Some((currency_pair, median_price)),
-            Err(error) => {
-                error!(%currency_pair, %error, "skipped storing currency pair");
-                None
-            }
-        })
-}
-
-/// Returns the median value from `price_list`, or an error if the list is empty.
-fn median(mut price_list: Vec<Price>) -> Result<Price> {
-    price_list.sort_unstable();
-    let midpoint = price_list
-        .len()
-        .checked_div(2)
-        .expect("can't fail as divisor is not zero");
-    if price_list.len() % 2 == 1 {
-        return Ok(price_list
-            .get(midpoint)
-            .copied()
-            .expect("`midpoint` is a valid index"));
-    }
-
-    let Some(lower_index) = midpoint.checked_sub(1) else {
-        // We can only get here if `price_list` is empty; this is not supported, so return an error.
-        bail!("cannot provide median price of empty price list");
-    };
-
-    // `price_list.len()` >= 2 if we got to here, meaning `midpoint` and `lower_index` must both be
-    // valid indices of `price_list`.
-    let higher_price = price_list
-        .get(midpoint)
-        .expect("`midpoint` is a valid index");
-    let lower_price = price_list
-        .get(lower_index)
-        .expect("`lower_index` is a valid index");
-    // Avoid overflow by halving both values first.
-    let half_high = higher_price
-        .checked_div(2)
-        .expect("can't fail as divisor is not zero");
-    let half_low = lower_price
-        .checked_div(2)
-        .expect("can't fail as divisor is not zero");
-    let sum = half_high
-        .checked_add(half_low)
-        .expect("can't fail as both operands are <= MAX/2");
-    // If `higher_price` and `lower_price` are both odd, we rounded down twice when halving them,
-    // so add 1 to the sum.
-    let median = if higher_price.get() % 2 == 1 && lower_price.get() % 2 == 1 {
-        sum.checked_add(Price::new(1))
-            .expect("can't fail as we rounded down twice while halving the prices")
-    } else {
-        sum
-    };
-    Ok(median)
 }
 
 #[cfg(test)]
@@ -695,8 +621,14 @@ mod test {
 
     use astria_core::{
         connect::{
+            market_map::v2::{
+                Market,
+                MarketMap,
+                Ticker,
+            },
             oracle::v2::CurrencyPairState,
             types::v2::{
+                CurrencyPair,
                 CurrencyPairId,
                 CurrencyPairNonce,
             },
@@ -725,6 +657,7 @@ mod test {
             StateWriteExt as _,
             ValidatorSet,
         },
+        connect::market_map::state_ext::StateWriteExt as _,
     };
 
     const CHAIN_ID: &str = "test-0";
@@ -848,16 +781,6 @@ mod test {
         }
     }
 
-    fn oracle_vote_extension<I: IntoIterator<Item = u128>>(prices: I) -> OracleVoteExtension {
-        OracleVoteExtension {
-            prices: prices
-                .into_iter()
-                .enumerate()
-                .map(|(index, price)| (CurrencyPairId::new(index as u64), Price::new(price)))
-                .collect(),
-        }
-    }
-
     fn pair_0() -> (CurrencyPair, CurrencyPairId) {
         ("ETH/USD".parse().unwrap(), CurrencyPairId::new(0))
     }
@@ -920,6 +843,10 @@ mod test {
             state.put_validator_set(validator_set).unwrap();
             state.put_base_prefix("astria".to_string()).unwrap();
 
+            let mut market_map = MarketMap {
+                markets: IndexMap::new(),
+            };
+
             for (pair, pair_id) in [pair_0(), pair_1(), pair_2()] {
                 let pair_state = CurrencyPairState {
                     price: QuotePrice {
@@ -933,9 +860,25 @@ mod test {
                     nonce: CurrencyPairNonce::new(1),
                     id: pair_id,
                 };
-                state.put_currency_pair_state(pair, pair_state).unwrap();
+                state
+                    .put_currency_pair_state(pair.clone(), pair_state)
+                    .unwrap();
+                market_map.markets.insert(
+                    pair.to_string(),
+                    Market {
+                        ticker: Ticker {
+                            currency_pair: pair,
+                            decimals: 6,
+                            min_provider_count: 0,
+                            enabled: true,
+                            metadata_json: String::new(),
+                        },
+                        provider_configs: Vec::new(),
+                    },
+                );
             }
             state.put_num_currency_pairs(3).unwrap();
+            state.put_market_map(market_map).unwrap();
 
             Self {
                 signer_a,
@@ -1332,7 +1275,9 @@ mod test {
 
         // No mapping for IDs 3 and 4.
         let ids_missing_pairs = HashSet::from_iter([0, 1, 2, 3, 4]);
-        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_missing_pairs.clone()).await;
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_missing_pairs.clone())
+            .await
+            .unwrap();
         assert_eq!(3, id_to_currency_pairs.len());
         assert!(id_to_currency_pairs.contains_key(&CurrencyPairId::new(0)));
         assert!(id_to_currency_pairs.contains_key(&CurrencyPairId::new(1)));
@@ -1353,14 +1298,18 @@ mod test {
         } = Fixture::new().await;
 
         let ids_missing_pairs = HashSet::from_iter([0]);
-        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_missing_pairs).await;
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_missing_pairs)
+            .await
+            .unwrap();
         let all_ids = HashSet::from_iter([0, 1, 2]);
         assert_err_contains(
             validate_id_to_currency_pair_mapping(&state, all_ids, &id_to_currency_pairs).await,
             &[
                 "failed to validate currency pair mapping:",
-                "missing (expected `BTC/USD` for id 1)",
-                "missing (expected `TIA/USD` for id 2)",
+                "missing (expected `CurrencyPairInfo { currency_pair: BTC/USD, decimals: 6 }` for \
+                 id 1)",
+                "missing (expected `CurrencyPairInfo { currency_pair: TIA/USD, decimals: 6 }` for \
+                 id 2)",
             ],
         );
     }
@@ -1374,14 +1323,18 @@ mod test {
         } = Fixture::new().await;
 
         let ids_extra_pair = HashSet::from_iter([0, 1, 2]);
-        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_extra_pair).await;
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, ids_extra_pair)
+            .await
+            .unwrap();
         let all_ids = HashSet::from_iter([0]);
         assert_err_contains(
             validate_id_to_currency_pair_mapping(&state, all_ids, &id_to_currency_pairs).await,
             &[
                 "failed to validate currency pair mapping:",
-                "unexpected (got `BTC/USD` for id 1)",
-                "unexpected (got `TIA/USD` for id 2)",
+                "unexpected (got `CurrencyPairInfo { currency_pair: BTC/USD, decimals: 6 }` for \
+                 id 1)",
+                "unexpected (got `CurrencyPairInfo { currency_pair: TIA/USD, decimals: 6 }` for \
+                 id 2)",
             ],
         );
     }
@@ -1395,19 +1348,25 @@ mod test {
         } = Fixture::new().await;
 
         let all_ids = HashSet::from_iter([0, 1, 2]);
-        let mut id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids.clone()).await;
-        *id_to_currency_pairs
+        let mut id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids.clone())
+            .await
+            .unwrap();
+        id_to_currency_pairs
             .get_mut(&CurrencyPairId::new(0))
-            .unwrap() = "ABC/DEF".parse().unwrap();
-        *id_to_currency_pairs
+            .unwrap()
+            .currency_pair = "ABC/DEF".parse().unwrap();
+        id_to_currency_pairs
             .get_mut(&CurrencyPairId::new(1))
-            .unwrap() = "GHI/JKL".parse().unwrap();
+            .unwrap()
+            .currency_pair = "GHI/JKL".parse().unwrap();
         assert_err_contains(
             validate_id_to_currency_pair_mapping(&state, all_ids, &id_to_currency_pairs).await,
             &[
                 "failed to validate currency pair mapping:",
-                "mismatch (expected `ETH/USD` but got `ABC/DEF` for id 0)",
-                "mismatch (expected `BTC/USD` but got `GHI/JKL` for id 1)",
+                "mismatch (expected `CurrencyPairInfo { currency_pair: ETH/USD, decimals: 6 }` \
+                 but got `CurrencyPairInfo { currency_pair: ABC/DEF, decimals: 6 }` for id 0)",
+                "mismatch (expected `CurrencyPairInfo { currency_pair: BTC/USD, decimals: 6 }` \
+                 but got `CurrencyPairInfo { currency_pair: GHI/JKL, decimals: 6 }` for id 1)",
             ],
         );
     }
@@ -1421,7 +1380,9 @@ mod test {
         } = Fixture::new().await;
 
         let all_ids = HashSet::from_iter([0, 1, 2]);
-        let id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids.clone()).await;
+        let id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids.clone())
+            .await
+            .unwrap();
         // Ensure the random order of `all_ids` has no bearing on the internal equality check.
         let first_element = *all_ids.iter().next().unwrap();
         loop {
@@ -1433,96 +1394,6 @@ mod test {
                 return;
             }
         }
-    }
-
-    #[tokio::test]
-    async fn aggregate_oracle_votes_ok() {
-        let Fixture {
-            state,
-            _storage,
-            ..
-        } = Fixture::new().await;
-
-        let votes = vec![
-            oracle_vote_extension([9, 19, 29]),
-            oracle_vote_extension([10, 20, 30]),
-            oracle_vote_extension([11, 21, 31]),
-        ];
-        let all_ids = HashSet::from_iter([0, 1, 2]);
-        let id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids).await;
-        let aggregated_prices: BTreeMap<_, _> =
-            aggregate_oracle_votes(votes, &id_to_currency_pairs).collect();
-        assert_eq!(3, aggregated_prices.len());
-        assert_eq!(Some(&Price::new(10)), aggregated_prices.get(&pair_0().0));
-        assert_eq!(Some(&Price::new(20)), aggregated_prices.get(&pair_1().0));
-        assert_eq!(Some(&Price::new(30)), aggregated_prices.get(&pair_2().0));
-    }
-
-    #[tokio::test]
-    async fn aggregate_oracle_votes_should_skip_unknown_pairs() {
-        let Fixture {
-            state,
-            _storage,
-            ..
-        } = Fixture::new().await;
-
-        // Last two entries in each vote should be ignored as we haven't stored state for them in
-        // storage, so there is no mapping of their `CurrencyPairId` to `CurrencyPair`.
-        let votes = vec![
-            oracle_vote_extension([9, 19, 29, 39, 49]),
-            oracle_vote_extension([10, 20, 30, 40, 50]),
-            oracle_vote_extension([11, 21, 31, 41, 51]),
-        ];
-        let all_ids = HashSet::from_iter([0, 1, 2]);
-        let id_to_currency_pairs = get_id_to_currency_pair(&state, all_ids).await;
-        let aggregated_prices: BTreeMap<_, _> =
-            aggregate_oracle_votes(votes, &id_to_currency_pairs).collect();
-        assert_eq!(3, aggregated_prices.len());
-        assert_eq!(Some(&Price::new(10)), aggregated_prices.get(&pair_0().0));
-        assert_eq!(Some(&Price::new(20)), aggregated_prices.get(&pair_1().0));
-        assert_eq!(Some(&Price::new(30)), aggregated_prices.get(&pair_2().0));
-    }
-
-    #[test]
-    fn should_calculate_median() {
-        fn prices<I: IntoIterator<Item = u128>>(prices: I) -> Vec<Price> {
-            prices.into_iter().map(Price::new).collect()
-        }
-
-        // Empty set should yield error.
-        assert_err_contains(
-            median(vec![]),
-            &["cannot provide median price of empty price list"],
-        );
-
-        // Should handle a set with 1 entry.
-        assert_eq!(1, median(prices([1])).unwrap().get());
-
-        // Should handle a set with 2 entries.
-        assert_eq!(15, median(prices([20, 10])).unwrap().get());
-
-        // Should handle a larger set with odd number of entries.
-        assert_eq!(10, median(prices([21, 22, 23, 1, 2, 10, 3])).unwrap().get());
-
-        // Should handle a larger set with even number of entries.
-        assert_eq!(12, median(prices([21, 22, 23, 1, 2, 3])).unwrap().get());
-
-        // Should round down if required.
-        assert_eq!(17, median(prices([10, 15, 20, 25])).unwrap().get());
-
-        // Should handle large values in a set with odd number of entries.
-        assert_eq!(
-            u128::MAX,
-            median(prices([u128::MAX, u128::MAX, 1])).unwrap().get()
-        );
-
-        // Should handle large values in a set with even number of entries.
-        assert_eq!(
-            u128::MAX - 1,
-            median(prices([u128::MAX, u128::MAX, u128::MAX - 1, u128::MAX - 1]))
-                .unwrap()
-                .get()
-        );
     }
 
     #[tokio::test]
