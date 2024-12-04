@@ -140,7 +140,10 @@ impl Worker {
             }
         };
 
-        let winner = auction_result.ok_or_eyre("auction ended with no winning bid")?;
+        let Some(winner) = auction_result else {
+            info!("auction ended with no winning bid");
+            return Ok(());
+        };
 
         // TODO: report the pending nonce that we ended up using.
         let transaction = Arc::unwrap_or_clone(winner)
