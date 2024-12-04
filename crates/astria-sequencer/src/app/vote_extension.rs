@@ -14,8 +14,8 @@ use astria_core::{
     generated::connect::{
         abci::v2::OracleVoteExtension as RawOracleVoteExtension,
         service::v2::{
-            oracle_client::OracleClient,
             QueryPricesRequest,
+            oracle_client::OracleClient,
         },
     },
     protocol::connect::v1::{
@@ -24,17 +24,17 @@ use astria_core::{
     },
 };
 use astria_eyre::eyre::{
-    bail,
-    ensure,
-    eyre,
     OptionExt as _,
     Result,
     WrapErr as _,
+    bail,
+    ensure,
+    eyre,
 };
 use futures::{
-    stream::FuturesUnordered,
     StreamExt as _,
     TryStreamExt,
+    stream::FuturesUnordered,
 };
 use indexmap::IndexMap;
 use itertools::Itertools as _;
@@ -602,6 +602,10 @@ pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
             },
             block_height: height,
         };
+        debug!(
+            "applied price from vote extension currency_pair=\"{}\" price={}",
+            currency_pair, price.price
+        );
 
         state
             .put_price_for_currency_pair(price.currency_pair().clone(), quote_price)
@@ -620,6 +624,7 @@ mod test {
     };
 
     use astria_core::{
+        Timestamp,
         connect::{
             market_map::v2::{
                 Market,
@@ -635,7 +640,6 @@ mod test {
         },
         crypto::SigningKey,
         protocol::transaction::v1::action::ValidatorUpdate,
-        Timestamp,
     };
     use cnidarium::{
         Snapshot,
@@ -863,19 +867,16 @@ mod test {
                 state
                     .put_currency_pair_state(pair.clone(), pair_state)
                     .unwrap();
-                market_map.markets.insert(
-                    pair.to_string(),
-                    Market {
-                        ticker: Ticker {
-                            currency_pair: pair,
-                            decimals: 6,
-                            min_provider_count: 0,
-                            enabled: true,
-                            metadata_json: String::new(),
-                        },
-                        provider_configs: Vec::new(),
+                market_map.markets.insert(pair.to_string(), Market {
+                    ticker: Ticker {
+                        currency_pair: pair,
+                        decimals: 6,
+                        min_provider_count: 0,
+                        enabled: true,
+                        metadata_json: String::new(),
                     },
-                );
+                    provider_configs: Vec::new(),
+                });
             }
             state.put_num_currency_pairs(3).unwrap();
             state.put_market_map(market_map).unwrap();
