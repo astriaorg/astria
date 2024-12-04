@@ -97,12 +97,10 @@ impl SequencerChannel {
                 let inner = OptimisticBlockServiceClient::new(chan)
                     .get_block_commitment_stream(GetBlockCommitmentStreamRequest {})
                     .await
-                    .inspect_err(
-                        |error| warn!(%error, "request to open block commitment stream failed"),
-                    )
-                    .ok()?
+                    .wrap_err("failed to open block commitment stream")
+                    .inspect_err(|error| warn!(%error))?
                     .into_inner();
-                Some(InnerBlockCommitmentStream {
+                Ok(InnerBlockCommitmentStream {
                     inner,
                 })
             }
@@ -133,12 +131,10 @@ impl SequencerChannel {
                         rollup_id: Some(rollup_id.into_raw()),
                     })
                     .await
-                    .inspect_err(
-                        |error| warn!(%error, "request to open optimistic block stream failed"),
-                    )
-                    .ok()?
+                    .wrap_err("failed to open optimistic block stream")
+                    .inspect_err(|error| warn!(%error))?
                     .into_inner();
-                Some(InnerOptimisticBlockStream {
+                Ok(InnerOptimisticBlockStream {
                     inner,
                 })
             }

@@ -1,4 +1,5 @@
 use std::{
+    marker::PhantomData,
     pin::Pin,
     task::{
         ready,
@@ -63,17 +64,18 @@ pub(crate) fn make_instrumented_channel(uri: &str) -> eyre::Result<InstrumentedC
     Ok(InstrumentedChannel::new(channel))
 }
 
-pub(crate) fn restarting_stream<F, Fut, S>(f: F) -> RestartingStream<F, Fut, S>
+pub(crate) fn restarting_stream<F, Fut, S, T, E>(f: F) -> RestartingStream<F, Fut, S, T, E>
 where
     F: Fn() -> Fut,
-    Fut: Future<Output = Option<S>>,
-    S: Stream,
+    Fut: Future<Output = Result<S, E>>,
+    S: Stream<Item = Result<T, E>>,
 {
     let opening_stream = Some(f());
     RestartingStream {
         f,
         opening_stream,
         running_stream: None,
+        _phantom_data: PhantomData,
     }
 }
 
@@ -82,20 +84,21 @@ where
 // Specifically explain why Fut returns Option<S>, and how to return
 // an error to the user (tracing).
 pin_project! {
-    pub(crate) struct RestartingStream<F, Fut, S> {
+    pub(crate) struct RestartingStream<F, Fut, S, T, E> {
         f: F,
         #[pin]
         opening_stream: Option<Fut>,
         #[pin]
         running_stream: Option<S>,
+        _phantom_data: PhantomData<Result<T, E>>,
     }
 }
 
-impl<F, Fut, S> Stream for RestartingStream<F, Fut, S>
+impl<F, Fut, S, T, E> Stream for RestartingStream<F, Fut, S, T, E>
 where
     F: Fn() -> Fut,
-    Fut: Future<Output = Option<S>>,
-    S: Stream,
+    Fut: Future<Output = Result<S, E>>,
+    S: Stream<Item = Result<T, E>>,
 {
     type Item = S::Item;
 
@@ -109,17 +112,15 @@ where
                 this.opening_stream
                     .as_mut()
                     .as_pin_mut()
-                    .expect("inside a branch that checks for opening_stream == Some")
+                    .expect("inside a branch that checks opening_stream == Some")
                     .poll_unpin(cx)
             );
 
             // The future has completed, unset it so it will not be polled again.
             Pin::set(&mut this.opening_stream, None);
             match open_output {
-                Some(stream) => {
-                    Pin::set(&mut this.running_stream, Some(stream));
-                }
-                None => return Poll::Ready(None),
+                Ok(stream) => Pin::set(&mut this.running_stream, Some(stream)),
+                Err(err) => return Poll::Ready(Some(Err(err))),
             }
         }
 

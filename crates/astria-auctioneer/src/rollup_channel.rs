@@ -67,10 +67,10 @@ impl RollupChannel {
                 let inner = BundleServiceClient::new(chan)
                     .get_bundle_stream(GetBundleStreamRequest {})
                     .await
-                    .map(tonic::Response::into_inner)
-                    .inspect_err(|error| warn!(%error, "request to open bundle stream failed"))
-                    .ok()?;
-                Some(InnerBundleStream {
+                    .wrap_err("failed to open bundle stream")
+                    .inspect_err(|error| warn!(%error))?
+                    .into_inner();
+                Ok(InnerBundleStream {
                     inner,
                 })
             }
@@ -110,10 +110,10 @@ impl RollupChannel {
                 let inner = OptimisticExecutionServiceClient::new(chan)
                     .execute_optimistic_block_stream(out_stream)
                     .await
-                    .map(tonic::Response::into_inner)
-                    .inspect_err(|error| warn!(%error, "request to open execute optimistic block stream failed"))
-                    .ok()?;
-                Some(InnerExecuteOptimisticBlockStream {
+                    .wrap_err("failed to open execute optimistic block stream")
+                    .inspect_err(|error| warn!(%error))?
+                    .into_inner();
+                Ok(InnerExecuteOptimisticBlockStream {
                     inner,
                 })
             }
