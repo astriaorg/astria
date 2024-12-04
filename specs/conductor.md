@@ -11,7 +11,7 @@ against a rollup (currently geth). It does this by:
    [`astria.execution.v1alpha2` API](./execution-api.md).
 
 Executed rollup data that is read directly from Sequencer is referred to
-*soft*-committed, while rollup data read from the data availability provder
+*soft*-committed, while rollup data read from the data availability provider
 is referred to a *firm*-committed.
 
 Conductor is intended to be a side-car to a rollup node.
