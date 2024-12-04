@@ -40,6 +40,10 @@ use cnidarium::{
 use super::test_utils::get_alice_signing_key;
 use crate::{
     accounts::StateReadExt as _,
+    action_handler::{
+        impls::transaction::InvalidChainId,
+        ActionHandler as _,
+    },
     app::{
         benchmark_and_test_utils::{
             BOB_ADDRESS,
@@ -49,7 +53,7 @@ use crate::{
             get_bridge_signing_key,
             initialize_app,
         },
-        ActionHandler as _,
+        InvalidNonce,
     },
     authority::StateReadExt as _,
     benchmark_and_test_utils::{
@@ -69,10 +73,6 @@ use crate::{
     },
     ibc::StateReadExt as _,
     test_utils::calculate_rollup_data_submission_fee_from_state,
-    transaction::{
-        InvalidChainId,
-        InvalidNonce,
-    },
     utils::create_deposit_event,
 };
 

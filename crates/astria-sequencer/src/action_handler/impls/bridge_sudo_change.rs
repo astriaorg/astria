@@ -5,18 +5,20 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use async_trait::async_trait;
 use cnidarium::StateWrite;
 
 use crate::{
+    action_handler::ActionHandler,
     address::StateReadExt as _,
-    app::ActionHandler,
-    bridge::state_ext::{
+    bridge::{
         StateReadExt as _,
-        StateWriteExt as _,
+        StateWriteExt,
     },
     transaction::StateReadExt as _,
 };
-#[async_trait::async_trait]
+
+#[async_trait]
 impl ActionHandler for BridgeSudoChange {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
@@ -79,20 +81,27 @@ impl ActionHandler for BridgeSudoChange {
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        primitive::v1::{
-            asset,
-            TransactionId,
+        primitive::v1::TransactionId,
+        protocol::{
+            fees::v1::BridgeSudoChangeFeeComponents,
+            transaction::v1::action::BridgeSudoChange,
         },
-        protocol::fees::v1::BridgeSudoChangeFeeComponents,
     };
 
-    use super::*;
     use crate::{
         accounts::StateWriteExt as _,
+        action_handler::{
+            impls::test_utils::test_asset,
+            ActionHandler as _,
+        },
         address::StateWriteExt as _,
         benchmark_and_test_utils::{
             astria_address,
             ASTRIA_PREFIX,
+        },
+        bridge::{
+            StateReadExt as _,
+            StateWriteExt as _,
         },
         fees::StateWriteExt as _,
         storage::Storage,
@@ -102,19 +111,15 @@ mod tests {
         },
     };
 
-    fn test_asset() -> asset::Denom {
-        "test".parse().unwrap()
-    }
-
     #[tokio::test]
-    async fn fails_with_unauthorized_if_signer_is_not_sudo_address() {
+    async fn bridge_sudo_change_fails_with_unauthorized_if_signer_is_not_sudo_address() {
         let storage = Storage::new_temp().await;
         let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         state_delta.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state_delta
             .put_base_prefix(ASTRIA_PREFIX.to_string())
@@ -147,7 +152,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn executes() {
+    async fn bridge_sudo_change_executes_as_expected() {
         let storage = Storage::new_temp().await;
         let mut state_delta = storage.new_delta_of_latest_snapshot();
 
@@ -155,7 +160,7 @@ mod tests {
         state_delta.put_transaction_context(TransactionContext {
             address_bytes: sudo_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state_delta
             .put_base_prefix(ASTRIA_PREFIX.to_string())

@@ -36,6 +36,7 @@ use astria_core::{
 use super::base_deposit_fee;
 use crate::{
     accounts::StateWriteExt as _,
+    action_handler::ActionHandler as _,
     address::StateWriteExt as _,
     app::{
         benchmark_and_test_utils::{
@@ -46,7 +47,6 @@ use crate::{
             get_alice_signing_key,
             get_bridge_signing_key,
         },
-        ActionHandler as _,
     },
     benchmark_and_test_utils::{
         assert_eyre_error,
@@ -328,7 +328,7 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
     state_delta.put_transaction_context(TransactionContext {
         address_bytes: from_address.bytes(),
         transaction_id,
-        source_action_index: 0,
+        position_in_transaction: 0,
     });
     state_delta
         .put_base_prefix(ASTRIA_PREFIX.to_string())
