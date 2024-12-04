@@ -287,7 +287,7 @@ impl Inner {
         );
         if let Some(running_auction) = &mut self.running_auction {
             running_auction
-                .start_processing_bids(executed_block)
+                .start_bids(executed_block)
                 .wrap_err("failed to start processing bids")?;
             info!(
                 auction_id = %running_auction.id(),

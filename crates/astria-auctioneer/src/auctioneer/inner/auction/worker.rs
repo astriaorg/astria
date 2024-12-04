@@ -75,7 +75,7 @@ use crate::{
 pub(super) struct Worker {
     /// The sequencer's ABCI client, used for submitting transactions
     pub(super) sequencer_abci_client: sequencer_client::HttpClient,
-    pub(super) start_processing_bids: Option<oneshot::Receiver<()>>,
+    pub(super) start_bids: Option<oneshot::Receiver<()>>,
     pub(super) start_timer: Option<oneshot::Receiver<()>>,
     /// Channel for receiving new bundles
     pub(super) bundles: tokio::sync::mpsc::UnboundedReceiver<Arc<Bundle>>,
@@ -111,8 +111,8 @@ impl Worker {
                     break allocation_rule.winner();
                 }
 
-                Ok(()) = async { self.start_processing_bids.as_mut().unwrap().await }, if self.start_processing_bids.is_some() => {
-                    let mut channel = self.start_processing_bids.take().expect("inside an arm that that checks start_processing_bids == Some");
+                Ok(()) = async { self.start_bids.as_mut().unwrap().await }, if self.start_bids.is_some() => {
+                    let mut channel = self.start_bids.take().expect("inside an arm that that checks start_bids == Some");
                     channel.close();
                     auction_is_open = true;
                 }

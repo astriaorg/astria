@@ -142,7 +142,7 @@ impl Auction {
 
     // TODO: identify the executed block in the span fields
     #[instrument(skip_all, fields(id = %self.id), err)]
-    pub(in crate::auctioneer::inner) fn start_processing_bids(
+    pub(in crate::auctioneer::inner) fn start_bids(
         &mut self,
         block: crate::block::Executed,
     ) -> eyre::Result<()> {
