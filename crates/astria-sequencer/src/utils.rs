@@ -10,7 +10,6 @@ use astria_eyre::eyre::{
 };
 use tendermint::abci::{
     self,
-    EventAttributeIndexExt as _,
 };
 
 pub(crate) fn cometbft_to_sequencer_validator(
@@ -31,21 +30,19 @@ pub(crate) fn create_deposit_event(deposit: &Deposit) -> abci::Event {
     abci::Event::new(
         "tx.deposit",
         [
-            ("bridgeAddress", deposit.bridge_address.to_string()).index(),
-            ("rollupId", deposit.rollup_id.to_string()).index(),
-            ("amount", deposit.amount.to_string()).index(),
-            ("asset", deposit.asset.to_string()).index(),
+            ("bridgeAddress", deposit.bridge_address.to_string()),
+            ("rollupId", deposit.rollup_id.to_string()),
+            ("amount", deposit.amount.to_string()),
+            ("asset", deposit.asset.to_string()),
             (
                 "destinationChainAddress",
                 deposit.destination_chain_address.to_string(),
-            )
-                .index(),
+            ),
             (
                 "sourceTransactionId",
                 deposit.source_transaction_id.to_string(),
-            )
-                .index(),
-            ("sourceActionIndex", deposit.source_action_index.to_string()).index(),
+            ),
+            ("sourceActionIndex", deposit.source_action_index.to_string()),
         ],
     )
 }

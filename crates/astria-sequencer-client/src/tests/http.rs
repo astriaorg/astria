@@ -12,6 +12,7 @@ use astria_core::{
         Transaction,
         TransactionBody,
     },
+    Protobuf as _,
 };
 use hex_literal::hex;
 use prost::bytes::Bytes;

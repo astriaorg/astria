@@ -51,7 +51,12 @@ impl Create {
         let signing_key = SigningKey::new(OsRng);
         let pretty_signing_key = hex::encode(signing_key.as_bytes());
         let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
-        let pretty_address = SigningKey::try_address(&signing_key, &self.prefix)?;
+
+        let pretty_address: Address = Address::builder()
+            .array(signing_key.address_bytes())
+            .prefix(&self.prefix)
+            .try_build()?;
+
         println!("Create Sequencer Account");
         println!();
         // TODO: don't print private keys to CLI, prefer writing to file:
