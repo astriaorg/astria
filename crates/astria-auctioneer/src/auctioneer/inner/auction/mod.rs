@@ -103,7 +103,7 @@ pub(super) struct Auction {
     height: u64,
     parent_block_of_executed: Option<[u8; 32]>,
     commands: mpsc::Sender<Command>,
-    bundles: mpsc::Sender<Arc<Bundle>>,
+    bundles: mpsc::UnboundedSender<Arc<Bundle>>,
     worker: JoinHandle<eyre::Result<()>>,
 }
 
@@ -183,8 +183,8 @@ impl Auction {
             base64(bundle.parent_rollup_block_hash()),
         );
         self.bundles
-            .try_send(bundle)
-            .wrap_err("failed to submit bundle to auction")
+            .send(bundle)
+            .wrap_err("failed to submit bundle to auction; the bundle is lost")
     }
 }
 

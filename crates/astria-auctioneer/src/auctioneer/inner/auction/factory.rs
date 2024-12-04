@@ -39,7 +39,7 @@ impl Factory {
 
         // TODO: get the capacities from config or something instead of using a magic number
         let (commands_tx, commands_rx) = mpsc::channel(16);
-        let (bundles_tx, bundles_rx) = mpsc::channel(16);
+        let (bundles_tx, bundles_rx) = mpsc::unbounded_channel();
 
         let auction = Worker {
             sequencer_abci_client: self.sequencer_abci_client.clone(),

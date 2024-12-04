@@ -79,7 +79,7 @@ pub(super) struct Worker {
     /// Channel for receiving commands sent via the handle
     pub(super) commands_rx: mpsc::Receiver<Command>,
     /// Channel for receiving new bundles
-    pub(super) bundles: mpsc::Receiver<Arc<Bundle>>,
+    pub(super) bundles: tokio::sync::mpsc::UnboundedReceiver<Arc<Bundle>>,
     /// The time between receiving a block commitment
     pub(super) latency_margin: Duration,
     /// The ID of the auction
@@ -109,6 +109,7 @@ impl Worker {
 
                 // get the auction winner when the timer expires
                 _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
+                    info!("timer is up; bids left unprocessed: {}", self.bundles.len());
                     break Ok(allocation_rule.winner());
                 }
 
@@ -131,6 +132,8 @@ impl Worker {
                     }
                 }
 
+                // TODO: this is an unbounded channel. Can we process multiple
+                // bids at a time?
                 Some(bundle) = self.bundles.recv(), if auction_is_open => {
                     allocation_rule.bid(&bundle);
                 }
