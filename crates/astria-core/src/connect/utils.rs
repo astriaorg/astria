@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use indexmap::IndexMap;
 use prost::Message as _;
 use tendermint::abci::types::ExtendedCommitInfo;
@@ -76,7 +74,7 @@ fn aggregate_oracle_votes(
     //
     // skip uses a stake-weighted median: https://github.com/skip-mev/connect/blob/19a916122110cfd0e98d93978107d7ada1586918/pkg/math/voteweighted/voteweighted.go#L59
     // we can implement this later, when we have stake weighting.
-    let mut currency_pair_to_price_list = HashMap::new();
+    let mut currency_pair_to_price_list = IndexMap::new();
     for vote in votes {
         for (id, price) in vote.prices {
             let Some(currency_pair) = id_to_currency_pair.get(&id).cloned() else {
@@ -198,10 +196,10 @@ mod test {
         ];
         let id_to_currency_pairs = get_id_to_currency_pair_mapping();
         let mut aggregated_prices = aggregate_oracle_votes(votes, &id_to_currency_pairs);
-        assert_eq!(3, aggregated_prices.size_hint().0);
         assert_eq!(Price::new(10), aggregated_prices.next().unwrap().price());
         assert_eq!(Price::new(20), aggregated_prices.next().unwrap().price());
         assert_eq!(Price::new(30), aggregated_prices.next().unwrap().price());
+        assert!(aggregated_prices.next().is_none());
     }
 
     #[test]
@@ -215,10 +213,10 @@ mod test {
         ];
         let id_to_currency_pairs = get_id_to_currency_pair_mapping();
         let mut aggregated_prices = aggregate_oracle_votes(votes, &id_to_currency_pairs);
-        assert_eq!(3, aggregated_prices.size_hint().0);
         assert_eq!(Price::new(10), aggregated_prices.next().unwrap().price());
         assert_eq!(Price::new(20), aggregated_prices.next().unwrap().price());
         assert_eq!(Price::new(30), aggregated_prices.next().unwrap().price());
+        assert!(aggregated_prices.next().is_none());
     }
 
     #[test]
