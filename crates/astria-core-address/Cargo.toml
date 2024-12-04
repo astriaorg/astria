@@ -1,0 +1,14 @@
+[package]
+name = "astria-core-address"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+astria-core-consts = { path = "../astria-core-consts" }
+
+thiserror = { workspace = true }
+
+bech32 = "0.11.0"
+
+[features]
+unchecked-constructor = []

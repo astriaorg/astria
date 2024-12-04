@@ -15,6 +15,7 @@ use astria_core::{
         Action,
         TransactionBody,
     },
+    Protobuf as _,
 };
 use astria_eyre::eyre::{
     self,

@@ -1,27 +1,20 @@
-use astria_core::protocol::transaction::v1::action::{
-    FeeAssetChange,
-    FeeChange,
-};
+use astria_core::protocol::transaction::v1::action::FeeChange;
 use astria_eyre::eyre::{
     self,
     ensure,
     WrapErr as _,
 };
+use async_trait::async_trait;
 use cnidarium::StateWrite;
-use futures::StreamExt;
-use tokio::pin;
 
 use crate::{
-    app::ActionHandler,
+    action_handler::ActionHandler,
     authority::StateReadExt as _,
-    fees::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
+    fees::StateWriteExt as _,
     transaction::StateReadExt as _,
 };
 
-#[async_trait::async_trait]
+#[async_trait]
 impl ActionHandler for FeeChange {
     async fn check_stateless(&self) -> eyre::Result<()> {
         Ok(())
@@ -88,51 +81,6 @@ impl ActionHandler for FeeChange {
     }
 }
 
-#[async_trait::async_trait]
-impl ActionHandler for FeeAssetChange {
-    async fn check_stateless(&self) -> eyre::Result<()> {
-        Ok(())
-    }
-
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> eyre::Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-        let authority_sudo_address = state
-            .get_sudo_address()
-            .await
-            .wrap_err("failed to get authority sudo address")?;
-        ensure!(
-            authority_sudo_address == from,
-            "unauthorized address for fee asset change"
-        );
-        match self {
-            FeeAssetChange::Addition(asset) => {
-                state
-                    .put_allowed_fee_asset(asset)
-                    .context("failed to write allowed fee asset to state")?;
-            }
-            FeeAssetChange::Removal(asset) => {
-                state.delete_allowed_fee_asset(asset);
-
-                pin!(
-                    let assets = state.allowed_fee_assets();
-                );
-                ensure!(
-                    assets
-                        .filter_map(|item| std::future::ready(item.ok()))
-                        .next()
-                        .await
-                        .is_some(),
-                    "cannot remove last allowed fee asset",
-                );
-            }
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
@@ -148,7 +96,7 @@ mod tests {
     use penumbra_ibc::IbcRelay;
 
     use crate::{
-        app::ActionHandler as _,
+        action_handler::ActionHandler as _,
         authority::StateWriteExt as _,
         fees::{
             FeeHandler,
@@ -245,7 +193,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state.put_sudo_address([1; 20]).unwrap();
 
