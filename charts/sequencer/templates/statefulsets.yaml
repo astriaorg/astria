@@ -108,8 +108,6 @@ spec:
           - "/scripts/markets.json"
           - "--port"
           - "8081"
-          - "--log-std-out-level"
-          - "debug"
           ports:
             - containerPort: {{ .Values.ports.oracleGrpc }}
               name: oracle-grpc
