@@ -19,8 +19,10 @@ message GenesisInfo {
   uint32 sequencer_stop_block_height = 3;
   // The allowed variance in celestia for sequencer blocks to have been posted.
   uint64 celestia_block_variance = 4;
-  string sequencer_chain_id = 5;
-  string celestia_chain_id = 6;
+  // The rollup block number to map to the sequencer start block height.
+  uint64 rollup_start_block_height = 5;
+  string sequencer_chain_id = 6;
+  string celestia_chain_id = 7;
 }
 
 // The set of information which deterministic driver of block production

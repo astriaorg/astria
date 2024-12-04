@@ -17,9 +17,12 @@ pub struct GenesisInfo {
     /// The allowed variance in celestia for sequencer blocks to have been posted.
     #[prost(uint64, tag = "4")]
     pub celestia_block_variance: u64,
-    #[prost(string, tag = "5")]
-    pub sequencer_chain_id: ::prost::alloc::string::String,
+    /// The rollup block number to map to the sequencer start block height.
+    #[prost(uint64, tag = "5")]
+    pub rollup_start_block_height: u64,
     #[prost(string, tag = "6")]
+    pub sequencer_chain_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
     pub celestia_chain_id: ::prost::alloc::string::String,
 }
 impl ::prost::Name for GenesisInfo {

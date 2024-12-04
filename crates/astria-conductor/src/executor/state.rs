@@ -225,6 +225,7 @@ forward_impls!(
     [sequencer_start_block_height -> SequencerHeight],
     [celestia_base_block_height -> u64],
     [sequencer_stop_block_height -> SequencerHeight],
+    [rollup_start_block_height -> u64]
 );
 
 forward_impls!(
@@ -312,6 +313,10 @@ impl State {
         self.genesis_info.rollup_id()
     }
 
+    fn rollup_start_block_height(&self) -> u64 {
+        self.genesis_info.rollup_start_block_height()
+    }
+
     fn next_expected_firm_sequencer_height(&self) -> Option<SequencerHeight> {
         map_rollup_number_to_sequencer_height(
             self.sequencer_start_block_height(),
@@ -348,10 +353,12 @@ fn map_rollup_number_to_sequencer_height(
 pub(super) fn map_sequencer_height_to_rollup_height(
     sequencer_genesis_height: SequencerHeight,
     sequencer_height: SequencerHeight,
+    rollup_start_block_height: u64,
 ) -> Option<u32> {
     sequencer_height
         .value()
         .checked_sub(sequencer_genesis_height.value())?
+        .checked_add(rollup_start_block_height)?
         .try_into()
         .ok()
 }
@@ -402,6 +409,7 @@ mod tests {
             sequencer_start_block_height: 10,
             sequencer_stop_block_height: 100,
             celestia_block_variance: 0,
+            rollup_start_block_height: 1,
             sequencer_chain_id: "test-sequencer-0".to_string(),
             celestia_chain_id: "test-celestia-0".to_string(),
         })

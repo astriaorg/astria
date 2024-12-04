@@ -50,6 +50,7 @@ fn make_state(
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 100,
         celestia_block_variance: 1,
+        rollup_start_block_height: 1,
         sequencer_chain_id: "test_sequencer-0".to_string(),
         celestia_chain_id: "test_celestia-0".to_string(),
     })

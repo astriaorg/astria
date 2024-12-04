@@ -457,9 +457,12 @@ impl Executor {
 
         let genesis_height = self.state.sequencer_start_block_height();
         let block_height = executable_block.height;
-        let Some(block_number) =
-            state::map_sequencer_height_to_rollup_height(genesis_height, block_height)
-        else {
+        let rollup_start_block_height = self.state.rollup_start_block_height();
+        let Some(block_number) = state::map_sequencer_height_to_rollup_height(
+            genesis_height,
+            block_height,
+            rollup_start_block_height,
+        ) else {
             bail!(
                 "failed to map block height rollup number. This means the operation
                 `sequencer_height - sequencer_genesis_height` underflowed or was not a valid
@@ -515,15 +518,18 @@ impl Executor {
         let executable_block = ExecutableBlock::from_reconstructed(block);
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;
+        let rollup_start_block_height = self.state.rollup_start_block_height();
         ensure!(
             block_height == expected_height,
             "expected block at sequencer height {expected_height}, but got {block_height}",
         );
 
         let genesis_height = self.state.sequencer_start_block_height();
-        let Some(block_number) =
-            state::map_sequencer_height_to_rollup_height(genesis_height, block_height)
-        else {
+        let Some(block_number) = state::map_sequencer_height_to_rollup_height(
+            genesis_height,
+            block_height,
+            rollup_start_block_height,
+        ) else {
             bail!(
                 "failed to map block height rollup number. This means the operation
                 `sequencer_height - sequencer_genesis_height` underflowed or was not a valid

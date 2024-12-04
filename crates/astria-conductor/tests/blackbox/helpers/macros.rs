@@ -97,13 +97,15 @@ macro_rules! genesis_info {
         sequencer_start_block_height:
         $start_height:expr,sequencer_stop_block_height:
         $stop_height:expr,celestia_block_variance:
-        $variance:expr $(,)?
+        $variance:expr,rollup_start_block_height:
+        $rollup_start_block_height:expr $(,)?
     ) => {
         ::astria_core::generated::execution::v1::GenesisInfo {
             rollup_id: Some($crate::ROLLUP_ID.to_raw()),
             sequencer_start_block_height: $start_height,
             sequencer_stop_block_height: $stop_height,
             celestia_block_variance: $variance,
+            rollup_start_block_height: $rollup_start_block_height,
             sequencer_chain_id: $crate::SEQUENCER_CHAIN_ID.to_string(),
             celestia_chain_id: $crate::helpers::CELESTIA_CHAIN_ID.to_string(),
         }
@@ -358,7 +360,8 @@ macro_rules! mount_get_genesis_info {
         $test_env:ident,
         sequencer_start_block_height: $start_height:expr,
         sequencer_stop_block_height: $stop_height:expr,
-        celestia_block_variance: $variance:expr
+        celestia_block_variance: $variance:expr,
+        rollup_start_block_height: $rollup_start_block_height:expr
         $(,)?
     ) => {
         $test_env.mount_get_genesis_info(
@@ -366,6 +369,7 @@ macro_rules! mount_get_genesis_info {
                 sequencer_start_block_height: $start_height,
                 sequencer_stop_block_height: $stop_height,
                 celestia_block_variance: $variance,
+                rollup_start_block_height: $rollup_start_block_height,
             )
         ).await;
     };
