@@ -12,8 +12,8 @@ use tracing::{
 };
 
 use crate::{
+    action_handler::ActionHandler,
     address::StateReadExt as _,
-    app::ActionHandler,
     ibc::{
         StateReadExt as _,
         StateWriteExt as _,

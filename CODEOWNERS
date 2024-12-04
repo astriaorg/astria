@@ -1,5 +1,7 @@
 * @joroshiba @SuperFluffy @noot
 
+*.snap @joroshiba
+
 specs/ @astriaorg/engineering
 justfile @astriaorg/engineering
 README.md @astriaorg/engineering
@@ -27,4 +29,4 @@ rust-toolchain @astriaorg/rust-reviewers
 .cargo/ @astriaorg/rust-reviewers
 nextest.toml @astriaorg/rust-reviewers
 rusfmt.toml @astriaorg/rust-reviewers
-crates/src/*/CHANGELOG.md @astriaorg/rust-reviewers
+crates/*/CHANGELOG.md @astriaorg/rust-reviewers

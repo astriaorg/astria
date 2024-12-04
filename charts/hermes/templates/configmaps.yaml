@@ -5,7 +5,7 @@ metadata:
   namespace: {{ include "hermes.namespace" . }}
 data:
   config.toml: |
-  {{- tpl (.Files.Get "files/config.toml") $ | nindent 4 }}
+    {{- tpl (.Files.Get "files/config.toml") $ | nindent 4 }}
 ---
 {{- if not .Values.secretProvider.enabled }}
 {{- range $chainId, $chain := .Values.chains }}

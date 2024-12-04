@@ -50,8 +50,8 @@ use tracing::{
 
 use crate::{
     accounts::StateReadExt as _,
+    action_handler::ActionHandler as _,
     address::StateReadExt as _,
-    app::ActionHandler as _,
     mempool::{
         get_account_balances,
         InsertionError,

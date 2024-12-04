@@ -8,6 +8,7 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use async_trait::async_trait;
 use cnidarium::StateWrite;
 use tracing::{
     instrument,
@@ -15,20 +16,20 @@ use tracing::{
 };
 
 use crate::{
-    accounts::action::{
+    action_handler::{
         check_transfer,
         execute_transfer,
+        ActionHandler,
     },
     address::StateReadExt as _,
-    app::ActionHandler,
     bridge::{
         StateReadExt as _,
-        StateWriteExt as _,
+        StateWriteExt,
     },
     transaction::StateReadExt as _,
 };
 
-#[async_trait::async_trait]
+#[async_trait]
 impl ActionHandler for BridgeUnlock {
     // TODO(https://github.com/astriaorg/astria/issues/1430): move checks to the `BridgeUnlock` parsing.
     #[instrument(skip_all, err(level = Level::DEBUG))]
@@ -110,7 +111,6 @@ impl ActionHandler for BridgeUnlock {
 mod tests {
     use astria_core::{
         primitive::v1::{
-            asset,
             RollupId,
             TransactionId,
         },
@@ -123,27 +123,26 @@ mod tests {
 
     use crate::{
         accounts::StateWriteExt as _,
+        action_handler::{
+            impls::test_utils::test_asset,
+            ActionHandler as _,
+        },
         address::StateWriteExt as _,
-        app::ActionHandler as _,
-        bridge::StateWriteExt as _,
-        fees::StateWriteExt as _,
-        test_utils::{
+        benchmark_and_test_utils::{
             assert_eyre_error,
             astria_address,
             ASTRIA_PREFIX,
         },
+        bridge::StateWriteExt as _,
+        fees::StateWriteExt as _,
         transaction::{
             StateWriteExt as _,
             TransactionContext,
         },
     };
 
-    fn test_asset() -> asset::Denom {
-        "test".parse().unwrap()
-    }
-
     #[tokio::test]
-    async fn fails_if_bridge_account_has_no_withdrawer_address() {
+    async fn bridge_unlock_fails_if_bridge_account_has_no_withdrawer_address() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -151,7 +150,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
@@ -182,7 +181,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fails_if_withdrawer_is_not_signer() {
+    async fn bridge_unlock_fails_if_withdrawer_is_not_signer() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -190,7 +189,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
@@ -225,7 +224,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn execute_with_duplicated_withdrawal_event_id() {
+    async fn bridge_unlock_executes_with_duplicated_withdrawal_event_id() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -234,7 +233,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
