@@ -23,6 +23,7 @@ impl FirstPrice {
     /// Submit a bundle with a bid.
     ///
     /// Returns `true` if the bid is accepted as the highest bid.
+    // TODO: identify the incumbant and candidate by their hash?
     #[instrument(skip_all, fields(
         current_winner.bid = self.highest_bid.as_ref().map(|bundle| bundle.bid()),
         candidate.bid = candidate.bid(),
