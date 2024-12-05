@@ -1259,7 +1259,7 @@ impl Protobuf for Ics20Withdrawal {
                     ics20_withdrawal_from_rollup: parsed_withdrawal,
                     bridge_address,
                     use_compat_address: *use_compat_address,
-                    memo: memo.clone(),
+                    memo: memo.to_string(),
                 },
             )))
         } else {

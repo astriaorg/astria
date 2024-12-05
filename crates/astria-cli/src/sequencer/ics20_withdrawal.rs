@@ -1,5 +1,5 @@
 use astria_core::{
-    generated::protocol::transaction::v1::IbcHeight,
+    generated::astria::protocol::transaction::v1::IbcHeight,
     primitive::v1::{
         asset,
         Address,
@@ -98,7 +98,7 @@ impl Command {
             self.private_key.as_str(),
             Action::Ics20Withdrawal(
                 Ics20Withdrawal::try_from_raw(
-                    astria_core::generated::protocol::transaction::v1::Ics20Withdrawal {
+                    astria_core::generated::astria::protocol::transaction::v1::Ics20Withdrawal {
                         amount: Some(self.amount.into()),
                         denom: self.asset.to_string(),
                         destination_chain_address: self.destination_chain_address,
