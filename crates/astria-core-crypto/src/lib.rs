@@ -13,6 +13,7 @@ use std::{
     sync::OnceLock,
 };
 
+pub use astria_core_consts::ADDRESS_LENGTH;
 use base64::{
     display::Base64Display,
     prelude::BASE64_STANDARD,
@@ -28,19 +29,9 @@ use rand::{
     CryptoRng,
     RngCore,
 };
-use sha2::{
-    Digest as _,
-    Sha256,
-};
 use zeroize::{
     Zeroize,
     ZeroizeOnDrop,
-};
-
-use crate::primitive::v1::{
-    Address,
-    AddressError,
-    ADDRESS_LEN,
 };
 
 /// An Ed25519 signing key.
@@ -85,21 +76,8 @@ impl SigningKey {
 
     /// Returns the address bytes of the verification key associated with this signing key.
     #[must_use]
-    pub fn address_bytes(&self) -> [u8; ADDRESS_LEN] {
+    pub fn address_bytes(&self) -> [u8; ADDRESS_LENGTH] {
         *self.verification_key().address_bytes()
-    }
-
-    /// Attempts to create an Astria bech32m `[Address]` with the given prefix.
-    ///
-    /// # Errors
-    /// Returns an [`AddressError`] if an address could not be constructed
-    /// with the given prefix. Usually if the prefix was too long or contained
-    /// characters not allowed by bech32m.
-    pub fn try_address(&self, prefix: &str) -> Result<Address, AddressError> {
-        Address::builder()
-            .prefix(prefix)
-            .array(self.address_bytes())
-            .try_build()
     }
 }
 
@@ -139,7 +117,7 @@ pub struct VerificationKey {
     // The address-bytes are lazily-initialized.  Since it may or may not be initialized for any
     // given instance of a verification key, it is excluded from `PartialEq`, `Eq`, `PartialOrd`,
     // `Ord` and `Hash` impls.
-    address_bytes: OnceLock<[u8; ADDRESS_LEN]>,
+    address_bytes: OnceLock<[u8; ADDRESS_LENGTH]>,
 }
 
 impl VerificationKey {
@@ -167,18 +145,23 @@ impl VerificationKey {
     ///
     /// The address is the first 20 bytes of the sha256 hash of the verification key.
     #[must_use]
-    pub fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
+    pub fn address_bytes(&self) -> &[u8; ADDRESS_LENGTH] {
+        use sha2::{
+            Digest as _,
+            Sha256,
+        };
+
         self.address_bytes.get_or_init(|| {
-            fn first_20(array: [u8; 32]) -> [u8; ADDRESS_LEN] {
+            fn first_20(array: [u8; 32]) -> [u8; ADDRESS_LENGTH] {
                 [
                     array[0], array[1], array[2], array[3], array[4], array[5], array[6], array[7],
                     array[8], array[9], array[10], array[11], array[12], array[13], array[14],
                     array[15], array[16], array[17], array[18], array[19],
                 ]
             }
-            /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
+            /// this ensures that `ADDRESS_LENGTH` is never accidentally changed to a value
             /// that would violate this assumption.
-            const _: () = assert!(ADDRESS_LEN <= 32);
+            const _: () = assert!(ADDRESS_LENGTH <= 32);
             let bytes: [u8; 32] = Sha256::digest(self).into();
             first_20(bytes)
         })

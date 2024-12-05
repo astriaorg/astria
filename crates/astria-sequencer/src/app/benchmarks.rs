@@ -61,7 +61,7 @@ impl Fixture {
             .collect::<Vec<_>>();
         let first_address = accounts.first().cloned().unwrap().address;
         let genesis_state = GenesisAppState::try_from_raw(
-            astria_core::generated::protocol::genesis::v1::GenesisAppState {
+            astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
                 accounts,
                 authority_sudo_address: first_address.clone(),
                 ibc_sudo_address: first_address.clone(),

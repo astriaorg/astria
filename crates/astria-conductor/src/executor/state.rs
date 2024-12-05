@@ -344,7 +344,7 @@ pub(super) fn map_sequencer_height_to_rollup_height(
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        generated::execution::v1 as raw,
+        generated::astria::execution::v1 as raw,
         Protobuf as _,
     };
     use pbjson_types::Timestamp;
