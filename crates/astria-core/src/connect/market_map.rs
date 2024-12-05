@@ -449,7 +449,7 @@ pub mod v2 {
     pub struct ProviderConfig {
         pub name: String,
         pub off_chain_ticker: String,
-        pub normalize_by_pair: CurrencyPair,
+        pub normalize_by_pair: Option<CurrencyPair>,
         pub invert: bool,
         pub metadata_json: String,
     }
@@ -477,8 +477,8 @@ pub mod v2 {
         pub fn try_from_raw(raw: raw::ProviderConfig) -> Result<Self, ProviderConfigError> {
             let normalize_by_pair = raw
                 .normalize_by_pair
-                .ok_or_else(|| ProviderConfigError::field_not_set("normalize_by_pair"))?
-                .try_into()
+                .map(CurrencyPair::try_from_raw)
+                .transpose()
                 .map_err(ProviderConfigError::invalid_normalize_by_pair)?;
             Ok(Self {
                 name: raw.name,
@@ -494,7 +494,7 @@ pub mod v2 {
             raw::ProviderConfig {
                 name: self.name,
                 off_chain_ticker: self.off_chain_ticker,
-                normalize_by_pair: Some(self.normalize_by_pair.into_raw()),
+                normalize_by_pair: self.normalize_by_pair.map(CurrencyPair::into_raw),
                 invert: self.invert,
                 metadata_json: self.metadata_json,
             }
@@ -511,7 +511,7 @@ pub mod v2 {
         pub fn unchecked_from_parts(
             name: String,
             off_chain_ticker: String,
-            normalize_by_pair: CurrencyPair,
+            normalize_by_pair: Option<CurrencyPair>,
             invert: bool,
             metadata_json: String,
         ) -> Self {
@@ -530,14 +530,6 @@ pub mod v2 {
     pub struct ProviderConfigError(#[from] ProviderConfigErrorKind);
 
     impl ProviderConfigError {
-        #[must_use]
-        fn field_not_set(name: &'static str) -> Self {
-            ProviderConfigErrorKind::FieldNotSet {
-                name,
-            }
-            .into()
-        }
-
         fn invalid_normalize_by_pair(source: CurrencyPairError) -> Self {
             ProviderConfigErrorKind::InvalidNormalizeByPair {
                 source,
@@ -549,8 +541,6 @@ pub mod v2 {
     #[derive(Debug, thiserror::Error)]
     #[error("failed validating wire type `{}`", raw::ProviderConfig::full_name())]
     enum ProviderConfigErrorKind {
-        #[error("required field not set: .{name}")]
-        FieldNotSet { name: &'static str },
         #[error("field `.normalize_by_pair` was invalid")]
         InvalidNormalizeByPair { source: CurrencyPairError },
     }
