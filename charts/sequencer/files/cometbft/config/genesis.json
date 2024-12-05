@@ -208,15 +208,9 @@
     "version": {
       "app": "0"
     },
-    {{- if not .Values.global.dev }}
     "abci": {
-      "vote_extensions_enable_height": "0"
+      "vote_extensions_enable_height": "{{ .Values.genesis.consensusParams.voteExtensionsEnableHeight }}"
     }
-    {{- else }}
-    "abci": {
-      "vote_extensions_enable_height": "1"
-    }
-    {{- end}}
   },
   "genesis_time": "{{ .Values.genesis.genesisTime }}",
   "initial_height": "0",

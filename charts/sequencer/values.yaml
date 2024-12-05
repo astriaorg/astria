@@ -24,7 +24,7 @@ images:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
     tag: 1.0.0
-    devTag: local
+    devTag: sha-0efc808
   connect:
     repo: ghcr.io/skip-mev/connect-sidecar
     pullPolicy: IfNotPresent
@@ -44,8 +44,7 @@ genesis:
     marketAuthorities:
       - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
       - "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
-  allowedFeeAssets:
-    []
+  allowedFeeAssets: []
     # - nria
   ibc:
     enabled: true
@@ -54,8 +53,7 @@ genesis:
     sudoAddress: ""
     relayerAddresses: []
   # Note large balances must be strings support templating with the u128 size account balances
-  genesisAccounts:
-    []
+  genesisAccounts: []
     # - address: 1c0c490f1b5528d8173c5de46d131160e4b2c0c3
     #   balance: "333333333333333333"
 
@@ -65,6 +63,7 @@ genesis:
     maxAgeDuration: "1209600000000000"
     maxAgeNumBlocks: "4000000"
     maxBytes: "1048576"
+    voteExtensionsEnableHeight: "1"
 
   fees:
     feeChange:
@@ -125,21 +124,8 @@ sequencer:
     enabled: true
     clientTimeout: 1000
     markets: []
-    currencyPairGenesis:
-      - currencyPair:
-          Base: "BTC"
-          Quote: "USD"
-        currencyPairPrice:
-          blockTimestamp: "2024-07-04T19:46:35+00:00"
-          price: "5834065777"
-      - currencyPair:
-          Base: "ETH"
-          Quote: "USD"
-        currencyPairPrice:
-          blockTimestamp: "2024-07-04T19:46:35+00:00"
-          price: "3138872234"
-        id: "1"
-    nextId: "2"
+    currencyPairGenesis: []
+
   metrics:
     enabled: false
   otel:
@@ -304,10 +290,11 @@ ports:
   cometbftMetrics: 26660
   sequencerABCI: 26658
   # note: the oracle sidecar also uses 8080 by default but can be changed with --port
-  sequencerGrpc: 9090
+  sequencerGrpc: 8080
   relayerRpc: 2450
   sequencerMetrics: 9000
   oracleGrpc: 8081
+  oracleMetrics: 8002
 
 # ServiceMonitor configuration
 serviceMonitor:
@@ -358,8 +345,7 @@ ingress:
     # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
     # ingressClassName: nginx
     # Values can be templdated
-    annotations:
-      {}
+    annotations: {}
       # kubernetes.io/ingress.class: nginx
       # kubernetes.io/tls-acme: "true"
     labels: {}
@@ -368,13 +354,11 @@ ingress:
     pathType: Prefix
     hosts: {}
     # - chart-example.local
-    service:
-      {}
+    service: {}
       # name: sequencer-service
       # port:
       #   name: cometbft-rpc
-    defaultBackend:
-      {}
+    defaultBackend: {}
       # service:
       #   name: sequencer-service
       #   port:
@@ -405,8 +389,7 @@ ingress:
     # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
     # ingressClassName: nginx
     # Values can be templdated
-    annotations:
-      {}
+    annotations: {}
       # kubernetes.io/ingress.class: nginx
       # kubernetes.io/tls-acme: "true"
     labels: {}
@@ -415,13 +398,11 @@ ingress:
     pathType: Prefix
     hosts: {}
     # - chart-example.local
-    service:
-      {}
+    service: {}
       # name: sequencer-service
       # port:
       #   name: cometbft-rpc
-    defaultBackend:
-      {}
+    defaultBackend: {}
       # service:
       #   name: sequencer-service
       #   port:
