@@ -3,7 +3,15 @@ use std::{
     time::Duration,
 };
 
-use astria_conductor::config::CommitLevel;
+use astria_conductor::{
+    config::CommitLevel,
+    Conductor,
+    Config,
+};
+use astria_core::generated::astria::execution::v1::{
+    GetCommitmentStateRequest,
+    GetGenesisInfoRequest,
+};
 use futures::future::{
     join,
     join4,

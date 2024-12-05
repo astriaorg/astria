@@ -23,6 +23,9 @@ pub struct Metrics {
     sequencer_height_fetch_failure_count: Counter,
     sequencer_submission_height: Counter,
     compression_ratio_for_astria_block: Gauge,
+    celestia_fees_total_utia: Gauge,
+    celestia_fees_utia_per_uncompressed_blob_byte: Gauge,
+    celestia_fees_utia_per_compressed_blob_byte: Gauge,
 }
 
 impl Metrics {
@@ -73,11 +76,28 @@ impl Metrics {
     pub(crate) fn set_compression_ratio_for_astria_block(&self, ratio: f64) {
         self.compression_ratio_for_astria_block.set(ratio);
     }
+
+    pub(crate) fn set_celestia_fees_total_utia(&self, utia: u64) {
+        self.celestia_fees_total_utia.set(utia);
+    }
+
+    pub(crate) fn set_celestia_fees_utia_per_uncompressed_blob_byte(&self, utia: f64) {
+        self.celestia_fees_utia_per_uncompressed_blob_byte.set(utia);
+    }
+
+    pub(crate) fn set_celestia_fees_utia_per_compressed_blob_byte(&self, utia: f64) {
+        self.celestia_fees_utia_per_compressed_blob_byte.set(utia);
+    }
 }
 
 impl telemetry::Metrics for Metrics {
     type Config = ();
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "this is reasonable as we have a lot of metrics to register; the function is not \
+                  complex, just long"
+    )]
     fn register(
         builder: &mut RegisteringBuilder,
         _config: &Self::Config,
@@ -171,6 +191,29 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let celestia_fees_total_utia = builder
+            .new_gauge_factory(
+                CELESTIA_FEES_TOTAL_UTIA,
+                "The total Celestia fees in utia for the latest successful submission",
+            )?
+            .register()?;
+
+        let celestia_fees_utia_per_uncompressed_blob_byte = builder
+            .new_gauge_factory(
+                CELESTIA_FEES_UTIA_PER_UNCOMPRESSED_BLOB_BYTE,
+                "The Celestia fees in utia per uncompressed blob byte for the latest successful \
+                 submission",
+            )?
+            .register()?;
+
+        let celestia_fees_utia_per_compressed_blob_byte = builder
+            .new_gauge_factory(
+                CELESTIA_FEES_UTIA_PER_COMPRESSED_BLOB_BYTE,
+                "The Celestia fees in utia per compressed blob byte for the latest successful \
+                 submission",
+            )?
+            .register()?;
+
         Ok(Self {
             celestia_submission_height,
             celestia_submission_count,
@@ -184,6 +227,9 @@ impl telemetry::Metrics for Metrics {
             sequencer_height_fetch_failure_count,
             sequencer_submission_height,
             compression_ratio_for_astria_block,
+            celestia_fees_total_utia,
+            celestia_fees_utia_per_uncompressed_blob_byte,
+            celestia_fees_utia_per_compressed_blob_byte,
         })
     }
 }
@@ -200,25 +246,15 @@ metric_names!(const METRICS_NAMES:
     SEQUENCER_BLOCK_FETCH_FAILURE_COUNT,
     SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT,
     SEQUENCER_SUBMISSION_HEIGHT,
-    COMPRESSION_RATIO_FOR_ASTRIA_BLOCK
+    COMPRESSION_RATIO_FOR_ASTRIA_BLOCK,
+    CELESTIA_FEES_TOTAL_UTIA,
+    CELESTIA_FEES_UTIA_PER_UNCOMPRESSED_BLOB_BYTE,
+    CELESTIA_FEES_UTIA_PER_COMPRESSED_BLOB_BYTE
 );
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        BLOBS_PER_CELESTIA_TX,
-        BLOCKS_PER_CELESTIA_TX,
-        BYTES_PER_CELESTIA_TX,
-        CELESTIA_PAYLOAD_CREATION_LATENCY,
-        CELESTIA_SUBMISSION_COUNT,
-        CELESTIA_SUBMISSION_FAILURE_COUNT,
-        CELESTIA_SUBMISSION_HEIGHT,
-        CELESTIA_SUBMISSION_LATENCY,
-        COMPRESSION_RATIO_FOR_ASTRIA_BLOCK,
-        SEQUENCER_BLOCK_FETCH_FAILURE_COUNT,
-        SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT,
-        SEQUENCER_SUBMISSION_HEIGHT,
-    };
+    use super::*;
 
     #[track_caller]
     fn assert_const(actual: &'static str, suffix: &str) {
@@ -256,6 +292,15 @@ mod tests {
         assert_const(
             COMPRESSION_RATIO_FOR_ASTRIA_BLOCK,
             "compression_ratio_for_astria_block",
+        );
+        assert_const(CELESTIA_FEES_TOTAL_UTIA, "celestia_fees_total_utia");
+        assert_const(
+            CELESTIA_FEES_UTIA_PER_UNCOMPRESSED_BLOB_BYTE,
+            "celestia_fees_utia_per_uncompressed_blob_byte",
+        );
+        assert_const(
+            CELESTIA_FEES_UTIA_PER_COMPRESSED_BLOB_BYTE,
+            "celestia_fees_utia_per_compressed_blob_byte",
         );
     }
 }

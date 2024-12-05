@@ -450,13 +450,15 @@ mod tests {
 
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if let Some(funded_key) = funded_key {
-            vec![astria_core::generated::protocol::genesis::v1::Account {
-                address: Some(
-                    crate::benchmark_and_test_utils::astria_address(funded_key.address_bytes())
-                        .to_raw(),
-                ),
-                balance: Some(10u128.pow(19).into()),
-            }]
+            vec![
+                astria_core::generated::astria::protocol::genesis::v1::Account {
+                    address: Some(
+                        crate::benchmark_and_test_utils::astria_address(funded_key.address_bytes())
+                            .to_raw(),
+                    ),
+                    balance: Some(10u128.pow(19).into()),
+                },
+            ]
         } else {
             vec![]
         };

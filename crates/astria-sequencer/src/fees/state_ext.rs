@@ -42,10 +42,7 @@ use cnidarium::{
 };
 use futures::Stream;
 use pin_project_lite::pin_project;
-use tendermint::abci::{
-    Event,
-    EventAttributeIndexExt as _,
-};
+use tendermint::abci::Event;
 use tracing::instrument;
 
 use super::{
@@ -385,9 +382,8 @@ pub(crate) trait StateWriteExt: StateWrite {
         &mut self,
         asset: &'a TAsset,
         amount: u128,
-        source_action_index: u64,
-    ) -> Result<()>
-    where
+        position_in_transaction: u64,
+    ) where
         TAsset: Sync + std::fmt::Display,
         asset::IbcPrefixed: From<&'a TAsset>,
     {
@@ -397,7 +393,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             action_name: T::full_name(),
             asset: asset::IbcPrefixed::from(asset).into(),
             amount,
-            source_action_index,
+            position_in_transaction,
         };
 
         // Fee ABCI event recorded for reporting
@@ -412,7 +408,6 @@ pub(crate) trait StateWriteExt: StateWrite {
         };
 
         self.object_put(keys::BLOCK, new_fees);
-        Ok(())
     }
 
     #[instrument(skip_all)]
@@ -574,10 +569,13 @@ fn construct_tx_fee_event(fee: &Fee) -> Event {
     Event::new(
         "tx.fees",
         [
-            ("actionName", fee.action_name.to_string()).index(),
-            ("asset", fee.asset.to_string()).index(),
-            ("feeAmount", fee.amount.to_string()).index(),
-            ("positionInTransaction", fee.source_action_index.to_string()).index(),
+            ("actionName", fee.action_name.to_string()),
+            ("asset", fee.asset.to_string()),
+            ("feeAmount", fee.amount.to_string()),
+            (
+                "positionInTransaction",
+                fee.position_in_transaction.to_string(),
+            ),
         ],
     )
 }
@@ -622,9 +620,7 @@ mod tests {
         // can write
         let asset = asset_0();
         let amount = 100u128;
-        state
-            .add_fee_to_block_fees::<_, Transfer>(&asset, amount, 0)
-            .unwrap();
+        state.add_fee_to_block_fees::<_, Transfer>(&asset, amount, 0);
 
         // holds expected
         let fee_balances_updated = state.get_block_fees();
@@ -634,7 +630,7 @@ mod tests {
                 action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                 asset: asset.to_ibc_prefixed().into(),
                 amount,
-                source_action_index: 0
+                position_in_transaction: 0
             },
             "fee balances are not what they were expected to be"
         );
@@ -652,12 +648,8 @@ mod tests {
         let amount_first = 100u128;
         let amount_second = 200u128;
 
-        state
-            .add_fee_to_block_fees::<_, Transfer>(&asset_first, amount_first, 0)
-            .unwrap();
-        state
-            .add_fee_to_block_fees::<_, Transfer>(&asset_second, amount_second, 1)
-            .unwrap();
+        state.add_fee_to_block_fees::<_, Transfer>(&asset_first, amount_first, 0);
+        state.add_fee_to_block_fees::<_, Transfer>(&asset_second, amount_second, 1);
         // holds expected
         let fee_balances = HashSet::<_>::from_iter(state.get_block_fees());
         assert_eq!(
@@ -667,13 +659,13 @@ mod tests {
                     action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                     asset: asset_first.to_ibc_prefixed().into(),
                     amount: amount_first,
-                    source_action_index: 0
+                    position_in_transaction: 0
                 },
                 Fee {
                     action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
                     asset: asset_second.to_ibc_prefixed().into(),
                     amount: amount_second,
-                    source_action_index: 1
+                    position_in_transaction: 1
                 },
             ]),
             "returned fee balance vector not what was expected"
