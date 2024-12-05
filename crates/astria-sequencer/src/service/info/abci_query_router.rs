@@ -39,7 +39,6 @@ use std::{
 };
 
 use matchit::{
-    InsertError,
     Match,
     MatchError,
 };
@@ -49,6 +48,13 @@ use tendermint::abci::{
 };
 
 use crate::storage::Storage;
+
+#[derive(Debug, thiserror::Error)]
+#[error("`{route}` is an invalid route")]
+pub(crate) struct InsertError {
+    route: String,
+    source: matchit::InsertError,
+}
 
 /// `Router` is a wrapper around [`matchit::Router`] to route abci queries
 /// to handlers.
@@ -76,8 +82,13 @@ impl Router {
         route: impl Into<String>,
         handler: impl AbciQueryHandler,
     ) -> Result<(), InsertError> {
+        let route = route.into();
         self.query_router
-            .insert(route, BoxedAbciQueryHandler::from_handler(handler))
+            .insert(route.clone(), BoxedAbciQueryHandler::from_handler(handler))
+            .map_err(|source| InsertError {
+                route,
+                source,
+            })
     }
 }
 

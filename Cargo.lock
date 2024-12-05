@@ -823,6 +823,7 @@ name = "astria-sequencer"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "assert-json-diff",
  "astria-build-info",
  "astria-config",
  "astria-core",
