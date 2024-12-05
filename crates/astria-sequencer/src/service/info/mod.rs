@@ -57,6 +57,8 @@ const TRANSACTION_FEE: &str = "transaction/fee";
 
 const FEES_COMPONENTS: &str = "fees/components";
 
+const VALIDATOR_NAME: &str = "authority/validator_name/:address";
+
 impl Info {
     pub(crate) fn new(storage: Storage) -> Result<Self> {
         let mut query_router = abci_query_router::Router::new();
@@ -79,12 +81,10 @@ impl Info {
         )?;
         query_router.insert(TRANSACTION_FEE, crate::fees::query::transaction_fee_request)?;
         query_router.insert(FEES_COMPONENTS, crate::fees::query::components)?;
-        query_router
-            .insert(
-                "authority/validator_name/:address",
-                crate::authority::query::validator_name_request,
-            )
-            .wrap_err("invalid path: `authority/validator_name/:address`")?;
+        query_router.insert(
+            VALIDATOR_NAME,
+            crate::authority::query::validator_name_request,
+        )?;
         Ok(Self {
             storage,
             query_router,
