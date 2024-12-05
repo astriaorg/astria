@@ -851,17 +851,21 @@ impl Protobuf for ValidatorUpdateV2 {
     }
 }
 
-impl From<ValidatorUpdateV2> for crate::generated::protocol::transaction::v1::ValidatorUpdateV2 {
+impl From<ValidatorUpdateV2>
+    for crate::generated::astria::protocol::transaction::v1::ValidatorUpdateV2
+{
     fn from(value: ValidatorUpdateV2) -> Self {
         value.into_raw()
     }
 }
 
-impl TryFrom<crate::generated::protocol::transaction::v1::ValidatorUpdateV2> for ValidatorUpdateV2 {
+impl TryFrom<crate::generated::astria::protocol::transaction::v1::ValidatorUpdateV2>
+    for ValidatorUpdateV2
+{
     type Error = ValidatorUpdateError;
 
     fn try_from(
-        value: crate::generated::protocol::transaction::v1::ValidatorUpdateV2,
+        value: crate::generated::astria::protocol::transaction::v1::ValidatorUpdateV2,
     ) -> Result<Self, Self::Error> {
         Self::try_from_raw(value)
     }

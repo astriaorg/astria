@@ -47,7 +47,7 @@ pub mod action {
         /// Prefer `ValidatorUpdateV2` instead.
         #[prost(message, tag = "51")]
         ValidatorUpdate(
-            crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+            super::super::super::super::super::astria_vendored::tendermint::abci::ValidatorUpdate,
         ),
     }
 }
@@ -404,7 +404,7 @@ impl ::prost::Name for BridgeSudoChange {
 pub struct ValidatorUpdateV2 {
     #[prost(message, optional, tag = "1")]
     pub pub_key: ::core::option::Option<
-        crate::generated::astria_vendored::tendermint::crypto::PublicKey,
+        super::super::super::super::astria_vendored::tendermint::crypto::PublicKey,
     >,
     #[prost(int64, tag = "2")]
     pub power: i64,

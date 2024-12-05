@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use astria_core::generated::{
+use astria_core::generated::astria::{
     execution::v1::{
         execution_service_server::{
             ExecutionService,
