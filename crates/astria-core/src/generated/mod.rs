@@ -154,6 +154,17 @@ pub mod sequencerblock {
             include!("astria.sequencerblock.v1.serde.rs");
         }
     }
+
+    pub mod optimisticblock {
+        pub mod v1alpha1 {
+            include!("astria.sequencerblock.optimisticblock.v1alpha1.rs");
+
+            mod _serde_impl {
+                use super::*;
+                include!("astria.sequencerblock.optimisticblock.v1alpha1.serde.rs");
+            }
+        }
+    }
 }
 
 #[path = ""]

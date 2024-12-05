@@ -3,7 +3,9 @@ use astria_core::{
         asset::Denom,
         Bech32,
     },
-    protocol::transaction::v1::action,
+    protocol::transaction::v1::action::{
+        self,
+    },
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -15,10 +17,12 @@ use astria_eyre::{
         WrapErr as _,
     },
 };
+use async_trait::async_trait;
 use cnidarium::{
     StateRead,
     StateWrite,
 };
+use ibc_proto::ibc::apps::transfer::v2::FungibleTokenPacketData;
 use ibc_types::core::channel::{
     ChannelId,
     PortId,
@@ -29,21 +33,18 @@ use penumbra_ibc::component::packet::{
     SendPacketWrite as _,
     Unchecked,
 };
-use penumbra_proto::core::component::ibc::v1::FungibleTokenPacketData;
 
 use crate::{
     accounts::{
-        AddressBytes as _,
+        AddressBytes,
         StateWriteExt as _,
     },
+    action_handler::ActionHandler,
     address::StateReadExt as _,
-    app::{
-        ActionHandler,
-        StateReadExt as _,
-    },
+    app::StateReadExt as _,
     bridge::{
         StateReadExt as _,
-        StateWriteExt as _,
+        StateWriteExt,
     },
     ibc::{
         StateReadExt as _,
@@ -52,92 +53,7 @@ use crate::{
     transaction::StateReadExt as _,
 };
 
-async fn create_ibc_packet_from_withdrawal<S: StateRead>(
-    withdrawal: &action::Ics20Withdrawal,
-    state: S,
-) -> Result<IBCPacket<Unchecked>> {
-    let sender = if withdrawal.use_compat_address() {
-        let ibc_compat_prefix = state.get_ibc_compat_prefix().await.context(
-            "need to construct bech32 compatible address for IBC communication but failed reading \
-             required prefix from state",
-        )?;
-        withdrawal
-            .return_address()
-            .to_prefix(&ibc_compat_prefix)
-            .context("failed to convert the address to the bech32 compatible prefix")?
-            .to_format::<Bech32>()
-            .to_string()
-    } else {
-        withdrawal.return_address().to_string()
-    };
-    let packet = FungibleTokenPacketData {
-        amount: withdrawal.amount().to_string(),
-        denom: withdrawal.denom().to_string(),
-        sender,
-        receiver: withdrawal.destination_chain_address().to_string(),
-        memo: withdrawal.memo().to_string(),
-    };
-
-    let serialized_packet_data =
-        serde_json::to_vec(&packet).context("failed to serialize fungible token packet as JSON")?;
-
-    Ok(IBCPacket::new(
-        PortId::transfer(),
-        withdrawal.source_channel().clone(),
-        *withdrawal.timeout_height(),
-        withdrawal.timeout_time(),
-        serialized_packet_data,
-    ))
-}
-
-/// Establishes the withdrawal target.
-///
-/// The function returns the following addresses under the following conditions:
-/// 1. `action.bridge_address` if `action.bridge_address` is set and `from` is its stored withdrawer
-///    address.
-/// 2. `from` if `action.bridge_address` is unset and `from` is *not* a bridge account.
-///
-/// Errors if:
-/// 1. Errors reading from DB
-/// 2. `action.bridge_address` is set, but `from` is not the withdrawer address.
-/// 3. `action.bridge_address` is unset, but `from` is a bridge account.
-async fn establish_withdrawal_target<'a, S: StateRead>(
-    action: &'a action::Ics20Withdrawal,
-    state: &S,
-    from: &'a [u8; 20],
-) -> Result<&'a [u8; 20]> {
-    // If the bridge address is set, the withdrawer on that address must match
-    // the from address.
-    if let Some(bridge_address) = action.bridge_address() {
-        let Some(withdrawer) = state
-            .get_bridge_account_withdrawer_address(bridge_address)
-            .await
-            .wrap_err("failed to get bridge withdrawer")?
-        else {
-            bail!("bridge address must have a withdrawer address set");
-        };
-
-        ensure!(
-            &withdrawer == from.address_bytes(),
-            "sender does not match bridge withdrawer address; unauthorized"
-        );
-
-        return Ok(bridge_address.as_bytes());
-    }
-
-    // If the bridge address is not set, the sender must not be a bridge account.
-    if state
-        .is_a_bridge_account(from)
-        .await
-        .context("failed to establish whether the sender is a bridge account")?
-    {
-        bail!("sender cannot be a bridge address if bridge address is not set");
-    }
-
-    Ok(from)
-}
-
-#[async_trait::async_trait]
+#[async_trait]
 impl ActionHandler for action::Ics20Withdrawal {
     async fn check_stateless(&self) -> Result<()> {
         // NOTE (from penumbra): we could validate the destination chain address as bech32 to
@@ -222,6 +138,91 @@ impl ActionHandler for action::Ics20Withdrawal {
         state.send_packet_execute(packet).await;
         Ok(())
     }
+}
+
+async fn create_ibc_packet_from_withdrawal<S: StateRead>(
+    withdrawal: &action::Ics20Withdrawal,
+    state: S,
+) -> Result<IBCPacket<Unchecked>> {
+    let sender = if withdrawal.use_compat_address() {
+        let ibc_compat_prefix = state.get_ibc_compat_prefix().await.context(
+            "need to construct bech32 compatible address for IBC communication but failed reading \
+             required prefix from state",
+        )?;
+        withdrawal
+            .return_address()
+            .to_prefix(&ibc_compat_prefix)
+            .context("failed to convert the address to the bech32 compatible prefix")?
+            .to_format::<Bech32>()
+            .to_string()
+    } else {
+        withdrawal.return_address().to_string()
+    };
+    let packet = FungibleTokenPacketData {
+        amount: withdrawal.amount().to_string(),
+        denom: withdrawal.denom().to_string(),
+        sender,
+        receiver: withdrawal.destination_chain_address().to_string(),
+        memo: withdrawal.memo().to_string(),
+    };
+
+    let serialized_packet_data =
+        serde_json::to_vec(&packet).context("failed to serialize fungible token packet as JSON")?;
+
+    Ok(IBCPacket::new(
+        PortId::transfer(),
+        withdrawal.source_channel().clone(),
+        *withdrawal.timeout_height(),
+        withdrawal.timeout_time(),
+        serialized_packet_data,
+    ))
+}
+
+/// Establishes the withdrawal target.
+///
+/// The function returns the following addresses under the following conditions:
+/// 1. `action.bridge_address` if `action.bridge_address` is set and `from` is its stored withdrawer
+///    address.
+/// 2. `from` if `action.bridge_address` is unset and `from` is *not* a bridge account.
+///
+/// Errors if:
+/// 1. Errors reading from DB
+/// 2. `action.bridge_address` is set, but `from` is not the withdrawer address.
+/// 3. `action.bridge_address` is unset, but `from` is a bridge account.
+async fn establish_withdrawal_target<'a, S: StateRead>(
+    action: &'a action::Ics20Withdrawal,
+    state: &S,
+    from: &'a [u8; 20],
+) -> Result<&'a [u8; 20]> {
+    // If the bridge address is set, the withdrawer on that address must match
+    // the from address.
+    if let Some(bridge_address) = action.bridge_address() {
+        let Some(withdrawer) = state
+            .get_bridge_account_withdrawer_address(bridge_address)
+            .await
+            .wrap_err("failed to get bridge withdrawer")?
+        else {
+            bail!("bridge address must have a withdrawer address set");
+        };
+
+        ensure!(
+            &withdrawer == from.address_bytes(),
+            "sender does not match bridge withdrawer address; unauthorized"
+        );
+
+        return Ok(bridge_address.as_bytes());
+    }
+
+    // If the bridge address is not set, the sender must not be a bridge account.
+    if state
+        .is_a_bridge_account(from)
+        .await
+        .context("failed to establish whether the sender is a bridge account")?
+    {
+        bail!("sender cannot be a bridge address if bridge address is not set");
+    }
+
+    Ok(from)
 }
 
 fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
