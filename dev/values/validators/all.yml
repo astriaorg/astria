@@ -47,9 +47,6 @@ sequencer:
       - name: "BTC/USD"
         providerConfigs:
           - name: "coingecko_api"
-            normalizeByPair:
-              Base: "USDT"
-              Quote: "USD"
             offChainTicker: "bitcoin/usd"
         ticker:
           currencyPair:
@@ -61,9 +58,6 @@ sequencer:
       - name: "ETH/USD"
         providerConfigs:
           - name: "coingecko_api"
-            normalizeByPair:
-              Base: "USDT"
-              Quote: "USD"
             offChainTicker: "ethereum/usd"
         ticker:
           currencyPair:

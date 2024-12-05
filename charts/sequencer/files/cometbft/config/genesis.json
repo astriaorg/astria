@@ -134,10 +134,12 @@
                 {{- if $providerIndex }},{{- end }}
                 {
                   "name": "{{ $provider.name }}",
+                  {{- if $provider.normalizeByPair }}
                   "normalizeByPair": {
                     "Base": "{{ $provider.normalizeByPair.Base }}",
                     "Quote": "{{ $provider.normalizeByPair.Quote }}"
                   },
+                  {{- end }}
                   "offChainTicker": "{{ $provider.offChainTicker }}"
                 }
                 {{- end }}

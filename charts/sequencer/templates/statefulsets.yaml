@@ -102,8 +102,8 @@ spec:
               name: cometbft-init-scripts-volume
           command: [ "connect"]
           args:
-          - "--market-config-path"
-          - "/scripts/markets.json"
+          - "--market-map-endpoint"
+          - "127.0.0.1:{{ .Values.ports.sequencerGrpc }}"
           - "--port"
           - "{{ .Values.ports.oracleGrpc }}"
           ports:
