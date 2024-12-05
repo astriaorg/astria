@@ -15,7 +15,7 @@ use astria_composer::{
     Metrics,
 };
 use astria_core::{
-    generated::protocol::accounts::v1::NonceResponse,
+    generated::astria::protocol::accounts::v1::NonceResponse,
     primitive::v1::{
         asset::{
             Denom,
