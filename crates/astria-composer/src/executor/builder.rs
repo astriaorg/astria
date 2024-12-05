@@ -6,7 +6,7 @@ use std::{
 
 use astria_core::{
     crypto::SigningKey,
-    generated::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
+    generated::astria::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
     primitive::v1::Address,
     protocol::transaction::v1::action::RollupDataSubmission,
 };

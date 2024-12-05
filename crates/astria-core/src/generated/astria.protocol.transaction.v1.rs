@@ -36,7 +36,7 @@ pub mod action {
         SudoAddressChange(super::SudoAddressChange),
         #[prost(message, tag = "51")]
         ValidatorUpdate(
-            crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+            super::super::super::super::super::astria_vendored::tendermint::abci::ValidatorUpdate,
         ),
         #[prost(message, tag = "52")]
         IbcRelayerChange(super::IbcRelayerChange),
