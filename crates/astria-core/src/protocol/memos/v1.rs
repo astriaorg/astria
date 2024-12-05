@@ -1,4 +1,4 @@
-pub use crate::generated::protocol::memos::v1::{
+pub use crate::generated::astria::protocol::memos::v1::{
     Ics20TransferDeposit,
     Ics20WithdrawalFromRollup,
 };

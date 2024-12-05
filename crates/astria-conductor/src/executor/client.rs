@@ -6,7 +6,7 @@ use astria_core::{
         CommitmentState,
         GenesisInfo,
     },
-    generated::{
+    generated::astria::{
         execution::{
             v1 as raw,
             v1::execution_service_client::ExecutionServiceClient,

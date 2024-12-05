@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package astria.sequencerblock.v1alpha1;
+package astria.sequencerblock.optimistic.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
-import "astria/sequencerblock/v1alpha1/block.proto";
+import "astria/sequencerblock/v1/block.proto";
 
 message GetBlockCommitmentStreamRequest {}
 
@@ -26,7 +26,7 @@ message GetOptimisticBlockStreamRequest {
 
 message GetOptimisticBlockStreamResponse {
   // The optimistic Sequencer block that is being streamed, filtered for the provided rollup id.
-  astria.sequencerblock.v1alpha1.FilteredSequencerBlock block = 1;
+  astria.sequencerblock.v1.FilteredSequencerBlock block = 1;
 }
 
 // The Sequencer will serve this to the aucitoneer
