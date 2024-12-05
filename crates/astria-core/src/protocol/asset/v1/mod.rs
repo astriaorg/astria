@@ -1,8 +1,10 @@
-use super::raw;
-use crate::primitive::v1::asset::{
-    self,
-    Denom,
-    ParseDenomError,
+use crate::{
+    generated::astria::protocol::asset::v1 as raw,
+    primitive::v1::asset::{
+        self,
+        Denom,
+        ParseDenomError,
+    },
 };
 
 #[derive(Debug, thiserror::Error)]

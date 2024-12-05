@@ -235,7 +235,7 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
 /// Panics if the request body can't be deserialiezed to a JSONRPC wrapped `tx_sync::Request`, or if
 /// the deserialization from the JSONRPC request to the raw transaction fails.
 pub fn signed_tx_from_request(request: &Request) -> Transaction {
-    use astria_core::generated::protocol::transaction::v1::Transaction as RawTransaction;
+    use astria_core::generated::astria::protocol::transaction::v1::Transaction as RawTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =

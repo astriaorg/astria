@@ -11,25 +11,26 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use async_trait::async_trait;
 use cnidarium::StateWrite;
 
 use crate::{
-    accounts::action::{
+    action_handler::{
         check_transfer,
         execute_transfer,
+        ActionHandler,
     },
     address::StateReadExt as _,
-    app::ActionHandler,
     assets::StateReadExt as _,
     bridge::{
         StateReadExt as _,
-        StateWriteExt as _,
+        StateWriteExt,
     },
     transaction::StateReadExt as _,
     utils::create_deposit_event,
 };
 
-#[async_trait::async_trait]
+#[async_trait]
 impl ActionHandler for BridgeLock {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
@@ -67,7 +68,7 @@ impl ActionHandler for BridgeLock {
         let source_action_index = state
             .get_transaction_context()
             .expect("current source should be set before executing action")
-            .source_action_index;
+            .position_in_transaction;
 
         // map asset to trace prefixed asset for deposit, if it is not already
         let deposit_asset = match self.asset.as_trace_prefixed() {
@@ -122,8 +123,8 @@ mod tests {
             AddressBytes,
             StateWriteExt as _,
         },
+        action_handler::ActionHandler as _,
         address::StateWriteExt as _,
-        app::ActionHandler as _,
         assets::StateWriteExt as _,
         benchmark_and_test_utils::{
             astria_address,
@@ -157,7 +158,7 @@ mod tests {
         state.put_transaction_context(TransactionContext {
             address_bytes: *from_address.address_bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         state
