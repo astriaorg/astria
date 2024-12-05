@@ -61,6 +61,7 @@ use tendermint::abci::{
     Code,
 };
 use tokio::{
+    join,
     sync::OnceCell,
     try_join,
 };
@@ -149,6 +150,44 @@ pub(crate) async fn allowed_fee_assets_request(
         code: tendermint::abci::Code::Ok,
         key: request.path.into_bytes().into(),
         value: payload,
+        height,
+        ..response::Query::default()
+    }
+}
+
+pub(crate) async fn components(
+    storage: Storage,
+    request: request::Query,
+    _params: Vec<(String, String)>,
+) -> response::Query {
+    let snapshot = storage.latest_snapshot();
+
+    let height = async {
+        snapshot
+            .get_block_height()
+            .await
+            .wrap_err("failed getting block height")
+    };
+    let fee_components = get_all_fee_components(&snapshot).map(Ok);
+    let (height, fee_components) = match try_join!(height, fee_components) {
+        Ok(vals) => vals,
+        Err(err) => {
+            return response::Query {
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
+                log: format!("{err:#}"),
+                ..response::Query::default()
+            };
+        }
+    };
+
+    let height = tendermint::block::Height::try_from(height).expect("height must fit into an i64");
+    response::Query {
+        code: tendermint::abci::Code::Ok,
+        key: request.path.into_bytes().into(),
+        value: serde_json::to_vec(&fee_components)
+            .expect("object does not contain keys that don't map to json keys")
+            .into(),
         height,
         ..response::Query::default()
     }
@@ -398,4 +437,101 @@ where
             )
         })?;
     Ok(fees)
+}
+
+#[derive(serde::Serialize)]
+struct AllFeeComponents {
+    transfer: FetchResult,
+    rollup_data_submission: FetchResult,
+    ics20_withdrawal: FetchResult,
+    init_bridge_account: FetchResult,
+    bridge_lock: FetchResult,
+    bridge_unlock: FetchResult,
+    bridge_sudo_change: FetchResult,
+    ibc_relay: FetchResult,
+    validator_update: FetchResult,
+    fee_asset_change: FetchResult,
+    fee_change: FetchResult,
+    ibc_relayer_change: FetchResult,
+    sudo_address_change: FetchResult,
+    ibc_sudo_change: FetchResult,
+}
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum FetchResult {
+    Err(String),
+    Missing(&'static str),
+    Component(FeeComponent),
+}
+
+impl<T> From<eyre::Result<Option<FeeComponents<T>>>> for FetchResult {
+    fn from(value: eyre::Result<Option<FeeComponents<T>>>) -> Self {
+        match value {
+            Ok(Some(val)) => Self::Component(FeeComponent {
+                base: val.base(),
+                multiplier: val.multiplier(),
+            }),
+            Ok(None) => Self::Missing("not set"),
+            Err(err) => Self::Err(err.to_string()),
+        }
+    }
+}
+
+async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
+    let (
+        transfer,
+        rollup_data_submission,
+        ics20_withdrawal,
+        init_bridge_account,
+        bridge_lock,
+        bridge_unlock,
+        bridge_sudo_change,
+        validator_update,
+        sudo_address_change,
+        ibc_sudo_change,
+        ibc_relay,
+        ibc_relayer_change,
+        fee_asset_change,
+        fee_change,
+    ) = join!(
+        state.get_fees::<Transfer>().map(FetchResult::from),
+        state
+            .get_fees::<RollupDataSubmission>()
+            .map(FetchResult::from),
+        state.get_fees::<Ics20Withdrawal>().map(FetchResult::from),
+        state.get_fees::<InitBridgeAccount>().map(FetchResult::from),
+        state.get_fees::<BridgeLock>().map(FetchResult::from),
+        state.get_fees::<BridgeUnlock>().map(FetchResult::from),
+        state.get_fees::<BridgeSudoChange>().map(FetchResult::from),
+        state.get_fees::<ValidatorUpdate>().map(FetchResult::from),
+        state.get_fees::<SudoAddressChange>().map(FetchResult::from),
+        state.get_fees::<IbcSudoChange>().map(FetchResult::from),
+        state.get_fees::<IbcRelay>().map(FetchResult::from),
+        state.get_fees::<IbcRelayerChange>().map(FetchResult::from),
+        state.get_fees::<FeeAssetChange>().map(FetchResult::from),
+        state.get_fees::<FeeChange>().map(FetchResult::from),
+    );
+    AllFeeComponents {
+        transfer,
+        rollup_data_submission,
+        ics20_withdrawal,
+        init_bridge_account,
+        bridge_lock,
+        bridge_unlock,
+        bridge_sudo_change,
+        ibc_relay,
+        validator_update,
+        fee_asset_change,
+        fee_change,
+        ibc_relayer_change,
+        sudo_address_change,
+        ibc_sudo_change,
+    }
+}
+
+#[derive(serde::Serialize)]
+struct FeeComponent {
+    base: u128,
+    multiplier: u128,
 }
