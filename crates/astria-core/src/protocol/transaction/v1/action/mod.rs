@@ -884,7 +884,7 @@ enum IbcSudoChangeErrorKind {
 /// of the packet. The funds will be returned to the `return_address` in the case of a timeout.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ics20Withdrawal {
-    NoBridgeAddress(Box<Ics20WithdrawalNoBridgeAddress>),
+    FromSequencer(Box<Ics20WithdrawalNoBridgeAddress>),
     FromRollup(Box<Ics20WithdrawalWithBridgeAddress>),
 }
 
@@ -959,7 +959,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn amount(&self) -> u128 {
         match self {
-            Self::NoBridgeAddress(inner) => inner.amount,
+            Self::FromSequencer(inner) => inner.amount,
             Self::FromRollup(inner) => inner.amount,
         }
     }
@@ -967,7 +967,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn denom(&self) -> &Denom {
         match self {
-            Self::NoBridgeAddress(inner) => &inner.denom,
+            Self::FromSequencer(inner) => &inner.denom,
             Self::FromRollup(inner) => &inner.denom,
         }
     }
@@ -975,7 +975,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn destination_chain_address(&self) -> &str {
         match self {
-            Self::NoBridgeAddress(inner) => &inner.destination_chain_address,
+            Self::FromSequencer(inner) => &inner.destination_chain_address,
             Self::FromRollup(inner) => &inner.destination_chain_address,
         }
     }
@@ -983,7 +983,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn return_address(&self) -> &Address {
         match self {
-            Self::NoBridgeAddress(inner) => &inner.return_address,
+            Self::FromSequencer(inner) => &inner.return_address,
             Self::FromRollup(inner) => &inner.return_address,
         }
     }
@@ -991,7 +991,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn timeout_height(&self) -> &IbcHeight {
         match self {
-            Self::NoBridgeAddress(inner) => &inner.timeout_height,
+            Self::FromSequencer(inner) => &inner.timeout_height,
             Self::FromRollup(inner) => &inner.timeout_height,
         }
     }
@@ -999,7 +999,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn timeout_time(&self) -> u64 {
         match self {
-            Self::NoBridgeAddress(inner) => inner.timeout_time,
+            Self::FromSequencer(inner) => inner.timeout_time,
             Self::FromRollup(inner) => inner.timeout_time,
         }
     }
@@ -1007,7 +1007,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn source_channel(&self) -> &ChannelId {
         match self {
-            Self::NoBridgeAddress(inner) => &inner.source_channel,
+            Self::FromSequencer(inner) => &inner.source_channel,
             Self::FromRollup(inner) => &inner.source_channel,
         }
     }
@@ -1015,7 +1015,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn fee_asset(&self) -> &asset::Denom {
         match self {
-            Self::NoBridgeAddress(inner) => &inner.fee_asset,
+            Self::FromSequencer(inner) => &inner.fee_asset,
             Self::FromRollup(inner) => &inner.fee_asset,
         }
     }
@@ -1023,7 +1023,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn memo(&self) -> &str {
         match self {
-            Self::NoBridgeAddress(inner) => &inner.memo,
+            Self::FromSequencer(inner) => &inner.memo,
             Self::FromRollup(inner) => &inner.memo,
         }
     }
@@ -1031,7 +1031,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn bridge_address(&self) -> Option<&Address> {
         match self {
-            Self::NoBridgeAddress(_) => None,
+            Self::FromSequencer(_) => None,
             Self::FromRollup(inner) => Some(&inner.bridge_address),
         }
     }
@@ -1039,7 +1039,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn ics20_withdrawal_from_rollup(&self) -> Option<&Ics20WithdrawalFromRollup> {
         match self {
-            Self::NoBridgeAddress(_) => None,
+            Self::FromSequencer(_) => None,
             Self::FromRollup(inner) => Some(&inner.ics20_withdrawal_from_rollup),
         }
     }
@@ -1047,7 +1047,7 @@ impl Ics20Withdrawal {
     #[must_use]
     pub fn use_compat_address(&self) -> bool {
         match self {
-            Self::NoBridgeAddress(inner) => inner.use_compat_address,
+            Self::FromSequencer(inner) => inner.use_compat_address,
             Self::FromRollup(inner) => inner.use_compat_address,
         }
     }
@@ -1165,7 +1165,7 @@ impl Protobuf for Ics20Withdrawal {
                 },
             )))
         } else {
-            Ok(Self::NoBridgeAddress(Box::new(
+            Ok(Self::FromSequencer(Box::new(
                 Ics20WithdrawalNoBridgeAddress {
                     amount: amount.into(),
                     denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,
@@ -1263,7 +1263,7 @@ impl Protobuf for Ics20Withdrawal {
                 },
             )))
         } else {
-            Ok(Self::NoBridgeAddress(Box::new(
+            Ok(Self::FromSequencer(Box::new(
                 Ics20WithdrawalNoBridgeAddress {
                     amount: amount.into(),
                     denom: denom.parse().map_err(Ics20WithdrawalError::invalid_denom)?,

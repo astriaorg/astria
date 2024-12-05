@@ -74,7 +74,7 @@ fn try_from_list_of_actions_bundleable_general() {
             power: 100,
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
         }),
-        Action::Ics20Withdrawal(Ics20Withdrawal::NoBridgeAddress(Box::new(
+        Action::Ics20Withdrawal(Ics20Withdrawal::FromSequencer(Box::new(
             Ics20WithdrawalNoBridgeAddress {
                 denom: asset.clone(),
                 destination_chain_address: String::new(),

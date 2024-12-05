@@ -264,7 +264,7 @@ mod tests {
 
         let denom = "test".parse::<Denom>().unwrap();
         let from = [1u8; 20];
-        let action = Ics20Withdrawal::NoBridgeAddress(Box::new(Ics20WithdrawalNoBridgeAddress {
+        let action = Ics20Withdrawal::FromSequencer(Box::new(Ics20WithdrawalNoBridgeAddress {
             amount: 1,
             denom: denom.clone(),
             destination_chain_address: "test".to_string(),
@@ -306,7 +306,7 @@ mod tests {
             .unwrap();
 
         let denom = "test".parse::<Denom>().unwrap();
-        let action = Ics20Withdrawal::NoBridgeAddress(Box::new(Ics20WithdrawalNoBridgeAddress {
+        let action = Ics20Withdrawal::FromSequencer(Box::new(Ics20WithdrawalNoBridgeAddress {
             amount: 1,
             denom: denom.clone(),
             destination_chain_address: "test".to_string(),
