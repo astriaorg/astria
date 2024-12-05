@@ -2,7 +2,7 @@ use bytes::Bytes;
 use pbjson_types::Timestamp;
 
 use crate::{
-    generated::execution::v1 as raw,
+    generated::astria::execution::v1 as raw,
     primitive::v1::{
         IncorrectRollupIdLength,
         RollupId,
@@ -40,7 +40,7 @@ enum GenesisInfoErrorKind {
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::GenesisInfo`].
 #[derive(Clone, Copy, Debug, serde::Serialize)]
-#[serde(into = "crate::generated::execution::v1::GenesisInfo")]
+#[serde(into = "crate::generated::astria::execution::v1::GenesisInfo")]
 pub struct GenesisInfo {
     /// The rollup id which is used to identify the rollup txs.
     rollup_id: RollupId,
@@ -141,7 +141,7 @@ enum BlockErrorKind {
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::Block`].
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
-#[serde(into = "crate::generated::execution::v1::Block")]
+#[serde(into = "crate::generated::astria::execution::v1::Block")]
 pub struct Block {
     /// The block number
     number: u32,
@@ -369,7 +369,7 @@ impl CommitmentStateBuilder<WithFirm, WithSoft, WithCelestiaBaseHeight> {
 /// - No blocks ever decrease in block number.
 /// - The chain defined by soft is the head of the canonical chain the firm block must belong to.
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
-#[serde(into = "crate::generated::execution::v1::CommitmentState")]
+#[serde(into = "crate::generated::astria::execution::v1::CommitmentState")]
 pub struct CommitmentState {
     /// Soft commitment is the rollup block matching latest sequencer block.
     soft: Block,
