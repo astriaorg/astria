@@ -99,7 +99,7 @@ impl MockSequencerServer {
 pub enum SequencerBlockToMount {
     GoodAtHeight(u32),
     BadAtHeight(u32),
-    Block(SequencerBlock),
+    Block(Box<SequencerBlock>),
 }
 
 struct SequencerServiceImpl(MockServer);
@@ -152,7 +152,7 @@ fn prepare_sequencer_block_response(
             ..Default::default()
         }
         .make(),
-        SequencerBlockToMount::Block(block) => block,
+        SequencerBlockToMount::Block(block) => *block,
     };
 
     let mut block = block.into_raw();
