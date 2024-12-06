@@ -175,21 +175,21 @@ mod tests {
         protocol::{
             account::v1::BalanceResponse,
             asset::v1::DenomResponse,
-            fees::v1::{
-                BridgeLockFeeComponents,
-                BridgeSudoChangeFeeComponents,
-                BridgeUnlockFeeComponents,
-                FeeAssetChangeFeeComponents,
-                FeeChangeFeeComponents,
-                IbcRelayFeeComponents,
-                IbcRelayerChangeFeeComponents,
-                IbcSudoChangeFeeComponents,
-                Ics20WithdrawalFeeComponents,
-                InitBridgeAccountFeeComponents,
-                RollupDataSubmissionFeeComponents,
-                SudoAddressChangeFeeComponents,
-                TransferFeeComponents,
-                ValidatorUpdateFeeComponents,
+            fees::v1::FeeComponents,
+            transaction::v1::action::{
+                BridgeLock,
+                BridgeSudoChange,
+                BridgeUnlock,
+                FeeAssetChange,
+                FeeChange,
+                IbcRelayerChange,
+                IbcSudoChange,
+                Ics20Withdrawal,
+                InitBridgeAccount,
+                RollupDataSubmission,
+                SudoAddressChange,
+                Transfer,
+                ValidatorUpdate,
             },
         },
     };
@@ -197,14 +197,10 @@ mod tests {
         StateDelta,
         StateWrite,
     };
+    use penumbra_ibc::IbcRelay;
     use prost::Message as _;
-    use tendermint::v0_38::abci::{
-        request,
-        InfoRequest,
-        InfoResponse,
-    };
 
-    use super::Info;
+    use super::*;
     use crate::{
         accounts::StateWriteExt as _,
         address::{
@@ -497,88 +493,46 @@ mod tests {
 
     fn write_all_the_fees<S: StateWrite>(mut state: S) {
         state
-            .put_bridge_lock_fees(BridgeLockFeeComponents {
-                base: 1,
-                multiplier: 1,
-            })
+            .put_fees(FeeComponents::<BridgeLock>::new(1, 1))
             .unwrap();
         state
-            .put_bridge_unlock_fees(BridgeUnlockFeeComponents {
-                base: 2,
-                multiplier: 2,
-            })
+            .put_fees(FeeComponents::<BridgeUnlock>::new(2, 2))
             .unwrap();
         state
-            .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
-                base: 3,
-                multiplier: 3,
-            })
+            .put_fees(FeeComponents::<BridgeSudoChange>::new(3, 3))
             .unwrap();
         state
-            .put_fee_asset_change_fees(FeeAssetChangeFeeComponents {
-                base: 4,
-                multiplier: 4,
-            })
+            .put_fees(FeeComponents::<FeeAssetChange>::new(4, 4))
             .unwrap();
         state
-            .put_fee_change_fees(FeeChangeFeeComponents {
-                base: 5,
-                multiplier: 5,
-            })
+            .put_fees(FeeComponents::<FeeChange>::new(5, 5))
             .unwrap();
         state
-            .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
-                base: 6,
-                multiplier: 6,
-            })
+            .put_fees(FeeComponents::<InitBridgeAccount>::new(6, 6))
             .unwrap();
         state
-            .put_ibc_relay_fees(IbcRelayFeeComponents {
-                base: 7,
-                multiplier: 7,
-            })
+            .put_fees(FeeComponents::<IbcRelay>::new(7, 7))
             .unwrap();
         state
-            .put_ibc_relayer_change_fees(IbcRelayerChangeFeeComponents {
-                base: 8,
-                multiplier: 8,
-            })
+            .put_fees(FeeComponents::<IbcRelayerChange>::new(8, 8))
             .unwrap();
         state
-            .put_ibc_sudo_change_fees(IbcSudoChangeFeeComponents {
-                base: 9,
-                multiplier: 9,
-            })
+            .put_fees(FeeComponents::<IbcSudoChange>::new(9, 9))
             .unwrap();
         state
-            .put_ics20_withdrawal_fees(Ics20WithdrawalFeeComponents {
-                base: 10,
-                multiplier: 10,
-            })
+            .put_fees(FeeComponents::<Ics20Withdrawal>::new(10, 10))
             .unwrap();
         state
-            .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
-                base: 11,
-                multiplier: 11,
-            })
+            .put_fees(FeeComponents::<RollupDataSubmission>::new(11, 11))
             .unwrap();
         state
-            .put_sudo_address_change_fees(SudoAddressChangeFeeComponents {
-                base: 12,
-                multiplier: 12,
-            })
+            .put_fees(FeeComponents::<SudoAddressChange>::new(12, 12))
             .unwrap();
         state
-            .put_transfer_fees(TransferFeeComponents {
-                base: 13,
-                multiplier: 13,
-            })
+            .put_fees(FeeComponents::<Transfer>::new(13, 13))
             .unwrap();
         state
-            .put_validator_update_fees(ValidatorUpdateFeeComponents {
-                base: 14,
-                multiplier: 14,
-            })
+            .put_fees(FeeComponents::<ValidatorUpdate>::new(14, 14))
             .unwrap();
     }
 }
