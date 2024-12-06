@@ -30,13 +30,13 @@ impl<'a> From<ChainId<'a>> for tendermint::chain::Id {
     }
 }
 
-impl BorshSerialize for ChainId<'_> {
+impl<'a> BorshSerialize for ChainId<'a> {
     fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         self.0.as_str().serialize(writer)
     }
 }
 
-impl BorshDeserialize for ChainId<'_> {
+impl<'a> BorshDeserialize for ChainId<'a> {
     fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let chain_id_str = String::deserialize_reader(reader)?;
         let chain_id =

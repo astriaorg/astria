@@ -22,7 +22,7 @@ use super::{
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::grpc) struct BlockHash<'a>(Cow<'a, [u8; 32]>);
 
-impl Debug for BlockHash<'_> {
+impl<'a> Debug for BlockHash<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }

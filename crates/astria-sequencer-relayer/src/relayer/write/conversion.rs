@@ -387,7 +387,7 @@ pin_project! {
     }
 }
 
-impl Future for TakeSubmission<'_> {
+impl<'a> Future for TakeSubmission<'a> {
     type Output = Option<Submission>;
 
     fn poll(self: Pin<&mut Self>, _: &mut std::task::Context<'_>) -> Poll<Self::Output> {
@@ -441,7 +441,6 @@ fn sequencer_namespace(metadata: &SubmittedMetadata) -> Namespace {
     )
 }
 
-#[expect(clippy::ref_option, reason = "necessary for serde impl")]
 fn serialize_opt_namespace<S>(
     namespace: &Option<Namespace>,
     serializer: S,

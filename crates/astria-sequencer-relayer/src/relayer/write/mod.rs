@@ -93,8 +93,6 @@ impl BlobSubmitterHandle {
     /// Send a block to the blob submitter immediately.
     ///
     /// This is a thin wrapper around [`mpsc::Sender::try_send`].
-    // TODO(search_here)
-    #[expect(clippy::result_large_err, reason = "should be fixed")]
     pub(super) fn try_send(
         &self,
         block: SequencerBlock,

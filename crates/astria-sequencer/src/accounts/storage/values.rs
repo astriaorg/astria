@@ -28,7 +28,7 @@ impl From<Balance> for u128 {
     }
 }
 
-impl From<Balance> for crate::storage::StoredValue<'_> {
+impl<'a> From<Balance> for crate::storage::StoredValue<'a> {
     fn from(balance: Balance) -> Self {
         crate::storage::StoredValue::Accounts(Value(ValueImpl::Balance(balance)))
     }
@@ -61,7 +61,7 @@ impl From<Nonce> for u32 {
     }
 }
 
-impl From<Nonce> for crate::storage::StoredValue<'_> {
+impl<'a> From<Nonce> for crate::storage::StoredValue<'a> {
     fn from(nonce: Nonce) -> Self {
         crate::storage::StoredValue::Accounts(Value(ValueImpl::Nonce(nonce)))
     }

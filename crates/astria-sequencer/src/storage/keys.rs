@@ -30,7 +30,7 @@ impl<'a, T> AccountPrefixer<'a, T> {
     }
 }
 
-impl<T: AddressBytes> Display for AccountPrefixer<'_, T> {
+impl<'a, T: AddressBytes> Display for AccountPrefixer<'a, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         use base64::{
             display::Base64Display,
@@ -46,13 +46,13 @@ impl<T: AddressBytes> Display for AccountPrefixer<'_, T> {
 #[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct Asset<'a>(Cow<'a, IbcPrefixed>);
 
-impl Asset<'_> {
+impl<'a> Asset<'a> {
     pub(crate) fn get(self) -> IbcPrefixed {
         self.0.into_owned()
     }
 }
 
-impl Display for Asset<'_> {
+impl<'a> Display for Asset<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
@@ -67,7 +67,7 @@ where
     }
 }
 
-impl FromStr for Asset<'_> {
+impl<'a> FromStr for Asset<'a> {
     type Err = ParseIbcPrefixedError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

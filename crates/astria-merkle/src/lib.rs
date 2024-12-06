@@ -184,7 +184,7 @@ pub struct LeafBuilder<'a> {
     hasher: Option<Sha256>,
 }
 
-impl LeafBuilder<'_> {
+impl<'a> LeafBuilder<'a> {
     /// Takes ownership of the builder, dropping it.
     ///
     /// This method causes the leaf builder to go out of scope, causing it
@@ -232,7 +232,7 @@ impl LeafBuilder<'_> {
     }
 }
 
-impl Drop for LeafBuilder<'_> {
+impl<'a> Drop for LeafBuilder<'a> {
     fn drop(&mut self) {
         let Self {
             tree,

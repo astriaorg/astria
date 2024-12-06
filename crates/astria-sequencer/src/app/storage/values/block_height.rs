@@ -24,7 +24,7 @@ impl From<BlockHeight> for u64 {
     }
 }
 
-impl From<BlockHeight> for crate::storage::StoredValue<'_> {
+impl<'a> From<BlockHeight> for crate::storage::StoredValue<'a> {
     fn from(block_height: BlockHeight) -> Self {
         crate::storage::StoredValue::App(Value(ValueImpl::BlockHeight(block_height)))
     }

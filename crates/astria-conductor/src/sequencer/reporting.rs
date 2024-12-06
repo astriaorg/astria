@@ -13,7 +13,7 @@ use serde::ser::{
 };
 
 pub(super) struct ReportFilteredSequencerBlock<'a>(pub(super) &'a FilteredSequencerBlock);
-impl Serialize for ReportFilteredSequencerBlock<'_> {
+impl<'a> Serialize for ReportFilteredSequencerBlock<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -27,7 +27,7 @@ impl Serialize for ReportFilteredSequencerBlock<'_> {
 
 struct ReportRollups<'a>(&'a IndexMap<RollupId, RollupTransactions>);
 
-impl Serialize for ReportRollups<'_> {
+impl<'a> Serialize for ReportRollups<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

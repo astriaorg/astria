@@ -41,7 +41,7 @@ impl From<Balance> for u128 {
     }
 }
 
-impl From<Balance> for crate::storage::StoredValue<'_> {
+impl<'a> From<Balance> for crate::storage::StoredValue<'a> {
     fn from(balance: Balance) -> Self {
         crate::storage::StoredValue::Ibc(Value(ValueImpl::Balance(balance)))
     }
@@ -61,7 +61,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Balance {
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::ibc) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
 
-impl Debug for AddressBytes<'_> {
+impl<'a> Debug for AddressBytes<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }

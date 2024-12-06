@@ -2,8 +2,7 @@
     unreachable_pub,
     clippy::pedantic,
     clippy::needless_borrows_for_generic_args,
-    clippy::arithmetic_side_effects,
-    clippy::needless_lifetimes
+    clippy::arithmetic_side_effects
 )]
 //! Files generated using [`tonic-build`] and [`buf`] via the [`tools/protobuf-compiler`]
 //! build tool.

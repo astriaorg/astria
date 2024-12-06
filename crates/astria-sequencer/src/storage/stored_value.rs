@@ -21,7 +21,7 @@ pub(crate) enum StoredValue<'a> {
     Grpc(crate::grpc::storage::Value<'a>),
 }
 
-impl StoredValue<'_> {
+impl<'a> StoredValue<'a> {
     pub(crate) fn serialize(&self) -> Result<Vec<u8>> {
         borsh::to_vec(&self).wrap_err("failed to serialize stored value")
     }

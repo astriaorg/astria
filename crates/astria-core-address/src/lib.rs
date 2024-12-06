@@ -214,7 +214,7 @@ impl<TFormat, TBytes, TPrefix> Builder<TFormat, TBytes, TPrefix> {
     }
 }
 
-impl<TFormat, TBytesIter> Builder<TFormat, WithBytes<'_, TBytesIter>, WithPrefix<'_>>
+impl<'a, 'b, TFormat, TBytesIter> Builder<TFormat, WithBytes<'a, TBytesIter>, WithPrefix<'b>>
 where
     TBytesIter: IntoIterator<Item = u8>,
     TBytesIter::IntoIter: ExactSizeIterator,

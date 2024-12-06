@@ -24,7 +24,7 @@ impl From<RevisionNumber> for u64 {
     }
 }
 
-impl From<RevisionNumber> for crate::storage::StoredValue<'_> {
+impl<'a> From<RevisionNumber> for crate::storage::StoredValue<'a> {
     fn from(revision_number: RevisionNumber) -> Self {
         crate::storage::StoredValue::App(Value(ValueImpl::RevisionNumber(revision_number)))
     }

@@ -99,13 +99,13 @@ impl From<TracePrefixed> for Denom {
     }
 }
 
-impl From<&IbcPrefixed> for Denom {
+impl<'a> From<&'a IbcPrefixed> for Denom {
     fn from(value: &IbcPrefixed) -> Self {
         Self::IbcPrefixed(*value)
     }
 }
 
-impl From<&TracePrefixed> for Denom {
+impl<'a> From<&'a TracePrefixed> for Denom {
     fn from(value: &TracePrefixed) -> Self {
         Self::TracePrefixed(value.clone())
     }
@@ -117,7 +117,7 @@ impl From<TracePrefixed> for IbcPrefixed {
     }
 }
 
-impl From<&TracePrefixed> for IbcPrefixed {
+impl<'a> From<&'a TracePrefixed> for IbcPrefixed {
     fn from(value: &TracePrefixed) -> Self {
         value.to_ibc_prefixed()
     }
@@ -129,13 +129,13 @@ impl From<Denom> for IbcPrefixed {
     }
 }
 
-impl From<&Denom> for IbcPrefixed {
+impl<'a> From<&'a Denom> for IbcPrefixed {
     fn from(value: &Denom) -> Self {
         value.to_ibc_prefixed()
     }
 }
 
-impl From<&IbcPrefixed> for IbcPrefixed {
+impl<'a> From<&'a IbcPrefixed> for IbcPrefixed {
     fn from(value: &IbcPrefixed) -> Self {
         *value
     }

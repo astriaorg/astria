@@ -24,7 +24,7 @@ use crate::accounts::AddressBytes as DomainAddressBytes;
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::bridge) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
 
-impl Debug for AddressBytes<'_> {
+impl<'a> Debug for AddressBytes<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }
