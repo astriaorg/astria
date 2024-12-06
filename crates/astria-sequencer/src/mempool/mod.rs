@@ -112,7 +112,7 @@ struct ContainedTxLock<'a> {
     txs: RwLockWriteGuard<'a, HashSet<[u8; 32]>>,
 }
 
-impl<'a> ContainedTxLock<'a> {
+impl ContainedTxLock<'_> {
     fn add(&mut self, id: [u8; 32]) {
         if !self.txs.insert(id) {
             self.mempool.metrics.increment_internal_logic_error();
