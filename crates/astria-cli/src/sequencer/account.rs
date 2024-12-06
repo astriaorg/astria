@@ -51,7 +51,12 @@ impl Create {
         let signing_key = SigningKey::new(OsRng);
         let pretty_signing_key = hex::encode(signing_key.as_bytes());
         let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
-        let pretty_address = SigningKey::try_address(&signing_key, &self.prefix)?;
+
+        let pretty_address: Address = Address::builder()
+            .array(signing_key.address_bytes())
+            .prefix(&self.prefix)
+            .try_build()?;
+
         println!("Create Sequencer Account");
         println!();
         // TODO: don't print private keys to CLI, prefer writing to file:
@@ -116,11 +121,7 @@ impl Nonce {
 #[derive(clap::Args, Debug)]
 struct ArgsInner {
     /// The url of the Sequencer node
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::DEFAULT_SEQUENCER_RPC
-    )]
+    #[arg(long, env = "SEQUENCER_URL")]
     sequencer_url: String,
     /// The address of the Sequencer account
     address: Address,

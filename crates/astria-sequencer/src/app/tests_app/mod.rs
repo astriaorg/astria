@@ -284,11 +284,11 @@ async fn app_transfer_block_fees_to_sudo() {
     // assert that transaction fees were transferred to the block proposer
     let transfer_base_fee = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     assert_eq!(
         app.state
             .get_account_balance(&astria_address_from_hex_string(JUDY_ADDRESS), &nria())
@@ -302,7 +302,7 @@ async fn app_transfer_block_fees_to_sudo() {
 #[tokio::test]
 async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     use astria_core::{
-        generated::sequencerblock::v1::RollupData as RawRollupData,
+        generated::astria::sequencerblock::v1::RollupData as RawRollupData,
         sequencerblock::v1::block::RollupData,
     };
 

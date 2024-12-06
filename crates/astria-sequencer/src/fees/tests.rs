@@ -11,13 +11,7 @@ use astria_core::{
         TRANSACTION_ID_LEN,
     },
     protocol::{
-        fees::v1::{
-            BridgeLockFeeComponents,
-            BridgeSudoChangeFeeComponents,
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-            TransferFeeComponents,
-        },
+        fees::v1::FeeComponents,
         transaction::v1::{
             action::{
                 BridgeLock,
@@ -30,12 +24,14 @@ use astria_core::{
         },
     },
     sequencerblock::v1::block::Deposit,
+    Protobuf as _,
 };
 use cnidarium::StateDelta;
 
 use super::base_deposit_fee;
 use crate::{
     accounts::StateWriteExt as _,
+    action_handler::ActionHandler as _,
     address::StateWriteExt as _,
     app::{
         benchmark_and_test_utils::{
@@ -46,7 +42,6 @@ use crate::{
             get_alice_signing_key,
             get_bridge_signing_key,
         },
-        ActionHandler as _,
     },
     benchmark_and_test_utils::{
         assert_eyre_error,
@@ -79,10 +74,7 @@ async fn ensure_correct_block_fees_transfer() {
     let mut state = StateDelta::new(snapshot);
     let transfer_base = 1;
     state
-        .put_transfer_fees(TransferFeeComponents {
-            base: transfer_base,
-            multiplier: 0,
-        })
+        .put_fees(FeeComponents::<Transfer>::new(transfer_base, 0))
         .unwrap();
 
     let alice = get_alice_signing_key();
@@ -119,10 +111,7 @@ async fn ensure_correct_block_fees_sequence() {
     let snapshot = storage.latest_snapshot();
     let mut state = StateDelta::new(snapshot);
     state
-        .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
-            base: 1,
-            multiplier: 1,
-        })
+        .put_fees(FeeComponents::<RollupDataSubmission>::new(1, 1))
         .unwrap();
 
     let alice = get_alice_signing_key();
@@ -160,10 +149,10 @@ async fn ensure_correct_block_fees_init_bridge_acct() {
     let mut state = StateDelta::new(snapshot);
     let init_bridge_account_base = 1;
     state
-        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
-            base: init_bridge_account_base,
-            multiplier: 0,
-        })
+        .put_fees(FeeComponents::<InitBridgeAccount>::new(
+            init_bridge_account_base,
+            0,
+        ))
         .unwrap();
 
     let alice = get_alice_signing_key();
@@ -211,16 +200,13 @@ async fn ensure_correct_block_fees_bridge_lock() {
     let bridge_lock_byte_cost_multiplier = 1;
 
     state
-        .put_transfer_fees(TransferFeeComponents {
-            base: transfer_base,
-            multiplier: 0,
-        })
+        .put_fees(FeeComponents::<Transfer>::new(transfer_base, 0))
         .unwrap();
     state
-        .put_bridge_lock_fees(BridgeLockFeeComponents {
-            base: transfer_base,
-            multiplier: bridge_lock_byte_cost_multiplier,
-        })
+        .put_fees(FeeComponents::<BridgeLock>::new(
+            transfer_base,
+            bridge_lock_byte_cost_multiplier,
+        ))
         .unwrap();
     state
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
@@ -282,10 +268,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
 
     let sudo_change_base = 1;
     state
-        .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
-            base: sudo_change_base,
-            multiplier: 0,
-        })
+        .put_fees(FeeComponents::<BridgeSudoChange>::new(sudo_change_base, 0))
         .unwrap();
     state
         .put_bridge_account_sudo_address(&bridge_address, alice_address)
@@ -333,21 +316,16 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
     state.put_transaction_context(TransactionContext {
         address_bytes: from_address.bytes(),
         transaction_id,
-        source_action_index: 0,
+        position_in_transaction: 0,
     });
     state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
-    let transfer_fees = TransferFeeComponents {
-        base: transfer_fee,
-        multiplier: 0,
-    };
-    state.put_transfer_fees(transfer_fees).unwrap();
-
-    let bridge_lock_fees = BridgeLockFeeComponents {
-        base: transfer_fee,
-        multiplier: 2,
-    };
-    state.put_bridge_lock_fees(bridge_lock_fees).unwrap();
+    state
+        .put_fees(FeeComponents::<Transfer>::new(transfer_fee, 0))
+        .unwrap();
+    state
+        .put_fees(FeeComponents::<BridgeLock>::new(transfer_fee, 2))
+        .unwrap();
 
     let bridge_address = astria_address(&[1; 20]);
     let asset = test_asset();
@@ -444,7 +422,7 @@ fn get_base_deposit_fee() {
         .slice(&[0u8; ADDRESS_LEN][..])
         .try_build()
         .unwrap();
-    let raw_deposit = astria_core::generated::sequencerblock::v1::Deposit {
+    let raw_deposit = astria_core::generated::astria::sequencerblock::v1::Deposit {
         bridge_address: Some(bridge_address.to_raw()),
         rollup_id: Some(RollupId::from_unhashed_bytes([0; ROLLUP_ID_LEN]).to_raw()),
         amount: Some(1000.into()),

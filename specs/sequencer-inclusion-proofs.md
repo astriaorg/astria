@@ -29,14 +29,18 @@ A rollup conductor needs to be able to verify its subset of relevant data
 without needing to pull all the transaction data for a block. To do this, the
 block proposer includes a special "commitment tx" at the start of the block.
 This a special transaction type that can only be included by the proposer.
+The "commitment tx" is the merkle root of a tree where each leaf is a commitment
+to the batch of transactions for one specific rollup.
 
 ![image](assets/sequencer_inclusion_proof_0.png)
 
 When building a block, the proposer deconstructs all txs into their contained
-`sequence::Action`s and groups them all. Remember that 1 `sequence::Action`
-corresponds to 1 rollup transaction. Then, a commitment to the set of all
-actions for a chain becomes a leaf in a merkle tree, the root of which becomes
-the "commitment tx"
+`RollupDataSubmission` actions and groups them all. Remember that 1
+`RollupDataSubmission` action corresponds to 1 rollup transaction. Then, a
+commitment to the set of all actions for a chain becomes a leaf in a merkle tree,
+the root of which becomes the "commitment tx". The other validators reconstruct
+this merkle tree when validating the proposal, and only accept the proposal if
+the tree is a valid representation of the rollup data in the block.
 
 ![image](assets/sequencer_inclusion_proof_2.png)
 
@@ -55,8 +59,8 @@ For example:
   layer and calculate the commitment which should match the leaf in red (in the
   above diagram)
 - we use the inclusion proof (in green) to verify the txs for chain C were
-  included in the action tree
-- we verify a proof of inclusion of "commitment tx" (action tree root) inside
+  included in the rollup data merkle tree
+- we verify a proof of inclusion of "commitment tx" (rollup data tree root) inside
   the block header's `data_hash`
 - we verify that `data_hash` was correctly included in the block's `block_hash`
 - verify `block_hash`'s cometbft >2/3 commitment
@@ -68,8 +72,8 @@ staking power of the sequencer chain.
 
 Additionally, the commitment to the actions for a chain actually also includes a
 merkle root. The commitment contains of the merkle root of a tree where where
-the leaves are the transactions for that rollup; ie. all the `sequence::Action`s
-for that chain. "Commitment to actions for chain X" is implemented as `(chain_id
+the leaves are the transactions for that rollup; ie. all the `RollupDataSubmission`
+actions for that chain. "Commitment to actions for chain X" is implemented as `(chain_id
 || root of tx tree for rollup)`, allowing for easy verification that a specific
 rollup transaction was included in a sequencer block. This isn't required for
 any specific conductor logic, but nice for applications building on top of the

@@ -12,7 +12,7 @@ use astria_conductor::{
 };
 use astria_core::{
     brotli::compress_bytes,
-    generated::{
+    generated::astria::{
         execution::v1::{
             Block,
             CommitmentState,
@@ -179,7 +179,7 @@ impl TestConductor {
     pub async fn mount_get_block<S: serde::Serialize>(
         &self,
         expected_pbjson: S,
-        block: astria_core::generated::execution::v1::Block,
+        block: astria_core::generated::astria::execution::v1::Block,
     ) {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
@@ -306,7 +306,7 @@ impl TestConductor {
     }
 
     pub async fn mount_get_genesis_info(&self, genesis_info: GenesisInfo) {
-        use astria_core::generated::execution::v1::GetGenesisInfoRequest;
+        use astria_core::generated::astria::execution::v1::GetGenesisInfoRequest;
         astria_grpc_mock::Mock::for_rpc_given(
             "get_genesis_info",
             astria_grpc_mock::matcher::message_type::<GetGenesisInfoRequest>(),
@@ -318,7 +318,7 @@ impl TestConductor {
     }
 
     pub async fn mount_get_commitment_state(&self, commitment_state: CommitmentState) {
-        use astria_core::generated::execution::v1::GetCommitmentStateRequest;
+        use astria_core::generated::astria::execution::v1::GetCommitmentStateRequest;
 
         astria_grpc_mock::Mock::for_rpc_given(
             "get_commitment_state",
@@ -381,7 +381,7 @@ impl TestConductor {
         commitment_state: CommitmentState,
         expected_calls: u64,
     ) -> astria_grpc_mock::MockGuard {
-        use astria_core::generated::execution::v1::UpdateCommitmentStateRequest;
+        use astria_core::generated::astria::execution::v1::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
@@ -567,7 +567,7 @@ pub struct Blobs {
 
 #[must_use]
 pub fn make_blobs(heights: &[u32]) -> Blobs {
-    use astria_core::generated::sequencerblock::v1::{
+    use astria_core::generated::astria::sequencerblock::v1::{
         SubmittedMetadataList,
         SubmittedRollupDataList,
     };

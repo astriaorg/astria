@@ -1,4 +1,3 @@
-mod action_handler;
 #[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
@@ -22,7 +21,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1 as raw,
+    generated::astria::protocol::transaction::v1 as raw,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1::GenesisAppState,
@@ -82,17 +81,18 @@ use tracing::{
     instrument,
 };
 
-pub(crate) use self::{
-    action_handler::ActionHandler,
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+pub(crate) use self::state_ext::{
+    StateReadExt,
+    StateWriteExt,
 };
 use crate::{
     accounts::{
         component::AccountsComponent,
         StateWriteExt as _,
+    },
+    action_handler::{
+        impls::transaction::InvalidNonce,
+        ActionHandler as _,
     },
     address::StateWriteExt as _,
     assets::StateWriteExt as _,
@@ -127,7 +127,6 @@ use crate::{
             GeneratedCommitments,
         },
     },
-    transaction::InvalidNonce,
 };
 
 // ephemeral store key for the cache of results of executing of transactions in `prepare_proposal`.
@@ -1175,7 +1174,16 @@ impl App {
                     .iter()
                     .any(|act| act.is_fee_asset_change() || act.is_fee_change());
 
-        Ok(state_tx.apply().1)
+        // index all event attributes
+        let mut events = state_tx.apply().1;
+        for event in &mut events {
+            event
+                .attributes
+                .iter_mut()
+                .for_each(|attr| attr.index = true);
+        }
+
+        Ok(events)
     }
 
     #[instrument(name = "App::end_block", skip_all)]

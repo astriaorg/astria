@@ -4,13 +4,11 @@ use astria_core::{
     crypto::SigningKey,
     primitive::v1::{
         asset,
+        Address,
         RollupId,
     },
     protocol::{
-        fees::v1::{
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-        },
+        fees::v1::FeeComponents,
         genesis::v1::GenesisAppState,
         transaction::v1::{
             action::{
@@ -39,6 +37,10 @@ use cnidarium::{
 use super::test_utils::get_alice_signing_key;
 use crate::{
     accounts::StateReadExt as _,
+    action_handler::{
+        impls::transaction::InvalidChainId,
+        ActionHandler as _,
+    },
     app::{
         benchmark_and_test_utils::{
             BOB_ADDRESS,
@@ -48,7 +50,7 @@ use crate::{
             get_bridge_signing_key,
             initialize_app,
         },
-        ActionHandler as _,
+        InvalidNonce,
     },
     authority::StateReadExt as _,
     benchmark_and_test_utils::{
@@ -68,24 +70,24 @@ use crate::{
     },
     ibc::StateReadExt as _,
     test_utils::calculate_rollup_data_submission_fee_from_state,
-    transaction::{
-        InvalidChainId,
-        InvalidNonce,
-    },
     utils::create_deposit_event,
 };
 
-fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState {
-    astria_core::generated::protocol::genesis::v1::GenesisAppState {
+fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
+    astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
         authority_sudo_address: Some(
-            get_alice_signing_key()
-                .try_address(ASTRIA_PREFIX)
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(get_alice_signing_key().address_bytes())
+                .try_build()
                 .unwrap()
                 .to_raw(),
         ),
         ibc_sudo_address: Some(
-            get_alice_signing_key()
-                .try_address(ASTRIA_PREFIX)
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(get_alice_signing_key().address_bytes())
+                .try_build()
                 .unwrap()
                 .to_raw(),
         ),
@@ -136,11 +138,11 @@ async fn app_execute_transaction_transfer() {
     );
     let transfer_base = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -208,11 +210,11 @@ async fn app_execute_transaction_transfer_not_native_token() {
 
     let transfer_base = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -275,10 +277,7 @@ async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
-            base: 0,
-            multiplier: 1,
-        })
+        .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 1))
         .unwrap();
     app.apply(state_tx);
 
@@ -613,10 +612,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let mut state_tx = StateDelta::new(app.state.clone());
     let fee = 12; // arbitrary
     state_tx
-        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
-            base: fee,
-            multiplier: 0,
-        })
+        .put_fees(FeeComponents::<InitBridgeAccount>::new(fee, 0))
         .unwrap();
     app.apply(state_tx);
 
@@ -1009,11 +1005,11 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     // unlock transfer action
     let transfer_base = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     state_tx
         .put_account_balance(&bridge_address, &nria(), transfer_base)
         .unwrap();
@@ -1277,4 +1273,55 @@ async fn transaction_execution_records_fee_event() {
     assert_eq!(event.attributes[1].key, "asset");
     assert_eq!(event.attributes[2].key, "feeAmount");
     assert_eq!(event.attributes[3].key, "positionInTransaction");
+}
+
+#[tokio::test]
+async fn ensure_all_event_attributes_are_indexed() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+
+    let alice = get_alice_signing_key();
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+    let value = 333_333;
+    state_tx
+        .put_bridge_account_rollup_id(&bob_address, [0; 32].into())
+        .unwrap();
+    state_tx.put_allowed_fee_asset(&nria()).unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bob_address, nria())
+        .unwrap();
+    app.apply(state_tx);
+
+    let transfer_action = Transfer {
+        to: bob_address,
+        amount: value,
+        asset: nria().into(),
+        fee_asset: nria().into(),
+    };
+    let bridge_lock_action = BridgeLock {
+        to: bob_address,
+        amount: 1,
+        asset: nria().into(),
+        fee_asset: nria().into(),
+        destination_chain_address: "test_chain_address".to_string(),
+    };
+    let tx = TransactionBody::builder()
+        .actions(vec![transfer_action.into(), bridge_lock_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice));
+    let events = app.execute_transaction(signed_tx).await.unwrap();
+
+    events
+        .iter()
+        .flat_map(|event| &event.attributes)
+        .for_each(|attribute| {
+            assert!(
+                attribute.index,
+                "attribute {} is not indexed",
+                attribute.key,
+            );
+        });
 }
