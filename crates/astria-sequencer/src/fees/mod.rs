@@ -91,8 +91,16 @@ pub(crate) trait FeeHandler: Send {
     /// The snake-case type name, e.g. `rollup_data_submission`.
     fn snake_case_name() -> &'static str;
 
+    /// The variable value derived from `self` which is multiplied by the `multiplier` of the
+    /// `FeeComponents` for this action to produce the variable portion of the total fees for this
+    /// action.
+    ///
+    /// Many actions have fixed fees, meaning this method returns `0`.
     fn variable_component(&self) -> u128;
 
+    /// The asset to be used to pay the fees.
+    ///
+    /// If this method returns `None`, the action is free.
     fn fee_asset(&self) -> Option<&asset::Denom>;
 
     #[instrument(skip_all, err(level = Level::WARN))]
