@@ -76,8 +76,8 @@ use crate::{
     utils::create_deposit_event,
 };
 
-fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState {
-    astria_core::generated::protocol::genesis::v1::GenesisAppState {
+fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
+    astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
         authority_sudo_address: Some(
             Address::builder()
                 .prefix(ASTRIA_PREFIX)

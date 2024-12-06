@@ -347,9 +347,7 @@ async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
             .wrap_err("failed to check allowed fee assets in state")?,
         "invalid fee asset",
     );
-    state
-        .add_fee_to_block_fees::<_, T>(fee_asset, total_fees, position_in_transaction)
-        .wrap_err("failed to add to block fees")?;
+    state.add_fee_to_block_fees::<_, T>(fee_asset, total_fees, position_in_transaction);
     state
         .decrease_balance(&from, fee_asset, total_fees)
         .await

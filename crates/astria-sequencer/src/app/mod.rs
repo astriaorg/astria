@@ -21,7 +21,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1 as raw,
+    generated::astria::protocol::transaction::v1 as raw,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1::GenesisAppState,
