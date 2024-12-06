@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to `astria_core::generated::astria`
   [#1825](https://github.com/astriaorg/astria/pull/1825)
 
+### Changed
+
+- Move all Astria APIs generated from the Protobuf spec from `astria_core::generated`
+  to `astria_core::generated::astria`
+  [#1825](https://github.com/astriaorg/astria/pull/1825)
+
 ### Removed
 
 - Removed method `TracePrefixed::last_channel` [#1768](https://github.com/astriaorg/astria/pull/1768)
