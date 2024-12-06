@@ -205,9 +205,10 @@ fn get_buf_from_env() -> PathBuf {
         _other =>  "Check if there is a precompiled version for your OS at https://github.com/bufbuild/buf/releases"
     };
     let error_msg = "Could not find `buf` installation and this build crate cannot proceed \
-                     without this knowledge. If `buf` is installed and this crate had trouble \
-                     finding it, you can set the `BUF` environment variable with the specific \
-                     path to your installed `buf` binary.";
+                     without
+    this knowledge. If `buf` is installed and this crate had trouble finding
+    it, you can set the `BUF` environment variable with the specific path to your
+    installed `buf` binary.";
     let msg = format!("{error_msg} {os_specific_hint}");
 
     env::var_os("BUF")
@@ -217,25 +218,23 @@ fn get_buf_from_env() -> PathBuf {
 }
 
 fn purge_out_dir(path: impl AsRef<Path>) {
-    let read_dir_msg = format!(
-        "should be able to read generated file out dir files `{}`",
-        path.as_ref().display()
-    );
-    let entry_msg = format!(
-        "every entry in generated file out dir `{}` should have a name",
-        path.as_ref().display()
-    );
-    let remove_msg = format!(
-        "all entries in the generated file out dir should `{}` should be files, and the out dir \
-         is expected to have read, write, execute permissions set",
-        path.as_ref().display()
-    );
-    for entry in read_dir(path).expect(&read_dir_msg).flatten() {
+    for entry in read_dir(path)
+        .expect("should be able to read target folder for generated files")
+        .flatten()
+    {
         // skip mod.rs as it's assumed to be the only non-generated file in the out dir.
-        if entry.path().file_name().expect(&entry_msg) == "mod.rs" {
+        if entry
+            .path()
+            .file_name()
+            .expect("every entry in the generated file out dir should have a name")
+            == "mod.rs"
+        {
             continue;
         }
 
-        std::fs::remove_file(entry.path()).expect(&remove_msg);
+        std::fs::remove_file(entry.path()).expect(
+            "all entries in the out dir should be generated files, and the out dir is expected to \
+             have read, write, execute permissions set",
+        );
     }
 }

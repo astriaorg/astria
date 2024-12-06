@@ -40,12 +40,14 @@ _crate_short_name crate quiet="":
   #!/usr/bin/env sh
   set -eu
   case {{crate}} in
+    astria-auctioneer) short_name=auctioneer ;;
     astria-bridge-withdrawer) short_name=bridge-withdrawer ;;
     astria-cli) short_name=astria-cli ;;
     astria-composer) short_name=composer ;;
     astria-conductor) short_name=conductor ;;
     astria-sequencer) short_name=sequencer ;;
     astria-sequencer-relayer) short_name=sequencer-relayer ;;
+    astria-auctioneer) short_name=auctioneer ;;
     *) echo "{{crate}} is not a supported binary" && exit 2
   esac
   [ -z {{quiet}} ] && echo $short_name || true
