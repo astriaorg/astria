@@ -515,18 +515,20 @@ impl RunningReader {
         match self.executor.try_send_firm_block(block) {
             Ok(()) => self.advance_reference_celestia_height(celestia_height),
             Err(FirmTrySendError::Channel {
-                source: mpsc::error::TrySendError::Full(block),
-            }) => {
-                trace!(
-                    "executor channel is full; rescheduling block fetch until the channel opens up"
-                );
-                self.enqueued_block = enqueue_block(self.executor.clone(), block).boxed().fuse();
-            }
-
-            Err(FirmTrySendError::Channel {
-                source: mpsc::error::TrySendError::Closed(_),
-            }) => bail!("exiting because executor channel is closed"),
-
+                source,
+            }) => match *source {
+                mpsc::error::TrySendError::Full(block) => {
+                    trace!(
+                        "executor channel is full; rescheduling block fetch until the channel \
+                         opens up"
+                    );
+                    self.enqueued_block =
+                        enqueue_block(self.executor.clone(), block).boxed().fuse();
+                }
+                mpsc::error::TrySendError::Closed(_) => {
+                    bail!("exiting because executor channel is closed");
+                }
+            },
             Err(FirmTrySendError::NotSet) => bail!(
                 "exiting because executor was configured without firm commitments; this Celestia \
                  reader should have never been started"
