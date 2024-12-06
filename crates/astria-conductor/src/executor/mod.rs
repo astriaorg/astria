@@ -153,7 +153,7 @@ impl Handle<StateIsInit> {
         Ok(())
     }
 
-    // TODO(search_here): box the large variant to avoid large error size
+    // TODO(https://github.com/astriaorg/astria/issues/1858): box the large variant to avoid large error size
     #[expect(clippy::result_large_err, reason = "should be fixed")]
     pub(crate) fn try_send_firm_block(
         &self,
