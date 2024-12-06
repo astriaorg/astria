@@ -263,7 +263,7 @@ async fn should_filter_rollup() {
         ..Default::default()
     }
     .make();
-    let block_to_mount = SequencerBlockToMount::Block(block);
+    let block_to_mount = SequencerBlockToMount::Block(Box::new(block));
 
     sequencer_relayer.mount_abci_response(1).await;
     sequencer_relayer
