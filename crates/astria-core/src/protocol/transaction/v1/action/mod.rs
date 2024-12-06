@@ -11,6 +11,10 @@ use prost::Name as _;
 
 use super::raw;
 use crate::{
+    connect::types::v2::{
+        CurrencyPair,
+        CurrencyPairError,
+    },
     primitive::v1::{
         asset::{
             self,
@@ -64,6 +68,8 @@ pub enum Action {
     BridgeUnlock(BridgeUnlock),
     BridgeSudoChange(BridgeSudoChange),
     FeeChange(FeeChange),
+    AddCurrencyPairs(AddCurrencyPairs),
+    RemoveCurrencyPairs(RemoveCurrencyPairs),
 }
 
 impl Protobuf for Action {
@@ -88,6 +94,8 @@ impl Protobuf for Action {
             Action::BridgeUnlock(act) => Value::BridgeUnlock(act.to_raw()),
             Action::BridgeSudoChange(act) => Value::BridgeSudoChange(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChange(act.to_raw()),
+            Action::AddCurrencyPairs(act) => Value::AddCurrencyPairs(act.to_raw()),
+            Action::RemoveCurrencyPairs(act) => Value::RemoveCurrencyPairs(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -161,6 +169,12 @@ impl Protobuf for Action {
             Value::FeeChange(act) => {
                 Self::FeeChange(FeeChange::try_from_raw_ref(&act).map_err(Error::fee_change)?)
             }
+            Value::AddCurrencyPairs(act) => Self::AddCurrencyPairs(
+                AddCurrencyPairs::try_from_raw(act).map_err(Error::add_currency_pairs)?,
+            ),
+            Value::RemoveCurrencyPairs(act) => Self::RemoveCurrencyPairs(
+                RemoveCurrencyPairs::try_from_raw(act).map_err(Error::remove_currency_pairs)?,
+            ),
         };
         Ok(action)
     }
@@ -308,6 +322,8 @@ impl ActionName for Action {
             Action::BridgeUnlock(_) => "BridgeUnlock",
             Action::BridgeSudoChange(_) => "BridgeSudoChange",
             Action::FeeChange(_) => "FeeChange",
+            Action::AddCurrencyPairs(_) => "AddCurrencyPairs",
+            Action::RemoveCurrencyPairs(_) => "RemoveCurrencyPairs",
         }
     }
 }
@@ -376,6 +392,14 @@ impl Error {
     fn fee_change(inner: FeeChangeError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
+
+    fn add_currency_pairs(inner: AddCurrencyPairsError) -> Self {
+        Self(ActionErrorKind::AddCurrencyPairs(inner))
+    }
+
+    fn remove_currency_pairs(inner: RemoveCurrencyPairsError) -> Self {
+        Self(ActionErrorKind::RemoveCurrencyPairs(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -410,6 +434,10 @@ enum ActionErrorKind {
     BridgeSudoChange(#[source] BridgeSudoChangeError),
     #[error("fee change action was not valid")]
     FeeChange(#[source] FeeChangeError),
+    #[error("add currency pairs action was not valid")]
+    AddCurrencyPairs(#[source] AddCurrencyPairsError),
+    #[error("remove currency pairs action was not valid")]
+    RemoveCurrencyPairs(#[source] RemoveCurrencyPairsError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -2071,4 +2099,140 @@ impl Protobuf for FeeChange {
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct AddCurrencyPairs {
+    pub pairs: Vec<CurrencyPair>,
+}
+
+impl Protobuf for AddCurrencyPairs {
+    type Error = AddCurrencyPairsError;
+    type Raw = raw::AddCurrencyPairs;
+
+    #[must_use]
+    fn into_raw(self) -> raw::AddCurrencyPairs {
+        raw::AddCurrencyPairs {
+            pairs: self.pairs.into_iter().map(CurrencyPair::into_raw).collect(),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::AddCurrencyPairs {
+        raw::AddCurrencyPairs {
+            pairs: self.pairs.iter().map(CurrencyPair::to_raw).collect(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::AddCurrencyPairsAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if any of the `pairs` field is invalid
+    fn try_from_raw(proto: raw::AddCurrencyPairs) -> Result<Self, AddCurrencyPairsError> {
+        let pairs = proto
+            .pairs
+            .into_iter()
+            .map(CurrencyPair::try_from_raw)
+            .collect::<Result<_, _>>()
+            .map_err(AddCurrencyPairsError::invalid_currency_pair)?;
+        Ok(Self {
+            pairs,
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::AddCurrencyPairsAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if any of the `pairs` field is invalid
+    fn try_from_raw_ref(proto: &raw::AddCurrencyPairs) -> Result<Self, AddCurrencyPairsError> {
+        Self::try_from_raw(proto.clone())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct AddCurrencyPairsError(AddCurrencyPairsErrorKind);
+
+impl AddCurrencyPairsError {
+    #[must_use]
+    fn invalid_currency_pair(err: CurrencyPairError) -> Self {
+        Self(AddCurrencyPairsErrorKind::InvalidCurrencyPair(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum AddCurrencyPairsErrorKind {
+    #[error("a currency pair was invalid")]
+    InvalidCurrencyPair(#[from] CurrencyPairError),
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoveCurrencyPairs {
+    pub pairs: Vec<CurrencyPair>,
+}
+
+impl Protobuf for RemoveCurrencyPairs {
+    type Error = RemoveCurrencyPairsError;
+    type Raw = raw::RemoveCurrencyPairs;
+
+    #[must_use]
+    fn into_raw(self) -> raw::RemoveCurrencyPairs {
+        raw::RemoveCurrencyPairs {
+            pairs: self.pairs.into_iter().map(CurrencyPair::into_raw).collect(),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::RemoveCurrencyPairs {
+        raw::RemoveCurrencyPairs {
+            pairs: self.pairs.iter().map(CurrencyPair::to_raw).collect(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::RemoveCurrencyPairsAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if any of the `pairs` field is invalid
+    fn try_from_raw(proto: raw::RemoveCurrencyPairs) -> Result<Self, RemoveCurrencyPairsError> {
+        let pairs = proto
+            .pairs
+            .into_iter()
+            .map(CurrencyPair::try_from_raw)
+            .collect::<Result<_, _>>()
+            .map_err(RemoveCurrencyPairsError::invalid_currency_pair)?;
+        Ok(Self {
+            pairs,
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::RemoveCurrencyPairsAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if any of the `pairs` field is invalid
+    fn try_from_raw_ref(
+        proto: &raw::RemoveCurrencyPairs,
+    ) -> Result<Self, RemoveCurrencyPairsError> {
+        Self::try_from_raw(proto.clone())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct RemoveCurrencyPairsError(RemoveCurrencyPairsErrorKind);
+
+impl RemoveCurrencyPairsError {
+    #[must_use]
+    fn invalid_currency_pair(err: CurrencyPairError) -> Self {
+        Self(RemoveCurrencyPairsErrorKind::InvalidCurrencyPair(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum RemoveCurrencyPairsErrorKind {
+    #[error("a currency pair was invalid")]
+    InvalidCurrencyPair(#[from] CurrencyPairError),
 }

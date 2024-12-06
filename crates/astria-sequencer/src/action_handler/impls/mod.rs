@@ -1,3 +1,4 @@
+pub(crate) mod add_currency_pairs;
 pub(crate) mod bridge_lock;
 pub(crate) mod bridge_sudo_change;
 pub(crate) mod bridge_unlock;

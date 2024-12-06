@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 61, 62"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -46,6 +46,11 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
+        /// Oracle actions are defined on 61-70
+        #[prost(message, tag = "61")]
+        AddCurrencyPairs(super::AddCurrencyPairs),
+        #[prost(message, tag = "62")]
+        RemoveCurrencyPairs(super::RemoveCurrencyPairs),
     }
 }
 impl ::prost::Name for Action {
@@ -459,6 +464,36 @@ pub struct IbcSudoChange {
 }
 impl ::prost::Name for IbcSudoChange {
     const NAME: &'static str = "IbcSudoChange";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AddCurrencyPairs {
+    #[prost(message, repeated, tag = "1")]
+    pub pairs: ::prost::alloc::vec::Vec<
+        super::super::super::super::connect::types::v2::CurrencyPair,
+    >,
+}
+impl ::prost::Name for AddCurrencyPairs {
+    const NAME: &'static str = "AddCurrencyPairs";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RemoveCurrencyPairs {
+    #[prost(message, repeated, tag = "1")]
+    pub pairs: ::prost::alloc::vec::Vec<
+        super::super::super::super::connect::types::v2::CurrencyPair,
+    >,
+}
+impl ::prost::Name for RemoveCurrencyPairs {
+    const NAME: &'static str = "RemoveCurrencyPairs";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
