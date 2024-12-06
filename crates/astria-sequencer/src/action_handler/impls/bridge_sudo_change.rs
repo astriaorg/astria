@@ -83,7 +83,7 @@ mod tests {
     use astria_core::{
         primitive::v1::TransactionId,
         protocol::{
-            fees::v1::BridgeSudoChangeFeeComponents,
+            fees::v1::FeeComponents,
             transaction::v1::action::BridgeSudoChange,
         },
     };
@@ -164,10 +164,7 @@ mod tests {
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         state
-            .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
-                base: 10,
-                multiplier: 0,
-            })
+            .put_fees(FeeComponents::<BridgeSudoChange>::new(10, 0))
             .unwrap();
 
         let fee_asset = test_asset();

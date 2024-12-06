@@ -1,0 +1,5 @@
+---
+source: crates/astria-core/src/protocol/abci.rs
+expression: error_code
+---
+15: there is already a transaction with the same nonce for the account in the mempool

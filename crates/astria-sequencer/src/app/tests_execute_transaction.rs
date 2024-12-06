@@ -8,10 +8,7 @@ use astria_core::{
         RollupId,
     },
     protocol::{
-        fees::v1::{
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-        },
+        fees::v1::FeeComponents,
         genesis::v1::GenesisAppState,
         transaction::v1::{
             action::{
@@ -141,11 +138,11 @@ async fn app_execute_transaction_transfer() {
     );
     let transfer_base = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -213,11 +210,11 @@ async fn app_execute_transaction_transfer_not_native_token() {
 
     let transfer_base = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -280,10 +277,7 @@ async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
-            base: 0,
-            multiplier: 1,
-        })
+        .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 1))
         .unwrap();
     app.apply(state_tx);
 
@@ -618,10 +612,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let mut state_tx = StateDelta::new(app.state.clone());
     let fee = 12; // arbitrary
     state_tx
-        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
-            base: fee,
-            multiplier: 0,
-        })
+        .put_fees(FeeComponents::<InitBridgeAccount>::new(fee, 0))
         .unwrap();
     app.apply(state_tx);
 
@@ -1014,11 +1005,11 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     // unlock transfer action
     let transfer_base = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     state_tx
         .put_account_balance(&bridge_address, &nria(), transfer_base)
         .unwrap();

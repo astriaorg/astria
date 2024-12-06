@@ -1,8 +1,8 @@
 use astria_core::{
     primitive::v1::asset,
-    protocol::transaction::{
-        self,
-        v1::action::{
+    protocol::{
+        fees::v1::FeeComponents,
+        transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
@@ -10,6 +10,7 @@ use astria_core::{
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
+            Ics20Withdrawal,
             InitBridgeAccount,
             RollupDataSubmission,
             SudoAddressChange,
@@ -22,11 +23,13 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     ensure,
-    OptionExt as _,
+    eyre,
+    Report,
     WrapErr as _,
 };
 use cnidarium::StateWrite;
 use penumbra_ibc::IbcRelay;
+use prost::Name;
 use tracing::{
     instrument,
     Level,
@@ -50,16 +53,11 @@ pub(crate) use state_ext::{
     StateWriteExt,
 };
 
+use crate::storage::StoredValue;
+
 /// The base byte length of a deposit, as determined by
 /// [`tests::get_base_deposit_fee()`].
 const DEPOSIT_BASE_FEE: u128 = 16;
-
-#[async_trait::async_trait]
-pub(crate) trait FeeHandler {
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()>;
-
-    fn variable_component(&self) -> u128;
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Fee {
@@ -80,279 +78,384 @@ impl Fee {
 }
 
 #[async_trait::async_trait]
-impl FeeHandler for Transfer {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fees = state
-            .get_transfer_fees()
-            .await
-            .wrap_err("error fetching transfer fees")?
-            .ok_or_eyre("transfer fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
-    }
+pub(crate) trait FeeHandler: Send {
+    /// The Pascal-case type name, e.g. `RollupDataSubmission`.
+    // NOTE: We only require this function due to `IbcRelay` not implementing `Protobuf`.
+    fn name() -> &'static str;
 
-    #[instrument(skip_all)]
-    fn variable_component(&self) -> u128 {
-        0
+    /// The full name including the protobuf package, e.g.
+    /// `astria.protocol.transaction.v1.RollupDataSubmission`.
+    // NOTE: We only require this function due to `IbcRelay` not implementing `Protobuf`.
+    fn full_name() -> String;
+
+    /// The snake-case type name, e.g. `rollup_data_submission`.
+    fn snake_case_name() -> &'static str;
+
+    /// The variable value derived from `self` which is multiplied by the `multiplier` of the
+    /// `FeeComponents` for this action to produce the variable portion of the total fees for this
+    /// action.
+    ///
+    /// Many actions have fixed fees, meaning this method returns `0`.
+    fn variable_component(&self) -> u128;
+
+    /// The asset to be used to pay the fees.
+    ///
+    /// If this method returns `None`, the action is free.
+    fn fee_asset(&self) -> Option<&asset::Denom>;
+
+    #[instrument(skip_all, err(level = Level::WARN))]
+    async fn check_and_pay_fees<'a, S>(&self, mut state: S) -> eyre::Result<()>
+    where
+        S: StateWrite,
+        FeeComponents<Self>: TryFrom<StoredValue<'a>, Error = Report>,
+    {
+        let fees = state
+            .get_fees::<Self>()
+            .await
+            .wrap_err_with(|| format!("error fetching {} fees", Self::name()))?
+            .ok_or_else(|| {
+                eyre!(
+                    "{} fees not found, so this action is disabled",
+                    Self::name()
+                )
+            })?;
+        let Some(fee_asset) = self.fee_asset() else {
+            // If the action has no associated fee asset, there are no fees to pay.
+            return Ok(());
+        };
+
+        ensure!(
+            state
+                .is_allowed_fee_asset(fee_asset)
+                .await
+                .wrap_err("failed to check allowed fee assets in state")?,
+            "invalid fee asset",
+        );
+
+        let variable_fee = self.variable_component().saturating_mul(fees.multiplier());
+        let total_fees = fees.base().saturating_add(variable_fee);
+        let transaction_context = state
+            .get_transaction_context()
+            .expect("transaction source must be present in state when executing an action");
+        let from = transaction_context.address_bytes();
+        let position_in_transaction = transaction_context.position_in_transaction;
+
+        state.add_fee_to_block_fees::<_, Self>(fee_asset, total_fees, position_in_transaction);
+        state
+            .decrease_balance(&from, fee_asset, total_fees)
+            .await
+            .wrap_err("failed to decrease balance for fee payment")?;
+        Ok(())
     }
 }
 
-#[async_trait::async_trait]
-impl FeeHandler for BridgeLock {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fees = state
-            .get_bridge_lock_fees()
-            .await
-            .wrap_err("error fetching bridge lock fees")?
-            .ok_or_eyre("bridge lock fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+impl FeeHandler for Transfer {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
     }
 
-    #[instrument(skip_all)]
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "transfer"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        Some(&self.fee_asset)
+    }
+}
+
+impl FeeHandler for BridgeLock {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "bridge_lock"
+    }
+
     fn variable_component(&self) -> u128 {
         base_deposit_fee(&self.asset, &self.destination_chain_address)
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        Some(&self.fee_asset)
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for BridgeSudoChange {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fees = state
-            .get_bridge_sudo_change_fees()
-            .await
-            .wrap_err("error fetching bridge sudo change fees")?
-            .ok_or_eyre("bridge sudo change fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
     }
 
-    #[instrument(skip_all)]
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "bridge_sudo_change"
+    }
+
     fn variable_component(&self) -> u128 {
         0
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        Some(&self.fee_asset)
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for BridgeUnlock {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fees = state
-            .get_bridge_unlock_fees()
-            .await
-            .wrap_err("error fetching bridge unlock fees")?
-            .ok_or_eyre("bridge unlock fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
     }
 
-    #[instrument(skip_all)]
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "bridge_unlock"
+    }
+
     fn variable_component(&self) -> u128 {
         0
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        Some(&self.fee_asset)
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for InitBridgeAccount {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fees = state
-            .get_init_bridge_account_fees()
-            .await
-            .wrap_err("error fetching init bridge account fees")?
-            .ok_or_eyre("init bridge account fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
     }
 
-    #[instrument(skip_all)]
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "init_bridge_account"
+    }
+
     fn variable_component(&self) -> u128 {
         0
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        Some(&self.fee_asset)
+    }
 }
 
-#[async_trait::async_trait]
-impl FeeHandler for transaction::v1::action::Ics20Withdrawal {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fees = state
-            .get_ics20_withdrawal_fees()
-            .await
-            .wrap_err("error fetching ics20 withdrawal fees")?
-            .ok_or_eyre("ics20 withdrawal fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+impl FeeHandler for Ics20Withdrawal {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
     }
 
-    #[instrument(skip_all)]
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "ics20_withdrawal"
+    }
+
     fn variable_component(&self) -> u128 {
         0
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        Some(&self.fee_asset)
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for RollupDataSubmission {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        let fees = state
-            .get_rollup_data_submission_fees()
-            .await
-            .wrap_err("error fetching rollup data submission fees")?
-            .ok_or_eyre("rollup data submission fees not found, so this action is disabled")?;
-        check_and_pay_fees(self, fees.base, fees.multiplier, state, &self.fee_asset).await
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
     }
 
-    #[instrument(skip_all)]
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "rollup_data_submission"
+    }
+
     fn variable_component(&self) -> u128 {
         u128::try_from(self.data.len())
             .expect("converting a usize to a u128 should work on any currently existing machine")
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        Some(&self.fee_asset)
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for ValidatorUpdate {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        state
-            .get_validator_update_fees()
-            .await
-            .wrap_err("error fetching validator update fees")?
-            .ok_or_eyre("validator update fees not found, so this action is disabled")?;
-        Ok(())
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "validator_update"
     }
 
     fn variable_component(&self) -> u128 {
         0
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for SudoAddressChange {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        state
-            .get_sudo_address_change_fees()
-            .await
-            .wrap_err("error fetching sudo address change fees")?
-            .ok_or_eyre("sudo address change fees not found, so this action is disabled")?;
-        Ok(())
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "sudo_address_change"
     }
 
     fn variable_component(&self) -> u128 {
         0
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for FeeChange {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        state
-            .get_fee_change_fees()
-            .await
-            .wrap_err("error fetching fee change fees")?
-            .ok_or_eyre("fee change fees not found, so this action is disabled")?;
-        Ok(())
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "fee_change"
     }
 
     fn variable_component(&self) -> u128 {
         0
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for IbcSudoChange {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        state
-            .get_ibc_sudo_change_fees()
-            .await
-            .wrap_err("error fetching ibc sudo change fees")?
-            .ok_or_eyre("ibc sudo change fees not found, so this action is disabled")?;
-        Ok(())
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "ibc_sudo_change"
     }
 
     fn variable_component(&self) -> u128 {
         0
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for IbcRelayerChange {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        state
-            .get_ibc_relayer_change_fees()
-            .await
-            .wrap_err("error fetching ibc relayer change fees")?
-            .ok_or_eyre("ibc relayer change fees not found, so this action is disabled")?;
-        Ok(())
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "ibc_relayer_change"
     }
 
     fn variable_component(&self) -> u128 {
         0
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for FeeAssetChange {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        state
-            .get_fee_asset_change_fees()
-            .await
-            .wrap_err("error fetching fee asset change fees")?
-            .ok_or_eyre("fee asset change fees not found, so this action is disabled")?;
-        Ok(())
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "fee_asset_change"
     }
 
     fn variable_component(&self) -> u128 {
         0
     }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
 }
 
-#[async_trait::async_trait]
 impl FeeHandler for IbcRelay {
-    #[instrument(skip_all, err)]
-    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
-        state
-            .get_ibc_relay_fees()
-            .await
-            .wrap_err("error fetching ibc relay fees")?
-            .ok_or_eyre("ibc relay fees not found, so this action is disabled")?;
-        Ok(())
+    fn name() -> &'static str {
+        penumbra_proto::penumbra::core::component::ibc::v1::IbcRelay::NAME
+    }
+
+    fn full_name() -> String {
+        penumbra_proto::penumbra::core::component::ibc::v1::IbcRelay::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "ibc_relay"
     }
 
     fn variable_component(&self) -> u128 {
         0
     }
-}
 
-#[instrument(skip_all, err(level = Level::WARN))]
-async fn check_and_pay_fees<S: StateWrite, T: FeeHandler + Protobuf>(
-    act: &T,
-    base: u128,
-    multiplier: u128,
-    mut state: S,
-    fee_asset: &asset::Denom,
-) -> eyre::Result<()> {
-    let total_fees = base.saturating_add(act.variable_component().saturating_mul(multiplier));
-    let transaction_context = state
-        .get_transaction_context()
-        .expect("transaction source must be present in state when executing an action");
-    let from = transaction_context.address_bytes();
-    let position_in_transaction = transaction_context.position_in_transaction;
-
-    ensure!(
-        state
-            .is_allowed_fee_asset(fee_asset)
-            .await
-            .wrap_err("failed to check allowed fee assets in state")?,
-        "invalid fee asset",
-    );
-    state.add_fee_to_block_fees::<_, T>(fee_asset, total_fees, position_in_transaction);
-    state
-        .decrease_balance(&from, fee_asset, total_fees)
-        .await
-        .wrap_err("failed to decrease balance for fee payment")?;
-    Ok(())
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
 }
 
 /// Returns a modified byte length of the deposit event. Length is calculated with reasonable values

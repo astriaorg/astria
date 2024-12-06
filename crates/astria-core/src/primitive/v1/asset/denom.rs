@@ -792,10 +792,10 @@ mod serde_impl {
         }
         #[test]
         fn snapshots() {
-            insta::assert_json_snapshot!(ibc_prefixed());
-            insta::assert_json_snapshot!(trace_prefixed());
-            insta::assert_json_snapshot!(Denom::from(ibc_prefixed()));
-            insta::assert_json_snapshot!(Denom::from(trace_prefixed()));
+            insta::assert_json_snapshot!("ibc_prefixed", ibc_prefixed());
+            insta::assert_json_snapshot!("trace_prefixed", trace_prefixed());
+            insta::assert_json_snapshot!("ibc_prefixed_denom", Denom::from(ibc_prefixed()));
+            insta::assert_json_snapshot!("trace_prefixed_denom", Denom::from(trace_prefixed()));
         }
     }
 }
