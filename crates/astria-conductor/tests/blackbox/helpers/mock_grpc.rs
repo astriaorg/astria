@@ -3,8 +3,8 @@ use std::{
     sync::Arc,
 };
 
-use astria_core::generated::{
-    execution::v1alpha2::{
+use astria_core::generated::astria::{
+    execution::v1::{
         execution_service_server::{
             ExecutionService,
             ExecutionServiceServer,
@@ -20,13 +20,15 @@ use astria_core::generated::{
         GetGenesisInfoRequest,
         UpdateCommitmentStateRequest,
     },
-    sequencerblock::v1alpha1::{
+    sequencerblock::v1::{
         sequencer_service_server::{
             SequencerService,
             SequencerServiceServer,
         },
         FilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest,
+        GetPendingNonceResponse,
         GetSequencerBlockRequest,
         SequencerBlock,
     },
@@ -44,7 +46,7 @@ use tonic::{
 };
 
 pub struct MockGrpc {
-    pub _server: JoinHandle<eyre::Result<()>>,
+    _server: JoinHandle<eyre::Result<()>>,
     pub mock_server: MockServer,
     pub local_addr: SocketAddr,
 }
@@ -109,6 +111,13 @@ impl SequencerService for SequencerServiceImpl {
         self.mock_server
             .handle_request("get_filtered_sequencer_block", request)
             .await
+    }
+
+    async fn get_pending_nonce(
+        self: Arc<Self>,
+        _request: Request<GetPendingNonceRequest>,
+    ) -> tonic::Result<Response<GetPendingNonceResponse>> {
+        unimplemented!()
     }
 }
 

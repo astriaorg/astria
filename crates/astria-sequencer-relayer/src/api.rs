@@ -20,6 +20,7 @@ use http::status::StatusCode;
 use hyper::server::conn::AddrIncoming;
 use serde::Serialize;
 use tokio::sync::watch;
+use tracing::instrument;
 
 use crate::relayer;
 
@@ -50,7 +51,7 @@ pub(crate) fn start(socket_addr: SocketAddr, relayer_state: RelayerState) -> Api
     axum::Server::bind(&socket_addr).serve(app.into_make_service())
 }
 
-#[allow(clippy::unused_async)] // Permit because axum handlers must be async
+#[instrument(skip_all)]
 async fn get_healthz(State(relayer_state): State<RelayerState>) -> Healthz {
     if relayer_state.borrow().is_healthy() {
         Healthz::Ok
@@ -65,7 +66,7 @@ async fn get_healthz(State(relayer_state): State<RelayerState>) -> Healthz {
 ///
 /// + there is a current sequencer height (implying a block from sequencer was received)
 /// + there is a current data availability height (implying a height was received from the DA)
-#[allow(clippy::unused_async)] // Permit because axum handlers must be async
+#[instrument(skip_all)]
 async fn get_readyz(State(relayer_state): State<RelayerState>) -> Readyz {
     let is_relayer_online = relayer_state.borrow().is_ready();
     if is_relayer_online {
@@ -75,7 +76,7 @@ async fn get_readyz(State(relayer_state): State<RelayerState>) -> Readyz {
     }
 }
 
-#[allow(clippy::unused_async)] // Permit because axum handlers must be async
+#[instrument(skip_all)]
 async fn get_status(State(relayer_state): State<RelayerState>) -> Json<relayer::StateSnapshot> {
     Json(*relayer_state.borrow())
 }

@@ -2,7 +2,6 @@ use std::process::ExitCode;
 
 use astria_eyre::eyre::WrapErr as _;
 use astria_sequencer_relayer::{
-    metrics_init,
     Config,
     SequencerRelayer,
     BUILD_INFO,
@@ -30,22 +29,23 @@ async fn main() -> ExitCode {
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
         .set_pretty_print(cfg.pretty_print)
-        .filter_directives(&cfg.log);
+        .set_filter_directives(&cfg.log);
 
     if !cfg.no_metrics {
-        telemetry_conf = telemetry_conf
-            .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"))
-            .register_metrics(metrics_init::register);
+        telemetry_conf =
+            telemetry_conf.set_metrics(&cfg.metrics_http_listener_addr, env!("CARGO_PKG_NAME"));
     }
 
-    if let Err(e) = telemetry_conf
-        .try_init()
+    let (metrics, _telemetry_guard) = match telemetry_conf
+        .try_init(&())
         .wrap_err("failed to setup telemetry")
     {
-        eprintln!("initializing sequencer-relayer failed:\n{e:?}");
-        return ExitCode::FAILURE;
-    }
+        Err(e) => {
+            eprintln!("initializing sequencer-relayer failed:\n{e:?}");
+            return ExitCode::FAILURE;
+        }
+        Ok(metrics_and_guard) => metrics_and_guard,
+    };
 
     info!(
         config = %telemetry::display::json(&cfg),
@@ -55,10 +55,9 @@ async fn main() -> ExitCode {
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
     let (sequencer_relayer, shutdown_handle) =
-        SequencerRelayer::new(cfg).expect("could not initialize sequencer relayer");
+        SequencerRelayer::new(cfg, metrics).expect("could not initialize sequencer relayer");
     let sequencer_relayer_handle = tokio::spawn(sequencer_relayer.run());
 
-    let shutdown_token = shutdown_handle.token();
     tokio::select!(
         _ = sigterm.recv() => {
             // We don't care about the result (i.e. whether there could be more SIGTERM signals
@@ -66,7 +65,7 @@ async fn main() -> ExitCode {
             info!("received SIGTERM, issuing shutdown to all services");
             shutdown_handle.shutdown();
         }
-        () = shutdown_token.cancelled() => {
+        () = shutdown_handle.cancelled() => {
             warn!("stopped waiting for SIGTERM");
         }
     );

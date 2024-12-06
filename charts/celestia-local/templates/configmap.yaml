@@ -6,6 +6,7 @@ metadata:
 data:
   home_dir: "/home/celestia"
   coins: "{{ .Values.coins }}"
+  fees: "{{ .Values.fees }}"
   validator_stake: "{{ .Values.validatorStake }}"
   validator_mnemonic: "{{ .Values.validatorMnemonic }}"
   chainid: "{{ .Values.chainId }}"
@@ -16,6 +17,11 @@ data:
   bridge_rpc_port: "{{ .Values.ports.bridgeRPC }}"
   celestia_app_host_port: "{{ .Values.ports.celestiaAppHostPort }}"
   celestia_app_grpc_port: "{{ .Values.ports.celestiaAppGrpcPort }}"
+  ibc_account_mnemonic: "{{ .Values.ibcAccountMnemonic }}"
+  ibc_account_key_name: "{{ .Values.ibcAccountKeyName }}"
+  dev_account_mnemonic: "{{ .Values.devAccountMnemonic }}"
+  dev_account_key_name: "{{ .Values.devAccountName }}"
+  fast: "{{ .Values.fast }}"
 ---
 apiVersion: v1
 kind: ConfigMap

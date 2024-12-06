@@ -1,0 +1,29 @@
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false uses
+  # structured json logging of tracing events.
+  useTTY: true
+  dev: true
+
+config:
+  sequencerCometbftEndpoint: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
+  sequencerChainId: "sequencer-test-chain-0"
+  minExpectedFeeAssetBalance: "0"
+  sequencerBridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
+  feeAssetDenom: "nria"
+  rollupAssetDenom: "nria"
+  evmContractAddress: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
+  evmRpcEndpoint: "ws://astria-evm-service.astria-dev-cluster.svc.cluster.local:8546/"
+  sequencerPrivateKey:
+    devContent: "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
+  sequencerGrpcEndpoint: "http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080"
+
+metrics:
+  enabled: false
+
+otel:
+  enabled: false
+
+serviceMonitor:
+  enabled: false

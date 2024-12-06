@@ -13,7 +13,7 @@ use std::{
 
 use astria_core::{
     brotli::decompress_bytes,
-    generated::sequencerblock::v1alpha1::{
+    generated::astria::sequencerblock::v1::{
         rollup_data::Value as RawRollupDataValue,
         Deposit as RawDeposit,
         RollupData as RawRollupData,
@@ -23,7 +23,7 @@ use astria_core::{
         SubmittedRollupDataList as RawSubmittedRollupDataList,
     },
     primitive::v1::RollupId,
-    sequencerblock::v1alpha1::{
+    sequencerblock::v1::{
         block::{
             Deposit,
             DepositError,
@@ -104,13 +104,17 @@ pub fn run(
     Ok(())
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "sizes mainly used for compression ratio"
+)]
 fn parse(input: &str, verbose: bool) -> Result<ParsedBlob> {
     let raw = get_decoded_blob_data(input)?;
-    #[allow(clippy::cast_precision_loss)]
+
     let compressed_size = raw.len() as f32;
     let decompressed =
         Bytes::from(decompress_bytes(&raw).wrap_err("failed to decompress decoded bytes")?);
-    #[allow(clippy::cast_precision_loss)]
+
     let decompressed_size = decompressed.len() as f32;
     let compression_ratio = decompressed_size / compressed_size;
 
@@ -527,7 +531,7 @@ struct PrintableDeposit {
     bridge_address: String,
     rollup_id: String,
     amount: u128,
-    asset_id: String,
+    asset: String,
     destination_chain_address: String,
 }
 
@@ -537,11 +541,11 @@ impl TryFrom<&RawDeposit> for PrintableDeposit {
     fn try_from(raw_deposit: &RawDeposit) -> Result<Self, Self::Error> {
         let deposit = Deposit::try_from_raw(raw_deposit.clone())?;
         Ok(PrintableDeposit {
-            bridge_address: deposit.bridge_address().to_string(),
-            rollup_id: deposit.rollup_id().to_string(),
-            amount: deposit.amount(),
-            asset_id: deposit.asset_id().to_string(),
-            destination_chain_address: deposit.destination_chain_address().to_string(),
+            bridge_address: deposit.bridge_address.to_string(),
+            rollup_id: deposit.rollup_id.to_string(),
+            amount: deposit.amount,
+            asset: deposit.asset.to_string(),
+            destination_chain_address: deposit.destination_chain_address.to_string(),
         })
     }
 }
@@ -551,7 +555,7 @@ impl Display for PrintableDeposit {
         colored_ln(f, "bridge address", &self.bridge_address)?;
         colored_ln(f, "rollup id", &self.rollup_id)?;
         colored_ln(f, "amount", self.amount)?;
-        colored_ln(f, "asset id", &self.asset_id)?;
+        colored_ln(f, "asset id", &self.asset)?;
         colored(
             f,
             "destination chain address",
@@ -560,8 +564,7 @@ impl Display for PrintableDeposit {
     }
 }
 
-// allow: not performance-critical.
-#[allow(clippy::large_enum_variant)]
+#[expect(clippy::large_enum_variant, reason = "not performance-critical")]
 #[derive(Serialize, Debug)]
 enum RollupDataDetails {
     #[serde(rename = "rollup_transaction")]
@@ -648,7 +651,7 @@ impl VerboseRollupData {
         let transactions_and_deposits: Vec<_> = rollup_data
             .transactions
             .iter()
-            .map(RollupDataDetails::from)
+            .map(|bytes| RollupDataDetails::from(&bytes.to_vec()))
             .collect();
         let item_count = transactions_and_deposits.len();
         VerboseRollupData {

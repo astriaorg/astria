@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use astria_core::{
     primitive::v1::RollupId,
     protocol::{
-        group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-        transaction::v1alpha1::SignedTransaction,
+        group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id,
+        transaction::v1::Transaction,
     },
-    sequencerblock::v1alpha1::block::{
+    sequencerblock::v1::block::{
         Deposit,
         RollupData,
     },
@@ -27,7 +27,7 @@ impl GeneratedCommitments {
     /// which can be used as the block's transactions.
     #[must_use]
     pub(crate) fn into_transactions(self, mut tx_data: Vec<Bytes>) -> Vec<Bytes> {
-        let mut txs = Vec::with_capacity(tx_data.len() + 2);
+        let mut txs = Vec::with_capacity(tx_data.len().saturating_add(2));
         txs.push(self.rollup_datas_root.to_vec().into());
         txs.push(self.rollup_ids_root.to_vec().into());
         txs.append(&mut tx_data);
@@ -55,20 +55,24 @@ impl GeneratedCommitments {
 /// This is somewhat arbitrary, but could be useful for proof of an action within the rollup datas
 /// tree.
 pub(crate) fn generate_rollup_datas_commitment(
-    signed_txs: &[SignedTransaction],
+    signed_txs: &[Transaction],
     deposits: HashMap<RollupId, Vec<Deposit>>,
 ) -> GeneratedCommitments {
     use prost::Message as _;
 
     let mut rollup_ids_to_txs =
-        group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
+        group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
 
     for (rollup_id, deposit) in deposits {
-        rollup_ids_to_txs.entry(rollup_id).or_default().extend(
-            deposit
-                .into_iter()
-                .map(|deposit| RollupData::Deposit(deposit).into_raw().encode_to_vec()),
-        );
+        rollup_ids_to_txs
+            .entry(rollup_id)
+            .or_default()
+            .extend(deposit.into_iter().map(|deposit| {
+                RollupData::Deposit(Box::new(deposit))
+                    .into_raw()
+                    .encode_to_vec()
+                    .into()
+            }));
     }
 
     rollup_ids_to_txs.sort_unstable_keys();
@@ -86,59 +90,51 @@ pub(crate) fn generate_rollup_datas_commitment(
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         crypto::SigningKey,
-        primitive::v1::{
-            asset::{
-                Denom,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
-            Address,
-        },
-        protocol::transaction::v1alpha1::{
+        protocol::transaction::v1::{
             action::{
-                SequenceAction,
-                TransferAction,
+                RollupDataSubmission,
+                Transfer,
             },
-            TransactionParams,
-            UnsignedTransaction,
+            TransactionBody,
         },
     };
     use rand::rngs::OsRng;
 
     use super::*;
-    use crate::asset::{
-        get_native_asset,
-        NATIVE_ASSET,
+    use crate::benchmark_and_test_utils::{
+        astria_address,
+        nria,
     };
 
     #[test]
     fn generate_rollup_datas_commitment_should_ignore_transfers() {
-        let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
-
-        let sequence_action = SequenceAction {
+        let rollup_data_submission = RollupDataSubmission {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data: b"helloworld".to_vec(),
-            fee_asset_id: get_native_asset().id(),
+            data: Bytes::from_static(b"hello world"),
+            fee_asset: nria().into(),
         };
-        let transfer_action = TransferAction {
-            to: Address::from([0u8; 20]),
+        let transfer_action = Transfer {
+            to: astria_address(&[0u8; 20]),
             amount: 1,
-            asset_id: get_native_asset().id(),
-            fee_asset_id: get_native_asset().id(),
+            asset: nria().into(),
+            fee_asset: nria().into(),
         };
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
-            actions: vec![sequence_action.clone().into(), transfer_action.into()],
-        };
 
-        let signed_tx = tx.into_signed(&signing_key);
+        let tx = TransactionBody::builder()
+            .actions(vec![
+                rollup_data_submission.clone().into(),
+                transfer_action.into(),
+            ])
+            .chain_id("test-chain-1")
+            .try_build()
+            .unwrap();
+
+        let signed_tx = tx.sign(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
             rollup_datas_root: commitment_0,
@@ -146,15 +142,14 @@ mod test {
         } = generate_rollup_datas_commitment(&txs, HashMap::new());
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
-            actions: vec![sequence_action.into()],
-        };
+        let tx = TransactionBody::builder()
+            .actions(vec![rollup_data_submission.into()])
+            .chain_id("test-chain-1")
+            .try_build()
+            .unwrap();
 
-        let signed_tx = tx.into_signed(&signing_key);
+        let signed_tx = tx.sign(&signing_key);
+
         let txs = vec![signed_tx];
         let GeneratedCommitments {
             rollup_datas_root: commitment_1,
@@ -170,30 +165,30 @@ mod test {
         // this tests that the commitment generated is what is expected via a test vector.
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
-        let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
-        let sequence_action = SequenceAction {
+        let rollup_data_submission = RollupDataSubmission {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data: b"helloworld".to_vec(),
-            fee_asset_id: get_native_asset().id(),
+            data: b"helloworld".to_vec().into(),
+            fee_asset: nria().into(),
         };
-        let transfer_action = TransferAction {
-            to: Address::from([0u8; 20]),
+        let transfer_action = Transfer {
+            to: astria_address(&[0u8; 20]),
             amount: 1,
-            asset_id: get_native_asset().id(),
-            fee_asset_id: get_native_asset().id(),
+            asset: nria().into(),
+            fee_asset: nria().into(),
         };
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test-chain-1".to_string(),
-            },
-            actions: vec![sequence_action.into(), transfer_action.into()],
-        };
+        let tx = TransactionBody::builder()
+            .actions(vec![
+                rollup_data_submission.clone().into(),
+                transfer_action.into(),
+            ])
+            .chain_id("test-chain-1")
+            .try_build()
+            .unwrap();
 
-        let signed_tx = tx.into_signed(&signing_key);
+        let signed_tx = tx.sign(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
             rollup_datas_root: actual,

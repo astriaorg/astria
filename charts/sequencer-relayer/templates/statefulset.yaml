@@ -20,6 +20,7 @@ spec:
       containers:
         - name: sequencer-relayer
           image: {{ include "sequencer-relayer.image" . }}
+          imagePullPolicy: {{ .Values.images.sequencerRelayer.pullPolicy }}
           command: [ "/scripts/start-relayer.sh" ]
           stdin: {{ .Values.global.useTTY }}
           tty: {{ .Values.global.useTTY }}
@@ -36,6 +37,18 @@ spec:
           ports:
             - containerPort: {{ .Values.ports.metrics }}
               name: metrics
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.healthAPI }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.healthAPI }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.ports.healthAPI }}
       volumes:
         - name: relayer-scripts-volume
           configMap:

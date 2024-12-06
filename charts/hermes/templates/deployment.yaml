@@ -3,23 +3,24 @@ kind: Deployment
 metadata:
   name: {{ include "hermes.fullname" . }}
   labels:
-    app: astria-dev-cluster
+    app: {{ include "hermes.fullname" . }}
   namespace: {{ include "hermes.namespace" . }}
 spec:
   replicas: {{ .Values.global.replicaCount }}
   selector:
     matchLabels:
-      app: astria-dev-cluster
+      app: {{ include "hermes.fullname" . }}
   template:
     metadata:
       name: {{ include "hermes.fullname" . }}
       labels:
-        app: astria-dev-cluster
+        app: {{ include "hermes.fullname" . }}
     spec:
       {{- if .Values.createChannel.enabled }}
       initContainers:
       - name: create-channel
         image: {{ .Values.image }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
         command: [ "hermes",  "create", "channel" ]
         args:
           - --new-client-connection
@@ -39,6 +40,7 @@ spec:
       containers:
         - name: hermes
           image: {{ .Values.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
           command: [ "hermes", "start" ]
           volumeMounts:
           - mountPath: /home/hermes/.hermes
@@ -54,6 +56,11 @@ spec:
               name: telemetry
             - containerPort: {{ .Values.ports.tracingServer }}
               name: tracing
+          # TODO - implement a readiness probe so we can wait on hermes startup correctly
+{{/*          readinessProbe:*/}}
+{{/*            httpGet:*/}}
+{{/*              path: /channels*/}}
+{{/*              port: {{ .Values.ports.rest }}*/}}
       volumes:
         - name: {{ include "hermes.fullname" . }}-config-volume
           configMap:

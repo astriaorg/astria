@@ -1,7 +1,6 @@
 use std::process::ExitCode;
 
 use astria_composer::{
-    metrics_init,
     Composer,
     Config,
     BUILD_INFO,
@@ -33,29 +32,30 @@ async fn main() -> ExitCode {
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
         .set_pretty_print(cfg.pretty_print)
-        .filter_directives(&cfg.log);
+        .set_filter_directives(&cfg.log);
 
     if !cfg.no_metrics {
-        telemetry_conf = telemetry_conf
-            .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"))
-            .register_metrics(metrics_init::register);
+        telemetry_conf =
+            telemetry_conf.set_metrics(&cfg.metrics_http_listener_addr, env!("CARGO_PKG_NAME"));
     }
 
-    if let Err(e) = telemetry_conf
-        .try_init()
+    let (metrics, _telemetry_guard) = match telemetry_conf
+        .try_init(&cfg)
         .wrap_err("failed to setup telemetry")
     {
-        eprintln!("initializing composer failed:\n{e:?}");
-        return ExitCode::FAILURE;
-    }
+        Err(e) => {
+            eprintln!("initializing composer failed:\n{e:?}");
+            return ExitCode::FAILURE;
+        }
+        Ok(metrics_and_guard) => metrics_and_guard,
+    };
 
     let cfg_ser = serde_json::to_string(&cfg)
         .expect("the json serializer should never fail when serializing to a string");
     eprintln!("config:\n{cfg_ser}");
     info!(config = cfg_ser, "initializing composer",);
 
-    let composer = match Composer::from_config(&cfg).await {
+    let composer = match Composer::from_config(&cfg, metrics).await {
         Err(error) => {
             error!(%error, "failed initializing Composer");
             return ExitCode::FAILURE;

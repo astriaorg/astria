@@ -20,6 +20,7 @@ use tokio::sync::{
     Semaphore,
     TryAcquireError,
 };
+use tracing::instrument;
 
 /// Creates an mpsc channel for sending soft blocks between asynchronous task.
 ///
@@ -57,8 +58,6 @@ impl<T> From<TokioSendError<T>> for SendError {
     }
 }
 
-// allow: this is mimicking tokio's `SendError` that returns the stack-allocated object.
-#[allow(clippy::result_large_err)]
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub(crate) enum TrySendError<T> {
     #[error("the channel is closed")]
@@ -92,6 +91,7 @@ impl<T> Sender<T> {
     /// Sends a block, waiting until the channel has permits.
     ///
     /// Returns an error if the channel is closed.
+    #[instrument(skip_all, err)]
     pub(super) async fn send(&self, block: T) -> Result<(), SendError> {
         let sem = self.sem.upgrade().ok_or(SendError)?;
         let permit = sem.acquire().await?;
@@ -103,8 +103,6 @@ impl<T> Sender<T> {
     /// Attempts to send a block without blocking.
     ///
     /// Returns an error if the channel is out of permits or if it has been closed.
-    // allow: this is mimicking tokio's `TrySendError` that returns the stack-allocated object.
-    #[allow(clippy::result_large_err)]
     pub(super) fn try_send(&self, block: T) -> Result<(), TrySendError<T>> {
         let sem = match self.sem.upgrade() {
             None => return Err(TrySendError::Closed(block)),
@@ -151,6 +149,7 @@ impl<T> Receiver<T> {
     }
 
     /// Receives a block over the channel.
+    #[instrument(skip_all)]
     pub(super) async fn recv(&mut self) -> Option<T> {
         self.chan.recv().await
     }

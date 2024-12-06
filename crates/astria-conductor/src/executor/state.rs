@@ -3,7 +3,7 @@
 //!
 //! The inner state must not be unset after having been set.
 use astria_core::{
-    execution::v1alpha2::{
+    execution::v1::{
         Block,
         CommitmentState,
         GenesisInfo,
@@ -15,12 +15,12 @@ use astria_eyre::{
     eyre::WrapErr as _,
 };
 use bytes::Bytes;
-use celestia_types::Height as CelestiaHeight;
 use sequencer_client::tendermint::block::Height as SequencerHeight;
 use tokio::sync::watch::{
     self,
     error::RecvError,
 };
+use tracing::instrument;
 
 pub(super) fn channel() -> (StateSender, StateReceiver) {
     let (tx, rx) = watch::channel(None);
@@ -51,6 +51,7 @@ pub(super) struct StateReceiver {
 }
 
 impl StateReceiver {
+    #[instrument(skip_all, err)]
     pub(super) async fn wait_for_init(&mut self) -> eyre::Result<()> {
         self.inner
             .wait_for(Option::is_some)
@@ -83,6 +84,7 @@ impl StateReceiver {
             )
     }
 
+    #[instrument(skip_all)]
     pub(crate) async fn next_expected_soft_height_if_changed(
         &mut self,
     ) -> Result<SequencerHeight, RecvError> {
@@ -218,15 +220,16 @@ forward_impls!(
     [soft_number -> u32],
     [firm_hash -> Bytes],
     [soft_hash -> Bytes],
-    [celestia_block_variance -> u32],
+    [celestia_block_variance -> u64],
     [rollup_id -> RollupId],
     [sequencer_genesis_block_height -> SequencerHeight],
+    [celestia_base_block_height -> u64],
 );
 
 forward_impls!(
     StateReceiver:
-    [celestia_base_block_height -> CelestiaHeight],
-    [celestia_block_variance -> u32],
+    [celestia_base_block_height -> u64],
+    [celestia_block_variance -> u64],
     [rollup_id -> RollupId],
 );
 
@@ -278,11 +281,11 @@ impl State {
         self.soft().hash().clone()
     }
 
-    fn celestia_base_block_height(&self) -> CelestiaHeight {
-        self.genesis_info.celestia_base_block_height()
+    fn celestia_base_block_height(&self) -> u64 {
+        self.commitment_state.base_celestia_height()
     }
 
-    fn celestia_block_variance(&self) -> u32 {
+    fn celestia_block_variance(&self) -> u64 {
         self.genesis_info.celestia_block_variance()
     }
 
@@ -341,7 +344,7 @@ pub(super) fn map_sequencer_height_to_rollup_height(
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        generated::execution::v1alpha2 as raw,
+        generated::astria::execution::v1 as raw,
         Protobuf as _,
     };
     use pbjson_types::Timestamp;
@@ -372,15 +375,16 @@ mod tests {
         CommitmentState::builder()
             .firm(firm)
             .soft(soft)
+            .base_celestia_height(1u64)
             .build()
             .unwrap()
     }
 
     fn make_genesis_info() -> GenesisInfo {
+        let rollup_id = RollupId::new([24; 32]);
         GenesisInfo::try_from_raw(raw::GenesisInfo {
-            rollup_id: vec![24; 32].into(),
+            rollup_id: Some(rollup_id.to_raw()),
             sequencer_genesis_block_height: 10,
-            celestia_base_block_height: 1,
             celestia_block_variance: 0,
         })
         .unwrap()

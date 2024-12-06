@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ed25519_consensus::{
+use astria_core::crypto::{
     Signature,
     VerificationKey,
 };
@@ -48,7 +48,7 @@ pub(super) enum QuorumError {
     #[error(
         "failed to recreate signature for validator from validator set to verify vote signature"
     )]
-    Signature(#[source] ed25519_consensus::Error),
+    Signature(#[source] astria_core::crypto::Error),
 
     #[error("total voting power overflowed u64")]
     TotalVotingPowerOverflowed,
@@ -65,10 +65,10 @@ pub(super) enum QuorumError {
     #[error(
         "failed to recreate public key for validator from validator set to verify vote signature"
     )]
-    VerificationKey(#[source] ed25519_consensus::Error),
+    VerificationKey(#[source] astria_core::crypto::Error),
 
     #[error("failed to verify vote signature")]
-    VerifyVoteSignature(#[source] ed25519_consensus::Error),
+    VerifyVoteSignature(#[source] astria_core::crypto::Error),
 }
 
 /// This function ensures that the given Commit has quorum, ie that the Commit contains >2/3 voting
@@ -217,17 +217,18 @@ fn verify_vote_signature(
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::collections::BTreeMap;
 
     use astria_core::{
-        generated::sequencerblock::v1alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
+        generated::astria::sequencerblock::v1::SequencerBlockHeader as RawSequencerBlockHeader,
         primitive::v1::RollupId,
-        sequencerblock::v1alpha1::{
+        sequencerblock::v1::{
             block::SequencerBlockHeader,
             celestia::UncheckedSubmittedMetadata,
         },
     };
+    use bytes::Bytes;
     use prost::Message as _;
     use sequencer_client::{
         tendermint::{
@@ -245,7 +246,7 @@ mod test {
     use super::ensure_commit_has_quorum;
     use crate::celestia::block_verifier::does_commit_voting_power_have_quorum;
 
-    /// Constructs a `[merkle::Tree]` from an iterator yielding byte slices.
+    /// Constructs a [`merkle::Tree`] from an iterator yielding byte slices.
     ///
     /// This hashes each item before pushing it into the Merkle Tree, which
     /// effectively causes a double hashing. The leaf hash of an item `d_i`
@@ -305,13 +306,13 @@ mod test {
             signatures: vec![tendermint::block::CommitSig::BlockIdFlagCommit {
                 validator_address: address,
                 timestamp,
-                signature: Some(signature.into()),
+                signature: Some(signature.to_bytes().as_ref().try_into().unwrap()),
             }],
             ..Default::default()
         };
 
         (
-            validators::Response::new((height - 1).into(), vec![validator], 1),
+            validators::Response::new(height.checked_sub(1).unwrap().into(), vec![validator], 1),
             address,
             commit,
         )
@@ -337,9 +338,9 @@ mod test {
                 seconds: 1,
                 nanos: 0,
             }),
-            data_hash: data_hash.to_vec(),
-            rollup_transactions_root: rollup_transactions_root.to_vec(),
-            proposer_address: proposer_address.as_bytes().to_vec(),
+            data_hash: Bytes::copy_from_slice(&data_hash),
+            rollup_transactions_root: Bytes::copy_from_slice(&rollup_transactions_root),
+            proposer_address: Bytes::copy_from_slice(proposer_address.as_bytes()),
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
@@ -359,7 +360,7 @@ mod test {
 
     #[tokio::test]
     async fn validate_sequencer_blob_with_chain_ids() {
-        let test_tx = b"test-tx".to_vec();
+        let test_tx = Bytes::from_static(b"test-tx");
         let rollup_id = RollupId::from_unhashed_bytes(b"test-chain");
         let grouped_txs = BTreeMap::from([(rollup_id, vec![test_tx.clone()])]);
         let rollup_transactions_tree =
@@ -382,9 +383,9 @@ mod test {
                 seconds: 1,
                 nanos: 0,
             }),
-            data_hash: data_hash.to_vec(),
-            rollup_transactions_root: rollup_transactions_root.to_vec(),
-            proposer_address: proposer_address.as_bytes().to_vec(),
+            data_hash: Bytes::copy_from_slice(&data_hash),
+            rollup_transactions_root: Bytes::copy_from_slice(&rollup_transactions_root),
+            proposer_address: Bytes::copy_from_slice(proposer_address.as_bytes()),
         };
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 

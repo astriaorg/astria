@@ -1,24 +1,37 @@
 use std::{
     collections::HashMap,
     io::Write,
-    net::SocketAddr,
+    net::{
+        IpAddr,
+        SocketAddr,
+    },
+    sync::LazyLock,
     time::Duration,
 };
 
 use astria_composer::{
     config::Config,
     Composer,
+    Metrics,
 };
 use astria_core::{
-    primitive::v1::RollupId,
+    primitive::v1::{
+        asset::{
+            Denom,
+            IbcPrefixed,
+        },
+        RollupId,
+    },
     protocol::{
         abci::AbciErrorCode,
-        transaction::v1alpha1::SignedTransaction,
+        transaction::v1::Transaction,
     },
+    Protobuf as _,
 };
 use astria_eyre::eyre;
-use ethers::prelude::Transaction;
-use once_cell::sync::Lazy;
+use ethers::prelude::Transaction as EthersTransaction;
+use mock_grpc_sequencer::MockGrpcSequencer;
+use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
@@ -37,22 +50,47 @@ use wiremock::{
     ResponseTemplate,
 };
 
-pub mod mock_sequencer;
+pub mod mock_abci_sequencer;
+pub mod mock_grpc_sequencer;
 
-static TELEMETRY: Lazy<()> = Lazy::new(|| {
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
+    // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
+    // haven't configured telemetry to provide metrics here.
+    let config = Config {
+        log: String::new(),
+        api_listen_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
+        sequencer_abci_endpoint: String::new(),
+        sequencer_grpc_endpoint: String::new(),
+        sequencer_chain_id: String::new(),
+        rollups: String::new(),
+        private_key_file: String::new(),
+        sequencer_address_prefix: String::new(),
+        block_time_ms: 0,
+        max_bytes_per_bundle: 0,
+        bundle_queue_capacity: 0,
+        force_stdout: false,
+        no_otel: false,
+        no_metrics: false,
+        metrics_http_listener_addr: String::new(),
+        pretty_print: false,
+        grpc_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
+        fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([0; 32])),
+    };
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::stdout)
-            .filter_directives(&filter_directives)
-            .try_init()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::stdout)
+            .set_force_stdout(true)
+            .set_pretty_print(true)
+            .set_filter_directives(&filter_directives)
+            .try_init::<Metrics>(&config)
             .unwrap();
     } else {
         telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::sink)
-            .try_init()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::sink)
+            .try_init::<Metrics>(&config)
             .unwrap();
     }
 });
@@ -62,8 +100,9 @@ pub struct TestComposer {
     pub composer: JoinHandle<eyre::Result<()>>,
     pub rollup_nodes: HashMap<String, Geth>,
     pub sequencer: wiremock::MockServer,
-    pub setup_guard: MockGuard,
+    pub sequencer_mock: MockGrpcSequencer,
     pub grpc_collector_addr: SocketAddr,
+    pub metrics_handle: metrics::Handle,
 }
 
 /// Spawns composer in a test environment.
@@ -72,7 +111,7 @@ pub struct TestComposer {
 /// There is no explicit error handling in favour of panicking loudly
 /// and early.
 pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
-    Lazy::force(&TELEMETRY);
+    LazyLock::force(&TELEMETRY);
 
     let mut rollup_nodes = HashMap::new();
     let mut rollups = String::new();
@@ -82,7 +121,8 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
     }
-    let (sequencer, sequencer_setup_guard) = mock_sequencer::start().await;
+    let sequencer = mock_abci_sequencer::start().await;
+    let grpc_server = MockGrpcSequencer::spawn().await;
     let sequencer_url = sequencer.uri();
     let keyfile = NamedTempFile::new().unwrap();
     (&keyfile)
@@ -93,8 +133,10 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
         sequencer_chain_id: "test-chain-1".to_string(),
         rollups,
-        sequencer_url,
+        sequencer_abci_endpoint: sequencer_url.to_string(),
+        sequencer_grpc_endpoint: format!("http://{}", grpc_server.local_addr),
         private_key_file: keyfile.path().to_string_lossy().to_string(),
+        sequencer_address_prefix: "astria".into(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 200_000,
         bundle_queue_capacity: 10,
@@ -104,9 +146,22 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         metrics_http_listener_addr: String::new(),
         pretty_print: true,
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
+        fee_asset: "nria".parse().unwrap(),
     };
+
+    let (metrics, metrics_handle) = metrics::ConfigBuilder::new()
+        .set_global_recorder(false)
+        .build(&config)
+        .unwrap();
+    let metrics = Box::leak(Box::new(metrics));
+
+    // prepare get nonce response
+    grpc_server
+        .mount_pending_nonce_response(0, "startup::wait_for_mempool()")
+        .await;
+
     let (composer_addr, grpc_collector_addr, composer_handle) = {
-        let composer = Composer::from_config(&config).await.unwrap();
+        let composer = Composer::from_config(&config, metrics).await.unwrap();
         let composer_addr = composer.local_addr();
         let grpc_collector_addr = composer.grpc_local_addr().unwrap();
         let task = tokio::spawn(composer.run_until_stopped());
@@ -119,8 +174,9 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         composer: composer_handle,
         rollup_nodes,
         sequencer,
-        setup_guard: sequencer_setup_guard,
+        sequencer_mock: grpc_server,
         grpc_collector_addr,
+        metrics_handle,
     }
 }
 
@@ -150,20 +206,18 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
     }
 }
 
-fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::protocol::transaction::v1alpha1::SignedTransaction as RawSignedTransaction;
+fn signed_tx_from_request(request: &Request) -> Transaction {
+    use astria_core::generated::astria::protocol::transaction::v1::Transaction as RawTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
         serde_json::from_slice(&request.body)
             .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
-    let raw_signed_tx = RawSignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
-        .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
-    let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
-        .expect("can't convert raw signed tx to checked signed tx");
-    debug!(?signed_tx, "sequencer mock received signed transaction");
-
-    signed_tx
+    let raw_tx = RawTransaction::decode(&*wrapped_tx_sync_req.params().tx)
+        .expect("can't deserialize sequencer tx from broadcast jsonrpc request");
+    let tx = Transaction::try_from_raw(raw_tx).expect("can't validate raw sequencer tx");
+    debug!(?tx, "sequencer mock received transaction");
+    tx
 }
 
 fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
@@ -173,14 +227,11 @@ fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
     let Some(sent_action) = signed_tx.actions().first() else {
         panic!("received transaction contained no actions");
     };
-    let Some(sequence_action) = sent_action.as_sequence() else {
+    let Some(sequence_action) = sent_action.as_rollup_data_submission() else {
         panic!("mocked sequencer expected a sequence action");
     };
 
-    (
-        sequence_action.rollup_id,
-        signed_tx.unsigned_transaction().params.nonce,
-    )
+    (sequence_action.rollup_id, signed_tx.nonce())
 }
 
 /// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
@@ -189,20 +240,20 @@ fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
 /// Panics if the request body has no sequence actions
 pub async fn mount_matcher_verifying_tx_integrity(
     server: &MockServer,
-    expected_rlp: Transaction,
+    expected_rlp: EthersTransaction,
 ) -> MockGuard {
     let matcher = move |request: &Request| {
         let sequencer_tx = signed_tx_from_request(request);
-        let sequence_action = sequencer_tx
+        let rollup_data_submission = sequencer_tx
             .actions()
             .first()
             .unwrap()
-            .as_sequence()
+            .as_rollup_data_submission()
             .unwrap();
 
         let expected_rlp = expected_rlp.rlp().to_vec();
 
-        expected_rlp == sequence_action.data
+        expected_rlp == rollup_data_submission.data
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
@@ -275,7 +326,36 @@ pub async fn mount_broadcast_tx_sync_invalid_nonce_mock(
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
         Some(tx_sync::Response {
-            code: AbciErrorCode::INVALID_NONCE.into(),
+            code: tendermint::abci::Code::Err(AbciErrorCode::INVALID_NONCE.value()),
+            data: vec![].into(),
+            log: String::new(),
+            hash: tendermint::Hash::Sha256([0; 32]),
+        }),
+        None,
+    );
+    Mock::given(matcher)
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jsonrpc_rsp))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount_as_scoped(server)
+        .await
+}
+
+/// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
+/// verifies that the contained sequence action is for the given `expected_rollup_id`. It then
+/// rejects the transaction for a taken nonce.
+pub async fn mount_broadcast_tx_sync_nonce_taken_mock(
+    server: &MockServer,
+    expected_rollup_id: RollupId,
+) -> MockGuard {
+    let matcher = move |request: &Request| {
+        let (rollup_id, _) = rollup_id_nonce_from_request(request);
+        rollup_id == expected_rollup_id
+    };
+    let jsonrpc_rsp = response::Wrapper::new_with_id(
+        Id::Num(1),
+        Some(tx_sync::Response {
+            code: tendermint::abci::Code::Err(AbciErrorCode::NONCE_TAKEN.value()),
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),

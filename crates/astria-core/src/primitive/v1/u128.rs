@@ -1,6 +1,6 @@
 //! Transformations of compiled protobuf types to other types.
 
-use crate::generated::primitive::v1::Uint128;
+use crate::generated::astria::primitive::v1::Uint128;
 impl From<u128> for Uint128 {
     fn from(primitive: u128) -> Self {
         let [
@@ -40,9 +40,16 @@ impl From<Uint128> for u128 {
     }
 }
 
+impl<'a> From<&'a u128> for Uint128 {
+    fn from(primitive: &'a u128) -> Self {
+        (*primitive).into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::generated::primitive::v1::Uint128;
+    use super::Uint128;
+
     #[track_caller]
     fn u128_roundtrip_check(expected: u128) {
         let pb: Uint128 = expected.into();

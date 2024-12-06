@@ -1,154 +1,56 @@
 use std::collections::HashMap;
 
-use anyhow::{
-    ensure,
-    Context as _,
-};
 use astria_core::{
-    primitive::v1::{
-        asset,
-        Address,
-        RollupId,
+    primitive::v1::asset::{
+        self,
     },
-    protocol::transaction::v1alpha1::{
-        action::{
-            Action,
-            BridgeLockAction,
-        },
-        SignedTransaction,
-        UnsignedTransaction,
+    protocol::transaction::v1::{
+        action::Action,
+        Transaction,
     },
 };
+use astria_eyre::eyre::{
+    ensure,
+    Result,
+    WrapErr as _,
+};
+use cnidarium::StateRead;
+use tracing::instrument;
 
 use crate::{
-    accounts::state_ext::StateReadExt,
-    bridge::state_ext::StateReadExt as _,
-    ibc::state_ext::StateReadExt as _,
-    state_ext::StateReadExt as _,
+    accounts::StateReadExt as _,
+    app::StateReadExt as _,
+    bridge::StateReadExt as _,
+    fees::query::get_fees_for_transaction,
 };
 
-pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
-    tx: &SignedTransaction,
+#[instrument(skip_all)]
+pub(crate) async fn check_chain_id_mempool<S: StateRead>(
+    tx: &Transaction,
     state: &S,
-) -> anyhow::Result<()> {
-    let signer_address = Address::from_verification_key(tx.verification_key());
-    let curr_nonce = state
-        .get_account_nonce(signer_address)
-        .await
-        .context("failed to get account nonce")?;
-    ensure!(
-        tx.unsigned_transaction().params.nonce >= curr_nonce,
-        "nonce already used by account"
-    );
-    Ok(())
-}
-
-pub(crate) async fn check_chain_id_mempool<S: StateReadExt + 'static>(
-    tx: &SignedTransaction,
-    state: &S,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let chain_id = state
         .get_chain_id()
         .await
-        .context("failed to get chain id")?;
-    ensure!(
-        tx.unsigned_transaction().params.chain_id == chain_id.as_str(),
-        "chain id mismatch"
-    );
-    Ok(())
-}
-
-pub(crate) async fn check_balance_mempool<S: StateReadExt + 'static>(
-    tx: &SignedTransaction,
-    state: &S,
-) -> anyhow::Result<()> {
-    let signer_address = Address::from_verification_key(tx.verification_key());
-    check_balance_for_total_fees(tx.unsigned_transaction(), signer_address, state).await?;
+        .wrap_err("failed to get chain id")?;
+    ensure!(tx.chain_id() == chain_id.as_str(), "chain id mismatch");
     Ok(())
 }
 
 // Checks that the account has enough balance to cover the total fees and transferred values
 // for all actions in the transaction.
-pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
-    tx: &UnsignedTransaction,
-    from: Address,
+#[instrument(skip_all)]
+pub(crate) async fn check_balance_for_total_fees_and_transfers<S: StateRead>(
+    tx: &Transaction,
     state: &S,
-) -> anyhow::Result<()> {
-    let transfer_fee = state
-        .get_transfer_base_fee()
+) -> Result<()> {
+    let cost_by_asset = get_total_transaction_cost(tx, state)
         .await
-        .context("failed to get transfer base fee")?;
-    let ics20_withdrawal_fee = state
-        .get_ics20_withdrawal_base_fee()
-        .await
-        .context("failed to get ics20 withdrawal base fee")?;
-    let init_bridge_account_fee = state
-        .get_init_bridge_account_base_fee()
-        .await
-        .context("failed to get init bridge account base fee")?;
-    let bridge_lock_byte_cost_multiplier = state
-        .get_bridge_lock_byte_cost_multiplier()
-        .await
-        .context("failed to get bridge lock byte cost multiplier")?;
+        .context("failed to get transaction costs")?;
 
-    let mut fees_by_asset = HashMap::new();
-    for action in &tx.actions {
-        match action {
-            Action::Transfer(act) => transfer_update_fees(
-                act.asset_id,
-                act.fee_asset_id,
-                act.amount,
-                &mut fees_by_asset,
-                transfer_fee,
-            ),
-            Action::Sequence(act) => {
-                sequence_update_fees(state, act.fee_asset_id, &mut fees_by_asset, &act.data)
-                    .await?;
-            }
-            Action::Ics20Withdrawal(act) => ics20_withdrawal_updates_fees(
-                act.denom().id(),
-                *act.fee_asset_id(),
-                act.amount(),
-                &mut fees_by_asset,
-                ics20_withdrawal_fee,
-            ),
-            Action::InitBridgeAccount(act) => {
-                fees_by_asset
-                    .entry(act.fee_asset_id)
-                    .and_modify(|amt| *amt = amt.saturating_add(init_bridge_account_fee))
-                    .or_insert(init_bridge_account_fee);
-            }
-            Action::BridgeLock(act) => bridge_lock_update_fees(
-                act,
-                &mut fees_by_asset,
-                transfer_fee,
-                bridge_lock_byte_cost_multiplier,
-            ),
-            Action::BridgeUnlock(act) => {
-                bridge_unlock_update_fees(
-                    state,
-                    from,
-                    act.amount,
-                    act.fee_asset_id,
-                    &mut fees_by_asset,
-                    transfer_fee,
-                )
-                .await?;
-            }
-            Action::ValidatorUpdate(_)
-            | Action::SudoAddressChange(_)
-            | Action::Ibc(_)
-            | Action::IbcRelayerChange(_)
-            | Action::FeeAssetChange(_)
-            | Action::FeeChange(_)
-            | Action::Mint(_) => {
-                continue;
-            }
-        }
-    }
-    for (asset, total_fee) in fees_by_asset {
+    for (asset, total_fee) in cost_by_asset {
         let balance = state
-            .get_account_balance(from, asset)
+            .get_account_balance(&tx, &asset)
             .await
             .context("failed to get account balance")?;
         ensure!(
@@ -157,269 +59,378 @@ pub(crate) async fn check_balance_for_total_fees<S: StateReadExt + 'static>(
             asset
         );
     }
-
     Ok(())
 }
 
-fn transfer_update_fees(
-    asset_id: asset::Id,
-    fee_asset_id: asset::Id,
-    amount: u128,
-    fees_by_asset: &mut HashMap<asset::Id, u128>,
-    transfer_fee: u128,
-) {
-    fees_by_asset
-        .entry(asset_id)
-        .and_modify(|amt: &mut u128| *amt = amt.saturating_add(amount))
-        .or_insert(amount);
-    fees_by_asset
-        .entry(fee_asset_id)
-        .and_modify(|amt| *amt = amt.saturating_add(transfer_fee))
-        .or_insert(transfer_fee);
-}
-
-async fn sequence_update_fees<S: StateReadExt>(
+// Returns the total cost of the transaction (fees and transferred values for all actions in the
+// transaction).
+#[instrument(skip_all)]
+pub(crate) async fn get_total_transaction_cost<S: StateRead>(
+    tx: &Transaction,
     state: &S,
-    fee_asset_id: asset::Id,
-    fees_by_asset: &mut HashMap<asset::Id, u128>,
-    data: &[u8],
-) -> anyhow::Result<()> {
-    let fee = crate::sequence::calculate_fee_from_state(data, state)
-        .await
-        .context("fee for sequence action overflowed; data too large")?;
-    fees_by_asset
-        .entry(fee_asset_id)
-        .and_modify(|amt| *amt = amt.saturating_add(fee))
-        .or_insert(fee);
-    Ok(())
-}
+) -> Result<HashMap<asset::IbcPrefixed, u128>> {
+    let mut cost_by_asset: HashMap<asset::IbcPrefixed, u128> =
+        get_fees_for_transaction(tx.unsigned_transaction(), state)
+            .await
+            .context("failed to get fees for transaction")?;
 
-fn ics20_withdrawal_updates_fees(
-    asset_id: asset::Id,
-    fee_asset_id: asset::Id,
-    amount: u128,
-    fees_by_asset: &mut HashMap<asset::Id, u128>,
-    ics20_withdrawal_fee: u128,
-) {
-    fees_by_asset
-        .entry(asset_id)
-        .and_modify(|amt| *amt = amt.saturating_add(amount))
-        .or_insert(amount);
-    fees_by_asset
-        .entry(fee_asset_id)
-        .and_modify(|amt| *amt = amt.saturating_add(ics20_withdrawal_fee))
-        .or_insert(ics20_withdrawal_fee);
-}
+    // add values transferred within the tx to the cost
+    for action in tx.actions() {
+        match action {
+            Action::Transfer(act) => {
+                cost_by_asset
+                    .entry(act.asset.to_ibc_prefixed())
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                    .or_insert(act.amount);
+            }
+            Action::Ics20Withdrawal(act) => {
+                cost_by_asset
+                    .entry(act.denom.to_ibc_prefixed())
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                    .or_insert(act.amount);
+            }
+            Action::BridgeLock(act) => {
+                cost_by_asset
+                    .entry(act.asset.to_ibc_prefixed())
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                    .or_insert(act.amount);
+            }
+            Action::BridgeUnlock(act) => {
+                let asset = state
+                    .get_bridge_account_ibc_asset(&tx)
+                    .await
+                    .wrap_err("failed to get bridge account asset id")?;
+                cost_by_asset
+                    .entry(asset)
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                    .or_insert(act.amount);
+            }
+            Action::ValidatorUpdate(_)
+            | Action::SudoAddressChange(_)
+            | Action::IbcSudoChange(_)
+            | Action::RollupDataSubmission(_)
+            | Action::InitBridgeAccount(_)
+            | Action::BridgeSudoChange(_)
+            | Action::Ibc(_)
+            | Action::IbcRelayerChange(_)
+            | Action::FeeAssetChange(_)
+            | Action::FeeChange(_) => {
+                continue;
+            }
+        }
+    }
 
-fn bridge_lock_update_fees(
-    act: &BridgeLockAction,
-    fees_by_asset: &mut HashMap<asset::Id, u128>,
-    transfer_fee: u128,
-    bridge_lock_byte_cost_multiplier: u128,
-) {
-    use astria_core::sequencerblock::v1alpha1::block::Deposit;
-
-    let expected_deposit_fee = transfer_fee.saturating_add(
-        crate::bridge::get_deposit_byte_len(&Deposit::new(
-            act.to,
-            // rollup ID doesn't matter here, as this is only used as a size-check
-            RollupId::from_unhashed_bytes([0; 32]),
-            act.amount,
-            act.asset_id,
-            act.destination_chain_address.clone(),
-        ))
-        .saturating_mul(bridge_lock_byte_cost_multiplier),
-    );
-
-    fees_by_asset
-        .entry(act.asset_id)
-        .and_modify(|amt: &mut u128| *amt = amt.saturating_add(act.amount))
-        .or_insert(act.amount);
-    fees_by_asset
-        .entry(act.asset_id)
-        .and_modify(|amt| *amt = amt.saturating_add(expected_deposit_fee))
-        .or_insert(expected_deposit_fee);
-}
-
-async fn bridge_unlock_update_fees<S: StateReadExt>(
-    state: &S,
-    from: Address,
-    amount: u128,
-    fee_asset_id: asset::Id,
-    fees_by_asset: &mut HashMap<asset::Id, u128>,
-    transfer_fee: u128,
-) -> anyhow::Result<()> {
-    let asset_id = state
-        .get_bridge_account_asset_id(&from)
-        .await
-        .context("must be a bridge account for BridgeUnlock action")?;
-    fees_by_asset
-        .entry(asset_id)
-        .and_modify(|amt: &mut u128| *amt = amt.saturating_add(amount))
-        .or_insert(amount);
-    fees_by_asset
-        .entry(fee_asset_id)
-        .and_modify(|amt| *amt = amt.saturating_add(transfer_fee))
-        .or_insert(transfer_fee);
-    Ok(())
+    Ok(cost_by_asset)
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use astria_core::{
         primitive::v1::{
-            asset::{
-                Denom,
-                DEFAULT_NATIVE_ASSET_DENOM,
-            },
+            asset::Denom,
             RollupId,
             ADDRESS_LEN,
         },
-        protocol::transaction::v1alpha1::{
-            action::{
-                SequenceAction,
-                TransferAction,
+        protocol::{
+            fees::v1::{
+                BridgeLockFeeComponents,
+                BridgeSudoChangeFeeComponents,
+                BridgeUnlockFeeComponents,
+                Ics20WithdrawalFeeComponents,
+                InitBridgeAccountFeeComponents,
+                RollupDataSubmissionFeeComponents,
+                TransferFeeComponents,
             },
-            TransactionParams,
+            transaction::v1::{
+                action::{
+                    RollupDataSubmission,
+                    Transfer,
+                },
+                TransactionBody,
+            },
         },
     };
+    use bytes::Bytes;
     use cnidarium::StateDelta;
 
     use super::*;
     use crate::{
-        accounts::state_ext::StateWriteExt as _,
+        accounts::StateWriteExt as _,
+        address::{
+            StateReadExt,
+            StateWriteExt as _,
+        },
         app::test_utils::*,
-        bridge::state_ext::StateWriteExt,
-        ibc::state_ext::StateWriteExt as _,
-        sequence::state_ext::StateWriteExt as _,
+        assets::StateWriteExt as _,
+        benchmark_and_test_utils::{
+            nria,
+            ASTRIA_PREFIX,
+        },
+        fees::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+        test_utils::calculate_rollup_data_submission_fee_from_state,
     };
 
     #[tokio::test]
-    async fn check_balance_mempool_ok() {
+    #[expect(clippy::too_many_lines, reason = "it's a test")]
+    async fn check_balance_total_fees_transfers_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
-        state_tx.put_transfer_base_fee(12).unwrap();
-        state_tx.put_sequence_action_base_fee(0);
-        state_tx.put_sequence_action_byte_cost_multiplier(1);
-        state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
-        state_tx.put_init_bridge_account_base_fee(12);
-        state_tx.put_bridge_lock_byte_cost_multiplier(1);
+        state_tx.put_base_prefix("astria".to_string()).unwrap();
+        state_tx.put_native_asset(nria()).unwrap();
+        let transfer_fees = TransferFeeComponents {
+            base: 12,
+            multiplier: 0,
+        };
+        state_tx
+            .put_transfer_fees(transfer_fees)
+            .wrap_err("failed to initiate transfer fee components")
+            .unwrap();
 
-        crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
-        let native_asset = crate::asset::get_native_asset().id();
-        let other_asset = Denom::from_base_denom("other").id();
+        let rollup_data_submission_fees = RollupDataSubmissionFeeComponents {
+            base: 0,
+            multiplier: 1,
+        };
+        state_tx
+            .put_rollup_data_submission_fees(rollup_data_submission_fees)
+            .wrap_err("failed to initiate sequence action fee components")
+            .unwrap();
 
-        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
+            base: 1,
+            multiplier: 0,
+        };
+        state_tx
+            .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
+            .wrap_err("failed to initiate ics20 withdrawal fee components")
+            .unwrap();
+
+        let init_bridge_account_fees = InitBridgeAccountFeeComponents {
+            base: 12,
+            multiplier: 0,
+        };
+        state_tx
+            .put_init_bridge_account_fees(init_bridge_account_fees)
+            .wrap_err("failed to initiate init bridge account fee components")
+            .unwrap();
+
+        let bridge_lock_fees = BridgeLockFeeComponents {
+            base: 0,
+            multiplier: 1,
+        };
+        state_tx
+            .put_bridge_lock_fees(bridge_lock_fees)
+            .wrap_err("failed to initiate bridge lock fee components")
+            .unwrap();
+
+        let bridge_unlock_fees = BridgeUnlockFeeComponents {
+            base: 0,
+            multiplier: 0,
+        };
+        state_tx
+            .put_bridge_unlock_fees(bridge_unlock_fees)
+            .wrap_err("failed to initiate bridge unlock fee components")
+            .unwrap();
+
+        let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
+            base: 24,
+            multiplier: 0,
+        };
+        state_tx
+            .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
+            .wrap_err("failed to initiate bridge sudo change fee components")
+            .unwrap();
+
+        let other_asset = "other".parse::<Denom>().unwrap();
+
+        let alice = get_alice_signing_key();
         let amount = 100;
-        let data = [0; 32].to_vec();
-        let transfer_fee = state_tx.get_transfer_base_fee().await.unwrap();
+        let data = Bytes::from_static(&[0; 32]);
+        let transfer_fee = state_tx
+            .get_transfer_fees()
+            .await
+            .expect("should not error fetching transfer fees")
+            .expect("transfer fees should be stored")
+            .base;
         state_tx
             .increase_balance(
-                alice_address,
-                native_asset,
+                &state_tx
+                    .try_base_prefixed(&alice.address_bytes())
+                    .await
+                    .unwrap(),
+                &nria(),
                 transfer_fee
-                    + crate::sequence::calculate_fee_from_state(&data, &state_tx)
-                        .await
-                        .unwrap(),
+                    + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
             )
             .await
             .unwrap();
         state_tx
-            .increase_balance(alice_address, other_asset, amount)
+            .increase_balance(
+                &state_tx
+                    .try_base_prefixed(&alice.address_bytes())
+                    .await
+                    .unwrap(),
+                &other_asset,
+                amount,
+            )
             .await
             .unwrap();
 
         let actions = vec![
-            Action::Transfer(TransferAction {
-                asset_id: other_asset,
+            Action::Transfer(Transfer {
+                asset: other_asset.clone(),
                 amount,
-                fee_asset_id: native_asset,
-                to: [0; ADDRESS_LEN].into(),
+                fee_asset: nria().into(),
+                to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
-            Action::Sequence(SequenceAction {
+            Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
-                fee_asset_id: native_asset,
+                fee_asset: nria().into(),
             }),
         ];
 
-        let params = TransactionParams {
-            nonce: 0,
-            chain_id: "test-chain-id".to_string(),
-        };
-        let tx = UnsignedTransaction {
-            actions,
-            params,
-        };
+        let tx = TransactionBody::builder()
+            .actions(actions)
+            .chain_id("test-chain-id")
+            .try_build()
+            .unwrap();
 
-        let signed_tx = tx.into_signed(&alice_signing_key);
-        check_balance_mempool(&signed_tx, &state_tx)
+        let signed_tx = tx.sign(&alice);
+        check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
             .await
             .expect("sufficient balance for all actions");
     }
 
     #[tokio::test]
-    async fn check_balance_mempool_insufficient_other_asset_balance() {
+    #[expect(clippy::too_many_lines, reason = "it's a test")]
+    async fn check_balance_total_fees_and_transfers_insufficient_other_asset_balance() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state_tx = StateDelta::new(snapshot);
 
-        state_tx.put_transfer_base_fee(12).unwrap();
-        state_tx.put_sequence_action_base_fee(0);
-        state_tx.put_sequence_action_byte_cost_multiplier(1);
-        state_tx.put_ics20_withdrawal_base_fee(1).unwrap();
-        state_tx.put_init_bridge_account_base_fee(12);
-        state_tx.put_bridge_lock_byte_cost_multiplier(1);
+        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_tx.put_native_asset(nria()).unwrap();
+        let transfer_fees = TransferFeeComponents {
+            base: 12,
+            multiplier: 0,
+        };
+        state_tx
+            .put_transfer_fees(transfer_fees)
+            .wrap_err("failed to initiate transfer fee components")
+            .unwrap();
 
-        crate::asset::initialize_native_asset(DEFAULT_NATIVE_ASSET_DENOM);
-        let native_asset = crate::asset::get_native_asset().id();
-        let other_asset = Denom::from_base_denom("other").id();
+        let rollup_data_submission_fees = RollupDataSubmissionFeeComponents {
+            base: 0,
+            multiplier: 1,
+        };
+        state_tx
+            .put_rollup_data_submission_fees(rollup_data_submission_fees)
+            .wrap_err("failed to initiate sequence action fee components")
+            .unwrap();
 
-        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
+            base: 1,
+            multiplier: 0,
+        };
+        state_tx
+            .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
+            .wrap_err("failed to initiate ics20 withdrawal fee components")
+            .unwrap();
+
+        let init_bridge_account_fees = InitBridgeAccountFeeComponents {
+            base: 12,
+            multiplier: 0,
+        };
+        state_tx
+            .put_init_bridge_account_fees(init_bridge_account_fees)
+            .wrap_err("failed to initiate init bridge account fee components")
+            .unwrap();
+
+        let bridge_lock_fees = BridgeLockFeeComponents {
+            base: 0,
+            multiplier: 1,
+        };
+        state_tx
+            .put_bridge_lock_fees(bridge_lock_fees)
+            .wrap_err("failed to initiate bridge lock fee components")
+            .unwrap();
+
+        let bridge_unlock_fees = BridgeUnlockFeeComponents {
+            base: 0,
+            multiplier: 0,
+        };
+        state_tx
+            .put_bridge_unlock_fees(bridge_unlock_fees)
+            .wrap_err("failed to initiate bridge unlock fee components")
+            .unwrap();
+
+        let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
+            base: 24,
+            multiplier: 0,
+        };
+        state_tx
+            .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
+            .wrap_err("failed to initiate bridge sudo change fee components")
+            .unwrap();
+
+        let other_asset = "other".parse::<Denom>().unwrap();
+
+        let alice = get_alice_signing_key();
         let amount = 100;
-        let data = [0; 32].to_vec();
-        let transfer_fee = state_tx.get_transfer_base_fee().await.unwrap();
+        let data = Bytes::from_static(&[0; 32]);
+        let transfer_fee = state_tx
+            .get_transfer_fees()
+            .await
+            .expect("should not error fetching transfer fees")
+            .expect("transfer fees should be stored")
+            .base;
         state_tx
             .increase_balance(
-                alice_address,
-                native_asset,
+                &state_tx
+                    .try_base_prefixed(&alice.address_bytes())
+                    .await
+                    .unwrap(),
+                &nria(),
                 transfer_fee
-                    + crate::sequence::calculate_fee_from_state(&data, &state_tx)
-                        .await
-                        .unwrap(),
+                    + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
             )
             .await
             .unwrap();
 
         let actions = vec![
-            Action::Transfer(TransferAction {
-                asset_id: other_asset,
+            Action::Transfer(Transfer {
+                asset: other_asset.clone(),
                 amount,
-                fee_asset_id: native_asset,
-                to: [0; ADDRESS_LEN].into(),
+                fee_asset: nria().into(),
+                to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
             }),
-            Action::Sequence(SequenceAction {
+            Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
                 data,
-                fee_asset_id: native_asset,
+                fee_asset: nria().into(),
             }),
         ];
 
-        let params = TransactionParams {
-            nonce: 0,
-            chain_id: "test-chain-id".to_string(),
-        };
-        let tx = UnsignedTransaction {
-            actions,
-            params,
-        };
+        let tx = TransactionBody::builder()
+            .actions(actions)
+            .chain_id("test-chain-id")
+            .try_build()
+            .unwrap();
 
-        let signed_tx = tx.into_signed(&alice_signing_key);
-        let err = check_balance_mempool(&signed_tx, &state_tx)
+        let signed_tx = tx.sign(&alice);
+        let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
             .await
-            .expect_err("insufficient funds for `other` asset");
-        assert!(err.to_string().contains(&other_asset.to_string()));
+            .err()
+            .unwrap();
+        assert!(
+            err.root_cause()
+                .to_string()
+                .contains(&other_asset.to_ibc_prefixed().to_string())
+        );
     }
 }

@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/fees/storage/keys.rs
+expression: allowed_asset(&test_asset())
+---
+fees/allowed_asset/ibc/be429a02d00837245167a2616674a979a2ac6f9806468b48a975b156ad711320

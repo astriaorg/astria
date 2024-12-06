@@ -1,49 +1,59 @@
 [package]
 name = "astria-sequencer"
-version = "0.11.0"
+version = "1.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-rust-version = "1.73"
+rust-version = "1.81.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
-[[bin]]
-name = "astria-sequencer"
-
 [features]
-default = []
-mint = []
+benchmark = ["divan"]
 
 [dependencies]
-astria-core = { path = "../astria-core", features = ["server", "serde"] }
+astria-core = { path = "../astria-core", features = [
+  "server",
+  "serde",
+  "unchecked-constructors",
+] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
+
+# The "anyhow" feature is only included because it is necessary for the implementation of
+# `penumbra_ibc::component::HostInterface` in `crates/astria-sequencer/src/ibc/host_interface.rs`.
+# Avoid using "anyhow" results anywhere else.
+astria-eyre = { path = "../astria-eyre", features = ["anyhow"] }
+
 config = { package = "astria-config", path = "../astria-config" }
-merkle = { package = "astria-merkle", path = "../astria-merkle" }
+merkle = { package = "astria-merkle", path = "../astria-merkle", features = [
+  "unchecked-constructors",
+] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
 
-anyhow = "1"
-borsh = { version = "1", features = ["derive"] }
+borsh = { version = "1.5.1", features = ["bytes", "derive"] }
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.7", features = [
+  "metrics",
+] }
+ibc-proto = { version = "0.41.0", features = ["server"] }
 matchit = "0.7.2"
-priority-queue = "2.0.2"
 tower = "0.4"
 tower-abci = "0.12.0"
 tower-actor = "0.1.0"
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "8b06546af43bf073fd99f3f9d82b8afb51872489" }
-cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "8b06546af43bf073fd99f3f9d82b8afb51872489" }
+tower-http = { version = "0.4", features = ["cors"] }
 
 async-trait = { workspace = true }
+base64 = { workspace = true }
 bytes = { workspace = true }
-ed25519-consensus = { workspace = true }
+divan = { workspace = true, optional = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
-metrics = { workspace = true }
 penumbra-proto = { workspace = true }
 penumbra-tower-trace = { workspace = true }
+pin-project-lite = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
@@ -52,12 +62,10 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
-
-ibc-proto = { version = "0.41.0", features = ["server"] }
-tower-http = { version = "0.4", features = ["cors"] }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [
@@ -69,6 +77,16 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 insta = { workspace = true, features = ["json"] }
+paste = "1.0.15"
+maplit = "1.0.2"
+rand_chacha = "0.3.1"
+tokio = { workspace = true, features = ["test-util"] }
+assert-json-diff = "2.0.2"
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
+
+[[bench]]
+name = "benchmark"
+harness = false
+required-features = ["benchmark"]

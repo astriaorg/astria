@@ -81,16 +81,36 @@ impl ::prost::Name for RollupId {
 }
 /// An Astria `Address`.
 ///
-/// Astria addresses are derived from the ed25519 public key,
-/// using the first 20 bytes of the sha256 hash.
+/// Astria addresses are bech32m encoded strings, with the data part being the
+/// first 20 entries of a sha256-hashed ed25519 public key.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Address {
-    #[prost(bytes = "bytes", tag = "1")]
-    pub inner: ::prost::bytes::Bytes,
+    /// A bech32m encoded string. The data are the first 20 bytes of a sha256-hashed ed25519
+    /// public key. Implementors must not accept both the `bytes` and `bech32m` being set.
+    #[prost(string, tag = "2")]
+    pub bech32m: ::prost::alloc::string::String,
 }
 impl ::prost::Name for Address {
     const NAME: &'static str = "Address";
+    const PACKAGE: &'static str = "astria.primitive.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)
+    }
+}
+/// A `TransactionId` is a unique identifier for a transaction.
+/// It contains the hash of the transaction, to be included in
+/// rollup deposit events for source tracking.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionId {
+    /// The hash of the transaction which the ID represents.
+    /// It must be a lower hex-encoded 32-byte hash.
+    #[prost(string, tag = "1")]
+    pub inner: ::prost::alloc::string::String,
+}
+impl ::prost::Name for TransactionId {
+    const NAME: &'static str = "TransactionId";
     const PACKAGE: &'static str = "astria.primitive.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)

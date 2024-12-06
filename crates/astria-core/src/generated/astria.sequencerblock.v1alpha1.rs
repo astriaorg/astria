@@ -11,8 +11,8 @@ pub struct RollupTransactions {
     pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     /// The serialized bytes of the rollup data.
     /// Each entry is a protobuf-encoded `RollupData` message.
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// The proof that these rollup transactions are included in sequencer block.
     /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "3")]
@@ -57,8 +57,8 @@ pub struct SequencerBlock {
     #[prost(message, optional, tag = "4")]
     pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
     /// / The block hash of the cometbft block that corresponds to this sequencer block.
-    #[prost(bytes = "vec", tag = "5")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "5")]
+    pub block_hash: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for SequencerBlock {
     const NAME: &'static str = "SequencerBlock";
@@ -80,15 +80,15 @@ pub struct SequencerBlockHeader {
     #[prost(message, optional, tag = "3")]
     pub time: ::core::option::Option<::pbjson_types::Timestamp>,
     /// the data_hash of the sequencer block (merkle root of all transaction hashes)
-    #[prost(bytes = "vec", tag = "4")]
-    pub data_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "4")]
+    pub data_hash: ::prost::bytes::Bytes,
     /// the cometbft proposer address of the sequencer block
-    #[prost(bytes = "vec", tag = "5")]
-    pub proposer_address: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "5")]
+    pub proposer_address: ::prost::bytes::Bytes,
     /// The 32-byte merkle root of all the rollup transactions in the block,
     /// Corresponds to `MHT(astria.SequencerBlock.rollup_transactions)`,
-    #[prost(bytes = "vec", tag = "6")]
-    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "6")]
+    pub rollup_transactions_root: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for SequencerBlockHeader {
     const NAME: &'static str = "SequencerBlockHeader";
@@ -120,12 +120,21 @@ pub struct Deposit {
     pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     #[prost(message, optional, tag = "3")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
-    #[prost(bytes = "vec", tag = "4")]
-    pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "4")]
+    pub asset: ::prost::alloc::string::String,
     /// the address on the destination chain which
     /// will receive the bridged funds
     #[prost(string, tag = "5")]
     pub destination_chain_address: ::prost::alloc::string::String,
+    /// the transaction ID of the source action for the deposit, consisting
+    /// of the transaction hash.
+    #[prost(message, optional, tag = "6")]
+    pub source_transaction_id: ::core::option::Option<
+        super::super::primitive::v1::TransactionId,
+    >,
+    /// index of the deposit's source action within its transaction
+    #[prost(uint64, tag = "7")]
+    pub source_action_index: u64,
 }
 impl ::prost::Name for Deposit {
     const NAME: &'static str = "Deposit";
@@ -140,8 +149,8 @@ impl ::prost::Name for Deposit {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilteredSequencerBlock {
     /// / The block hash of the cometbft block that corresponds to this sequencer block.
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub block_hash: ::prost::bytes::Bytes,
     /// the block header, which contains sequencer-specific commitments.
     #[prost(message, optional, tag = "2")]
     pub header: ::core::option::Option<SequencerBlockHeader>,
@@ -162,8 +171,8 @@ pub struct FilteredSequencerBlock {
     /// and is extracted from `astria.SequencerBlock.rollup_transactions`.
     /// Note that these are all the rollup IDs in the sequencer block, not merely those in
     /// `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
-    #[prost(bytes = "vec", repeated, tag = "5")]
-    pub all_rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(message, repeated, tag = "5")]
+    pub all_rollup_ids: ::prost::alloc::vec::Vec<super::super::primitive::v1::RollupId>,
     /// The proof that the `rollup_ids` are included
     /// in the CometBFT block this sequencer block is derived form.
     ///
@@ -201,7 +210,7 @@ pub mod rollup_data {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
         #[prost(bytes, tag = "1")]
-        SequencedData(::prost::alloc::vec::Vec<u8>),
+        SequencedData(::prost::bytes::Bytes),
         #[prost(message, tag = "2")]
         Deposit(super::Deposit),
     }
@@ -241,15 +250,15 @@ impl ::prost::Name for SubmittedRollupDataList {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmittedRollupData {
     /// The hash of the sequencer block. Must be 32 bytes.
-    #[prost(bytes = "vec", tag = "1")]
-    pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub sequencer_block_hash: ::prost::bytes::Bytes,
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
     /// `astria.sequencer.v1.RollupTransactions.rollup_id`
     #[prost(message, optional, tag = "2")]
     pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     /// A list of opaque bytes that are serialized rollup transactions.
-    #[prost(bytes = "vec", repeated, tag = "3")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "3")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// The proof that these rollup transactions are included in sequencer block.
     /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
@@ -290,8 +299,8 @@ impl ::prost::Name for SubmittedMetadataList {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmittedMetadata {
     /// the 32-byte block hash of the sequencer block.
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub block_hash: ::prost::bytes::Bytes,
     /// the block header, which contains sequencer-specific commitments.
     #[prost(message, optional, tag = "2")]
     pub header: ::core::option::Option<SequencerBlockHeader>,
@@ -345,6 +354,34 @@ pub struct GetFilteredSequencerBlockRequest {
 }
 impl ::prost::Name for GetFilteredSequencerBlockRequest {
     const NAME: &'static str = "GetFilteredSequencerBlockRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPendingNonceRequest {
+    /// The account to retrieve the pending nonce for.
+    #[prost(message, optional, tag = "1")]
+    pub address: ::core::option::Option<super::super::primitive::v1::Address>,
+}
+impl ::prost::Name for GetPendingNonceRequest {
+    const NAME: &'static str = "GetPendingNonceRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPendingNonceResponse {
+    /// The pending nonce for the given account.
+    #[prost(uint32, tag = "1")]
+    pub inner: u32,
+}
+impl ::prost::Name for GetPendingNonceResponse {
+    const NAME: &'static str = "GetPendingNonceResponse";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
@@ -496,6 +533,37 @@ pub mod sequencer_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        /// Returns the pending nonce for the given account.
+        pub async fn get_pending_nonce(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetPendingNonceRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::GetPendingNonceResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetPendingNonce",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1alpha1.SequencerService",
+                        "GetPendingNonce",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -518,6 +586,14 @@ pub mod sequencer_service_server {
             request: tonic::Request<super::GetFilteredSequencerBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::FilteredSequencerBlock>,
+            tonic::Status,
+        >;
+        /// Returns the pending nonce for the given account.
+        async fn get_pending_nonce(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetPendingNonceRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::GetPendingNonceResponse>,
             tonic::Status,
         >;
     }
@@ -685,6 +761,53 @@ pub mod sequencer_service_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = GetFilteredSequencerBlockSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/astria.sequencerblock.v1alpha1.SequencerService/GetPendingNonce" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetPendingNonceSvc<T: SequencerService>(pub Arc<T>);
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<super::GetPendingNonceRequest>
+                    for GetPendingNonceSvc<T> {
+                        type Response = super::GetPendingNonceResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetPendingNonceRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as SequencerService>::get_pending_nonce(inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetPendingNonceSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

@@ -10,7 +10,7 @@ use std::{
 
 use astria_core::{
     brotli::compress_bytes,
-    generated::sequencerblock::v1alpha1::{
+    generated::astria::sequencerblock::v1::{
         SubmittedMetadata,
         SubmittedMetadataList,
         SubmittedRollupData,
@@ -27,11 +27,15 @@ use pin_project_lite::pin_project;
 use sequencer_client::SequencerBlock;
 use tendermint::block::Height as SequencerHeight;
 use tracing::{
+    error,
     trace,
     warn,
 };
 
-use crate::IncludeRollup;
+use crate::{
+    metrics::Metrics,
+    IncludeRollup,
+};
 
 /// The maximum permitted payload size in bytes that relayer will send to Celestia.
 ///
@@ -68,9 +72,11 @@ impl Submission {
     }
 
     /// The ratio of uncompressed blob size to compressed size.
-    // allow: used for metric gauges, which require f64. Precision loss is ok and of no
-    // significance.
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "used for metric gauges, which require f64. Precision loss is ok and of no \
+                  significance"
+    )]
     pub(super) fn compression_ratio(&self) -> f64 {
         self.uncompressed_size() as f64 / self.compressed_size() as f64
     }
@@ -132,8 +138,28 @@ impl Payload {
         let encoded = value.encode_to_vec();
         let compressed = compress_bytes(&encoded)?;
         let blob = Blob::new(namespace, compressed)?;
-        self.uncompressed_size += encoded.len();
-        self.compressed_size += blob.data.len();
+        self.uncompressed_size = self
+            .uncompressed_size
+            .checked_add(encoded.len())
+            .unwrap_or_else(|| {
+                error!(
+                    uncompressed_size = self.uncompressed_size,
+                    encoded_len = encoded.len(),
+                    "overflowed uncompressed size while adding new value; setting to `usize::MAX`"
+                );
+                usize::MAX
+            });
+        self.compressed_size = self
+            .compressed_size
+            .checked_add(blob.data.len())
+            .unwrap_or_else(|| {
+                error!(
+                    compressed_size = self.compressed_size,
+                    blob_data_len = blob.data.len(),
+                    "overflowed compressed size while adding new value; setting to `usize::MAX`"
+                );
+                usize::MAX
+            });
         self.blobs.push(blob);
         Ok(())
     }
@@ -159,6 +185,8 @@ pub(super) enum TryIntoPayloadError {
          could not be constructed"
     )]
     NoSequencerNamespacePresent,
+    #[error("the payload size exceeded `u64::MAX` bytes")]
+    PayloadSize,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
@@ -236,8 +264,12 @@ impl Input {
     fn try_into_payload(self) -> Result<Payload, TryIntoPayloadError> {
         use prost::Name as _;
 
-        let mut payload =
-            Payload::with_capacity(self.metadata.len() + self.rollup_data_for_namespace.len());
+        let payload_len = self
+            .metadata
+            .len()
+            .checked_add(self.rollup_data_for_namespace.len())
+            .ok_or(TryIntoPayloadError::PayloadSize)?;
+        let mut payload = Payload::with_capacity(payload_len);
 
         let sequencer_namespace = self
             .meta
@@ -272,11 +304,11 @@ impl Input {
     }
 }
 
-#[derive(Debug)]
 pub(super) struct NextSubmission {
     rollup_filter: IncludeRollup,
     input: Input,
     payload: Payload,
+    metrics: &'static Metrics,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -297,11 +329,12 @@ pub(super) enum TryAddError {
 }
 
 impl NextSubmission {
-    pub(super) fn new(rollup_filter: IncludeRollup) -> Self {
+    pub(super) fn new(rollup_filter: IncludeRollup, metrics: &'static Metrics) -> Self {
         Self {
             rollup_filter,
             input: Input::new(),
             payload: Payload::new(),
+            metrics,
         }
     }
 
@@ -317,8 +350,8 @@ impl NextSubmission {
 
         let payload_creation_start = std::time::Instant::now();
         let payload_candidate = input_candidate.clone().try_into_payload()?;
-        metrics::histogram!(crate::metrics_init::CELESTIA_PAYLOAD_CREATION_LATENCY)
-            .record(payload_creation_start.elapsed());
+        self.metrics
+            .record_celestia_payload_creation_latency(payload_creation_start.elapsed());
 
         if payload_candidate.compressed_size <= MAX_PAYLOAD_SIZE_BYTES {
             self.input = input_candidate;
@@ -391,7 +424,7 @@ impl<'a> Future for TakeSubmission<'a> {
 /// # Panics
 /// Panics if the `header.header` field is unset. This is OK because the argument to this
 /// function should only come from a [`SubmittedMetadata`] that was created from its verified
-/// counterpart [`astria_core::sequencerblock::v1alpha1::SubmittedMetadata::into_raw`].
+/// counterpart [`astria_core::sequencerblock::v1::SubmittedMetadata::into_raw`].
 fn sequencer_namespace(metadata: &SubmittedMetadata) -> Namespace {
     use const_format::concatcp;
     use prost::Name;
@@ -422,7 +455,7 @@ where
         .serialize(serializer)
 }
 
-fn serialize_sequencer_heights<'a, I: 'a, S>(heights: I, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_sequencer_heights<'a, I, S>(heights: I, serializer: S) -> Result<S::Ok, S::Error>
 where
     I: IntoIterator<Item = &'a SequencerHeight>,
     S: serde::ser::Serializer,
@@ -430,7 +463,7 @@ where
     serializer.collect_seq(heights.into_iter().map(tendermint::block::Height::value))
 }
 
-fn serialize_included_rollups<'a, I: 'a, S>(rollups: I, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_included_rollups<'a, I, S>(rollups: I, serializer: S) -> Result<S::Ok, S::Error>
 where
     I: IntoIterator<Item = (&'a RollupId, &'a Namespace)>,
     S: serde::ser::Serializer,
@@ -456,12 +489,14 @@ mod tests {
         ChaChaRng,
     };
     use sequencer_client::SequencerBlock;
+    use telemetry::Metrics as _;
 
     use super::{
         Input,
         NextSubmission,
     };
     use crate::{
+        metrics::Metrics,
         relayer::write::conversion::{
             TryAddError,
             MAX_PAYLOAD_SIZE_BYTES,
@@ -471,6 +506,10 @@ mod tests {
 
     fn include_all_rollups() -> IncludeRollup {
         IncludeRollup::parse("").unwrap()
+    }
+
+    fn metrics() -> &'static Metrics {
+        Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()))
     }
 
     fn block(height: u32) -> SequencerBlock {
@@ -504,7 +543,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_sequencer_block_to_empty_next_submission() {
-        let mut next_submission = NextSubmission::new(include_all_rollups());
+        let mut next_submission = NextSubmission::new(include_all_rollups(), metrics());
         next_submission.try_add(block(1)).unwrap();
         let submission = next_submission.take().await.unwrap();
         assert_eq!(1, submission.num_blocks());
@@ -513,7 +552,7 @@ mod tests {
 
     #[test]
     fn adding_three_sequencer_blocks_with_same_ids_doesnt_change_number_of_blobs() {
-        let mut next_submission = NextSubmission::new(include_all_rollups());
+        let mut next_submission = NextSubmission::new(include_all_rollups(), metrics());
         next_submission.try_add(block(1)).unwrap();
         next_submission.try_add(block(2)).unwrap();
         next_submission.try_add(block(3)).unwrap();
@@ -527,7 +566,7 @@ mod tests {
         // this test makes use of the fact that random data is essentially incompressible so
         // that size(uncompressed_payload) ~= size(compressed_payload).
         let mut rng = ChaChaRng::seed_from_u64(0);
-        let mut next_submission = NextSubmission::new(include_all_rollups());
+        let mut next_submission = NextSubmission::new(include_all_rollups(), metrics());
         // adding 9 blocks with 100KB random data each, which gives a (compressed) payload slightly
         // above 900KB.
         let num_bytes = 100_000usize;
@@ -549,7 +588,7 @@ mod tests {
         // this test makes use of the fact that random data is essentially incompressible so
         // that size(uncompressed_payload) ~= size(compressed_payload).
         let mut rng = ChaChaRng::seed_from_u64(0);
-        let mut next_submission = NextSubmission::new(include_all_rollups());
+        let mut next_submission = NextSubmission::new(include_all_rollups(), metrics());
 
         // using the upper limit defined in the constant and add 1KB of extra bytes to ensure
         // the block is too large

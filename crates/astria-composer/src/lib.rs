@@ -16,7 +16,7 @@
 //! #     Composer,
 //! #     Config,
 //! #     telemetry,
-//! };
+//! # };
 //! # use tracing::info;
 //! # tokio_test::block_on(async {
 //! let cfg: Config = config::get().expect("failed to read configuration");
@@ -24,13 +24,13 @@
 //!     .expect("the json serializer should never fail when serializing to a string");
 //! eprintln!("config:\n{cfg_ser}");
 //!
-//! telemetry::configure()
-//!     .filter_directives(&cfg.log)
-//!     .try_init()
+//! let (metrics, _telemetry_guard) = telemetry::configure()
+//!     .set_filter_directives(&cfg.log)
+//!     .try_init(&cfg)
 //!     .expect("failed to setup telemetry");
 //! info!(config = cfg_ser, "initializing composer",);
 //!
-//! let _composer = Composer::from_config(&cfg)
+//! let _composer = Composer::from_config(&cfg, metrics)
 //!     .await
 //!     .expect("failed creating composer")
 //!     .run_until_stopped()
@@ -45,10 +45,14 @@ mod composer;
 pub mod config;
 mod executor;
 mod grpc;
-pub mod metrics_init;
+pub(crate) mod metrics;
 mod rollup;
+#[cfg(test)]
+pub(crate) mod test_utils;
+pub(crate) mod utils;
 
 pub use build_info::BUILD_INFO;
 pub use composer::Composer;
 pub use config::Config;
+pub use metrics::Metrics;
 pub use telemetry;

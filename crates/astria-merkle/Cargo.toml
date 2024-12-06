@@ -1,17 +1,29 @@
 [package]
 name = "astria-merkle"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
-rust-version = "1.71.1"
+rust-version = "1.81.0"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 serde = { workspace = true, features = ["derive"], optional = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+ct-merkle = "0.1.0"
+divan = { workspace = true }
 hex-literal = { workspace = true }
+
+[features]
+# Used to enable allocation data in benchmarks.
+bench_include_allocs = []
+# When enabled, this adds constructors for some types that skip the normal constructor validity
+# checks. It supports the case where the inputs are already deemed valid, e.g. having read them from
+# local storage.
+unchecked-constructors = []
+
+[[bench]]
+name = "benchmark"
+harness = false

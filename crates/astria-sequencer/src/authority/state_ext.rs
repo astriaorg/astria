@@ -1,138 +1,81 @@
 use std::collections::BTreeMap;
 
-use anyhow::{
-    bail,
-    Context,
-    Result,
-};
-use astria_core::primitive::v1::{
-    Address,
-    ADDRESS_LEN,
+use astria_core::primitive::v1::ADDRESS_LEN;
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        Result,
+        WrapErr as _,
+    },
 };
 use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
 use cnidarium::{
     StateRead,
     StateWrite,
 };
-use serde::{
-    Deserialize,
-    Serialize,
-};
-use tendermint::{
-    account,
-    validator,
-};
 use tracing::instrument;
 
-/// Newtype wrapper to read and write an address from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct SudoAddress([u8; ADDRESS_LEN]);
-
-/// Newtype wrapper to read and write a validator set or set of updates from rocksdb.
-///
-/// Contains a map of hex-encoded public keys to validator updates.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct ValidatorSet(BTreeMap<account::Id, validator::Update>);
-
-impl ValidatorSet {
-    pub(crate) fn new_from_updates(updates: Vec<validator::Update>) -> Self {
-        let validator_set = updates
-            .into_iter()
-            .map(|update| (account::Id::from(update.pub_key), update))
-            .collect::<BTreeMap<_, _>>();
-        Self(validator_set)
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub(crate) fn get(&self, address: &account::Id) -> Option<&validator::Update> {
-        self.0.get(address)
-    }
-
-    pub(crate) fn push_update(&mut self, update: validator::Update) {
-        let address = tendermint::account::Id::from(update.pub_key);
-        self.0.insert(address, update);
-    }
-
-    pub(crate) fn remove(&mut self, address: &account::Id) {
-        self.0.remove(address);
-    }
-
-    /// Apply updates to the validator set.
-    ///
-    /// If the power of a validator is set to 0, remove it from the set.
-    /// Otherwise, update the validator's power.
-    pub(crate) fn apply_updates(&mut self, validator_updates: ValidatorSet) {
-        for (address, update) in validator_updates.0 {
-            match update.power.value() {
-                0 => self.0.remove(&address),
-                _ => self.0.insert(address, update),
-            };
-        }
-    }
-
-    pub(crate) fn into_tendermint_validator_updates(self) -> Vec<validator::Update> {
-        self.0.into_values().collect::<Vec<_>>()
-    }
-}
-
-const SUDO_STORAGE_KEY: &str = "sudo";
-const VALIDATOR_SET_STORAGE_KEY: &str = "valset";
-const VALIDATOR_UPDATES_KEY: &[u8] = b"valupdates";
+use super::{
+    storage::{
+        self,
+        keys,
+    },
+    ValidatorSet,
+};
+use crate::{
+    accounts::AddressBytes,
+    storage::StoredValue,
+};
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
-    async fn get_sudo_address(&self) -> Result<Address> {
+    #[instrument(skip_all)]
+    async fn get_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
-            .get_raw(SUDO_STORAGE_KEY)
+            .get_raw(keys::SUDO)
             .await
-            .context("failed reading raw sudo key from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw sudo key from state")?
         else {
             // return error because sudo key must be set
             bail!("sudo key not found");
         };
-        let SudoAddress(address) =
-            SudoAddress::try_from_slice(&bytes).context("invalid sudo key bytes")?;
-        Ok(Address::from(address))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::AddressBytes::try_from(value).map(<[u8; ADDRESS_LEN]>::from))
+            .wrap_err("invalid sudo key bytes")
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_validator_set(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
-            .get_raw(VALIDATOR_SET_STORAGE_KEY)
+            .get_raw(keys::VALIDATOR_SET)
             .await
-            .context("failed reading raw validator set from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator set from state")?
         else {
             // return error because validator set must be set
             bail!("validator set not found")
         };
-
-        let ValidatorSet(validator_set) =
-            serde_json::from_slice(&bytes).context("invalid validator set bytes")?;
-        Ok(ValidatorSet(validator_set))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::ValidatorSet::try_from(value).map(ValidatorSet::from))
+            .wrap_err("invalid validator set bytes")
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_validator_updates(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(VALIDATOR_UPDATES_KEY)
+            .nonverifiable_get_raw(keys::VALIDATOR_UPDATES.as_bytes())
             .await
-            .context("failed reading raw validator updates from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator updates from state")?
         else {
             // return empty set because validator updates are optional
             return Ok(ValidatorSet(BTreeMap::new()));
         };
-
-        let validator_updates: ValidatorSet =
-            serde_json::from_slice(&bytes).context("invalid validator updates bytes")?;
-        Ok(validator_updates)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::ValidatorSet::try_from(value).map(ValidatorSet::from))
+            .wrap_err("invalid validator update bytes")
     }
 }
 
@@ -140,58 +83,58 @@ impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
-    fn put_sudo_address(&mut self, address: Address) -> Result<()> {
-        self.put_raw(
-            SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.get()))
-                .context("failed to convert sudo address to vec")?,
-        );
+    #[instrument(skip_all)]
+    fn put_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
+        let bytes = StoredValue::from(storage::AddressBytes::from(&address))
+            .serialize()
+            .wrap_err("failed to serialize sudo address")?;
+        self.put_raw(keys::SUDO.to_string(), bytes);
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
-        self.put_raw(
-            VALIDATOR_SET_STORAGE_KEY.to_string(),
-            serde_json::to_vec(&validator_set).context("failed to serialize validator set")?,
-        );
+        let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_set))
+            .serialize()
+            .wrap_err("failed to serialize validator set")?;
+        self.put_raw(keys::VALIDATOR_SET.to_string(), bytes);
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_validator_updates(&mut self, validator_updates: ValidatorSet) -> Result<()> {
-        self.nonverifiable_put_raw(
-            VALIDATOR_UPDATES_KEY.to_vec(),
-            serde_json::to_vec(&validator_updates)
-                .context("failed to serialize validator updates")?,
-        );
+        let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_updates))
+            .serialize()
+            .wrap_err("failed to serialize validator updates")?;
+        self.nonverifiable_put_raw(keys::VALIDATOR_UPDATES.into(), bytes);
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn clear_validator_updates(&mut self) {
-        self.nonverifiable_delete(VALIDATOR_UPDATES_KEY.to_vec());
+        self.nonverifiable_delete(keys::VALIDATOR_UPDATES.into());
     }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
-    use astria_core::primitive::v1::Address;
+mod tests {
+    use astria_core::protocol::transaction::v1::action::ValidatorUpdate;
     use cnidarium::StateDelta;
-    use tendermint::{
-        validator,
-        vote,
-        PublicKey,
+
+    use super::*;
+    use crate::{
+        address::StateWriteExt as _,
+        benchmark_and_test_utils::{
+            verification_key,
+            ASTRIA_PREFIX,
+        },
     };
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
-        ValidatorSet,
-    };
+    fn empty_validator_set() -> ValidatorSet {
+        ValidatorSet::new_from_updates(vec![])
+    }
 
     #[tokio::test]
     async fn sudo_address() {
@@ -199,14 +142,16 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
         // doesn't exist at first
-        state
+        let _ = state
             .get_sudo_address()
             .await
             .expect_err("no sudo address should exist at first");
 
         // can write new
-        let mut address_expected = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let mut address_expected = [42u8; ADDRESS_LEN];
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
@@ -220,7 +165,7 @@ mod test {
         );
 
         // can rewrite with new value
-        address_expected = Address::try_from_slice(&[41u8; 20]).unwrap();
+        address_expected = [41u8; ADDRESS_LEN];
         state
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
@@ -241,7 +186,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // doesn't exist at first
-        state
+        let _ = state
             .get_validator_set()
             .await
             .expect_err("no validator set should exist at first");
@@ -253,10 +198,9 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let initial = vec![validator::Update {
-            pub_key: PublicKey::from_raw_ed25519(&[1u8; 32])
-                .expect("creating ed25519 key should not fail"),
-            power: vote::Power::from(10u32),
+        let initial = vec![ValidatorUpdate {
+            power: 10,
+            verification_key: verification_key(1),
         }];
         let initial_validator_set = ValidatorSet::new_from_updates(initial);
 
@@ -274,10 +218,9 @@ mod test {
         );
 
         // can update
-        let updates = vec![validator::Update {
-            pub_key: PublicKey::from_raw_ed25519(&[2u8; 32])
-                .expect("creating ed25519 key should not fail"),
-            power: vote::Power::from(20u32),
+        let updates = vec![ValidatorUpdate {
+            power: 20,
+            verification_key: verification_key(2),
         }];
         let updated_validator_set = ValidatorSet::new_from_updates(updates);
         state
@@ -299,16 +242,13 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
-        // create update validator set
-        let empty_validator_set = ValidatorSet::new_from_updates(vec![]);
-
         // querying for empty validator set is ok
         assert_eq!(
             state
                 .get_validator_updates()
                 .await
                 .expect("if no updates have been written return empty set"),
-            empty_validator_set,
+            empty_validator_set(),
             "returned empty validator set different than expected"
         );
     }
@@ -321,15 +261,13 @@ mod test {
 
         // create update validator set
         let mut updates = vec![
-            validator::Update {
-                pub_key: PublicKey::from_raw_ed25519(&[1u8; 32])
-                    .expect("creating ed25519 key should not fail"),
-                power: vote::Power::from(10u32),
+            ValidatorUpdate {
+                power: 10,
+                verification_key: verification_key(1),
             },
-            validator::Update {
-                pub_key: PublicKey::from_raw_ed25519(&[2u8; 32])
-                    .expect("creating ed25519 key should not fail"),
-                power: vote::Power::from(0u32),
+            ValidatorUpdate {
+                power: 0,
+                verification_key: verification_key(2),
             },
         ];
         let mut validator_set_updates = ValidatorSet::new_from_updates(updates);
@@ -349,15 +287,13 @@ mod test {
 
         // create different updates
         updates = vec![
-            validator::Update {
-                pub_key: PublicKey::from_raw_ed25519(&[1u8; 32])
-                    .expect("creating ed25519 key should not fail"),
-                power: vote::Power::from(22u32),
+            ValidatorUpdate {
+                power: 22,
+                verification_key: verification_key(1),
             },
-            validator::Update {
-                pub_key: PublicKey::from_raw_ed25519(&[3u8; 32])
-                    .expect("creating ed25519 key should not fail"),
-                power: vote::Power::from(10u32),
+            ValidatorUpdate {
+                power: 10,
+                verification_key: verification_key(3),
             },
         ];
 
@@ -384,10 +320,9 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         // create update validator set
-        let updates = vec![validator::Update {
-            pub_key: PublicKey::from_raw_ed25519(&[1u8; 32])
-                .expect("creating ed25519 key should not fail"),
-            power: vote::Power::from(10u32),
+        let updates = vec![ValidatorUpdate {
+            power: 10,
+            verification_key: verification_key(1),
         }];
         let validator_set_updates = ValidatorSet::new_from_updates(updates);
 
@@ -408,13 +343,12 @@ mod test {
         state.clear_validator_updates();
 
         // check that clear worked
-        let empty_validator_set = ValidatorSet::new_from_updates(vec![]);
         assert_eq!(
             state
                 .get_validator_updates()
                 .await
                 .expect("if no updates have been written return empty set"),
-            empty_validator_set,
+            empty_validator_set(),
             "returned validator set different than expected"
         );
     }
@@ -431,39 +365,32 @@ mod test {
 
     #[tokio::test]
     async fn execute_validator_updates() {
-        let key_0 =
-            PublicKey::from_raw_ed25519(&[1u8; 32]).expect("creating ed25519 key should not fail");
-        let key_1 =
-            PublicKey::from_raw_ed25519(&[2u8; 32]).expect("creating ed25519 key should not fail");
-        let key_2 =
-            PublicKey::from_raw_ed25519(&[3u8; 32]).expect("creating ed25519 key should not fail");
-
         // create initial validator set
         let initial = vec![
-            validator::Update {
-                pub_key: key_0,
-                power: vote::Power::from(1u32),
+            ValidatorUpdate {
+                power: 1,
+                verification_key: verification_key(0),
             },
-            validator::Update {
-                pub_key: key_1,
-                power: vote::Power::from(2u32),
+            ValidatorUpdate {
+                power: 2,
+                verification_key: verification_key(1),
             },
-            validator::Update {
-                pub_key: key_2,
-                power: vote::Power::from(3u32),
+            ValidatorUpdate {
+                power: 3,
+                verification_key: verification_key(2),
             },
         ];
         let mut initial_validator_set = ValidatorSet::new_from_updates(initial);
 
         // create set of updates (update key_0, remove key_1)
         let updates = vec![
-            validator::Update {
-                pub_key: key_0,
-                power: vote::Power::from(5u32),
+            ValidatorUpdate {
+                power: 5,
+                verification_key: verification_key(0),
             },
-            validator::Update {
-                pub_key: key_1,
-                power: vote::Power::from(0u32),
+            ValidatorUpdate {
+                power: 0,
+                verification_key: verification_key(1),
             },
         ];
 
@@ -474,13 +401,13 @@ mod test {
 
         // create end state
         let updates = vec![
-            validator::Update {
-                pub_key: key_0,
-                power: vote::Power::from(5u32),
+            ValidatorUpdate {
+                power: 5,
+                verification_key: verification_key(0),
             },
-            validator::Update {
-                pub_key: key_2,
-                power: vote::Power::from(3u32),
+            ValidatorUpdate {
+                power: 3,
+                verification_key: verification_key(2),
             },
         ];
         let validator_set_endstate = ValidatorSet::new_from_updates(updates);

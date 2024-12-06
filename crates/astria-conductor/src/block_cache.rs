@@ -4,7 +4,7 @@ use std::{
     future::Future,
 };
 
-use astria_core::sequencerblock::v1alpha1::{
+use astria_core::sequencerblock::v1::{
     block::FilteredSequencerBlock,
     SubmittedMetadata,
 };
@@ -49,7 +49,10 @@ impl<T> BlockCache<T> {
     /// Returns the next sequential block if it exists in the cache.
     pub(crate) fn pop(&mut self) -> Option<T> {
         let block = self.inner.remove(&self.next_height)?;
-        self.next_height += 1;
+        self.next_height = self
+            .next_height
+            .checked_add(1)
+            .expect("block height must not exceed `u64::MAX`");
         Some(block)
     }
 
@@ -102,9 +105,7 @@ impl<T: GetSequencerHeight> BlockCache<T> {
 pub(crate) enum Error {
     #[error("block at sequencer height {height} already in cache")]
     Occupied { height: u64 },
-    #[error(
-        "block too old: expect sequencer height {current_height} or newer, got {block_height}"
-    )]
+    #[error("block too old: expect sequencer height {current_height} or newer, got {block_height}")]
     Old {
         block_height: u64,
         current_height: u64,

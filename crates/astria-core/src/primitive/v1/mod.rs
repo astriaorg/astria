@@ -1,23 +1,51 @@
 pub mod asset;
 pub mod u128;
 
+pub use astria_core_address::{
+    Address,
+    Bech32,
+    Bech32m,
+    Builder as AddressBuilder,
+    Error as AddressError,
+    Format,
+    ADDRESS_LENGTH as ADDRESS_LEN,
+};
 use base64::{
     display::Base64Display,
-    prelude::BASE64_STANDARD,
+    prelude::BASE64_URL_SAFE,
 };
+use bytes::Bytes;
 use sha2::{
     Digest as _,
     Sha256,
 };
 
 use crate::{
-    generated::primitive::v1 as raw,
+    generated::astria::primitive::v1 as raw,
     Protobuf,
 };
 
-pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
-pub const FEE_ASSET_ID_LEN: usize = 32;
+
+pub const TRANSACTION_ID_LEN: usize = 32;
+
+impl Protobuf for Address<Bech32m> {
+    type Error = AddressError;
+    type Raw = raw::Address;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::Address {
+            bech32m,
+        } = raw;
+        bech32m.parse()
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        raw::Address {
+            bech32m: self.to_string(),
+        }
+    }
+}
 
 impl Protobuf for merkle::Proof {
     type Error = merkle::audit::InvalidProof;
@@ -80,7 +108,10 @@ impl Protobuf for merkle::Proof {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct RollupId {
-    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "crate::serde::base64_serialize")
+    )]
     inner: [u8; 32],
 }
 
@@ -96,7 +127,7 @@ impl RollupId {
     /// use astria_core::primitive::v1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
-    /// assert_eq!(bytes, rollup_id.get());
+    /// assert_eq!(bytes, *rollup_id.as_bytes());
     /// ```
     #[must_use]
     pub const fn new(inner: [u8; ROLLUP_ID_LEN]) -> Self {
@@ -105,18 +136,18 @@ impl RollupId {
         }
     }
 
-    /// Returns the 32 bytes array representing the rollup ID.
+    /// Returns a ref to the 32 bytes array representing the rollup ID.
     ///
     /// # Examples
     /// ```
     /// use astria_core::primitive::v1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
-    /// assert_eq!(bytes, rollup_id.get());
+    /// assert_eq!(bytes, *rollup_id.as_bytes());
     /// ```
     #[must_use]
-    pub const fn get(self) -> [u8; 32] {
-        self.inner
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.inner
     }
 
     /// Creates a new rollup ID by applying Sha256 to `bytes`.
@@ -166,19 +197,6 @@ impl RollupId {
         Ok(Self::new(inner))
     }
 
-    /// Converts a byte vector to a rollup ID.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the byte slice was not 32 bytes long.
-    pub fn try_from_vec(bytes: Vec<u8>) -> Result<Self, IncorrectRollupIdLength> {
-        let inner =
-            <[u8; ROLLUP_ID_LEN]>::try_from(bytes).map_err(|bytes| IncorrectRollupIdLength {
-                received: bytes.len(),
-            })?;
-        Ok(Self::new(inner))
-    }
-
     #[must_use]
     pub fn to_raw(&self) -> raw::RollupId {
         raw::RollupId {
@@ -198,7 +216,20 @@ impl RollupId {
     /// # Errors
     ///
     /// Returns an error if the byte slice was not 32 bytes long.
-    pub fn try_from_raw(raw: &raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "for symmetry with other domain type conversions"
+    )]
+    pub fn try_from_raw(raw: raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
+        Self::try_from_raw_ref(&raw)
+    }
+
+    /// Converts from protobuf type to rust type for a rollup ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the byte slice was not 32 bytes long.
+    pub fn try_from_raw_ref(raw: &raw::RollupId) -> Result<Self, IncorrectRollupIdLength> {
         Self::try_from_slice(&raw.inner)
     }
 }
@@ -233,7 +264,7 @@ impl From<&RollupId> for RollupId {
 
 impl std::fmt::Display for RollupId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Base64Display::new(self.as_ref(), &BASE64_STANDARD).fmt(f)
+        Base64Display::new(self.as_ref(), &BASE64_URL_SAFE).fmt(f)
     }
 }
 
@@ -243,116 +274,15 @@ pub struct IncorrectRollupIdLength {
     received: usize,
 }
 
-/// Indicates that the protobuf response contained an array field that was not 20 bytes long.
-#[derive(Debug, thiserror::Error)]
-#[error("expected 20 bytes, got {received}")]
-pub struct IncorrectAddressLength {
-    received: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub struct Address(
-    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::base64"))]
-    [u8; ADDRESS_LEN],
-);
-
-impl Address {
-    #[must_use]
-    pub fn get(self) -> [u8; ADDRESS_LEN] {
-        self.0
-    }
-
-    #[must_use]
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-
-    /// Construct a sequencer address from a [`ed25519_consensus::VerificationKey`].
-    ///
-    /// The first 20 bytes of the sha256 hash of the verification key is the address.
-    #[must_use]
-    // Silence the clippy lint because the function body asserts that the panic
-    // cannot happen.
-    #[allow(clippy::missing_panics_doc)]
-    pub fn from_verification_key(public_key: ed25519_consensus::VerificationKey) -> Self {
-        /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
-        /// that would violate this assumption.
-        #[allow(clippy::assertions_on_constants)]
-        const _: () = assert!(ADDRESS_LEN <= 32);
-        let bytes: [u8; 32] = Sha256::digest(public_key).into();
-        Self::try_from_slice(&bytes[..ADDRESS_LEN])
-            .expect("can convert 32 byte hash to 20 byte array")
-    }
-
-    /// Convert a byte slice to an address.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the account buffer was not 20 bytes long.
-    pub fn try_from_slice(bytes: &[u8]) -> Result<Self, IncorrectAddressLength> {
-        let inner = <[u8; ADDRESS_LEN]>::try_from(bytes).map_err(|_| IncorrectAddressLength {
-            received: bytes.len(),
-        })?;
-        Ok(Self::from_array(inner))
-    }
-
-    #[must_use]
-    pub const fn from_array(array: [u8; ADDRESS_LEN]) -> Self {
-        Self(array)
-    }
-
-    #[must_use]
-    pub fn to_raw(&self) -> raw::Address {
-        raw::Address {
-            inner: self.to_vec().into(),
-        }
-    }
-
-    #[must_use]
-    pub fn into_raw(self) -> raw::Address {
-        raw::Address {
-            inner: self.to_vec().into(),
-        }
-    }
-
-    /// Convert from protobuf to rust type an address.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the account buffer was not 20 bytes long.
-    pub fn try_from_raw(raw: &raw::Address) -> Result<Self, IncorrectAddressLength> {
-        Self::try_from_slice(&raw.inner)
-    }
-}
-
-impl AsRef<[u8]> for Address {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl From<[u8; ADDRESS_LEN]> for Address {
-    fn from(inner: [u8; ADDRESS_LEN]) -> Self {
-        Self(inner)
-    }
-}
-
-impl std::fmt::Display for Address {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Base64Display::new(self.as_ref(), &BASE64_STANDARD).fmt(f)
-    }
-}
-
 /// Derive a [`merkle::Tree`] from an iterable.
 ///
 /// It is the responsibility of the caller to ensure that the iterable is
 /// deterministic. Prefer types like `Vec`, `BTreeMap` or `IndexMap` over
 /// `HashMap`.
-pub fn derive_merkle_tree_from_rollup_txs<'a, T: 'a, U: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
+pub fn derive_merkle_tree_from_rollup_txs<'a, T, U>(rollup_ids_to_txs: T) -> merkle::Tree
 where
     T: IntoIterator<Item = (&'a RollupId, &'a U)>,
-    U: AsRef<[Vec<u8>]> + 'a + ?Sized,
+    U: AsRef<[Bytes]> + 'a + ?Sized,
 {
     let mut tree = merkle::Tree::new();
     for (rollup_id, txs) in rollup_ids_to_txs {
@@ -362,43 +292,160 @@ where
     tree
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(try_from = "raw::TransactionId", into = "raw::TransactionId")
+)]
+pub struct TransactionId {
+    inner: [u8; TRANSACTION_ID_LEN],
+}
+
+impl TransactionId {
+    /// Constructs a new `TransactionId` from a 32-byte array.
+    #[must_use]
+    pub const fn new(inner: [u8; TRANSACTION_ID_LEN]) -> Self {
+        Self {
+            inner,
+        }
+    }
+
+    /// Consumes `self` and returns the 32-byte transaction hash.
+    #[must_use]
+    pub fn get(self) -> [u8; TRANSACTION_ID_LEN] {
+        self.inner
+    }
+
+    /// Returns a reference to the 32-byte transaction hash.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8; TRANSACTION_ID_LEN] {
+        &self.inner
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::TransactionId {
+        raw::TransactionId {
+            inner: hex::encode(self.inner),
+        }
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> raw::TransactionId {
+        raw::TransactionId {
+            inner: hex::encode(self.inner),
+        }
+    }
+
+    /// Convert from a reference to raw protobuf type to a rust type for a transaction ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the transaction ID buffer was not 32 bytes long or if it was not hex
+    /// encoded.
+    pub fn try_from_raw_ref(raw: &raw::TransactionId) -> Result<Self, TransactionIdError> {
+        use hex::FromHex as _;
+
+        let inner = <[u8; TRANSACTION_ID_LEN]>::from_hex(&raw.inner).map_err(|err| {
+            TransactionIdError(TransactionIdErrorKind::HexDecode {
+                source: err,
+            })
+        })?;
+        Ok(Self {
+            inner,
+        })
+    }
+}
+
+impl From<TransactionId> for raw::TransactionId {
+    fn from(val: TransactionId) -> Self {
+        val.into_raw()
+    }
+}
+
+impl TryFrom<raw::TransactionId> for TransactionId {
+    type Error = TransactionIdError;
+
+    fn try_from(value: raw::TransactionId) -> Result<Self, Self::Error> {
+        Self::try_from_raw_ref(&value)
+    }
+}
+
+impl std::fmt::Display for TransactionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for byte in self.inner {
+            write!(f, "{byte:02x}")?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TransactionIdError(TransactionIdErrorKind);
+
+#[derive(Debug, thiserror::Error)]
+enum TransactionIdErrorKind {
+    #[error("error decoding hex string `inner` to bytes")]
+    HexDecode { source: hex::FromHexError },
+}
+
 #[cfg(test)]
 mod tests {
-    use insta::assert_json_snapshot;
-
     use super::{
         Address,
-        IncorrectAddressLength,
+        ADDRESS_LEN,
     };
+    use crate::Protobuf as _;
+    const ASTRIA_ADDRESS_PREFIX: &str = "astria";
+    const ASTRIA_COMPAT_ADDRESS_PREFIX: &str = "astriacompat";
 
-    #[test]
-    fn account_of_20_bytes_is_converted_correctly() {
-        let expected = Address([42; 20]);
-        let account_vec = expected.0.to_vec();
-        let actual = Address::try_from_slice(&account_vec).unwrap();
-        assert_eq!(expected, actual);
-    }
-
-    #[track_caller]
-    fn account_conversion_check(bad_account: &[u8]) {
-        let error = Address::try_from_slice(bad_account);
-        assert!(
-            matches!(error, Err(IncorrectAddressLength { .. })),
-            "converting form incorrect sized account succeeded where it should have failed"
-        );
-    }
-
-    #[test]
-    fn account_of_incorrect_length_gives_error() {
-        account_conversion_check(&[42; 0]);
-        account_conversion_check(&[42; 19]);
-        account_conversion_check(&[42; 21]);
-        account_conversion_check(&[42; 100]);
-    }
-
+    #[cfg(feature = "serde")]
     #[test]
     fn snapshots() {
-        let address = Address([42; 20]);
-        assert_json_snapshot!(address);
+        use crate::primitive::v1::Bech32;
+
+        let main_address = Address::builder()
+            .array([42; 20])
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
+        insta::assert_json_snapshot!("main_bech32m_address", &main_address.to_raw());
+
+        let compat_address = main_address
+            .to_prefix(ASTRIA_COMPAT_ADDRESS_PREFIX)
+            .unwrap()
+            .to_format::<Bech32>();
+        // We don't allow serializing non bech32m addresses due to
+        // its impl via the protobuf type.
+        insta::assert_snapshot!("compat_bech32_non_m_address", &compat_address);
+    }
+
+    #[test]
+    fn can_construct_protobuf_from_address_with_maximally_sized_prefix() {
+        // 83 is the maximal length of a hrp
+        let long_prefix = [b'a'; 83];
+        let address = Address::builder()
+            .array([42u8; ADDRESS_LEN])
+            .prefix(std::str::from_utf8(&long_prefix).unwrap())
+            .try_build()
+            .unwrap();
+        let _ = address.into_raw();
+    }
+
+    #[cfg(feature = "unchecked-constructors")]
+    #[test]
+    fn address_to_unchecked_roundtrip() {
+        let bytes = [42u8; ADDRESS_LEN];
+        let input = Address::builder()
+            .array(bytes)
+            .prefix(ASTRIA_ADDRESS_PREFIX)
+            .try_build()
+            .unwrap();
+        let unchecked = input.into_raw();
+        let roundtripped = Address::try_from_raw(unchecked).unwrap();
+        assert_eq!(input, roundtripped);
+        assert_eq!(input.as_bytes(), roundtripped.as_bytes());
+        assert_eq!("astria", input.prefix());
     }
 }

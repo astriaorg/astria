@@ -1,5 +1,5 @@
-/// ! This module is responsible for bundling sequence actions into bundles that can be
-/// submitted to the sequencer.
+//! This module is responsible for bundling sequence actions into bundles that can be
+//! submitted to the sequencer.
 use std::{
     collections::{
         HashMap,
@@ -9,15 +9,13 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::{
-        RollupId,
-        FEE_ASSET_ID_LEN,
-        ROLLUP_ID_LEN,
-    },
-    protocol::transaction::v1alpha1::{
-        action::SequenceAction,
+    primitive::v1::RollupId,
+    protocol::transaction::v1::{
+        action::RollupDataSubmission,
         Action,
+        TransactionBody,
     },
+    Protobuf as _,
 };
 use serde::ser::{
     Serialize,
@@ -25,14 +23,15 @@ use serde::ser::{
 };
 use tracing::trace;
 
+#[cfg(test)]
 mod tests;
 
 #[derive(Debug, thiserror::Error)]
 enum SizedBundleError {
     #[error("bundle does not have enough space left for the given sequence action")]
-    NotEnoughSpace(SequenceAction),
+    NotEnoughSpace(RollupDataSubmission),
     #[error("sequence action is larger than the max bundle size")]
-    SequenceActionTooLarge(SequenceAction),
+    SequenceActionTooLarge(RollupDataSubmission),
 }
 
 pub(super) struct SizedBundleReport<'a>(pub(super) &'a SizedBundle);
@@ -76,27 +75,47 @@ impl SizedBundle {
         }
     }
 
+    /// Constructs a [`Body`] from the actions contained in the bundle and provided parameters.
+    ///
+    /// # Panics
+    /// Method is expected to never panic because only `Sequence` actions are added to the bundle,
+    /// which should produce a valid variant of the [`action::Group`] type.
+    pub(super) fn to_transaction_body(&self, nonce: u32, chain_id: &str) -> TransactionBody {
+        TransactionBody::builder()
+            .actions(self.buffer.clone())
+            .chain_id(chain_id)
+            .nonce(nonce)
+            .try_build()
+            .expect(
+                "method is expected to never panic because only `SequenceActions` are added to \
+                 the bundle, which should produce a valid variant of the `action::Group` type; \
+                 this is checked by `tests::transaction_construction_should_not_panic",
+            )
+    }
+
     /// Buffer `seq_action` into the bundle.
     /// # Errors
     /// - `seq_action` is beyond the max size allowed for the entire bundle
     /// - `seq_action` does not fit in the remaining space in the bundle
-    fn try_push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
-        let seq_action_size = estimate_size_of_sequence_action(&seq_action);
+    fn try_push(&mut self, seq_action: RollupDataSubmission) -> Result<(), SizedBundleError> {
+        let seq_action_size = encoded_len(&seq_action);
 
         if seq_action_size > self.max_size {
             return Err(SizedBundleError::SequenceActionTooLarge(seq_action));
         }
 
-        if self.curr_size + seq_action_size > self.max_size {
+        let new_size = self.curr_size.saturating_add(seq_action_size);
+
+        if new_size > self.max_size {
             return Err(SizedBundleError::NotEnoughSpace(seq_action));
         }
 
         self.rollup_counts
             .entry(seq_action.rollup_id)
-            .and_modify(|count| *count += 1)
+            .and_modify(|count| *count = count.saturating_add(1))
             .or_insert(1);
-        self.buffer.push(Action::Sequence(seq_action));
-        self.curr_size += seq_action_size;
+        self.buffer.push(Action::RollupDataSubmission(seq_action));
+        self.curr_size = new_size;
 
         Ok(())
     }
@@ -109,11 +128,6 @@ impl SizedBundle {
     /// Returns the current size of the bundle.
     pub(super) fn get_size(&self) -> usize {
         self.curr_size
-    }
-
-    /// Consume self and return the underlying buffer of actions.
-    pub(super) fn into_actions(self) -> Vec<Action> {
-        self.buffer
     }
 
     /// Returns the number of sequence actions in the bundle.
@@ -131,17 +145,27 @@ impl SizedBundle {
 pub(super) enum BundleFactoryError {
     #[error("sequence action is larger than the max bundle size. seq_action size: {size}")]
     SequenceActionTooLarge { size: usize, max_size: usize },
-    #[error(
-        "finished bundle queue is at capacity and the sequence action does not fit in the current \
-         bundle. finished queue capacity: {finished_queue_capacity}, curr bundle size: \
-         {curr_bundle_size}, sequence action size: {sequence_action_size}"
-    )]
-    FinishedQueueFull {
-        curr_bundle_size: usize,
-        finished_queue_capacity: usize,
-        sequence_action_size: usize,
-        seq_action: SequenceAction,
-    },
+    #[error(transparent)]
+    FinishedQueueFull(Box<FinishedQueueFull>),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "finished bundle queue is at capacity and the sequence action does not fit in the current \
+     bundle. finished queue capacity: {finished_queue_capacity}, curr bundle size: \
+     {curr_bundle_size}, sequence action size: {sequence_action_size}"
+)]
+pub(super) struct FinishedQueueFull {
+    curr_bundle_size: usize,
+    finished_queue_capacity: usize,
+    sequence_action_size: usize,
+    seq_action: RollupDataSubmission,
+}
+
+impl From<FinishedQueueFull> for BundleFactoryError {
+    fn from(value: FinishedQueueFull) -> Self {
+        Self::FinishedQueueFull(Box::new(value))
+    }
 }
 
 /// Manages the bundling of sequence actions into `SizedBundle`s. A `Vec<Action>` is flushed and
@@ -171,9 +195,10 @@ impl BundleFactory {
     /// is at capacity.
     pub(super) fn try_push(
         &mut self,
-        seq_action: SequenceAction,
+        seq_action: RollupDataSubmission,
     ) -> Result<(), BundleFactoryError> {
-        let seq_action_size = estimate_size_of_sequence_action(&seq_action);
+        let seq_action = with_ibc_prefixed(seq_action);
+        let seq_action_size = encoded_len(&seq_action);
 
         match self.curr_bundle.try_push(seq_action) {
             Err(SizedBundleError::SequenceActionTooLarge(_seq_action)) => {
@@ -185,12 +210,13 @@ impl BundleFactory {
             }
             Err(SizedBundleError::NotEnoughSpace(seq_action)) => {
                 if self.finished.len() >= self.finished_queue_capacity {
-                    Err(BundleFactoryError::FinishedQueueFull {
+                    Err(FinishedQueueFull {
                         curr_bundle_size: self.curr_bundle.curr_size,
                         finished_queue_capacity: self.finished_queue_capacity,
                         sequence_action_size: seq_action_size,
                         seq_action,
-                    })
+                    }
+                    .into())
                 } else {
                     // if the bundle is full, flush it and start a new one
                     self.finished.push_back(self.curr_bundle.flush());
@@ -260,11 +286,14 @@ impl<'a> NextFinishedBundle<'a> {
     }
 }
 
-/// The size of the `seq_action` in bytes, including the rollup id.
-fn estimate_size_of_sequence_action(seq_action: &SequenceAction) -> usize {
-    seq_action
-        .data
-        .len()
-        .saturating_add(ROLLUP_ID_LEN)
-        .saturating_add(FEE_ASSET_ID_LEN)
+fn with_ibc_prefixed(action: RollupDataSubmission) -> RollupDataSubmission {
+    RollupDataSubmission {
+        fee_asset: action.fee_asset.to_ibc_prefixed().into(),
+        ..action
+    }
+}
+
+fn encoded_len(action: &RollupDataSubmission) -> usize {
+    use prost::Message as _;
+    action.to_raw().encoded_len()
 }

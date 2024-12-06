@@ -7,24 +7,38 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use axum::{
+    routing::IntoMakeService,
+    Router,
+    Server,
+};
+use hyper::server::conn::AddrIncoming;
 use tokio::{
     select,
-    sync::oneshot,
+    sync::oneshot::{
+        self,
+        Receiver,
+    },
     task::{
         JoinError,
         JoinHandle,
     },
     time::timeout,
 };
-use tokio_util::sync::CancellationToken;
+use tokio_util::sync::{
+    CancellationToken,
+    WaitForCancellationFuture,
+};
 use tracing::{
     error,
     info,
+    instrument,
 };
 
 use crate::{
     api,
     config::Config,
+    metrics::Metrics,
     relayer::{
         self,
         Relayer,
@@ -34,7 +48,7 @@ use crate::{
 pub struct SequencerRelayer {
     api_server: api::ApiServer,
     relayer: Relayer,
-    shutdown_token: CancellationToken,
+    shutdown_handle: ShutdownHandle,
 }
 
 impl SequencerRelayer {
@@ -43,35 +57,34 @@ impl SequencerRelayer {
     /// # Errors
     ///
     /// Returns an error if constructing the inner relayer type failed.
-    pub fn new(cfg: Config) -> eyre::Result<(Self, ShutdownHandle)> {
+    pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let rollup_filter = cfg.only_include_rollups()?;
         let Config {
+            sequencer_chain_id,
+            celestia_chain_id,
             cometbft_endpoint,
             sequencer_grpc_endpoint,
             celestia_app_grpc_endpoint,
             celestia_app_key_file,
             block_time,
-            relay_only_validator_key_blocks,
-            validator_key_file,
             api_addr,
-            pre_submit_path,
-            post_submit_path,
+            submission_state_path,
             ..
         } = cfg;
 
-        let validator_key_path = relay_only_validator_key_blocks.then_some(validator_key_file);
         let relayer = relayer::Builder {
-            shutdown_token: shutdown_handle.token(),
+            relayer_shutdown_token: shutdown_handle.token.child_token(),
+            sequencer_chain_id,
+            celestia_chain_id,
             celestia_app_grpc_endpoint,
             celestia_app_key_file,
             cometbft_endpoint,
             sequencer_poll_period: Duration::from_millis(block_time),
             sequencer_grpc_endpoint,
-            validator_key_path,
             rollup_filter,
-            pre_submit_path,
-            post_submit_path,
+            submission_state_path,
+            metrics,
         }
         .build()
         .wrap_err("failed to create relayer")?;
@@ -84,7 +97,7 @@ impl SequencerRelayer {
         let relayer = Self {
             api_server,
             relayer,
-            shutdown_token: shutdown_handle.token(),
+            shutdown_handle: shutdown_handle.clone(),
         };
         Ok((relayer, shutdown_handle))
     }
@@ -98,32 +111,22 @@ impl SequencerRelayer {
         let Self {
             api_server,
             relayer,
-            shutdown_token,
+            shutdown_handle,
         } = self;
         // Separate the API shutdown signal from the cancellation token because we want it to live
         // until the very end.
         let (api_shutdown_signal, api_shutdown_signal_rx) = oneshot::channel::<()>();
-        let mut api_task = tokio::spawn(async move {
-            api_server
-                .with_graceful_shutdown(async move {
-                    let _ = api_shutdown_signal_rx.await;
-                })
-                .await
-                .wrap_err("api server ended unexpectedly")
-        });
-        info!("spawned API server");
-
-        let mut relayer_task = tokio::spawn(relayer.run());
-        info!("spawned relayer task");
+        let (mut api_task, mut relayer_task) =
+            spawn_tasks(api_server, api_shutdown_signal_rx, relayer);
 
         let shutdown = select!(
             o = &mut api_task => {
                 report_exit("api server", o);
-                ShutDown { api_task: None, relayer_task: Some(relayer_task), api_shutdown_signal, shutdown_token }
+                ShutDown { api_task: None, relayer_task: Some(relayer_task), api_shutdown_signal, shutdown_handle }
             }
             o = &mut relayer_task => {
                 report_exit("relayer worker", o);
-                ShutDown { api_task: Some(api_task), relayer_task: None, api_shutdown_signal, shutdown_token }
+                ShutDown { api_task: Some(api_task), relayer_task: None, api_shutdown_signal, shutdown_handle }
             }
 
         );
@@ -131,11 +134,34 @@ impl SequencerRelayer {
     }
 }
 
+#[instrument(skip_all)]
+fn spawn_tasks(
+    api_server: Server<AddrIncoming, IntoMakeService<Router>>,
+    api_shutdown_signal_rx: Receiver<()>,
+    relayer: Relayer,
+) -> (JoinHandle<eyre::Result<()>>, JoinHandle<eyre::Result<()>>) {
+    let api_task = tokio::spawn(async move {
+        api_server
+            .with_graceful_shutdown(async move {
+                let _ = api_shutdown_signal_rx.await;
+            })
+            .await
+            .wrap_err("api server ended unexpectedly")
+    });
+    info!("spawned API server");
+
+    let relayer_task = tokio::spawn(relayer.run());
+    info!("spawned relayer task");
+
+    (api_task, relayer_task)
+}
+
 /// A handle for instructing the [`SequencerRelayer`] to shut down.
 ///
 /// It is returned along with its related `SequencerRelayer` from [`SequencerRelayer::new`].  The
 /// `SequencerRelayer` will begin to shut down as soon as [`ShutdownHandle::shutdown`] is called or
 /// when the `ShutdownHandle` is dropped.
+#[derive(Clone)]
 pub struct ShutdownHandle {
     token: CancellationToken,
 }
@@ -148,13 +174,16 @@ impl ShutdownHandle {
         }
     }
 
-    /// Returns a clone of the wrapped cancellation token.
-    #[must_use]
-    pub fn token(&self) -> CancellationToken {
-        self.token.clone()
+    /// Returns a `Future` that gets fulfilled when cancellation is requested.
+    ///
+    /// See [`CancellationToken::cancelled`] for further details.
+    pub fn cancelled(&self) -> WaitForCancellationFuture<'_> {
+        self.token.cancelled()
     }
 
     /// Consumes `self` and cancels the wrapped cancellation token.
+    ///
+    /// See [`CancellationToken::cancel`] for further details.
     pub fn shutdown(self) {
         self.token.cancel();
     }
@@ -189,18 +218,19 @@ struct ShutDown {
     api_task: Option<JoinHandle<eyre::Result<()>>>,
     relayer_task: Option<JoinHandle<eyre::Result<()>>>,
     api_shutdown_signal: oneshot::Sender<()>,
-    shutdown_token: CancellationToken,
+    shutdown_handle: ShutdownHandle,
 }
 
 impl ShutDown {
+    #[instrument(skip_all)]
     async fn run(self) {
         let Self {
             api_task,
             relayer_task,
             api_shutdown_signal,
-            shutdown_token,
+            shutdown_handle,
         } = self;
-        shutdown_token.cancel();
+        shutdown_handle.shutdown();
         // Giving relayer 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
         if let Some(mut relayer_task) = relayer_task {
             info!("waiting for relayer task to shut down");

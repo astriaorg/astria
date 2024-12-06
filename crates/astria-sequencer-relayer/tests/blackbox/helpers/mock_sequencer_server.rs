@@ -4,19 +4,21 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::{
+    generated::astria::sequencerblock::v1::{
         sequencer_service_server::{
             SequencerService,
             SequencerServiceServer,
         },
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest,
+        GetPendingNonceResponse,
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
     primitive::v1::RollupId,
     protocol::test_utils::ConfigureSequencerBlock,
-    sequencerblock::v1alpha1::SequencerBlock,
+    sequencerblock::v1::SequencerBlock,
 };
 use astria_eyre::eyre::{
     self,
@@ -42,7 +44,7 @@ const GET_SEQUENCER_BLOCK_GRPC_NAME: &str = "get_sequencer_block";
 const GET_FILTERED_SEQUENCER_BLOCK_GRPC_NAME: &str = "get_filtered_sequencer_block";
 
 pub struct MockSequencerServer {
-    pub _server: JoinHandle<eyre::Result<()>>,
+    _server: JoinHandle<eyre::Result<()>>,
     pub mock_server: MockServer,
     pub local_addr: SocketAddr,
 }
@@ -73,31 +75,27 @@ impl MockSequencerServer {
         }
     }
 
-    pub async fn mount_sequencer_block_response<const RELAY_SELF: bool>(
+    pub async fn mount_sequencer_block_response(
         &self,
-        account: AccountId,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
     ) {
-        prepare_sequencer_block_response::<RELAY_SELF>(account, block_to_mount, debug_name)
+        prepare_sequencer_block_response(block_to_mount, debug_name)
             .mount(&self.mock_server)
             .await;
     }
 
-    pub async fn mount_sequencer_block_response_as_scoped<const RELAY_SELF: bool>(
+    pub async fn mount_sequencer_block_response_as_scoped(
         &self,
-        account: AccountId,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
     ) -> MockGuard {
-        prepare_sequencer_block_response::<RELAY_SELF>(account, block_to_mount, debug_name)
+        prepare_sequencer_block_response(block_to_mount, debug_name)
             .mount_as_scoped(&self.mock_server)
             .await
     }
 }
 
-// allow: this is not performance-critical, with likely only one instance per test fixture.
-#[allow(clippy::large_enum_variant)]
 pub enum SequencerBlockToMount {
     GoodAtHeight(u32),
     BadAtHeight(u32),
@@ -125,19 +123,20 @@ impl SequencerService for SequencerServiceImpl {
             .handle_request(GET_FILTERED_SEQUENCER_BLOCK_GRPC_NAME, request)
             .await
     }
+
+    async fn get_pending_nonce(
+        self: Arc<Self>,
+        _request: Request<GetPendingNonceRequest>,
+    ) -> Result<Response<GetPendingNonceResponse>, Status> {
+        unimplemented!()
+    }
 }
 
-fn prepare_sequencer_block_response<const RELAY_SELF: bool>(
-    account: AccountId,
+fn prepare_sequencer_block_response(
     block_to_mount: SequencerBlockToMount,
     debug_name: impl Into<String>,
 ) -> Mock {
-    let proposer = if RELAY_SELF {
-        account
-    } else {
-        AccountId::try_from(vec![0u8; 20]).unwrap()
-    };
-
+    let proposer = AccountId::try_from(vec![0u8; 20]).unwrap();
     let should_corrupt = matches!(block_to_mount, SequencerBlockToMount::BadAtHeight(_));
 
     let block = match block_to_mount {
@@ -159,7 +158,9 @@ fn prepare_sequencer_block_response<const RELAY_SELF: bool>(
     let mut block = block.into_raw();
     if should_corrupt {
         let header = block.header.as_mut().unwrap();
-        header.data_hash[0] = header.data_hash[0].wrapping_add(1);
+        let mut data_hash = header.data_hash.to_vec();
+        data_hash[0] = data_hash[0].wrapping_add(1);
+        header.data_hash = data_hash.into();
     }
 
     Mock::for_rpc_given(

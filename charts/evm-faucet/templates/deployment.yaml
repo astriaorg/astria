@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{tpl .Values.config.rollupName . }}-evm-faucet
+  labels:
+    app: {{tpl .Values.config.rollupName . }}-evm-faucet
+  namespace: {{ include "evmFaucet.namespace" . }}
+spec:
+  replicas : {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{tpl .Values.config.rollupName . }}-evm-faucet
+  template:
+    metadata:
+      name: {{tpl .Values.config.rollupName . }}-evm-faucet
+      labels:
+        app: {{tpl .Values.config.rollupName . }}-evm-faucet
+    spec:
+      containers:
+        - name: faucet
+          command: [ "/app/eth-faucet" ]
+          args:
+            - -httpport=$(ETH_FAUCET_PORT)
+            - -wallet.provider=$(ETH_FAUCET_EVM_PROVIDER_URL)
+            - -wallet.privkey=$(ETH_FAUCET_EVM_PRIVATE_KEY)
+            - -faucet.amount=$(ETH_FAUCET_AMOUNT)
+            - -proxycount=$(ETH_FAUCET_PROXYCOUNT)
+          image: {{ .Values.images.faucet.repo }}:{{ .Values.images.faucet.tag }}
+          imagePullPolicy: {{ .Values.images.faucet.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{tpl .Values.config.rollupName . }}-evm-faucet-env
+          {{- if .Values.secretProvider.enabled }}
+          env:
+            - name: ETH_FAUCET_EVM_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: evm-faucet-private-key
+                  key: {{ .Values.config.privateKey.secret.key }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /home/faucet
+              name: {{tpl .Values.config.rollupName . }}-evm-faucet-home-vol
+              subPath: {{tpl .Values.config.rollupName . }}/faucet
+            {{- if .Values.secretProvider.enabled }}
+            - mountPath: /var/secrets
+              name: evm-faucet-private-key
+            {{- end }}
+          ports:
+            - containerPort: {{ .Values.ports.faucet }}
+              name: faucet
+      volumes:
+        - emptyDir: {}
+          name: {{tpl .Values.config.rollupName . }}-evm-faucet-home-vol
+        {{- if .Values.secretProvider.enabled }}
+        - name: evm-faucet-private-key
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: evm-faucet-private-key
+        {{- end }}
+---

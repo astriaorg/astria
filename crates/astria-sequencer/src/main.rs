@@ -1,8 +1,7 @@
 use std::process::ExitCode;
 
-use anyhow::Context as _;
+use astria_eyre::eyre::WrapErr as _;
 use astria_sequencer::{
-    metrics_init,
     Config,
     Sequencer,
     BUILD_INFO,
@@ -15,6 +14,8 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    astria_eyre::install().expect("astria eyre hook must be the first hook installed");
+
     eprintln!(
         "{}",
         serde_json::to_string(&BUILD_INFO)
@@ -32,41 +33,29 @@ async fn main() -> ExitCode {
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
         .set_pretty_print(cfg.pretty_print)
-        .filter_directives(&cfg.log);
+        .set_filter_directives(&cfg.log);
     if !cfg.no_metrics {
-        telemetry_conf = telemetry_conf
-            .metrics_addr(&cfg.metrics_http_listener_addr)
-            .service_name(env!("CARGO_PKG_NAME"))
-            .register_metrics(metrics_init::register);
+        telemetry_conf =
+            telemetry_conf.set_metrics(&cfg.metrics_http_listener_addr, env!("CARGO_PKG_NAME"));
     }
 
-    if let Err(e) = telemetry_conf
-        .try_init()
-        .context("failed to setup telemetry")
+    let (metrics, _telemetry_guard) = match telemetry_conf
+        .try_init(&())
+        .wrap_err("failed to setup telemetry")
     {
-        eprintln!("initializing sequencer failed:\n{e:?}");
-        return ExitCode::FAILURE;
-    }
+        Err(e) => {
+            eprintln!("initializing sequencer failed:\n{e:?}");
+            return ExitCode::FAILURE;
+        }
+        Ok(metrics_and_guard) => metrics_and_guard,
+    };
+
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
         "initializing sequencer"
     );
 
-    #[cfg(feature = "mint")]
-    if cfg.enable_mint {
-        tokio::spawn(async {
-            let duration = std::time::Duration::from_secs(5);
-            loop {
-                eprintln!("MINT FEATURE IS ENABLED!");
-                eprintln!("do not enable minting in production!");
-                tracing::warn!("MINT FEATURE IS ENABLED!");
-                tracing::warn!("do not enable minting in production!");
-                tokio::time::sleep(duration).await;
-            }
-        });
-    }
-
-    Sequencer::run_until_stopped(cfg)
+    Sequencer::run_until_stopped(cfg, metrics)
         .await
         .expect("failed to run sequencer");
 

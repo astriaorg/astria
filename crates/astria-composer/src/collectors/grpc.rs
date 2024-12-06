@@ -3,16 +3,16 @@
 use std::sync::Arc;
 
 use astria_core::{
-    generated::composer::v1alpha1::{
+    generated::astria::composer::v1::{
         grpc_collector_service_server::GrpcCollectorService,
         SubmitRollupTransactionRequest,
         SubmitRollupTransactionResponse,
     },
     primitive::v1::{
-        asset::default_native_asset_id,
+        asset,
         RollupId,
     },
-    protocol::transaction::v1alpha1::action::SequenceAction,
+    protocol::transaction::v1::action::RollupDataSubmission,
 };
 use tokio::sync::mpsc::error::SendTimeoutError;
 use tonic::{
@@ -22,15 +22,9 @@ use tonic::{
 };
 
 use crate::{
-    collectors::{
-        EXECUTOR_SEND_TIMEOUT,
-        GRPC,
-    },
+    collectors::EXECUTOR_SEND_TIMEOUT,
     executor,
-    metrics_init::{
-        COLLECTOR_TYPE_LABEL,
-        ROLLUP_ID_LABEL,
-    },
+    metrics::Metrics,
 };
 
 /// Implements the `GrpcCollectorService` which listens for incoming gRPC requests and
@@ -38,12 +32,20 @@ use crate::{
 /// to the Astria Shared Sequencer.
 pub(crate) struct Grpc {
     executor: executor::Handle,
+    metrics: &'static Metrics,
+    fee_asset: asset::Denom,
 }
 
 impl Grpc {
-    pub(crate) fn new(executor: executor::Handle) -> Self {
+    pub(crate) fn new(
+        executor: executor::Handle,
+        metrics: &'static Metrics,
+        fee_asset: asset::Denom,
+    ) -> Self {
         Self {
             executor,
+            metrics,
+            fee_asset,
         }
     }
 }
@@ -56,57 +58,33 @@ impl GrpcCollectorService for Grpc {
     ) -> Result<Response<SubmitRollupTransactionResponse>, Status> {
         let submit_rollup_tx_request = request.into_inner();
 
-        let Ok(rollup_id) = RollupId::try_from_slice(&submit_rollup_tx_request.rollup_id) else {
-            return Err(tonic::Status::invalid_argument("invalid rollup id"));
-        };
+        let rollup_id = RollupId::try_from_raw(
+            submit_rollup_tx_request
+                .rollup_id
+                .ok_or_else(|| Status::invalid_argument("rollup ID not set"))?,
+        )
+        .map_err(|err| Status::invalid_argument(format!("invalid rollup ID: {err}")))?;
 
-        let sequence_action = SequenceAction {
+        let rollup_data_submission = RollupDataSubmission {
             rollup_id,
             data: submit_rollup_tx_request.data,
-            fee_asset_id: default_native_asset_id(),
+            fee_asset: self.fee_asset.clone(),
         };
 
-        metrics::counter!(
-            crate::metrics_init::TRANSACTIONS_RECEIVED,
-            &[
-                (ROLLUP_ID_LABEL, rollup_id.to_string()),
-                (COLLECTOR_TYPE_LABEL, GRPC.to_string())
-            ]
-        )
-        .increment(1);
+        self.metrics.increment_grpc_txs_received(&rollup_id);
         match self
             .executor
-            .send_timeout(sequence_action, EXECUTOR_SEND_TIMEOUT)
+            .send_timeout(rollup_data_submission, EXECUTOR_SEND_TIMEOUT)
             .await
         {
             Ok(()) => {}
             Err(SendTimeoutError::Timeout(_seq_action)) => {
-                metrics::counter!(
-                    crate::metrics_init::TRANSACTIONS_DROPPED,
-                    &[
-                        (ROLLUP_ID_LABEL, rollup_id.to_string()),
-                        (COLLECTOR_TYPE_LABEL, GRPC.to_string())
-                    ]
-                )
-                .increment(1);
-
-                return Err(tonic::Status::unavailable(
-                    "timeout while sending txs to composer",
-                ));
+                self.metrics.increment_grpc_txs_dropped(&rollup_id);
+                return Err(Status::unavailable("timeout while sending txs to composer"));
             }
             Err(SendTimeoutError::Closed(_seq_action)) => {
-                metrics::counter!(
-                    crate::metrics_init::TRANSACTIONS_DROPPED,
-                    &[
-                        (ROLLUP_ID_LABEL, rollup_id.to_string()),
-                        (COLLECTOR_TYPE_LABEL, GRPC.to_string())
-                    ]
-                )
-                .increment(1);
-
-                return Err(tonic::Status::failed_precondition(
-                    "composer is not available",
-                ));
+                self.metrics.increment_grpc_txs_dropped(&rollup_id);
+                return Err(Status::failed_precondition("composer is not available"));
             }
         }
 

@@ -3,7 +3,8 @@ global:
   replicaCount: 1
   logLevel: debug
 
-image: ghcr.io/penumbra-zone/hermes:main
+image: ghcr.io/astriaorg/hermes:0.3.0
+imagePullPolicy: IfNotPresent
 
 fullnameOverride: ""
 nameOverride: ""
@@ -13,7 +14,7 @@ nameOverride: ""
 # the destination chain assets
 createChannel:
   enabled: false
-  chainA: ''  # For local test is equencer-test-chain-0
+  chainA: ''  # For local test is sequencer-test-chain-0
   portA: ''   # likely "transfer"
   chainB: ''  # For default local test celestia-local-0
   portB: ''   # likely "transfer"
@@ -32,6 +33,13 @@ telemetry:
     count: 10
 tracingServer:
   enabled: false
+
+# ServiceMonitor configuration
+serviceMonitor:
+  enabled: false
+  port: 26660
+  additionalLabels:
+    release: kube-prometheus-stack
 
 mode:
   clients:
@@ -96,7 +104,7 @@ chains:
   #     secret:
   #       resourceName: projects/$PROJECT_ID/secrets/celestia-ibc-relay-key/versions/latest
   #   gasPrice: 0.12
-  #   denom: 'utia'
+  #   gasDenom: 'utia'
   #   gasMultiplier: 1.1
   #   clockDrift: 20s
   #   maxBlockTime: 10s
@@ -187,3 +195,26 @@ ingress:
       #  - secretName: chart-example-tls
       #    hosts:
       #      - chart-example.local
+
+alerting:
+  enabled: false
+  interval: ""
+  additionalLabels:
+    release: kube-prometheus-stack
+  annotations: {}
+  # scrapeTimeout: 10s
+  # path: /metrics
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: kube-prometheus-stack
+    namespace: monitoring
+    rules:
+    - alert: Chain_Node_Down
+      expr: up{container="cometbft"} == 0  # Insert your query Expression
+      for: 1m  # Rough number but should be enough to init warn
+      labels:
+        severity: critical
+      annotations:
+        summary: Chain Node is Down (instance {{ $labels.instance }})
+        description: "chain node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

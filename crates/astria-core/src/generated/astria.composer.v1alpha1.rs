@@ -4,11 +4,11 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmitRollupTransactionRequest {
     /// the unhashed rollup id
-    #[prost(bytes = "vec", tag = "1")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "1")]
+    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     /// the raw data bytes of the rollup transaction
-    #[prost(bytes = "vec", tag = "2")]
-    pub data: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub data: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for SubmitRollupTransactionRequest {
     const NAME: &'static str = "SubmitRollupTransactionRequest";

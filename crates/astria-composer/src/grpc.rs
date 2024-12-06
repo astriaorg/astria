@@ -8,7 +8,10 @@
 
 use std::net::SocketAddr;
 
-use astria_core::generated::composer::v1alpha1::grpc_collector_service_server::GrpcCollectorServiceServer;
+use astria_core::{
+    generated::astria::composer::v1::grpc_collector_service_server::GrpcCollectorServiceServer,
+    primitive::v1::asset,
+};
 use astria_eyre::{
     eyre,
     eyre::WrapErr as _,
@@ -18,10 +21,12 @@ use tokio::{
     net::TcpListener,
 };
 use tokio_util::sync::CancellationToken;
+use tracing::instrument;
 
 use crate::{
     collectors,
     executor,
+    metrics::Metrics,
 };
 
 /// Listens for incoming gRPC requests and sends the Rollup transactions to the
@@ -38,20 +43,25 @@ pub(crate) struct Builder {
     pub(crate) grpc_addr: SocketAddr,
     pub(crate) executor: executor::Handle,
     pub(crate) shutdown_token: CancellationToken,
+    pub(crate) metrics: &'static Metrics,
+    pub(crate) fee_asset: asset::Denom,
 }
 
 impl Builder {
+    #[instrument(skip_all, err)]
     pub(crate) async fn build(self) -> eyre::Result<GrpcServer> {
         let Self {
             grpc_addr,
             executor,
             shutdown_token,
+            metrics,
+            fee_asset,
         } = self;
 
         let listener = TcpListener::bind(grpc_addr)
             .await
             .wrap_err("failed to bind socket address")?;
-        let grpc_collector = collectors::Grpc::new(executor.clone());
+        let grpc_collector = collectors::Grpc::new(executor.clone(), metrics, fee_asset);
 
         Ok(GrpcServer {
             listener,

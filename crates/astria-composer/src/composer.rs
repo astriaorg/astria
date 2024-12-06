@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::primitive::v1::asset;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -29,6 +30,7 @@ use tokio_util::{
 use tracing::{
     error,
     info,
+    instrument,
     warn,
 };
 
@@ -44,7 +46,7 @@ use crate::{
     executor::Executor,
     grpc,
     grpc::GrpcServer,
-    rollup::Rollup,
+    metrics::Metrics,
     Config,
 };
 
@@ -79,10 +81,13 @@ pub struct Composer {
     /// The map of chain ID to the URLs to which geth collectors should connect.
     rollups: HashMap<String, String>,
     /// The gRPC server that listens for incoming requests from the collectors via the
-    /// GrpcCollector service. It also exposes a health service.
+    /// `GrpcCollector` service. It also exposes a health service.
     grpc_server: GrpcServer,
     /// Used to signal the Composer to shut down.
     shutdown_token: CancellationToken,
+    metrics: &'static Metrics,
+    /// The asset set in config to pay for transactions and sequence actions.
+    fee_asset: asset::Denom,
 }
 
 /// Announces the current status of the Composer for other modules in the crate to use
@@ -113,18 +118,22 @@ impl Composer {
     ///
     /// An error is returned if the composer fails to be initialized.
     /// See `[from_config]` for its error scenarios.
-    pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
+    #[instrument(skip_all, err)]
+    pub async fn from_config(cfg: &Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let (composer_status_sender, _) = watch::channel(Status::default());
         let shutdown_token = CancellationToken::new();
 
         let (executor, executor_handle) = executor::Builder {
-            sequencer_url: cfg.sequencer_url.clone(),
+            sequencer_abci_endpoint: cfg.sequencer_abci_endpoint.clone(),
+            sequencer_grpc_endpoint: cfg.sequencer_grpc_endpoint.clone(),
             sequencer_chain_id: cfg.sequencer_chain_id.clone(),
             private_key_file: cfg.private_key_file.clone(),
+            sequencer_address_prefix: cfg.sequencer_address_prefix.clone(),
             block_time_ms: cfg.block_time_ms,
             max_bytes_per_bundle: cfg.max_bytes_per_bundle,
             bundle_queue_capacity: cfg.bundle_queue_capacity,
             shutdown_token: shutdown_token.clone(),
+            metrics,
         }
         .build()
         .wrap_err("executor construction from config failed")?;
@@ -133,6 +142,8 @@ impl Composer {
             grpc_addr: cfg.grpc_addr,
             executor: executor_handle.clone(),
             shutdown_token: shutdown_token.clone(),
+            metrics,
+            fee_asset: cfg.fee_asset.clone(),
         }
         .build()
         .await
@@ -150,14 +161,7 @@ impl Composer {
             "API server listening"
         );
 
-        let rollups = cfg
-            .rollups
-            .split(',')
-            .filter(|s| !s.is_empty())
-            .map(|s| Rollup::parse(s).map(Rollup::into_parts))
-            .collect::<Result<HashMap<_, _>, _>>()
-            .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")?;
-
+        let rollups = cfg.parse_rollups()?;
         let geth_collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
@@ -166,6 +170,8 @@ impl Composer {
                     url: url.clone(),
                     executor_handle: executor_handle.clone(),
                     shutdown_token: shutdown_token.clone(),
+                    metrics,
+                    fee_asset: cfg.fee_asset.clone(),
                 }
                 .build();
                 (rollup_name.clone(), collector)
@@ -188,6 +194,8 @@ impl Composer {
             geth_collector_tasks: JoinMap::new(),
             grpc_server,
             shutdown_token,
+            metrics,
+            fee_asset: cfg.fee_asset.clone(),
         })
     }
 
@@ -210,6 +218,11 @@ impl Composer {
     ///
     /// # Panics
     /// It panics if the Composer cannot set the SIGTERM listener.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "it seems splitting this into smaller functions makes the code less readable due \
+                  to the high number of params needed for these functions"
+    )]
     pub async fn run_until_stopped(self) -> eyre::Result<()> {
         let Self {
             api_server,
@@ -222,6 +235,8 @@ impl Composer {
             mut geth_collector_statuses,
             grpc_server,
             shutdown_token,
+            metrics,
+            fee_asset,
         } = self;
 
         // we need the API server to shutdown at the end, since it is used by k8s
@@ -311,15 +326,25 @@ impl Composer {
                     };
             },
             Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {
-                   reconnect_exited_collector(
-                    &mut geth_collector_statuses,
-                    &mut geth_collector_tasks,
-                    executor_handle.clone(),
-                    &rollups,
-                    rollup,
-                    collector_exit,
-                    shutdown_token.clone()
-                );
+                report_exit("collector", collector_exit);
+                if let Some(url) = rollups.get(&rollup) {
+                    let collector = geth::Builder {
+                        chain_name: rollup.clone(),
+                        url: url.clone(),
+                        executor_handle: executor_handle.clone(),
+                        shutdown_token: shutdown_token.clone(),
+                        metrics,
+                        fee_asset: fee_asset.clone(),
+                    }
+                    .build();
+                    geth_collector_statuses.insert(rollup.clone(), collector.subscribe());
+                    geth_collector_tasks.spawn(rollup, collector.run_until_stopped());
+                } else {
+                    error!(
+                        "rollup should have had an entry in the rollup->url map but doesn't; not reconnecting \
+                         it"
+                    );
+                }
             });
         };
 
@@ -439,6 +464,7 @@ fn spawn_geth_collectors(
     }
 }
 
+#[instrument(skip_all, err)]
 async fn wait_for_executor(
     mut executor_status: watch::Receiver<executor::Status>,
     composer_status_sender: &mut watch::Sender<composer::Status>,
@@ -456,6 +482,7 @@ async fn wait_for_executor(
 }
 
 /// Waits for all collectors to come online.
+#[instrument(skip_all, err)]
 async fn wait_for_collectors(
     collector_statuses: &HashMap<String, watch::Receiver<collectors::geth::Status>>,
     composer_status_sender: &mut watch::Sender<composer::Status>,
@@ -503,35 +530,6 @@ async fn wait_for_collectors(
     });
 
     Ok(())
-}
-
-pub(super) fn reconnect_exited_collector(
-    collector_statuses: &mut HashMap<String, watch::Receiver<collectors::geth::Status>>,
-    collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
-    executor_handle: executor::Handle,
-    rollups: &HashMap<String, String>,
-    rollup: String,
-    exit_result: Result<eyre::Result<()>, JoinError>,
-    shutdown_token: CancellationToken,
-) {
-    report_exit("collector", exit_result);
-    let Some(url) = rollups.get(&rollup) else {
-        error!(
-            "rollup should have had an entry in the rollup->url map but doesn't; not reconnecting \
-             it"
-        );
-        return;
-    };
-
-    let collector = geth::Builder {
-        chain_name: rollup.clone(),
-        url: url.clone(),
-        executor_handle,
-        shutdown_token,
-    }
-    .build();
-    collector_statuses.insert(rollup.clone(), collector.subscribe());
-    collector_tasks.spawn(rollup, collector.run_until_stopped());
 }
 
 fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {

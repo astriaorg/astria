@@ -8,31 +8,42 @@
 //! Note: there are two actions not tested here: `Ics20Withdrawal` and `IbcRelay`.
 //! These are due to the extensive setup needed to test them.
 //! If changes are made to the execution results of these actions, manual testing is required.
-use std::collections::HashMap;
+
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use astria_core::{
     primitive::v1::{
-        asset::DEFAULT_NATIVE_ASSET_DENOM,
         Address,
         RollupId,
     },
-    protocol::transaction::v1alpha1::{
-        action::{
-            BridgeLockAction,
-            BridgeUnlockAction,
-            IbcRelayerChangeAction,
-            SequenceAction,
-            TransferAction,
+    protocol::{
+        genesis::v1::Account,
+        transaction::v1::{
+            action::{
+                BridgeLock,
+                BridgeSudoChange,
+                BridgeUnlock,
+                IbcRelayerChange,
+                IbcSudoChange,
+                RollupDataSubmission,
+                Transfer,
+                ValidatorUpdate,
+            },
+            Action,
+            TransactionBody,
         },
-        Action,
-        TransactionParams,
-        UnsignedTransaction,
     },
-    sequencerblock::v1alpha1::block::Deposit,
+    sequencerblock::v1::block::Deposit,
+    Protobuf,
 };
 use cnidarium::StateDelta;
-use penumbra_ibc::params::IBCParameters;
-use prost::Message as _;
+use prost::{
+    bytes::Bytes,
+    Message as _,
+};
 use tendermint::{
     abci,
     abci::types::CommitInfo,
@@ -42,42 +53,52 @@ use tendermint::{
 };
 
 use crate::{
-    app::test_utils::{
-        address_from_hex_string,
-        default_fees,
-        default_genesis_accounts,
-        get_alice_signing_key_and_address,
-        get_bridge_signing_key_and_address,
-        initialize_app,
-        initialize_app_with_storage,
-        BOB_ADDRESS,
-        CAROL_ADDRESS,
+    app::{
+        benchmark_and_test_utils::{
+            default_genesis_accounts,
+            initialize_app_with_storage,
+            proto_genesis_state,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+        },
+        test_utils::{
+            get_alice_signing_key,
+            get_bridge_signing_key,
+            initialize_app,
+        },
     },
-    asset::get_native_asset,
-    bridge::state_ext::StateWriteExt as _,
-    genesis::GenesisState,
+    authority::StateReadExt as _,
+    benchmark_and_test_utils::{
+        astria_address,
+        astria_address_from_hex_string,
+        nria,
+        ASTRIA_PREFIX,
+    },
+    bridge::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
 };
 
 #[tokio::test]
 async fn app_genesis_snapshot() {
     let app = initialize_app(None, vec![]).await;
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_at_genesis", app.app_hash.as_bytes());
 }
 
 #[tokio::test]
 async fn app_finalize_block_snapshot() {
-    let (alice_signing_key, _) = get_alice_signing_key_and_address();
+    let alice = get_alice_signing_key();
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
-    let bridge_address = Address::from([99; 20]);
+    let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
+    let starting_index_of_action = 0;
 
     let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
     state_tx
-        .put_bridge_account_asset_id(&bridge_address, &asset_id)
+        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+        .unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
     app.apply(state_tx);
 
@@ -87,39 +108,40 @@ async fn app_finalize_block_snapshot() {
     app.commit(storage.clone()).await;
 
     let amount = 100;
-    let lock_action = BridgeLockAction {
+    let lock_action = BridgeLock {
         to: bridge_address,
         amount,
-        asset_id,
-        fee_asset_id: asset_id,
+        asset: nria().into(),
+        fee_asset: nria().into(),
         destination_chain_address: "nootwashere".to_string(),
     };
-    let sequence_action = SequenceAction {
+    let rollup_data_submission = RollupDataSubmission {
         rollup_id,
-        data: b"hello world".to_vec(),
-        fee_asset_id: asset_id,
-    };
-    let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
-        actions: vec![lock_action.into(), sequence_action.into()],
+        data: Bytes::from_static(b"hello world"),
+        fee_asset: nria().into(),
     };
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
+    let tx = TransactionBody::builder()
+        .actions(vec![lock_action.into(), rollup_data_submission.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
-    let expected_deposit = Deposit::new(
+    let signed_tx = tx.sign(&alice);
+
+    let expected_deposit = Deposit {
         bridge_address,
         rollup_id,
         amount,
-        asset_id,
-        "nootwashere".to_string(),
-    );
+        asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+        source_transaction_id: signed_tx.id(),
+        source_action_index: starting_index_of_action,
+    };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
-    let timestamp = Time::now();
+    let timestamp = Time::unix_epoch();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
@@ -138,132 +160,213 @@ async fn app_finalize_block_snapshot() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    app.commit(storage.clone()).await;
+    insta::assert_json_snapshot!("app_hash_finalize_block", app.app_hash.as_bytes());
 }
 
 // Note: this tests every action except for `Ics20Withdrawal` and `IbcRelay`.
 //
 // If new actions are added to the app, they must be added to this test,
 // and the respective PR must be marked as breaking.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
-    use astria_core::{
-        primitive::v1::asset,
-        protocol::transaction::v1alpha1::action::{
-            FeeAssetChangeAction,
-            InitBridgeAccountAction,
-            SudoAddressChangeAction,
-        },
+    use astria_core::protocol::transaction::v1::action::{
+        FeeAssetChange,
+        InitBridgeAccount,
+        SudoAddressChange,
     };
 
-    let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
-    let (bridge_signing_key, bridge_address) = get_bridge_signing_key_and_address();
-    let bob_address = address_from_hex_string(BOB_ADDRESS);
-    let carol_address = address_from_hex_string(CAROL_ADDRESS);
+    let alice = get_alice_signing_key();
+    let bridge = get_bridge_signing_key();
+    let bridge_address = astria_address(&bridge.address_bytes());
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+    let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
 
-    let genesis_state = GenesisState {
-        accounts: default_genesis_accounts(),
-        authority_sudo_address: alice_address,
-        ibc_sudo_address: alice_address,
-        ibc_relayer_addresses: vec![],
-        native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-        ibc_params: IBCParameters::default(),
-        allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
-        fees: default_fees(),
+    let accounts = {
+        let mut acc = default_genesis_accounts();
+        acc.push(Account {
+            address: bridge_address,
+            balance: 1_000_000_000,
+        });
+        acc.into_iter().map(Protobuf::into_raw).collect()
     };
+    let genesis_state = astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
+        accounts,
+        authority_sudo_address: Some(
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(alice.address_bytes())
+                .try_build()
+                .unwrap()
+                .to_raw(),
+        ),
+        ibc_sudo_address: Some(
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(alice.address_bytes())
+                .try_build()
+                .unwrap()
+                .to_raw(),
+        ),
+        ..proto_genesis_state()
+    }
+    .try_into()
+    .unwrap();
     let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
 
     // setup for ValidatorUpdate action
-    let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(&[1u8; 32]).unwrap();
-    let update = tendermint::validator::Update {
-        pub_key,
-        power: 100u32.into(),
+    let update = ValidatorUpdate {
+        power: 100,
+        verification_key: crate::benchmark_and_test_utils::verification_key(1),
     };
 
-    // setup for BridgeLockAction
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let asset_id = get_native_asset().id();
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
-    state_tx
-        .put_bridge_account_asset_id(&bridge_address, &asset_id)
-        .unwrap();
-    app.apply(state_tx);
 
-    let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
-        actions: vec![
-            TransferAction {
+    let tx_bundleable_general = TransactionBody::builder()
+        .actions(vec![
+            Transfer {
                 to: bob_address,
                 amount: 333_333,
-                asset_id: get_native_asset().id(),
-                fee_asset_id: get_native_asset().id(),
+                asset: nria().into(),
+                fee_asset: nria().into(),
             }
             .into(),
-            SequenceAction {
+            RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data: b"hello world".to_vec(),
-                fee_asset_id: get_native_asset().id(),
+                data: Bytes::from_static(b"hello world"),
+                fee_asset: nria().into(),
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
-            IbcRelayerChangeAction::Addition(bob_address).into(),
-            IbcRelayerChangeAction::Addition(carol_address).into(),
-            IbcRelayerChangeAction::Removal(bob_address).into(),
-            // TODO: should fee assets be stored in state?
-            FeeAssetChangeAction::Addition(asset::Id::from("test-0".to_string())).into(),
-            FeeAssetChangeAction::Addition(asset::Id::from("test-1".to_string())).into(),
-            FeeAssetChangeAction::Removal(asset::Id::from("test-0".to_string())).into(),
-            InitBridgeAccountAction {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                asset_id: get_native_asset().id(),
-                fee_asset_id: get_native_asset().id(),
-            }
-            .into(),
-            BridgeLockAction {
-                to: bridge_address,
-                amount: 100,
-                asset_id: get_native_asset().id(),
-                fee_asset_id: get_native_asset().id(),
-                destination_chain_address: "nootwashere".to_string(),
-            }
-            .into(),
-            SudoAddressChangeAction {
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let tx_bundleable_sudo = TransactionBody::builder()
+        .actions(vec![
+            IbcRelayerChange::Addition(bob_address).into(),
+            IbcRelayerChange::Addition(carol_address).into(),
+            IbcRelayerChange::Removal(bob_address).into(),
+            FeeAssetChange::Addition("test-0".parse().unwrap()).into(),
+            FeeAssetChange::Addition("test-1".parse().unwrap()).into(),
+            FeeAssetChange::Removal("test-0".parse().unwrap()).into(),
+        ])
+        .nonce(1)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let tx_sudo_ibc = TransactionBody::builder()
+        .actions(vec![
+            IbcSudoChange {
                 new_address: bob_address,
             }
             .into(),
-        ],
-    };
+        ])
+        .nonce(2)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
-    let signed_tx = tx.into_signed(&alice_signing_key);
-    app.execute_transaction(signed_tx).await.unwrap();
-
-    // execute BridgeUnlock action
-    let tx = UnsignedTransaction {
-        params: TransactionParams {
-            nonce: 0,
-            chain_id: "test".to_string(),
-        },
-        actions: vec![
-            BridgeUnlockAction {
-                to: bob_address,
-                amount: 10,
-                fee_asset_id: get_native_asset().id(),
-                memo: vec![0u8; 32],
+    let tx_sudo = TransactionBody::builder()
+        .actions(vec![
+            SudoAddressChange {
+                new_address: bob_address,
             }
             .into(),
-        ],
-    };
+        ])
+        .nonce(3)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
 
-    let signed_tx = tx.into_signed(&bridge_signing_key);
+    let signed_tx_general_bundleable = Arc::new(tx_bundleable_general.sign(&alice));
+    app.execute_transaction(signed_tx_general_bundleable)
+        .await
+        .unwrap();
+
+    let signed_tx_sudo_bundleable = Arc::new(tx_bundleable_sudo.sign(&alice));
+    app.execute_transaction(signed_tx_sudo_bundleable)
+        .await
+        .unwrap();
+
+    let signed_tx_sudo_ibc = Arc::new(tx_sudo_ibc.sign(&alice));
+    app.execute_transaction(signed_tx_sudo_ibc).await.unwrap();
+
+    let signed_tx_sudo = Arc::new(tx_sudo.sign(&alice));
+    app.execute_transaction(signed_tx_sudo).await.unwrap();
+
+    let tx = TransactionBody::builder()
+        .actions(vec![
+            InitBridgeAccount {
+                rollup_id,
+                asset: nria().into(),
+                fee_asset: nria().into(),
+                sudo_address: None,
+                withdrawer_address: None,
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+    let signed_tx = Arc::new(tx.sign(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
+
+    let tx_bridge_bundleable = TransactionBody::builder()
+        .actions(vec![
+            BridgeLock {
+                to: bridge_address,
+                amount: 100,
+                asset: nria().into(),
+                fee_asset: nria().into(),
+                destination_chain_address: "nootwashere".to_string(),
+            }
+            .into(),
+            BridgeUnlock {
+                to: bob_address,
+                amount: 10,
+                fee_asset: nria().into(),
+                memo: String::new(),
+                bridge_address: astria_address(&bridge.address_bytes()),
+                rollup_block_number: 1,
+                rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
+            }
+            .into(),
+        ])
+        .nonce(1)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx_bridge_bundleable.sign(&bridge));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let tx_bridge = TransactionBody::builder()
+        .actions(vec![
+            BridgeSudoChange {
+                bridge_address,
+                new_sudo_address: Some(bob_address),
+                new_withdrawer_address: Some(bob_address),
+                fee_asset: nria().into(),
+            }
+            .into(),
+        ])
+        .nonce(2)
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx_bridge.sign(&bridge));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let sudo_address = app.state.get_sudo_address().await.unwrap();
+    app.end_block(1, &sudo_address).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_execute_every_action", app.app_hash.as_bytes());
 }

@@ -1,0 +1,15 @@
+[advisories]
+ignore = [
+  # `ansi_term` is Unmaintained. It is a transient dependency of penumbra crates and dylint, so
+  # cannot easily be replaced.
+  "RUSTSEC-2021-0139",
+  # `proc-macro-error` is Unmaintained. It is a transient dependency of borsh crates, so cannot
+  # easily be replaced.
+  "RUSTSEC-2024-0370",
+  # `instant` is Unmaintained. It is a transient dependency of `isahc`, `wiremock` and `ethers`, so
+  # cannot easily be replaced.
+  "RUSTSEC-2024-0384",
+  # `derivative` is Unmaintained. It is a transient dependency of many crates including several
+  # penumbra ones, so cannot easily be replaced.
+  "RUSTSEC-2024-0388",
+]

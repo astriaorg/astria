@@ -1,170 +1,187 @@
-use anyhow::{
-    bail,
-    Context,
-    Result,
+use std::{
+    borrow::Cow,
+    fmt::Display,
 };
+
 use astria_core::primitive::v1::{
     asset,
-    Address,
     ADDRESS_LEN,
 };
-use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        bail,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
+use async_trait::async_trait;
 use cnidarium::{
     StateRead,
     StateWrite,
 };
-use hex::ToHex as _;
 use ibc_types::core::channel::ChannelId;
 use tracing::{
     debug,
     instrument,
 };
 
-/// Newtype wrapper to read and write a u128 from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct Balance(u128);
-
-/// Newtype wrapper to read and write an address from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct SudoAddress([u8; ADDRESS_LEN]);
-
-/// Newtype wrapper to read and write a u128 from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-struct Fee(u128);
-
-const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
-const ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY: &str = "ics20withdrawalfee";
-
-fn channel_balance_storage_key(channel: &ChannelId, asset: asset::Id) -> String {
-    format!(
-        "ibc-data/{channel}/balance/{}",
-        asset.encode_hex::<String>()
-    )
-}
-
-fn ibc_relayer_key(address: &Address) -> String {
-    format!("ibc-relayer/{}", address.encode_hex::<String>())
-}
+use super::storage::{
+    self,
+    keys,
+};
+use crate::{
+    accounts::AddressBytes,
+    storage::StoredValue,
+};
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
-    async fn get_ibc_channel_balance(&self, channel: &ChannelId, asset: asset::Id) -> Result<u128> {
+    #[instrument(skip_all, fields(%channel, %asset), err)]
+    async fn get_ibc_channel_balance<'a, TAsset>(
+        &self,
+        channel: &ChannelId,
+        asset: &'a TAsset,
+    ) -> Result<u128>
+    where
+        TAsset: Sync + Display,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
+    {
         let Some(bytes) = self
-            .get_raw(&channel_balance_storage_key(channel, asset))
+            .get_raw(&keys::channel_balance(channel, asset))
             .await
-            .context("failed reading ibc channel balance from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading ibc channel balance from state")?
         else {
             debug!("ibc channel balance not found, returning 0");
             return Ok(0);
         };
-        let Balance(balance) = Balance::try_from_slice(&bytes).context("invalid balance bytes")?;
-        Ok(balance)
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::Balance::try_from(value).map(u128::from))
+            .wrap_err("invalid ibc channel balance bytes")
     }
 
-    #[instrument(skip(self))]
-    async fn get_ibc_sudo_address(&self) -> Result<Address> {
+    #[instrument(skip_all)]
+    async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
-            .get_raw(IBC_SUDO_STORAGE_KEY)
+            .get_raw(keys::IBC_SUDO)
             .await
-            .context("failed reading raw ibc sudo key from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw ibc sudo address from state")?
         else {
             // ibc sudo key must be set
-            bail!("ibc sudo key not found");
+            bail!("ibc sudo address not found");
         };
-        let SudoAddress(address) =
-            SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
-        Ok(Address::from(address))
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::AddressBytes::try_from(value).map(<[u8; ADDRESS_LEN]>::from))
+            .wrap_err("invalid ibc sudo address bytes")
     }
 
-    #[instrument(skip(self))]
-    async fn is_ibc_relayer(&self, address: &Address) -> Result<bool> {
+    #[instrument(skip_all)]
+    async fn is_ibc_relayer<T: AddressBytes>(&self, address: T) -> Result<bool> {
         Ok(self
-            .get_raw(&ibc_relayer_key(address))
+            .get_raw(&keys::ibc_relayer(&address))
             .await
-            .context("failed to read ibc relayer key from state")?
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read ibc relayer key from state")?
             .is_some())
-    }
-
-    #[instrument(skip(self))]
-    async fn get_ics20_withdrawal_base_fee(&self) -> Result<u128> {
-        let Some(bytes) = self
-            .get_raw(ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY)
-            .await
-            .context("failed reading ics20 withdrawal fee from state")?
-        else {
-            bail!("ics20 withdrawal fee not found");
-        };
-        let Fee(fee) = Fee::try_from_slice(&bytes).context("invalid fee bytes")?;
-        Ok(fee)
     }
 }
 
-impl<T: StateRead> StateReadExt for T {}
+impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
-    fn put_ibc_channel_balance(
+    #[instrument(skip_all, fields(%channel, %asset, balance), err)]
+    fn put_ibc_channel_balance<'a, TAsset>(
         &mut self,
         channel: &ChannelId,
-        asset: asset::Id,
+        asset: &'a TAsset,
         balance: u128,
-    ) -> Result<()> {
-        let bytes = borsh::to_vec(&Balance(balance)).context("failed to serialize balance")?;
-        self.put_raw(channel_balance_storage_key(channel, asset), bytes);
+    ) -> Result<()>
+    where
+        TAsset: Display,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
+    {
+        let bytes = StoredValue::from(storage::Balance::from(balance))
+            .serialize()
+            .wrap_err("failed to serialize ibc channel balance")?;
+        self.put_raw(keys::channel_balance(channel, asset), bytes);
         Ok(())
     }
 
-    #[instrument(skip(self))]
-    fn put_ibc_sudo_address(&mut self, address: Address) -> Result<()> {
-        self.put_raw(
-            IBC_SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.get()))
-                .context("failed to convert sudo address to vec")?,
-        );
+    #[instrument(skip_all, fields(%channel, %asset, amount), err)]
+    async fn decrease_ibc_channel_balance<'a, TAsset>(
+        &mut self,
+        channel: &ChannelId,
+        asset: &'a TAsset,
+        amount: u128,
+    ) -> Result<()>
+    where
+        TAsset: Sync + Display,
+        &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,
+    {
+        let old_balance = self
+            .get_ibc_channel_balance(channel, asset)
+            .await
+            .wrap_err("failed to get ibc channel balance")?;
+
+        let new_balance = old_balance
+            .checked_sub(amount)
+            .ok_or_eyre("insufficient funds on ibc channel")?;
+
+        self.put_ibc_channel_balance(channel, asset, new_balance)
+            .wrap_err("failed to write new balance to ibc channel")
+    }
+
+    #[instrument(skip_all)]
+    fn put_ibc_sudo_address<T: AddressBytes>(&mut self, address: T) -> Result<()> {
+        let bytes = StoredValue::from(storage::AddressBytes::from(&address))
+            .serialize()
+            .wrap_err("failed to serialize ibc sudo address")?;
+        self.put_raw(keys::IBC_SUDO.to_string(), bytes);
         Ok(())
     }
 
-    #[instrument(skip(self))]
-    fn put_ibc_relayer_address(&mut self, address: &Address) {
-        self.put_raw(ibc_relayer_key(address), vec![]);
-    }
-
-    #[instrument(skip(self))]
-    fn delete_ibc_relayer_address(&mut self, address: &Address) {
-        self.delete(ibc_relayer_key(address));
-    }
-
-    #[instrument(skip(self))]
-    fn put_ics20_withdrawal_base_fee(&mut self, fee: u128) -> Result<()> {
-        self.put_raw(
-            ICS20_WITHDRAWAL_BASE_FEE_STORAGE_KEY.to_string(),
-            borsh::to_vec(&Fee(fee)).context("failed to serialize fee")?,
-        );
+    #[instrument(skip_all)]
+    fn put_ibc_relayer_address<T: AddressBytes>(&mut self, address: &T) -> Result<()> {
+        let bytes = StoredValue::Unit
+            .serialize()
+            .wrap_err("failed to serialize unit for ibc relayer address")?;
+        self.put_raw(keys::ibc_relayer(address), bytes);
         Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn delete_ibc_relayer_address<T: AddressBytes>(&mut self, address: &T) {
+        self.delete(keys::ibc_relayer(address));
     }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
-mod test {
-    use astria_core::primitive::v1::{
-        asset::Id,
-        Address,
-    };
+mod tests {
     use cnidarium::StateDelta;
-    use ibc_types::core::channel::ChannelId;
 
-    use super::{
-        StateReadExt as _,
-        StateWriteExt as _,
+    use super::*;
+    use crate::{
+        address::StateWriteExt,
+        benchmark_and_test_utils::{
+            astria_address,
+            ASTRIA_PREFIX,
+        },
+        ibc::StateWriteExt as _,
     };
+
+    fn asset_0() -> asset::Denom {
+        "asset_0".parse().unwrap()
+    }
+
+    fn asset_1() -> asset::Denom {
+        "asset_1".parse().unwrap()
+    }
 
     #[tokio::test]
     async fn get_ibc_sudo_address_fails_if_not_set() {
@@ -173,7 +190,7 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         // should fail if not set
-        state
+        let _ = state
             .get_ibc_sudo_address()
             .await
             .expect_err("sudo address should be set");
@@ -185,8 +202,10 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
         // can write new
-        let mut address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let mut address = [42u8; 20];
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -200,7 +219,7 @@ mod test {
         );
 
         // can rewrite with new value
-        address = Address::try_from_slice(&[41u8; 20]).unwrap();
+        address = [41u8; 20];
         state
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
@@ -218,13 +237,15 @@ mod test {
     async fn is_ibc_relayer_ok_if_not_set() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         // unset address returns false
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
+        let address = astria_address(&[42u8; 20]);
         assert!(
             !state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("calls to properly formatted addresses should not fail"),
             "inputted address should've returned false"
@@ -237,12 +258,14 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
         // can write
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
-        state.put_ibc_relayer_address(&address);
+        let address = astria_address(&[42u8; 20]);
+        state.put_ibc_relayer_address(&address).unwrap();
         assert!(
             state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "stored relayer address could not be verified"
@@ -252,7 +275,7 @@ mod test {
         state.delete_ibc_relayer_address(&address);
         assert!(
             !state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("calls on unset addresses should not fail"),
             "relayer address was not deleted as was intended"
@@ -265,30 +288,32 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
         // can write
-        let address = Address::try_from_slice(&[42u8; 20]).unwrap();
-        state.put_ibc_relayer_address(&address);
+        let address = astria_address(&[42u8; 20]);
+        state.put_ibc_relayer_address(&address).unwrap();
         assert!(
             state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "stored relayer address could not be verified"
         );
 
         // can write multiple
-        let address_1 = Address::try_from_slice(&[41u8; 20]).unwrap();
-        state.put_ibc_relayer_address(&address_1);
+        let address_1 = astria_address(&[41u8; 20]);
+        state.put_ibc_relayer_address(&address_1).unwrap();
         assert!(
             state
-                .is_ibc_relayer(&address_1)
+                .is_ibc_relayer(address_1)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "additional stored relayer address could not be verified"
         );
         assert!(
             state
-                .is_ibc_relayer(&address)
+                .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "original stored relayer address could not be verified"
@@ -302,11 +327,11 @@ mod test {
         let state = StateDelta::new(snapshot);
 
         let channel = ChannelId::new(0u64);
-        let asset = Id::from_denom("asset");
+        let asset = asset_0();
 
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel, asset)
+                .get_ibc_channel_balance(&channel, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             0u128,
@@ -321,16 +346,16 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let channel = ChannelId::new(0u64);
-        let asset = Id::from_denom("asset");
+        let asset = asset_0();
         let mut amount = 10u128;
 
         // write initial
         state
-            .put_ibc_channel_balance(&channel, asset, amount)
+            .put_ibc_channel_balance(&channel, &asset, amount)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel, asset)
+                .get_ibc_channel_balance(&channel, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount,
@@ -340,11 +365,11 @@ mod test {
         // can update
         amount = 20u128;
         state
-            .put_ibc_channel_balance(&channel, asset, amount)
+            .put_ibc_channel_balance(&channel, &asset, amount)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel, asset)
+                .get_ibc_channel_balance(&channel, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount,
@@ -359,21 +384,21 @@ mod test {
         let mut state = StateDelta::new(snapshot);
 
         let channel = ChannelId::new(0u64);
-        let asset_0 = Id::from_denom("asset_0");
-        let asset_1 = Id::from_denom("asset_1");
+        let asset_0 = asset_0();
+        let asset_1 = asset_1();
         let amount_0 = 10u128;
         let amount_1 = 20u128;
 
         // write both
         state
-            .put_ibc_channel_balance(&channel, asset_0, amount_0)
+            .put_ibc_channel_balance(&channel, &asset_0, amount_0)
             .expect("should be able to set balance for channel and asset pair");
         state
-            .put_ibc_channel_balance(&channel, asset_1, amount_1)
+            .put_ibc_channel_balance(&channel, &asset_1, amount_1)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel, asset_0)
+                .get_ibc_channel_balance(&channel, &asset_0)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount_0,
@@ -381,7 +406,7 @@ mod test {
         );
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel, asset_1)
+                .get_ibc_channel_balance(&channel, &asset_1)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount_1,
@@ -397,20 +422,20 @@ mod test {
 
         let channel_0 = ChannelId::new(0u64);
         let channel_1 = ChannelId::new(1u64);
-        let asset = Id::from_denom("asset_0");
+        let asset = asset_0();
         let amount_0 = 10u128;
         let amount_1 = 20u128;
 
         // write both
         state
-            .put_ibc_channel_balance(&channel_0, asset, amount_0)
+            .put_ibc_channel_balance(&channel_0, &asset, amount_0)
             .expect("should be able to set balance for channel and asset pair");
         state
-            .put_ibc_channel_balance(&channel_1, asset, amount_1)
+            .put_ibc_channel_balance(&channel_1, &asset, amount_1)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel_0, asset)
+                .get_ibc_channel_balance(&channel_0, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount_0,
@@ -418,7 +443,7 @@ mod test {
         );
         assert_eq!(
             state
-                .get_ibc_channel_balance(&channel_1, asset)
+                .get_ibc_channel_balance(&channel_1, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
             amount_1,

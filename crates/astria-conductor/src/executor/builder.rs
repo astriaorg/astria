@@ -13,12 +13,16 @@ use super::{
     Handle,
     StateNotInit,
 };
-use crate::config::CommitLevel;
+use crate::{
+    config::CommitLevel,
+    metrics::Metrics,
+};
 
 pub(crate) struct Builder {
     pub(crate) mode: CommitLevel,
     pub(crate) rollup_address: String,
     pub(crate) shutdown: CancellationToken,
+    pub(crate) metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -27,11 +31,15 @@ impl Builder {
             mode,
             rollup_address,
             shutdown,
+            metrics,
         } = self;
 
-        let rollup_address = rollup_address
-            .parse()
-            .wrap_err("failed to parse rollup address as URI")?;
+        let client = super::client::Client::connect_lazy(&rollup_address).wrap_err_with(|| {
+            format!(
+                "failed to construct execution client for provided rollup address \
+                 `{rollup_address}`"
+            )
+        })?;
 
         let mut firm_block_tx = None;
         let mut firm_block_rx = None;
@@ -52,16 +60,19 @@ impl Builder {
         let (state_tx, state_rx) = state::channel();
 
         let executor = Executor {
+            client,
+
             mode,
 
             firm_blocks: firm_block_rx,
             soft_blocks: soft_block_rx,
 
-            rollup_address,
-
             shutdown,
             state: state_tx,
             blocks_pending_finalization: HashMap::new(),
+
+            max_spread: None,
+            metrics,
         };
         let handle = Handle {
             firm_blocks: firm_block_tx,

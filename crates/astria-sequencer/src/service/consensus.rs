@@ -1,6 +1,8 @@
-use anyhow::{
+use astria_core::protocol::genesis::v1::GenesisAppState;
+use astria_eyre::eyre::{
     bail,
-    Context,
+    Result,
+    WrapErr as _,
 };
 use cnidarium::Storage;
 use tendermint::v0_38::abci::{
@@ -18,10 +20,7 @@ use tracing::{
     Instrument,
 };
 
-use crate::{
-    app::App,
-    genesis::GenesisState,
-};
+use crate::app::App;
 
 pub(crate) struct Consensus {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
@@ -76,13 +75,13 @@ impl Consensus {
             ConsensusRequest::InitChain(init_chain) => ConsensusResponse::InitChain(
                 self.init_chain(init_chain)
                     .await
-                    .context("failed initializing chain")?,
+                    .wrap_err("failed initializing chain")?,
             ),
             ConsensusRequest::PrepareProposal(prepare_proposal) => {
                 ConsensusResponse::PrepareProposal(
                     self.handle_prepare_proposal(prepare_proposal)
                         .await
-                        .context("failed to prepare proposal")?,
+                        .wrap_err("failed to prepare proposal")?,
                 )
             }
             ConsensusRequest::ProcessProposal(process_proposal) => {
@@ -110,40 +109,41 @@ impl Consensus {
             ConsensusRequest::FinalizeBlock(finalize_block) => ConsensusResponse::FinalizeBlock(
                 self.finalize_block(finalize_block)
                     .await
-                    .context("failed to finalize block")?,
+                    .wrap_err("failed to finalize block")?,
             ),
             ConsensusRequest::Commit => {
-                ConsensusResponse::Commit(self.commit().await.context("failed to commit")?)
+                ConsensusResponse::Commit(self.commit().await.wrap_err("failed to commit")?)
             }
         })
     }
 
-    #[instrument(skip_all, fields(
-        chain_id = init_chain.chain_id,
-        time = %init_chain.time,
-        init_height = %init_chain.initial_height
-    ))]
-    async fn init_chain(
-        &mut self,
-        init_chain: request::InitChain,
-    ) -> anyhow::Result<response::InitChain> {
+    #[instrument(skip_all, err)]
+    async fn init_chain(&mut self, init_chain: request::InitChain) -> Result<response::InitChain> {
         // the storage version is set to u64::MAX by default when first created
         if self.storage.latest_version() != u64::MAX {
             bail!("database already initialized");
         }
 
-        let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
-            .context("failed to parse app_state in genesis file")?;
+        let genesis_state: GenesisAppState = serde_json::from_slice(&init_chain.app_state_bytes)
+            .wrap_err("failed to parse app_state in genesis file")?;
         let app_hash = self
             .app
             .init_chain(
                 self.storage.clone(),
                 genesis_state,
-                init_chain.validators.clone(),
+                init_chain
+                    .validators
+                    .iter()
+                    .cloned()
+                    .map(crate::utils::cometbft_to_sequencer_validator)
+                    .collect::<Result<_, _>>()
+                    .wrap_err(
+                        "failed converting cometbft genesis validators to astria validators",
+                    )?,
                 init_chain.chain_id,
             )
             .await
-            .context("failed to call init_chain")?;
+            .wrap_err("failed to call init_chain")?;
         self.app.commit(self.storage.clone()).await;
 
         Ok(response::InitChain {
@@ -153,32 +153,21 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all, fields(
-        height = %prepare_proposal.height,
-        tx_count = prepare_proposal.txs.len(),
-        time = %prepare_proposal.time
-    ))]
+    #[instrument(skip_all)]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
-    ) -> anyhow::Result<response::PrepareProposal> {
+    ) -> Result<response::PrepareProposal> {
         self.app
             .prepare_proposal(prepare_proposal, self.storage.clone())
             .await
     }
 
-    #[instrument(skip_all, fields(
-        height = %process_proposal.height,
-        time = %process_proposal.time,
-        tx_count = process_proposal.txs.len(),
-        proposer = %process_proposal.proposer_address,
-        hash = %telemetry::display::base64(&process_proposal.hash),
-        next_validators_hash = %telemetry::display::base64(&process_proposal.next_validators_hash),
-    ))]
+    #[instrument(skip_all)]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         self.app
             .process_proposal(process_proposal, self.storage.clone())
             .await?;
@@ -186,55 +175,50 @@ impl Consensus {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(
-        hash = %finalize_block.hash,
-        height = %finalize_block.height,
-        time = %finalize_block.time,
-        proposer = %finalize_block.proposer_address
-    ))]
+    #[instrument(skip_all)]
     async fn finalize_block(
         &mut self,
         finalize_block: request::FinalizeBlock,
-    ) -> anyhow::Result<response::FinalizeBlock> {
+    ) -> Result<response::FinalizeBlock> {
         let finalize_block = self
             .app
             .finalize_block(finalize_block, self.storage.clone())
             .await
-            .context("failed to call App::finalize_block")?;
+            .wrap_err("failed to call App::finalize_block")?;
         Ok(finalize_block)
     }
 
     #[instrument(skip_all)]
-    async fn commit(&mut self) -> anyhow::Result<response::Commit> {
+    async fn commit(&mut self) -> Result<response::Commit> {
         self.app.commit(self.storage.clone()).await;
         Ok(response::Commit::default())
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::{
         collections::HashMap,
         str::FromStr,
+        sync::Arc,
     };
 
     use astria_core::{
-        crypto::SigningKey,
-        primitive::v1::{
-            asset::DEFAULT_NATIVE_ASSET_DENOM,
-            Address,
-            RollupId,
+        crypto::{
+            SigningKey,
+            VerificationKey,
         },
-        protocol::transaction::v1alpha1::{
-            action::SequenceAction,
-            TransactionParams,
-            UnsignedTransaction,
+        primitive::v1::RollupId,
+        protocol::transaction::v1::{
+            action::RollupDataSubmission,
+            TransactionBody,
         },
+        Protobuf as _,
     };
     use bytes::Bytes;
-    use ed25519_consensus::VerificationKey;
     use prost::Message as _;
     use rand::rngs::OsRng;
+    use telemetry::Metrics as _;
     use tendermint::{
         account::Id,
         Hash,
@@ -243,30 +227,28 @@ mod test {
 
     use super::*;
     use crate::{
-        app::test_utils::default_fees,
-        asset::get_native_asset,
-        mempool::{
-            Mempool,
-            TransactionPriority,
+        app::benchmark_and_test_utils::{
+            mock_balances,
+            mock_tx_cost,
         },
+        mempool::Mempool,
+        metrics::Metrics,
         proposal::commitment::generate_rollup_datas_commitment,
     };
 
-    fn make_unsigned_tx() -> UnsignedTransaction {
-        UnsignedTransaction {
-            params: TransactionParams {
-                nonce: 0,
-                chain_id: "test".to_string(),
-            },
-            actions: vec![
-                SequenceAction {
+    fn make_unsigned_tx() -> TransactionBody {
+        TransactionBody::builder()
+            .actions(vec![
+                RollupDataSubmission {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: b"helloworld".to_vec(),
-                    fee_asset_id: get_native_asset().id(),
+                    data: Bytes::from_static(b"hello world"),
+                    fee_asset: crate::benchmark_and_test_utils::nria().into(),
                 }
                 .into(),
-            ],
-        }
+            ])
+            .chain_id("test")
+            .try_build()
+            .unwrap()
     }
 
     fn new_prepare_proposal_request() -> request::PrepareProposal {
@@ -287,7 +269,7 @@ mod test {
             txs,
             proposed_last_commit: None,
             misbehavior: vec![],
-            hash: Hash::default(),
+            hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),
             next_validators_hash: Hash::default(),
             time: Time::now(),
@@ -298,16 +280,23 @@ mod test {
     #[tokio::test]
     async fn prepare_and_process_proposal() {
         let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, mut mempool) =
+        let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
-        let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
+        let signed_tx = Arc::new(tx.sign(&signing_key));
+        let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let priority = TransactionPriority::new(0, 0).unwrap();
-        mempool.insert(signed_tx.clone(), priority).await.unwrap();
+        mempool
+            .insert(
+                signed_tx.clone(),
+                0,
+                mock_balances(0, 0),
+                mock_tx_cost(0, 0, 0),
+            )
+            .await
+            .unwrap();
 
-        let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
+        let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
         let prepare_proposal = new_prepare_proposal_request();
         let prepare_proposal_response = consensus_service
@@ -336,7 +325,7 @@ mod test {
         let (mut consensus_service, _) =
             new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
-        let signed_tx = tx.into_signed(&signing_key);
+        let signed_tx = tx.sign(&signing_key);
         let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         let res = generate_rollup_datas_commitment(&vec![signed_tx], HashMap::new());
@@ -459,39 +448,33 @@ mod test {
         }
     }
 
-    impl Default for GenesisState {
-        fn default() -> Self {
-            Self {
-                accounts: vec![],
-                authority_sudo_address: Address::from([0; 20]),
-                ibc_sudo_address: Address::from([0; 20]),
-                ibc_relayer_addresses: vec![],
-                native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-                ibc_params: penumbra_ibc::params::IBCParameters::default(),
-                allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
-                fees: default_fees(),
-            }
-        }
-    }
-
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
-        let accounts = if funded_key.is_some() {
-            vec![crate::genesis::Account {
-                address: Address::from_verification_key(funded_key.unwrap()),
-                balance: 10u128.pow(19),
-            }]
+        let accounts = if let Some(funded_key) = funded_key {
+            vec![
+                astria_core::generated::astria::protocol::genesis::v1::Account {
+                    address: Some(
+                        crate::benchmark_and_test_utils::astria_address(funded_key.address_bytes())
+                            .to_raw(),
+                    ),
+                    balance: Some(10u128.pow(19).into()),
+                },
+            ]
         } else {
             vec![]
         };
-        let genesis_state = GenesisState {
-            accounts,
-            ..Default::default()
-        };
+        let genesis_state = {
+            let mut state = crate::app::benchmark_and_test_utils::proto_genesis_state();
+            state.accounts = accounts;
+            state
+        }
+        .try_into()
+        .unwrap();
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let mempool = Mempool::new();
-        let mut app = App::new(snapshot, mempool.clone()).await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
         app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
             .await
             .unwrap();
@@ -506,14 +489,14 @@ mod test {
         use sha2::Digest as _;
 
         let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, mut mempool) =
+        let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
 
         let tx = make_unsigned_tx();
-        let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
+        let signed_tx = Arc::new(tx.sign(&signing_key));
+        let tx_bytes = signed_tx.to_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let res = generate_rollup_datas_commitment(&vec![signed_tx.clone()], HashMap::new());
+        let res = generate_rollup_datas_commitment(&vec![(*signed_tx).clone()], HashMap::new());
 
         let block_data = res.into_transactions(txs.clone());
         let data_hash =
@@ -521,16 +504,17 @@ mod test {
         let mut header = default_header();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
+        mempool
+            .insert(signed_tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+            .await
+            .unwrap();
+
         let process_proposal = new_process_proposal_request(block_data.clone());
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
             .await
             .unwrap();
 
-        mempool
-            .insert(signed_tx, TransactionPriority::new(0, 0).unwrap())
-            .await
-            .unwrap();
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
             height: 1u32.into(),

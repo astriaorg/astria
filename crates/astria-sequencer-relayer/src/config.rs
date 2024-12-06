@@ -18,20 +18,21 @@ use serde::{
     Serialize,
 };
 
-// Allowed `struct_excessive_bools` because this is used as a container
-// for deserialization. Making this a builder-pattern is not actionable.
-#[allow(clippy::struct_excessive_bools)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "this is used as a container for deserialization. Making this a builder-pattern is \
+              not actionable"
+)]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-sequencer-relayer service.
 pub struct Config {
+    pub sequencer_chain_id: String,
+    pub celestia_chain_id: String,
     pub cometbft_endpoint: String,
     pub sequencer_grpc_endpoint: String,
     pub celestia_app_grpc_endpoint: String,
     pub celestia_app_key_file: String,
     pub block_time: u64,
-    pub relay_only_validator_key_blocks: bool,
-    #[serde(default)]
-    pub validator_key_file: String,
     // Would ideally be private; accessed via the public getter which converts this to a collection
     // of `RollupId`s.  Left public for integration tests.
     #[doc(hidden)]
@@ -49,10 +50,8 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
-    /// The path to which relayer will write its state prior to submitting to Celestia.
-    pub pre_submit_path: PathBuf,
-    /// The path to which relayer will write its state after submitting to Celestia.
-    pub post_submit_path: PathBuf,
+    /// The path to which relayer will write its state while submitting to Celestia.
+    pub submission_state_path: PathBuf,
 }
 
 impl Config {

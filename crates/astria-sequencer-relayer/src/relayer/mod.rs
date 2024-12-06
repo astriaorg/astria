@@ -1,19 +1,17 @@
 use std::{
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::PathBuf,
     sync::Arc,
     time::Duration,
 };
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::sequencer_service_client::SequencerServiceClient,
-    sequencerblock::v1alpha1::SequencerBlock,
+    generated::astria::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
+    sequencerblock::v1::SequencerBlock,
 };
 use astria_eyre::eyre::{
     self,
     bail,
+    ensure,
     eyre,
     WrapErr as _,
 };
@@ -27,6 +25,10 @@ use futures::{
 };
 use sequencer_client::{
     tendermint::block::Height as SequencerHeight,
+    tendermint_rpc::{
+        self,
+        Error,
+    },
     HttpClient as SequencerClient,
 };
 use tokio::{
@@ -42,16 +44,15 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{
     debug,
+    debug_span,
     error,
-    field::DisplayValue,
     info,
     instrument,
+    trace,
     warn,
-};
-
-use crate::{
-    validator::Validator,
-    IncludeRollup,
+    Instrument,
+    Level,
+    Span,
 };
 
 mod builder;
@@ -63,6 +64,7 @@ mod write;
 
 pub(crate) use builder::Builder;
 use celestia_client::{
+    BlobTxHash,
     BuilderError,
     CelestiaClientBuilder,
     CelestiaKeys,
@@ -70,12 +72,31 @@ use celestia_client::{
 };
 use state::State;
 pub(crate) use state::StateSnapshot;
+use submission::{
+    PreparedSubmission,
+    StartedSubmission,
+    SubmissionStateAtStartup,
+};
 
-use self::submission::SubmissionState;
+use crate::{
+    metrics::Metrics,
+    IncludeRollup,
+};
 
 pub(crate) struct Relayer {
     /// A token to notify relayer that it should shut down.
-    shutdown_token: CancellationToken,
+    #[expect(
+        clippy::struct_field_names,
+        reason = "want the prefix to disambiguate between this token and \
+                  `submitter_shutdown_token`"
+    )]
+    relayer_shutdown_token: CancellationToken,
+
+    /// A child token of `relayer_shutdown_token` to notify the submitter task to shut down.
+    submitter_shutdown_token: CancellationToken,
+
+    /// The configured chain ID of the sequencer network.
+    sequencer_chain_id: String,
 
     /// The client used to query the sequencer cometbft endpoint.
     sequencer_cometbft_client: SequencerClient,
@@ -89,17 +110,14 @@ pub(crate) struct Relayer {
     /// The gRPC client for submitting sequencer blocks to celestia.
     celestia_client_builder: CelestiaClientBuilder,
 
-    /// If this is set, only relay blocks to DA which are proposed by the same validator key.
-    validator: Option<Validator>,
-
     /// The rollups whose data should be included in submissions.
     rollup_filter: IncludeRollup,
 
     /// A watch channel to track the state of the relayer. Used by the API service.
     state: Arc<State>,
 
-    pre_submit_path: PathBuf,
-    post_submit_path: PathBuf,
+    submission_state_path: PathBuf,
+    metrics: &'static Metrics,
 }
 
 impl Relayer {
@@ -113,13 +131,21 @@ impl Relayer {
     ///
     /// Returns errors if sequencer block fetch or celestia blob submission
     /// failed catastrophically (after `u32::MAX` retries).
-    #[instrument(skip_all)]
     pub(crate) async fn run(self) -> eyre::Result<()> {
-        let submission_state = read_submission_state(&self.pre_submit_path, &self.post_submit_path)
-            .await
-            .wrap_err("failed reading submission state from files")?;
+        // No need to add `wrap_err` as `new_from_path` already reports the path on error.
+        let submission_state_at_startup =
+            SubmissionStateAtStartup::new_from_path(&self.submission_state_path).await?;
 
-        let last_submitted_sequencer_height = submission_state.last_submitted_height();
+        select!(
+            () = self.relayer_shutdown_token.cancelled() => return Ok(()),
+            init_result = confirm_sequencer_chain_id(
+                self.sequencer_chain_id.clone(),
+                self.sequencer_cometbft_client.clone()
+            ) => init_result,
+        )?;
+
+        let last_completed_sequencer_height =
+            submission_state_at_startup.last_completed_sequencer_height();
 
         let mut latest_height_stream = {
             use sequencer_client::StreamLatestHeight as _;
@@ -127,18 +153,19 @@ impl Relayer {
                 .stream_latest_height(self.sequencer_poll_period)
         };
 
-        let (submitter_task, submitter) = spawn_submitter(
+        let (mut submitter_task, submitter) = spawn_submitter(
             self.celestia_client_builder.clone(),
             self.rollup_filter.clone(),
             self.state.clone(),
-            submission_state,
-            self.shutdown_token.clone(),
+            submission_state_at_startup,
+            self.submitter_shutdown_token.clone(),
+            self.metrics,
         );
 
-        let mut block_stream = read::BlockStream::builder()
+        let mut block_stream = read::BlockStream::builder(self.metrics)
             .block_time(self.sequencer_poll_period)
             .client(self.sequencer_grpc_client.clone())
-            .set_last_fetched_height(last_submitted_sequencer_height)
+            .set_last_fetched_height(last_completed_sequencer_height)
             .state(self.state.clone())
             .build();
 
@@ -154,10 +181,11 @@ impl Relayer {
             select!(
                 biased;
 
-                () = self.shutdown_token.cancelled() => {
-                    info!("received shutdown signal");
+                () = self.relayer_shutdown_token.cancelled() => {
                     break Ok("shutdown signal received");
                 }
+
+                _ = &mut submitter_task => break Err(eyre!("Celestia submission task returned")),
 
                 res = &mut forward_once_free, if !forward_once_free.is_terminated() => {
                     // XXX: exiting because submitter only returns an error after u32::MAX
@@ -166,26 +194,11 @@ impl Relayer {
                         break Err(eyre!("submitter exited unexpectedly while trying to forward block"));
                     }
                     block_stream.resume();
-                    debug!("block stream resumed");
+                    debug_span!("sequencer-relayer::Relayer::run").in_scope(|| debug!("block stream resumed"));
                 }
 
                 Some(res) = latest_height_stream.next() => {
-                    match res {
-                        Ok(height) => {
-                            self.state.set_latest_observed_sequencer_height(height.value());
-                            debug!(%height, "received latest height from sequencer");
-                            block_stream.set_latest_sequencer_height(height);
-                        }
-                        Err(error) => {
-                            metrics::counter!(crate::metrics_init::SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT)
-                                .increment(1);
-                            self.state.set_sequencer_connected(false);
-                            warn!(
-                                %error,
-                                "failed fetching latest height from sequencer; waiting until next tick",
-                            );
-                        }
-                    }
+                    self.handle_latest_height(res, &mut block_stream);
                 }
 
                 Some((height, fetch_result)) = block_stream.next() => {
@@ -216,30 +229,50 @@ impl Relayer {
             );
         };
 
-        match &reason {
-            Ok(reason) => info!(reason, "starting shutdown"),
-            Err(reason) => error!(%reason, "starting shutdown"),
-        }
+        report_shutdown(&reason);
 
-        debug!("waiting for Celestia submission task to exit");
-        if let Err(error) = submitter_task.await {
-            error!(%error, "Celestia submission task failed while waiting for it to exit before shutdown");
-        }
+        self.handle_submitter_shutdown(submitter_task).await;
 
         reason.map(|_| ())
     }
 
-    fn report_validator(&self) -> Option<DisplayValue<ReportValidator<'_>>> {
-        self.validator
-            .as_ref()
-            .map(ReportValidator)
-            .map(tracing::field::display)
+    #[instrument(skip_all)]
+    fn handle_latest_height(
+        &self,
+        res: Result<SequencerHeight, Error>,
+        block_stream: &mut read::BlockStream,
+    ) {
+        match res {
+            Ok(height) => {
+                self.state
+                    .set_latest_observed_sequencer_height(height.value());
+                debug!(%height, "received latest height from sequencer");
+                block_stream.set_latest_sequencer_height(height);
+            }
+            Err(error) => {
+                self.metrics
+                    .increment_sequencer_height_fetch_failure_count();
+                self.state.set_sequencer_connected(false);
+                warn!(
+                    %error,
+                    "failed fetching latest height from sequencer; waiting until next tick",
+                );
+            }
+        }
     }
 
-    fn block_does_not_match_validator(&self, block: &SequencerBlock) -> bool {
-        self.validator
-            .as_ref()
-            .is_some_and(|val| &val.address != block.header().proposer_address())
+    #[instrument(skip_all)]
+    async fn handle_submitter_shutdown(&self, submitter_task: Fuse<JoinHandle<eyre::Result<()>>>) {
+        if !submitter_task.is_terminated() {
+            debug!("waiting for Celestia submission task to exit");
+            self.submitter_shutdown_token.cancel();
+            if let Err(error) = submitter_task.await {
+                error!(
+                    %error,
+                    "Celestia submission task failed while waiting for it to exit before shutdown"
+                );
+            }
+        }
     }
 
     #[instrument(skip_all, fields(%height))]
@@ -259,14 +292,6 @@ impl Relayer {
              congested and this future is in-flight",
         );
 
-        if self.block_does_not_match_validator(&block) {
-            info!(
-                address.validator = self.report_validator(),
-                address.block_proposer = %block.header().proposer_address(),
-                "block proposer does not match internal validator; dropping",
-            );
-            return Ok(());
-        }
         if let Err(error) = submitter.try_send(block) {
             debug!(
                 // Just print the error directly: TrySendError has no cause chain.
@@ -288,46 +313,89 @@ impl Relayer {
     }
 }
 
-async fn read_submission_state<P1: AsRef<Path>, P2: AsRef<Path>>(
-    pre: P1,
-    post: P2,
-) -> eyre::Result<SubmissionState> {
-    const LENIENT_CONSISTENCY_CHECK: bool = true;
-    let pre = pre.as_ref().to_path_buf();
-    let post = post.as_ref().to_path_buf();
-    crate::utils::flatten(
-        tokio::task::spawn_blocking(move || {
-            SubmissionState::from_paths::<LENIENT_CONSISTENCY_CHECK, _, _>(pre, post)
-        })
-        .await,
-    )
-    .wrap_err(
-        "failed reading submission state from the configured pre- and post-submit files. Refer to \
-         the values documented in `local.env.example` of the astria-sequencer-relayer service",
-    )
+#[instrument(skip_all, err)]
+async fn confirm_sequencer_chain_id(
+    configured_sequencer_chain_id: String,
+    sequencer_cometbft_client: SequencerClient,
+) -> eyre::Result<()> {
+    let span = Span::current();
+
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .max_delay(Duration::from_secs(30))
+        .exponential_backoff(Duration::from_secs(1))
+        .on_retry(
+            |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    parent: &span,
+                    attempt,
+                    wait_duration,
+                    error = %eyre::Report::new(error.clone()),
+                    "failed to fetch sequencer chain id; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let received_sequencer_chain_id =
+        tryhard::retry_fn(move || fetch_sequencer_chain_id(sequencer_cometbft_client.clone()))
+            .with_config(retry_config)
+            .in_current_span()
+            .await
+            .wrap_err("retry attempts exhausted; bailing")?;
+
+    ensure!(
+        received_sequencer_chain_id == configured_sequencer_chain_id,
+        "configured sequencer chain ID does not match received; configured: \
+         `{configured_sequencer_chain_id}`, received: `{received_sequencer_chain_id}`"
+    );
+    info!(sequencer_chain_id = %configured_sequencer_chain_id, "confirmed sequencer chain id");
+    Ok(())
+}
+
+#[instrument(skip_all, err(level = Level::WARN))]
+async fn fetch_sequencer_chain_id(
+    sequencer_cometbft_client: SequencerClient,
+) -> Result<String, tendermint_rpc::Error> {
+    use sequencer_client::Client as _;
+
+    let response = sequencer_cometbft_client.status().await;
+    // trace-level logging, so using Debug format is ok.
+    #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
+    {
+        trace!(?response);
+    }
+    response.map(|status_response| status_response.node_info.network.to_string())
 }
 
 fn spawn_submitter(
     client_builder: CelestiaClientBuilder,
     rollup_filter: IncludeRollup,
     state: Arc<State>,
-    submission_state: SubmissionState,
-    shutdown_token: CancellationToken,
-) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
+    submission_state_at_startup: SubmissionStateAtStartup,
+    submitter_shutdown_token: CancellationToken,
+    metrics: &'static Metrics,
+) -> (
+    Fuse<JoinHandle<eyre::Result<()>>>,
+    write::BlobSubmitterHandle,
+) {
     let (submitter, handle) = write::BlobSubmitter::new(
         client_builder,
         rollup_filter,
         state,
-        submission_state,
-        shutdown_token,
+        submission_state_at_startup,
+        submitter_shutdown_token,
+        metrics,
     );
-    (tokio::spawn(submitter.run()), handle)
+    (tokio::spawn(submitter.run()).fuse(), handle)
 }
 
-struct ReportValidator<'a>(&'a Validator);
-
-impl<'a> std::fmt::Display for ReportValidator<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{}", self.0.address))
+#[instrument(skip_all)]
+fn report_shutdown(reason: &eyre::Result<&str>) {
+    match reason {
+        Ok(reason) => info!(reason, "starting shutdown"),
+        Err(reason) => error!(%reason, "starting shutdown"),
     }
 }

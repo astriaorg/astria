@@ -1,38 +1,37 @@
 [package]
 name = "astria-composer"
-version = "0.6.0"
+version = "1.0.0"
 edition = "2021"
-rust-version = "1.73"
+rust-version = "1.81.0"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
-[[bin]]
-name = "astria-composer"
-
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = ["serde", "server"] }
+astria-core = { path = "../astria-core", features = [
+  "client",
+  "serde",
+  "server",
+] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
 
-pin-project-lite = "0.2.13"
 tonic-health = "0.10.2"
 
 async-trait = { workspace = true }
 axum = { workspace = true }
-ed25519-consensus = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 futures = { workspace = true }
 humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
 itertools = { workspace = true }
-once_cell = { workspace = true }
+pin-project-lite = { workspace = true }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 rand = { workspace = true }
@@ -54,7 +53,6 @@ tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
 tonic = { workspace = true }
 tokio-stream = { workspace = true, features = ["net"] }
-metrics = { workspace = true }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
@@ -62,6 +60,7 @@ path = "../astria-sequencer-client"
 features = ["http"]
 
 [dev-dependencies]
+astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }

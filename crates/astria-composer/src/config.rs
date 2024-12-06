@@ -1,12 +1,22 @@
-use std::net::SocketAddr;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+};
 
 use serde::{
     Deserialize,
     Serialize,
 };
 
-// this is a config, may have many boolean values
-#[allow(clippy::struct_excessive_bools)]
+use crate::rollup::{
+    ParseError,
+    Rollup,
+};
+
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "this is a config, may have many boolean values"
+)]
 #[derive(Debug, Deserialize, Serialize)]
 /// The high-level config for creating an astria-composer service.
 pub struct Config {
@@ -16,24 +26,30 @@ pub struct Config {
     /// Address of the API server
     pub api_listen_addr: SocketAddr,
 
-    /// Address of the RPC server for the sequencer chain
-    pub sequencer_url: String,
+    /// Address of the ABCI server for the sequencer chain
+    pub sequencer_abci_endpoint: String,
+
+    /// Address of the GRPC server for the sequencer chain
+    pub sequencer_grpc_endpoint: String,
 
     /// The chain ID of the sequencer chain
     pub sequencer_chain_id: String,
 
-    /// A list of <rollup_name>::<url> pairs
+    /// A list of `<rollup_name>::<url>` pairs
     pub rollups: String,
 
     /// Path to private key for the sequencer account used for signing transactions
     pub private_key_file: String,
 
+    /// The address prefix to use when constructing sequencer addresses using the signing key.
+    pub sequencer_address_prefix: String,
+
     /// Sequencer block time in milliseconds
     #[serde(alias = "max_submit_interval_ms")]
     pub block_time_ms: u64,
 
-    /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
-    /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
+    /// Max bytes to encode into a single sequencer transaction, not including signature,
+    /// public key, nonce. This is the sum of the sizes of all the sequence actions.
     pub max_bytes_per_bundle: usize,
 
     /// Max amount of `SizedBundle`s to allow to accrue in the `BundleFactory`'s finished queue.
@@ -56,6 +72,24 @@ pub struct Config {
 
     /// The address at which the gRPC server is listening
     pub grpc_addr: SocketAddr,
+
+    /// The IBC asset to pay for transactions submiited to the sequencer.
+    pub fee_asset: astria_core::primitive::v1::asset::Denom,
+}
+
+impl Config {
+    /// Returns a map of rollup names to rollup URLs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if parsing fails.
+    pub fn parse_rollups(&self) -> Result<HashMap<String, String>, ParseError> {
+        self.rollups
+            .split(',')
+            .filter(|s| !s.is_empty())
+            .map(|s| Rollup::parse(s).map(Rollup::into_parts))
+            .collect::<Result<HashMap<_, _>, _>>()
+    }
 }
 
 impl config::Config for Config {

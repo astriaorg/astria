@@ -82,10 +82,15 @@ message Deposit {
   // the rollup_id which the funds are being deposited to
   astria.primitive.v1.RollupId rollup_id = 2;
   astria.primitive.v1.Uint128 amount = 3;
-  bytes asset_id = 4;
+  string asset = 4;
   // the address on the destination chain which
   // will receive the bridged funds
   string destination_chain_address = 5;
+  // the transaction ID of the source action for the deposit, consisting
+  // of the transaction hash.
+  astria.primitive.v1.TransactionId source_transaction_id = 6;
+  // index of the deposit's source action within its transaction
+  uint64 source_action_index = 7;
 }
 
 // `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset
@@ -108,7 +113,7 @@ message FilteredSequencerBlock {
   // and is extracted from `astria.SequencerBlock.rollup_transactions`.
   // Note that these are all the rollup IDs in the sequencer block, not merely those in
   // `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
-  repeated bytes all_rollup_ids = 5;
+  repeated astria.primitive.v1.RollupId all_rollup_ids = 5;
   // The proof that the `rollup_ids` are included
   // in the CometBFT block this sequencer block is derived form.
   //

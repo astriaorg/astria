@@ -21,17 +21,17 @@ impl serde::Serialize for Blob {
         let mut struct_ser = serializer.serialize_struct("tendermint.types.Blob", len)?;
         if !self.namespace_id.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("namespace_id", pbjson::private::base64::encode(&self.namespace_id).as_str())?;
+            struct_ser.serialize_field("namespaceId", pbjson::private::base64::encode(&self.namespace_id).as_str())?;
         }
         if !self.data.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("data", pbjson::private::base64::encode(&self.data).as_str())?;
         }
         if self.share_version != 0 {
-            struct_ser.serialize_field("share_version", &self.share_version)?;
+            struct_ser.serialize_field("shareVersion", &self.share_version)?;
         }
         if self.namespace_version != 0 {
-            struct_ser.serialize_field("namespace_version", &self.namespace_version)?;
+            struct_ser.serialize_field("namespaceVersion", &self.namespace_version)?;
         }
         struct_ser.end()
     }
@@ -179,7 +179,7 @@ impl serde::Serialize for BlobTx {
             struct_ser.serialize_field("blobs", &self.blobs)?;
         }
         if !self.type_id.is_empty() {
-            struct_ser.serialize_field("type_id", &self.type_id)?;
+            struct_ser.serialize_field("typeId", &self.type_id)?;
         }
         struct_ser.end()
     }

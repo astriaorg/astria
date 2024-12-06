@@ -2,24 +2,24 @@
 //!
 //! # Examples
 //! ```no_run
+//! # struct Metrics;
+//! # impl astria_telemetry::metrics::Metrics for Metrics {
+//! #     type Config = ();
+//! #     fn register(
+//! #         _: &mut astria_telemetry::metrics::RegisteringBuilder,
+//! #         _: &Self::Config
+//! #     ) -> Result<Self, astria_telemetry::metrics::Error> { Ok(Self) }
+//! # }
+//! let metrics_config = ();
 //! astria_telemetry::configure()
-//!     .filter_directives("info")
-//!     .try_init()
+//!     .set_filter_directives("info")
+//!     .try_init::<Metrics>(&metrics_config)
 //!     .expect("must be able to initialize telemetry");
 //! tracing::info!("telemetry initialized");
 //! ```
-use std::{
-    io::IsTerminal as _,
-    net::{
-        AddrParseError,
-        SocketAddr,
-    },
-};
+use std::io::IsTerminal as _;
 
-use metrics_exporter_prometheus::{
-    BuildError,
-    PrometheusBuilder,
-};
+pub use metrics::Metrics;
 use opentelemetry::{
     global,
     trace::TracerProvider as _,
@@ -44,6 +44,9 @@ use tracing_subscriber::{
 
 #[cfg(feature = "display")]
 pub mod display;
+#[doc(hidden)]
+pub mod macros;
+pub mod metrics;
 
 /// The errors that can occur when initializing telemetry.
 #[derive(Debug, thiserror::Error)]
@@ -62,21 +65,11 @@ impl Error {
     fn init_subscriber(source: TryInitError) -> Self {
         Self(ErrorKind::InitSubscriber(source))
     }
+}
 
-    fn metrics_addr(source: AddrParseError) -> Self {
-        Self(ErrorKind::MetricsAddr(source))
-    }
-
-    fn bucket_error(source: BuildError) -> Self {
-        Self(ErrorKind::BucketError(source))
-    }
-
-    fn exporter_install(source: BuildError) -> Self {
-        Self(ErrorKind::ExporterInstall(source))
-    }
-
-    fn no_metric_register_func() -> Self {
-        Self(ErrorKind::NoMetricRegisterFunc)
+impl From<metrics::Error> for Error {
+    fn from(source: metrics::Error) -> Self {
+        Self(ErrorKind::Metrics(source))
     }
 }
 
@@ -88,23 +81,15 @@ enum ErrorKind {
     FilterDirectives(#[source] ParseError),
     #[error("failed installing global tracing subscriber")]
     InitSubscriber(#[source] TryInitError),
-    #[error("failed to parse metrics address")]
-    MetricsAddr(#[source] AddrParseError),
-    #[error("failed to configure prometheus buckets")]
-    BucketError(#[source] BuildError),
-    #[error("failed installing prometheus metrics exporter")]
-    ExporterInstall(#[source] BuildError),
-    #[error(
-        "telemetry was configured to run with metrics, but no function/closure to register \
-         metrics was provided"
-    )]
-    NoMetricRegisterFunc,
+    #[error(transparent)]
+    Metrics(#[from] metrics::Error),
 }
 
 #[must_use = "the otel config must be initialized to be useful"]
 pub fn configure() -> Config {
     Config::new()
 }
+
 struct BoxedMakeWriter(Box<dyn MakeWriter + Send + Sync + 'static>);
 
 impl BoxedMakeWriter {
@@ -142,10 +127,7 @@ pub struct Config {
     no_otel: bool,
     pretty_print: bool,
     stdout_writer: BoxedMakeWriter,
-    metrics_addr: Option<String>,
-    service_name: String,
-    metric_buckets: Option<Vec<f64>>,
-    register_metrics: Option<Box<dyn Fn()>>,
+    metrics_config_builder: Option<metrics::ConfigBuilder>,
 }
 
 impl Config {
@@ -157,103 +139,52 @@ impl Config {
             no_otel: false,
             pretty_print: false,
             stdout_writer: BoxedMakeWriter::new(std::io::stdout),
-            metrics_addr: None,
-            service_name: String::new(),
-            metric_buckets: None,
-            register_metrics: None,
+            metrics_config_builder: None,
         }
     }
 }
 
 impl Config {
     #[must_use = "telemetry must be initialized to be useful"]
-    pub fn filter_directives(self, filter_directives: &str) -> Self {
-        Self {
-            filter_directives: filter_directives.to_string(),
-            ..self
-        }
+    pub fn set_filter_directives(mut self, filter_directives: &str) -> Self {
+        self.filter_directives = filter_directives.to_string();
+        self
     }
 
     #[must_use = "telemetry must be initialized to be useful"]
-    pub fn force_stdout(self) -> Self {
-        self.set_force_stdout(true)
+    pub fn set_force_stdout(mut self, force_stdout: bool) -> Self {
+        self.force_stdout = force_stdout;
+        self
     }
 
     #[must_use = "telemetry must be initialized to be useful"]
-    pub fn set_force_stdout(self, force_stdout: bool) -> Self {
-        Self {
-            force_stdout,
-            ..self
-        }
+    pub fn set_no_otel(mut self, no_otel: bool) -> Self {
+        self.no_otel = no_otel;
+        self
     }
 
     #[must_use = "telemetry must be initialized to be useful"]
-    pub fn no_otel(self) -> Self {
-        self.set_no_otel(true)
+    pub fn set_pretty_print(mut self, pretty_print: bool) -> Self {
+        self.pretty_print = pretty_print;
+        self
     }
 
     #[must_use = "telemetry must be initialized to be useful"]
-    pub fn set_no_otel(self, no_otel: bool) -> Self {
-        Self {
-            no_otel,
-            ..self
-        }
-    }
-
-    #[must_use = "telemetry must be initialized to be useful"]
-    pub fn pretty_print(self) -> Self {
-        self.set_pretty_print(true)
-    }
-
-    #[must_use = "telemetry must be initialized to be useful"]
-    pub fn set_pretty_print(self, pretty_print: bool) -> Self {
-        Self {
-            pretty_print,
-            ..self
-        }
-    }
-
-    #[must_use = "telemetry must be initialized to be useful"]
-    pub fn stdout_writer<M>(self, stdout_writer: M) -> Self
+    pub fn set_stdout_writer<M>(mut self, stdout_writer: M) -> Self
     where
         M: MakeWriter + Send + Sync + 'static,
     {
-        Self {
-            stdout_writer: BoxedMakeWriter::new(stdout_writer),
-            ..self
-        }
+        self.stdout_writer = BoxedMakeWriter::new(stdout_writer);
+        self
     }
 
     #[must_use = "telemetry must be initialized to be useful"]
-    pub fn metrics_addr(self, metrics_addr: &str) -> Self {
-        Self {
-            metrics_addr: Some(metrics_addr.to_string()),
-            ..self
-        }
-    }
-
-    #[must_use = "telemetry must be initialized to be useful"]
-    pub fn service_name(self, service_name: &str) -> Self {
-        Self {
-            service_name: service_name.to_string(),
-            ..self
-        }
-    }
-
-    #[must_use = "telemetry must be initialized to be useful"]
-    pub fn metric_buckets(self, metric_buckets: Vec<f64>) -> Self {
-        Self {
-            metric_buckets: Some(metric_buckets),
-            ..self
-        }
-    }
-
-    #[must_use = "telemetry must be initialized to be useful"]
-    pub fn register_metrics<F: Fn() + 'static>(self, f: F) -> Self {
-        Self {
-            register_metrics: Some(Box::new(f)),
-            ..self
-        }
+    pub fn set_metrics(mut self, listening_addr: &str, service_name: &str) -> Self {
+        let config_builder = metrics::ConfigBuilder::new()
+            .set_service_name(service_name)
+            .set_listening_address(listening_addr);
+        self.metrics_config_builder = Some(config_builder);
+        self
     }
 
     /// Initialize telemetry, consuming the config.
@@ -261,17 +192,14 @@ impl Config {
     /// # Errors
     /// Fails if the filter directives could not be parsed, if communication with the OTLP
     /// endpoint failed, or if the global tracing subscriber could not be installed.
-    pub fn try_init(self) -> Result<(), Error> {
+    pub fn try_init<T: Metrics>(self, config: &T::Config) -> Result<(&'static T, Guard), Error> {
         let Self {
             filter_directives,
             force_stdout,
             no_otel,
             pretty_print,
             stdout_writer,
-            metrics_addr,
-            service_name,
-            metric_buckets,
-            register_metrics,
+            metrics_config_builder,
         } = self;
 
         let env_filter = {
@@ -328,28 +256,31 @@ impl Config {
             .try_init()
             .map_err(Error::init_subscriber)?;
 
-        if let Some(metrics_addr) = metrics_addr {
-            let addr: SocketAddr = metrics_addr.parse().map_err(Error::metrics_addr)?;
-            let mut metrics_builder = PrometheusBuilder::new().with_http_listener(addr);
+        let metrics = match metrics_config_builder {
+            Some(config_builder) => config_builder.build(config)?.0,
+            None => T::noop_metrics(config)?,
+        };
 
-            if !service_name.is_empty() {
-                metrics_builder = metrics_builder.add_global_label("service", service_name);
-            }
+        let guard = Guard {
+            run_otel_shutdown: !no_otel,
+        };
 
-            if let Some(buckets) = metric_buckets {
-                metrics_builder = metrics_builder
-                    .set_buckets(&buckets)
-                    .map_err(Error::bucket_error)?;
-            }
+        Ok((Box::leak(Box::new(metrics)), guard))
+    }
+}
 
-            let Some(register_metrics) = register_metrics else {
-                return Err(Error::no_metric_register_func());
-            };
-            register_metrics();
+/// A drop guard for terminating all `OpenTelemetry` tracer providers on drop.
+///
+/// *Note:* Shutting down the tracer providers can potentially block a thread
+/// indefinitely.
+pub struct Guard {
+    run_otel_shutdown: bool,
+}
 
-            metrics_builder.install().map_err(Error::exporter_install)?;
+impl Drop for Guard {
+    fn drop(&mut self) {
+        if self.run_otel_shutdown {
+            opentelemetry::global::shutdown_tracer_provider();
         }
-
-        Ok(())
     }
 }

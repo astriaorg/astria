@@ -1,3 +1,8 @@
+//! Generates Rust code of protobuf specs located in proto/ and writes
+//! the result to crates/astria-core/src/generated.
+//!
+//! This tool will delete everything in crates/astria-core/src/generated (except
+//! mod.rs).
 use std::{
     collections::{
         HashMap,
@@ -59,37 +64,21 @@ fn main() {
 
     let files = find_protos(src_dir);
 
+    purge_out_dir(&out_dir);
+
     tonic_build::configure()
         .build_client(true)
         .build_server(true)
         .emit_rerun_if_changed(false)
-        .bytes([
-            ".astria.execution.v1alpha2",
-            ".astria.primitive.v1",
-            ".celestia",
-            ".cosmos",
-            ".tendermint",
-        ])
+        .bytes([".astria", ".celestia", ".cosmos", ".tendermint"])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
-        .extern_path(
-            ".astria_vendored.tendermint.abci",
-            "::tendermint-proto::abci",
-        )
-        .extern_path(
-            ".astria_vendored.tendermint.crypto",
-            "::tendermint-proto::crypto",
-        )
-        .extern_path(
-            ".astria_vendored.tendermint.version",
-            "::tendermint-proto::version",
-        )
-        .extern_path(
-            ".astria_vendored.tendermint.types",
-            "::tendermint-proto::types",
-        )
         .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
+        .type_attribute(
+            ".astria.protocol.genesis.v1.IbcParameters",
+            "#[derive(Copy)]",
+        )
         .use_arc_self(true)
         // override prost-types with pbjson-types
         .compile_well_known_types(true)
@@ -106,12 +95,10 @@ fn main() {
     pbjson_build::Builder::new()
         .register_descriptors(&descriptor_set)
         .unwrap()
-        .preserve_proto_field_names()
         .out_dir(&out_dir)
         .build(&[
-            ".astria.execution.v1alpha2",
-            ".astria.primitive.v1",
-            ".astria.sequencerblock.v1alpha1",
+            ".astria",
+            ".astria_vendored",
             ".celestia",
             ".cosmos",
             ".tendermint",
@@ -150,6 +137,7 @@ fn clean_non_astria_code(generated: &mut ContentMap) {
         .keys()
         .filter(|name| {
             !name.starts_with("astria.")
+                && !name.starts_with("astria_vendored.")
                 && !name.starts_with("celestia.")
                 && !name.starts_with("cosmos.")
                 && !name.starts_with("tendermint.")
@@ -216,14 +204,38 @@ fn get_buf_from_env() -> PathBuf {
         "linux" => "You can download it from https://github.com/bufbuild/buf/releases; if you are on Arch Linux, install it from the AUR with `rua install buf` or another helper",
         _other =>  "Check if there is a precompiled version for your OS at https://github.com/bufbuild/buf/releases"
     };
-    let error_msg = "Could not find `buf` installation and this build crate cannot proceed without
-    this knowledge. If `buf` is installed and this crate had trouble finding
-    it, you can set the `BUF` environment variable with the specific path to your
-    installed `buf` binary.";
+    let error_msg = "Could not find `buf` installation and this build crate cannot proceed \
+                     without this knowledge. If `buf` is installed and this crate had trouble \
+                     finding it, you can set the `BUF` environment variable with the specific \
+                     path to your installed `buf` binary.";
     let msg = format!("{error_msg} {os_specific_hint}");
 
     env::var_os("BUF")
         .map(PathBuf::from)
         .or_else(|| which::which("buf").ok())
         .expect(&msg)
+}
+
+fn purge_out_dir(path: impl AsRef<Path>) {
+    let read_dir_msg = format!(
+        "should be able to read generated file out dir files `{}`",
+        path.as_ref().display()
+    );
+    let entry_msg = format!(
+        "every entry in generated file out dir `{}` should have a name",
+        path.as_ref().display()
+    );
+    let remove_msg = format!(
+        "all entries in the generated file out dir should `{}` should be files, and the out dir \
+         is expected to have read, write, execute permissions set",
+        path.as_ref().display()
+    );
+    for entry in read_dir(path).expect(&read_dir_msg).flatten() {
+        // skip mod.rs as it's assumed to be the only non-generated file in the out dir.
+        if entry.path().file_name().expect(&entry_msg) == "mod.rs" {
+            continue;
+        }
+
+        std::fs::remove_file(entry.path()).expect(&remove_msg);
+    }
 }

@@ -1,13 +1,18 @@
-use anyhow::{
-    anyhow,
-    Context as _,
-    Result,
+use astria_core::generated::astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
+use astria_eyre::{
+    anyhow_to_eyre,
+    eyre::{
+        eyre,
+        OptionExt as _,
+        Result,
+        WrapErr as _,
+    },
 };
-use astria_core::generated::sequencerblock::v1alpha1::sequencer_service_server::SequencerServiceServer;
 use penumbra_tower_trace::{
     trace::request_span,
     v038::RequestExt as _,
 };
+use telemetry::metrics::register_histogram_global;
 use tendermint::v0_38::abci::ConsensusRequest;
 use tokio::{
     select,
@@ -34,15 +39,19 @@ use crate::{
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
     mempool::Mempool,
+    metrics::Metrics,
     service,
-    state_ext::StateReadExt as _,
 };
 
 pub struct Sequencer;
 
 impl Sequencer {
     #[instrument(skip_all)]
-    pub async fn run_until_stopped(config: Config) -> Result<()> {
+    pub async fn run_until_stopped(config: Config, metrics: &'static Metrics) -> Result<()> {
+        cnidarium::register_metrics();
+        register_histogram_global("cnidarium_get_raw_duration_seconds");
+        register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
+
         if config
             .db_filepath
             .try_exists()
@@ -71,26 +80,14 @@ impl Sequencer {
                 .collect(),
         )
         .await
-        .context("failed to load storage backing chain state")?;
+        .map_err(anyhow_to_eyre)
+        .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
 
-        // the native asset should be configurable only at genesis.
-        // the genesis state must include the native asset's base
-        // denomination, and it is set in storage during init_chain.
-        // on subsequent startups, we load the native asset from storage.
-        if storage.latest_version() != u64::MAX {
-            // native asset should be stored, fetch it
-            let native_asset = snapshot
-                .get_native_asset_denom()
-                .await
-                .context("failed to get native asset from storage")?;
-            crate::asset::initialize_native_asset(&native_asset);
-        }
-
-        let mempool = Mempool::new();
-        let app = App::new(snapshot, mempool.clone())
+        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
+        let app = App::new(snapshot, mempool.clone(), metrics)
             .await
-            .context("failed to initialize app")?;
+            .wrap_err("failed to initialize app")?;
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -100,9 +97,9 @@ impl Sequencer {
                 let storage = storage.clone();
                 async move { service::Consensus::new(storage, app, queue).run().await }
             }));
-        let mempool_service = service::Mempool::new(storage.clone(), mempool);
+        let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
         let info_service =
-            service::Info::new(storage.clone()).context("failed initializing info service")?;
+            service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
         let snapshot_service = service::Snapshot;
 
         let server = Server::builder()
@@ -111,7 +108,7 @@ impl Sequencer {
             .mempool(mempool_service)
             .snapshot(snapshot_service)
             .finish()
-            .ok_or_else(|| anyhow!("server builder didn't return server; are all fields set?"))?;
+            .ok_or_eyre("server builder didn't return server; are all fields set?")?;
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
         let (server_exit_tx, server_exit_rx) = tokio::sync::oneshot::channel();
@@ -119,8 +116,8 @@ impl Sequencer {
         let grpc_addr = config
             .grpc_addr
             .parse()
-            .context("failed to parse grpc_addr address")?;
-        let grpc_server_handle = start_grpc_server(&storage, grpc_addr, shutdown_rx);
+            .wrap_err("failed to parse grpc_addr address")?;
+        let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
 
         info!(config.listen_addr, "starting sequencer");
         let server_handle = tokio::spawn(async move {
@@ -148,11 +145,11 @@ impl Sequencer {
 
         shutdown_tx
             .send(())
-            .map_err(|()| anyhow!("failed to send shutdown signal to grpc server"))?;
+            .map_err(|()| eyre!("failed to send shutdown signal to grpc server"))?;
         grpc_server_handle
             .await
-            .context("grpc server task failed")?
-            .context("grpc server failed")?;
+            .wrap_err("grpc server task failed")?
+            .wrap_err("grpc server failed")?;
         server_handle.abort();
         Ok(())
     }
@@ -160,6 +157,7 @@ impl Sequencer {
 
 fn start_grpc_server(
     storage: &cnidarium::Storage,
+    mempool: Mempool,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> JoinHandle<Result<(), tonic::transport::Error>> {
@@ -173,7 +171,7 @@ fn start_grpc_server(
     use tower_http::cors::CorsLayer;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(storage.clone());
+    let sequencer_api = SequencerServer::new(storage.clone(), mempool);
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?

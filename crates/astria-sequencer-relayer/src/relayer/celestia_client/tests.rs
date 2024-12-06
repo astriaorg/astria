@@ -28,8 +28,10 @@ fn new_msg_pay_for_blobs_should_succeed() {
         .collect();
     assert_eq!(msg.namespaces, namespaces);
 
-    // allow: data length is small in this test case.
-    #[allow(clippy::cast_possible_truncation)]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "data length is small in this test case"
+    )]
     let blob_sizes: Vec<_> = blobs.iter().map(|blob| blob.data.len() as u32).collect();
     assert_eq!(msg.blob_sizes, blob_sizes);
 
@@ -55,8 +57,12 @@ fn new_msg_pay_for_blobs_should_fail_for_large_blob() {
         commitment: Commitment([0; 32]),
     };
     let error = new_msg_pay_for_blobs(&[blob], Bech32Address("a".to_string())).unwrap_err();
-    // allow: `assert!(matches!(..))` provides poor feedback on failure.
-    #[allow(clippy::manual_assert)]
+
+    // TODO (https://github.com/astriaorg/astria/issues/1581): create function for handling this and remove #[expect] (here and below)
+    #[expect(
+        clippy::manual_assert,
+        reason = "`assert!(matches!(..))` provides poor feedback on failure"
+    )]
     if !matches!(error, TrySubmitError::BlobTooLarge { byte_count } if byte_count == u32::MAX as usize + 1)
     {
         panic!("expected `Error::BlobTooLarge` with byte_count == u32::MAX + 1, got {error:?}");
@@ -87,8 +93,10 @@ fn account_from_good_response_should_succeed() {
 fn account_from_bad_response_should_fail() {
     // Should return `FailedToGetAccountInfo` if outer response is an error.
     let error = account_from_response(Err(Status::internal(""))).unwrap_err();
-    // allow: `assert!(matches!(..))` provides poor feedback on failure.
-    #[allow(clippy::manual_assert)]
+    #[expect(
+        clippy::manual_assert,
+        reason = "`assert!(matches!(..))` provides poor feedback on failure"
+    )]
     if !matches!(error, TrySubmitError::FailedToGetAccountInfo(_)) {
         panic!("expected `Error::FailedToGetAccountInfo`, got {error:?}");
     }
@@ -98,8 +106,10 @@ fn account_from_bad_response_should_fail() {
         account: None,
     }));
     let error = account_from_response(response).unwrap_err();
-    // allow: `assert!(matches!(..))` provides poor feedback on failure.
-    #[allow(clippy::manual_assert)]
+    #[expect(
+        clippy::manual_assert,
+        reason = "`assert!(matches!(..))` provides poor feedback on failure"
+    )]
     if !matches!(error, TrySubmitError::EmptyAccountInfo) {
         panic!("expected `Error::EmptyAccountInfo`, got {error:?}");
     }
@@ -135,8 +145,10 @@ fn account_from_bad_response_should_fail() {
         account: Some(bad_value_account),
     }));
     let error = account_from_response(response).unwrap_err();
-    // allow: `assert!(matches!(..))` provides poor feedback on failure.
-    #[allow(clippy::manual_assert)]
+    #[expect(
+        clippy::manual_assert,
+        reason = "`assert!(matches!(..))` provides poor feedback on failure"
+    )]
     if !matches!(error, TrySubmitError::DecodeAccountInfo(_)) {
         panic!("expected `Error::DecodeAccountInfo`, got {error:?}");
     }
@@ -149,8 +161,10 @@ fn min_gas_price_from_good_response_should_succeed() {
         minimum_gas_price: format!("{min_gas_price}utia"),
     });
     let extracted_price = min_gas_price_from_response(Ok(response)).unwrap();
-    // allow: this floating point comparison should be ok due to the hard-coded values chosen.
-    #[allow(clippy::float_cmp)]
+    #[expect(
+        clippy::float_cmp,
+        reason = "this floating point comparison should be ok due to the hard-coded values chosen"
+    )]
     {
         assert_eq!(min_gas_price, extracted_price);
     }
@@ -160,8 +174,10 @@ fn min_gas_price_from_good_response_should_succeed() {
 fn min_gas_price_from_bad_response_should_fail() {
     // Should return `FailedToGetMinGasPrice` if outer response is an error.
     let error = min_gas_price_from_response(Err(Status::internal(""))).unwrap_err();
-    // allow: `assert!(matches!(..))` provides poor feedback on failure.
-    #[allow(clippy::manual_assert)]
+    #[expect(
+        clippy::manual_assert,
+        reason = "`assert!(matches!(..))` provides poor feedback on failure"
+    )]
     if !matches!(error, TrySubmitError::FailedToGetMinGasPrice(_)) {
         panic!("expected `Error::FailedToGetMinGasPrice`, got {error:?}");
     }
@@ -267,16 +283,18 @@ fn tx_hash_from_good_response_should_succeed() {
         tx_response: Some(tx_response),
     });
 
-    let extracted_tx_hash = tx_hash_from_response(Ok(response)).unwrap();
-    assert_eq!(tx_hash, extracted_tx_hash.0);
+    let extracted_tx_hash = lowercase_hex_encoded_tx_hash_from_response(Ok(response)).unwrap();
+    assert_eq!(tx_hash, extracted_tx_hash);
 }
 
 #[test]
 fn tx_hash_from_bad_response_should_fail() {
     // Should return `FailedToBroadcastTx` if outer response is an error.
-    let error = tx_hash_from_response(Err(Status::internal(""))).unwrap_err();
-    // allow: `assert!(matches!(..))` provides poor feedback on failure.
-    #[allow(clippy::manual_assert)]
+    let error = lowercase_hex_encoded_tx_hash_from_response(Err(Status::internal(""))).unwrap_err();
+    #[expect(
+        clippy::manual_assert,
+        reason = "`assert!(matches!(..))` provides poor feedback on failure"
+    )]
     if !matches!(error, TrySubmitError::FailedToBroadcastTx(_)) {
         panic!("expected `Error::FailedToBroadcastTx`, got {error:?}");
     }
@@ -285,9 +303,11 @@ fn tx_hash_from_bad_response_should_fail() {
     let response = Ok(Response::new(BroadcastTxResponse {
         tx_response: None,
     }));
-    let error = tx_hash_from_response(response).unwrap_err();
-    // allow: `assert!(matches!(..))` provides poor feedback on failure.
-    #[allow(clippy::manual_assert)]
+    let error = lowercase_hex_encoded_tx_hash_from_response(response).unwrap_err();
+    #[expect(
+        clippy::manual_assert,
+        reason = "`assert!(matches!(..))` provides poor feedback on failure"
+    )]
     if !matches!(error, TrySubmitError::EmptyBroadcastTxResponse) {
         panic!("expected `Error::EmptyBroadcastTxResponse`, got {error:?}");
     }
@@ -307,7 +327,7 @@ fn tx_hash_from_bad_response_should_fail() {
     let response = Ok(Response::new(BroadcastTxResponse {
         tx_response: Some(tx_response),
     }));
-    let error = tx_hash_from_response(response).unwrap_err();
+    let error = lowercase_hex_encoded_tx_hash_from_response(response).unwrap_err();
     match error {
         TrySubmitError::BroadcastTxResponseErrorCode {
             tx_hash: received_tx_hash,
@@ -341,8 +361,10 @@ fn block_height_from_good_response_should_succeed() {
 fn block_height_from_bad_response_should_fail() {
     // Should return `FailedToGetTx` if outer response is an error other than `NotFound`.
     let error = block_height_from_response(Err(Status::internal(""))).unwrap_err();
-    // allow: `assert!(matches!(..))` provides poor feedback on failure.
-    #[allow(clippy::manual_assert)]
+    #[expect(
+        clippy::manual_assert,
+        reason = "`assert!(matches!(..))` provides poor feedback on failure"
+    )]
     if !matches!(error, TrySubmitError::FailedToGetTx(_)) {
         panic!("expected `Error::FailedToGetTx`, got {error:?}");
     }
@@ -353,8 +375,10 @@ fn block_height_from_bad_response_should_fail() {
         tx_response: None,
     }));
     let error = block_height_from_response(response).unwrap_err();
-    // allow: `assert!(matches!(..))` provides poor feedback on failure.
-    #[allow(clippy::manual_assert)]
+    #[expect(
+        clippy::manual_assert,
+        reason = "`assert!(matches!(..))` provides poor feedback on failure"
+    )]
     if !matches!(error, TrySubmitError::EmptyGetTxResponse) {
         panic!("expected `Error::EmptyGetTxResponse`, got {error:?}");
     }
@@ -512,4 +536,12 @@ fn extract_required_fee_from_log_should_fail() {
     // We need the value between "required: " and "utia: ..." to parse as a `u64`.
     let bad_value = "insufficient fees; got: 1utia required: 2mutia: insufficient fee".to_string();
     assert!(extract_required_fee_from_log(&bad_value).is_none());
+}
+
+#[test]
+fn blob_tx_hash_should_round_trip_json() {
+    let blob_tx_hash = BlobTxHash::from_raw([1; 32]);
+    let json_encoded = serde_json::to_string(&blob_tx_hash).unwrap();
+    let decoded = serde_json::from_str(&json_encoded).unwrap();
+    assert_eq!(blob_tx_hash, decoded);
 }

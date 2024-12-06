@@ -1,38 +1,32 @@
 [package]
 name = "astria-sequencer-relayer"
-version = "0.13.0"
+version = "1.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-rust-version = "1.73"
+rust-version = "1.81.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
-[[bin]]
-name = "astria-sequencer-relayer"
-
 [dependencies]
 bech32 = "0.11.0"
-cosmrs = "0.16.0"
-dirs = "5.0"
-futures-bounded = "0.2.3"
 http = "0.2.9"
 k256 = "0.13.3"
-pin-project-lite = "0.2"
 serde_path_to_error = "0.1.13"
 
 axum = { workspace = true }
 base64 = { workspace = true }
 base64-serde = { workspace = true }
 celestia-types = { workspace = true }
+const_format = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
+humantime-serde = "1.1.1"
 hyper = { workspace = true }
-itertools = { workspace = true }
 itoa = { workspace = true }
-metrics = { workspace = true }
 pbjson-types = { workspace = true }
+pin-project-lite = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -42,7 +36,13 @@ tendermint-config = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tryhard = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+tokio = { workspace = true, features = [
+  "fs",
+  "macros",
+  "rt-multi-thread",
+  "signal",
+] }
+tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 tonic = { workspace = true }
 
@@ -61,8 +61,6 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
-tokio-stream = { workspace = true }
-const_format = "0.2.32"
 
 [dev-dependencies]
 astria-grpc-mock = { path = "../astria-grpc-mock" }
@@ -70,16 +68,13 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 astria-core = { path = "../astria-core", features = ["test-utils", "server"] }
-merkle = { package = "astria-merkle", path = "../astria-merkle" }
 
 async-trait = { workspace = true }
 celestia-tendermint = { workspace = true }
 celestia-types = { workspace = true }
 hyper = { workspace = true }
-jsonrpsee = { workspace = true, features = ["server"] }
-once_cell = { workspace = true }
+itertools = { workspace = true }
 rand_core = { version = "0.6", features = ["getrandom"] }
-reqwest = { workspace = true, features = ["json"] }
 tempfile = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["http-client"] }
 tokio = { workspace = true, features = ["test-util"] }
@@ -87,10 +82,16 @@ tokio-stream = { workspace = true, features = ["net"] }
 wiremock = { workspace = true }
 
 assert-json-diff = "2.0.2"
-tower-http = { version = "0.4", features = ["auth"] }
+http = "0.2.7"
+isahc = { version = "1.7.2", features = ["json"] }
 tower = { version = "0.4.13" }
 tokio-test.workspace = true
 rand_chacha = "0.3.1"
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+  'cfg(dylint_lib, values("tracing_debug_field"))',
+] }

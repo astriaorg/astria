@@ -210,7 +210,7 @@ impl serde::Serialize for Block {
         }
         if !self.parent_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("parent_block_hash", pbjson::private::base64::encode(&self.parent_block_hash).as_str())?;
+            struct_ser.serialize_field("parentBlockHash", pbjson::private::base64::encode(&self.parent_block_hash).as_str())?;
         }
         if let Some(v) = self.timestamp.as_ref() {
             struct_ser.serialize_field("timestamp", v)?;
@@ -346,11 +346,11 @@ impl serde::Serialize for BlockIdentifier {
         if let Some(v) = self.identifier.as_ref() {
             match v {
                 block_identifier::Identifier::BlockNumber(v) => {
-                    struct_ser.serialize_field("block_number", v)?;
+                    struct_ser.serialize_field("blockNumber", v)?;
                 }
                 block_identifier::Identifier::BlockHash(v) => {
                     #[allow(clippy::needless_borrow)]
-                    struct_ser.serialize_field("block_hash", pbjson::private::base64::encode(&v).as_str())?;
+                    struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&v).as_str())?;
                 }
             }
         }
@@ -455,12 +455,19 @@ impl serde::Serialize for CommitmentState {
         if self.firm.is_some() {
             len += 1;
         }
+        if self.base_celestia_height != 0 {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha2.CommitmentState", len)?;
         if let Some(v) = self.soft.as_ref() {
             struct_ser.serialize_field("soft", v)?;
         }
         if let Some(v) = self.firm.as_ref() {
             struct_ser.serialize_field("firm", v)?;
+        }
+        if self.base_celestia_height != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("baseCelestiaHeight", ToString::to_string(&self.base_celestia_height).as_str())?;
         }
         struct_ser.end()
     }
@@ -474,12 +481,15 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
         const FIELDS: &[&str] = &[
             "soft",
             "firm",
+            "base_celestia_height",
+            "baseCelestiaHeight",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Soft,
             Firm,
+            BaseCelestiaHeight,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -503,6 +513,7 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
                         match value {
                             "soft" => Ok(GeneratedField::Soft),
                             "firm" => Ok(GeneratedField::Firm),
+                            "baseCelestiaHeight" | "base_celestia_height" => Ok(GeneratedField::BaseCelestiaHeight),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -524,6 +535,7 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
             {
                 let mut soft__ = None;
                 let mut firm__ = None;
+                let mut base_celestia_height__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Soft => {
@@ -538,11 +550,20 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
                             }
                             firm__ = map_.next_value()?;
                         }
+                        GeneratedField::BaseCelestiaHeight => {
+                            if base_celestia_height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseCelestiaHeight"));
+                            }
+                            base_celestia_height__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
                     }
                 }
                 Ok(CommitmentState {
                     soft: soft__,
                     firm: firm__,
+                    base_celestia_height: base_celestia_height__.unwrap_or_default(),
                 })
             }
         }
@@ -569,7 +590,7 @@ impl serde::Serialize for ExecuteBlockRequest {
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha2.ExecuteBlockRequest", len)?;
         if !self.prev_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("prev_block_hash", pbjson::private::base64::encode(&self.prev_block_hash).as_str())?;
+            struct_ser.serialize_field("prevBlockHash", pbjson::private::base64::encode(&self.prev_block_hash).as_str())?;
         }
         if !self.transactions.is_empty() {
             struct_ser.serialize_field("transactions", &self.transactions)?;
@@ -686,31 +707,25 @@ impl serde::Serialize for GenesisInfo {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.rollup_id.is_empty() {
+        if self.rollup_id.is_some() {
             len += 1;
         }
         if self.sequencer_genesis_block_height != 0 {
-            len += 1;
-        }
-        if self.celestia_base_block_height != 0 {
             len += 1;
         }
         if self.celestia_block_variance != 0 {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha2.GenesisInfo", len)?;
-        if !self.rollup_id.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollup_id", pbjson::private::base64::encode(&self.rollup_id).as_str())?;
+        if let Some(v) = self.rollup_id.as_ref() {
+            struct_ser.serialize_field("rollupId", v)?;
         }
         if self.sequencer_genesis_block_height != 0 {
-            struct_ser.serialize_field("sequencer_genesis_block_height", &self.sequencer_genesis_block_height)?;
-        }
-        if self.celestia_base_block_height != 0 {
-            struct_ser.serialize_field("celestia_base_block_height", &self.celestia_base_block_height)?;
+            struct_ser.serialize_field("sequencerGenesisBlockHeight", &self.sequencer_genesis_block_height)?;
         }
         if self.celestia_block_variance != 0 {
-            struct_ser.serialize_field("celestia_block_variance", &self.celestia_block_variance)?;
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("celestiaBlockVariance", ToString::to_string(&self.celestia_block_variance).as_str())?;
         }
         struct_ser.end()
     }
@@ -726,8 +741,6 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
             "rollupId",
             "sequencer_genesis_block_height",
             "sequencerGenesisBlockHeight",
-            "celestia_base_block_height",
-            "celestiaBaseBlockHeight",
             "celestia_block_variance",
             "celestiaBlockVariance",
         ];
@@ -736,7 +749,6 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
         enum GeneratedField {
             RollupId,
             SequencerGenesisBlockHeight,
-            CelestiaBaseBlockHeight,
             CelestiaBlockVariance,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -761,7 +773,6 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                         match value {
                             "rollupId" | "rollup_id" => Ok(GeneratedField::RollupId),
                             "sequencerGenesisBlockHeight" | "sequencer_genesis_block_height" => Ok(GeneratedField::SequencerGenesisBlockHeight),
-                            "celestiaBaseBlockHeight" | "celestia_base_block_height" => Ok(GeneratedField::CelestiaBaseBlockHeight),
                             "celestiaBlockVariance" | "celestia_block_variance" => Ok(GeneratedField::CelestiaBlockVariance),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -784,7 +795,6 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
             {
                 let mut rollup_id__ = None;
                 let mut sequencer_genesis_block_height__ = None;
-                let mut celestia_base_block_height__ = None;
                 let mut celestia_block_variance__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -792,23 +802,13 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                             if rollup_id__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupId"));
                             }
-                            rollup_id__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            rollup_id__ = map_.next_value()?;
                         }
                         GeneratedField::SequencerGenesisBlockHeight => {
                             if sequencer_genesis_block_height__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("sequencerGenesisBlockHeight"));
                             }
                             sequencer_genesis_block_height__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::CelestiaBaseBlockHeight => {
-                            if celestia_base_block_height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("celestiaBaseBlockHeight"));
-                            }
-                            celestia_base_block_height__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -823,9 +823,8 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                     }
                 }
                 Ok(GenesisInfo {
-                    rollup_id: rollup_id__.unwrap_or_default(),
+                    rollup_id: rollup_id__,
                     sequencer_genesis_block_height: sequencer_genesis_block_height__.unwrap_or_default(),
-                    celestia_base_block_height: celestia_base_block_height__.unwrap_or_default(),
                     celestia_block_variance: celestia_block_variance__.unwrap_or_default(),
                 })
             }
@@ -1079,7 +1078,7 @@ impl serde::Serialize for UpdateCommitmentStateRequest {
         }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha2.UpdateCommitmentStateRequest", len)?;
         if let Some(v) = self.commitment_state.as_ref() {
-            struct_ser.serialize_field("commitment_state", v)?;
+            struct_ser.serialize_field("commitmentState", v)?;
         }
         struct_ser.end()
     }

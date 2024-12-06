@@ -8,11 +8,18 @@
 //! The example below works with the feature `"http"` set.
 //! ```no_run
 //! # tokio_test::block_on(async {
+//! use astria_core::primitive::v1::Address;
 //! use astria_sequencer_client::SequencerClientExt as _;
 //! use tendermint_rpc::HttpClient;
 //!
 //! let client = HttpClient::new("http://127.0.0.1:26657")?;
-//! let address: [u8; 20] = hex_literal::hex!("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF");
+//! let address = Address::builder()
+//!     .array(hex_literal::hex!(
+//!         "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
+//!     ))
+//!     .prefix("astria")
+//!     .try_build()
+//!     .unwrap();
 //! let height = 5u32;
 //! let balance = client.get_balance(address, height).await?;
 //! println!("{balance:?}");
@@ -29,16 +36,28 @@ use std::{
 pub use astria_core::{
     primitive::v1::Address,
     protocol::{
-        account::v1alpha1::{
+        account::v1::{
             BalanceResponse,
             NonceResponse,
         },
-        transaction::v1alpha1::SignedTransaction,
+        transaction::v1::Transaction,
     },
-    sequencerblock::v1alpha1::{
+    sequencerblock::v1::{
         block::SequencerBlockError,
         SequencerBlock,
     },
+};
+use astria_core::{
+    protocol::{
+        asset::v1::AllowedFeeAssetsResponse,
+        bridge::v1::{
+            BridgeAccountInfoResponse,
+            BridgeAccountLastTxHashResponse,
+        },
+        fees::v1::TransactionFeeResponse,
+        transaction::v1::TransactionBody,
+    },
+    Protobuf as _,
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -52,13 +71,14 @@ use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
 use tendermint_rpc::WebSocketClient;
 use tendermint_rpc::{
-    endpoint::broadcast::{
-        tx_commit,
-        tx_sync,
-    },
+    endpoint::broadcast::tx_sync,
     event::EventData,
     Client,
     SubscriptionClient,
+};
+use tracing::{
+    instrument,
+    warn,
 };
 
 #[cfg(feature = "http")]
@@ -93,6 +113,7 @@ impl std::error::Error for Error {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
+            ErrorKind::NativeConversion(e) => Some(e),
         }
     }
 }
@@ -108,7 +129,7 @@ impl Error {
     pub fn as_tendermint_rpc(&self) -> Option<&TendermintRpcError> {
         match self.kind() {
             ErrorKind::TendermintRpc(e) => Some(e),
-            ErrorKind::AbciQueryDeserialization(_) => None,
+            ErrorKind::AbciQueryDeserialization(_) | ErrorKind::NativeConversion(_) => None,
         }
     }
 
@@ -127,6 +148,16 @@ impl Error {
     fn tendermint_rpc(rpc: &'static str, inner: tendermint_rpc::error::Error) -> Self {
         Self {
             inner: ErrorKind::tendermint_rpc(rpc, inner),
+        }
+    }
+
+    /// Convenience function to construct `Error` containing a `DeserializationError`.
+    fn native_conversion(
+        target: &'static str,
+        inner: Arc<dyn std::error::Error + Send + Sync>,
+    ) -> Self {
+        Self {
+            inner: ErrorKind::native_conversion(target, inner),
         }
     }
 }
@@ -229,7 +260,7 @@ impl std::fmt::Display for DeserializationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "failed deserializing cometbft response to {}",
+            "failed deserializing raw protobuf response to {}",
             self.target,
         )
     }
@@ -248,6 +279,7 @@ impl std::error::Error for DeserializationError {
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
     TendermintRpc(TendermintRpcError),
+    NativeConversion(DeserializationError),
 }
 
 impl ErrorKind {
@@ -269,6 +301,17 @@ impl ErrorKind {
         Self::TendermintRpc(TendermintRpcError {
             inner,
             rpc,
+        })
+    }
+
+    /// Convenience method to construct a `NativeConversion` variant.
+    fn native_conversion(
+        target: &'static str,
+        inner: Arc<dyn std::error::Error + Send + Sync>,
+    ) -> Self {
+        Self::NativeConversion(DeserializationError {
+            inner,
+            target,
         })
     }
 }
@@ -390,18 +433,16 @@ pub trait SequencerClientExt: Client {
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
     ///   `astria.sequencer.v1.BalanceResponse`.
-    async fn get_balance<AddressT, HeightT>(
+    async fn get_balance<HeightT>(
         &self,
-        address: AddressT,
+        address: Address,
         height: HeightT,
     ) -> Result<BalanceResponse, Error>
     where
-        AddressT: Into<Address> + Send,
         HeightT: Into<tendermint::block::Height> + Send,
     {
-        const PREFIX: &[u8] = b"accounts/balance/";
-
-        let path = make_path_from_prefix_and_address(PREFIX, address.into().get());
+        const PREFIX: &str = "accounts/balance";
+        let path = format!("{PREFIX}/{address}");
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -409,7 +450,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::account::v1alpha1::BalanceResponse::decode(
+            astria_core::generated::astria::protocol::accounts::v1::BalanceResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
@@ -419,7 +460,8 @@ pub trait SequencerClientExt: Client {
                     e,
                 )
             })?;
-        Ok(proto_response.to_native())
+        BalanceResponse::try_from_raw(&proto_response)
+            .map_err(|e| Error::native_conversion("BalanceResponse", Arc::new(e)))
     }
 
     /// Returns the current balance of the given account at the latest height.
@@ -427,13 +469,43 @@ pub trait SequencerClientExt: Client {
     /// # Errors
     ///
     /// This has the same error conditions as [`SequencerClientExt::get_balance`].
-    async fn get_latest_balance<A: Into<Address> + Send>(
-        &self,
-        address: A,
-    ) -> Result<BalanceResponse, Error> {
+    async fn get_latest_balance(&self, address: Address) -> Result<BalanceResponse, Error> {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_balance(address, 0u32).await
+    }
+
+    /// Returns the allowed fee assets at a given height.
+    ///
+    /// # Errors
+    ///
+    /// - If calling tendermint `abci_query` RPC fails.
+    /// - If the bytes contained in the abci query response cannot be deserialized as an
+    ///  `astria.protocol.asset.v1.AllowedFeeAssetsResponse`.
+    /// - If the raw response cannot be converted to the native type.
+    async fn get_allowed_fee_assets(&self) -> Result<AllowedFeeAssetsResponse, Error> {
+        let path = "asset/allowed_fee_assets".to_string();
+
+        let response = self
+            .abci_query(Some(path), vec![], Some(0u32.into()), false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::astria::protocol::asset::v1::AllowedFeeAssetsResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.asset.v1.AllowedFeeAssetsResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native_response = AllowedFeeAssetsResponse::try_from_raw(&proto_response)
+            .map_err(|e| Error::native_conversion("AllowedFeeAssetsResponse", Arc::new(e)))?;
+
+        Ok(native_response)
     }
 
     /// Returns the nonce of the given account at the given height.
@@ -443,18 +515,16 @@ pub trait SequencerClientExt: Client {
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
     ///   `astria.sequencer.v1.NonceResponse`.
-    async fn get_nonce<AddressT, HeightT>(
+    async fn get_nonce<HeightT>(
         &self,
-        address: AddressT,
+        address: Address,
         height: HeightT,
     ) -> Result<NonceResponse, Error>
     where
-        AddressT: Into<Address> + Send,
         HeightT: Into<tendermint::block::Height> + Send,
     {
-        const PREFIX: &[u8] = b"accounts/nonce/";
-
-        let path = make_path_from_prefix_and_address(PREFIX, address.into().get());
+        const PREFIX: &str = "accounts/nonce";
+        let path = format!("{PREFIX}/{address}");
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -462,7 +532,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::account::v1alpha1::NonceResponse::decode(
+            astria_core::generated::astria::protocol::accounts::v1::NonceResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
@@ -476,13 +546,106 @@ pub trait SequencerClientExt: Client {
     /// # Errors
     ///
     /// This has the same error conditions as [`SequencerClientExt::get_nonce`].
-    async fn get_latest_nonce<A: Into<Address> + Send>(
-        &self,
-        address: A,
-    ) -> Result<NonceResponse, Error> {
+    async fn get_latest_nonce(&self, address: Address) -> Result<NonceResponse, Error> {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_nonce(address, 0u32).await
+    }
+
+    async fn get_bridge_account_info(
+        &self,
+        address: Address,
+    ) -> Result<BridgeAccountInfoResponse, Error> {
+        const PREFIX: &str = "bridge/account_info";
+        let path = format!("{PREFIX}/{address}");
+
+        let response = self
+            .abci_query(Some(path), vec![], None, false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::astria::protocol::bridge::v1::BridgeAccountInfoResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.bridge.v1.BridgeAccountInfoResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native = BridgeAccountInfoResponse::try_from_raw(proto_response).map_err(|e| {
+            Error::native_conversion(
+                "astria.protocol.bridge.v1.BridgeAccountInfoResponse",
+                Arc::new(e),
+            )
+        })?;
+        Ok(native)
+    }
+
+    async fn get_bridge_account_last_transaction_hash(
+        &self,
+        address: Address,
+    ) -> Result<BridgeAccountLastTxHashResponse, Error> {
+        const PREFIX: &str = "bridge/account_last_tx_hash";
+        let path = format!("{PREFIX}/{address}");
+
+        let response = self
+            .abci_query(Some(path), vec![], None, false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::astria::protocol::bridge::v1::BridgeAccountLastTxHashResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.bridge.v1.BridgeAccountLastTxHashResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native = proto_response.try_into_native().map_err(|e| {
+            Error::native_conversion(
+                "astria.protocol.bridge.v1.BridgeAccountLastTxHashResponse",
+                Arc::new(e),
+            )
+        })?;
+        Ok(native)
+    }
+
+    async fn get_transaction_fee(
+        &self,
+        tx: TransactionBody,
+    ) -> Result<TransactionFeeResponse, Error> {
+        let path = "transaction/fee".to_string();
+        let data = tx.into_raw().encode_to_vec();
+
+        let response = self
+            .abci_query(Some(path), data, None, false)
+            .await
+            .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+
+        let proto_response =
+            astria_core::generated::astria::protocol::fees::v1::TransactionFeeResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria.protocol.transaction.v1.TransactionFeeResponse",
+                    response,
+                    e,
+                )
+            })?;
+        let native = TransactionFeeResponse::try_from_raw(proto_response).map_err(|e| {
+            Error::native_conversion(
+                "astria.protocol.transaction.v1.TransactionFeeResponse",
+                Arc::new(e),
+            )
+        })?;
+        Ok(native)
     }
 
     /// Submits the given transaction to the Sequencer node.
@@ -493,44 +656,65 @@ pub trait SequencerClientExt: Client {
     /// # Errors
     ///
     /// - If calling the tendermint RPC endpoint fails.
-    async fn submit_transaction_sync(
-        &self,
-        tx: SignedTransaction,
-    ) -> Result<tx_sync::Response, Error> {
+    async fn submit_transaction_sync(&self, tx: Transaction) -> Result<tx_sync::Response, Error> {
         let tx_bytes = tx.into_raw().encode_to_vec();
         self.broadcast_tx_sync(tx_bytes)
             .await
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_sync", e))
     }
 
-    /// Submits the given transaction to the Sequencer node.
-    ///
-    /// This method blocks until the transaction is committed.
-    /// It returns the results of `CheckTx` and `DeliverTx`.
+    /// Probes the sequencer for a transaction of given hash with a backoff.
     ///
     /// # Errors
     ///
-    /// - If calling the tendermint RPC endpoint fails.
-    async fn submit_transaction_commit(
+    /// - If the transaction is not found.
+    /// - If the transaction execution failed.
+    /// - If the transaction proof is missing.
+    #[instrument(skip_all)]
+    async fn wait_for_tx_inclusion(
         &self,
-        tx: SignedTransaction,
-    ) -> Result<tx_commit::Response, Error> {
-        let tx_bytes = tx.into_raw().encode_to_vec();
-        self.broadcast_tx_commit(tx_bytes)
-            .await
-            .map_err(|e| Error::tendermint_rpc("broadcast_tx_commit", e))
-    }
-}
+        tx_hash: tendermint::hash::Hash,
+    ) -> tendermint_rpc::endpoint::tx::Response {
+        use std::time::Duration;
 
-pub(super) fn make_path_from_prefix_and_address(
-    prefix: &'static [u8],
-    address: [u8; 20],
-) -> String {
-    let mut path = vec![0u8; prefix.len() + address.len() * 2];
-    path[..prefix.len()].copy_from_slice(prefix);
-    hex::encode_to_slice(address, &mut path[prefix.len()..]).expect(
-        "this is a bug: a buffer of sufficient size must have been allocated to hold 20 hex \
-         encoded bytes",
-    );
-    String::from_utf8(path).expect("this is a bug: all bytes in the path buffer should be ascii")
+        use tokio::time::Instant;
+
+        // The min seconds to sleep after receiving a GetTx response and sending the next request.
+        const MIN_POLL_INTERVAL_MILLIS: u64 = 100;
+        // The max seconds to sleep after receiving a GetTx response and sending the next request.
+        const MAX_POLL_INTERVAL_MILLIS: u64 = 2000;
+        // How long to wait after starting `confirm_submission` before starting to log errors.
+        const START_LOGGING_DELAY: Duration = Duration::from_millis(2000);
+        // The minimum duration between logging errors.
+        const LOG_ERROR_INTERVAL: Duration = Duration::from_millis(2000);
+
+        let start = Instant::now();
+        let mut logged_at = start;
+
+        let mut log_if_due = |error: tendermint_rpc::Error| {
+            if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_ERROR_INTERVAL {
+                return;
+            }
+            warn!(
+                %error,
+                %tx_hash,
+                elapsed_seconds = start.elapsed().as_secs_f32(),
+                "waiting to confirm transaction inclusion"
+            );
+            logged_at = Instant::now();
+        };
+
+        let mut sleep_millis = MIN_POLL_INTERVAL_MILLIS;
+        loop {
+            tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
+            match self.tx(tx_hash, false).await {
+                Ok(tx) => return tx,
+                Err(error) => {
+                    sleep_millis =
+                        std::cmp::min(sleep_millis.saturating_mul(2), MAX_POLL_INTERVAL_MILLIS);
+                    log_if_due(error);
+                }
+            }
+        }
+    }
 }

@@ -26,6 +26,8 @@ use tryhard::{
     RetryPolicy,
 };
 
+use crate::metrics::Metrics;
+
 pub(super) struct RawBlobs {
     pub(super) celestia_height: u64,
     pub(super) header_blobs: Vec<Blob>,
@@ -50,20 +52,27 @@ impl RawBlobs {
     celestia_height,
     sequencer_namespace = %base64(sequencer_namespace.as_ref()),
     rollup_namespace = %base64(rollup_namespace.as_ref()),
+    err,
 ))]
 pub(super) async fn fetch_new_blobs(
     client: CelestiaClient,
     celestia_height: u64,
     rollup_namespace: Namespace,
     sequencer_namespace: Namespace,
+    metrics: &'static Metrics,
 ) -> eyre::Result<RawBlobs> {
     let header_blobs = async {
-        fetch_blobs_with_retry(client.clone(), celestia_height, sequencer_namespace)
-            .await
-            .wrap_err("failed to fetch header blobs")
+        fetch_blobs_with_retry(
+            client.clone(),
+            celestia_height,
+            sequencer_namespace,
+            metrics,
+        )
+        .await
+        .wrap_err("failed to fetch header blobs")
     };
     let rollup_blobs = async {
-        fetch_blobs_with_retry(client.clone(), celestia_height, rollup_namespace)
+        fetch_blobs_with_retry(client.clone(), celestia_height, rollup_namespace, metrics)
             .await
             .wrap_err("failed to fetch rollup blobs")
     };
@@ -77,10 +86,12 @@ pub(super) async fn fetch_new_blobs(
     })
 }
 
+#[instrument(skip_all, err)]
 async fn fetch_blobs_with_retry(
     client: CelestiaClient,
     height: u64,
     namespace: Namespace,
+    metrics: &'static Metrics,
 ) -> eyre::Result<Vec<Blob>> {
     use celestia_rpc::BlobClient as _;
 
@@ -100,6 +111,7 @@ async fn fetch_blobs_with_retry(
                     error = error as &dyn std::error::Error,
                     "attempt to fetch Celestia Blobs failed; retrying after delay",
                 );
+                metrics.increment_celestia_blob_fetch_error_count();
                 futures::future::ready(())
             },
         );
@@ -110,6 +122,7 @@ async fn fetch_blobs_with_retry(
             match client.blob_get_all(height, &[namespace]).await {
                 Ok(blobs) => Ok(blobs),
                 Err(err) if is_blob_not_found(&err) => Ok(vec![]),
+                Err(err) if is_null_blobs(&err) => Ok(vec![]),
                 Err(err) => Err(err),
             }
         }
@@ -152,9 +165,18 @@ fn should_retry(error: &jsonrpsee::core::Error) -> bool {
     )
 }
 
+// For celestia-node v0.14.1 and below
 fn is_blob_not_found(error: &jsonrpsee::core::Error) -> bool {
     let jsonrpsee::core::Error::Call(error) = error else {
         return false;
     };
     error.code() == 1 && error.message().contains("blob: not found")
+}
+
+// For celestia-node v0.15.0 and newer
+fn is_null_blobs(error: &jsonrpsee::core::Error) -> bool {
+    let jsonrpsee::core::Error::ParseError(error) = error else {
+        return false;
+    };
+    error.to_string().contains("invalid type: null")
 }

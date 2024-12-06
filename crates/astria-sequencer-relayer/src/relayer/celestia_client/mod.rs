@@ -6,7 +6,14 @@ mod error;
 mod tests;
 
 use std::{
+    borrow::Cow,
     convert::TryInto,
+    fmt::{
+        self,
+        Debug,
+        Display,
+        Formatter,
+    },
     sync::Arc,
     time::{
         Duration,
@@ -77,12 +84,27 @@ pub(super) use error::{
     ProtobufDecodeError,
     TrySubmitError,
 };
+use hex::{
+    FromHex,
+    FromHexError,
+};
 use prost::{
     bytes::Bytes,
     Message as _,
     Name as _,
 };
-use tokio::sync::watch;
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+    Serializer,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
+use telemetry::display::hex;
+use thiserror::Error;
 use tonic::{
     transport::Channel,
     Response,
@@ -90,9 +112,12 @@ use tonic::{
 };
 use tracing::{
     debug,
+    error,
     info,
+    instrument,
     trace,
     warn,
+    Level,
 };
 
 // From https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/types/errors/errors.go#L75
@@ -124,11 +149,12 @@ impl CelestiaClient {
     /// used to obtain the appropriate fee in the case that the previous attempt failed due to a
     /// low fee.
     // Copied from https://github.com/celestiaorg/celestia-app/blob/v1.4.0/x/blob/payforblob.go
-    pub(super) async fn try_submit(
-        mut self,
+    #[instrument(skip_all, err(level = Level::WARN))]
+    pub(super) async fn try_prepare(
+        &mut self,
         blobs: Arc<Vec<Blob>>,
-        last_error_receiver: watch::Receiver<Option<TrySubmitError>>,
-    ) -> Result<u64, TrySubmitError> {
+        maybe_last_error: Option<TrySubmitError>,
+    ) -> Result<BlobTxAndFee, TrySubmitError> {
         info!("fetching cost params and account info from celestia app");
         let (blob_params, auth_params, min_gas_price, base_account) = tokio::try_join!(
             self.fetch_blob_params(),
@@ -153,8 +179,6 @@ impl CelestiaClient {
         let cost_params =
             CelestiaCostParams::new(gas_per_blob_byte, tx_size_cost_per_byte, min_gas_price);
         let gas_limit = estimate_gas(&msg_pay_for_blobs.blob_sizes, cost_params);
-        // Get the error from the last attempt to `try_submit`.
-        let maybe_last_error = last_error_receiver.borrow().clone();
         let fee = calculate_fee(cost_params, gas_limit, maybe_last_error);
 
         let signed_tx = new_signed_tx(
@@ -166,20 +190,55 @@ impl CelestiaClient {
             &self.signing_keys,
         );
 
-        let blob_tx = new_blob_tx(&signed_tx, blobs.iter());
-
         info!(
             gas_limit = gas_limit.0,
             fee_utia = fee,
-            "broadcasting blob transaction to celestia app"
+            "prepared blob transaction for celestia app"
         );
-        let tx_hash = self.broadcast_tx(blob_tx).await?;
-        info!(tx_hash = %tx_hash.0, "broadcast blob transaction succeeded");
 
-        let height = self.confirm_submission(tx_hash).await;
+        Ok(BlobTxAndFee::new(&signed_tx, blobs.iter(), fee))
+    }
+
+    #[instrument(skip_all, err(level = Level::WARN))]
+    pub(super) async fn try_submit(
+        &mut self,
+        blob_tx_hash: BlobTxHash,
+        blob_tx: BlobTx,
+    ) -> Result<u64, TrySubmitError> {
+        info!("broadcasting blob transaction to celestia app");
+        let hex_encoded_tx_hash = self.broadcast_tx(blob_tx).await?;
+        if hex_encoded_tx_hash != blob_tx_hash.to_hex() {
+            // This is not a critical error. Worst case, we restart the process now and try for a
+            // short while to `GetTx` for this tx using the wrong hash, resulting in a likely
+            // duplicate submission of this set of blobs.
+            warn!(
+                "tx hash `{hex_encoded_tx_hash}` returned from celestia app is not the same as \
+                 the locally calculated one `{blob_tx_hash}`; submission file has invalid data"
+            );
+        }
+        info!(tx_hash = %hex_encoded_tx_hash, "broadcast blob transaction succeeded");
+
+        let height = self.confirm_submission(hex_encoded_tx_hash).await;
         Ok(height)
     }
 
+    /// Repeatedly sends `GetTx` until a successful response is received or `timeout` duration has
+    /// elapsed.
+    ///
+    /// Returns the height of the Celestia block in which the blobs were submitted, or `None` if
+    /// timed out.
+    #[instrument(skip_all)]
+    pub(super) async fn confirm_submission_with_timeout(
+        &mut self,
+        blob_tx_hash: &BlobTxHash,
+        timeout: Duration,
+    ) -> Option<u64> {
+        tokio::time::timeout(timeout, self.confirm_submission(blob_tx_hash.to_hex()))
+            .await
+            .ok()
+    }
+
+    #[instrument(skip_all, err)]
     async fn fetch_account(&self) -> Result<BaseAccount, TrySubmitError> {
         let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let request = QueryAccountRequest {
@@ -194,6 +253,7 @@ impl CelestiaClient {
         account_from_response(response)
     }
 
+    #[instrument(skip_all, err)]
     async fn fetch_blob_params(&self) -> Result<BlobParams, TrySubmitError> {
         let mut blob_query_client = BlobQueryClient::new(self.grpc_channel.clone());
         let response = blob_query_client.params(QueryBlobParamsRequest {}).await;
@@ -211,6 +271,7 @@ impl CelestiaClient {
             .ok_or_else(|| TrySubmitError::EmptyBlobParams)
     }
 
+    #[instrument(skip_all, err)]
     async fn fetch_auth_params(&self) -> Result<AuthParams, TrySubmitError> {
         let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let response = auth_query_client.params(QueryAuthParamsRequest {}).await;
@@ -228,6 +289,7 @@ impl CelestiaClient {
             .ok_or_else(|| TrySubmitError::EmptyAuthParams)
     }
 
+    #[instrument(skip_all, err)]
     async fn fetch_min_gas_price(&self) -> Result<f64, TrySubmitError> {
         let mut min_gas_price_client = MinGasPriceClient::new(self.grpc_channel.clone());
         let response = min_gas_price_client.config(MinGasPriceRequest {}).await;
@@ -245,7 +307,8 @@ impl CelestiaClient {
     /// [`CometBFT`][cometbft].
     ///
     /// [cometbft]: https://github.com/cometbft/cometbft/blob/b139e139ad9ae6fccb9682aa5c2de4aa952fd055/rpc/openapi/openapi.yaml#L201-L204
-    async fn broadcast_tx(&mut self, blob_tx: BlobTx) -> Result<TxHash, TrySubmitError> {
+    #[instrument(skip_all, err)]
+    async fn broadcast_tx(&mut self, blob_tx: BlobTx) -> Result<String, TrySubmitError> {
         let request = BroadcastTxRequest {
             tx_bytes: Bytes::from(blob_tx.encode_to_vec()),
             mode: i32::from(BroadcastMode::Sync),
@@ -256,14 +319,15 @@ impl CelestiaClient {
         {
             trace!(?response);
         }
-        tx_hash_from_response(response)
+        lowercase_hex_encoded_tx_hash_from_response(response)
     }
 
     /// Returns `Some(height)` if the tx submission has completed, or `None` if it is still
     /// pending.
-    async fn get_tx(&mut self, tx_hash: TxHash) -> Result<Option<u64>, TrySubmitError> {
+    #[instrument(skip_all, err)]
+    async fn get_tx(&mut self, hex_encoded_tx_hash: String) -> Result<Option<u64>, TrySubmitError> {
         let request = GetTxRequest {
-            hash: tx_hash.0.clone(),
+            hash: hex_encoded_tx_hash,
         };
         let response = self.tx_client.get_tx(request).await;
         // trace-level logging, so using Debug format is ok.
@@ -276,7 +340,8 @@ impl CelestiaClient {
 
     /// Repeatedly sends `GetTx` until a successful response is received.  Returns the height of the
     /// Celestia block in which the blobs were submitted.
-    async fn confirm_submission(&mut self, tx_hash: TxHash) -> u64 {
+    #[instrument(skip_all, fields(hex_encoded_tx_hash))]
+    async fn confirm_submission(&mut self, hex_encoded_tx_hash: String) -> u64 {
         // The min seconds to sleep after receiving a GetTx response and sending the next request.
         const MIN_POLL_INTERVAL_SECS: u64 = 1;
         // The max seconds to sleep after receiving a GetTx response and sending the next request.
@@ -296,7 +361,7 @@ impl CelestiaClient {
             let reason = maybe_error.map_or(Report::msg("transaction still pending"), Report::new);
             warn!(
                 %reason,
-                tx_hash = tx_hash.0,
+                tx_hash = %hex_encoded_tx_hash,
                 elapsed_seconds = start.elapsed().as_secs_f32(),
                 "waiting to confirm blob submission"
             );
@@ -306,7 +371,7 @@ impl CelestiaClient {
         let mut sleep_secs = MIN_POLL_INTERVAL_SECS;
         loop {
             tokio::time::sleep(Duration::from_secs(sleep_secs)).await;
-            match self.get_tx(tx_hash.clone()).await {
+            match self.get_tx(hex_encoded_tx_hash.clone()).await {
                 Ok(Some(height)) => return height,
                 Ok(None) => {
                     sleep_secs = MIN_POLL_INTERVAL_SECS;
@@ -407,11 +472,11 @@ fn min_gas_price_from_response(
         })
 }
 
-/// Extracts the tx hash from the given response.
-fn tx_hash_from_response(
+/// Extracts the tx hash from the given response and converts to lowercase.
+fn lowercase_hex_encoded_tx_hash_from_response(
     response: Result<Response<BroadcastTxResponse>, Status>,
-) -> Result<TxHash, TrySubmitError> {
-    let tx_response = response
+) -> Result<String, TrySubmitError> {
+    let mut tx_response = response
         .map_err(|status| TrySubmitError::FailedToBroadcastTx(GrpcResponseError::from(status)))?
         .into_inner()
         .tx_response
@@ -425,7 +490,8 @@ fn tx_hash_from_response(
         };
         return Err(error);
     }
-    Ok(TxHash(tx_response.txhash))
+    tx_response.txhash.make_ascii_lowercase();
+    Ok(tx_response.txhash)
 }
 
 /// Extracts the block height from the given response if available, or `None` if the transaction is
@@ -558,14 +624,13 @@ fn calculate_fee(
 
     // Calculate the fee from the provided values.
     // From https://github.com/celestiaorg/celestia-node/blob/v0.12.4/state/core_access.go#L225
-    //
-    // allow: the gas limit should never be negative, and truncation/precision is not a problem
-    // as this is a best-effort calculation.  If the result is incorrect, the retry will use
-    // the fee provided in the failure response.
-    #[allow(
+    #[expect(
         clippy::cast_sign_loss,
         clippy::cast_possible_truncation,
-        clippy::cast_precision_loss
+        clippy::cast_precision_loss,
+        reason = "the gas limit should never be negative, and truncation/precision is not a \
+                  problem as this is a best-effort calculation.  If the result is incorrect, the \
+                  retry will use the fee provided in the failure response"
     )]
     let calculated_fee = (cost_params.min_gas_price() * gas_limit.0 as f64).ceil() as u64;
 
@@ -710,22 +775,34 @@ fn new_signed_tx(
     }
 }
 
-fn new_blob_tx<'a>(signed_tx: &Tx, blobs: impl Iterator<Item = &'a Blob>) -> BlobTx {
-    // From https://github.com/celestiaorg/celestia-core/blob/v1.29.0-tm-v0.34.29/pkg/consts/consts.go#L19
-    const BLOB_TX_TYPE_ID: &str = "BLOB";
+pub(in crate::relayer) struct BlobTxAndFee {
+    pub(in crate::relayer) tx: BlobTx,
+    pub(in crate::relayer) fee: u64,
+}
 
-    let blobs = blobs
-        .map(|blob| PbBlob {
-            namespace_id: Bytes::from(blob.namespace.id().to_vec()),
-            namespace_version: u32::from(blob.namespace.version()),
-            data: Bytes::from(blob.data.clone()),
-            share_version: u32::from(blob.share_version),
-        })
-        .collect();
-    BlobTx {
-        tx: Bytes::from(signed_tx.encode_to_vec()),
-        blobs,
-        type_id: BLOB_TX_TYPE_ID.to_string(),
+impl BlobTxAndFee {
+    fn new<'a>(signed_tx: &Tx, blobs: impl Iterator<Item = &'a Blob>, fee: u64) -> Self {
+        // From https://github.com/celestiaorg/celestia-core/blob/v1.29.0-tm-v0.34.29/pkg/consts/consts.go#L19
+        const BLOB_TX_TYPE_ID: &str = "BLOB";
+
+        let blobs = blobs
+            .map(|blob| PbBlob {
+                namespace_id: Bytes::from(blob.namespace.id().to_vec()),
+                namespace_version: u32::from(blob.namespace.version()),
+                data: Bytes::from(blob.data.clone()),
+                share_version: u32::from(blob.share_version),
+            })
+            .collect();
+        let tx = BlobTx {
+            tx: Bytes::from(signed_tx.encode_to_vec()),
+            blobs,
+            type_id: BLOB_TX_TYPE_ID.to_string(),
+        };
+
+        Self {
+            tx,
+            fee,
+        }
     }
 }
 
@@ -736,6 +813,62 @@ struct Bech32Address(String);
 #[derive(Copy, Clone, Debug)]
 struct GasLimit(u64);
 
-/// A hex-encoded transaction hash.
-#[derive(Clone, Debug)]
-struct TxHash(String);
+/// A blob transaction hash.
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub(super) struct BlobTxHash([u8; 32]);
+
+impl BlobTxHash {
+    /// Computes the SHA256 digest of the given blob transaction.
+    pub(super) fn compute(blob_tx: &BlobTx) -> Self {
+        let sha2 = Sha256::digest(&blob_tx.tx);
+        Self(sha2.into())
+    }
+
+    /// Converts `self` to a hex-encoded string.
+    pub(super) fn to_hex(self) -> String {
+        hex::encode(self.0)
+    }
+
+    #[cfg(test)]
+    pub(super) const fn from_raw(hash: [u8; 32]) -> Self {
+        Self(hash)
+    }
+}
+
+impl Display for BlobTxHash {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}", hex(&self.0))
+    }
+}
+
+impl Debug for BlobTxHash {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_tuple("BlobTxHash")
+            .field(&format_args!("{}", hex(&self.0)))
+            .finish()
+    }
+}
+
+impl Serialize for BlobTxHash {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for BlobTxHash {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let hex = Cow::<'_, str>::deserialize(deserializer)?;
+        let raw_hash = <[u8; 32]>::from_hex(hex.as_bytes()).map_err(|error: FromHexError| {
+            serde::de::Error::custom(DeserializeBlobTxHashError::Hex(error.to_string()))
+        })?;
+        Ok(BlobTxHash(raw_hash))
+    }
+}
+
+#[derive(Error, Clone, Debug)]
+#[non_exhaustive]
+pub(in crate::relayer) enum DeserializeBlobTxHashError {
+    #[error("failed to decode as hex for blob tx hash: {0}")]
+    Hex(String),
+}

@@ -2,13 +2,12 @@
 log_level = '{{ .Values.global.logLevel }}'
 
 [rest]
-
 # Whether or not to enable the REST service. Default: false
 enabled = {{ .Values.rest.enabled }}
 
 # Specify the IPv4/6 host over which the built-in HTTP server will serve the RESTful
 # API requests. Default: 127.0.0.1
-host = '127.0.0.1'
+host = '0.0.0.0'
 
 # Specify the port over which the built-in HTTP server will serve the restful API
 # requests. Default: 3000
@@ -35,7 +34,7 @@ tx_confirmation = {{ .Values.mode.packets.txConfirmation }}
 
 [telemetry]
 enabled = {{ .Values.telemetry.enabled }}
-host = '127.0.0.1'
+host = '0.0.0.0'
 port = {{ .Values.ports.telemetry }}
 
 [telemetry.buckets]
@@ -57,7 +56,6 @@ account_prefix = '{{ $chain.accountPrefix }}'
 key_name = '{{ $chain.key.name }}'                                    
 store_prefix = '{{ $chain.storePrefix }}'
 ccv_consumer_chain = {{ default false $chain.ccvConsumerChain }}
-ccv_consumer_chain = {{ default false $chain.trustedNode }}
 {{- if eq $chain.eventSource.mode "push" }}
 event_source = { mode = 'push', url = '{{ $chain.eventSource.url }}', batch_delay='{{ $chain.eventSource.batchDelay }}' }
 {{- else if eq $chain.eventSource.mode "pull" }}
@@ -111,10 +109,19 @@ trust_threshold = '{{ $chain.trustThreshold }}'
 {{- if $chain.memoPrefix }}
 memo_prefix = '{{ $chain.memoPrefix }}'
 {{- end }}
+{{- if $chain.feeGranter }}
+fee_granter = '{{ $chain.feeGranter }}'
+{{- end }}
+{{- if $chain.compatMode }}
+compat_mode = '{{ $chain.compatMode }}'
+{{- end }}
+{{- if $chain.clearInterval }}
+clear_interval = '{{ $chain.clearInterval }}'
+{{- end }}
 
 {{- if $chain.packetFilter }}
 {{- if $chain.packetFilter.policy }}
-[[chains.packet_filter]]
+[chains.packet_filter]
 policy = '{{ $chain.packetFilter.policy }}'
 list = [
   {{- range $index, $filter := $chain.packetFilter.list }}
@@ -133,14 +140,4 @@ recv = [
   {{- end }}
 {{- end }}
 {{- end }}
-{{- if $chain.feeGranter }}
-fee_granter = '{{ $chain.feeGranter }}'
-{{- end }}
-{{- if $chain.compatMode }}
-compat_mode = '{{ $chain.compatMode }}'
-{{- end }}
-{{- if $chain.clearInterval }}
-clear_interval = '{{ $chain.clearInterval }}'
-{{- end }}
-
 {{ end }}

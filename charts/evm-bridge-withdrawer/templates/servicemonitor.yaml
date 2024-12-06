@@ -1,0 +1,28 @@
+{{- if and .Values.serviceMonitor.enabled .Values.metrics.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "evm-bridge-withdrawer.appName" . }}-metrics
+  labels:
+    app: evm-bridge-withdrawer
+    {{- with .Values.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  jobLabel: {{ include "evm-bridge-withdrawer.appName" . }}-metric
+  namespaceSelector:
+    matchNames:
+      - {{ include "evm-bridge-withdrawer.namespace" . }}
+  selector:
+    matchLabels:
+      {{ include "evm-bridge-withdrawer.selectorLabels" . }}
+  endpoints:
+    - port: metrics
+      path: /
+      {{- with .Values.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+{{- end }}

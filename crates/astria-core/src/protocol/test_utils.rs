@@ -2,27 +2,25 @@
 
 use std::collections::HashMap;
 
+use bytes::Bytes;
 use prost::Message as _;
 
 use super::{
-    group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
-    transaction::v1alpha1::{
-        action::SequenceAction,
-        TransactionParams,
-        UnsignedTransaction,
-    },
+    group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id,
+    transaction::v1::action::RollupDataSubmission,
 };
 use crate::{
     crypto::SigningKey,
     primitive::v1::{
-        asset::default_native_asset_id,
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
-    sequencerblock::v1alpha1::{
+    protocol::transaction::v1::TransactionBody,
+    sequencerblock::v1::{
         block::Deposit,
         SequencerBlock,
     },
+    Protobuf as _,
 };
 
 #[derive(Default)]
@@ -59,13 +57,16 @@ pub struct ConfigureSequencerBlock {
 impl ConfigureSequencerBlock {
     /// Construct a [`SequencerBlock`] with the configured parameters.
     #[must_use]
-    #[allow(clippy::missing_panics_doc)] // This should only be used in tests, so everything here is unwrapped
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "This should only be used in tests, so everything here is unwrapped"
+    )]
     pub fn make(self) -> SequencerBlock {
         use tendermint::Time;
 
         use crate::{
-            protocol::transaction::v1alpha1::Action,
-            sequencerblock::v1alpha1::block::RollupData,
+            protocol::transaction::v1::Action,
+            sequencerblock::v1::block::RollupData,
         };
 
         let Self {
@@ -93,10 +94,10 @@ impl ConfigureSequencerBlock {
         let actions: Vec<Action> = sequence_data
             .into_iter()
             .map(|(rollup_id, data)| {
-                SequenceAction {
+                RollupDataSubmission {
                     rollup_id,
-                    data,
-                    fee_asset_id: default_native_asset_id(),
+                    data: data.into(),
+                    fee_asset: "nria".parse().unwrap(),
                 }
                 .into()
             })
@@ -104,33 +105,38 @@ impl ConfigureSequencerBlock {
         let txs = if actions.is_empty() {
             vec![]
         } else {
-            let unsigned_transaction = UnsignedTransaction {
-                actions,
-                params: TransactionParams {
-                    nonce: 1,
-                    chain_id: chain_id.clone(),
-                },
-            };
-            vec![unsigned_transaction.into_signed(&signing_key)]
+            let body = TransactionBody::builder()
+                .actions(actions)
+                .chain_id(chain_id.clone())
+                .nonce(1)
+                .try_build()
+                .expect(
+                    "should be able to build transaction body since only rollup data submission \
+                     actions are contained",
+                );
+            vec![body.sign(&signing_key)]
         };
-
         let mut deposits_map: HashMap<RollupId, Vec<Deposit>> = HashMap::new();
         for deposit in deposits {
-            if let Some(entry) = deposits_map.get_mut(deposit.rollup_id()) {
+            if let Some(entry) = deposits_map.get_mut(&deposit.rollup_id) {
                 entry.push(deposit);
             } else {
-                deposits_map.insert(*deposit.rollup_id(), vec![deposit]);
+                deposits_map.insert(deposit.rollup_id, vec![deposit]);
             }
         }
 
         let mut rollup_transactions =
-            group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&txs);
+            group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id(&txs);
         for (rollup_id, deposit) in deposits_map.clone() {
-            rollup_transactions.entry(rollup_id).or_default().extend(
-                deposit
-                    .into_iter()
-                    .map(|deposit| RollupData::Deposit(deposit).into_raw().encode_to_vec()),
-            );
+            rollup_transactions
+                .entry(rollup_id)
+                .or_default()
+                .extend(deposit.into_iter().map(|deposit| {
+                    RollupData::Deposit(Box::new(deposit))
+                        .into_raw()
+                        .encode_to_vec()
+                        .into()
+                }));
         }
         rollup_transactions.sort_unstable_keys();
         let rollup_transactions_tree = derive_merkle_tree_from_rollup_txs(&rollup_transactions);
@@ -146,7 +152,7 @@ impl ConfigureSequencerBlock {
             rollup_ids_root.to_vec(),
         ];
         data.extend(txs.into_iter().map(|tx| tx.into_raw().encode_to_vec()));
-
+        let data = data.into_iter().map(Bytes::from).collect();
         SequencerBlock::try_from_block_info_and_data(
             block_hash,
             chain_id.try_into().unwrap(),

@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "evm-bridge-withdrawer.appName" . }}
+  labels:
+    {{ include "evm-bridge-withdrawer.selectorLabels" . }}
+  namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      {{ include "evm-bridge-withdrawer.selectorLabels" . }}
+  template:
+    metadata:
+      annotations:
+      name: astria-sequencer
+      labels:
+        {{ include "evm-bridge-withdrawer.selectorLabels" . }}
+    spec:
+      containers:
+        - name: evm-bridge-withdrawer
+          image: {{ include "evm-bridge-withdrawer.image" . }}
+          imagePullPolicy: {{ .Values.images.evmBridgeWithdrawer.pullPolicy }}
+          command: [ "/usr/local/bin/astria-bridge-withdrawer" ]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "evm-bridge-withdrawer.appName" . }}-env
+          volumeMounts:
+            - mountPath: /secret/sequencerPrivateKey/
+              name: sequencer-private-key-volume
+          ports:
+            - containerPort: {{ .Values.ports.metrics }}
+              name: metrics
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.healthAPI }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.healthAPI }}
+          # TODO: Enable the liveness probe when it is more reliable
+          # livenessProbe:
+          #  httpGet:
+          #    path: /healthz
+          #    port: {{ .Values.ports.healthAPI }}
+      volumes:
+        - name: sequencer-private-key-volume
+          {{- if $.Values.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "evm-bridge-withdrawer.appName" . }}-key
+          {{- else }}
+          configMap:
+            name: {{ include "evm-bridge-withdrawer.appName" . }}-private-key
+          {{- end }}

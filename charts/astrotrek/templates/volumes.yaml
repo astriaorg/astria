@@ -1,0 +1,47 @@
+{{/* We need to manually create a PersistentVolume when local. */}}
+{{/* In prod, a PV will be created by the StorageClass' provisioner using dynamic provisioning feature.  */}}
+{{- if .Values.storage.enabled }}
+  {{- range $key, $value := .Values.storage.entities }}
+    {{- if $.Values.storage.local }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: astrotrek-shared-vol-local-pv
+  namespace: {{ include "astrotrek.namespace" $ }}
+spec:
+  capacity:
+    storage: {{ $value.size }}
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: astrotrek-shared-vol-local
+  local:
+    path: {{ $value.path }}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - astria-dev-cluster-control-plane
+                - astria-dev-cluster-worker
+---
+    {{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: {{ include "astrotrek.namespace" $ }}
+  labels:
+    app: {{ $.Values.config.name }}-db
+  name: astrotrek-shared-local-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+  {{- end}}
+{{- end }}
+

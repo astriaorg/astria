@@ -8,11 +8,11 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::{
+    generated::astria::sequencerblock::v1::{
         sequencer_service_client::SequencerServiceClient,
         GetSequencerBlockRequest,
     },
-    sequencerblock::v1alpha1::SequencerBlock,
+    sequencerblock::v1::SequencerBlock,
 };
 use astria_eyre::eyre::{
     self,
@@ -35,6 +35,8 @@ use tracing::{
     Instrument as _,
     Span,
 };
+
+use crate::metrics::Metrics;
 
 /// Tracks the latest sequencer height and returns the next height the stream should fetch.
 ///
@@ -86,12 +88,13 @@ pin_project! {
         paused: bool,
         block_time: Duration,
         state: Arc<super::State>,
+        metrics: &'static Metrics,
     }
 }
 
 impl BlockStream {
-    pub(super) fn builder() -> BlockStreamBuilder {
-        BlockStreamBuilder::new()
+    pub(super) fn builder(metrics: &'static Metrics) -> BlockStreamBuilder {
+        BlockStreamBuilder::new(metrics)
     }
 
     pub(super) fn set_latest_sequencer_height(&mut self, height: Height) {
@@ -138,6 +141,7 @@ impl Stream for BlockStream {
                         height,
                         *this.block_time,
                         this.state.clone(),
+                        this.metrics,
                     )
                     .boxed(),
                 ));
@@ -158,14 +162,14 @@ impl Stream for BlockStream {
 
         // A new future will be spawned as long as next_height <= latest_height. So
         // 10 - 10 = 0, but there 1 future still to be spawned at next height = 10.
-        lower_limit += Into::<u64>::into(next_height <= latest_height);
+        lower_limit = lower_limit.saturating_add(u64::from(next_height <= latest_height));
 
         // Add 1 if a fetch is in-flight. Example: if requested and latest heights are
         // both 10, then (latest - requested) = 0. But that is only true if the future already
         // resolved and its result was returned. If requested height is 9 and latest is 10,
         // then `(latest - requested) = 1`, meaning there is one more height to be fetched plus
         // the one that's currently in-flight.
-        lower_limit += Into::<u64>::into(self.future.is_some());
+        lower_limit = lower_limit.saturating_add(u64::from(self.future.is_some()));
 
         let lower_limit = lower_limit.try_into().expect(
             "height differences should convert to usize on all reasonable architectures; 64 bit: \
@@ -179,12 +183,13 @@ impl Stream for BlockStream {
 ///
 /// If fetching the block fails, then a new fetch is scheduled with exponential backoff,
 /// up to a maximum of `block_time` duration between subsequent requests.
-#[instrument(skip_all, fields(%height))]
+#[instrument(skip_all, fields(%height), err)]
 async fn fetch_block(
     client: SequencerServiceClient<tonic::transport::Channel>,
     height: Height,
     block_time: Duration,
     state: Arc<super::State>,
+    metrics: &'static Metrics,
 ) -> eyre::Result<SequencerBlock> {
     // Moving the span into `on_retry`, because tryhard spawns these in a tokio
     // task, losing the span.
@@ -194,8 +199,7 @@ async fn fetch_block(
         .max_delay(block_time)
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
-                metrics::counter!(crate::metrics_init::SEQUENCER_BLOCK_FETCH_FAILURE_COUNT)
-                    .increment(1);
+                metrics.increment_sequencer_block_fetch_failure_count();
 
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
@@ -260,6 +264,7 @@ pub(super) struct BlockStreamBuilder<TBlockTime = NoBlockTime, TClient = NoClien
     client: TClient,
     last_fetched_height: Option<Height>,
     state: TState,
+    metrics: &'static Metrics,
 }
 
 impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState> {
@@ -271,6 +276,7 @@ impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState
             client,
             last_fetched_height,
             state,
+            metrics,
             ..
         } = self;
         BlockStreamBuilder {
@@ -278,6 +284,7 @@ impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState
             client,
             last_fetched_height,
             state,
+            metrics,
         }
     }
 
@@ -289,6 +296,7 @@ impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState
             block_time,
             last_fetched_height,
             state,
+            metrics,
             ..
         } = self;
         BlockStreamBuilder {
@@ -296,6 +304,7 @@ impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState
             client: WithClient(client),
             last_fetched_height,
             state,
+            metrics,
         }
     }
 
@@ -307,6 +316,7 @@ impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState
             block_time,
             client,
             state,
+            metrics,
             ..
         } = self;
         BlockStreamBuilder {
@@ -314,6 +324,7 @@ impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState
             client,
             last_fetched_height,
             state,
+            metrics,
         }
     }
 
@@ -325,6 +336,7 @@ impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState
             block_time,
             client,
             last_fetched_height,
+            metrics,
             ..
         } = self;
         BlockStreamBuilder {
@@ -332,17 +344,19 @@ impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState
             client,
             last_fetched_height,
             state: WithState(state),
+            metrics,
         }
     }
 }
 
 impl BlockStreamBuilder {
-    fn new() -> Self {
+    fn new(metrics: &'static Metrics) -> Self {
         BlockStreamBuilder {
             block_time: NoBlockTime,
             client: NoClient,
             last_fetched_height: None,
             state: NoState,
+            metrics,
         }
     }
 }
@@ -354,6 +368,7 @@ impl BlockStreamBuilder<WithBlockTime, WithClient, WithState> {
             client: WithClient(client),
             last_fetched_height,
             state: WithState(state),
+            metrics,
         } = self;
         let next = match last_fetched_height {
             None => {
@@ -384,6 +399,7 @@ impl BlockStreamBuilder<WithBlockTime, WithClient, WithState> {
             block_time,
             paused: false,
             state,
+            metrics,
         }
     }
 }

@@ -218,7 +218,10 @@ impl<'a> LeafBuilder<'a> {
     /// Writes `bytes` into the builder, appending to the leaf.
     ///
     /// See [`Tree::build_leaf`] for example usage.
-    #[allow(clippy::missing_panics_doc)] // invariant of the system
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "invariant of the system: the hasher must be set"
+    )]
     pub fn write(&mut self, bytes: &[u8]) -> &mut Self {
         let hasher = self
             .hasher
@@ -247,8 +250,9 @@ impl<'a> Drop for LeafBuilder<'a> {
         // append 2 * 32 = 64 zeros
         tree.nodes.extend_from_slice(&[0; 64]);
         let size = tree.len();
-        tree.set_node(size - 1, leaf_hash);
-        let mut idx = tree.len() - 1;
+        // safe to unwrap as we already exited above if `tree.nodes.is_empty()`
+        let mut idx = size.checked_sub(1).expect("tree len must be at least 1");
+        tree.set_node(idx, leaf_hash);
         let root = complete_root(tree.len());
         loop {
             idx = complete_parent(idx, size);
@@ -269,8 +273,8 @@ pub struct Tree {
 }
 
 impl Tree {
-    /// Calculates `SHA256(0x01 || MHT_i || MHT_j)`, where
-    /// `MHT_i` is merkle tree hash of the i-th node.
+    /// Calculates `SHA256(0x01 || MTH_i || MTH_j)`, where
+    /// `MTH_i` is merkle tree hash of the i-th node.
     fn combine_nodes(&self, i: usize, j: usize) -> [u8; 32] {
         let left = self.get_node(i);
         let right = self.get_node(j);
@@ -284,7 +288,9 @@ impl Tree {
     #[inline]
     fn get_node(&self, i: usize) -> [u8; 32] {
         assert!(self.is_in_tree(i));
-        self.nodes[i * 32..(i + 1) * 32].try_into().unwrap()
+        let low = i.checked_mul(32).unwrap();
+        let high = i.checked_add(1).unwrap().checked_mul(32).unwrap();
+        self.nodes[low..high].try_into().unwrap()
     }
 
     /// Returns `true` if the index `i` falls inside the Merkle tree.
@@ -306,7 +312,9 @@ impl Tree {
     #[inline]
     fn set_node(&mut self, i: usize, val: [u8; 32]) {
         assert!(self.is_in_tree(i));
-        self.nodes[i * 32..(i + 1) * 32].copy_from_slice(&val);
+        let low = i.checked_mul(32).unwrap();
+        let high = i.checked_add(1).unwrap().checked_mul(32).unwrap();
+        self.nodes[low..high].copy_from_slice(&val);
     }
 
     /// Constructs the inclusion proof for the i-th leaf of the tree.
@@ -504,21 +512,32 @@ impl Default for Tree {
 ///
 /// Since leaves are always indexed with even numbers and branches with
 /// odd numbers, this is just the formula `i = 2 * j`.
+///
+/// # Panics
+/// Panics if `j` is greater than `usize::MAX / 2`.
 #[inline]
 fn leaf_index_to_tree_index(j: usize) -> usize {
-    j * 2
+    j.checked_mul(2).unwrap()
 }
 
 /// Isolates last set bit of an unsigned integer `x` as a mask.
+///
+/// # Panics
+/// Panics if `x` is 0.
 #[inline]
 fn last_set_bit(x: usize) -> usize {
-    x - ((x - 1) & x)
+    // x - ((x - 1) & x)
+    let x_minus_one = x.checked_sub(1).unwrap();
+    x.checked_sub(x_minus_one & x).unwrap()
 }
 
 /// Isolates the last unset bit of an unsigned integer `x` as a mask.
+///
+/// # Panics
+/// Panics if `x` is `usize::MAX`.
 #[inline]
 fn last_zero_bit(x: usize) -> usize {
-    last_set_bit(x + 1)
+    last_set_bit(x.checked_add(1).unwrap())
 }
 
 /// Returns the parent index of a node at index `i` in a perfect binary tree.
@@ -645,7 +664,10 @@ fn complete_right_child(i: usize, n: usize) -> usize {
     if right_child < n {
         right_child
     } else {
-        i + 1 + complete_root(n - i - 1)
+        // i + 1 + complete_root(n - (i + 1))
+        let i_plus_one = i.checked_add(1).unwrap();
+        let root = complete_root(n.checked_sub(i_plus_one).unwrap());
+        i_plus_one.checked_add(root).unwrap()
     }
 }
 

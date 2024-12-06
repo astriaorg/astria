@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use astria_core::generated::cosmos::{
     base::tendermint::v1beta1::{
@@ -14,7 +17,11 @@ use tonic::transport::{
     Channel,
     Endpoint,
 };
-use tracing::trace;
+use tracing::{
+    info,
+    instrument,
+    trace,
+};
 
 use super::{
     super::State,
@@ -23,6 +30,9 @@ use super::{
     CelestiaKeys,
     GrpcResponseError,
 };
+
+/// All gRPCs will time out with the given duration.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// An error when building the `CelestiaClient`.
 #[derive(Error, Clone, Debug)]
@@ -40,6 +50,14 @@ pub(in crate::relayer) enum BuilderError {
     /// The node info response was empty.
     #[error("the celestia node info response was empty")]
     EmptyNodeInfo,
+    /// Mismatch in Celestia chain ID.
+    #[error(
+        "mismatch in celestia chain id, configured id: `{configured}`, received id: `{received}`"
+    )]
+    MismatchedCelestiaChainId {
+        configured: String,
+        received: String,
+    },
 }
 
 /// An error while encoding a Bech32 string.
@@ -50,6 +68,7 @@ pub(in crate::relayer) struct Bech32EncodeError(#[from] bech32::EncodeError);
 /// A builder for a [`CelestiaClient`].
 #[derive(Clone)]
 pub(in crate::relayer) struct Builder {
+    configured_celestia_chain_id: String,
     /// The inner `tonic` gRPC channel shared by the various generated gRPC clients.
     grpc_channel: Channel,
     /// The crypto keys associated with our Celestia account.
@@ -63,13 +82,15 @@ pub(in crate::relayer) struct Builder {
 impl Builder {
     /// Returns a new `Builder`, or an error if Bech32-encoding the `signing_keys` address fails.
     pub(in crate::relayer) fn new(
+        configured_celestia_chain_id: String,
         uri: Uri,
         signing_keys: CelestiaKeys,
         state: Arc<State>,
     ) -> Result<Self, BuilderError> {
-        let grpc_channel = Endpoint::from(uri).connect_lazy();
+        let grpc_channel = Endpoint::from(uri).timeout(REQUEST_TIMEOUT).connect_lazy();
         let address = bech32_encode(&signing_keys.address)?;
         Ok(Self {
+            configured_celestia_chain_id,
             grpc_channel,
             signing_keys,
             address,
@@ -78,15 +99,26 @@ impl Builder {
     }
 
     /// Returns a new `CelestiaClient` initialized with info retrieved from the Celestia app.
+    #[instrument(skip_all, err)]
     pub(in crate::relayer) async fn try_build(self) -> Result<CelestiaClient, BuilderError> {
-        let chain_id = self.fetch_chain_id().await?;
+        let received_celestia_chain_id = self.fetch_celestia_chain_id().await?;
 
         let Self {
+            configured_celestia_chain_id,
             grpc_channel,
             signing_keys,
             address,
             state,
         } = self;
+
+        if received_celestia_chain_id != configured_celestia_chain_id {
+            return Err(BuilderError::MismatchedCelestiaChainId {
+                configured: configured_celestia_chain_id,
+                received: received_celestia_chain_id,
+            });
+        }
+
+        info!(celestia_chain_id = %received_celestia_chain_id, "confirmed celestia chain id");
         state.set_celestia_connected(true);
 
         let tx_client = TxClient::new(grpc_channel.clone());
@@ -95,11 +127,12 @@ impl Builder {
             tx_client,
             signing_keys,
             address,
-            chain_id,
+            chain_id: received_celestia_chain_id,
         })
     }
 
-    async fn fetch_chain_id(&self) -> Result<String, BuilderError> {
+    #[instrument(skip_all, err)]
+    async fn fetch_celestia_chain_id(&self) -> Result<String, BuilderError> {
         let mut node_info_client = NodeInfoClient::new(self.grpc_channel.clone());
         let response = node_info_client.get_node_info(GetNodeInfoRequest {}).await;
         // trace-level logging, so using Debug format is ok.

@@ -14,7 +14,7 @@ impl serde::Serialize for CompactBitArray {
         }
         let mut struct_ser = serializer.serialize_struct("cosmos.crypto.multisig.v1beta1.CompactBitArray", len)?;
         if self.extra_bits_stored != 0 {
-            struct_ser.serialize_field("extra_bits_stored", &self.extra_bits_stored)?;
+            struct_ser.serialize_field("extraBitsStored", &self.extra_bits_stored)?;
         }
         if !self.elems.is_empty() {
             #[allow(clippy::needless_borrow)]

@@ -5,10 +5,12 @@ use std::{
         Display,
         Formatter,
     },
+    fs,
     future::Future,
     io::Write,
     mem,
     net::SocketAddr,
+    sync::LazyLock,
     time::Duration,
 };
 
@@ -20,18 +22,16 @@ use astria_core::{
 use astria_grpc_mock::MockGuard as GrpcMockGuard;
 use astria_sequencer_relayer::{
     config::Config,
+    Metrics,
     SequencerRelayer,
     ShutdownHandle,
 };
-use futures::TryFutureExt;
+use http::StatusCode;
+use isahc::AsyncReadResponseExt;
 use itertools::Itertools;
-use once_cell::sync::Lazy;
-use reqwest::{
-    Response,
-    StatusCode,
-};
 use serde::Deserialize;
 use serde_json::json;
+use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tendermint_config::PrivValidatorKey;
 use tendermint_rpc::{
@@ -64,6 +64,9 @@ use super::{
     SequencerBlockToMount,
 };
 
+const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
+const CELESTIA_CHAIN_ID: &str = "test-celestia";
+
 /// Copied verbatim from
 /// [tendermint-rs](https://github.com/informalsystems/tendermint-rs/blob/main/config/tests/support/config/priv_validator_key.ed25519.json)
 const PRIVATE_VALIDATOR_KEY: &str = r#"
@@ -80,24 +83,65 @@ const PRIVATE_VALIDATOR_KEY: &str = r#"
 }
 "#;
 
-static TELEMETRY: Lazy<()> = Lazy::new(|| {
+const STATUS_RESPONSE: &str = r#"
+{
+  "node_info": {
+    "protocol_version": {
+      "p2p": "8",
+      "block": "11",
+      "app": "0"
+    },
+    "id": "a1d3bbddb7800c6da2e64169fec281494e963ba3",
+    "listen_addr": "tcp://0.0.0.0:26656",
+    "network": "test",
+    "version": "0.38.6",
+    "channels": "40202122233038606100",
+    "moniker": "fullnode",
+    "other": {
+      "tx_index": "on",
+      "rpc_address": "tcp://0.0.0.0:26657"
+    }
+  },
+  "sync_info": {
+    "latest_block_hash": "A4202E4E367712AC2A797860265A7EBEA8A3ACE513CB0105C2C9058449641202",
+    "latest_app_hash": "BCC9C9B82A49EC37AADA41D32B4FBECD2441563703955413195BDA2236775A68",
+    "latest_block_height": "452605",
+    "latest_block_time": "2024-05-09T15:59:17.849713071Z",
+    "earliest_block_hash": "C34B7B0B82423554B844F444044D7D08A026D6E413E6F72848DB2F8C77ACE165",
+    "earliest_app_hash": "6B776065775471CEF46AC75DE09A4B869A0E0EB1D7725A04A342C0E46C16F472",
+    "earliest_block_height": "1",
+    "earliest_block_time": "2024-04-23T00:49:11.964127Z",
+    "catching_up": false
+  },
+  "validator_info": {
+    "address": "0B46F33BA2FA5C2E2AD4C4C4E5ECE3F1CA03D195",
+    "pub_key": {
+      "type": "tendermint/PubKeyEd25519",
+      "value": "bA6GipHUijVuiYhv+4XymdePBsn8EeTqjGqNQrBGZ4I="
+    },
+    "voting_power": "0"
+  }
+}"#;
+
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     astria_eyre::install().unwrap();
     if std::env::var_os("TEST_LOG").is_some() {
-        let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
+        let filter_directives = std::env::var("RUST_LOG")
+            .unwrap_or_else(|_| "astria_sequencer_relayer=trace,blackbox=trace,info".into());
         println!("initializing telemetry");
-        telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::stdout)
-            .force_stdout()
-            .pretty_print()
-            .filter_directives(&filter_directives)
-            .try_init()
+        let _ = telemetry::configure()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::stdout)
+            .set_force_stdout(true)
+            .set_pretty_print(true)
+            .set_filter_directives(&filter_directives)
+            .try_init::<Metrics>(&())
             .unwrap();
     } else {
-        telemetry::configure()
-            .no_otel()
-            .stdout_writer(std::io::sink)
-            .try_init()
+        let _ = telemetry::configure()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::sink)
+            .try_init::<Metrics>(&())
             .unwrap();
     }
 });
@@ -126,12 +170,14 @@ pub struct TestSequencerRelayer {
 
     pub signing_key: SigningKey,
 
-    pub account: tendermint::account::Id,
-
-    pub validator_keyfile: NamedTempFile,
-
-    pub pre_submit_file: NamedTempFile,
-    pub post_submit_file: NamedTempFile,
+    pub submission_state_file: NamedTempFile,
+    /// The sequencer chain ID which will be returned by the mock `cometbft` instance, and set via
+    /// `TestSequencerRelayerConfig`.
+    pub actual_sequencer_chain_id: String,
+    /// The Celestia chain ID which will be returned by the mock `celestia_app` instance, and set
+    /// via `TestSequencerRelayerConfig`.
+    pub actual_celestia_chain_id: String,
+    pub metrics_handle: metrics::Handle,
 }
 
 impl Drop for TestSequencerRelayer {
@@ -181,13 +227,13 @@ impl TestSequencerRelayer {
     /// Mounts a Sequencer block response.
     ///
     /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
-    pub async fn mount_sequencer_block_response<const RELAY_SELF: bool>(
+    pub async fn mount_sequencer_block_response(
         &self,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
     ) {
         self.sequencer
-            .mount_sequencer_block_response::<RELAY_SELF>(self.account, block_to_mount, debug_name)
+            .mount_sequencer_block_response(block_to_mount, debug_name)
             .await;
     }
 
@@ -195,17 +241,13 @@ impl TestSequencerRelayer {
     /// the mock to be satisfied.
     ///
     /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
-    pub async fn mount_sequencer_block_response_as_scoped<const RELAY_SELF: bool>(
+    pub async fn mount_sequencer_block_response_as_scoped(
         &self,
         block_to_mount: SequencerBlockToMount,
         debug_name: impl Into<String>,
     ) -> GrpcMockGuard {
         self.sequencer
-            .mount_sequencer_block_response_as_scoped::<RELAY_SELF>(
-                self.account,
-                block_to_mount,
-                debug_name,
-            )
+            .mount_sequencer_block_response_as_scoped(block_to_mount, debug_name)
             .await
     }
 
@@ -497,13 +539,13 @@ impl TestSequencerRelayer {
     ) -> (serde_json::Value, StatusCode) {
         let url = format!("http://{}/{api_endpoint}", self.api_address);
         let getter = async {
-            reqwest::get(&url)
+            isahc::get_async(&url)
                 .await
                 .unwrap_or_else(|error| panic!("should get response from `{url}`: {error}"))
         };
 
         let new_context = format!("{context}: get from `{url}`");
-        let response = self.timeout_ms(100, &new_context, getter).await;
+        let mut response = self.timeout_ms(100, &new_context, getter).await;
 
         let status_code = response.status();
         let value = response
@@ -532,7 +574,7 @@ impl TestSequencerRelayer {
         let within = Duration::from_millis(num_milliseconds);
         if let Ok(value) = tokio::time::timeout(within, future).await {
             let elapsed = start.elapsed();
-            if elapsed * 5 > within * 4 {
+            if elapsed.checked_mul(5).unwrap() > within.checked_mul(4).unwrap() {
                 error!(%context,
                     "elapsed time ({} seconds) was over 80% of the specified timeout ({} \
                      seconds) - consider increasing the timeout",
@@ -543,8 +585,10 @@ impl TestSequencerRelayer {
             value
         } else {
             let state = tokio::time::timeout(Duration::from_millis(100), async {
-                reqwest::get(format!("http://{}/status", self.api_address))
-                    .and_then(Response::json)
+                isahc::get_async(format!("http://{}/status", self.api_address))
+                    .await
+                    .ok()?
+                    .json()
                     .await
                     .ok()
             })
@@ -556,8 +600,10 @@ impl TestSequencerRelayer {
             .map_or("unknown".to_string(), |state| format!("{state:?}"));
 
             let healthz = tokio::time::timeout(Duration::from_millis(100), async {
-                reqwest::get(format!("http://{}/healthz", self.api_address))
-                    .and_then(Response::json)
+                isahc::get_async(format!("http://{}/healthz", self.api_address))
+                    .await
+                    .ok()?
+                    .json()
                     .await
                     .ok()
             })
@@ -566,50 +612,61 @@ impl TestSequencerRelayer {
             .and_then(|value: serde_json::Value| serde_json::from_value::<ZPage>(value).ok())
             .map_or("unknown".to_string(), |zpage| zpage.status);
 
+            error!("timed out; context: `{context}`, state: `{state}`, healthz: `{healthz}`");
             panic!("timed out; context: `{context}`, state: `{state}`, healthz: `{healthz}`");
         }
     }
 
     #[track_caller]
-    pub fn assert_state_files_are_as_expected(
-        &self,
-        pre_sequencer_height: u32,
-        post_sequencer_height: u32,
-    ) {
-        let pre_submit_state: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&self.config.pre_submit_path).unwrap())
+    pub fn check_state_file(&self, last_sequencer_height: u32, current_sequencer_height: u32) {
+        let submission_state: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&self.config.submission_state_path).unwrap())
                 .unwrap();
         assert_json_include!(
-            actual: pre_submit_state,
-            expected: json!({
-                "sequencer_height": pre_sequencer_height
-            }),
+            actual: submission_state,
+            expected: json!({ "sequencer_height": last_sequencer_height }),
         );
 
-        let post_submit_state: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&self.config.post_submit_path).unwrap())
-                .unwrap();
         assert_json_include!(
-            actual: post_submit_state,
-            expected: json!({
-                "sequencer_height": post_sequencer_height,
-            }),
+            actual: submission_state,
+            expected: json!({ "sequencer_height": current_sequencer_height }),
         );
+    }
+
+    /// Mounts a `CometBFT` status response with the chain ID set as per
+    /// `TestSequencerRelayerConfig::sequencer_chain_id`.
+    async fn mount_cometbft_status_response(&self) {
+        use tendermint_rpc::endpoint::status;
+
+        let mut status_response: status::Response = serde_json::from_str(STATUS_RESPONSE).unwrap();
+        status_response.node_info.network = self.actual_sequencer_chain_id.parse().unwrap();
+
+        let response = Wrapper::new_with_id(Id::Num(1), Some(status_response), None);
+        wiremock::Mock::given(body_partial_json(json!({"method": "status"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(response))
+            .up_to_n_times(1)
+            .expect(1..)
+            .named("CometBFT status")
+            .mount(&self.cometbft)
+            .await;
     }
 }
 
-// allow: want the name to reflect this is a test config.
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "want the name to reflect this is a test config"
+)]
 pub struct TestSequencerRelayerConfig {
-    /// Sets up the test relayer to ignore all blocks except those proposed by the same address
-    /// stored in its validator key.
-    pub relay_only_self: bool,
-    /// Sets the start height of relayer and configures the on-disk pre- and post-submit files to
+    /// Sets the start height of relayer and configures the on-disk submission-state file to
     /// look accordingly.
     pub last_written_sequencer_height: Option<u64>,
     /// The rollup ID filter, to be stringified and provided as `Config::only_include_rollups`
     /// value.
     pub only_include_rollups: HashSet<RollupId>,
+    /// The sequencer chain ID.
+    pub sequencer_chain_id: String,
+    /// The Celestia chain ID.
+    pub celestia_chain_id: String,
 }
 
 impl TestSequencerRelayerConfig {
@@ -620,20 +677,17 @@ impl TestSequencerRelayerConfig {
             "the sequencer relayer must be run on a multi-threaded runtime, e.g. the test could \
              be configured using `#[tokio::test(flavor = \"multi_thread\", worker_threads = 1)]`"
         );
-        Lazy::force(&TELEMETRY);
+        LazyLock::force(&TELEMETRY);
 
-        let celestia_app = MockCelestiaAppServer::spawn().await;
+        let celestia_app = MockCelestiaAppServer::spawn(self.celestia_chain_id.clone()).await;
         let celestia_app_grpc_endpoint = format!("http://{}", celestia_app.local_addr);
         let celestia_keyfile = write_file(
             b"c8076374e2a4a58db1c924e3dafc055e9685481054fe99e58ed67f5c6ed80e62".as_slice(),
         )
         .await;
 
-        let validator_keyfile = write_file(PRIVATE_VALIDATOR_KEY.as_bytes()).await;
         let PrivValidatorKey {
-            address,
-            priv_key,
-            ..
+            priv_key, ..
         } = PrivValidatorKey::parse_json(PRIVATE_VALIDATOR_KEY).unwrap();
         let signing_key = priv_key
             .ed25519_signing_key()
@@ -648,42 +702,47 @@ impl TestSequencerRelayerConfig {
         let sequencer = MockSequencerServer::spawn().await;
         let sequencer_grpc_endpoint = format!("http://{}", sequencer.local_addr);
 
-        let (pre_submit_file, post_submit_file) =
+        let submission_state_file =
             if let Some(last_written_sequencer_height) = self.last_written_sequencer_height {
-                create_files_for_start_at_height(last_written_sequencer_height)
+                create_file_for_start_at_height(last_written_sequencer_height)
             } else {
-                create_files_for_fresh_start()
+                create_file_for_fresh_start()
             };
 
         let only_include_rollups = self.only_include_rollups.iter().join(",").to_string();
 
         let config = Config {
+            sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
+            celestia_chain_id: CELESTIA_CHAIN_ID.to_string(),
             cometbft_endpoint: cometbft.uri(),
             sequencer_grpc_endpoint,
             celestia_app_grpc_endpoint,
             celestia_app_key_file: celestia_keyfile.path().to_string_lossy().to_string(),
             block_time: 1000,
-            relay_only_validator_key_blocks: self.relay_only_self,
-            validator_key_file: validator_keyfile.path().to_string_lossy().to_string(),
             only_include_rollups,
             api_addr: "0.0.0.0:0".into(),
             log: String::new(),
             force_stdout: false,
             no_otel: false,
             no_metrics: false,
-            metrics_http_listener_addr: String::new(),
+            metrics_http_listener_addr: "127.0.0.1:9000".to_string(),
             pretty_print: true,
-            pre_submit_path: pre_submit_file.path().to_owned(),
-            post_submit_path: post_submit_file.path().to_owned(),
+            submission_state_path: submission_state_file.path().to_owned(),
         };
+
+        let (metrics, metrics_handle) = metrics::ConfigBuilder::new()
+            .set_global_recorder(false)
+            .build(&())
+            .unwrap();
+        let metrics = Box::leak(Box::new(metrics));
 
         info!(config = serde_json::to_string(&config).unwrap());
         let (sequencer_relayer, relayer_shutdown_handle) =
-            SequencerRelayer::new(config.clone()).unwrap();
+            SequencerRelayer::new(config.clone(), metrics).unwrap();
         let api_address = sequencer_relayer.local_addr();
         let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
-        TestSequencerRelayer {
+        let test_sequencer_relayer = TestSequencerRelayer {
             api_address,
             celestia_app,
             config,
@@ -692,10 +751,27 @@ impl TestSequencerRelayerConfig {
             relayer_shutdown_handle: Some(relayer_shutdown_handle),
             sequencer_relayer,
             signing_key,
-            account: address,
-            validator_keyfile,
-            pre_submit_file,
-            post_submit_file,
+            submission_state_file,
+            actual_sequencer_chain_id: self.sequencer_chain_id,
+            actual_celestia_chain_id: self.celestia_chain_id,
+            metrics_handle,
+        };
+
+        test_sequencer_relayer
+            .mount_cometbft_status_response()
+            .await;
+
+        test_sequencer_relayer
+    }
+}
+
+impl Default for TestSequencerRelayerConfig {
+    fn default() -> Self {
+        Self {
+            last_written_sequencer_height: None,
+            only_include_rollups: HashSet::new(),
+            sequencer_chain_id: SEQUENCER_CHAIN_ID.to_string(),
+            celestia_chain_id: CELESTIA_CHAIN_ID.to_string(),
         }
     }
 }
@@ -740,49 +816,28 @@ async fn write_file(data: &'static [u8]) -> NamedTempFile {
     .unwrap()
 }
 
-fn create_files_for_fresh_start() -> (NamedTempFile, NamedTempFile) {
-    let pre = NamedTempFile::new()
-        .expect("must be able to create an empty pre submit state file to run tests");
-    let post = NamedTempFile::new()
-        .expect("must be able to create an empty post submit state file to run tests");
-    serde_json::to_writer(
-        &pre,
-        &json!({
-            "state": "ignore"
-        }),
-    )
-    .expect("must be able to write pre-submit state to run tests");
-    serde_json::to_writer(
-        &post,
-        &json!({
-            "state": "fresh"
-        }),
-    )
-    .expect("must be able to write post-submit state to run tests");
-    (pre, post)
+fn create_file_for_fresh_start() -> NamedTempFile {
+    let temp_file = NamedTempFile::new()
+        .expect("must be able to create an empty submission state file to run tests");
+    serde_json::to_writer(&temp_file, &json!({ "state": "fresh" }))
+        .expect("must be able to write submission state to run tests");
+    temp_file
 }
 
-fn create_files_for_start_at_height(height: u64) -> (NamedTempFile, NamedTempFile) {
-    let pre = NamedTempFile::new()
-        .expect("must be able to create an empty pre submit state file to run tests");
-    let post = NamedTempFile::new()
-        .expect("must be able to create an empty post submit state file to run tests");
-
-    serde_json::to_writer(
-        &pre,
-        &json!({
-            "state": "ignore",
-        }),
-    )
-    .expect("must be able to write pre state to file to run tests");
+fn create_file_for_start_at_height(height: u64) -> NamedTempFile {
+    let temp_file = NamedTempFile::new()
+        .expect("must be able to create an empty submission state file to run tests");
     serde_json::to_writer_pretty(
-        &post,
+        &temp_file,
         &json!({
-            "state": "submitted",
-            "celestia_height": 5,
-            "sequencer_height": height
+            "state": "started",
+            "sequencer_height": height.saturating_add(10),
+            "last_submission": {
+                "celestia_height": 5,
+                "sequencer_height": height
+            }
         }),
     )
-    .expect("must be able to write post state to file to run tests");
-    (pre, post)
+    .expect("must be able to write submission state to run tests");
+    temp_file
 }
