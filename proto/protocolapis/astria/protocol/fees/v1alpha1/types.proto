@@ -49,7 +49,6 @@ message IbcRelayFeeComponents {
   astria.primitive.v1.Uint128 multiplier = 2;
 }
 
-// Deprecated, use `ValidatorUpdateV2FeeComponents` instead.
 message ValidatorUpdateFeeComponents {
   astria.primitive.v1.Uint128 base = 1;
   astria.primitive.v1.Uint128 multiplier = 2;
