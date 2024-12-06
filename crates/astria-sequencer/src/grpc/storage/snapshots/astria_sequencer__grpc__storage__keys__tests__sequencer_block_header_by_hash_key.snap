@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/grpc/storage/keys.rs
-assertion_line: 45
 expression: sequencer_block_header_by_hash(&HASH)
 ---
 grpc/block_header/AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=

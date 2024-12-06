@@ -1,6 +1,5 @@
 ---
 source: crates/astria-sequencer/src/app/storage/keys.rs
-assertion_line: 22
 expression: storage_version_by_height(42)
 ---
 app/storage_version/42

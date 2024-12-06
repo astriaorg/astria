@@ -1046,6 +1046,6 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn genesis_state_is_unchanged() {
-        insta::assert_json_snapshot!(genesis_state());
+        insta::assert_json_snapshot!("genesis_state", genesis_state());
     }
 }
