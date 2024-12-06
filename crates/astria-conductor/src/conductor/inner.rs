@@ -28,6 +28,7 @@ use tracing::{
     warn,
 };
 
+use self::executor::StopHeightExceded;
 use crate::{
     celestia,
     executor,
@@ -133,7 +134,6 @@ impl ConductorInner {
                 sequencer_grpc_client,
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
-                expected_sequencer_chain_id: cfg.expected_sequencer_chain_id.clone(),
                 shutdown: shutdown_token.clone(),
                 executor: executor_handle.clone(),
             }
@@ -155,8 +155,6 @@ impl ConductorInner {
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_requests_per_second: cfg.sequencer_requests_per_second,
-                expected_celestia_chain_id: cfg.expected_celestia_chain_id,
-                expected_sequencer_chain_id: cfg.expected_sequencer_chain_id,
                 shutdown: shutdown_token.clone(),
                 metrics,
             }
@@ -311,6 +309,8 @@ fn check_for_restart(name: &str, err: &eyre::Report) -> bool {
             if status.code() == tonic::Code::PermissionDenied {
                 return true;
             }
+        } else if err.downcast_ref::<StopHeightExceded>().is_some() {
+            return true;
         }
         current = err.source();
     }
@@ -326,6 +326,20 @@ mod tests {
         let tonic_error: Result<&str, tonic::Status> =
             Err(tonic::Status::new(tonic::Code::PermissionDenied, "error"));
         let err = tonic_error.wrap_err("wrapper_1");
+        let err = err.wrap_err("wrapper_2");
+        let err = err.wrap_err("wrapper_3");
+        assert!(super::check_for_restart("executor", &err.unwrap_err()));
+
+        let celestia_height_error: Result<&str, super::StopHeightExceded> =
+            Err(super::StopHeightExceded::Celestia);
+        let err = celestia_height_error.wrap_err("wrapper_1");
+        let err = err.wrap_err("wrapper_2");
+        let err = err.wrap_err("wrapper_3");
+        assert!(super::check_for_restart("executor", &err.unwrap_err()));
+
+        let sequencer_height_error: Result<&str, super::StopHeightExceded> =
+            Err(super::StopHeightExceded::Sequencer);
+        let err = sequencer_height_error.wrap_err("wrapper_1");
         let err = err.wrap_err("wrapper_2");
         let err = err.wrap_err("wrapper_3");
         assert!(super::check_for_restart("executor", &err.unwrap_err()));
