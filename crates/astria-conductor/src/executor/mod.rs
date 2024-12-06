@@ -74,7 +74,7 @@ pub(crate) enum FirmSendError {
     #[error("failed sending blocks to executor")]
     Channel {
         #[from]
-        source: mpsc::error::SendError<ReconstructedBlock>,
+        source: Box<mpsc::error::SendError<ReconstructedBlock>>,
     },
 }
 
@@ -85,7 +85,7 @@ pub(crate) enum FirmTrySendError {
     #[error("failed sending blocks to executor")]
     Channel {
         #[from]
-        source: mpsc::error::TrySendError<ReconstructedBlock>,
+        source: Box<mpsc::error::TrySendError<ReconstructedBlock>>,
     },
 }
 
@@ -149,7 +149,7 @@ impl Handle<StateIsInit> {
         block: ReconstructedBlock,
     ) -> Result<(), FirmSendError> {
         let sender = self.firm_blocks.as_ref().ok_or(FirmSendError::NotSet)?;
-        sender.send(block).await?;
+        sender.send(block).await.map_err(Box::new)?;
         Ok(())
     }
 
@@ -158,7 +158,7 @@ impl Handle<StateIsInit> {
         block: ReconstructedBlock,
     ) -> Result<(), FirmTrySendError> {
         let sender = self.firm_blocks.as_ref().ok_or(FirmTrySendError::NotSet)?;
-        sender.try_send(block)?;
+        sender.try_send(block).map_err(Box::new)?;
         Ok(())
     }
 
