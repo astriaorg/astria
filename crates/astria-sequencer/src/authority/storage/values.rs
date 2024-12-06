@@ -128,6 +128,7 @@ impl<'a> From<ValidatorSet<'a>> for DomainValidatorSet {
                     verification_key: astria_core::crypto::VerificationKey::from(
                         update.verification_key,
                     ),
+                    name: String::new(),
                 };
                 (key, validator_update)
             })

@@ -17,7 +17,6 @@ pub(in crate::fees) const BRIDGE_UNLOCK: &str = "fees/bridge_unlock";
 pub(in crate::fees) const BRIDGE_SUDO_CHANGE: &str = "fees/bridge_sudo_change";
 pub(in crate::fees) const IBC_RELAY: &str = "fees/ibc_relay";
 pub(in crate::fees) const VALIDATOR_UPDATE: &str = "fees/validator_update";
-pub(in crate::fees) const VALIDATOR_UPDATE_V2: &str = "fees/validator_update_v2";
 pub(in crate::fees) const FEE_ASSET_CHANGE: &str = "fees/fee_asset_change";
 pub(in crate::fees) const FEE_CHANGE: &str = "fees/fee_change";
 pub(in crate::fees) const IBC_RELAYER_CHANGE: &str = "fees/ibc_relayer_change";
@@ -82,7 +81,6 @@ mod tests {
         assert_snapshot!("sudo_address_change_fees_key", SUDO_ADDRESS_CHANGE);
         assert_snapshot!("transer_fees_key", TRANSFER);
         assert_snapshot!("validator_update_fees_key", VALIDATOR_UPDATE);
-        assert_snapshot!("validator_update_v2_fees_key", VALIDATOR_UPDATE_V2);
         assert_snapshot!("allowed_asset_key", allowed_asset(&test_asset()));
     }
 
@@ -97,7 +95,6 @@ mod tests {
         assert!(BRIDGE_SUDO_CHANGE.starts_with(COMPONENT_PREFIX));
         assert!(IBC_RELAY.starts_with(COMPONENT_PREFIX));
         assert!(VALIDATOR_UPDATE.starts_with(COMPONENT_PREFIX));
-        assert!(VALIDATOR_UPDATE_V2.starts_with(COMPONENT_PREFIX));
         assert!(FEE_ASSET_CHANGE.starts_with(COMPONENT_PREFIX));
         assert!(FEE_CHANGE.starts_with(COMPONENT_PREFIX));
         assert!(IBC_RELAYER_CHANGE.starts_with(COMPONENT_PREFIX));

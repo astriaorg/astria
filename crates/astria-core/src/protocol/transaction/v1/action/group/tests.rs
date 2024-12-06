@@ -28,7 +28,6 @@ use crate::{
         Transfer,
         TransferFeeComponents,
         ValidatorUpdate,
-        ValidatorUpdateV2,
     },
 };
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
@@ -71,10 +70,6 @@ fn try_from_list_of_actions_bundleable_general() {
             rollup_withdrawal_event_id: String::new(),
         }),
         Action::ValidatorUpdate(ValidatorUpdate {
-            power: 100,
-            verification_key: VerificationKey::try_from([0; 32]).unwrap(),
-        }),
-        Action::ValidatorUpdateV2(ValidatorUpdateV2 {
             power: 100,
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
             name: "test_validator".to_string(),

@@ -77,9 +77,6 @@ impl ActionHandler for FeeChange {
             Self::IbcSudoChange(fees) => state
                 .put_ibc_sudo_change_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
-            Self::ValidatorUpdateV2(fees) => state
-                .put_validator_update_v2_fees(*fees)
-                .wrap_err("failed to put validator update (v2) fees"),
         }
     }
 }

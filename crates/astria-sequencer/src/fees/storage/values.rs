@@ -13,7 +13,6 @@ use astria_core::protocol::fees::v1::{
     SudoAddressChangeFeeComponents,
     TransferFeeComponents,
     ValidatorUpdateFeeComponents,
-    ValidatorUpdateV2FeeComponents,
 };
 use astria_eyre::eyre::bail;
 use borsh::{
@@ -44,7 +43,6 @@ enum ValueImpl {
     IbcRelayerChangeFees(IbcRelayerChangeFeeComponentsStorage),
     IbcSudoChangeFees(IbcSudoChangeFeeComponentsStorage),
     SudoAddressChangeFees(SudoAddressChangeFeeComponentsStorage),
-    ValidatorUpdateV2Fees(ValidatorUpdateV2FeeComponentsStorage),
 }
 
 macro_rules! impl_from_for_fee_component{
@@ -173,12 +171,6 @@ pub(in crate::fees) struct SudoAddressChangeFeeComponentsStorage {
     pub multiplier: u128,
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub(in crate::fees) struct ValidatorUpdateV2FeeComponentsStorage {
-    pub base: u128,
-    pub multiplier: u128,
-}
-
 impl_from_for_fee_component!(
     TransferFeeComponents => TransferFeeComponentsStorage,
     RollupDataSubmissionFeeComponents => RollupDataSubmissionFeeComponentsStorage,
@@ -194,7 +186,6 @@ impl_from_for_fee_component!(
     IbcRelayerChangeFeeComponents => IbcRelayerChangeFeeComponentsStorage,
     IbcSudoChangeFeeComponents => IbcSudoChangeFeeComponentsStorage,
     SudoAddressChangeFeeComponents => SudoAddressChangeFeeComponentsStorage,
-    ValidatorUpdateV2FeeComponents => ValidatorUpdateV2FeeComponentsStorage,
 );
 
 impl_from_for_fee_storage!(
@@ -212,5 +203,4 @@ impl_from_for_fee_storage!(
     IbcRelayerChangeFeeComponentsStorage => IbcRelayerChangeFees,
     IbcSudoChangeFeeComponentsStorage => IbcSudoChangeFees,
     SudoAddressChangeFeeComponentsStorage => SudoAddressChangeFees,
-    ValidatorUpdateV2FeeComponentsStorage => ValidatorUpdateV2Fees,
 );

@@ -39,23 +39,20 @@ impl serde::Serialize for Action {
                 action::Value::SudoAddressChange(v) => {
                     struct_ser.serialize_field("sudoAddressChange", v)?;
                 }
+                action::Value::ValidatorUpdate(v) => {
+                    struct_ser.serialize_field("validatorUpdate", v)?;
+                }
                 action::Value::IbcRelayerChange(v) => {
                     struct_ser.serialize_field("ibcRelayerChange", v)?;
                 }
                 action::Value::FeeAssetChange(v) => {
                     struct_ser.serialize_field("feeAssetChange", v)?;
                 }
-                action::Value::ValidatorUpdateV2(v) => {
-                    struct_ser.serialize_field("validatorUpdateV2", v)?;
-                }
                 action::Value::FeeChange(v) => {
                     struct_ser.serialize_field("feeChange", v)?;
                 }
                 action::Value::IbcSudoChange(v) => {
                     struct_ser.serialize_field("ibcSudoChange", v)?;
-                }
-                action::Value::ValidatorUpdate(v) => {
-                    struct_ser.serialize_field("validatorUpdate", v)?;
                 }
             }
         }
@@ -85,18 +82,16 @@ impl<'de> serde::Deserialize<'de> for Action {
             "ics20Withdrawal",
             "sudo_address_change",
             "sudoAddressChange",
+            "validator_update",
+            "validatorUpdate",
             "ibc_relayer_change",
             "ibcRelayerChange",
             "fee_asset_change",
             "feeAssetChange",
-            "validator_update_v2",
-            "validatorUpdateV2",
             "fee_change",
             "feeChange",
             "ibc_sudo_change",
             "ibcSudoChange",
-            "validator_update",
-            "validatorUpdate",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -110,12 +105,11 @@ impl<'de> serde::Deserialize<'de> for Action {
             Ibc,
             Ics20Withdrawal,
             SudoAddressChange,
+            ValidatorUpdate,
             IbcRelayerChange,
             FeeAssetChange,
-            ValidatorUpdateV2,
             FeeChange,
             IbcSudoChange,
-            ValidatorUpdate,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -146,12 +140,11 @@ impl<'de> serde::Deserialize<'de> for Action {
                             "ibc" => Ok(GeneratedField::Ibc),
                             "ics20Withdrawal" | "ics20_withdrawal" => Ok(GeneratedField::Ics20Withdrawal),
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
+                            "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
                             "ibcRelayerChange" | "ibc_relayer_change" => Ok(GeneratedField::IbcRelayerChange),
                             "feeAssetChange" | "fee_asset_change" => Ok(GeneratedField::FeeAssetChange),
-                            "validatorUpdateV2" | "validator_update_v2" => Ok(GeneratedField::ValidatorUpdateV2),
                             "feeChange" | "fee_change" => Ok(GeneratedField::FeeChange),
                             "ibcSudoChange" | "ibc_sudo_change" => Ok(GeneratedField::IbcSudoChange),
-                            "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -237,6 +230,13 @@ impl<'de> serde::Deserialize<'de> for Action {
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::SudoAddressChange)
 ;
                         }
+                        GeneratedField::ValidatorUpdate => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("validatorUpdate"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::ValidatorUpdate)
+;
+                        }
                         GeneratedField::IbcRelayerChange => {
                             if value__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("ibcRelayerChange"));
@@ -251,13 +251,6 @@ impl<'de> serde::Deserialize<'de> for Action {
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::FeeAssetChange)
 ;
                         }
-                        GeneratedField::ValidatorUpdateV2 => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("validatorUpdateV2"));
-                            }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::ValidatorUpdateV2)
-;
-                        }
                         GeneratedField::FeeChange => {
                             if value__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("feeChange"));
@@ -270,13 +263,6 @@ impl<'de> serde::Deserialize<'de> for Action {
                                 return Err(serde::de::Error::duplicate_field("ibcSudoChange"));
                             }
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcSudoChange)
-;
-                        }
-                        GeneratedField::ValidatorUpdate => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("validatorUpdate"));
-                            }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::ValidatorUpdate)
 ;
                         }
                     }
@@ -959,9 +945,6 @@ impl serde::Serialize for FeeChange {
                 fee_change::FeeComponents::ValidatorUpdate(v) => {
                     struct_ser.serialize_field("validatorUpdate", v)?;
                 }
-                fee_change::FeeComponents::ValidatorUpdateV2(v) => {
-                    struct_ser.serialize_field("validatorUpdateV2", v)?;
-                }
             }
         }
         struct_ser.end()
@@ -1001,8 +984,6 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             "transfer",
             "validator_update",
             "validatorUpdate",
-            "validator_update_v2",
-            "validatorUpdateV2",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -1021,7 +1002,6 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
-            ValidatorUpdateV2,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -1057,7 +1037,6 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "transfer" => Ok(GeneratedField::Transfer),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
-                            "validatorUpdateV2" | "validator_update_v2" => Ok(GeneratedField::ValidatorUpdateV2),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1176,13 +1155,6 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                                 return Err(serde::de::Error::duplicate_field("validatorUpdate"));
                             }
                             fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::ValidatorUpdate)
-;
-                        }
-                        GeneratedField::ValidatorUpdateV2 => {
-                            if fee_components__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("validatorUpdateV2"));
-                            }
-                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::ValidatorUpdateV2)
 ;
                         }
                     }
@@ -2663,7 +2635,7 @@ impl<'de> serde::Deserialize<'de> for Transfer {
         deserializer.deserialize_struct("astria.protocol.transaction.v1.Transfer", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for ValidatorUpdateV2 {
+impl serde::Serialize for ValidatorUpdate {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -2680,7 +2652,7 @@ impl serde::Serialize for ValidatorUpdateV2 {
         if !self.name.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.ValidatorUpdateV2", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.ValidatorUpdate", len)?;
         if let Some(v) = self.pub_key.as_ref() {
             struct_ser.serialize_field("pubKey", v)?;
         }
@@ -2694,7 +2666,7 @@ impl serde::Serialize for ValidatorUpdateV2 {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for ValidatorUpdateV2 {
+impl<'de> serde::Deserialize<'de> for ValidatorUpdate {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -2745,13 +2717,13 @@ impl<'de> serde::Deserialize<'de> for ValidatorUpdateV2 {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = ValidatorUpdateV2;
+            type Value = ValidatorUpdate;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transaction.v1.ValidatorUpdateV2")
+                formatter.write_str("struct astria.protocol.transaction.v1.ValidatorUpdate")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ValidatorUpdateV2, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ValidatorUpdate, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -2782,13 +2754,13 @@ impl<'de> serde::Deserialize<'de> for ValidatorUpdateV2 {
                         }
                     }
                 }
-                Ok(ValidatorUpdateV2 {
+                Ok(ValidatorUpdate {
                     pub_key: pub_key__,
                     power: power__.unwrap_or_default(),
                     name: name__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transaction.v1.ValidatorUpdateV2", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.ValidatorUpdate", FIELDS, GeneratedVisitor)
     }
 }

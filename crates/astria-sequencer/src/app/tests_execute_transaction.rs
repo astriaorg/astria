@@ -11,7 +11,7 @@ use astria_core::{
         fees::v1::{
             InitBridgeAccountFeeComponents,
             RollupDataSubmissionFeeComponents,
-            ValidatorUpdateV2FeeComponents,
+            ValidatorUpdateFeeComponents,
         },
         genesis::v1::GenesisAppState,
         transaction::v1::{
@@ -24,7 +24,6 @@ use astria_core::{
                 SudoAddressChange,
                 Transfer,
                 ValidatorUpdate,
-                ValidatorUpdateV2,
             },
             Action,
             TransactionBody,
@@ -355,6 +354,7 @@ async fn app_execute_transaction_validator_update() {
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
 
     let update = ValidatorUpdate {
+        name: String::new(),
         power: 100,
         verification_key: verification_key(1),
     };
@@ -1338,36 +1338,38 @@ async fn ensure_all_event_attributes_are_indexed() {
 }
 
 #[tokio::test]
-async fn app_execute_transaction_validator_update_v2() {
+async fn app_execute_transaction_validator_update_with_name() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
     let mut app = initialize_app(Some(genesis_state()), vec![]).await;
     let verification_key = crate::benchmark_and_test_utils::verification_key(1);
 
-    let validator_update_v2_fees = ValidatorUpdateV2FeeComponents {
+    let validator_update_fees = ValidatorUpdateFeeComponents {
         base: 0,
         multiplier: 0,
     };
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_validator_update_v2_fees(validator_update_v2_fees)
+        .put_validator_update_fees(validator_update_fees)
         .unwrap();
     app.apply(state_tx);
 
-    let inner_update = ValidatorUpdate {
+    let update = ValidatorUpdate {
+        name: "test".to_string(),
         power: 100,
         verification_key: verification_key.clone(),
     };
-    let update_with_name = ValidatorUpdateV2 {
-        power: inner_update.power,
-        verification_key: inner_update.verification_key.clone(),
-        name: "test_validator".to_string(),
+
+    let update_without_name = ValidatorUpdate {
+        name: String::new(),
+        power: update.power,
+        verification_key: update.verification_key.clone(),
     };
 
     let tx = TransactionBody::builder()
-        .actions(vec![Action::ValidatorUpdateV2(update_with_name.clone())])
+        .actions(vec![Action::ValidatorUpdate(update.clone())])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -1383,12 +1385,12 @@ async fn app_execute_transaction_validator_update_v2() {
     assert_eq!(validator_updates.len(), 1);
     assert_eq!(
         validator_updates.get(&verification_key),
-        Some(&inner_update)
+        Some(&update_without_name)
     );
     let validator_name = app
         .state
         .get_validator_name(verification_key.address_bytes())
         .await
         .unwrap();
-    assert_eq!(validator_name, Some(update_with_name.name));
+    assert_eq!(validator_name, Some(update.name));
 }

@@ -197,7 +197,7 @@ mod tests {
                 TransferFeeComponents,
                 ValidatorUpdateFeeComponents,
             },
-            transaction::v1::action::ValidatorUpdateV2,
+            transaction::v1::action::ValidatorUpdate,
         },
     };
     use cnidarium::{
@@ -602,7 +602,7 @@ mod tests {
         let height = 0u32;
         let power = 100;
 
-        let validator_update = ValidatorUpdateV2 {
+        let validator_update = ValidatorUpdate {
             verification_key: verification_key.clone(),
             power,
             name: "validator_name".to_string(),

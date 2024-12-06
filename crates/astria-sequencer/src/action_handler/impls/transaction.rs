@@ -136,10 +136,6 @@ impl ActionHandler for Transaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for BridgeSudoChange action")?,
-                Action::ValidatorUpdateV2(act) => act
-                    .check_stateless()
-                    .await
-                    .wrap_err("stateless check failed for ValidatorUpdateV2 action")?,
             }
         }
         Ok(())
@@ -266,9 +262,6 @@ impl ActionHandler for Transaction {
                 Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge sudo change")?,
-                Action::ValidatorUpdateV2(act) => check_execute_and_pay_fees(act, &mut state)
-                    .await
-                    .wrap_err("executing validor update v2")?,
             }
         }
 

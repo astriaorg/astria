@@ -121,10 +121,7 @@ mod tests {
 
     use astria_core::protocol::{
         abci::AbciErrorCode,
-        transaction::v1::action::{
-            ValidatorUpdate,
-            ValidatorUpdateV2,
-        },
+        transaction::v1::action::ValidatorUpdate,
     };
     use cnidarium::StateDelta;
     use tendermint::abci::request;
@@ -151,7 +148,7 @@ mod tests {
         let key_address_bytes = *verification_key.clone().address_bytes();
         let validator_name = "test".to_string();
 
-        let update_with_name = ValidatorUpdateV2 {
+        let update_with_name = ValidatorUpdate {
             name: validator_name.clone(),
             power: 100,
             verification_key,
@@ -203,6 +200,7 @@ mod tests {
         let inner_update = ValidatorUpdate {
             power: 100,
             verification_key,
+            name: "test".to_string(),
         };
 
         let rsp = validator_name_request(storage.clone(), query.clone(), params.clone()).await;
@@ -244,6 +242,7 @@ mod tests {
         let inner_update = ValidatorUpdate {
             power: 100,
             verification_key,
+            name: "test".to_string(),
         };
 
         let inner_validator_map = BTreeMap::new();

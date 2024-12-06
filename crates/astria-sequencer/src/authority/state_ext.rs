@@ -237,6 +237,7 @@ mod tests {
         let initial = vec![ValidatorUpdate {
             power: 10,
             verification_key: verification_key(1),
+            name: String::new(),
         }];
         let initial_validator_set = ValidatorSet::new_from_updates(initial);
 
@@ -257,6 +258,7 @@ mod tests {
         let updates = vec![ValidatorUpdate {
             power: 20,
             verification_key: verification_key(2),
+            name: String::new(),
         }];
         let updated_validator_set = ValidatorSet::new_from_updates(updates);
         state
@@ -300,10 +302,12 @@ mod tests {
             ValidatorUpdate {
                 power: 10,
                 verification_key: verification_key(1),
+                name: String::new(),
             },
             ValidatorUpdate {
                 power: 0,
                 verification_key: verification_key(2),
+                name: String::new(),
             },
         ];
         let mut validator_set_updates = ValidatorSet::new_from_updates(updates);
@@ -326,10 +330,12 @@ mod tests {
             ValidatorUpdate {
                 power: 22,
                 verification_key: verification_key(1),
+                name: String::new(),
             },
             ValidatorUpdate {
                 power: 10,
                 verification_key: verification_key(3),
+                name: String::new(),
             },
         ];
 
@@ -359,6 +365,7 @@ mod tests {
         let updates = vec![ValidatorUpdate {
             power: 10,
             verification_key: verification_key(1),
+            name: String::new(),
         }];
         let validator_set_updates = ValidatorSet::new_from_updates(updates);
 
@@ -406,14 +413,17 @@ mod tests {
             ValidatorUpdate {
                 power: 1,
                 verification_key: verification_key(0),
+                name: "test0".to_string(),
             },
             ValidatorUpdate {
                 power: 2,
                 verification_key: verification_key(1),
+                name: "test1".to_string(),
             },
             ValidatorUpdate {
                 power: 3,
                 verification_key: verification_key(2),
+                name: "test2".to_string(),
             },
         ];
         let mut initial_validator_set = ValidatorSet::new_from_updates(initial);
@@ -423,10 +433,12 @@ mod tests {
             ValidatorUpdate {
                 power: 5,
                 verification_key: verification_key(0),
+                name: "test0".to_string(),
             },
             ValidatorUpdate {
                 power: 0,
                 verification_key: verification_key(1),
+                name: "test1".to_string(),
             },
         ];
 
@@ -440,10 +452,12 @@ mod tests {
             ValidatorUpdate {
                 power: 5,
                 verification_key: verification_key(0),
+                name: "test0".to_string(),
             },
             ValidatorUpdate {
                 power: 3,
                 verification_key: verification_key(2),
+                name: "test2".to_string(),
             },
         ];
         let validator_set_endstate = ValidatorSet::new_from_updates(updates);

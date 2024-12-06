@@ -17,5 +17,4 @@ pub(super) use values::{
     SudoAddressChangeFeeComponentsStorage,
     TransferFeeComponentsStorage,
     ValidatorUpdateFeeComponentsStorage,
-    ValidatorUpdateV2FeeComponentsStorage,
 };

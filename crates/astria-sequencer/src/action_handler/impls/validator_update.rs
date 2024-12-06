@@ -1,7 +1,4 @@
-use astria_core::protocol::transaction::v1::action::{
-    ValidatorUpdate,
-    ValidatorUpdateV2,
-};
+use astria_core::protocol::transaction::v1::action::ValidatorUpdate;
 use astria_eyre::eyre::{
     bail,
     ensure,
@@ -65,25 +62,8 @@ impl ActionHandler for ValidatorUpdate {
         state
             .put_validator_updates(validator_updates)
             .wrap_err("failed to put validator updates in state")?;
-        Ok(())
-    }
-}
 
-#[async_trait::async_trait]
-impl ActionHandler for ValidatorUpdateV2 {
-    async fn check_stateless(&self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let inner_update = ValidatorUpdate {
-            verification_key: self.verification_key.clone(),
-            power: self.power,
-        };
-        inner_update
-            .check_and_execute(&mut state)
-            .await
-            .wrap_err("failed to execute inner validator update")?;
+        // TODO: add logic here to only update after certain height
         match self.power {
             0 => {
                 state.remove_validator_name(self.verification_key.address_bytes());
@@ -94,6 +74,7 @@ impl ActionHandler for ValidatorUpdateV2 {
                     .wrap_err("failed to put validator name in state")?;
             }
         }
+
         Ok(())
     }
 }

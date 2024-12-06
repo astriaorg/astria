@@ -268,7 +268,6 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     let bridge_unlock_fees = OnceCell::new();
     let bridge_sudo_change_fees = OnceCell::new();
     let validator_update_fees = OnceCell::new();
-    let validator_update_v2_fees = OnceCell::new();
     let sudo_address_change_fees = OnceCell::new();
     let ibc_sudo_change_fees = OnceCell::new();
     let ibc_relay_fees = OnceCell::new();
@@ -392,15 +391,6 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     .wrap_err("failed to get validator update fees")?
                     .ok_or_eyre(
                         "fees not found for `ValidatorUpdate` action, hence it is disabled",
-                    )?;
-            }
-            Action::ValidatorUpdateV2(_) => {
-                validator_update_v2_fees
-                    .get_or_try_init(|| async { state.get_validator_update_v2_fees().await })
-                    .await
-                    .wrap_err("failed to get validator update v2 fees")?
-                    .ok_or_eyre(
-                        "fees not found for `ValidatorUpdateV2` action, hence it is disabled",
                     )?;
             }
             Action::SudoAddressChange(_) => {
