@@ -14,7 +14,7 @@ env:
   REGISTRY: ghcr.io
   FULL_REF: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
   # This must match the entry in rust-toolchain.toml at the repository root
-  RUSTUP_TOOLCHAIN: "1.81.0"
+  RUSTUP_TOOLCHAIN: "1.83.0"
 
 jobs:
   upload-binaries:

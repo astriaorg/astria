@@ -120,7 +120,7 @@ pin_project! {
     }
 }
 
-impl<'a, T> Future for NextBlock<'a, T> {
+impl<T> Future for NextBlock<'_, T> {
     type Output = Option<T>;
 
     fn poll(
