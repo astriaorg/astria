@@ -141,7 +141,7 @@ impl<'a, TLeaf, TRoot> Audit<'a, TLeaf, TRoot> {
     }
 }
 
-impl<'a, TRoot> Audit<'a, WithLeafHash, TRoot> {
+impl<TRoot> Audit<'_, WithLeafHash, TRoot> {
     /// Reconstruct the root hash using the leaf hash stored in the [`WithLeafHash`] state.
     ///
     /// # Examples
@@ -171,7 +171,7 @@ impl<'a, TRoot> Audit<'a, WithLeafHash, TRoot> {
     }
 }
 
-impl<'a> Audit<'a, WithLeafHash, WithRoot> {
+impl Audit<'_, WithLeafHash, WithRoot> {
     /// Check if the leaf is included in the tree using the internal proof.
     ///
     /// This method reconstructs a Merkle tree root starting from the
