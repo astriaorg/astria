@@ -39,12 +39,8 @@ use crate::{
 ///
 /// Verified to only contain valid fields (right now, addresses that have the same base prefix
 /// as set in `GenesisState::address_prefixes::base`).
-#[derive(Clone, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Deserialize, serde::Serialize),
-    serde(try_from = "raw::GenesisAppState", into = "raw::GenesisAppState")
-)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(try_from = "raw::GenesisAppState", into = "raw::GenesisAppState")]
 pub struct GenesisAppState {
     chain_id: String,
     address_prefixes: AddressPrefixes,
@@ -1043,7 +1039,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "serde")]
     #[test]
     fn genesis_state_is_unchanged() {
         insta::assert_json_snapshot!("genesis_state", genesis_state());

@@ -50,7 +50,6 @@ astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = [
   "celestia",
   "client",
-  "serde",
   "brotli",
 ] }
 astria-eyre = { path = "../astria-eyre" }
