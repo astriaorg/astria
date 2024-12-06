@@ -36,8 +36,9 @@ impl Command {
 
 #[derive(Debug, Subcommand)]
 enum SubCommand {
-    /// Commands for interacting with Sequencer accounts
+    /// Collect withdrawals actions
     CollectWithdrawals(collect::Command),
+    /// Submit collected withdrawal actions
     SubmitWithdrawals(submit::Command),
 }
 
