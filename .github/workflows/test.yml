@@ -162,7 +162,7 @@ jobs:
           cargo nextest run --archive-file=archive.tar.zst
 
   rust-ethereum:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04-8
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
