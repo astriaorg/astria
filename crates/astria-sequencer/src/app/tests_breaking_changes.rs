@@ -82,7 +82,7 @@ use crate::{
 #[tokio::test]
 async fn app_genesis_snapshot() {
     let app = initialize_app(None, vec![]).await;
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_at_genesis", app.app_hash.as_bytes());
 }
 
 #[tokio::test]
@@ -162,7 +162,7 @@ async fn app_finalize_block_snapshot() {
         .await
         .unwrap();
     app.commit(storage.clone()).await;
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_finalize_block", app.app_hash.as_bytes());
 }
 
 // Note: this tests every action except for `Ics20Withdrawal` and `IbcRelay`.
@@ -370,5 +370,5 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_execute_every_action", app.app_hash.as_bytes());
 }
