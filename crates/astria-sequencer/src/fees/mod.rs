@@ -132,9 +132,7 @@ pub(crate) trait FeeHandler: Send {
         let from = transaction_context.address_bytes();
         let position_in_transaction = transaction_context.position_in_transaction;
 
-        state
-            .add_fee_to_block_fees::<_, Self>(fee_asset, total_fees, position_in_transaction)
-            .wrap_err("failed to add to block fees")?;
+        state.add_fee_to_block_fees::<_, Self>(fee_asset, total_fees, position_in_transaction);
         state
             .decrease_balance(&from, fee_asset, total_fees)
             .await

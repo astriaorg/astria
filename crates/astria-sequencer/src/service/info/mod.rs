@@ -219,7 +219,7 @@ mod tests {
     #[tokio::test]
     async fn handle_balance_query() {
         use astria_core::{
-            generated::protocol::accounts::v1 as raw,
+            generated::astria::protocol::accounts::v1 as raw,
             protocol::account::v1::AssetBalance,
         };
 
@@ -286,7 +286,7 @@ mod tests {
 
     #[tokio::test]
     async fn handle_denom_query() {
-        use astria_core::generated::protocol::asset::v1 as raw;
+        use astria_core::generated::astria::protocol::asset::v1 as raw;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());
@@ -330,7 +330,7 @@ mod tests {
 
     #[tokio::test]
     async fn handle_allowed_fee_assets_query() {
-        use astria_core::generated::protocol::asset::v1 as raw;
+        use astria_core::generated::astria::protocol::asset::v1 as raw;
 
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let mut state = StateDelta::new(storage.latest_snapshot());

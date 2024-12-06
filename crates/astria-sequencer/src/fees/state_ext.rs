@@ -135,8 +135,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         asset: &'a TAsset,
         amount: u128,
         position_in_transaction: u64,
-    ) -> Result<()>
-    where
+    ) where
         TAsset: Sync + std::fmt::Display,
         asset::IbcPrefixed: From<&'a TAsset>,
     {
@@ -161,7 +160,6 @@ pub(crate) trait StateWriteExt: StateWrite {
         };
 
         self.object_put(keys::BLOCK, new_fees);
-        Ok(())
     }
 
     #[instrument(skip_all)]
@@ -260,9 +258,7 @@ mod tests {
         // can write
         let asset = asset_0();
         let amount = 100u128;
-        state
-            .add_fee_to_block_fees::<_, Transfer>(&asset, amount, 0)
-            .unwrap();
+        state.add_fee_to_block_fees::<_, Transfer>(&asset, amount, 0);
 
         // holds expected
         let fee_balances_updated = state.get_block_fees();
@@ -290,12 +286,8 @@ mod tests {
         let amount_first = 100u128;
         let amount_second = 200u128;
 
-        state
-            .add_fee_to_block_fees::<_, Transfer>(&asset_first, amount_first, 0)
-            .unwrap();
-        state
-            .add_fee_to_block_fees::<_, Transfer>(&asset_second, amount_second, 1)
-            .unwrap();
+        state.add_fee_to_block_fees::<_, Transfer>(&asset_first, amount_first, 0);
+        state.add_fee_to_block_fees::<_, Transfer>(&asset_second, amount_second, 1);
         // holds expected
         let fee_balances = HashSet::<_>::from_iter(state.get_block_fees());
         assert_eq!(

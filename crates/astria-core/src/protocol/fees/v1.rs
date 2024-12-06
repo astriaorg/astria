@@ -11,7 +11,7 @@ use penumbra_ibc::IbcRelay;
 use prost::Name as _;
 
 use crate::{
-    generated::protocol::fees::v1 as raw,
+    generated::astria::protocol::fees::v1 as raw,
     primitive::v1::asset,
     protocol::transaction::v1::action::{
         BridgeLock,
