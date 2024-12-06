@@ -37,6 +37,7 @@ use cnidarium::StateDelta;
 use super::base_deposit_fee;
 use crate::{
     accounts::StateWriteExt as _,
+    action_handler::ActionHandler as _,
     address::StateWriteExt as _,
     app::{
         benchmark_and_test_utils::{
@@ -47,7 +48,6 @@ use crate::{
             get_alice_signing_key,
             get_bridge_signing_key,
         },
-        ActionHandler as _,
     },
     benchmark_and_test_utils::{
         assert_eyre_error,
@@ -334,7 +334,7 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
     state.put_transaction_context(TransactionContext {
         address_bytes: from_address.bytes(),
         transaction_id,
-        source_action_index: 0,
+        position_in_transaction: 0,
     });
     state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
@@ -445,7 +445,7 @@ fn get_base_deposit_fee() {
         .slice(&[0u8; ADDRESS_LEN][..])
         .try_build()
         .unwrap();
-    let raw_deposit = astria_core::generated::sequencerblock::v1::Deposit {
+    let raw_deposit = astria_core::generated::astria::sequencerblock::v1::Deposit {
         bridge_address: Some(bridge_address.to_raw()),
         rollup_id: Some(RollupId::from_unhashed_bytes([0; ROLLUP_ID_LEN]).to_raw()),
         amount: Some(1000.into()),

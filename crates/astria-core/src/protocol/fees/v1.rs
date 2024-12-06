@@ -1,7 +1,7 @@
 use prost::Name as _;
 
 use crate::{
-    generated::protocol::fees::v1 as raw,
+    generated::astria::protocol::fees::v1 as raw,
     primitive::v1::asset,
     Protobuf,
 };
