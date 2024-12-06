@@ -98,8 +98,8 @@ impl BlobSubmitterHandle {
     pub(super) fn try_send(
         &self,
         block: SequencerBlock,
-    ) -> Result<(), TrySendError<SequencerBlock>> {
-        self.tx.try_send(block)
+    ) -> Result<(), Box<TrySendError<SequencerBlock>>> {
+        self.tx.try_send(block).map_err(Box::new)
     }
 
     /// Sends a block to the blob submitter.
