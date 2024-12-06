@@ -302,7 +302,7 @@ impl Relayer {
             block_stream.pause();
             debug!("block stream paused");
 
-            match error {
+            match *error {
                 TrySendError::Full(block) => {
                     *forward = async move { submitter.send(block).await }.boxed().fuse();
                 }
