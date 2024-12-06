@@ -43,7 +43,10 @@ use cnidarium::{
 use futures::Stream;
 use pin_project_lite::pin_project;
 use tendermint::abci::Event;
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::{
     storage::{
@@ -96,7 +99,7 @@ pub(crate) trait StateReadExt: StateRead {
         self.object_get(keys::BLOCK).unwrap_or_default()
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_transfer_fees(&self) -> Result<Option<TransferFeeComponents>> {
         let bytes = self
             .get_raw(keys::TRANSFER)
@@ -114,7 +117,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_rollup_data_submission_fees(
         &self,
     ) -> Result<Option<RollupDataSubmissionFeeComponents>> {
@@ -134,7 +137,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_ics20_withdrawal_fees(&self) -> Result<Option<Ics20WithdrawalFeeComponents>> {
         let bytes = self
             .get_raw(keys::ICS20_WITHDRAWAL)
@@ -152,7 +155,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_init_bridge_account_fees(&self) -> Result<Option<InitBridgeAccountFeeComponents>> {
         let bytes = self
             .get_raw(keys::INIT_BRIDGE_ACCOUNT)
@@ -170,7 +173,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_bridge_lock_fees(&self) -> Result<Option<BridgeLockFeeComponents>> {
         let bytes = self
             .get_raw(keys::BRIDGE_LOCK)
@@ -188,7 +191,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_bridge_unlock_fees(&self) -> Result<Option<BridgeUnlockFeeComponents>> {
         let bytes = self
             .get_raw(keys::BRIDGE_UNLOCK)
@@ -206,7 +209,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_bridge_sudo_change_fees(&self) -> Result<Option<BridgeSudoChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::BRIDGE_SUDO_CHANGE)
@@ -224,7 +227,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_ibc_relay_fees(&self) -> Result<Option<IbcRelayFeeComponents>> {
         let bytes = self
             .get_raw(keys::IBC_RELAY)
@@ -242,7 +245,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_validator_update_fees(&self) -> Result<Option<ValidatorUpdateFeeComponents>> {
         let bytes = self
             .get_raw(keys::VALIDATOR_UPDATE)
@@ -260,7 +263,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_fee_asset_change_fees(&self) -> Result<Option<FeeAssetChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::FEE_ASSET_CHANGE)
@@ -278,7 +281,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_fee_change_fees(&self) -> Result<Option<FeeChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::FEE_CHANGE)
@@ -296,7 +299,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_ibc_relayer_change_fees(&self) -> Result<Option<IbcRelayerChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::IBC_RELAYER_CHANGE)
@@ -314,7 +317,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_sudo_address_change_fees(&self) -> Result<Option<SudoAddressChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::SUDO_ADDRESS_CHANGE)
@@ -332,7 +335,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_ibc_sudo_change_fees(&self) -> Result<Option<IbcSudoChangeFeeComponents>> {
         let bytes = self
             .get_raw(keys::IBC_SUDO_CHANGE)
@@ -350,7 +353,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn is_allowed_fee_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
         TAsset: Sync,
@@ -376,8 +379,9 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
+    // TODO(https://github.com/astriaorg/astria/issues/1845): This doesn't need to return a result
     /// Constructs and adds `Fee` object to the block fees vec.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn add_fee_to_block_fees<'a, TAsset, T: FeeHandler + Protobuf>(
         &mut self,
         asset: &'a TAsset,
@@ -410,7 +414,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.object_put(keys::BLOCK, new_fees);
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_transfer_fees(&mut self, fees: TransferFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::TransferFeeComponentsStorage::from(fees))
             .serialize()
@@ -419,7 +423,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_rollup_data_submission_fees(
         &mut self,
         fees: RollupDataSubmissionFeeComponents,
@@ -433,7 +437,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_ics20_withdrawal_fees(&mut self, fees: Ics20WithdrawalFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::Ics20WithdrawalFeeComponentsStorage::from(fees))
             .serialize()
@@ -442,7 +446,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_init_bridge_account_fees(&mut self, fees: InitBridgeAccountFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::InitBridgeAccountFeeComponentsStorage::from(fees))
             .serialize()
@@ -451,7 +455,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_bridge_lock_fees(&mut self, fees: BridgeLockFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::BridgeLockFeeComponentsStorage::from(fees))
             .serialize()
@@ -460,7 +464,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_bridge_unlock_fees(&mut self, fees: BridgeUnlockFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::BridgeUnlockFeeComponentsStorage::from(fees))
             .serialize()
@@ -469,7 +473,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_bridge_sudo_change_fees(&mut self, fees: BridgeSudoChangeFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::BridgeSudoChangeFeeComponentsStorage::from(fees))
             .serialize()
@@ -478,7 +482,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_ibc_relay_fees(&mut self, fees: IbcRelayFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::IbcRelayFeeComponentsStorage::from(fees))
             .serialize()
@@ -487,7 +491,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_validator_update_fees(&mut self, fees: ValidatorUpdateFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::ValidatorUpdateFeeComponentsStorage::from(fees))
             .serialize()
@@ -496,7 +500,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_fee_asset_change_fees(&mut self, fees: FeeAssetChangeFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::FeeAssetChangeFeeComponentsStorage::from(fees))
             .serialize()
@@ -505,7 +509,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_fee_change_fees(&mut self, fees: FeeChangeFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::FeeChangeFeeComponentsStorage::from(fees))
             .serialize()
@@ -514,7 +518,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_ibc_relayer_change_fees(&mut self, fees: IbcRelayerChangeFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::IbcRelayerChangeFeeComponentsStorage::from(fees))
             .serialize()
@@ -523,7 +527,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_sudo_address_change_fees(&mut self, fees: SudoAddressChangeFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::SudoAddressChangeFeeComponentsStorage::from(fees))
             .serialize()
@@ -532,7 +536,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_ibc_sudo_change_fees(&mut self, fees: IbcSudoChangeFeeComponents) -> Result<()> {
         let bytes = StoredValue::from(storage::IbcSudoChangeFeeComponentsStorage::from(fees))
             .serialize()
@@ -549,7 +553,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.delete(keys::allowed_asset(asset));
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset) -> Result<()>
     where
         &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,

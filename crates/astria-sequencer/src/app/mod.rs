@@ -79,6 +79,7 @@ use tracing::{
     debug,
     info,
     instrument,
+    Level,
 };
 
 pub(crate) use self::state_ext::{
@@ -235,6 +236,7 @@ pub(crate) struct App {
 }
 
 impl App {
+    #[instrument(name = "App::new", skip_all, err)]
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
@@ -268,7 +270,7 @@ impl App {
         })
     }
 
-    #[instrument(name = "App:init_chain", skip_all)]
+    #[instrument(name = "App:init_chain", skip_all, err)]
     pub(crate) async fn init_chain(
         &mut self,
         storage: Storage,
@@ -355,7 +357,7 @@ impl App {
     /// It puts this special "commitment" as the first transaction in a block.
     /// When other validators receive the block, they know the first transaction is
     /// supposed to be the commitment, and verifies that is it correct.
-    #[instrument(name = "App::prepare_proposal", skip_all)]
+    #[instrument(name = "App::prepare_proposal", skip_all, err(level = Level::WARN))]
     pub(crate) async fn prepare_proposal(
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
@@ -405,7 +407,7 @@ impl App {
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip_all)]
+    #[instrument(name = "App::process_proposal", skip_all, err(level = Level::WARN))]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
@@ -565,7 +567,7 @@ impl App {
     ///
     /// As a result, all transactions in a sequencer block are guaranteed to execute
     /// successfully.
-    #[instrument(name = "App::execute_transactions_prepare_proposal", skip_all)]
+    #[instrument(name = "App::execute_transactions_prepare_proposal", skip_all, err(level = Level::DEBUG))]
     async fn execute_transactions_prepare_proposal(
         &mut self,
         block_size_constraints: &mut BlockSizeConstraints,
@@ -745,7 +747,7 @@ impl App {
     ///
     /// As a result, all transactions in a sequencer block are guaranteed to execute
     /// successfully.
-    #[instrument(name = "App::execute_transactions_process_proposal", skip_all)]
+    #[instrument(name = "App::execute_transactions_process_proposal", skip_all, err(level = Level::DEBUG))]
     async fn execute_transactions_process_proposal(
         &mut self,
         txs: Vec<Transaction>,
@@ -823,7 +825,7 @@ impl App {
     ///
     /// this *must* be called anytime before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
-    #[instrument(name = "App::pre_execute_transactions", skip_all, err)]
+    #[instrument(name = "App::pre_execute_transactions", skip_all, err(level = Level::WARN))]
     async fn pre_execute_transactions(&mut self, block_data: BlockData) -> Result<()> {
         let chain_id = self
             .state
@@ -878,7 +880,7 @@ impl App {
     /// `SequencerBlock`.
     ///
     /// this must be called after a block's transactions are executed.
-    #[instrument(name = "App::post_execute_transactions", skip_all)]
+    #[instrument(name = "App::post_execute_transactions", skip_all, err(level = Level::WARN))]
     async fn post_execute_transactions(
         &mut self,
         block_hash: Hash,
@@ -962,7 +964,7 @@ impl App {
     ///
     /// This is called by cometbft after the block has already been
     /// committed by the network's consensus.
-    #[instrument(name = "App::finalize_block", skip_all)]
+    #[instrument(name = "App::finalize_block", skip_all, err)]
     pub(crate) async fn finalize_block(
         &mut self,
         finalize_block: abci::request::FinalizeBlock,
@@ -1076,7 +1078,7 @@ impl App {
         Ok(finalize_block)
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn prepare_commit(&mut self, storage: Storage) -> Result<AppHash> {
         // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
@@ -1113,7 +1115,7 @@ impl App {
         Ok(app_hash)
     }
 
-    #[instrument(name = "App::begin_block", skip_all)]
+    #[instrument(name = "App::begin_block", skip_all, err(level = Level::WARN))]
     async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
@@ -1149,7 +1151,7 @@ impl App {
     }
 
     /// Executes a signed transaction.
-    #[instrument(name = "App::execute_transaction", skip_all)]
+    #[instrument(name = "App::execute_transaction", skip_all, err(level = Level::DEBUG))]
     async fn execute_transaction(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<Event>> {
         signed_tx
             .check_stateless()
@@ -1186,7 +1188,7 @@ impl App {
         Ok(events)
     }
 
-    #[instrument(name = "App::end_block", skip_all)]
+    #[instrument(name = "App::end_block", skip_all, err(level = Level::WARN))]
     async fn end_block(
         &mut self,
         height: u64,
