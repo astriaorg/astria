@@ -13,6 +13,10 @@ spec:
     - name: ws-rpc-svc
       port: {{ .Values.ports.wsRPC }}
       targetPort: ws-rpc
+    - name: execution-grpc-svc
+    # TODO: this service should be served over UDS
+      port: {{ .Values.ports.executionGRPC }}
+      targetPort: bundle-grpc
 ---
 {{- if .Values.metrics.enabled }}
 kind: Service
