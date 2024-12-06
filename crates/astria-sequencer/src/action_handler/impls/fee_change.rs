@@ -92,6 +92,7 @@ mod tests {
         action_handler::ActionHandler as _,
         authority::StateWriteExt as _,
         fees::StateReadExt as _,
+        storage::Storage,
         transaction::{
             StateWriteExt as _,
             TransactionContext,
@@ -109,19 +110,18 @@ mod tests {
                     async fn [< $fee_name _fee_change_action_executes >] () {
                         use astria_core::protocol::fees::v1:: [< $fee_ty FeeComponents >] as Fees;
 
-                        let storage = cnidarium::TempStorage::new().await.unwrap();
-                        let snapshot = storage.latest_snapshot();
-                        let mut state = cnidarium::StateDelta::new(snapshot);
+                        let storage = Storage::new_temp().await;
+                        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
                         // Put the context to enable the txs to execute.
-                        state.put_transaction_context(TransactionContext {
+                        state_delta.put_transaction_context(TransactionContext {
                             address_bytes: [1; 20],
                             transaction_id: TransactionId::new([0; 32]),
                             position_in_transaction: 0,
                         });
-                        state.put_sudo_address([1; 20]).unwrap();
+                        state_delta.put_sudo_address([1; 20]).unwrap();
 
-                        assert!(state
+                        assert!(state_delta
                             .[< get_ $fee_name _fees >] ()
                             .await
                             .expect(stringify!(should not error fetching unstored $fee_name fees))
@@ -133,9 +133,9 @@ mod tests {
                             multiplier: 2,
                         };
                         let fee_change = FeeChange:: $fee_ty (initial_fees);
-                        fee_change.check_and_execute(&mut state).await.unwrap();
+                        fee_change.check_and_execute(&mut state_delta).await.unwrap();
 
-                        let retrieved_fees = state
+                        let retrieved_fees = state_delta
                             .[< get_ $fee_name _fees >] ()
                             .await
                             .expect(stringify!(should not error fetching initial $fee_name fees))
@@ -148,9 +148,9 @@ mod tests {
                             multiplier: 4,
                         };
                         let fee_change = FeeChange:: $fee_ty (new_fees);
-                        fee_change.check_and_execute(&mut state).await.unwrap();
+                        fee_change.check_and_execute(&mut state_delta).await.unwrap();
 
-                        let retrieved_fees = state
+                        let retrieved_fees = state_delta
                             .[< get_ $fee_name _fees >] ()
                             .await
                             .expect(stringify!(should not error fetching new $fee_name fees))

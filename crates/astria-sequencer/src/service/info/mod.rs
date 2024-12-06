@@ -8,7 +8,6 @@ use std::{
 
 use astria_core::protocol::abci::AbciErrorCode;
 use astria_eyre::eyre::WrapErr as _;
-use cnidarium::Storage;
 use futures::{
     Future,
     FutureExt,
@@ -30,12 +29,11 @@ use tracing::{
     Instrument as _,
 };
 
+use crate::storage::Storage;
+
 mod abci_query_router;
 
-use astria_eyre::{
-    anyhow_to_eyre,
-    eyre::Result,
-};
+use astria_eyre::eyre::Result;
 
 use crate::app::StateReadExt as _;
 
@@ -100,7 +98,6 @@ impl Info {
                     .latest_snapshot()
                     .root_hash()
                     .await
-                    .map_err(anyhow_to_eyre)
                     .wrap_err("failed to get app hash")?;
 
                 let response = InfoResponse::Info(response::Info {
@@ -145,7 +142,7 @@ impl Info {
                 (handler, params)
             }
         };
-        handler.call(self.storage.clone(), request, params).await
+        handler.call(self.storage, request, params).await
     }
 }
 
@@ -193,10 +190,7 @@ mod tests {
             },
         },
     };
-    use cnidarium::{
-        StateDelta,
-        StateWrite,
-    };
+    use cnidarium::StateDelta;
     use prost::Message as _;
     use tendermint::v0_38::abci::{
         request,
@@ -218,6 +212,10 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
+        storage::{
+            Snapshot,
+            Storage,
+        },
     };
 
     #[tokio::test]
@@ -227,31 +225,30 @@ mod tests {
             protocol::account::v1::AssetBalance,
         };
 
-        let storage = cnidarium::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
+        let storage = Storage::new_temp().await;
+
         let height = 99;
         let version = storage.latest_version().wrapping_add(1);
-        let mut state = StateDelta::new(storage.latest_snapshot());
-        state
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
+        state_delta
             .put_storage_version_by_height(height, version)
             .unwrap();
 
-        state.put_base_prefix("astria".to_string()).unwrap();
-        state.put_native_asset(nria()).unwrap();
-        state.put_ibc_asset(nria()).unwrap();
+        state_delta.put_base_prefix("astria".to_string()).unwrap();
+        state_delta.put_native_asset(nria()).unwrap();
+        state_delta.put_ibc_asset(nria()).unwrap();
 
-        let address = state
+        let address = state_delta
             .try_base_prefixed(&hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap())
             .await
             .unwrap();
 
         let balance = 1000;
-        state
+        state_delta
             .put_account_balance(&address, &nria(), balance)
             .unwrap();
-        state.put_block_height(height).unwrap();
-        storage.commit(state).await.unwrap();
+        state_delta.put_block_height(height).unwrap();
+        storage.commit(state_delta).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
             path: format!("accounts/balance/{address}"),
@@ -261,7 +258,7 @@ mod tests {
         });
 
         let response = {
-            let storage = (*storage).clone();
+            let storage = storage.clone();
             let info_service = Info::new(storage).unwrap();
             info_service
                 .handle_info_request(info_request)
@@ -292,14 +289,14 @@ mod tests {
     async fn handle_denom_query() {
         use astria_core::generated::astria::protocol::asset::v1 as raw;
 
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let mut state = StateDelta::new(storage.latest_snapshot());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let denom: asset::TracePrefixed = "some/ibc/asset".parse().unwrap();
         let height = 99;
-        state.put_block_height(height).unwrap();
-        state.put_ibc_asset(denom.clone()).unwrap();
-        storage.commit(state).await.unwrap();
+        state_delta.put_block_height(height).unwrap();
+        state_delta.put_ibc_asset(denom.clone()).unwrap();
+        storage.commit(state_delta).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
             path: format!(
@@ -312,7 +309,7 @@ mod tests {
         });
 
         let response = {
-            let storage = (*storage).clone();
+            let storage = storage.clone();
             let info_service = Info::new(storage).unwrap();
             info_service
                 .handle_info_request(info_request)
@@ -336,8 +333,8 @@ mod tests {
     async fn handle_allowed_fee_assets_query() {
         use astria_core::generated::astria::protocol::asset::v1 as raw;
 
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let mut state = StateDelta::new(storage.latest_snapshot());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let assets = vec![
             "asset_0".parse::<asset::Denom>().unwrap(),
@@ -347,17 +344,17 @@ mod tests {
         let height = 99;
 
         for asset in &assets {
-            state.put_allowed_fee_asset(asset).unwrap();
+            state_delta.put_allowed_fee_asset(asset).unwrap();
             assert!(
-                state
+                state_delta
                     .is_allowed_fee_asset(asset)
                     .await
                     .expect("checking for allowed fee asset should not fail"),
                 "fee asset was expected to be allowed"
             );
         }
-        state.put_block_height(height).unwrap();
-        storage.commit(state).await.unwrap();
+        state_delta.put_block_height(height).unwrap();
+        storage.commit(state_delta).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
             path: "asset/allowed_fee_assets".to_string(),
@@ -367,7 +364,7 @@ mod tests {
         });
 
         let response = {
-            let storage = (*storage).clone();
+            let storage = storage.clone();
             let info_service = Info::new(storage).unwrap();
             info_service
                 .handle_info_request(info_request)
@@ -398,14 +395,14 @@ mod tests {
 
     #[tokio::test]
     async fn handle_fee_components() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let mut state = StateDelta::new(storage.latest_snapshot());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let height = 99;
 
-        state.put_block_height(height).unwrap();
-        write_all_the_fees(&mut state);
-        storage.commit(state).await.unwrap();
+        state_delta.put_block_height(height).unwrap();
+        write_all_the_fees(&mut state_delta);
+        storage.commit(state_delta).await.unwrap();
 
         let info_request = InfoRequest::Query(request::Query {
             path: "fees/components".to_string(),
@@ -415,7 +412,7 @@ mod tests {
         });
 
         let response = {
-            let storage = (*storage).clone();
+            let storage = storage.clone();
             let info_service = Info::new(storage).unwrap();
             info_service
                 .handle_info_request(info_request)
@@ -495,86 +492,86 @@ mod tests {
         })
     }
 
-    fn write_all_the_fees<S: StateWrite>(mut state: S) {
-        state
+    fn write_all_the_fees(state_delta: &mut StateDelta<Snapshot>) {
+        state_delta
             .put_bridge_lock_fees(BridgeLockFeeComponents {
                 base: 1,
                 multiplier: 1,
             })
             .unwrap();
-        state
+        state_delta
             .put_bridge_unlock_fees(BridgeUnlockFeeComponents {
                 base: 2,
                 multiplier: 2,
             })
             .unwrap();
-        state
+        state_delta
             .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
                 base: 3,
                 multiplier: 3,
             })
             .unwrap();
-        state
+        state_delta
             .put_fee_asset_change_fees(FeeAssetChangeFeeComponents {
                 base: 4,
                 multiplier: 4,
             })
             .unwrap();
-        state
+        state_delta
             .put_fee_change_fees(FeeChangeFeeComponents {
                 base: 5,
                 multiplier: 5,
             })
             .unwrap();
-        state
+        state_delta
             .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
                 base: 6,
                 multiplier: 6,
             })
             .unwrap();
-        state
+        state_delta
             .put_ibc_relay_fees(IbcRelayFeeComponents {
                 base: 7,
                 multiplier: 7,
             })
             .unwrap();
-        state
+        state_delta
             .put_ibc_relayer_change_fees(IbcRelayerChangeFeeComponents {
                 base: 8,
                 multiplier: 8,
             })
             .unwrap();
-        state
+        state_delta
             .put_ibc_sudo_change_fees(IbcSudoChangeFeeComponents {
                 base: 9,
                 multiplier: 9,
             })
             .unwrap();
-        state
+        state_delta
             .put_ics20_withdrawal_fees(Ics20WithdrawalFeeComponents {
                 base: 10,
                 multiplier: 10,
             })
             .unwrap();
-        state
+        state_delta
             .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
                 base: 11,
                 multiplier: 11,
             })
             .unwrap();
-        state
+        state_delta
             .put_sudo_address_change_fees(SudoAddressChangeFeeComponents {
                 base: 12,
                 multiplier: 12,
             })
             .unwrap();
-        state
+        state_delta
             .put_transfer_fees(TransferFeeComponents {
                 base: 13,
                 multiplier: 13,
             })
             .unwrap();
-        state
+        state_delta
             .put_validator_update_fees(ValidatorUpdateFeeComponents {
                 base: 14,
                 multiplier: 14,

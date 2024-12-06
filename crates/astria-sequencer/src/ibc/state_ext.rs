@@ -163,16 +163,14 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use cnidarium::StateDelta;
-
     use super::*;
     use crate::{
-        address::StateWriteExt,
+        address::StateWriteExt as _,
         benchmark_and_test_utils::{
             astria_address,
             ASTRIA_PREFIX,
         },
-        ibc::StateWriteExt as _,
+        storage::Storage,
     };
 
     fn asset_0() -> asset::Denom {
@@ -185,12 +183,11 @@ mod tests {
 
     #[tokio::test]
     async fn get_ibc_sudo_address_fails_if_not_set() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let state_delta = storage.new_delta_of_latest_snapshot();
 
         // should fail if not set
-        let _ = state
+        let _ = state_delta
             .get_ibc_sudo_address()
             .await
             .expect_err("sudo address should be set");
@@ -198,19 +195,20 @@ mod tests {
 
     #[tokio::test]
     async fn put_ibc_sudo_address() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
 
         // can write new
         let mut address = [42u8; 20];
-        state
+        state_delta
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_ibc_sudo_address()
                 .await
                 .expect("a sudo address was written and must exist inside the database"),
@@ -220,11 +218,11 @@ mod tests {
 
         // can rewrite with new value
         address = [41u8; 20];
-        state
+        state_delta
             .put_ibc_sudo_address(address)
             .expect("writing sudo address should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_ibc_sudo_address()
                 .await
                 .expect("sudo address was written and must exist inside the database"),
@@ -235,16 +233,17 @@ mod tests {
 
     #[tokio::test]
     async fn is_ibc_relayer_ok_if_not_set() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
 
         // unset address returns false
         let address = astria_address(&[42u8; 20]);
         assert!(
-            !state
+            !state_delta
                 .is_ibc_relayer(address)
                 .await
                 .expect("calls to properly formatted addresses should not fail"),
@@ -254,17 +253,18 @@ mod tests {
 
     #[tokio::test]
     async fn delete_ibc_relayer_address() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
 
         // can write
         let address = astria_address(&[42u8; 20]);
-        state.put_ibc_relayer_address(&address).unwrap();
+        state_delta.put_ibc_relayer_address(&address).unwrap();
         assert!(
-            state
+            state_delta
                 .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
@@ -272,9 +272,9 @@ mod tests {
         );
 
         // can delete
-        state.delete_ibc_relayer_address(&address);
+        state_delta.delete_ibc_relayer_address(&address);
         assert!(
-            !state
+            !state_delta
                 .is_ibc_relayer(address)
                 .await
                 .expect("calls on unset addresses should not fail"),
@@ -284,17 +284,18 @@ mod tests {
 
     #[tokio::test]
     async fn put_ibc_relayer_address() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
 
         // can write
         let address = astria_address(&[42u8; 20]);
-        state.put_ibc_relayer_address(&address).unwrap();
+        state_delta.put_ibc_relayer_address(&address).unwrap();
         assert!(
-            state
+            state_delta
                 .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
@@ -303,16 +304,16 @@ mod tests {
 
         // can write multiple
         let address_1 = astria_address(&[41u8; 20]);
-        state.put_ibc_relayer_address(&address_1).unwrap();
+        state_delta.put_ibc_relayer_address(&address_1).unwrap();
         assert!(
-            state
+            state_delta
                 .is_ibc_relayer(address_1)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "additional stored relayer address could not be verified"
         );
         assert!(
-            state
+            state_delta
                 .is_ibc_relayer(address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
@@ -322,15 +323,14 @@ mod tests {
 
     #[tokio::test]
     async fn get_ibc_channel_balance_unset_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let state_delta = storage.new_delta_of_latest_snapshot();
 
         let channel = ChannelId::new(0u64);
         let asset = asset_0();
 
         assert_eq!(
-            state
+            state_delta
                 .get_ibc_channel_balance(&channel, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
@@ -341,20 +341,19 @@ mod tests {
 
     #[tokio::test]
     async fn put_ibc_channel_balance_simple() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let channel = ChannelId::new(0u64);
         let asset = asset_0();
         let mut amount = 10u128;
 
         // write initial
-        state
+        state_delta
             .put_ibc_channel_balance(&channel, &asset, amount)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
-            state
+            state_delta
                 .get_ibc_channel_balance(&channel, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
@@ -364,11 +363,11 @@ mod tests {
 
         // can update
         amount = 20u128;
-        state
+        state_delta
             .put_ibc_channel_balance(&channel, &asset, amount)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
-            state
+            state_delta
                 .get_ibc_channel_balance(&channel, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
@@ -379,9 +378,8 @@ mod tests {
 
     #[tokio::test]
     async fn put_ibc_channel_balance_multiple_assets() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let channel = ChannelId::new(0u64);
         let asset_0 = asset_0();
@@ -390,14 +388,14 @@ mod tests {
         let amount_1 = 20u128;
 
         // write both
-        state
+        state_delta
             .put_ibc_channel_balance(&channel, &asset_0, amount_0)
             .expect("should be able to set balance for channel and asset pair");
-        state
+        state_delta
             .put_ibc_channel_balance(&channel, &asset_1, amount_1)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
-            state
+            state_delta
                 .get_ibc_channel_balance(&channel, &asset_0)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
@@ -405,7 +403,7 @@ mod tests {
             "set balance for channel/asset pair not what was expected"
         );
         assert_eq!(
-            state
+            state_delta
                 .get_ibc_channel_balance(&channel, &asset_1)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
@@ -416,9 +414,8 @@ mod tests {
 
     #[tokio::test]
     async fn put_ibc_channel_balance_multiple_channels() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let channel_0 = ChannelId::new(0u64);
         let channel_1 = ChannelId::new(1u64);
@@ -427,14 +424,14 @@ mod tests {
         let amount_1 = 20u128;
 
         // write both
-        state
+        state_delta
             .put_ibc_channel_balance(&channel_0, &asset, amount_0)
             .expect("should be able to set balance for channel and asset pair");
-        state
+        state_delta
             .put_ibc_channel_balance(&channel_1, &asset, amount_1)
             .expect("should be able to set balance for channel and asset pair");
         assert_eq!(
-            state
+            state_delta
                 .get_ibc_channel_balance(&channel_0, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),
@@ -442,7 +439,7 @@ mod tests {
             "set balance for channel/asset pair not what was expected"
         );
         assert_eq!(
-            state
+            state_delta
                 .get_ibc_channel_balance(&channel_1, &asset)
                 .await
                 .expect("retrieving asset balance for channel should not fail"),

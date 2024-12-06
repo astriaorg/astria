@@ -102,7 +102,7 @@ fn default_tendermint_header() -> Header {
 #[tokio::test]
 async fn app_genesis_and_init_chain() {
     let app = initialize_app(None, vec![]).await;
-    assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+    assert_eq!(app.state_delta.get_block_height().await.unwrap(), 0);
 
     for Account {
         address,
@@ -111,7 +111,7 @@ async fn app_genesis_and_init_chain() {
     {
         assert_eq!(
             balance,
-            app.state
+            app.state_delta
                 .get_account_balance(&address, &nria())
                 .await
                 .unwrap(),
@@ -119,7 +119,7 @@ async fn app_genesis_and_init_chain() {
     }
 
     assert_eq!(
-        app.state.get_native_asset().await.unwrap(),
+        app.state_delta.get_native_asset().await.unwrap(),
         Some("nria".parse::<TracePrefixed>().unwrap()),
     );
 }
@@ -139,9 +139,9 @@ async fn app_pre_execute_transactions() {
     app.pre_execute_transactions(block_data.clone())
         .await
         .unwrap();
-    assert_eq!(app.state.get_block_height().await.unwrap(), 1);
+    assert_eq!(app.state_delta.get_block_height().await.unwrap(), 1);
     assert_eq!(
-        app.state.get_block_timestamp().await.unwrap(),
+        app.state_delta.get_block_timestamp().await.unwrap(),
         block_data.time
     );
 }
@@ -188,7 +188,7 @@ async fn app_begin_block_remove_byzantine_validators() {
     app.begin_block(&begin_block).await.unwrap();
 
     // assert that validator with pubkey_a is removed
-    let validator_set = app.state.get_validator_set().await.unwrap();
+    let validator_set = app.state_delta.get_validator_set().await.unwrap();
     assert_eq!(validator_set.len(), 1);
     assert_eq!(validator_set.get(&verification_key(2)).unwrap().power, 1,);
 }
@@ -196,7 +196,7 @@ async fn app_begin_block_remove_byzantine_validators() {
 #[tokio::test]
 async fn app_commit() {
     let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-    assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+    assert_eq!(app.state_delta.get_block_height().await.unwrap(), 0);
 
     for Account {
         address,
@@ -205,7 +205,7 @@ async fn app_commit() {
     {
         assert_eq!(
             balance,
-            app.state
+            app.state_delta
                 .get_account_balance(&address, &nria())
                 .await
                 .unwrap()
@@ -283,20 +283,20 @@ async fn app_transfer_block_fees_to_sudo() {
 
     // assert that transaction fees were transferred to the block proposer
     let transfer_base_fee = app
-        .state
+        .state_delta
         .get_transfer_fees()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
         .base;
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&astria_address_from_hex_string(JUDY_ADDRESS), &nria())
             .await
             .unwrap(),
         transfer_base_fee,
     );
-    assert_eq!(app.state.get_block_fees().len(), 0);
+    assert_eq!(app.state_delta.get_block_fees().len(), 0);
 }
 
 #[tokio::test]
@@ -315,11 +315,11 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let starting_index_of_action = 0;
 
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
+    delta_delta
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
         .unwrap();
-    state_tx
+    delta_delta
         .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
     // Put a deposit from a previous block to ensure it is not mixed in with deposits for this
@@ -333,13 +333,13 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         source_transaction_id: TransactionId::new([99; 32]),
         source_action_index: starting_index_of_action,
     };
-    state_tx
+    delta_delta
         .put_deposits(
             &[32u8; 32],
             HashMap::from_iter([(rollup_id, vec![old_deposit])]),
         )
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
@@ -395,7 +395,11 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         .unwrap();
     app.commit(storage).await;
 
-    let block = app.state.get_sequencer_block_by_height(1).await.unwrap();
+    let block = app
+        .state_delta
+        .get_sequencer_block_by_height(1)
+        .await
+        .unwrap();
     let mut deposits = vec![];
     for (_, rollup_data) in block.rollup_transactions() {
         for tx in rollup_data.transactions() {
@@ -424,14 +428,14 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let asset = nria().clone();
     let starting_index_of_action = 0;
 
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
+    delta_delta
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
         .unwrap();
-    state_tx
+    delta_delta
         .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
@@ -529,7 +533,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         Some(proposal_fingerprint)
     );
 
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool.run_maintenance(&app.state_delta, false).await;
 
     assert_eq!(app.mempool.len().await, 0);
 
@@ -654,7 +658,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .expect("too large transactions should not cause prepare proposal to fail");
 
     // run maintence to clear out transactions
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool.run_maintenance(&app.state_delta, false).await;
 
     // see only first tx made it in
     assert_eq!(
@@ -743,7 +747,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .expect("too large transactions should not cause prepare proposal to fail");
 
     // run maintence to clear out transactions
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool.run_maintenance(&app.state_delta, false).await;
 
     // see only first tx made it in
     assert_eq!(
@@ -906,11 +910,11 @@ async fn app_end_block_validator_updates() {
         },
     ];
 
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
+    delta_delta
         .put_validator_updates(ValidatorSet::new_from_updates(validator_updates.clone()))
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
 
     let resp = app.end_block(1, &proposer_address).await.unwrap();
     // we only assert length here as the ordering of the updates is not guaranteed
@@ -920,7 +924,7 @@ async fn app_end_block_validator_updates() {
     // validator with pubkey_a should be removed (power set to 0)
     // validator with pubkey_b should be updated
     // validator with pubkey_c should be added
-    let validator_set = app.state.get_validator_set().await.unwrap();
+    let validator_set = app.state_delta.get_validator_set().await.unwrap();
     assert_eq!(validator_set.len(), 2);
     let validator_b = validator_set
         .get(verification_key(1).address_bytes())
@@ -932,5 +936,8 @@ async fn app_end_block_validator_updates() {
         .unwrap();
     assert_eq!(validator_c.verification_key, verification_key(2));
     assert_eq!(validator_c.power, 100);
-    assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
+    assert_eq!(
+        app.state_delta.get_validator_updates().await.unwrap().len(),
+        0
+    );
 }
