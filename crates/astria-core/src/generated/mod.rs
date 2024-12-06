@@ -139,6 +139,7 @@ pub mod astria {
                 }
             }
         }
+
         #[path = ""]
         pub mod transaction {
             pub mod v1 {
@@ -155,6 +156,16 @@ pub mod astria {
 
     #[path = ""]
     pub mod sequencerblock {
+        pub mod v1alpha1 {
+            include!("astria.sequencerblock.v1alpha1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.sequencerblock.v1alpha1.serde.rs");
+            }
+        }
+
         pub mod v1 {
             include!("astria.sequencerblock.v1.rs");
 
@@ -162,6 +173,18 @@ pub mod astria {
             mod _serde_impl {
                 use super::*;
                 include!("astria.sequencerblock.v1.serde.rs");
+            }
+        }
+
+        pub mod optimistic {
+            pub mod v1alpha1 {
+                include!("astria.sequencerblock.optimistic.v1alpha1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria.sequencerblock.optimistic.v1alpha1.serde.rs");
+                }
             }
         }
     }

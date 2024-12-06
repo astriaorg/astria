@@ -7,7 +7,7 @@ use crate::{
         market_map,
         oracle,
     },
-    generated::protocol::genesis::v1 as raw,
+    generated::astria::protocol::genesis::v1 as raw,
     primitive::v1::{
         asset::{
             self,

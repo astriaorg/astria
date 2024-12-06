@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use astria_core::generated::{
+    astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
     connect::{
         marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
         oracle::v2::query_server::QueryServer as OracleQueryServer,
@@ -9,7 +10,6 @@ use astria_core::generated::{
             QueryPricesRequest,
         },
     },
-    sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
 };
 use astria_eyre::{
     anyhow_to_eyre,
