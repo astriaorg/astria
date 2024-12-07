@@ -24,17 +24,26 @@ images:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
     tag: 1.0.0
-    devTag: latest
+    devTag: sha-80be7eb
+  connect:
+    repo: ghcr.io/skip-mev/connect-sidecar
+    pullPolicy: IfNotPresent
+    tag: v2
+    devTag: v2
 
 moniker: ""
 genesis:
   chainId: ""
-  genesisTime: ""  # '2023-09-22T17:22:35.092832Z'
+  genesisTime: "" # '2023-09-22T17:22:35.092832Z'
   addressPrefixes:
     base: "astria"
     ibcCompat: "astriacompat"
   authoritySudoAddress: ""
-  marketAdminAddress: ""
+  oracle:
+    marketAdminAddress: "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+    marketAuthorities:
+      - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+      - "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
   allowedFeeAssets: []
     # - nria
   ibc:
@@ -54,6 +63,7 @@ genesis:
     maxAgeDuration: "1209600000000000"
     maxAgeNumBlocks: "4000000"
     maxBytes: "1048576"
+    voteExtensionsEnableHeight: "1"
 
   fees:
     feeChange:
@@ -99,7 +109,8 @@ genesis:
       base: "0"
       multiplier: "0"
 
-  validators: []
+  validators:
+    []
     # - name: core
     #   power: '1'
     #   address: 091E47761C58C474534F4D414AF104A6CAF90C22
@@ -110,7 +121,11 @@ sequencer:
     parked:
       maxTxCount: 200
   oracle:
+    enabled: true
     clientTimeout: 1000
+    markets: []
+    currencyPairGenesis: []
+
   metrics:
     enabled: false
   otel:
@@ -206,23 +221,23 @@ cometbft:
       devContent:
         priv_key:
           type: tendermint/PrivKeyEd25519
-          value: ""  # can override with a value for local testing
+          value: "" # can override with a value for local testing
       secret:
         resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
     privValidatorKey:
       filename: privValidatorKey.json
       devContent:
         # Ed25519 address of validator
-        address: ""  # can override with a value for local testing
+        address: "" # can override with a value for local testing
         # public key for the validator address
         pub_key:
           type: tendermint/PubKeyEd25519
-          value: ""  # can override with a value for local testing
+          value: "" # can override with a value for local testing
         # private key for the validator address
         # This is a secret key, should use a secret manager for production deployments
         priv_key:
           type: tendermint/PrivKeyEd25519
-          value: ""  # can override with a value for local testing
+          value: "" # can override with a value for local testing
       secret:
         resourceName: "projects/$PROJECT_ID/secrets/privValidatorKey/versions/latest"
 
@@ -279,6 +294,7 @@ ports:
   relayerRpc: 2450
   sequencerMetrics: 9000
   oracleGrpc: 8081
+  oracleMetrics: 8002
 
 # ServiceMonitor configuration
 serviceMonitor:
@@ -302,14 +318,14 @@ alerting:
       release: kube-prometheus-stack
     namespace: monitoring
     rules:
-    - alert: Chain_Node_Down
-      expr: up{container="cometbft"} == 0  # Insert your query Expression
-      for: 1m  # Rough number but should be enough to init warn
-      labels:
-        severity: critical
-      annotations:
-        summary: Chain Node is Down (instance {{ $labels.instance }})
-        description: "chain node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: Chain_Node_Down
+        expr: up{container="cometbft"} == 0 # Insert your query Expression
+        for: 1m # Rough number but should be enough to init warn
+        labels:
+          severity: critical
+        annotations:
+          summary: Chain Node is Down (instance {{ $labels.instance }})
+          description: "chain node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
 storage:
   enabled: false
