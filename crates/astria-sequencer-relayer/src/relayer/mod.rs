@@ -172,7 +172,7 @@ impl Relayer {
         // future to forward a sequencer block to the celestia-submission-task.
         // gets set in the select-loop if the task is at capacity.
         let mut forward_once_free: Fuse<
-            BoxFuture<Result<(), tokio::sync::mpsc::error::SendError<SequencerBlock>>>,
+            BoxFuture<Result<(), tokio::sync::mpsc::error::SendError<Box<SequencerBlock>>>>,
         > = Fuse::terminated();
 
         self.state.set_ready();
@@ -276,6 +276,11 @@ impl Relayer {
     }
 
     #[instrument(skip_all, fields(%height))]
+    #[expect(
+        clippy::type_complexity,
+        reason = "complexity comes from the error type, which is boxed to avoid a large Err \
+                  variant of the result"
+    )]
     fn forward_block_for_submission(
         &self,
         height: SequencerHeight,
@@ -283,7 +288,7 @@ impl Relayer {
         block_stream: &mut read::BlockStream,
         submitter: write::BlobSubmitterHandle,
         forward: &mut Fuse<
-            BoxFuture<Result<(), tokio::sync::mpsc::error::SendError<SequencerBlock>>>,
+            BoxFuture<Result<(), tokio::sync::mpsc::error::SendError<Box<SequencerBlock>>>>,
         >,
     ) -> eyre::Result<()> {
         assert!(
@@ -292,7 +297,7 @@ impl Relayer {
              congested and this future is in-flight",
         );
 
-        if let Err(error) = submitter.try_send(block) {
+        if let Err(error) = submitter.try_send(Box::new(block)) {
             debug!(
                 // Just print the error directly: TrySendError has no cause chain.
                 %error,
@@ -302,7 +307,7 @@ impl Relayer {
             block_stream.pause();
             debug!("block stream paused");
 
-            match *error {
+            match error {
                 TrySendError::Full(block) => {
                     *forward = async move { submitter.send(block).await }.boxed().fuse();
                 }
