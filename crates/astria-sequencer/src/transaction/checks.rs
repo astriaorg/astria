@@ -148,7 +148,6 @@ mod tests {
         },
     };
     use bytes::Bytes;
-    use cnidarium::StateDelta;
 
     use super::*;
     use crate::{
@@ -167,36 +166,36 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
+        storage::Storage,
         test_utils::calculate_rollup_data_submission_fee_from_state,
     };
 
     #[tokio::test]
     async fn check_balance_total_fees_transfers_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state_tx.put_base_prefix("astria".to_string()).unwrap();
-        state_tx.put_native_asset(nria()).unwrap();
-        state_tx
+        state_delta.put_base_prefix("astria".to_string()).unwrap();
+        state_delta.put_native_asset(nria()).unwrap();
+        state_delta
             .put_fees(FeeComponents::<Transfer>::new(12, 0))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 1))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<Ics20Withdrawal>::new(1, 0))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<InitBridgeAccount>::new(12, 0))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<BridgeLock>::new(0, 1))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<BridgeUnlock>::new(0, 0))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<BridgeSudoChange>::new(24, 0))
             .unwrap();
 
@@ -205,27 +204,27 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = state_tx
+        let transfer_fee = state_delta
             .get_fees::<Transfer>()
             .await
             .expect("should not error fetching transfer fees")
             .expect("transfer fees should be stored")
             .base();
-        state_tx
+        state_delta
             .increase_balance(
-                &state_tx
+                &state_delta
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
                 &nria(),
                 transfer_fee
-                    + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
+                    + calculate_rollup_data_submission_fee_from_state(&data, &state_delta).await,
             )
             .await
             .unwrap();
-        state_tx
+        state_delta
             .increase_balance(
-                &state_tx
+                &state_delta
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
@@ -240,7 +239,10 @@ mod tests {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: nria().into(),
-                to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
+                to: state_delta
+                    .try_base_prefixed(&[0; ADDRESS_LEN])
+                    .await
+                    .unwrap(),
             }),
             Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
@@ -256,38 +258,39 @@ mod tests {
             .unwrap();
 
         let signed_tx = tx.sign(&alice);
-        check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
+        check_balance_for_total_fees_and_transfers(&signed_tx, &state_delta)
             .await
             .expect("sufficient balance for all actions");
     }
 
     #[tokio::test]
     async fn check_balance_total_fees_and_transfers_insufficient_other_asset_balance() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx.put_native_asset(nria()).unwrap();
-        state_tx
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta.put_native_asset(nria()).unwrap();
+        state_delta
             .put_fees(FeeComponents::<Transfer>::new(12, 0))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 1))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<Ics20Withdrawal>::new(1, 0))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<InitBridgeAccount>::new(12, 0))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<BridgeLock>::new(0, 1))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<BridgeUnlock>::new(0, 0))
             .unwrap();
-        state_tx
+        state_delta
             .put_fees(FeeComponents::<BridgeSudoChange>::new(24, 0))
             .unwrap();
 
@@ -296,21 +299,21 @@ mod tests {
         let alice = get_alice_signing_key();
         let amount = 100;
         let data = Bytes::from_static(&[0; 32]);
-        let transfer_fee = state_tx
+        let transfer_fee = state_delta
             .get_fees::<Transfer>()
             .await
             .expect("should not error fetching transfer fees")
             .expect("transfer fees should be stored")
             .base();
-        state_tx
+        state_delta
             .increase_balance(
-                &state_tx
+                &state_delta
                     .try_base_prefixed(&alice.address_bytes())
                     .await
                     .unwrap(),
                 &nria(),
                 transfer_fee
-                    + calculate_rollup_data_submission_fee_from_state(&data, &state_tx).await,
+                    + calculate_rollup_data_submission_fee_from_state(&data, &state_delta).await,
             )
             .await
             .unwrap();
@@ -320,7 +323,10 @@ mod tests {
                 asset: other_asset.clone(),
                 amount,
                 fee_asset: nria().into(),
-                to: state_tx.try_base_prefixed(&[0; ADDRESS_LEN]).await.unwrap(),
+                to: state_delta
+                    .try_base_prefixed(&[0; ADDRESS_LEN])
+                    .await
+                    .unwrap(),
             }),
             Action::RollupDataSubmission(RollupDataSubmission {
                 rollup_id: RollupId::from_unhashed_bytes([0; 32]),
@@ -336,7 +342,7 @@ mod tests {
             .unwrap();
 
         let signed_tx = tx.sign(&alice);
-        let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
+        let err = check_balance_for_total_fees_and_transfers(&signed_tx, &state_delta)
             .await
             .err()
             .unwrap();

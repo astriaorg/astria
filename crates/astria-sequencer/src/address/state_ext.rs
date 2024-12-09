@@ -109,32 +109,29 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use cnidarium::StateDelta;
-
     use super::*;
+    use crate::storage::Storage;
 
     #[tokio::test]
     async fn put_and_get_base_prefix() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state.put_base_prefix("astria".to_string()).unwrap();
-        assert_eq!("astria", &state.get_base_prefix().await.unwrap());
+        state_delta.put_base_prefix("astria".to_string()).unwrap();
+        assert_eq!("astria", &state_delta.get_base_prefix().await.unwrap());
     }
 
     #[tokio::test]
     async fn put_and_get_ibc_compat_prefix() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state
+        state_delta
             .put_ibc_compat_prefix("astriacompat".to_string())
             .unwrap();
         assert_eq!(
             "astriacompat",
-            &state.get_ibc_compat_prefix().await.unwrap()
+            &state_delta.get_ibc_compat_prefix().await.unwrap()
         );
     }
 }

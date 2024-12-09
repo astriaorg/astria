@@ -42,10 +42,7 @@ use astria_eyre::eyre::{
     Report,
     WrapErr as _,
 };
-use cnidarium::{
-    StateRead,
-    Storage,
-};
+use cnidarium::StateRead;
 use futures::{
     FutureExt as _,
     StreamExt as _,
@@ -77,7 +74,10 @@ use crate::{
         FeeHandler,
         StateReadExt as _,
     },
-    storage::StoredValue,
+    storage::{
+        Storage,
+        StoredValue,
+    },
 };
 
 async fn find_trace_prefixed_or_return_ibc<S: StateRead>(

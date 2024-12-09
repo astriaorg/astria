@@ -38,7 +38,6 @@ use std::{
     pin::Pin,
 };
 
-use cnidarium::Storage;
 use matchit::{
     Match,
     MatchError,
@@ -47,6 +46,8 @@ use tendermint::abci::{
     request,
     response,
 };
+
+use crate::storage::Storage;
 
 #[derive(Debug, thiserror::Error)]
 #[error("`{route}` is an invalid route")]
