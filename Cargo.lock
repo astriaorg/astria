@@ -701,7 +701,6 @@ dependencies = [
 name = "astria-core"
 version = "0.1.0"
 dependencies = [
- "astria-core",
  "astria-core-address",
  "astria-core-consts",
  "astria-core-crypto",
@@ -723,6 +722,7 @@ dependencies = [
  "prost",
  "rand 0.8.5",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
  "tempfile",
  "tendermint",
