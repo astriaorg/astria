@@ -308,6 +308,10 @@ async fn block_commitment_stream(
     tx: mpsc::Sender<tonic::Result<GetBlockCommitmentStreamResponse>>,
     cancellation_token: CancellationToken,
 ) -> Result<(), eyre::Report> {
+    // mark the current value in the event receiver as seen so that we can start streaming
+    // the next new block commitment to the subscriber
+    finalized_blocks_receiver.mark_latest_event_as_seen();
+
     loop {
         tokio::select! {
             biased;
@@ -357,6 +361,10 @@ async fn optimistic_stream(
     tx: mpsc::Sender<Result<GetOptimisticBlockStreamResponse, Status>>,
     cancellation_token: CancellationToken,
 ) -> Result<(), eyre::Report> {
+    // mark the current value in the event receiver as seen so that we can start streaming
+    // the next new optimistic block to the subscriber
+    process_proposal_blocks_receiver.mark_latest_event_as_seen();
+
     loop {
         tokio::select! {
             biased;
