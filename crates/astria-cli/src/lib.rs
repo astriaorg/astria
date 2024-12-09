@@ -15,9 +15,6 @@ use clap::{
 };
 use color_eyre::eyre;
 
-const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-10.devnet.astria.org";
-const DEFAULT_SEQUENCER_CHAIN_ID: &str = "astria-dusk-10";
-
 /// Run commands against the Astria network.
 #[derive(Debug, Parser)]
 #[command(name = "astria-cli", version, about)]
