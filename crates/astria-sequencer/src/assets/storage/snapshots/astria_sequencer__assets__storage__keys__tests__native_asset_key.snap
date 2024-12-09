@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/assets/storage/keys.rs
+expression: NATIVE_ASSET
+---
+assets/native_asset
