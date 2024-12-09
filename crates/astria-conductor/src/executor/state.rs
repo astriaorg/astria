@@ -367,7 +367,8 @@ fn map_rollup_number_to_sequencer_height(
 
 /// Maps a sequencer height to a rollup height.
 ///
-/// Returns `None` if `sequencer_height - sequencer_start_block_height + rollup_start_block_height` underflows or if the result does not fit in `u32`.
+/// Returns `None` if `sequencer_height - sequencer_start_block_height + rollup_start_block_height`
+/// underflows or if the result does not fit in `u32`.
 pub(super) fn map_sequencer_height_to_rollup_height(
     sequencer_start_height: SequencerHeight,
     sequencer_height: SequencerHeight,
