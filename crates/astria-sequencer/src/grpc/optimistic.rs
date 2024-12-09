@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1alpha1::{
+    generated::sequencerblock::v1::optimisticblock::v1alpha1::{
         optimistic_block_service_server::OptimisticBlockService,
         GetBlockCommitmentStreamRequest,
         GetBlockCommitmentStreamResponse,
@@ -88,12 +88,7 @@ impl OptimisticBlockService for OptimisticBlockServer {
                         block: Some(raw_filtered_optimistic_block),
                     };
 
-                    match tx
-                        .send(Ok(
-                            get_optimistic_block_stream_response,
-                        ))
-                        .await
-                    {
+                    match tx.send(Ok(get_optimistic_block_stream_response)).await {
                         Ok(()) => {
                             debug!("sent optimistic block");
                         }
@@ -136,12 +131,7 @@ impl OptimisticBlockService for OptimisticBlockServer {
                         commitment: Some(sequencer_block_commit.to_raw()),
                     };
 
-                    match tx
-                        .send(Ok(
-                            get_block_commitment_stream_response,
-                        ))
-                        .await
-                    {
+                    match tx.send(Ok(get_block_commitment_stream_response)).await {
                         Ok(()) => {
                             debug!("sent block commitment");
                         }
