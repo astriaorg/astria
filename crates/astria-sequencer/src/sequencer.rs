@@ -1,4 +1,17 @@
+<<<<<<< HEAD
 use astria_core::generated::astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
+=======
+use astria_core::{
+    generated::sequencerblock::v1::{
+        optimisticblock::v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer,
+        sequencer_service_server::SequencerServiceServer,
+    },
+    sequencerblock::{
+        v1::SequencerBlock,
+        v1alpha1::optimistic_block::SequencerBlockCommit,
+    },
+};
+>>>>>>> 27c789b0 (update optimistic block imports)
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
