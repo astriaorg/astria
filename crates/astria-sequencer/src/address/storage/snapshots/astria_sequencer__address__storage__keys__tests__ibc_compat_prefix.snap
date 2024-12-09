@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/address/storage/keys.rs
+expression: IBC_COMPAT_PREFIX
+---
+address/prefixes/ibc_compat

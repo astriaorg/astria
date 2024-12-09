@@ -19,13 +19,14 @@ impl AbciErrorCode {
     pub const VALUE_NOT_FOUND: Self = Self(unsafe { NonZeroU32::new_unchecked(8) });
     pub const TRANSACTION_EXPIRED: Self = Self(unsafe { NonZeroU32::new_unchecked(9) });
     pub const TRANSACTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(10) });
-    pub const TRANSACTION_INSERTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(11) }); 
-    pub const LOWER_NONCE_INVALIDATED: Self = Self(unsafe { NonZeroU32::new_unchecked(12) }); 
+    pub const TRANSACTION_INSERTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(11) });
+    pub const LOWER_NONCE_INVALIDATED: Self = Self(unsafe { NonZeroU32::new_unchecked(12) });
     pub const BAD_REQUEST: Self = Self(unsafe { NonZeroU32::new_unchecked(13) });
     pub const ALREADY_PRESENT: Self = Self(unsafe { NonZeroU32::new_unchecked(14) });
     pub const NONCE_TAKEN: Self = Self(unsafe { NonZeroU32::new_unchecked(15) });
     pub const ACCOUNT_SIZE_LIMIT: Self = Self(unsafe { NonZeroU32::new_unchecked(16) });
     pub const PARKED_FULL: Self = Self(unsafe { NonZeroU32::new_unchecked(17) });
+    // NOTE: When adding a new code, ensure it is added to `ALL_CODES` in the `tests` module below.
 }
 
 impl AbciErrorCode {
@@ -74,5 +75,48 @@ impl AbciErrorCode {
 impl std::fmt::Display for AbciErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.0, self.info())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use super::*;
+
+    const ALL_CODES: [AbciErrorCode; 17] = [
+        AbciErrorCode::UNKNOWN_PATH,
+        AbciErrorCode::INVALID_PARAMETER,
+        AbciErrorCode::INTERNAL_ERROR,
+        AbciErrorCode::INVALID_NONCE,
+        AbciErrorCode::TRANSACTION_TOO_LARGE,
+        AbciErrorCode::INSUFFICIENT_FUNDS,
+        AbciErrorCode::INVALID_CHAIN_ID,
+        AbciErrorCode::VALUE_NOT_FOUND,
+        AbciErrorCode::TRANSACTION_EXPIRED,
+        AbciErrorCode::TRANSACTION_FAILED,
+        AbciErrorCode::TRANSACTION_INSERTION_FAILED,
+        AbciErrorCode::LOWER_NONCE_INVALIDATED,
+        AbciErrorCode::BAD_REQUEST,
+        AbciErrorCode::ALREADY_PRESENT,
+        AbciErrorCode::NONCE_TAKEN,
+        AbciErrorCode::ACCOUNT_SIZE_LIMIT,
+        AbciErrorCode::PARKED_FULL,
+    ];
+
+    #[test]
+    fn error_code_snapshots() {
+        for error_code in ALL_CODES {
+            let name = format!("AbciErrorCode::{}", error_code.value());
+            insta::assert_snapshot!(name, error_code);
+        }
+    }
+
+    #[test]
+    fn ensure_codes_are_unique() {
+        let mut values = BTreeSet::new();
+        for code in ALL_CODES {
+            assert!(values.insert(code.value()), "duplicate value for {code:?}");
+        }
     }
 }

@@ -12,18 +12,10 @@ use crate::utils::submit_transaction;
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
     /// The url of the Sequencer node
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::DEFAULT_SEQUENCER_RPC
-    )]
+    #[arg(long, env = "SEQUENCER_URL")]
     sequencer_url: String,
     /// The chain id of the sequencing chain being used
-    #[arg(
-        long = "sequencer.chain-id",
-        env = "ROLLUP_SEQUENCER_CHAIN_ID",
-        default_value = crate::DEFAULT_SEQUENCER_CHAIN_ID
-    )]
+    #[arg(long = "sequencer.chain-id", env = "ROLLUP_SEQUENCER_CHAIN_ID")]
     sequencer_chain_id: String,
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
