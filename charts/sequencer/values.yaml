@@ -120,6 +120,8 @@ sequencer:
     tracesTimeout: 10
     otlpHeaders:
     traceHeaders:
+  optimisticBlockApis:
+    enabled: false
 
 cometbft:
   config:
