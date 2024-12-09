@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use astria_core::{
     crypto::SigningKey,
-    generated::protocol::{
+    generated::astria::protocol::{
         asset::v1::AllowedFeeAssetsResponse,
         fees::v1::TransactionFee,
     },
@@ -171,7 +171,7 @@ fn create_signed_transaction() -> Transaction {
 
 #[tokio::test]
 async fn get_latest_nonce() {
-    use astria_core::generated::protocol::accounts::v1::NonceResponse;
+    use astria_core::generated::astria::protocol::accounts::v1::NonceResponse;
     let MockSequencer {
         server,
         client,
@@ -198,7 +198,7 @@ async fn get_latest_nonce() {
 
 #[tokio::test]
 async fn get_latest_balance() {
-    use astria_core::generated::protocol::accounts::v1::{
+    use astria_core::generated::astria::protocol::accounts::v1::{
         AssetBalance,
         BalanceResponse,
     };
@@ -263,7 +263,7 @@ async fn get_allowed_fee_assets() {
 #[tokio::test]
 async fn get_bridge_account_info() {
     use astria_core::{
-        generated::protocol::bridge::v1::BridgeAccountInfoResponse,
+        generated::astria::protocol::bridge::v1::BridgeAccountInfoResponse,
         primitive::v1::RollupId,
     };
 
@@ -295,7 +295,7 @@ async fn get_bridge_account_info() {
 
 #[tokio::test]
 async fn get_bridge_account_last_transaction_hash() {
-    use astria_core::generated::protocol::bridge::v1::BridgeAccountLastTxHashResponse;
+    use astria_core::generated::astria::protocol::bridge::v1::BridgeAccountLastTxHashResponse;
 
     let MockSequencer {
         server,
@@ -325,7 +325,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
 #[tokio::test]
 async fn get_transaction_fee() {
-    use astria_core::generated::protocol::fees::v1::TransactionFeeResponse;
+    use astria_core::generated::astria::protocol::fees::v1::TransactionFeeResponse;
 
     let MockSequencer {
         server,

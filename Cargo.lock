@@ -505,6 +505,7 @@ dependencies = [
  "ethers",
  "futures",
  "ibc-types",
+ "insta",
  "prost",
  "serde",
  "serde_json",
@@ -822,6 +823,7 @@ dependencies = [
 name = "astria-sequencer"
 version = "1.0.0"
 dependencies = [
+ "assert-json-diff",
  "astria-build-info",
  "astria-config",
  "astria-core",
@@ -844,7 +846,6 @@ dependencies = [
  "itertools 0.12.1",
  "maplit",
  "matchit",
- "paste",
  "penumbra-ibc",
  "penumbra-proto",
  "penumbra-tower-trace",
@@ -969,6 +970,7 @@ dependencies = [
  "itertools 0.12.1",
  "maplit",
  "pbjson-types",
+ "penumbra-ibc",
  "predicates",
  "prost",
  "rlp",

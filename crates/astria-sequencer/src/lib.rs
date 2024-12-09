@@ -1,4 +1,5 @@
 pub(crate) mod accounts;
+pub(crate) mod action_handler;
 pub(crate) mod address;
 pub(crate) mod app;
 pub(crate) mod assets;
@@ -18,7 +19,6 @@ pub(crate) mod ibc;
 mod mempool;
 pub(crate) mod metrics;
 pub(crate) mod proposal;
-pub(crate) mod rollup_data;
 mod sequencer;
 pub(crate) mod service;
 pub(crate) mod storage;

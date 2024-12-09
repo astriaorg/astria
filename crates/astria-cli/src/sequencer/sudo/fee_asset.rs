@@ -98,18 +98,10 @@ struct ArgsInner {
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     private_key: String,
     /// The url of the Sequencer node
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::DEFAULT_SEQUENCER_RPC
-    )]
+    #[arg(long, env = "SEQUENCER_URL")]
     sequencer_url: String,
     /// The chain id of the sequencing chain being used
-    #[arg(
-        long = "sequencer.chain-id",
-        env = "ROLLUP_SEQUENCER_CHAIN_ID",
-        default_value = crate::DEFAULT_SEQUENCER_CHAIN_ID
-    )]
+    #[arg(long = "sequencer.chain-id", env = "ROLLUP_SEQUENCER_CHAIN_ID")]
     sequencer_chain_id: String,
     /// Asset's denomination string
     #[arg(long)]

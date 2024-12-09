@@ -41,7 +41,7 @@ _crate_short_name crate quiet="":
   set -eu
   case {{crate}} in
     astria-bridge-withdrawer) short_name=bridge-withdrawer ;;
-    astria-cli) short_name=cli ;;
+    astria-cli) short_name=astria-cli ;;
     astria-composer) short_name=composer ;;
     astria-conductor) short_name=conductor ;;
     astria-sequencer) short_name=sequencer ;;

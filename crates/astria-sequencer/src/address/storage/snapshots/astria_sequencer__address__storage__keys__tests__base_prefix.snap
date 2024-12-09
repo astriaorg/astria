@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/address/storage/keys.rs
+expression: BASE_PREFIX
+---
+address/prefixes/base
