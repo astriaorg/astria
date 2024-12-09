@@ -32,7 +32,7 @@ pub(in crate::grpc) struct RollupTransactions<'a> {
     proof: Proof<'a>,
 }
 
-impl<'a> Debug for RollupTransactions<'a> {
+impl Debug for RollupTransactions<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("RollupTransactions")
             .field("rollup_id", &self.rollup_id)
