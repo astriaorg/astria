@@ -33,11 +33,20 @@ use tracing::{
     info,
     info_span,
 };
+use astria_core::generated::astria::sequencerblock::optimistic::v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer;
+use astria_core::sequencerblock::v1::SequencerBlock;
+use astria_core::sequencerblock::v1alpha1::optimistic_block::SequencerBlockCommit;
 
 use crate::{
-    app::App,
+    app::{
+        App,
+        OptimisticBlockChannels,
+    },
     config::Config,
-    grpc::sequencer::SequencerServer,
+    grpc::{
+        optimistic::OptimisticBlockServer,
+        sequencer::SequencerServer,
+    },
     ibc::host_interface::AstriaHost,
     mempool::Mempool,
     metrics::Metrics,
@@ -91,9 +100,29 @@ impl Sequencer {
         let snapshot = storage.latest_snapshot();
 
         let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
-        let app = App::new(snapshot, mempool.clone(), metrics)
-            .await
-            .wrap_err("failed to initialize app")?;
+
+        let optimistic_block_channels = if config.no_optimistic_block {
+            let (optimistic_block_sender, _) =
+                tokio::sync::watch::channel::<Option<SequencerBlock>>(None);
+            let (committed_block_sender, _) =
+                tokio::sync::watch::channel::<Option<SequencerBlockCommit>>(None);
+
+            Some(OptimisticBlockChannels::new(
+                optimistic_block_sender,
+                committed_block_sender,
+            ))
+        } else {
+            None
+        };
+
+        let app = App::new(
+            snapshot,
+            mempool.clone(),
+            optimistic_block_channels.clone(),
+            metrics,
+        )
+        .await
+        .wrap_err("failed to initialize app")?;
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -123,7 +152,13 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .wrap_err("failed to parse grpc_addr address")?;
-        let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
+        let grpc_server_handle = start_grpc_server(
+            &storage,
+            mempool,
+            grpc_addr,
+            optimistic_block_channels,
+            shutdown_rx,
+        );
 
         span.in_scope(|| info!(config.listen_addr, "starting sequencer"));
         let server_handle = tokio::spawn(async move {
@@ -166,6 +201,7 @@ fn start_grpc_server(
     storage: &cnidarium::Storage,
     mempool: Mempool,
     grpc_addr: std::net::SocketAddr,
+    optimistic_block_channels: Option<OptimisticBlockChannels>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> JoinHandle<Result<(), tonic::transport::Error>> {
     use futures::TryFutureExt as _;
@@ -180,6 +216,14 @@ fn start_grpc_server(
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
     let sequencer_api = SequencerServer::new(storage.clone(), mempool);
     let cors_layer: CorsLayer = CorsLayer::permissive();
+
+    let optimistic_block_service_server = if let Some(obc) = optimistic_block_channels {
+        Some(OptimisticBlockServiceServer::new(
+            OptimisticBlockServer::new(obc),
+        ))
+    } else {
+        None
+    };
 
     // TODO: setup HTTPS?
     let grpc_server = tonic::transport::Server::builder()
@@ -202,7 +246,8 @@ fn start_grpc_server(
         .add_service(ClientQueryServer::new(ibc.clone()))
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()))
-        .add_service(SequencerServiceServer::new(sequencer_api));
+        .add_service(SequencerServiceServer::new(sequencer_api))
+        .add_optional_service(optimistic_block_service_server);
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
     tokio::task::spawn(

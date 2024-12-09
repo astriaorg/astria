@@ -1,3 +1,4 @@
+pub(crate) mod optimistic;
 pub(crate) mod sequencer;
 mod state_ext;
 pub(crate) mod storage;
