@@ -415,6 +415,7 @@ impl Executor {
         // Stop executing soft blocks at the sequencer stop block height (exclusive). If we are also
         // executing firm blocks, we let execution continue since one more firm block will be
         // executed before `execute_firm` initiates a restart. If we are in soft-only mode, we
+        // return a `StopHeightExceded::Sequencer` error to signal a restart.
         if executable_block.height >= self.state.sequencer_stop_block_height() {
             let res = if self.mode.is_with_firm() {
                 info!(

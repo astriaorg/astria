@@ -47,7 +47,7 @@ async fn simple() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_height: 0,
     );
 
     mount_get_commitment_state!(
@@ -122,7 +122,7 @@ async fn submits_two_heights_in_succession() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_height: 0,
     );
 
     mount_get_commitment_state!(
@@ -230,7 +230,7 @@ async fn skips_already_executed_heights() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_height: 0,
     );
 
     mount_get_commitment_state!(
@@ -305,7 +305,7 @@ async fn requests_from_later_genesis_height() {
         sequencer_start_block_height: 10,
         sequencer_stop_block_height: 20,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_height: 0,
     );
 
     mount_get_commitment_state!(
@@ -415,7 +415,7 @@ async fn exits_on_sequencer_chain_id_mismatch() {
         genesis_info!(sequencer_start_block_height: 1,
             sequencer_stop_block_height: 10,
             celestia_block_variance: 10,
-        rollup_start_block_height: 1,),
+        rollup_start_block_height: 0,),
     ))
     .expect(0..)
     .mount(&mock_grpc.mock_server)
@@ -495,7 +495,7 @@ async fn conductor_restarts_after_reaching_stop_block_height() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 4,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_height: 0,
         up_to_n_times: 1, // We need to mount a new genesis info after restart
     );
 
@@ -579,7 +579,7 @@ async fn conductor_restarts_after_reaching_stop_block_height() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
-        rollup_start_block_height: 2,
+        rollup_start_block_height: 1,
     );
 
     mount_get_commitment_state!(

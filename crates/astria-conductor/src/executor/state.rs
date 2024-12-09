@@ -35,13 +35,13 @@ pub(super) fn channel() -> (StateSender, StateReceiver) {
 
 #[derive(Debug, thiserror::Error)]
 #[error(
-    "adding sequencer genesis height `{sequencer_genesis_height}` and `{commitment_type}` rollup \
-     number `{rollup_number}` overflowed unsigned u32::MAX, the maximum permissible cometbft \
-     height"
+    "adding sequencer genesis height `{sequencer_start_block_height}` and `{commitment_type}` \
+     rollup number `{rollup_number}` overflowed unsigned u32::MAX, the maximum permissible \
+     cometbft height"
 )]
 pub(super) struct InvalidState {
     commitment_type: &'static str,
-    sequencer_genesis_height: u64,
+    sequencer_start_block_height: u64,
     rollup_number: u64,
 }
 
@@ -101,12 +101,19 @@ fn can_map_firm_to_sequencer_height(
     genesis_info: &GenesisInfo,
     commitment_state: &CommitmentState,
 ) -> Result<(), InvalidState> {
-    let sequencer_genesis_height = genesis_info.sequencer_start_block_height();
+    let sequencer_start_block_height = genesis_info.sequencer_start_block_height();
     let rollup_number = commitment_state.firm().number();
-    if map_rollup_number_to_sequencer_height(sequencer_genesis_height, rollup_number).is_none() {
+    let rollup_start_height = genesis_info.rollup_start_block_height();
+    if map_rollup_number_to_sequencer_height(
+        sequencer_start_block_height,
+        rollup_number,
+        rollup_start_height,
+    )
+    .is_none()
+    {
         Err(InvalidState {
             commitment_type: "firm",
-            sequencer_genesis_height: sequencer_genesis_height.value(),
+            sequencer_start_block_height: sequencer_start_block_height.value(),
             rollup_number: rollup_number.into(),
         })
     } else {
@@ -118,12 +125,19 @@ fn can_map_soft_to_sequencer_height(
     genesis_info: &GenesisInfo,
     commitment_state: &CommitmentState,
 ) -> Result<(), InvalidState> {
-    let sequencer_genesis_height = genesis_info.sequencer_start_block_height();
+    let sequencer_start_block_height = genesis_info.sequencer_start_block_height();
     let rollup_number = commitment_state.soft().number();
-    if map_rollup_number_to_sequencer_height(sequencer_genesis_height, rollup_number).is_none() {
+    let rollup_start_height = genesis_info.rollup_start_block_height();
+    if map_rollup_number_to_sequencer_height(
+        sequencer_start_block_height,
+        rollup_number,
+        rollup_start_height,
+    )
+    .is_none()
+    {
         Err(InvalidState {
             commitment_type: "soft",
-            sequencer_genesis_height: sequencer_genesis_height.value(),
+            sequencer_start_block_height: sequencer_start_block_height.value(),
             rollup_number: rollup_number.into(),
         })
     } else {
@@ -321,6 +335,7 @@ impl State {
         map_rollup_number_to_sequencer_height(
             self.sequencer_start_block_height(),
             self.firm_number().saturating_add(1),
+            self.rollup_start_block_height(),
         )
     }
 
@@ -328,38 +343,40 @@ impl State {
         map_rollup_number_to_sequencer_height(
             self.sequencer_start_block_height(),
             self.soft_number().saturating_add(1),
+            self.rollup_start_block_height(),
         )
     }
 }
 
 /// Maps a rollup height to a sequencer height.
 ///
-/// Returns `None` if `sequencer_genesis_height + rollup_number` overflows
-/// `u32::MAX`.
+/// Returns `None` if `sequencer_start_block_height + rollup_number - rollup_start_block_height + 1`
+/// overflows `u32::MAX`.
 fn map_rollup_number_to_sequencer_height(
-    sequencer_genesis_height: SequencerHeight,
+    sequencer_start_block_height: SequencerHeight,
     rollup_number: u32,
+    rollup_start_block_height: u64,
 ) -> Option<SequencerHeight> {
-    let sequencer_genesis_height = sequencer_genesis_height.value();
+    let sequencer_start_block_height = sequencer_start_block_height.value();
     let rollup_number: u64 = rollup_number.into();
-    let sequencer_height = sequencer_genesis_height.checked_add(rollup_number)?;
+    let sequencer_height = sequencer_start_block_height
+        .checked_add(rollup_number)?
+        .checked_sub(rollup_start_block_height)?;
     sequencer_height.try_into().ok()
 }
 
 /// Maps a sequencer height to a rollup height.
 ///
-/// Returns `None` if `sequencer_height - sequencer_genesis_height` underflows or if
-/// the result does not fit in `u32`.
+/// Returns `None` if `sequencer_height - sequencer_start_block_height + rollup_start_block_height` underflows or if the result does not fit in `u32`.
 pub(super) fn map_sequencer_height_to_rollup_height(
-    sequencer_genesis_height: SequencerHeight,
+    sequencer_start_height: SequencerHeight,
     sequencer_height: SequencerHeight,
     rollup_start_block_height: u64,
 ) -> Option<u32> {
     sequencer_height
         .value()
-        .checked_sub(sequencer_genesis_height.value())?
+        .checked_sub(sequencer_start_height.value())?
         .checked_add(rollup_start_block_height)?
-        .checked_sub(1)? // offset rollup start block height value
         .try_into()
         .ok()
 }
@@ -410,7 +427,7 @@ mod tests {
             sequencer_start_block_height: 10,
             sequencer_stop_block_height: 100,
             celestia_block_variance: 0,
-            rollup_start_block_height: 1,
+            rollup_start_block_height: 0,
             sequencer_chain_id: "test-sequencer-0".to_string(),
             celestia_chain_id: "test-celestia-0".to_string(),
         })
@@ -446,7 +463,7 @@ mod tests {
     fn assert_height_is_correct(left: u32, right: u32, expected: u32) {
         assert_eq!(
             SequencerHeight::from(expected),
-            map_rollup_number_to_sequencer_height(SequencerHeight::from(left), right)
+            map_rollup_number_to_sequencer_height(SequencerHeight::from(left), right, 0)
                 .expect("left + right is so small, they should never overflow"),
         );
     }

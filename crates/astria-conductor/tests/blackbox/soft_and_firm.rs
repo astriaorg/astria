@@ -46,7 +46,7 @@ async fn executes_soft_first_then_updates_firm() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_height: 0,
     );
 
     mount_get_commitment_state!(
@@ -182,7 +182,7 @@ async fn executes_firm_then_soft_at_next_height() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_height: 0,
     );
 
     mount_get_commitment_state!(
@@ -343,7 +343,7 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_height: 0,
     );
 
     mount_get_commitment_state!(
@@ -474,7 +474,7 @@ async fn conductor_restarts_on_permission_denied() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_height: 0,
         up_to_n_times: 2,
     );
 
@@ -629,7 +629,7 @@ async fn conductor_restarts_after_reaching_stop_height() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 3,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_height: 0,
         up_to_n_times: 1, // We only respond once since this needs to be updated after restart
     );
 
@@ -663,10 +663,6 @@ async fn conductor_restarts_after_reaching_stop_height() {
     mount_get_filtered_sequencer_block!(
         test_conductor,
         sequencer_height: 3,
-    );
-    mount_get_filtered_sequencer_block!(
-        test_conductor,
-        sequencer_height: 4,
     );
 
     // Mount firm blocks for heights 3 and 4
@@ -749,7 +745,7 @@ async fn conductor_restarts_after_reaching_stop_height() {
         sequencer_start_block_height: 1,
         sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
-        rollup_start_block_height: 2,
+        rollup_start_block_height: 1,
     );
 
     mount_get_commitment_state!(
