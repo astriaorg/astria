@@ -5,6 +5,10 @@ pub(crate) mod storage;
 
 use std::time::Duration;
 
+use astria_core::generated::astria::sequencerblock::{
+    optimistic::v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer,
+    v1::sequencer_service_server::SequencerServiceServer,
+};
 use futures::{
     future::Fuse,
     FutureExt,
@@ -23,8 +27,6 @@ use tracing::{
     info_span,
     warn,
 };
-use astria_core::generated::astria::sequencerblock::optimistic::v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer;
-use astria_core::generated::astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
 
 use crate::{
     app::event_bus::EventBusSubscription,

@@ -1,7 +1,7 @@
 use bytes::Bytes;
 
 use crate::{
-    generated::sequencerblock::optimistic::v1alpha1 as raw,
+    generated::astria::sequencerblock::optimistic::v1alpha1 as raw,
     Protobuf,
 };
 

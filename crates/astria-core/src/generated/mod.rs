@@ -132,6 +132,19 @@ pub mod astria {
                 }
             }
         }
+
+        #[path = ""]
+        pub mod transaction {
+            pub mod v1 {
+                include!("astria.protocol.transaction.v1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria.protocol.transaction.v1.serde.rs");
+                }
+            }
+        }
     }
 
     #[path = ""]
