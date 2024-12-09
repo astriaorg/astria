@@ -141,12 +141,6 @@ pub(crate) struct Reader {
     /// (usually to verify block data retrieved from Celestia blobs).
     sequencer_requests_per_second: u32,
 
-    /// The chain ID of the Celestia network the reader should be communicating with.
-    expected_celestia_chain_id: String,
-
-    /// The chain ID of the Sequencer the reader should be communicating with.
-    expected_sequencer_chain_id: String,
-
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 
@@ -178,24 +172,23 @@ impl Reader {
     async fn initialize(
         &mut self,
     ) -> eyre::Result<((), executor::Handle<StateIsInit>, tendermint::chain::Id)> {
+        let executor = self
+            .executor
+            .wait_for_init()
+            .await
+            .wrap_err("handle to executor failed while waiting for it being initialized")?;
+
         let validate_celestia_chain_id = async {
             let actual_celestia_chain_id = get_celestia_chain_id(&self.celestia_client)
                 .await
                 .wrap_err("failed to fetch Celestia chain ID")?;
-            let expected_celestia_chain_id = &self.expected_celestia_chain_id;
+            let expected_celestia_chain_id = executor.celestia_chain_id();
             ensure!(
-                self.expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
+                expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
                 "expected Celestia chain id `{expected_celestia_chain_id}` does not match actual: \
                  `{actual_celestia_chain_id}`"
             );
             Ok(())
-        };
-
-        let wait_for_init_executor = async {
-            self.executor
-                .wait_for_init()
-                .await
-                .wrap_err("handle to executor failed while waiting for it being initialized")
         };
 
         let get_and_validate_sequencer_chain_id = async {
@@ -203,20 +196,21 @@ impl Reader {
                 get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
                     .await
                     .wrap_err("failed to get sequencer chain ID")?;
-            let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
+            let expected_sequencer_chain_id = executor.sequencer_chain_id();
             ensure!(
-                self.expected_sequencer_chain_id == actual_sequencer_chain_id.to_string(),
+                expected_sequencer_chain_id == actual_sequencer_chain_id.to_string(),
                 "expected Celestia chain id `{expected_sequencer_chain_id}` does not match \
                  actual: `{actual_sequencer_chain_id}`"
             );
             Ok(actual_sequencer_chain_id)
         };
 
-        try_join!(
+        let ((), sequencer_chain_id) = try_join!(
             validate_celestia_chain_id,
-            wait_for_init_executor,
             get_and_validate_sequencer_chain_id
-        )
+        )?;
+
+        Ok(((), executor, sequencer_chain_id))
     }
 }
 
