@@ -512,18 +512,18 @@ impl RunningReader {
     #[instrument(skip_all)]
     fn forward_block_to_executor(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
-        match self.executor.try_send_firm_block(block) {
+        match self.executor.try_send_firm_block(Box::new(block)) {
             Ok(()) => self.advance_reference_celestia_height(celestia_height),
             Err(FirmTrySendError::Channel {
                 source,
-            }) => match *source {
+            }) => match source {
                 mpsc::error::TrySendError::Full(block) => {
                     trace!(
                         "executor channel is full; rescheduling block fetch until the channel \
                          opens up"
                     );
                     self.enqueued_block =
-                        enqueue_block(self.executor.clone(), block).boxed().fuse();
+                        enqueue_block(self.executor.clone(), *block).boxed().fuse();
                 }
                 mpsc::error::TrySendError::Closed(_) => {
                     bail!("exiting because executor channel is closed");
@@ -667,7 +667,7 @@ async fn enqueue_block(
     block: ReconstructedBlock,
 ) -> Result<u64, FirmSendError> {
     let celestia_height = block.celestia_height;
-    executor.send_firm_block(block).await?;
+    executor.send_firm_block(Box::new(block)).await?;
     Ok(celestia_height)
 }
 

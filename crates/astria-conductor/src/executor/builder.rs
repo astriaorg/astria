@@ -11,6 +11,7 @@ use super::{
     state,
     Executor,
     Handle,
+    ReconstructedBlock,
     StateNotInit,
 };
 use crate::{
@@ -44,7 +45,7 @@ impl Builder {
         let mut firm_block_tx = None;
         let mut firm_block_rx = None;
         if mode.is_with_firm() {
-            let (tx, rx) = mpsc::channel(16);
+            let (tx, rx) = mpsc::channel::<Box<ReconstructedBlock>>(16);
             firm_block_tx = Some(tx);
             firm_block_rx = Some(rx);
         }
