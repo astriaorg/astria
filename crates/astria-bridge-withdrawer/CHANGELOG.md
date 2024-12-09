@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `accumulateded_settled_value` metric which tracks total settled since startup [#1814](https://github.com/astriaorg/astria/pull/1814)
+
+
+### Removed
+
+- `batch_total_settled_value` which as a guage was not useful for tracking total settled value [#1814](https://github.com/astriaorg/astria/pull/1814)
+
 ## [1.0.1] - 2024-11-01
 
 ### Fixed
