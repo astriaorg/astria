@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use cnidarium::StateWrite;
 
 use crate::{
+    action_handler::ActionHandler,
     address::StateReadExt as _,
-    app::ActionHandler,
     ibc::{
         StateReadExt as _,
         StateWriteExt as _,

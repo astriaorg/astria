@@ -332,7 +332,7 @@ fn prepare_broadcast_tx_sync_response(response: tx_sync::Response) -> Mock {
 
 /// Convert a wiremock request to an astria transaction
 pub fn tx_from_request(request: &wiremock::Request) -> Transaction {
-    use astria_core::generated::protocol::transaction::v1::Transaction as RawTransaction;
+    use astria_core::generated::astria::protocol::transaction::v1::Transaction as RawTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: tendermint_rpc::request::Wrapper<tx_sync::Request> =

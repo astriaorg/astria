@@ -724,7 +724,7 @@ async fn emit_deposit<S: StateWrite>(
         .get_transaction_context()
         .ok_or_eyre("transaction source should be present in state when executing an action")?;
     let source_transaction_id = transaction_context.transaction_id;
-    let source_action_index = transaction_context.source_action_index;
+    let source_action_index = transaction_context.position_in_transaction;
 
     let deposit = Deposit {
         bridge_address: *bridge_address,
@@ -934,7 +934,7 @@ mod tests {
         state_tx.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
 
         let rollup_deposit_address = "rollupaddress";
@@ -1016,7 +1016,7 @@ mod tests {
         state_tx.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
 
         let rollup_deposit_address = "rollupaddress";
@@ -1266,7 +1266,7 @@ mod tests {
         state_tx.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
 
         state_tx
@@ -1350,7 +1350,7 @@ mod tests {
         state_tx.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         });
 
         state_tx
@@ -1455,7 +1455,7 @@ mod tests {
         let transaction_context = TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
-            source_action_index: 0,
+            position_in_transaction: 0,
         };
         state_tx.put_transaction_context(transaction_context);
 

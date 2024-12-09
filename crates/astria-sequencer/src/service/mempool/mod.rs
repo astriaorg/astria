@@ -10,7 +10,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1 as raw,
+    generated::astria::protocol::transaction::v1 as raw,
     primitive::v1::asset::IbcPrefixed,
     protocol::{
         abci::AbciErrorCode,
@@ -50,8 +50,8 @@ use tracing::{
 
 use crate::{
     accounts::StateReadExt as _,
+    action_handler::ActionHandler as _,
     address::StateReadExt as _,
-    app::ActionHandler as _,
     mempool::{
         get_account_balances,
         InsertionError,

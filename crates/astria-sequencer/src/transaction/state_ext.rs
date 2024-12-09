@@ -18,7 +18,7 @@ fn transaction_context() -> &'static str {
 pub(crate) struct TransactionContext {
     pub(crate) address_bytes: [u8; ADDRESS_LEN],
     pub(crate) transaction_id: TransactionId,
-    pub(crate) source_action_index: u64,
+    pub(crate) position_in_transaction: u64,
 }
 
 impl TransactionContext {
@@ -32,7 +32,7 @@ impl From<&Transaction> for TransactionContext {
         Self {
             address_bytes: *value.address_bytes(),
             transaction_id: value.id(),
-            source_action_index: 0,
+            position_in_transaction: 0,
         }
     }
 }

@@ -17,11 +17,7 @@ use color_eyre::eyre::{
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
     /// The URL at which the Sequencer node is listening for ABCI commands.
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::DEFAULT_SEQUENCER_RPC
-    )]
+    #[arg(long, env = "SEQUENCER_URL")]
     sequencer_url: String,
     /// The source to read the pbjson formatted astra.protocol.transaction.v1.Transaction (use `-`
     /// to pass via STDIN).

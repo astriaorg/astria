@@ -7,19 +7,20 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use async_trait::async_trait;
 use cnidarium::StateWrite;
 
 use crate::{
+    action_handler::ActionHandler,
     address::StateReadExt as _,
-    app::ActionHandler,
-    bridge::state_ext::{
+    bridge::{
         StateReadExt as _,
-        StateWriteExt as _,
+        StateWriteExt,
     },
     transaction::StateReadExt as _,
 };
 
-#[async_trait::async_trait]
+#[async_trait]
 impl ActionHandler for InitBridgeAccount {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())

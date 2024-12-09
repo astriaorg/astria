@@ -21,7 +21,7 @@ use sha2::{
 };
 
 use crate::{
-    generated::primitive::v1 as raw,
+    generated::astria::primitive::v1 as raw,
     Protobuf,
 };
 

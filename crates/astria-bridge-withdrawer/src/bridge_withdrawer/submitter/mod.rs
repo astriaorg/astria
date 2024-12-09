@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1::{
+    generated::astria::sequencerblock::v1::{
         sequencer_service_client::{
             self,
             SequencerServiceClient,
