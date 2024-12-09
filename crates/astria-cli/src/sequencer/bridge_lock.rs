@@ -22,16 +22,18 @@ pub(super) struct Command {
     /// The amount being locked
     #[arg(long)]
     amount: u128,
+    /// The address on the destination chain
     #[arg(long)]
     destination_chain_address: String,
     /// The prefix to construct a bech32m address given the private key.
     #[arg(long, default_value = "astria")]
     prefix: String,
+    /// The private key of the account locking the funds
+    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
     // that overwrite the key on drop and don't reveal it when printing.
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     private_key: String,
     /// The url of the Sequencer node
     #[arg(long, env = "SEQUENCER_URL")]
