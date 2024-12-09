@@ -35,9 +35,7 @@ pub mod action {
         #[prost(message, tag = "50")]
         SudoAddressChange(super::SudoAddressChange),
         #[prost(message, tag = "51")]
-        ValidatorUpdate(
-            super::super::super::super::super::astria_vendored::tendermint::abci::ValidatorUpdate,
-        ),
+        ValidatorUpdate(super::ValidatorUpdate),
         #[prost(message, tag = "52")]
         IbcRelayerChange(super::IbcRelayerChange),
         #[prost(message, tag = "53")]
@@ -391,6 +389,28 @@ pub struct BridgeSudoChange {
 }
 impl ::prost::Name for BridgeSudoChange {
     const NAME: &'static str = "BridgeSudoChange";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ValidatorUpdate {
+    /// the ed25519 public key of the validator
+    #[prost(message, optional, tag = "1")]
+    pub pub_key: ::core::option::Option<
+        super::super::super::super::astria_vendored::tendermint::crypto::PublicKey,
+    >,
+    /// the amount of power to assign the validator
+    #[prost(int64, tag = "2")]
+    pub power: i64,
+    /// an optional name for the validator. to opt for no name, leave blank
+    #[prost(string, tag = "3")]
+    pub name: ::prost::alloc::string::String,
+}
+impl ::prost::Name for ValidatorUpdate {
+    const NAME: &'static str = "ValidatorUpdate";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
