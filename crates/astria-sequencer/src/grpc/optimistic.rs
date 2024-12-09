@@ -5,7 +5,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::optimisticblock::v1alpha1::{
+    generated::sequencerblock::optimistic::v1alpha1::{
         optimistic_block_service_server::OptimisticBlockService,
         GetBlockCommitmentStreamRequest,
         GetBlockCommitmentStreamResponse,
