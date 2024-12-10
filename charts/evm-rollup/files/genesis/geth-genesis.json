@@ -46,7 +46,6 @@
                     "addressPrefix": {{ toString .Values.genesis.forks.genesis.sequencerAddressPrefix | replace "\"" "" }},
                     "startHeight": {{ toString .Values.genesis.forks.genesis.sequencerStartHeight | replace "\"" "" }},
                     "stopHeight": {{ toString .Values.genesis.forks.genesis.sequencerStopHeight | replace "\"" "" }},
-                    "rollupStartHeight": {{ toString .Values.genesis.forks.genesis.rollupStartHeight | replace "\"" "" }},
                 },
                 "celestia": {
                     "chainId": {{ toString .Values.genesis.forks.genesis.celestiaChainId | replace "\"" "" }},

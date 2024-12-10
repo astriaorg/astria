@@ -58,8 +58,6 @@ genesis:
       sequencerStartHeight: ""
       # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork
       sequencerStopHeight: ""
-      # The height to start the rollup chain at, 0 for genesis
-      rollupStartHeight: "0"
       # The chain id of the celestia chain
       celestiaChainId: ""
       # The first Celestia height to utilize when looking for rollup data
