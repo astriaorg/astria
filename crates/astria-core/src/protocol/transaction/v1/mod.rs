@@ -11,7 +11,7 @@ use crate::{
         SigningKey,
         VerificationKey,
     },
-    generated::protocol::transaction::v1 as raw,
+    generated::astria::protocol::transaction::v1 as raw,
     primitive::v1::{
         TransactionId,
         ADDRESS_LEN,
@@ -621,7 +621,7 @@ mod tests {
             body_bytes: body.to_raw().encode_to_vec().into(),
         };
 
-        insta::assert_json_snapshot!(tx.id().to_raw());
+        insta::assert_json_snapshot!("transaction_id", tx.id().to_raw());
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use astria_core::{
-    generated::sequencerblock::v1::{
+    generated::astria::sequencerblock::v1::{
         sequencer_service_server::SequencerService,
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
