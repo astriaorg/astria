@@ -37,7 +37,7 @@
                 "halt": {{ toString .Values.genesis.forks.genesis.halt | replace "\"" "" }},
                 "snapshotChecksum": {{ toString .Values.genesis.forks.genesis.snapshotChecksum | replace "\"" "" }},
                 {{- if .Values.genesis.forks.genesis.extraDataOverride }}
-                "astriaExtraDataOverride": {{ toString .Values.genesis.forks.genesis.extraDataOverride }},
+                "extraDataOverride": {{ toString .Values.genesis.forks.genesis.extraDataOverride }},
                 {{- end }}
                 "feeCollector": {{ toString .Values.genesis.forks.genesis.feeCollector | replace "\"" "" }},
                 "EIP1559Params": {{ toPrettyJson .Values.genesis.forks.genesis.eip1559Params | indent 8 | trim }},
