@@ -27,20 +27,38 @@
         {{- range $key, $value := .Values.genesis.extra }}
         "{{ $key }}": {{ toPrettyJson $value | indent 8 | trim }},
         {{- end }}
-        {{- if .Values.genesis.extraDataOverride }}
-        "astriaExtraDataOverride": "{{ .Values.genesis.extraDataOverride }}",
-        {{- end }}
         "astriaOverrideGenesisExtraData": {{ .Values.genesis.overrideGenesisExtraData }},
-        "astriaSequencerInitialHeight": {{ toString .Values.genesis.sequencerInitialHeight | replace "\"" "" }},
         "astriaRollupName": "{{ tpl .Values.genesis.rollupName . }}",
-        "astriaCelestiaInitialHeight": {{ toString .Values.genesis.celestiaInitialHeight | replace "\"" "" }},
-        "astriaCelestiaHeightVariance": {{ toString .Values.genesis.celestiaHeightVariance | replace "\"" "" }},
-        "astriaBridgeAddresses": {{ toPrettyJson .Values.genesis.bridgeAddresses | indent 8 | trim }},
-        "astriaFeeCollectors": {{ toPrettyJson .Values.genesis.feeCollectors | indent 8 | trim }},
-        "astriaEIP1559Params": {{ toPrettyJson .Values.genesis.eip1559Params | indent 8 | trim }},
-        "astriaSequencerAddressPrefix": "{{ .Values.genesis.sequencerAddressPrefix }}"
         {{- if not .Values.global.dev }}
         {{- else }}
+        "astriaForks": {
+            "genesis": {
+                "height": {{ toString .Values.genesis.forks.genesis.height | replace "\"" "" }},
+                "halt": {{ toString .Values.genesis.forks.genesis.halt | replace "\"" "" }},
+                "snapshotChecksum": {{ toString .Values.genesis.forks.genesis.snapshotChecksum | replace "\"" "" }},
+                {{- if .Values.genesis.forks.genesis.extraDataOverride }}
+                "astriaExtraDataOverride": {{ toString .Values.genesis.forks.genesis.extraDataOverride }},
+                {{- end }}
+                "feeCollector": {{ toString .Values.genesis.forks.genesis.feeCollector | replace "\"" "" }},
+                "EIP1559Params": {{ toPrettyJson .Values.genesis.forks.genesis.eip1559Params | indent 8 | trim }},
+                "sequencer": {
+                    "chainId": {{ toString .Values.genesis.forks.genesis.sequencerChainId | replace "\"" "" }},
+                    "addressPrefix": {{ toString .Values.genesis.forks.genesis.sequencerAddressPrefix | replace "\"" "" }},
+                    "startHeight": {{ toString .Values.genesis.forks.genesis.sequencerStartHeight | replace "\"" "" }},
+                    "stopHeight": {{ toString .Values.genesis.forks.genesis.sequencerStopHeight | replace "\"" "" }},
+                    "rollupStartHeight": {{ toString .Values.genesis.forks.genesis.rollupStartHeight | replace "\"" "" }},
+                },
+                "celestia": {
+                    "chainId": {{ toString .Values.genesis.forks.genesis.celestiaChainId | replace "\"" "" }},
+                    "startHeight": {{ toString .Values.genesis.forks.genesis.celestiaStartHeight | replace "\"" "" }},
+                    "heightVariance": {{ toString .Values.genesis.forks.genesis.celestiaHeightVariance | replace "\"" "" }},
+                },
+                "bridgeAddresses": {{ toPrettyJson .Values.genesis.forks.genesisbridgeAddresses | indent 8 | trim }},
+            }
+            {{- if .Values.genesis.forks.additionalForks }}
+            {{ toPrettyJson .Values.genesis.forks.additionalForks | indent 8 | trim }}
+            {{- end }}
+        },
         {{- end }}
     },
     "difficulty": "0",
