@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Index all event attributes [#1786](https://github.com/astriaorg/astria/pull/1786).
 - Consolidate action handling to single module [#1759](https://github.com/astriaorg/astria/pull/1759).
 - Ensure all deposit assets are trace prefixed [#1807](https://github.com/astriaorg/astria/pull/1807).
+- Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 - Provide and use new `Storage` struct, wrapping `cnidarium::Storage` [#1801](https://github.com/astriaorg/astria/pull/1801).
 - Provide and use new `Snapshot` struct, wrapping `cnidarium::Snapshot` and
   holding a cache of recently-read values [#1801](https://github.com/astriaorg/astria/pull/1801).
