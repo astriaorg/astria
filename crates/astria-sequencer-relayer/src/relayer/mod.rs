@@ -83,6 +83,9 @@ use crate::{
     IncludeRollup,
 };
 
+type ForwardFut<'a> =
+    Fuse<BoxFuture<'a, Result<(), tokio::sync::mpsc::error::SendError<Box<SequencerBlock>>>>>;
+
 pub(crate) struct Relayer {
     /// A token to notify relayer that it should shut down.
     #[expect(
@@ -276,20 +279,13 @@ impl Relayer {
     }
 
     #[instrument(skip_all, fields(%height))]
-    #[expect(
-        clippy::type_complexity,
-        reason = "complexity comes from the error type, which is boxed to avoid a large Err \
-                  variant of the result"
-    )]
     fn forward_block_for_submission(
         &self,
         height: SequencerHeight,
         block: SequencerBlock,
         block_stream: &mut read::BlockStream,
         submitter: write::BlobSubmitterHandle,
-        forward: &mut Fuse<
-            BoxFuture<Result<(), tokio::sync::mpsc::error::SendError<Box<SequencerBlock>>>>,
-        >,
+        forward: &mut ForwardFut,
     ) -> eyre::Result<()> {
         assert!(
             forward.is_terminated(),
