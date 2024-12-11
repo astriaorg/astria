@@ -189,16 +189,14 @@ impl Audit<'_, WithLeafHash, WithRoot> {
     /// tree.build_leaf().write(&[4, 2]).write(b"answer");
     /// let root = tree.root();
     /// let proof = tree.construct_proof(3).expect("leaf 4 is inside the tree");
-    /// assert!(
-    ///     proof
-    ///         .audit()
-    ///         .with_root(root)
-    ///         .with_leaf_builder()
-    ///         .write(&[4, 2])
-    ///         .write(b"answer")
-    ///         .finish_leaf()
-    ///         .perform()
-    /// );
+    /// assert!(proof
+    ///     .audit()
+    ///     .with_root(root)
+    ///     .with_leaf_builder()
+    ///     .write(&[4, 2])
+    ///     .write(b"answer")
+    ///     .finish_leaf()
+    ///     .perform());
     /// ```
     #[must_use = "verify the audit result"]
     pub fn perform(&self) -> bool {
@@ -497,18 +495,16 @@ impl Proof {
     ///     .write(b"42");
     /// let root = tree.root();
     /// let proof = tree.construct_proof(3).expect("leaf 4 is in the tree");
-    /// assert!(
-    ///     proof
-    ///         .audit()
-    ///         .with_root(root)
-    ///         .with_leaf_builder()
-    ///         .write(&[42; 1])
-    ///         .write(&[1, 1])
-    ///         .write(&vec![42; 3])
-    ///         .write(b"42")
-    ///         .finish_leaf()
-    ///         .perform()
-    /// );
+    /// assert!(proof
+    ///     .audit()
+    ///     .with_root(root)
+    ///     .with_leaf_builder()
+    ///     .write(&[42; 1])
+    ///     .write(&[1, 1])
+    ///     .write(&vec![42; 3])
+    ///     .write(b"42")
+    ///     .finish_leaf()
+    ///     .perform());
     /// ```
     #[must_use = "an audit must be performed to be useful"]
     pub fn audit(&self) -> Audit {

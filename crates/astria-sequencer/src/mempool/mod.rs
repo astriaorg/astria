@@ -1040,12 +1040,10 @@ mod tests {
         );
 
         // Check the pending nonce for an address with no txs is `None`.
-        assert!(
-            mempool
-                .pending_nonce(astria_address_from_hex_string(CAROL_ADDRESS).as_bytes())
-                .await
-                .is_none()
-        );
+        assert!(mempool
+            .pending_nonce(astria_address_from_hex_string(CAROL_ADDRESS).as_bytes())
+            .await
+            .is_none());
     }
 
     #[tokio::test]

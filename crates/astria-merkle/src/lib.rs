@@ -39,18 +39,16 @@
 //!     .construct_proof(4)
 //!     .expect("leaf 5 must be inside the tree");
 //!
-//! assert!(
-//!     proof
-//!         .audit()
-//!         .with_root(root)
-//!         .with_leaf_builder()
-//!         .write(&[42; 1])
-//!         .write(&[1, 1])
-//!         .write(&vec![42; 3])
-//!         .write(b"42")
-//!         .finish_leaf()
-//!         .perform()
-//! );
+//! assert!(proof
+//!     .audit()
+//!     .with_root(root)
+//!     .with_leaf_builder()
+//!     .write(&[42; 1])
+//!     .write(&[1, 1])
+//!     .write(&vec![42; 3])
+//!     .write(b"42")
+//!     .finish_leaf()
+//!     .perform());
 //! ```
 //!
 //! # Indexing scheme

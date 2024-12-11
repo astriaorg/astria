@@ -958,12 +958,10 @@ mod tests {
         let ttx = MockTTXBuilder::new().nonce(0).build();
         let priority = ttx.priority(1);
 
-        assert!(
-            priority
-                .unwrap_err()
-                .to_string()
-                .contains("less than current account nonce")
-        );
+        assert!(priority
+            .unwrap_err()
+            .to_string()
+            .contains("less than current account nonce"));
     }
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
