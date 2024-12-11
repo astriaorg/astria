@@ -14,6 +14,8 @@ graphNode:
   replicas: 1
   metrics:
     enabled: false
+  service:
+    annotations: {}
   ports:
     http: 8000
     jsonRpc: 8001
@@ -41,6 +43,8 @@ ipfs:
     enabled: false
     local: true
     size: 5Gi
+  service:
+    annotations: {}
   ports:
     api: 5001
 

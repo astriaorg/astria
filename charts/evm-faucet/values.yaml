@@ -58,3 +58,6 @@ secretProvider:
 
 ports:
   faucet: 8080
+
+service:
+  annotations: {}
