@@ -73,6 +73,8 @@ fmt lang=default_lang:
   @just _fmt-{{lang}}
 
 # Can lint 'rust', 'toml', 'proto', 'md' or 'all'. Defaults to all.
+# Can also run the following sub-lints for rust: 'rust-fmt', 'rust-clippy',
+# 'rust-clippy-custom', 'rust-clippy-tools', 'rust-dylint'
 lint lang=default_lang:
   @just _lint-{{lang}}
 

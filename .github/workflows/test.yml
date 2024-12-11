@@ -230,10 +230,10 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run pedantic clippy on workspace crates
         run: |
-          just _lint-rust-clippy
+          just lint rust-clippy
       - name: run pedantic clippy on tools/protobuf-compiler
         run: |
-          just _lint-rust-clippy-tools
+          just lint rust-clippy-tools
 
   custom-lints:
     runs-on: buildjet-8vcpu-ubuntu-2204
@@ -261,7 +261,7 @@ jobs:
         run: |
           : # list all lint packages here to have clippy explicitly test them
           : # uses the same nightly installed above to work around the entry in rust-toolchain.toml 
-          just _lint-rust-clippy-custom
+          just lint rust-clippy-custom
       - name: run dylint clippy on workspace crates
         env:
           # set the dylint driver path to the target/ directory so that it's hopefully cached by rust-cache
@@ -269,7 +269,7 @@ jobs:
           DYLINT_RUSTFLAGS: "-D warnings"
         run: |
           mkdir -p "$DYLINT_DRIVER_PATH"
-          just _lint-rust-dylint
+          just lint rust-dylint
 
   test:
     if: ${{ always() && !cancelled() }}

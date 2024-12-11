@@ -73,7 +73,7 @@ jobs:
           toolchain: nightly-2024-09-15
           components: rustfmt
       - name: run rustfmt
-        run: just _lint-rust-fmt
+        run: just lint rust-fmt
 
   toml:
     runs-on: ubuntu-22.04
