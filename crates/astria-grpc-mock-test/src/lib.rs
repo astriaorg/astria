@@ -10,7 +10,7 @@
     clippy::allow_attributes_without_reason,
     reason = "cannot prevent generated files from having allow attributes"
 )]
-pub mod health {
-    include!("generated/grpc.health.v1.rs");
-    include!("generated/grpc.health.v1.serde.rs");
+pub mod service {
+    include!("generated/grpc.mock_service.v1.rs");
+    include!("generated/grpc.mock_service.v1.serde.rs");
 }

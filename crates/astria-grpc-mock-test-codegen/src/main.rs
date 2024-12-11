@@ -5,11 +5,11 @@ fn main() {
         .parent()
         .unwrap()
         .join("astria-grpc-mock-test");
-    let protos = &[root_dir.join("proto/health.proto")];
+    let protos = &[root_dir.join("proto/mock_service.proto")];
     let includes = &[root_dir.join("proto")];
 
     let out_dir = root_dir.join("src/generated");
-    let file_descriptor_set_path = root_dir.join("src/generated/grpc_health_v1.bin");
+    let file_descriptor_set_path = root_dir.join("src/generated/grpc_mock_service_v1.bin");
 
     let mut prost_config = prost_build::Config::new();
     prost_config.enable_type_names();

@@ -3,35 +3,34 @@ use astria_grpc_mock::{
     response,
     Mock,
 };
-use astria_grpc_mock_test::health::{
-    health_client::HealthClient,
-    HealthCheckRequest,
-    HealthCheckResponse,
+use astria_grpc_mock_test::service::{
+    service_client::ServiceClient,
+    MockRequest,
+    MockResponse,
 };
 
-use crate::test_utils::{
-    start_mock_server,
-    MockMessage,
-};
+use crate::utils::start_mock_server;
 
 #[tokio::test]
 async fn exact_pbjson_match_works() {
     let server = start_mock_server().await;
-    let mut client = HealthClient::connect(format!("http://{}", server.local_addr))
+    let mut client = ServiceClient::connect(format!("http://{}", server.local_addr))
         .await
         .unwrap();
-    let expected_request = HealthCheckRequest {
+    let expected_request = MockRequest {
         service: "helloworld".to_string(),
+        additional_info: String::new(),
     };
-    let expected_response = HealthCheckResponse {
+    let expected_response = MockResponse {
         status: 1,
     };
     let mock = Mock::for_rpc_given("check", matcher::message_exact_pbjson(&expected_request))
         .respond_with(response::constant_response(expected_response.clone()));
     server.mocked.register(mock).await;
     let rsp = client
-        .check(HealthCheckRequest {
+        .check(MockRequest {
             service: "helloworld".to_string(),
+            additional_info: String::new(),
         })
         .await
         .unwrap();
@@ -41,13 +40,13 @@ async fn exact_pbjson_match_works() {
 #[tokio::test]
 async fn partial_pbjson_match_works() {
     let server = start_mock_server().await;
-    let expected_request = MockMessage {
-        field_one: "helloworld".to_string(),
-        field_two: String::new(),
+    let expected_request = MockRequest {
+        service: "helloworld".to_string(),
+        additional_info: String::new(),
     };
-    let expected_response = MockMessage {
-        field_one: "helloworld".to_string(),
-        field_two: "helloworld".to_string(),
+    let expected_response = MockRequest {
+        service: "helloworld".to_string(),
+        additional_info: "helloworld".to_string(),
     };
     let mock = Mock::for_rpc_given("check", matcher::message_partial_pbjson(&expected_request))
         .respond_with(response::constant_response(expected_response.clone()));
@@ -63,17 +62,17 @@ async fn partial_pbjson_match_works() {
 #[tokio::test]
 async fn and_combinator_works_with_partial_pbjson() {
     let server = start_mock_server().await;
-    let expected_request_1 = MockMessage {
-        field_one: "helloworld".to_string(),
-        field_two: String::new(),
+    let expected_request_1 = MockRequest {
+        service: "helloworld".to_string(),
+        additional_info: String::new(),
     };
-    let expected_request_2 = MockMessage {
-        field_one: String::new(),
-        field_two: "helloworld".to_string(),
+    let expected_request_2 = MockRequest {
+        service: String::new(),
+        additional_info: "helloworld".to_string(),
     };
-    let expected_response = MockMessage {
-        field_one: "helloworld".to_string(),
-        field_two: "helloworld".to_string(),
+    let expected_response = MockRequest {
+        service: "helloworld".to_string(),
+        additional_info: "helloworld".to_string(),
     };
     let mock = Mock::for_rpc_given(
         "check",
@@ -93,21 +92,23 @@ async fn and_combinator_works_with_partial_pbjson() {
 #[tokio::test]
 async fn exact_pbjson_matcher_doesnt_match_incorrect_request() {
     let server = start_mock_server().await;
-    let mut client = HealthClient::connect(format!("http://{}", server.local_addr))
+    let mut client = ServiceClient::connect(format!("http://{}", server.local_addr))
         .await
         .unwrap();
-    let expected_request = HealthCheckRequest {
+    let expected_request = MockRequest {
         service: "helloworld".to_string(),
+        additional_info: String::new(),
     };
-    let expected_response = HealthCheckResponse {
+    let expected_response = MockResponse {
         status: 1,
     };
     let mock = Mock::for_rpc_given("check", matcher::message_exact_pbjson(&expected_request))
         .respond_with(response::constant_response(expected_response.clone()));
     server.mocked.register(mock).await;
     let err_rsp = client
-        .check(HealthCheckRequest {
+        .check(MockRequest {
             service: "helloworld_wrong".to_string(),
+            additional_info: String::new(),
         })
         .await
         .unwrap_err();
@@ -117,21 +118,23 @@ async fn exact_pbjson_matcher_doesnt_match_incorrect_request() {
 #[tokio::test]
 async fn partial_pbjson_match_doesnt_match_incorrect_request() {
     let server = start_mock_server().await;
-    let mut client = HealthClient::connect(format!("http://{}", server.local_addr))
+    let mut client = ServiceClient::connect(format!("http://{}", server.local_addr))
         .await
         .unwrap();
-    let expected_request = HealthCheckRequest {
+    let expected_request = MockRequest {
         service: "helloworld".to_string(),
+        additional_info: String::new(),
     };
-    let expected_response = HealthCheckResponse {
+    let expected_response = MockResponse {
         status: 1,
     };
     let mock = Mock::for_rpc_given("check", matcher::message_partial_pbjson(&expected_request))
         .respond_with(response::constant_response(expected_response.clone()));
     server.mocked.register(mock).await;
     let err_rsp = client
-        .check(HealthCheckRequest {
+        .check(MockRequest {
             service: "hello".to_string(),
+            additional_info: String::new(),
         })
         .await
         .unwrap_err();
