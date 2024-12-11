@@ -119,7 +119,7 @@ impl Auction {
     }
 
     pub(super) fn cancel(&self) {
-        self.cancellation_token.cancel()
+        self.cancellation_token.cancel();
     }
 
     pub(in crate::auctioneer::inner) fn id(&self) -> &Id {

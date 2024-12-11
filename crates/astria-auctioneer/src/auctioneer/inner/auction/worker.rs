@@ -165,7 +165,7 @@ impl Worker {
                         Err(err) | Ok(Err(err)) => Err(err),
                     }
                 }
-            )
+            );
         }
     }
 

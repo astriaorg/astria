@@ -321,7 +321,7 @@ impl Inner {
             info!(
                 auction_id = %running_auction.id(),
                 "forwarded bundle to auction"
-            )
+            );
         } else {
             info!(
                 "received a bundle but did not forward it to the auction because no auction was \
