@@ -44,7 +44,7 @@ ipfs:
     local: true
     size: 5Gi
   service:
-    annotations: {}  
+    annotations: {}
   ports:
     api: 5001
 
