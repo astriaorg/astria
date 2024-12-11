@@ -60,7 +60,7 @@ pub(crate) const TED_ADDRESS: &str = "4c4f91d8a918357ab5f6f19c1e179968fc39bb44";
 
 pub(crate) fn address_prefixes() -> AddressPrefixes {
     AddressPrefixes::try_from_raw(
-        astria_core::generated::protocol::genesis::v1::AddressPrefixes {
+        astria_core::generated::astria::protocol::genesis::v1::AddressPrefixes {
             base: crate::benchmark_and_test_utils::ASTRIA_PREFIX.into(),
             ibc_compat: crate::benchmark_and_test_utils::ASTRIA_COMPAT_PREFIX.into(),
         },
@@ -129,9 +129,9 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
     }
 }
 
-pub(crate) fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::GenesisAppState
-{
-    use astria_core::generated::protocol::genesis::v1::{
+pub(crate) fn proto_genesis_state()
+-> astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
+    use astria_core::generated::astria::protocol::genesis::v1::{
         GenesisAppState,
         IbcParameters,
     };

@@ -3,7 +3,7 @@ use std::convert::Infallible;
 pub use penumbra_ibc::params::IBCParameters;
 
 use crate::{
-    generated::protocol::genesis::v1 as raw,
+    generated::astria::protocol::genesis::v1 as raw,
     primitive::v1::{
         asset::{
             self,

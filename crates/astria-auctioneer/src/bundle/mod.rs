@@ -3,9 +3,7 @@ use astria_core::{
         Signature,
         VerificationKey,
     },
-    generated::bundle::v1alpha1::{
-        self as raw,
-    },
+    generated::astria::bundle::v1alpha1 as raw,
     primitive::v1::{
         asset,
         RollupId,
@@ -14,18 +12,16 @@ use astria_core::{
         action::RollupDataSubmission,
         TransactionBody,
     },
+    sequencerblock::v1::block::BlockHash,
 };
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
 use bytes::Bytes;
-pub(crate) use client::BundleStream;
 use prost::Message as _;
 
 use crate::sequencer_key::SequencerKey;
-
-mod client;
 
 // TODO: this should probably be moved to astria_core::bundle?
 #[derive(Debug, Clone)]
@@ -39,11 +35,11 @@ pub(crate) struct Bundle {
     prev_rollup_block_hash: [u8; 32],
     /// The hash of the sequencer block used to derive the rollup block that this bundle is based
     /// on.
-    base_sequencer_block_hash: [u8; 32],
+    base_sequencer_block_hash: BlockHash,
 }
 
 impl Bundle {
-    fn try_from_raw(raw: raw::Bundle) -> eyre::Result<Self> {
+    pub(crate) fn try_from_raw(raw: raw::Bundle) -> eyre::Result<Self> {
         let raw::Bundle {
             fee,
             transactions,
@@ -68,7 +64,7 @@ impl Bundle {
         raw::Bundle {
             fee: self.fee,
             transactions: self.transactions,
-            base_sequencer_block_hash: Bytes::copy_from_slice(&self.base_sequencer_block_hash),
+            base_sequencer_block_hash: Bytes::copy_from_slice(&*self.base_sequencer_block_hash),
             prev_rollup_block_hash: Bytes::copy_from_slice(&self.prev_rollup_block_hash),
         }
     }
@@ -77,7 +73,7 @@ impl Bundle {
         self,
         nonce: u32,
         rollup_id: RollupId,
-        sequencer_key: SequencerKey,
+        sequencer_key: &SequencerKey,
         fee_asset: asset::Denom,
         chain_id: String,
     ) -> TransactionBody {
@@ -107,8 +103,8 @@ impl Bundle {
         self.prev_rollup_block_hash
     }
 
-    pub(crate) fn base_sequencer_block_hash(&self) -> [u8; 32] {
-        self.base_sequencer_block_hash
+    pub(crate) fn base_sequencer_block_hash(&self) -> &BlockHash {
+        &self.base_sequencer_block_hash
     }
 }
 
@@ -120,7 +116,7 @@ pub(crate) struct Allocation {
 }
 
 impl Allocation {
-    fn new(bundle: Bundle, sequencer_key: SequencerKey) -> Self {
+    fn new(bundle: Bundle, sequencer_key: &SequencerKey) -> Self {
         let bundle_data = bundle.clone().into_raw().encode_to_vec();
         let signature = sequencer_key.signing_key().sign(&bundle_data);
         let verification_key = sequencer_key.signing_key().verification_key();
