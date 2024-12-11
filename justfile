@@ -93,14 +93,37 @@ _fmt-rust:
 
 [no-exit-message]
 _lint-rust:
+  just _lint-rust-fmt
+  just _lint-rust-clippy
+  just _lint-rust-clippy-custom
+  just _lint-rust-clippy-tools
+  just _lint-rust-dylint
+
+[no-exit-message]
+_lint-rust-fmt:
   cargo +nightly-2024-09-15 fmt --all -- --check
+
+[no-exit-message]
+_lint-rust-clippy:
   cargo clippy --all-targets --all-features \
           -- --warn clippy::pedantic --warn clippy::arithmetic-side-effects \
           --warn clippy::allow_attributes --warn clippy::allow_attributes_without_reason \
           --deny warnings
+
+[no-exit-message]
+_lint-rust-clippy-custom:
+  cargo +nightly-2024-09-05 clippy --all-targets --all-features \
+          -p tracing_debug_field \
+          -- --warn clippy::pedantic --deny warnings
+
+[no-exit-message]
+_lint-rust-clippy-tools:
   cargo clippy --manifest-path tools/protobuf-compiler/Cargo.toml \
           --all-targets --all-features \
           -- --warn clippy::pedantic --deny warnings
+
+[no-exit-message]
+_lint-rust-dylint:
   cargo dylint --all --workspace
 
 [no-exit-message]
