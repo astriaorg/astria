@@ -94,7 +94,13 @@ _fmt-rust:
 [no-exit-message]
 _lint-rust:
   cargo +nightly-2024-09-15 fmt --all -- --check
-  cargo clippy -- --warn clippy::pedantic
+  cargo clippy --all-targets --all-features \
+          -- --warn clippy::pedantic --warn clippy::arithmetic-side-effects \
+          --warn clippy::allow_attributes --warn clippy::allow_attributes_without_reason \
+          --deny warnings
+  cargo clippy --manifest-path tools/protobuf-compiler/Cargo.toml \
+          --all-targets --all-features \
+          -- --warn clippy::pedantic --deny warnings
   cargo dylint --all
 
 [no-exit-message]
