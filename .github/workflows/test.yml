@@ -217,6 +217,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
+      - name: Install just
+        uses: taiki-e/install-action@just
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
@@ -243,6 +245,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
+      - name: Install just
+        uses: taiki-e/install-action@just
       - uses: dtolnay/rust-toolchain@master
         with:
           # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
