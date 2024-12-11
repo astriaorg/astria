@@ -101,7 +101,7 @@ _lint-rust:
   cargo clippy --manifest-path tools/protobuf-compiler/Cargo.toml \
           --all-targets --all-features \
           -- --warn clippy::pedantic --deny warnings
-  cargo dylint --all
+  cargo dylint --all --workspace
 
 [no-exit-message]
 _fmt-toml:
