@@ -67,7 +67,7 @@ impl Factory {
             id,
             block_hash,
             height,
-            parent_block_of_executed: None,
+            hash_of_executed_block_on_rollup: None,
             start_bids: Some(start_bids_tx),
             start_timer: Some(start_timer_tx),
             bundles: bundles_tx,

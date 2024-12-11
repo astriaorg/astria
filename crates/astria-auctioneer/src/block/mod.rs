@@ -1,4 +1,5 @@
 use astria_core::{
+    Protobuf,
     execution,
     generated::astria::{
         bundle::v1alpha1 as raw_bundle,
@@ -9,19 +10,18 @@ use astria_core::{
     },
     primitive::v1::RollupId,
     sequencerblock::v1::{
+        RollupTransactions,
         block::{
             BlockHash,
             FilteredSequencerBlock,
             FilteredSequencerBlockParts,
         },
-        RollupTransactions,
     },
-    Protobuf,
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     Context,
+    eyre,
 };
 use bytes::Bytes;
 use prost::Message as _;
@@ -129,9 +129,9 @@ impl Executed {
         &self.sequencer_block_hash
     }
 
-    pub(crate) fn parent_rollup_block_hash(&self) -> [u8; 32] {
+    pub(crate) fn rollup_block_hash(&self) -> [u8; 32] {
         self.block
-            .parent_block_hash()
+            .hash()
             .as_ref()
             .try_into()
             .expect("rollup block hash must be 32 bytes")

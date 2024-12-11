@@ -105,7 +105,7 @@ pub(super) struct Auction {
     id: Id,
     block_hash: BlockHash,
     height: u64,
-    parent_block_of_executed: Option<[u8; 32]>,
+    hash_of_executed_block_on_rollup: Option<[u8; 32]>,
     start_bids: Option<oneshot::Sender<()>>,
     start_timer: Option<oneshot::Sender<()>>,
     bundles: mpsc::UnboundedSender<Arc<Bundle>>,
@@ -171,10 +171,10 @@ impl Auction {
             bail!("a previous executed block already triggered the auction to start bids");
         }
 
-        let _prev_block = self
-            .parent_block_of_executed
-            .replace(block.parent_rollup_block_hash());
-        debug_assert!(_prev_block.is_some());
+        let prev_block = self
+            .hash_of_executed_block_on_rollup
+            .replace(block.rollup_block_hash());
+        debug_assert!(prev_block.is_none());
 
         Ok(())
     }
@@ -192,7 +192,7 @@ impl Auction {
     ) -> eyre::Result<()> {
         // TODO: emit some more information about auctoin ID, expected vs actual parent block hash,
         // tacked block hash, provided block hash, etc.
-        let Some(parent_block_of_executed) = self.parent_block_of_executed else {
+        let Some(block_hash_of_executed) = self.hash_of_executed_block_on_rollup else {
             eyre::bail!(
                 "received a new bundle but the current auction has not yet
                     received an execute block from the rollup; dropping the bundle"
@@ -200,11 +200,11 @@ impl Auction {
         };
         ensure!(
             &self.block_hash == bundle.base_sequencer_block_hash()
-                && parent_block_of_executed == bundle.parent_rollup_block_hash(),
+                && block_hash_of_executed == bundle.parent_rollup_block_hash(),
             "bundle does not match auction; auction.sequenecer_block_hash = `{}`, \
              auction.parent_block_hash = `{}`, bundle. = `{}`, bundle.height = `{}`",
             self.block_hash,
-            base64(parent_block_of_executed),
+            base64(block_hash_of_executed),
             bundle.base_sequencer_block_hash(),
             base64(bundle.parent_rollup_block_hash()),
         );
