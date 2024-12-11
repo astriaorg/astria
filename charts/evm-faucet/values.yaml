@@ -27,6 +27,7 @@ config:
       key: token
   # The amount of token to give per request
   amount: 1
+  intervalMinutes: 100
   providerUrl: http://{{ .Values.config.rollupName }}-evm-service.{{ include "evmFaucet.namespace" . }}.svc.cluster.local:8545
 
 ingress:
