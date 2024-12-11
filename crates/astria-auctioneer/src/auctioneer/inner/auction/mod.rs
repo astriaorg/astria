@@ -37,7 +37,10 @@
 //! as it received the signal to start the timer. This corresponds to the sequencer block being
 //! committed, thus providing the latest pending nonce.
 
-use std::sync::Arc;
+use std::{
+    fmt::Display,
+    sync::Arc,
+};
 
 use astria_core::{
     self,
@@ -45,15 +48,16 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    Context,
     bail,
     ensure,
     eyre,
-    Context,
 };
 use futures::{
     Future,
     FutureExt as _,
 };
+use sequencer_client::tendermint_rpc::endpoint::broadcast::tx_sync;
 use telemetry::display::base64;
 use tokio::{
     sync::{
@@ -62,13 +66,13 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use super::PendingNonceSubscriber;
 use crate::{
     block::Commitment,
     bundle::Bundle,
-    flatten_join_result,
     sequencer_key::SequencerKey,
 };
 
@@ -105,12 +109,17 @@ pub(super) struct Auction {
     start_bids: Option<oneshot::Sender<()>>,
     start_timer: Option<oneshot::Sender<()>>,
     bundles: mpsc::UnboundedSender<Arc<Bundle>>,
-    worker: JoinHandle<eyre::Result<()>>,
+    cancellation_token: CancellationToken,
+    worker: JoinHandle<eyre::Result<Summary>>,
 }
 
 impl Auction {
     pub(super) fn abort(&self) {
         self.worker.abort();
+    }
+
+    pub(super) fn cancel(&self) {
+        self.cancellation_token.cancel()
     }
 
     pub(in crate::auctioneer::inner) fn id(&self) -> &Id {
@@ -206,13 +215,36 @@ impl Auction {
 }
 
 impl Future for Auction {
-    type Output = (Id, eyre::Result<()>);
+    type Output = (Id, Result<(), tokio::task::JoinError>);
 
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         let res = std::task::ready!(self.worker.poll_unpin(cx));
-        std::task::Poll::Ready((self.id, flatten_join_result(res)))
+        std::task::Poll::Ready((self.id, res.map(|_| ())))
+    }
+}
+
+pub(super) enum Summary {
+    CancelledDuringAuction,
+    NoBids,
+    Submitted(tx_sync::Response),
+}
+
+impl Display for Summary {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Summary::CancelledDuringAuction => {
+                f.write_str("received cancellation signal during auction loop")
+            }
+            Summary::NoBids => f.write_str("auction finished without bids"),
+            Summary::Submitted(rsp) => write!(
+                f,
+                "auction winner submitted; Sequencer responed with ABCI code `{}`, log `{}`",
+                rsp.code.value(),
+                rsp.log,
+            ),
+        }
     }
 }

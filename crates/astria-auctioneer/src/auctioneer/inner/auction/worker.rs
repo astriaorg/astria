@@ -43,29 +43,30 @@ use std::{
 };
 
 use astria_core::primitive::v1::{
-    asset,
     RollupId,
+    asset,
 };
 use astria_eyre::eyre::{
     self,
-    bail,
     Context,
-    OptionExt as _,
+    bail,
 };
 use sequencer_client::SequencerClientExt;
 use tokio::{
     select,
     sync::oneshot,
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{
-    error,
+    Level,
     info,
     instrument,
 };
 
 use super::{
-    allocation_rule::FirstPrice,
     PendingNonceSubscriber,
+    Summary,
+    allocation_rule::FirstPrice,
 };
 use crate::{
     bundle::Bundle,
@@ -92,57 +93,29 @@ pub(super) struct Worker {
     /// Rollup ID to submit the auction result to
     pub(super) rollup_id: RollupId,
     pub(super) pending_nonce: PendingNonceSubscriber,
+    pub(super) cancellation_token: CancellationToken,
 }
 
 impl Worker {
-    #[instrument(skip_all, fields(id = %self.id))]
-    pub(super) async fn run(mut self) -> eyre::Result<()> {
-        let mut latency_margin_timer = None;
-        // TODO: do we want to make this configurable to allow for more complex allocation rules?
-        let mut allocation_rule = FirstPrice::new();
-        let mut auction_is_open = false;
-
-        let auction_result = loop {
-            select! {
-                biased;
-
-                _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
-                    info!("timer is up; bids left unprocessed: {}", self.bundles.len());
-                    break allocation_rule.winner();
-                }
-
-                Ok(()) = async { self.start_bids.as_mut().unwrap().await }, if self.start_bids.is_some() => {
-                    let mut channel = self.start_bids.take().expect("inside an arm that that checks start_bids == Some");
-                    channel.close();
-                    // TODO: if the timer is already running, report how much time is left for the bids
-                    auction_is_open = true;
-                }
-
-                Ok(()) = async { self.start_timer.as_mut().unwrap().await }, if self.start_timer.is_some() => {
-                    let mut channel = self.start_timer.take().expect("inside an arm that checks start_immer == Some");
-                    channel.close();
-                    if !auction_is_open {
-                        info!("received signal to start the auction timer before signal to process bids; that's ok but eats into the time allotment of the auction");
-                    }
-
-                    // TODO: Emit an event to report start and endpoint of the auction.
-                    latency_margin_timer = Some(tokio::time::sleep(self.latency_margin));
-                }
-
-                // TODO: this is an unbounded channel. Can we process multiple bids at a time?
-                Some(bundle) = self.bundles.recv(), if auction_is_open => {
-                    allocation_rule.bid(&bundle);
-                }
-
-                else => {
-                    bail!("all channels are closed; this auction cannot continue")
-                }
-            }
+    // FIXME: consider using Valuable for the return case.
+    // See this discussion: https://github.com/tokio-rs/tracing/discussions/1906
+    #[instrument(
+        skip_all,
+        fields(id = %self.id),
+        err(level = Level::WARN, Display),
+        ret(Display),
+    )]
+    pub(super) async fn run(mut self) -> eyre::Result<Summary> {
+        let Some(auction_result) = self
+            .cancellation_token
+            .clone()
+            .run_until_cancelled(self.run_auction_loop())
+            .await
+        else {
+            return Ok(Summary::CancelledDuringAuction);
         };
-
-        let Some(winner) = auction_result else {
-            info!("auction ended with no winning bid");
-            return Ok(());
+        let Some(winner) = auction_result.wrap_err("auction failed while waiting for bids")? else {
+            return Ok(Summary::NoBids);
         };
 
         // TODO: report the pending nonce that we ended up using.
@@ -163,24 +136,91 @@ impl Worker {
         // Can we detect if a submission failed due to a bad nonce? In this case, we could
         // immediately ("optimistically") submit with the most recent pending nonce (if the
         // publisher updated it in the meantime) or just nonce + 1 (if it didn't yet update)?
-        match self
-            .sequencer_abci_client
-            .submit_transaction_sync(transaction)
-            .await
-            .wrap_err("submission of the auction failed; it's likely lost")
-        {
-            Ok(resp) => {
-                // TODO: provide tx_sync response hash? Does it have extra meaning?
-                info!(
-                    response.log = %resp.log,
-                    response.code = resp.code.value(),
-                    "auction winner submitted to sequencer",
-                );
-            }
-            Err(error) => {
-                error!(%error, "failed to submit auction winner to sequencer; it's likely lost");
+
+        let submission_fut = {
+            let client = self.sequencer_abci_client.clone();
+            tokio::time::timeout(Duration::from_secs(30), async move {
+                client
+                    .submit_transaction_sync(transaction)
+                    .await
+                    .wrap_err("submission request failed")
+            })
+        };
+        tokio::pin!(submission_fut);
+
+        loop {
+            select!(
+                () = self.cancellation_token.clone().cancelled_owned(), if !self.cancellation_token.is_cancelled() => {
+                    info!(
+                        "received cancellation token while waiting for Sequencer to respond to \
+                         transaction submission; still waiting for submission until timeout"
+                     );
+                }
+
+                res = &mut submission_fut => {
+                    break match res
+                        .wrap_err("submission of auction winner timed out before receiving a response from Sequencer")
+                    {
+                        Ok(Ok(rsp)) => Ok(Summary::Submitted(rsp)),
+                        Err(err) | Ok(Err(err)) => Err(err),
+                    }
+                }
+            )
+        }
+    }
+
+    async fn run_auction_loop(&mut self) -> eyre::Result<Option<Arc<Bundle>>> {
+        let mut latency_margin_timer = None;
+        // TODO: do we want to make this configurable to allow for more complex allocation rules?
+        let mut allocation_rule = FirstPrice::new();
+        let mut auction_is_open = false;
+
+        loop {
+            select! {
+                biased;
+
+                _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
+                    info!("timer is up; bids left unprocessed: {}", self.bundles.len());
+                    break Ok(allocation_rule.winner());
+                }
+
+                Ok(()) = async { self.start_bids.as_mut().unwrap().await }, if self.start_bids.is_some() => {
+                    let mut channel = self
+                        .start_bids
+                        .take()
+                        .expect("inside an arm that that checks start_bids == Some");
+                    channel.close();
+                    // TODO: if the timer is already running, report how much time is left for the bids
+                    auction_is_open = true;
+                }
+
+                Ok(()) = async { self.start_timer.as_mut().unwrap().await }, if self.start_timer.is_some() => {
+                    let mut channel = self
+                        .start_timer
+                        .take()
+                        .expect("inside an arm that checks start_timer == Some");
+                    channel.close();
+                    if !auction_is_open {
+                        info!(
+                            "received signal to start the auction timer before signal to start \
+                            processing bids; that's ok but eats into the time allotment of the \
+                            auction"
+                        );
+                    }
+
+                    // TODO: Emit an event to report start and endpoint of the auction.
+                    latency_margin_timer = Some(tokio::time::sleep(self.latency_margin));
+                }
+
+                // TODO: this is an unbounded channel. Can we process multiple bids at a time?
+                Some(bundle) = self.bundles.recv(), if auction_is_open => {
+                    allocation_rule.bid(&bundle);
+                }
+
+                else => {
+                    bail!("all channels are closed; the auction cannot continue")
+                }
             }
         }
-        Ok(())
     }
 }

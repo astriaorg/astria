@@ -12,14 +12,14 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    bail,
     OptionExt as _,
     WrapErr as _,
+    bail,
 };
 use futures::{
-    stream::FuturesUnordered,
     Future,
     StreamExt as _,
+    stream::FuturesUnordered,
 };
 use tokio::{
     select,
@@ -27,17 +27,19 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
+    Level,
+    Span,
     error,
     field,
     info,
     info_span,
     instrument,
     warn,
-    Level,
-    Span,
 };
 
 use crate::{
+    Config,
+    Metrics,
     rollup_channel::{
         BundleStream,
         ExecuteOptimisticBlockStream,
@@ -48,8 +50,6 @@ use crate::{
         SequencerChannel,
     },
     sequencer_key::SequencerKey,
-    Config,
-    Metrics,
 };
 
 mod auction;
@@ -116,6 +116,7 @@ impl Inner {
             sequencer_chain_id,
             rollup_id,
             pending_nonce: pending_nonce.subscribe(),
+            cancellation_token: shutdown_token.child_token(),
         };
 
         Ok(Self {
@@ -198,26 +199,30 @@ impl Inner {
 
     /// Handles the result of an auction running to completion.
     ///
-    /// This method only exists to emit the auction result (only error right now) under a span.
+    /// This method only exists to ensure that panicking auctions receive an event.
+    /// It is assumed that auctions that ran to completion (returnin a success or failure)
+    /// will emit an event in their own span.
     #[instrument(skip_all, fields(%auction_id), err)]
     fn handle_completed_auction(
         &mut self,
         auction_id: auction::Id,
-        res: eyre::Result<()>,
-    ) -> eyre::Result<()> {
+        res: Result<(), tokio::task::JoinError>,
+    ) -> Result<(), tokio::task::JoinError> {
         self.running_auction.take();
         res
     }
 
     /// Handles the result of cancelled auctions.
     ///
-    /// This method only exists to emit the auction result (only error right now) under a span.
+    /// This method only exists to ensure that panicking auctions receive an event.
+    /// It is assumed that auctions that ran to completion (returnin a success or failure)
+    /// will emit an event in their own span.
     #[instrument(skip_all, fields(%auction_id), err(level = Level::INFO))]
     fn handle_cancelled_auction(
         &self,
         auction_id: auction::Id,
-        res: eyre::Result<()>,
-    ) -> eyre::Result<()> {
+        res: Result<(), tokio::task::JoinError>,
+    ) -> Result<(), tokio::task::JoinError> {
         res
     }
 
@@ -235,8 +240,8 @@ impl Inner {
         info!(auction_id = %new_auction.id(), "started new auction");
 
         if let Some(old_auction) = self.running_auction.replace(new_auction) {
-            old_auction.abort();
-            info!(auction_id = %old_auction.id(), "cancelled old auction");
+            old_auction.cancel();
+            info!(auction_id = %old_auction.id(), "cancelled running auction");
             self.cancelled_auctions.push(old_auction);
         }
 
@@ -378,8 +383,8 @@ impl PendingNoncePublisher {
 
     fn new(channel: SequencerChannel, address: Address) -> Self {
         use tokio::time::{
-            timeout_at,
             MissedTickBehavior,
+            timeout_at,
         };
         // TODO: make this configurable. Right now they assume a Sequencer block time of 2s,
         // so this is fetching nonce up to 4 times a block.

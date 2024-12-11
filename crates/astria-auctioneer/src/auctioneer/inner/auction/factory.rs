@@ -2,8 +2,8 @@
 /// associated handles.
 use astria_core::{
     primitive::v1::{
-        asset,
         RollupId,
+        asset,
     },
     sequencerblock::v1::block::FilteredSequencerBlock,
 };
@@ -11,6 +11,7 @@ use tokio::sync::{
     mpsc,
     oneshot,
 };
+use tokio_util::sync::CancellationToken;
 
 use super::{
     Auction,
@@ -29,6 +30,7 @@ pub(in crate::auctioneer::inner) struct Factory {
     pub(in crate::auctioneer::inner) sequencer_chain_id: String,
     pub(in crate::auctioneer::inner) rollup_id: RollupId,
     pub(in crate::auctioneer::inner) pending_nonce: PendingNonceSubscriber,
+    pub(in crate::auctioneer::inner) cancellation_token: CancellationToken,
 }
 
 impl Factory {
@@ -45,6 +47,7 @@ impl Factory {
         let (start_timer_tx, start_timer_rx) = oneshot::channel();
         let (bundles_tx, bundles_rx) = mpsc::unbounded_channel();
 
+        let cancellation_token = self.cancellation_token.child_token();
         let auction = Worker {
             sequencer_abci_client: self.sequencer_abci_client.clone(),
             start_bids: Some(start_bids_rx),
@@ -57,6 +60,7 @@ impl Factory {
             sequencer_chain_id: self.sequencer_chain_id.clone(),
             rollup_id: self.rollup_id,
             pending_nonce: self.pending_nonce.clone(),
+            cancellation_token: cancellation_token.clone(),
         };
 
         Auction {
@@ -67,6 +71,7 @@ impl Factory {
             start_bids: Some(start_bids_tx),
             start_timer: Some(start_timer_tx),
             bundles: bundles_tx,
+            cancellation_token,
             worker: tokio::task::spawn(auction.run()),
         }
     }
