@@ -21,6 +21,7 @@ ethers-core = "2.0.14"
 hex = { workspace = true }
 indenter = "0.3.3"
 itertools = { workspace = true }
+penumbra-ibc = { workspace = true }
 prost = { workspace = true }
 rlp = "0.5.2"
 serde = { workspace = true }
