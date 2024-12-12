@@ -68,12 +68,14 @@ jobs:
     if: needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
       - uses: actions/checkout@v4
+      - name: Install just
+        uses: taiki-e/install-action@just
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2024-09-15
           components: rustfmt
       - name: run rustfmt
-        run: cargo +nightly-2024-09-15 fmt --all -- --check
+        run: just lint rust-fmt
 
   toml:
     runs-on: ubuntu-22.04

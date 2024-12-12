@@ -217,6 +217,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
+      - name: Install just
+        uses: taiki-e/install-action@just
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
@@ -230,15 +232,10 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run pedantic clippy on workspace crates
         run: |
-          cargo clippy --all-targets --all-features \
-          -- --warn clippy::pedantic --warn clippy::arithmetic-side-effects \
-          --warn clippy::allow_attributes --warn clippy::allow_attributes_without_reason \
-          --deny warnings
+          just lint rust-clippy
       - name: run pedantic clippy on tools/protobuf-compiler
         run: |
-          cargo clippy --manifest-path tools/protobuf-compiler/Cargo.toml \
-          --all-targets --all-features \
-          -- --warn clippy::pedantic --deny warnings
+          just lint rust-clippy-tools
 
   custom-lints:
     runs-on: buildjet-8vcpu-ubuntu-2204
@@ -248,6 +245,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
+      - name: Install just
+        uses: taiki-e/install-action@just
       - uses: dtolnay/rust-toolchain@master
         with:
           # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
@@ -266,9 +265,7 @@ jobs:
         run: |
           : # list all lint packages here to have clippy explicitly test them
           : # uses the same nightly installed above to work around the entry in rust-toolchain.toml 
-          cargo +nightly-2024-09-05 clippy --all-targets --all-features \
-          -p tracing_debug_field \
-          -- --warn clippy::pedantic --deny warnings
+          just lint rust-clippy-custom
       - name: run dylint clippy on workspace crates
         env:
           # set the dylint driver path to the target/ directory so that it's hopefully cached by rust-cache
@@ -276,7 +273,7 @@ jobs:
           DYLINT_RUSTFLAGS: "-D warnings"
         run: |
           mkdir -p "$DYLINT_DRIVER_PATH"
-          cargo dylint --all --workspace
+          just lint rust-dylint
 
   test:
     if: ${{ always() && !cancelled() }}
