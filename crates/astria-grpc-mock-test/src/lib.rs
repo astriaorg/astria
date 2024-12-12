@@ -8,7 +8,8 @@
 #[expect(
     clippy::allow_attributes,
     clippy::allow_attributes_without_reason,
-    reason = "cannot prevent generated files from having allow attributes"
+    clippy::needless_lifetimes,
+    reason = "cannot prevent generated files from having allow attributes or specific lifetimes"
 )]
 pub mod health {
     include!("generated/grpc.health.v1.rs");

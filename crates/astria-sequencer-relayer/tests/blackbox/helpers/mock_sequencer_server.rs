@@ -96,6 +96,8 @@ impl MockSequencerServer {
     }
 }
 
+// TODO(https://github.com/astriaorg/astria/issues/1859): box enum variants to avoid large sizes
+#[expect(clippy::large_enum_variant, reason = "should be fixed")]
 pub enum SequencerBlockToMount {
     GoodAtHeight(u32),
     BadAtHeight(u32),
