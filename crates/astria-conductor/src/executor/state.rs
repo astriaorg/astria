@@ -350,7 +350,7 @@ impl State {
 
 /// Maps a rollup height to a sequencer height.
 ///
-/// Returns `None` if `sequencer_start_block_height + rollup_number - rollup_start_block_height + 1`
+/// Returns `None` if `sequencer_start_block_height + rollup_number - rollup_start_block_height`
 /// overflows `u32::MAX`.
 fn map_rollup_number_to_sequencer_height(
     sequencer_start_block_height: SequencerHeight,
