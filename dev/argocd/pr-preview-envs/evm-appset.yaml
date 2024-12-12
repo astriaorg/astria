@@ -30,6 +30,7 @@ spec:
           secretName: github-pat
         labels:
         # All of the following labels are required to be set on the PR for the app to be created
+        - main
         - preview
         - evm
         - docker-build
@@ -148,7 +149,7 @@ spec:
                   local: false
                   entities:
                     rollupSharedStorage:
-                      size: "1Gi"
+                      size: "5Gi"
                       storageClassName: standard-rwo
                       persistentVolumeName: "rollup-shared-storage"
                       path: "/data/rollup-data"
