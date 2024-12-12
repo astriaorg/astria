@@ -602,6 +602,11 @@ pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
             },
             block_height: height,
         };
+        debug!(
+            "applied price from vote extension currency_pair=\"{}\" price={}",
+            price.currency_pair(),
+            price.price()
+        );
 
         state
             .put_price_for_currency_pair(price.currency_pair().clone(), quote_price)

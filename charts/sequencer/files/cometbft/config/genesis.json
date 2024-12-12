@@ -108,7 +108,7 @@
       {{- if $index }},{{- end }}
       {
         "address": {{ include "sequencer.address" $value.address }},
-        "balance": {{ include "sequencer.toUint128Proto" ( toString $value.balance | replace "\"" "" ) }} 
+        "balance": {{ include "sequencer.toUint128Proto" ( toString $value.balance | replace "\"" "" ) }}
       }
       {{- end }}
     ],
@@ -125,20 +125,72 @@
     "connect": {
       "marketMap": {
         "marketMap": {
-          "markets": {}
+          "markets": {
+            {{- range $index, $market := .Values.sequencer.oracle.markets }}
+            {{- if $index }},{{- end }}
+            "{{ $market.name }}": {
+              "providerConfigs": [
+                {{- range $providerIndex, $provider := $market.providerConfigs }}
+                {{- if $providerIndex }},{{- end }}
+                {
+                  "name": "{{ $provider.name }}",
+                  {{- if $provider.normalizeByPair }}
+                  "normalizeByPair": {
+                    "Base": "{{ $provider.normalizeByPair.Base }}",
+                    "Quote": "{{ $provider.normalizeByPair.Quote }}"
+                  },
+                  {{- end }}
+                  "offChainTicker": "{{ $provider.offChainTicker }}"
+                }
+                {{- end }}
+              ],
+              "ticker": {
+                "currencyPair": {
+                  "Base": "{{ $market.ticker.currencyPair.Base }}",
+                  "Quote": "{{ $market.ticker.currencyPair.Quote }}"
+                },
+                "decimals": "{{ $market.ticker.decimals }}",
+                "enabled": {{ $market.ticker.enabled }},
+                "minProviderCount": "{{ $market.ticker.minProviderCount }}"
+              }
+            }
+            {{- end }}
+          }
         },
         "params": {
-          "marketAuthorities": [],
-          "admin": "{{ .Values.genesis.marketAdminAddress }}"
+          "admin": "{{ .Values.genesis.oracle.marketAdminAddress }}",
+          "marketAuthorities": [
+            {{- range $index, $authority := .Values.genesis.oracle.marketAuthorities }}
+            {{- if $index }},{{- end }}
+            "{{ $authority }}"
+            {{- end }}
+          ]
         }
       },
       "oracle": {
-        "currencyPairGenesis": [],
-        "nextId": "0"
+        "currencyPairGenesis": [
+          {{- range $index, $genesis := .Values.sequencer.oracle.currencyPairGenesis }}
+          {{- if $index }},{{- end }}
+          {
+            "currencyPair": {
+              "Base": "{{ $genesis.currencyPair.Base }}",
+              "Quote": "{{ $genesis.currencyPair.Quote }}"
+            },
+            "currencyPairPrice": {
+              "blockTimestamp": "{{ $genesis.currencyPairPrice.blockTimestamp }}",
+              "price": "{{ $genesis.currencyPairPrice.price }}"
+            }
+            {{- if $genesis.id }},
+            "id": "{{ $genesis.id }}"
+            {{- end }}
+          }
+          {{- end }}
+        ],
+        "nextId": "{{ .Values.sequencer.oracle.nextId }}"
       }
     }
-    {{- end}}
   },
+  {{- end}}
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
     "block": {
@@ -158,15 +210,9 @@
     "version": {
       "app": "0"
     },
-    {{- if not .Values.global.dev }}
     "abci": {
-      "vote_extensions_enable_height": "0"
+      "vote_extensions_enable_height": "{{ .Values.genesis.consensusParams.voteExtensionsEnableHeight }}"
     }
-    {{- else }}
-    "abci": {
-      "vote_extensions_enable_height": "1"
-    }
-    {{- end}}
   },
   "genesis_time": "{{ .Values.genesis.genesisTime }}",
   "initial_height": "0",
