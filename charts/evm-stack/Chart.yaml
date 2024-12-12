@@ -15,7 +15,7 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 1.0.4
+version: 1.0.5
 
 dependencies:
   - name: celestia-node
@@ -23,7 +23,7 @@ dependencies:
     repository: "file://../celestia-node"
     condition: celestia-node.enabled
   - name: evm-rollup
-    version: 1.0.0
+    version: 1.0.1
     repository: "file://../evm-rollup"
   - name: composer
     version: 1.0.0
@@ -45,7 +45,6 @@ dependencies:
     repository: "https://blockscout.github.io/helm-charts"
     version: "1.6.8"
     condition: blockscout-stack.enabled
-
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
