@@ -27,25 +27,27 @@ use astria_core::{
     },
     primitive::v1::Address,
     protocol::{
-        fees::v1::{
-            BridgeLockFeeComponents,
-            BridgeSudoChangeFeeComponents,
-            BridgeUnlockFeeComponents,
-            FeeAssetChangeFeeComponents,
-            FeeChangeFeeComponents,
-            IbcRelayFeeComponents,
-            IbcRelayerChangeFeeComponents,
-            IbcSudoChangeFeeComponents,
-            Ics20WithdrawalFeeComponents,
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-            SudoAddressChangeFeeComponents,
-            TransferFeeComponents,
-            ValidatorUpdateFeeComponents,
-        },
+        fees::v1::FeeComponents,
         genesis::v1::{
             Account,
             GenesisAppState,
+        },
+        transaction::v1::action::{
+            AddCurrencyPairs,
+            BridgeLock,
+            BridgeSudoChange,
+            BridgeUnlock,
+            FeeAssetChange,
+            FeeChange,
+            IbcRelayerChange,
+            IbcSudoChange,
+            Ics20Withdrawal,
+            InitBridgeAccount,
+            RemoveCurrencyPairs,
+            RollupDataSubmission,
+            SudoAddressChange,
+            Transfer,
+            ValidatorUpdate,
         },
     },
     Protobuf,
@@ -54,6 +56,7 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use penumbra_ibc::IbcRelay;
 
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
@@ -159,7 +162,6 @@ fn address_prefixes() -> AddressPrefixes {
     }
 }
 
-#[expect(clippy::too_many_lines, reason = "all lines reasonably necessary")]
 fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
     astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
         accounts: accounts().into_iter().map(Protobuf::into_raw).collect(),
@@ -227,104 +229,24 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
             },
         ),
         fees: Some(GenesisFees {
-            transfer: Some(
-                TransferFeeComponents {
-                    base: 12,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
+            transfer: Some(FeeComponents::<Transfer>::new(12, 0).to_raw()),
             rollup_data_submission: Some(
-                RollupDataSubmissionFeeComponents {
-                    base: 32,
-                    multiplier: 1,
-                }
-                .to_raw(),
+                FeeComponents::<RollupDataSubmission>::new(32, 1).to_raw(),
             ),
-            init_bridge_account: Some(
-                InitBridgeAccountFeeComponents {
-                    base: 48,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
-            bridge_lock: Some(
-                BridgeLockFeeComponents {
-                    base: 12,
-                    multiplier: 1,
-                }
-                .to_raw(),
-            ),
-            bridge_unlock: Some(
-                BridgeUnlockFeeComponents {
-                    base: 12,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
-            bridge_sudo_change: Some(
-                BridgeSudoChangeFeeComponents {
-                    base: 24,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
-            ics20_withdrawal: Some(
-                Ics20WithdrawalFeeComponents {
-                    base: 24,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
-            ibc_relay: Some(
-                IbcRelayFeeComponents {
-                    base: 0,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
-            validator_update: Some(
-                ValidatorUpdateFeeComponents {
-                    base: 0,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
-            fee_asset_change: Some(
-                FeeAssetChangeFeeComponents {
-                    base: 0,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
-            fee_change: Some(
-                FeeChangeFeeComponents {
-                    base: 0,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
-            ibc_relayer_change: Some(
-                IbcRelayerChangeFeeComponents {
-                    base: 0,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
-            sudo_address_change: Some(
-                SudoAddressChangeFeeComponents {
-                    base: 0,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
-            ibc_sudo_change: Some(
-                IbcSudoChangeFeeComponents {
-                    base: 0,
-                    multiplier: 0,
-                }
-                .to_raw(),
-            ),
+            init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
+            bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
+            bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
+            bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
+            ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
+            ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),
+            validator_update: Some(FeeComponents::<ValidatorUpdate>::new(0, 0).to_raw()),
+            fee_asset_change: Some(FeeComponents::<FeeAssetChange>::new(0, 0).to_raw()),
+            fee_change: Some(FeeComponents::<FeeChange>::new(0, 0).to_raw()),
+            ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
+            sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
+            ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
+            add_currency_pairs: Some(FeeComponents::<AddCurrencyPairs>::new(0, 0).to_raw()),
+            remove_currency_pairs: Some(FeeComponents::<RemoveCurrencyPairs>::new(0, 0).to_raw()),
         }),
     }
 }

@@ -1,8 +1,4 @@
-use astria_core::{
-    protocol::transaction::v1::action::{
-        RemoveCurrencyPairs,
-    },
-};
+use astria_core::protocol::transaction::v1::action::RemoveCurrencyPairs;
 use astria_eyre::eyre::{
     ensure,
     OptionExt as _,
@@ -12,11 +8,7 @@ use astria_eyre::eyre::{
 use async_trait::async_trait;
 use cnidarium::StateWrite;
 
-use crate::{
-    action_handler::{
-        ActionHandler,
-    },
-};
+use crate::action_handler::ActionHandler;
 
 #[async_trait]
 impl ActionHandler for RemoveCurrencyPairs {

@@ -1064,6 +1064,12 @@ impl serde::Serialize for FeeChange {
                 fee_change::FeeComponents::ValidatorUpdate(v) => {
                     struct_ser.serialize_field("validatorUpdate", v)?;
                 }
+                fee_change::FeeComponents::AddCurrencyPairs(v) => {
+                    struct_ser.serialize_field("addCurrencyPairs", v)?;
+                }
+                fee_change::FeeComponents::RemoveCurrencyPairs(v) => {
+                    struct_ser.serialize_field("removeCurrencyPairs", v)?;
+                }
             }
         }
         struct_ser.end()
@@ -1103,6 +1109,10 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             "transfer",
             "validator_update",
             "validatorUpdate",
+            "add_currency_pairs",
+            "addCurrencyPairs",
+            "remove_currency_pairs",
+            "removeCurrencyPairs",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -1121,6 +1131,8 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
+            AddCurrencyPairs,
+            RemoveCurrencyPairs,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -1156,6 +1168,8 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "transfer" => Ok(GeneratedField::Transfer),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
+                            "addCurrencyPairs" | "add_currency_pairs" => Ok(GeneratedField::AddCurrencyPairs),
+                            "removeCurrencyPairs" | "remove_currency_pairs" => Ok(GeneratedField::RemoveCurrencyPairs),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1274,6 +1288,20 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                                 return Err(serde::de::Error::duplicate_field("validatorUpdate"));
                             }
                             fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::ValidatorUpdate)
+;
+                        }
+                        GeneratedField::AddCurrencyPairs => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("addCurrencyPairs"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::AddCurrencyPairs)
+;
+                        }
+                        GeneratedField::RemoveCurrencyPairs => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("removeCurrencyPairs"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::RemoveCurrencyPairs)
 ;
                         }
                     }
