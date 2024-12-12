@@ -20,7 +20,10 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::storage::{
     self,
@@ -30,7 +33,7 @@ use crate::storage::StoredValue;
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%height), err(level = Level::WARN))]
     async fn get_block_hash_by_height(&self, height: u64) -> Result<[u8; 32]> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::block_hash_by_height(height).as_bytes())
@@ -45,7 +48,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid block hash bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::WARN))]
     async fn get_sequencer_block_header_by_hash(
         &self,
         hash: &[u8; 32],
@@ -65,7 +68,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid sequencer block header bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::WARN))]
     async fn get_rollup_ids_by_block_hash(&self, hash: &[u8; 32]) -> Result<Vec<RollupId>> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::rollup_ids_by_hash(hash).as_bytes())
@@ -80,7 +83,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid rollup ids bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%height), err(level = Level::DEBUG))]
     async fn get_sequencer_block_by_height(&self, height: u64) -> Result<SequencerBlock> {
         let hash = self
             .get_block_hash_by_height(height)
@@ -91,7 +94,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("failed to get sequencer block by hash")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(hash = %hex::encode(hash), %rollup_id), err(level = Level::WARN))]
     async fn get_rollup_data(
         &self,
         hash: &[u8; 32],
@@ -116,7 +119,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid rollup transactions bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::WARN))]
     async fn get_rollup_transactions_proof_by_block_hash(
         &self,
         hash: &[u8; 32],
@@ -134,7 +137,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid rollup transactions proof bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::WARN))]
     async fn get_rollup_ids_proof_by_block_hash(&self, hash: &[u8; 32]) -> Result<merkle::Proof> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::rollup_ids_proof_by_hash(hash).as_bytes())
@@ -180,7 +183,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::DEBUG))]
 async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
     state: &S,
     hash: &[u8; 32],

@@ -6,6 +6,10 @@ use astria_eyre::eyre::{
 };
 use async_trait::async_trait;
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     action_handler::{
@@ -23,6 +27,7 @@ impl ActionHandler for Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

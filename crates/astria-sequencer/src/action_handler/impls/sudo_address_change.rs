@@ -6,6 +6,10 @@ use astria_eyre::eyre::{
 };
 use async_trait::async_trait;
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     action_handler::ActionHandler,
@@ -25,6 +29,7 @@ impl ActionHandler for SudoAddressChange {
 
     /// check that the signer of the transaction is the current sudo address,
     /// as only that address can change the sudo address
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()
