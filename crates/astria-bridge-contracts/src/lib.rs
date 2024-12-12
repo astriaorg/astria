@@ -13,9 +13,12 @@ use astria_core::{
         AddressError,
     },
     protocol::{
-        memos,
+        memos::v1::Ics20WithdrawalFromRollup,
         transaction::v1::{
-            action::Ics20Withdrawal,
+            action::{
+                Ics20Withdrawal,
+                Ics20WithdrawalWithBridgeAddress,
+            },
             Action,
         },
     },
@@ -451,28 +454,34 @@ where
                 .expect("must be set if this method is entered"),
         );
 
-        let memo =
-            make_withdrawal_memo(&event, rollup_block_number, &transaction_hash, &event_index)
-                .map_err(GetWithdrawalActionsError::encode_memo)?;
+        let withdrawal = Ics20WithdrawalFromRollup {
+            memo: event.memo.clone(),
+            rollup_block_number,
+            rollup_return_address: event.sender.encode_hex(),
+            rollup_withdrawal_event_id: rollup_withdrawal_event_id(&transaction_hash, &event_index),
+        };
+        let memo = serde_json::to_string(&withdrawal)
+            .map_err(GetWithdrawalActionsError::serialize_memo)?;
 
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
 
-        let action = Ics20Withdrawal {
+        let action = Ics20Withdrawal::FromRollup(Box::new(Ics20WithdrawalWithBridgeAddress {
             denom,
             destination_chain_address: event.destination_chain_address,
             return_address: self.bridge_address,
             amount,
-            memo,
+            ics20_withdrawal_from_rollup: withdrawal,
             fee_asset: self.fee_asset.clone(),
             // note: this refers to the timeout on the destination chain, which we are unaware of.
             // thus, we set it to the maximum possible value.
             timeout_height: max_timeout_height(),
             timeout_time: timeout_in_5_min(),
             source_channel,
-            bridge_address: Some(self.bridge_address),
+            bridge_address: self.bridge_address,
             use_compat_address: self.use_compat_address,
-        };
+            memo,
+        }));
         Ok(Action::Ics20Withdrawal(action))
     }
 
@@ -539,10 +548,6 @@ impl GetWithdrawalActionsError {
         ))
     }
 
-    fn encode_memo(source: EncodeMemoError) -> Self {
-        Self(GetWithdrawalActionsErrorKind::EncodeMemo(source))
-    }
-
     fn get_logs(source: GetLogsError) -> Self {
         Self(GetWithdrawalActionsErrorKind::GetLogs(source))
     }
@@ -561,6 +566,10 @@ impl GetWithdrawalActionsError {
     fn log_without_log_index(_log: &Log) -> Self {
         Self(GetWithdrawalActionsErrorKind::LogWithoutLogIndex)
     }
+
+    fn serialize_memo(source: serde_json::Error) -> Self {
+        Self(GetWithdrawalActionsErrorKind::SerializeMemo(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -569,8 +578,6 @@ enum GetWithdrawalActionsErrorKind {
     DecodeLog(DecodeLogError),
     #[error(transparent)]
     DestinationChainAsAddress(DestinationChainAsAddressError),
-    #[error(transparent)]
-    EncodeMemo(EncodeMemoError),
     #[error(transparent)]
     GetLogs(GetLogsError),
     #[error("log did not contain a block number")]
@@ -581,6 +588,8 @@ enum GetWithdrawalActionsErrorKind {
     LogWithoutLogIndex,
     #[error(transparent)]
     CalculateWithdrawalAmount(CalculateWithdrawalAmountError),
+    #[error("failed to serialize ics20 withdrawal rollup information as JSON memo")]
+    SerializeMemo(serde_json::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -683,40 +692,12 @@ struct DestinationChainAsAddressError {
     source: AddressError,
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("failed encoding memo `{proto_message}` as JSON")]
-struct EncodeMemoError {
-    proto_message: String,
-    source: serde_json::Error,
-}
-
 fn rollup_withdrawal_event_id(transaction_hash: &H256, event_index: &U256) -> String {
     format!(
         "{}.{}",
         transaction_hash.encode_hex(),
         event_index.encode_hex()
     )
-}
-
-fn make_withdrawal_memo(
-    event: &Ics20WithdrawalFilter,
-    rollup_block_number: u64,
-    transaction_hash: &H256,
-    event_index: &U256,
-) -> Result<String, EncodeMemoError> {
-    use prost::Name as _;
-    type Memo = memos::v1::Ics20WithdrawalFromRollup;
-
-    let withdrawal = Memo {
-        memo: event.memo.clone(),
-        rollup_block_number,
-        rollup_return_address: event.sender.encode_hex(),
-        rollup_withdrawal_event_id: rollup_withdrawal_event_id(transaction_hash, event_index),
-    };
-    serde_json::to_string(&withdrawal).map_err(|source| EncodeMemoError {
-        proto_message: Memo::full_name(),
-        source,
-    })
 }
 
 fn parse_destination_chain_as_address(
@@ -755,5 +736,20 @@ mod tests {
         let json_encoded_memo =
             make_withdrawal_memo(&event, 999, &H256::from_slice(&[1; 32]), &U256::one()).unwrap();
         insta::assert_snapshot!("memo_snapshot", json_encoded_memo);
+    }
+
+    fn make_withdrawal_memo(
+        event: &Ics20WithdrawalFilter,
+        rollup_block_number: u64,
+        transaction_hash: &H256,
+        event_index: &U256,
+    ) -> Result<String, serde_json::Error> {
+        let withdrawal = Ics20WithdrawalFromRollup {
+            memo: event.memo.clone(),
+            rollup_block_number,
+            rollup_return_address: event.sender.encode_hex(),
+            rollup_withdrawal_event_id: rollup_withdrawal_event_id(transaction_hash, event_index),
+        };
+        serde_json::to_string(&withdrawal)
     }
 }
