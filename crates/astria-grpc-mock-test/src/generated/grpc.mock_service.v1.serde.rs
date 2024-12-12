@@ -1,4 +1,4 @@
-impl serde::Serialize for HealthCheckRequest {
+impl serde::Serialize for MockRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -9,14 +9,20 @@ impl serde::Serialize for HealthCheckRequest {
         if !self.service.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("grpc.health.v1.HealthCheckRequest", len)?;
+        if !self.additional_info.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("grpc.mock_service.v1.MockRequest", len)?;
         if !self.service.is_empty() {
             struct_ser.serialize_field("service", &self.service)?;
+        }
+        if !self.additional_info.is_empty() {
+            struct_ser.serialize_field("additional_info", &self.additional_info)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for HealthCheckRequest {
+impl<'de> serde::Deserialize<'de> for MockRequest {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -24,11 +30,14 @@ impl<'de> serde::Deserialize<'de> for HealthCheckRequest {
     {
         const FIELDS: &[&str] = &[
             "service",
+            "additional_info",
+            "additionalInfo",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Service,
+            AdditionalInfo,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -51,6 +60,7 @@ impl<'de> serde::Deserialize<'de> for HealthCheckRequest {
                     {
                         match value {
                             "service" => Ok(GeneratedField::Service),
+                            "additionalInfo" | "additional_info" => Ok(GeneratedField::AdditionalInfo),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -60,17 +70,18 @@ impl<'de> serde::Deserialize<'de> for HealthCheckRequest {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = HealthCheckRequest;
+            type Value = MockRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct grpc.health.v1.HealthCheckRequest")
+                formatter.write_str("struct grpc.mock_service.v1.MockRequest")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<HealthCheckRequest, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<MockRequest, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
                 let mut service__ = None;
+                let mut additional_info__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Service => {
@@ -79,17 +90,24 @@ impl<'de> serde::Deserialize<'de> for HealthCheckRequest {
                             }
                             service__ = Some(map_.next_value()?);
                         }
+                        GeneratedField::AdditionalInfo => {
+                            if additional_info__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("additionalInfo"));
+                            }
+                            additional_info__ = Some(map_.next_value()?);
+                        }
                     }
                 }
-                Ok(HealthCheckRequest {
+                Ok(MockRequest {
                     service: service__.unwrap_or_default(),
+                    additional_info: additional_info__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("grpc.health.v1.HealthCheckRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("grpc.mock_service.v1.MockRequest", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for HealthCheckResponse {
+impl serde::Serialize for MockResponse {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -100,16 +118,16 @@ impl serde::Serialize for HealthCheckResponse {
         if self.status != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("grpc.health.v1.HealthCheckResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("grpc.mock_service.v1.MockResponse", len)?;
         if self.status != 0 {
-            let v = health_check_response::ServingStatus::try_from(self.status)
+            let v = mock_response::ServingStatus::try_from(self.status)
                 .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.status)))?;
             struct_ser.serialize_field("status", &v)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for HealthCheckResponse {
+impl<'de> serde::Deserialize<'de> for MockResponse {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -153,13 +171,13 @@ impl<'de> serde::Deserialize<'de> for HealthCheckResponse {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = HealthCheckResponse;
+            type Value = MockResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct grpc.health.v1.HealthCheckResponse")
+                formatter.write_str("struct grpc.mock_service.v1.MockResponse")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<HealthCheckResponse, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<MockResponse, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -170,19 +188,19 @@ impl<'de> serde::Deserialize<'de> for HealthCheckResponse {
                             if status__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("status"));
                             }
-                            status__ = Some(map_.next_value::<health_check_response::ServingStatus>()? as i32);
+                            status__ = Some(map_.next_value::<mock_response::ServingStatus>()? as i32);
                         }
                     }
                 }
-                Ok(HealthCheckResponse {
+                Ok(MockResponse {
                     status: status__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("grpc.health.v1.HealthCheckResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("grpc.mock_service.v1.MockResponse", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for health_check_response::ServingStatus {
+impl serde::Serialize for mock_response::ServingStatus {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -197,7 +215,7 @@ impl serde::Serialize for health_check_response::ServingStatus {
         serializer.serialize_str(variant)
     }
 }
-impl<'de> serde::Deserialize<'de> for health_check_response::ServingStatus {
+impl<'de> serde::Deserialize<'de> for mock_response::ServingStatus {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -213,7 +231,7 @@ impl<'de> serde::Deserialize<'de> for health_check_response::ServingStatus {
         struct GeneratedVisitor;
 
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = health_check_response::ServingStatus;
+            type Value = mock_response::ServingStatus;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(formatter, "expected one of: {:?}", &FIELDS)
@@ -248,10 +266,10 @@ impl<'de> serde::Deserialize<'de> for health_check_response::ServingStatus {
                 E: serde::de::Error,
             {
                 match value {
-                    "UNKNOWN" => Ok(health_check_response::ServingStatus::Unknown),
-                    "SERVING" => Ok(health_check_response::ServingStatus::Serving),
-                    "NOT_SERVING" => Ok(health_check_response::ServingStatus::NotServing),
-                    "SERVICE_UNKNOWN" => Ok(health_check_response::ServingStatus::ServiceUnknown),
+                    "UNKNOWN" => Ok(mock_response::ServingStatus::Unknown),
+                    "SERVING" => Ok(mock_response::ServingStatus::Serving),
+                    "NOT_SERVING" => Ok(mock_response::ServingStatus::NotServing),
+                    "SERVICE_UNKNOWN" => Ok(mock_response::ServingStatus::ServiceUnknown),
                     _ => Err(serde::de::Error::unknown_variant(value, FIELDS)),
                 }
             }
