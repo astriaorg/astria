@@ -130,29 +130,38 @@ async fn app_execute_transaction_transfer() {
     app.execute_transaction(signed_tx).await.unwrap();
 
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&bob_address, &nria())
             .await
             .unwrap(),
         value + 10u128.pow(19)
     );
     let transfer_base = app
-        .state
+        .state_delta
         .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
         .base();
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&alice_address, &nria())
             .await
             .unwrap(),
         10u128.pow(19) - (value + transfer_base),
     );
-    assert_eq!(app.state.get_account_nonce(&bob_address).await.unwrap(), 0);
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&bob_address)
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
 }
@@ -168,11 +177,11 @@ async fn app_execute_transaction_transfer_not_native_token() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
+    delta_delta
         .put_account_balance(&alice_address, &test_asset(), value)
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
 
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
@@ -194,14 +203,14 @@ async fn app_execute_transaction_transfer_not_native_token() {
     app.execute_transaction(signed_tx).await.unwrap();
 
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&bob_address, &nria())
             .await
             .unwrap(),
         10u128.pow(19), // genesis balance
     );
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&bob_address, &test_asset())
             .await
             .unwrap(),
@@ -209,30 +218,39 @@ async fn app_execute_transaction_transfer_not_native_token() {
     );
 
     let transfer_base = app
-        .state
+        .state_delta
         .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
         .base();
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&alice_address, &nria())
             .await
             .unwrap(),
         10u128.pow(19) - transfer_base, // genesis balance - fee
     );
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&alice_address, &test_asset())
             .await
             .unwrap(),
         0, // 0 since all funds of `asset` were transferred
     );
 
-    assert_eq!(app.state.get_account_nonce(&bob_address).await.unwrap(), 0);
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&bob_address)
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
 }
@@ -275,16 +293,16 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
 #[tokio::test]
 async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
+    delta_delta
         .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 1))
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state).await;
+    let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state_delta).await;
 
     let tx = TransactionBody::builder()
         .actions(vec![
@@ -302,12 +320,15 @@ async fn app_execute_transaction_sequence() {
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
 
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&alice_address, &nria())
             .await
             .unwrap(),
@@ -360,11 +381,14 @@ async fn app_execute_transaction_validator_update() {
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
 
-    let validator_updates = app.state.get_validator_updates().await.unwrap();
+    let validator_updates = app.state_delta.get_validator_updates().await.unwrap();
     assert_eq!(validator_updates.len(), 1);
     assert_eq!(
         validator_updates.get(verification_key(1).address_bytes()),
@@ -390,10 +414,13 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
-    assert!(app.state.is_ibc_relayer(alice_address).await.unwrap());
+    assert!(app.state_delta.is_ibc_relayer(alice_address).await.unwrap());
 }
 
 #[tokio::test]
@@ -418,10 +445,13 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
-    assert!(!app.state.is_ibc_relayer(alice_address).await.unwrap());
+    assert!(!app.state_delta.is_ibc_relayer(alice_address).await.unwrap());
 }
 
 #[tokio::test]
@@ -469,11 +499,14 @@ async fn app_execute_transaction_sudo_address_change() {
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
 
-    let sudo_address = app.state.get_sudo_address().await.unwrap();
+    let sudo_address = app.state_delta.get_sudo_address().await.unwrap();
     assert_eq!(sudo_address, new_address.bytes());
 }
 
@@ -534,11 +567,19 @@ async fn app_execute_transaction_fee_asset_change_addition() {
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
 
-    assert!(app.state.is_allowed_fee_asset(&test_asset()).await.unwrap());
+    assert!(
+        app.state_delta
+            .is_allowed_fee_asset(&test_asset())
+            .await
+            .unwrap()
+    );
 }
 
 #[tokio::test]
@@ -568,11 +609,19 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
 
-    assert!(!app.state.is_allowed_fee_asset(&test_asset()).await.unwrap());
+    assert!(
+        !app.state_delta
+            .is_allowed_fee_asset(&test_asset())
+            .await
+            .unwrap()
+    );
 }
 
 #[tokio::test]
@@ -609,12 +658,12 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let alice_address = astria_address(&alice.address_bytes());
 
     let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
     let fee = 12; // arbitrary
-    state_tx
+    delta_delta
         .put_fees(FeeComponents::<InitBridgeAccount>::new(fee, 0))
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let action = InitBridgeAccount {
@@ -634,17 +683,20 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let signed_tx = Arc::new(tx.sign(&alice));
 
     let before_balance = app
-        .state
+        .state_delta
         .get_account_balance(&alice_address, &nria())
         .await
         .unwrap();
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
     assert_eq!(
-        app.state
+        app.state_delta
             .get_bridge_account_rollup_id(&alice_address)
             .await
             .unwrap()
@@ -652,14 +704,14 @@ async fn app_execute_transaction_init_bridge_account_ok() {
         rollup_id
     );
     assert_eq!(
-        app.state
+        app.state_delta
             .get_bridge_account_ibc_asset(&alice_address)
             .await
             .unwrap(),
         nria().to_ibc_prefixed(),
     );
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&alice_address, &nria())
             .await
             .unwrap(),
@@ -719,14 +771,14 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let starting_index_of_action = 0;
 
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
+    delta_delta
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
         .unwrap();
-    state_tx
+    delta_delta
         .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
 
     let amount = 100;
     let action = BridgeLock {
@@ -745,14 +797,17 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     let signed_tx = Arc::new(tx.sign(&alice));
 
     let bridge_before_balance = app
-        .state
+        .state_delta
         .get_account_balance(&bridge_address, &nria())
         .await
         .unwrap();
 
     app.execute_transaction(signed_tx.clone()).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
     let expected_deposit = Deposit {
@@ -766,14 +821,14 @@ async fn app_execute_transaction_bridge_lock_action_ok() {
     };
 
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&bridge_address, &nria())
             .await
             .unwrap(),
         bridge_before_balance + amount
     );
 
-    let all_deposits = app.state.get_cached_block_deposits();
+    let all_deposits = app.state_delta.get_cached_block_deposits();
     let deposits = all_deposits.get(&rollup_id).unwrap();
     assert_eq!(deposits.len(), 1);
     assert_eq!(deposits[0], expected_deposit);
@@ -836,11 +891,14 @@ async fn app_execute_transaction_invalid_nonce() {
 
     // check that tx was not executed by checking nonce and balance are unchanged
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         0
     );
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&alice_address, &nria())
             .await
             .unwrap(),
@@ -883,11 +941,14 @@ async fn app_execute_transaction_invalid_chain_id() {
 
     // check that tx was not executed by checking nonce and balance are unchanged
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         0
     );
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&alice_address, &nria())
             .await
             .unwrap(),
@@ -918,7 +979,8 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // figure out needed fee for a single transfer
     let data = Bytes::from_static(b"hello world");
-    let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state.clone()).await;
+    let fee =
+        calculate_rollup_data_submission_fee_from_state(&data, &app.state_delta.clone()).await;
 
     // transfer just enough to cover single sequence fee with data
     let signed_tx = TransactionBody::builder()
@@ -959,7 +1021,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         .sign(&keypair);
     // try double, see fails stateful check
     let res = signed_tx_fail
-        .check_and_execute(Arc::get_mut(&mut app.state).unwrap())
+        .check_and_execute(Arc::get_mut(&mut app.state_delta).unwrap())
         .await
         .unwrap_err()
         .root_cause()
@@ -982,7 +1044,7 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
         .sign(&keypair);
 
     signed_tx_pass
-        .check_and_execute(Arc::get_mut(&mut app.state).unwrap())
+        .check_and_execute(Arc::get_mut(&mut app.state_delta).unwrap())
         .await
         .expect("stateful check should pass since we transferred enough to cover fee");
 }
@@ -995,7 +1057,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     let alice_address = astria_address(&alice.address_bytes());
 
     let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
 
     let bridge = get_bridge_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
@@ -1004,27 +1066,27 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     // give bridge eoa funds so it can pay for the
     // unlock transfer action
     let transfer_base = app
-        .state
+        .state_delta
         .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
         .base();
-    state_tx
+    delta_delta
         .put_account_balance(&bridge_address, &nria(), transfer_base)
         .unwrap();
 
     // create bridge account
-    state_tx
+    delta_delta
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
         .unwrap();
-    state_tx
+    delta_delta
         .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
-    state_tx
+    delta_delta
         .put_bridge_account_withdrawer_address(&bridge_address, bridge_address)
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
 
     let amount = 100;
     let action = BridgeLock {
@@ -1044,7 +1106,10 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
 
     app.execute_transaction(signed_tx).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
 
@@ -1070,7 +1135,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
         .await
         .expect("executing bridge unlock action should succeed");
     assert_eq!(
-        app.state
+        app.state_delta
             .get_account_balance(&bridge_address, &nria())
             .await
             .expect("executing bridge unlock action should succeed"),
@@ -1089,14 +1154,14 @@ async fn app_execute_transaction_action_index_correctly_increments() {
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let starting_index_of_action = 0;
 
-    let mut state_tx = StateDelta::new(app.state.clone());
-    state_tx
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
+    delta_delta
         .put_bridge_account_rollup_id(&bridge_address, rollup_id)
         .unwrap();
-    state_tx
+    delta_delta
         .put_bridge_account_ibc_asset(&bridge_address, nria())
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
 
     let amount = 100;
     let action = BridgeLock {
@@ -1116,11 +1181,14 @@ async fn app_execute_transaction_action_index_correctly_increments() {
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx.clone()).await.unwrap();
     assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        app.state_delta
+            .get_account_nonce(&alice_address)
+            .await
+            .unwrap(),
         1
     );
 
-    let all_deposits = app.state.get_cached_block_deposits();
+    let all_deposits = app.state_delta.get_cached_block_deposits();
     let deposits = all_deposits.get(&rollup_id).unwrap();
     assert_eq!(deposits.len(), 2);
     assert_eq!(deposits[0].source_action_index, starting_index_of_action);
@@ -1133,18 +1201,18 @@ async fn app_execute_transaction_action_index_correctly_increments() {
 #[tokio::test]
 async fn transaction_execution_records_deposit_event() {
     let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = app
-        .state
+    let mut delta_delta = app
+        .state_delta
         .try_begin_transaction()
         .expect("state Arc should be present and unique");
 
     let alice = get_alice_signing_key();
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
-    state_tx
+    delta_delta
         .put_bridge_account_rollup_id(&bob_address, [0; 32].into())
         .unwrap();
-    state_tx.put_allowed_fee_asset(&nria()).unwrap();
-    state_tx
+    delta_delta.put_allowed_fee_asset(&nria()).unwrap();
+    delta_delta
         .put_bridge_account_ibc_asset(&bob_address, nria())
         .unwrap();
 
@@ -1173,8 +1241,8 @@ async fn transaction_execution_records_deposit_event() {
     };
     let expected_deposit_event = create_deposit_event(&expected_deposit);
 
-    signed_tx.check_and_execute(&mut state_tx).await.unwrap();
-    let events = &state_tx.apply().1;
+    signed_tx.check_and_execute(&mut delta_delta).await.unwrap();
+    let events = &delta_delta.apply().1;
     let event = events
         .iter()
         .find(|event| event.kind == "tx.deposit")
@@ -1201,7 +1269,7 @@ async fn app_execute_transaction_ibc_sudo_change() {
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
-    let ibc_sudo_address = app.state.get_ibc_sudo_address().await.unwrap();
+    let ibc_sudo_address = app.state_delta.get_ibc_sudo_address().await.unwrap();
     assert_eq!(ibc_sudo_address, new_address.bytes());
 }
 
@@ -1278,19 +1346,19 @@ async fn transaction_execution_records_fee_event() {
 #[tokio::test]
 async fn ensure_all_event_attributes_are_indexed() {
     let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
+    let mut delta_delta = StateDelta::new(app.state_delta.clone());
 
     let alice = get_alice_signing_key();
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
-    state_tx
+    delta_delta
         .put_bridge_account_rollup_id(&bob_address, [0; 32].into())
         .unwrap();
-    state_tx.put_allowed_fee_asset(&nria()).unwrap();
-    state_tx
+    delta_delta.put_allowed_fee_asset(&nria()).unwrap();
+    delta_delta
         .put_bridge_account_ibc_asset(&bob_address, nria())
         .unwrap();
-    app.apply(state_tx);
+    app.apply(delta_delta);
 
     let transfer_action = Transfer {
         to: bob_address,

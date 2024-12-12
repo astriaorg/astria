@@ -9,7 +9,6 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
-use cnidarium::Storage;
 use prost::Message as _;
 use tendermint::abci::{
     request,
@@ -22,6 +21,10 @@ use crate::{
     app::StateReadExt as _,
     assets::StateReadExt as _,
     bridge::StateReadExt as _,
+    storage::{
+        Snapshot,
+        Storage,
+    },
 };
 
 fn error_query_response(
@@ -45,7 +48,7 @@ fn error_query_response(
 // this could be significantly shortened.
 #[expect(clippy::too_many_lines, reason = "should be refactored")]
 async fn get_bridge_account_info(
-    snapshot: cnidarium::Snapshot,
+    snapshot: Snapshot,
     address: &Address,
 ) -> Result<Option<BridgeAccountInfo>, response::Query> {
     let rollup_id = match snapshot.get_bridge_account_rollup_id(address).await {
@@ -297,7 +300,6 @@ mod tests {
         primitive::v1::RollupId,
         protocol::bridge::v1::BridgeAccountInfoResponse,
     };
-    use cnidarium::StateDelta;
 
     use super::*;
     use crate::{
@@ -313,34 +315,35 @@ mod tests {
 
     #[tokio::test]
     async fn bridge_account_info_request_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
 
         let asset: astria_core::primitive::v1::asset::Denom = "test".parse().unwrap();
         let rollup_id = RollupId::from_unhashed_bytes("test");
         let bridge_address = astria_address(&[0u8; 20]);
         let sudo_address = astria_address(&[1u8; 20]);
         let withdrawer_address = astria_address(&[2u8; 20]);
-        state.put_block_height(1).unwrap();
-        state
+        state_delta.put_block_height(1).unwrap();
+        state_delta
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state
+        state_delta
             .put_ibc_asset(asset.as_trace_prefixed().unwrap().clone())
             .unwrap();
-        state
+        state_delta
             .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
-        state
+        state_delta
             .put_bridge_account_sudo_address(&bridge_address, sudo_address)
             .unwrap();
-        state
+        state_delta
             .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
             .unwrap();
-        storage.commit(state).await.unwrap();
+        storage.commit(state_delta).await.unwrap();
 
         let query = request::Query {
             data: vec![].into(),

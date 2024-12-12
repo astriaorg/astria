@@ -121,7 +121,6 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod tests {
     use astria_core::protocol::transaction::v1::action::ValidatorUpdate;
-    use cnidarium::StateDelta;
 
     use super::*;
     use crate::{
@@ -130,6 +129,7 @@ mod tests {
             verification_key,
             ASTRIA_PREFIX,
         },
+        storage::Storage,
     };
 
     fn empty_validator_set() -> ValidatorSet {
@@ -138,25 +138,26 @@ mod tests {
 
     #[tokio::test]
     async fn sudo_address() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
 
         // doesn't exist at first
-        let _ = state
+        let _ = state_delta
             .get_sudo_address()
             .await
             .expect_err("no sudo address should exist at first");
 
         // can write new
         let mut address_expected = [42u8; ADDRESS_LEN];
-        state
+        state_delta
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_sudo_address()
                 .await
                 .expect("a sudo address was written and must exist inside the database"),
@@ -166,11 +167,11 @@ mod tests {
 
         // can rewrite with new value
         address_expected = [41u8; ADDRESS_LEN];
-        state
+        state_delta
             .put_sudo_address(address_expected)
             .expect("writing sudo address should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_sudo_address()
                 .await
                 .expect("a new sudo address was written and must exist inside the database"),
@@ -181,12 +182,11 @@ mod tests {
 
     #[tokio::test]
     async fn validator_set_uninitialized_fails() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let state_delta = storage.new_delta_of_latest_snapshot();
 
         // doesn't exist at first
-        let _ = state
+        let _ = state_delta
             .get_validator_set()
             .await
             .expect_err("no validator set should exist at first");
@@ -194,9 +194,8 @@ mod tests {
 
     #[tokio::test]
     async fn put_validator_set() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let initial = vec![ValidatorUpdate {
             power: 10,
@@ -205,11 +204,11 @@ mod tests {
         let initial_validator_set = ValidatorSet::new_from_updates(initial);
 
         // can write new
-        state
+        state_delta
             .put_validator_set(initial_validator_set.clone())
             .expect("writing initial validator set should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_validator_set()
                 .await
                 .expect("a validator set was written and must exist inside the database"),
@@ -223,11 +222,11 @@ mod tests {
             verification_key: verification_key(2),
         }];
         let updated_validator_set = ValidatorSet::new_from_updates(updates);
-        state
+        state_delta
             .put_validator_set(updated_validator_set.clone())
             .expect("writing update validator set should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_validator_set()
                 .await
                 .expect("a validator set was written and must exist inside the database"),
@@ -238,13 +237,12 @@ mod tests {
 
     #[tokio::test]
     async fn get_validator_updates_empty() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let state_delta = storage.new_delta_of_latest_snapshot();
 
         // querying for empty validator set is ok
         assert_eq!(
-            state
+            state_delta
                 .get_validator_updates()
                 .await
                 .expect("if no updates have been written return empty set"),
@@ -255,9 +253,8 @@ mod tests {
 
     #[tokio::test]
     async fn put_validator_updates() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // create update validator set
         let mut updates = vec![
@@ -273,11 +270,11 @@ mod tests {
         let mut validator_set_updates = ValidatorSet::new_from_updates(updates);
 
         // put validator updates
-        state
+        state_delta
             .put_validator_updates(validator_set_updates.clone())
             .expect("writing update validator set should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_validator_updates()
                 .await
                 .expect("an update validator set was written and must exist inside the database"),
@@ -300,11 +297,11 @@ mod tests {
         validator_set_updates = ValidatorSet::new_from_updates(updates);
 
         // write different updates
-        state
+        state_delta
             .put_validator_updates(validator_set_updates.clone())
             .expect("writing update validator set should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_validator_updates()
                 .await
                 .expect("an update validator set was written and must exist inside the database"),
@@ -315,9 +312,8 @@ mod tests {
 
     #[tokio::test]
     async fn clear_validator_updates() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // create update validator set
         let updates = vec![ValidatorUpdate {
@@ -327,11 +323,11 @@ mod tests {
         let validator_set_updates = ValidatorSet::new_from_updates(updates);
 
         // put validator updates
-        state
+        state_delta
             .put_validator_updates(validator_set_updates.clone())
             .expect("writing update validator set should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_validator_updates()
                 .await
                 .expect("an update validator set was written and must exist inside the database"),
@@ -340,11 +336,11 @@ mod tests {
         );
 
         // clear updates
-        state.clear_validator_updates();
+        state_delta.clear_validator_updates();
 
         // check that clear worked
         assert_eq!(
-            state
+            state_delta
                 .get_validator_updates()
                 .await
                 .expect("if no updates have been written return empty set"),
@@ -355,12 +351,11 @@ mod tests {
 
     #[tokio::test]
     async fn clear_validator_updates_empty_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // able to clear non-existent updates with no error
-        state.clear_validator_updates();
+        state_delta.clear_validator_updates();
     }
 
     #[tokio::test]
