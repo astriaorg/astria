@@ -30,3 +30,15 @@ Return the appropriate apiVersion for ingress.
 {{- print "extensions/v1beta1" }}
 {{- end }}
 {{- end }}
+
+{{/*
+Service annotations
+*/}}
+{{- define "sequencer.serviceAnnotations" }}
+{{- if .Values.additionalAnnotations }}
+{{ toYaml .Values.additionalAnnotations }}
+{{- end }}
+{{- if .Values.service.annotations }}
+{{ toYaml .Values.service.annotations }}
+{{- end }}
+{{- end }}

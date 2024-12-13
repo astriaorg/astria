@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/keys.rs
+expression: block_hash_by_height(42)
+---
+grpc/block_hash/42

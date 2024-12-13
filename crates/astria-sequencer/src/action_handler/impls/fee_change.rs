@@ -36,46 +36,46 @@ impl ActionHandler for FeeChange {
 
         match self {
             Self::Transfer(fees) => state
-                .put_transfer_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put transfer fees"),
             Self::RollupDataSubmission(fees) => state
-                .put_rollup_data_submission_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put sequence fees"),
             Self::Ics20Withdrawal(fees) => state
-                .put_ics20_withdrawal_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put ics20 withdrawal fees"),
             Self::InitBridgeAccount(fees) => state
-                .put_init_bridge_account_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put init bridge account fees"),
             Self::BridgeLock(fees) => state
-                .put_bridge_lock_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put bridge lock fees"),
             Self::BridgeUnlock(fees) => state
-                .put_bridge_unlock_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put bridge unlock fees"),
             Self::BridgeSudoChange(fees) => state
-                .put_bridge_sudo_change_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put bridge sudo change fees"),
             Self::IbcRelay(fees) => state
-                .put_ibc_relay_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put ibc relay fees"),
             Self::ValidatorUpdate(fees) => state
-                .put_validator_update_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put validator update fees"),
             Self::FeeAssetChange(fees) => state
-                .put_fee_asset_change_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put fee asset change fees"),
             Self::FeeChange(fees) => state
-                .put_fee_change_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put fee change fees"),
             Self::IbcRelayerChange(fees) => state
-                .put_ibc_relayer_change_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put ibc relayer change fees"),
             Self::SudoAddressChange(fees) => state
-                .put_sudo_address_change_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put sudo address change fees"),
             Self::IbcSudoChange(fees) => state
-                .put_ibc_sudo_change_fees(*fees)
+                .put_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
         }
     }
@@ -83,100 +83,154 @@ impl ActionHandler for FeeChange {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Debug;
+
     use astria_core::{
         primitive::v1::TransactionId,
-        protocol::transaction::v1::action::FeeChange,
+        protocol::{
+            fees::v1::*,
+            transaction::v1::action::*,
+        },
     };
+    use astria_eyre::eyre::Report;
+    use penumbra_ibc::IbcRelay;
 
     use crate::{
         action_handler::ActionHandler as _,
         authority::StateWriteExt as _,
-        fees::StateReadExt as _,
+        fees::{
+            FeeHandler,
+            StateReadExt as _,
+        },
+        storage::StoredValue,
         transaction::{
             StateWriteExt as _,
             TransactionContext,
         },
     };
 
-    /// This macro generates a test named e.g. `transfer_fee_change_action_executes` which asserts
-    /// that executing a `FeeChange` tx for the given action results in the fees being stored for
-    /// the given action.
-    macro_rules! test_fee_change_action {
-        ( $( $fee_name:tt => $fee_ty:tt ),* $(,)?) => {
-            $(
-                paste::item! {
-                    #[tokio::test]
-                    async fn [< $fee_name _fee_change_action_executes >] () {
-                        use astria_core::protocol::fees::v1:: [< $fee_ty FeeComponents >] as Fees;
-
-                        let storage = cnidarium::TempStorage::new().await.unwrap();
-                        let snapshot = storage.latest_snapshot();
-                        let mut state = cnidarium::StateDelta::new(snapshot);
-
-                        // Put the context to enable the txs to execute.
-                        state.put_transaction_context(TransactionContext {
-                            address_bytes: [1; 20],
-                            transaction_id: TransactionId::new([0; 32]),
-                            position_in_transaction: 0,
-                        });
-                        state.put_sudo_address([1; 20]).unwrap();
-
-                        assert!(state
-                            .[< get_ $fee_name _fees >] ()
-                            .await
-                            .expect(stringify!(should not error fetching unstored $fee_name fees))
-                            .is_none());
-
-                        // Execute an initial fee change tx to store the first version of the fees.
-                        let initial_fees = Fees {
-                            base: 1,
-                            multiplier: 2,
-                        };
-                        let fee_change = FeeChange:: $fee_ty (initial_fees);
-                        fee_change.check_and_execute(&mut state).await.unwrap();
-
-                        let retrieved_fees = state
-                            .[< get_ $fee_name _fees >] ()
-                            .await
-                            .expect(stringify!(should not error fetching initial $fee_name fees))
-                            .expect(stringify!(initial $fee_name fees should be stored));
-                        assert_eq!(initial_fees, retrieved_fees);
-
-                        // Execute a second fee change tx to overwrite the fees.
-                        let new_fees = Fees {
-                            base: 3,
-                            multiplier: 4,
-                        };
-                        let fee_change = FeeChange:: $fee_ty (new_fees);
-                        fee_change.check_and_execute(&mut state).await.unwrap();
-
-                        let retrieved_fees = state
-                            .[< get_ $fee_name _fees >] ()
-                            .await
-                            .expect(stringify!(should not error fetching new $fee_name fees))
-                            .expect(stringify!(new $fee_name fees should be stored));
-                        assert_ne!(initial_fees, retrieved_fees);
-                        assert_eq!(new_fees, retrieved_fees);
-                    }
-               }
-            )*
-        };
+    #[tokio::test]
+    async fn transfer_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<Transfer>().await;
     }
 
-    test_fee_change_action!(
-    transfer => Transfer,
-    rollup_data_submission => RollupDataSubmission,
-    ics20_withdrawal => Ics20Withdrawal,
-    init_bridge_account => InitBridgeAccount,
-    bridge_lock => BridgeLock,
-    bridge_unlock => BridgeUnlock,
-    bridge_sudo_change => BridgeSudoChange,
-    validator_update => ValidatorUpdate,
-    ibc_relayer_change => IbcRelayerChange,
-    ibc_relay => IbcRelay,
-    fee_asset_change => FeeAssetChange,
-    fee_change => FeeChange,
-    sudo_address_change => SudoAddressChange,
-    ibc_sudo_change => IbcSudoChange,
-    );
+    #[tokio::test]
+    async fn rollup_data_submission_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<RollupDataSubmission>().await;
+    }
+
+    #[tokio::test]
+    async fn ics20_withdrawal_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<Ics20Withdrawal>().await;
+    }
+
+    #[tokio::test]
+    async fn init_bridge_account_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<InitBridgeAccount>().await;
+    }
+
+    #[tokio::test]
+    async fn bridge_lock_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<BridgeLock>().await;
+    }
+
+    #[tokio::test]
+    async fn bridge_unlock_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<BridgeUnlock>().await;
+    }
+
+    #[tokio::test]
+    async fn bridge_sudo_change_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<BridgeSudoChange>().await;
+    }
+
+    #[tokio::test]
+    async fn validator_update_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<ValidatorUpdate>().await;
+    }
+
+    #[tokio::test]
+    async fn ibc_relay_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<IbcRelay>().await;
+    }
+
+    #[tokio::test]
+    async fn ibc_relayer_change_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<IbcRelayerChange>().await;
+    }
+
+    #[tokio::test]
+    async fn fee_asset_change_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<FeeAssetChange>().await;
+    }
+
+    #[tokio::test]
+    async fn fee_change_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<FeeChange>().await;
+    }
+
+    #[tokio::test]
+    async fn sudo_address_change_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<SudoAddressChange>().await;
+    }
+
+    #[tokio::test]
+    async fn ibc_sudo_change_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<IbcSudoChange>().await;
+    }
+
+    async fn test_fee_change_action<'a, F>()
+    where
+        F: FeeHandler,
+        FeeComponents<F>: TryFrom<StoredValue<'a>, Error = Report> + Debug,
+        FeeChange: From<FeeComponents<F>>,
+    {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        // Put the context to enable the txs to execute.
+        state.put_transaction_context(TransactionContext {
+            address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state.put_sudo_address([1; 20]).unwrap();
+
+        assert!(
+            state
+                .get_fees::<F>()
+                .await
+                .expect("should not error fetching unstored action fees")
+                .is_none()
+        );
+
+        // Execute an initial fee change tx to store the first version of the fees.
+        let initial_fees = FeeComponents::<F>::new(1, 2);
+        let initial_fee_change = FeeChange::from(initial_fees);
+        initial_fee_change
+            .check_and_execute(&mut state)
+            .await
+            .unwrap();
+
+        let retrieved_fees = state
+            .get_fees::<F>()
+            .await
+            .expect("should not error fetching initial action fees")
+            .expect("initial action fees should be stored");
+        assert_eq!(initial_fees, retrieved_fees);
+
+        // Execute a second fee change tx to overwrite the fees.
+        let new_fees = FeeComponents::<F>::new(3, 4);
+        let new_fee_change = FeeChange::from(new_fees);
+        new_fee_change.check_and_execute(&mut state).await.unwrap();
+
+        let retrieved_fees = state
+            .get_fees::<F>()
+            .await
+            .expect("should not error fetching new action fees")
+            .expect("new action fees should be stored");
+        assert_ne!(initial_fees, retrieved_fees);
+        assert_eq!(new_fees, retrieved_fees);
+    }
 }

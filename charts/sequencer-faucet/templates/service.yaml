@@ -3,6 +3,10 @@ apiVersion: v1
 metadata:
   name: sequencer-faucet-service
   namespace: {{ .Values.global.namespace }}
+  {{- if or .Values.additionalAnnotations .Values.service.annotations }}
+  annotations:
+    {{- include "sequencer.serviceAnnotations" . | indent 4 }}
+  {{- end }}
 spec:
   selector:
     app: astria-dev-cluster

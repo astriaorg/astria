@@ -410,7 +410,7 @@ mod tests {
             .prefix(ASTRIA_ADDRESS_PREFIX)
             .try_build()
             .unwrap();
-        insta::assert_json_snapshot!(&main_address.to_raw());
+        insta::assert_json_snapshot!("main_bech32m_address", &main_address.to_raw());
 
         let compat_address = main_address
             .to_prefix(ASTRIA_COMPAT_ADDRESS_PREFIX)
@@ -418,7 +418,7 @@ mod tests {
             .to_format::<Bech32>();
         // We don't allow serializing non bech32m addresses due to
         // its impl via the protobuf type.
-        insta::assert_snapshot!(&compat_address);
+        insta::assert_snapshot!("compat_bech32_non_m_address", &compat_address);
     }
 
     #[test]
