@@ -11,7 +11,7 @@ global:
 evm-rollup:
   genesis:
     # The name of the rollup chain, used to generate the Rollup ID
-    rollupName: "{{ tpl .dev.global.rollupName . }}"
+    rollupName: "{{ .Values.global.rollupName }}"
 
     # The "forks" for upgrading the chain. Contains necessary information for starting
     # and, if desired, restarting the chain at a given height. The necessary fields
@@ -19,31 +19,22 @@ evm-rollup:
     forks:
       ## These values are used to configure the genesis block of the rollup chain
       ## no defaults as they are unique to each chain
-      genesis:
+      launch:
         # The block height to start the chain at, 0 for genesis
         height: 0
-        # Whether to halt the rollup chain at the given height. False for genesis
-        halt: false
-        # Checksum of the snapshot to use upon restart
-        snapshotChecksum: ""
-        # Will fill the extra data in each block, can be left empty
-        # can also fill with something unique for your chain.
-        extraDataOverride: ""
         # Configure the fee collector for the evm tx fees, activated at block heights.
         # If not configured, all tx fees will be burned.
         feeCollector: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-        # Configure EIP-1559 params, activated at block heights.
-        eip1559Params: {}
         # The chain id of the sequencer chain
-        sequencerChainId: "{{ .dev.global.sequencerChainId }}"
+        sequencerChainId: "{{ .Values.global.sequencerChainId }}"
         # The hrp for bech32m addresses, unlikely to be changed
         sequencerAddressPrefix: "astria"
         # Block height to start syncing rollup from, lowest possible is 2
         sequencerStartHeight: 2
         # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork
-        sequencerStopHeight: ""
+        sequencerStopHeight: 0
         # The chain id of the celestia chain
-        celestiaChainId: "{{ .dev.global.celestiaChainId }}"
+        celestiaChainId: "{{ .Values.global.celestiaChainId }}"
         # The first Celestia height to utilize when looking for rollup data
         celestiaStartHeight: 2
         # The variance in Celestia height to allow before halting the chain
@@ -56,10 +47,6 @@ evm-rollup:
             senderAddress: "0x0000000000000000000000000000000000000000"
             assetDenom: "nria"
             assetPrecision: 9
-      # JSON object with any additional desired forks. Can be used with any or all
-      # of the above fields. Any fields left empty will be populated with the previous
-      # fork's values.
-      additionalForks: {}
 
     ## These are general configuration values with some recommended defaults
 
