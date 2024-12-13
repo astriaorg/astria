@@ -1,6 +1,10 @@
-use std::sync::Arc;
+use std::{
+    str::FromStr,
+    sync::Arc,
+};
 
 use astria_core::{
+    connect::types::v2::CurrencyPair,
     crypto::SigningKey,
     primitive::v1::{
         asset,
@@ -12,10 +16,12 @@ use astria_core::{
         genesis::v1::GenesisAppState,
         transaction::v1::{
             action::{
+                AddCurrencyPairs,
                 BridgeLock,
                 BridgeUnlock,
                 IbcRelayerChange,
                 IbcSudoChange,
+                RemoveCurrencyPairs,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
@@ -33,6 +39,7 @@ use cnidarium::{
     ArcStateDeltaExt as _,
     StateDelta,
 };
+use futures::StreamExt as _;
 
 use super::test_utils::get_alice_signing_key;
 use crate::{
@@ -64,6 +71,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    connect::oracle::state_ext::StateReadExt,
     fees::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -1324,4 +1332,59 @@ async fn ensure_all_event_attributes_are_indexed() {
                 attribute.key,
             );
         });
+}
+
+#[tokio::test]
+async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
+    let alice = get_alice_signing_key();
+    let alice_address = astria_address(&alice.address_bytes());
+
+    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+
+    let currency_pair = CurrencyPair::from_str("TIA/USD").unwrap();
+
+    let tx = TransactionBody::builder()
+        .actions(vec![
+            AddCurrencyPairs {
+                pairs: vec![currency_pair.clone()],
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+    assert_eq!(
+        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        1
+    );
+
+    let currency_pairs: Vec<astria_eyre::eyre::Result<CurrencyPair>> =
+        app.state.currency_pairs().collect().await;
+    assert_eq!(currency_pairs.len(), 1);
+    assert_eq!(currency_pairs[0].as_ref().unwrap(), &currency_pair);
+
+    let tx = TransactionBody::builder()
+        .actions(vec![
+            RemoveCurrencyPairs {
+                pairs: vec![currency_pair.clone()],
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+    assert_eq!(
+        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        2
+    );
+
+    let currency_pairs: Vec<astria_eyre::eyre::Result<CurrencyPair>> =
+        app.state.currency_pairs().collect().await;
+    assert_eq!(currency_pairs.len(), 0);
 }

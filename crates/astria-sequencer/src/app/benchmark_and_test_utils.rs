@@ -144,7 +144,7 @@ pub(crate) fn proto_genesis_state()
     }
 }
 
-pub(crate) fn genesis_state() -> GenesisAppState {
+pub(crate) fn get_test_genesis_state() -> GenesisAppState {
     proto_genesis_state().try_into().unwrap()
 }
 
@@ -163,7 +163,7 @@ pub(crate) async fn initialize_app_with_storage(
         .await
         .unwrap();
 
-    let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
+    let genesis_state = genesis_state.unwrap_or_else(get_test_genesis_state);
 
     app.init_chain(
         storage.clone(),

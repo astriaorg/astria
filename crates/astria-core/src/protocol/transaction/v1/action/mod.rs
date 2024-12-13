@@ -272,6 +272,18 @@ impl From<FeeChange> for Action {
     }
 }
 
+impl From<AddCurrencyPairs> for Action {
+    fn from(value: AddCurrencyPairs) -> Self {
+        Self::AddCurrencyPairs(value)
+    }
+}
+
+impl From<RemoveCurrencyPairs> for Action {
+    fn from(value: RemoveCurrencyPairs) -> Self {
+        Self::RemoveCurrencyPairs(value)
+    }
+}
+
 impl From<Action> for raw::Action {
     fn from(value: Action) -> Self {
         value.into_raw()
