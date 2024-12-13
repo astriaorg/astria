@@ -1165,14 +1165,14 @@ mod tests {
                         currency_pair_genesis: vec![CurrencyPairGenesis {
                             id: CurrencyPairId::new(1),
                             nonce: CurrencyPairNonce::new(0),
-                            currency_pair_price: QuotePrice {
+                            currency_pair_price: Some(QuotePrice {
                                 price: Price::new(3_138_872_234_u128),
                                 block_height: 0,
                                 block_timestamp: pbjson_types::Timestamp {
                                     seconds: 1_720_122_395,
                                     nanos: 0,
                                 },
-                            },
+                            }),
                             currency_pair: CurrencyPair::from_parts(
                                 "ETH".parse().unwrap(),
                                 "USD".parse().unwrap(),

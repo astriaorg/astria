@@ -283,7 +283,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             .await
             .wrap_err("failed to get currency pair state")?
         {
-            state.price = price;
+            state.price = Some(price);
             state.nonce = state
                 .nonce
                 .increment()
@@ -298,7 +298,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             self.put_next_currency_pair_id(next_id)
                 .wrap_err("failed to put next currency pair ID")?;
             CurrencyPairState {
-                price,
+                Some(price),
                 nonce: CurrencyPairNonce::new(0),
                 id,
             }
@@ -383,14 +383,14 @@ mod tests {
 
     fn currency_pair_state(id: u64, nonce: u64) -> CurrencyPairState {
         CurrencyPairState {
-            price: QuotePrice {
+            price: Some(QuotePrice {
                 price: Price::new(123),
                 block_timestamp: Timestamp {
                     seconds: 4,
                     nanos: 5,
                 },
                 block_height: nonce.checked_add(10).unwrap(),
-            },
+            }),
             nonce: CurrencyPairNonce::new(nonce),
             id: CurrencyPairId::new(id),
         }

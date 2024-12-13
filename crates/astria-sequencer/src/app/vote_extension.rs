@@ -846,14 +846,14 @@ mod test {
 
             for (pair, pair_id) in [pair_0(), pair_1(), pair_2()] {
                 let pair_state = CurrencyPairState {
-                    price: QuotePrice {
+                    price: Some(QuotePrice {
                         price: Price::new(123),
                         block_timestamp: Timestamp {
                             seconds: 4,
                             nanos: 5,
                         },
                         block_height: 1,
-                    },
+                    }),
                     nonce: CurrencyPairNonce::new(1),
                     id: pair_id,
                 };

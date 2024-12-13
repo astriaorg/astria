@@ -21,6 +21,7 @@ use astria_eyre::eyre::{
 };
 use async_trait::async_trait;
 use cnidarium::StateWrite;
+use tracing::debug;
 
 use crate::{
     action_handler::ActionHandler,
@@ -72,15 +73,18 @@ impl ActionHandler for AddCurrencyPairs {
             .into();
 
         for pair in &self.pairs {
+            if state
+                .get_currency_pair_state(pair)
+                .await
+                .wrap_err("failed to get currency pair state")?
+                .is_some()
+            {
+                debug!("currency pair {} already exists, skipping", pair);
+                continue;
+            }
+
             let currency_pair_state = CurrencyPairState {
-                price: QuotePrice {
-                    price: Price::new(0),
-                    block_timestamp: Timestamp {
-                        seconds: timestamp.seconds,
-                        nanos: timestamp.nanos,
-                    },
-                    block_height: state.get_block_height().await?,
-                },
+                price: None,
                 nonce: CurrencyPairNonce::new(0),
                 id: next_currency_pair_id,
             };
