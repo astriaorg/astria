@@ -13,5 +13,3 @@ if [ ! -d "/cometbft/config" ]; then
 else
   cp /config/* /cometbft/config/
 fi
-
-chmod -R 0777 /cometbft
