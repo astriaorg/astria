@@ -68,11 +68,27 @@ pub(crate) struct StateNotInit;
 pub(crate) struct StateIsInit;
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum StopHeightExceded {
-    #[error("firm height exceeded sequencer stop height")]
-    Celestia,
-    #[error("soft height met or exceeded sequencer stop height")]
-    Sequencer,
+pub(super) enum StopHeightExceded {
+    #[error("firm height {firm_height} exceeded sequencer stop height {stop_height}")]
+    Celestia { firm_height: u64, stop_height: u64 },
+    #[error("soft height {soft_height} met or exceeded sequencer stop height {stop_height}")]
+    Sequencer { soft_height: u64, stop_height: u64 },
+}
+
+impl StopHeightExceded {
+    fn celestia(firm_height: u64, stop_height: u64) -> Self {
+        StopHeightExceded::Celestia {
+            firm_height,
+            stop_height,
+        }
+    }
+
+    fn sequencer(soft_height: u64, stop_height: u64) -> Self {
+        StopHeightExceded::Sequencer {
+            soft_height,
+            stop_height,
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -416,29 +432,24 @@ impl Executor {
         // executing firm blocks, we let execution continue since one more firm block will be
         // executed before `execute_firm` initiates a restart. If we are in soft-only mode, we
         // return a `StopHeightExceded::Sequencer` error to signal a restart.
-        if self.state.sequencer_stop_block_height().value() > 0
-            && executable_block.height >= self.state.sequencer_stop_block_height()
-        {
-            let res = if self.mode.is_with_firm() {
+        if self.is_soft_block_height_exceded(&executable_block) {
+            if self.mode.is_with_firm() {
                 info!(
                     height = %executable_block.height,
-                    "received soft block whose height is greater than or equal to stop block height in {} mode. \
-                    dropping soft block and waiting for next firm block before attempting restart",
-                    self.mode,
+                    "received soft block whose height is greater than or equal to stop block height. \
+                    dropping soft block and waiting for next firm block before attempting restart. \
+                    will continue logging info of soft blocks until restart",
                 );
-                Ok(())
-            } else {
-                info!(
-                    height = %executable_block.height,
-                    "received soft block whose height is greater than or equal to stop block \
-                    height in soft only mode. shutting down and attempting restart",
-                );
-                Err(StopHeightExceded::Sequencer).wrap_err(
-                    "soft height met or exceeded sequencer stop height, attempting restart with \
-                     new genesis info",
-                )
-            };
-            return res;
+                return Ok(());
+            }
+            return Err(StopHeightExceded::sequencer(
+                executable_block.height.value(),
+                self.state.sequencer_stop_block_height(),
+            ))
+            .wrap_err(
+                "soft height met or exceeded sequencer stop height, attempting restart with new \
+                 genesis info",
+            );
         }
 
         let expected_height = self.state.next_expected_soft_sequencer_height();
@@ -505,15 +516,12 @@ impl Executor {
         err,
     ))]
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
-        if self.state.sequencer_stop_block_height().value() > 0
-            && block.header.height() > self.state.sequencer_stop_block_height()
-        {
-            info!(
-                height = %block.header.height(),
-                "received firm block whose height is greater than stop block height. \
-                exiting and attempting restart with new genesis info",
-            );
-            return Err(StopHeightExceded::Celestia).wrap_err(
+        if self.is_firm_block_height_exceded(&block) {
+            return Err(StopHeightExceded::celestia(
+                block.header.height().value(),
+                self.state.sequencer_stop_block_height(),
+            ))
+            .wrap_err(
                 "firm height exceeded sequencer stop height, attempting restart with new genesis \
                  info",
             );
@@ -730,6 +738,19 @@ impl Executor {
             self.state.next_expected_soft_sequencer_height().value(),
             self.mode,
         )
+    }
+
+    /// Returns whether the height of the soft block is greater than or equal to the stop block
+    /// height.
+    fn is_soft_block_height_exceded(&self, block: &ExecutableBlock) -> bool {
+        let stop_height = self.state.sequencer_stop_block_height();
+        stop_height > 0 && block.height.value() >= stop_height
+    }
+
+    /// Returns whether the height of the firm block is greater than the stop block height.
+    fn is_firm_block_height_exceded(&self, block: &ReconstructedBlock) -> bool {
+        let stop_height = self.state.sequencer_stop_block_height();
+        stop_height > 0 && block.header.height().value() > stop_height
     }
 }
 

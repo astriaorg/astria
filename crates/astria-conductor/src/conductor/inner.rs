@@ -331,14 +331,20 @@ mod tests {
         assert!(super::check_for_restart("executor", &err.unwrap_err()));
 
         let celestia_height_error: Result<&str, super::StopHeightExceded> =
-            Err(super::StopHeightExceded::Celestia);
+            Err(super::StopHeightExceded::Celestia {
+                firm_height: 1,
+                stop_height: 1,
+            });
         let err = celestia_height_error.wrap_err("wrapper_1");
         let err = err.wrap_err("wrapper_2");
         let err = err.wrap_err("wrapper_3");
         assert!(super::check_for_restart("executor", &err.unwrap_err()));
 
         let sequencer_height_error: Result<&str, super::StopHeightExceded> =
-            Err(super::StopHeightExceded::Sequencer);
+            Err(super::StopHeightExceded::Sequencer {
+                soft_height: 1,
+                stop_height: 1,
+            });
         let err = sequencer_height_error.wrap_err("wrapper_1");
         let err = err.wrap_err("wrapper_2");
         let err = err.wrap_err("wrapper_3");

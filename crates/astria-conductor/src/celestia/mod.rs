@@ -168,6 +168,7 @@ impl Reader {
             .await
     }
 
+    // TODO(https://github.com/astriaorg/astria/issues/1879): refactor to not return an empty tuple
     #[instrument(skip_all, err)]
     async fn initialize(
         &mut self,
@@ -198,7 +199,7 @@ impl Reader {
                     .wrap_err("failed to get sequencer chain ID")?;
             let expected_sequencer_chain_id = executor.sequencer_chain_id();
             ensure!(
-                expected_sequencer_chain_id == actual_sequencer_chain_id.to_string(),
+                expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
                 "expected Celestia chain id `{expected_sequencer_chain_id}` does not match \
                  actual: `{actual_sequencer_chain_id}`"
             );

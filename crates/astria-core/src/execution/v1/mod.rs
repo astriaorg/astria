@@ -23,6 +23,14 @@ impl GenesisInfoError {
     fn no_rollup_id() -> Self {
         Self(GenesisInfoErrorKind::NoRollupId)
     }
+
+    fn invalid_sequencer_id(source: tendermint::Error) -> Self {
+        Self(GenesisInfoErrorKind::InvalidSequencerId(source))
+    }
+
+    fn invalid_celestia_id(source: celestia_tendermint::Error) -> Self {
+        Self(GenesisInfoErrorKind::InvalidCelestiaId(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +39,10 @@ enum GenesisInfoErrorKind {
     IncorrectRollupIdLength(IncorrectRollupIdLength),
     #[error("`rollup_id` was not set")]
     NoRollupId,
+    #[error("invalid tendermint chain ID for sequencer")]
+    InvalidSequencerId(#[source] tendermint::Error),
+    #[error("invalid celestia-tendermint chain ID for celestia")]
+    InvalidCelestiaId(#[source] celestia_tendermint::Error),
 }
 
 /// Genesis Info required from a rollup to start an execution client.
@@ -57,9 +69,9 @@ pub struct GenesisInfo {
     /// The rollup block number to map to the sequencer start block height.
     rollup_start_block_height: u64,
     /// The chain ID of the sequencer network.
-    sequencer_chain_id: String,
+    sequencer_chain_id: tendermint::chain::Id,
     /// The chain ID of the celestia network.
-    celestia_chain_id: String,
+    celestia_chain_id: celestia_tendermint::chain::Id,
 }
 
 impl GenesisInfo {
@@ -69,13 +81,13 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn sequencer_start_block_height(&self) -> tendermint::block::Height {
-        self.sequencer_start_block_height
+    pub fn sequencer_start_block_height(&self) -> u64 {
+        self.sequencer_start_block_height.into()
     }
 
     #[must_use]
-    pub fn sequencer_stop_block_height(&self) -> tendermint::block::Height {
-        self.sequencer_stop_block_height
+    pub fn sequencer_stop_block_height(&self) -> u64 {
+        self.sequencer_stop_block_height.into()
     }
 
     #[must_use]
@@ -84,13 +96,13 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn sequencer_chain_id(&self) -> &str {
+    pub fn sequencer_chain_id(&self) -> &tendermint::chain::Id {
         &self.sequencer_chain_id
     }
 
     #[must_use]
     pub fn celestia_chain_id(&self) -> &str {
-        &self.celestia_chain_id
+        self.celestia_chain_id.as_str()
     }
 
     #[must_use]
@@ -124,6 +136,14 @@ impl Protobuf for GenesisInfo {
         };
         let rollup_id = RollupId::try_from_raw_ref(rollup_id)
             .map_err(Self::Error::incorrect_rollup_id_length)?;
+        let sequencer_chain_id = sequencer_chain_id
+            .clone()
+            .try_into()
+            .map_err(Self::Error::invalid_sequencer_id)?;
+        let celestia_chain_id = celestia_chain_id
+            .clone()
+            .try_into()
+            .map_err(Self::Error::invalid_celestia_id)?;
 
         Ok(Self {
             rollup_id,
@@ -131,8 +151,8 @@ impl Protobuf for GenesisInfo {
             sequencer_stop_block_height: (*sequencer_stop_block_height).into(),
             celestia_block_variance: *celestia_block_variance,
             rollup_start_block_height: *rollup_start_block_height,
-            sequencer_chain_id: sequencer_chain_id.clone(),
-            celestia_chain_id: celestia_chain_id.clone(),
+            sequencer_chain_id,
+            celestia_chain_id,
         })
     }
 
@@ -164,8 +184,8 @@ impl Protobuf for GenesisInfo {
             sequencer_stop_block_height,
             celestia_block_variance: *celestia_block_variance,
             rollup_start_block_height: *rollup_start_block_height,
-            sequencer_chain_id: sequencer_chain_id.clone(),
-            celestia_chain_id: celestia_chain_id.clone(),
+            sequencer_chain_id: sequencer_chain_id.to_string(),
+            celestia_chain_id: celestia_chain_id.to_string(),
         }
     }
 }
