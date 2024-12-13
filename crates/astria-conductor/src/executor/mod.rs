@@ -416,7 +416,9 @@ impl Executor {
         // executing firm blocks, we let execution continue since one more firm block will be
         // executed before `execute_firm` initiates a restart. If we are in soft-only mode, we
         // return a `StopHeightExceded::Sequencer` error to signal a restart.
-        if executable_block.height >= self.state.sequencer_stop_block_height() {
+        if self.state.sequencer_stop_block_height().value() > 0
+            && executable_block.height >= self.state.sequencer_stop_block_height()
+        {
             let res = if self.mode.is_with_firm() {
                 info!(
                     height = %executable_block.height,
@@ -503,7 +505,9 @@ impl Executor {
         err,
     ))]
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
-        if block.header.height() > self.state.sequencer_stop_block_height() {
+        if self.state.sequencer_stop_block_height().value() > 0
+            && block.header.height() > self.state.sequencer_stop_block_height()
+        {
             info!(
                 height = %block.header.height(),
                 "received firm block whose height is greater than stop block height. \
