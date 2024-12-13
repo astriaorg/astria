@@ -18,8 +18,9 @@ if [ ! -d "/cometbft/data" ]; then
 
   echo "Extracting snapshot..."
   mkdir /cometbft/data
+  mkdir /sequencer/penumbra.db
   tar -C /cometbft/data/ --strip-components=2 -xzf /snapshot/cometbft_*.tar.gz cometbft/data
-  tar -C /sequencer/ --strip-components=2 -xzf /snapshot/sequencer_*.tar.gz sequencer/penumbra.db
+  tar -C /sequencer/penumbra.db/ --strip-components=2 -xzf /snapshot/sequencer_*.tar.gz sequencer/penumbra.db
   rm /snapshot/cometbft_*.tar.gz /snapshot/sequencer_*.tar.gz
   {{- else }}
   # Otherwise initialize with basic values
