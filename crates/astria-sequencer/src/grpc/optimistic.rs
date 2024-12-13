@@ -6,7 +6,10 @@ use std::{
 
 use astria_core::{
     generated::astria::sequencerblock::optimistic::v1alpha1::{
-        optimistic_block_service_server::OptimisticBlockService,
+        optimistic_block_service_server::{
+            OptimisticBlockService,
+            OptimisticBlockServiceServer,
+        },
         GetBlockCommitmentStreamRequest,
         GetBlockCommitmentStreamResponse,
         GetOptimisticBlockStreamRequest,
@@ -29,7 +32,10 @@ use tendermint::{
 };
 use tokio::{
     sync::mpsc,
-    task::JoinSet,
+    task::{
+        JoinHandle,
+        JoinSet,
+    },
 };
 use tokio_util::sync::CancellationToken;
 use tonic::{
@@ -64,13 +70,19 @@ type GrpcStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
 pub(super) fn new_service(
     event_bus_subscription: EventBusSubscription,
     cancellation_token: CancellationToken,
-) -> (OptimisticBlockFacade, OptimisticBlockStreamRunner) {
+) -> (
+    OptimisticBlockServiceServer<OptimisticBlockFacade>,
+    JoinHandle<()>,
+) {
     let (tx, rx) = mpsc::channel(128);
 
     let facade = OptimisticBlockFacade::new(tx);
     let inner = OptimisticBlockStreamRunner::new(event_bus_subscription, rx, cancellation_token);
 
-    (facade, inner)
+    let inner_task = tokio::spawn(inner.run());
+    let server = OptimisticBlockServiceServer::new(facade);
+
+    (server, inner_task)
 }
 
 struct StartOptimisticBlockStreamRequest {
@@ -140,7 +152,7 @@ impl OptimisticBlockStreamRunner {
         ));
     }
 
-    pub(super) async fn run(&mut self) {
+    pub(super) async fn run(mut self) {
         loop {
             tokio::select! {
                 biased;

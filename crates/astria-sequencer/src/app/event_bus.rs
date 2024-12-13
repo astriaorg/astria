@@ -18,10 +18,9 @@ pub(crate) struct EventReceiver<T> {
     // We receive an Option over T because the sender side of the watch is designed to send
     // Option values. This allows the sender value to send objects which do not have a `Default`
     // implementation.
-    receiver: Receiver<Option<T>>,
-    // A token that is resolved when the sender side of the watch is initialized.
-    // It is used to wait for the sender side of the watch to be initialized before the
-    // receiver side can start receiving valid values.
+    inner: Receiver<Option<T>>,
+    // To signal subscribers that the event bus is initialized, i.e. that the value in `sender` was
+    // set.
     is_init: CancellationToken,
 }
 
@@ -33,21 +32,22 @@ where
     // This is useful in situations where we want to ignore the current value of the watch
     // and wait for the next value.
     pub(crate) fn mark_latest_event_as_seen(&mut self) {
-        self.receiver.mark_unchanged();
+        self.inner.mark_unchanged();
     }
 
     // Returns the latest value of the event, waiting for the value to change if it hasn't already.
     pub(crate) async fn receive(&mut self) -> astria_eyre::Result<T> {
-        // This will get resolved on the first send through the sender side of the watch
-        // i.e when the sender is initialized.
+        // This will get resolved when the sender side of the watch is initialized by sending
+        // the first value. We wait till the sender side of the watch has initialized the watch.
+        // Once the sender side has been initialized, it will get resolved immediately.
         self.is_init.cancelled().await;
         // We want to only receive the latest value through the receiver, so we wait for the
         // current value in the watch to change before we return it.
-        self.receiver
+        self.inner
             .changed()
             .await
             .wrap_err("error waiting for latest event")?;
-        Ok(self.receiver.borrow_and_update().clone().expect(
+        Ok(self.inner.borrow_and_update().clone().expect(
             "events must be set after is_init is triggered; this means an invariant was violated",
         ))
     }
@@ -56,13 +56,11 @@ where
 /// `EventSender` contains the sender side of the events sent by the Sequencer App.
 /// At any given time, it sends the latest value of the event.
 struct EventSender<T> {
-    // The sender side of the watch which is used to send the latest value of the event.
-    // We use an Option here to allow for the sender to be initialized with a None value
-    // which allows the type to not have a Default value.
-    sender: Sender<Option<T>>,
-    // A token that is resolved when the sender side of the watch is initialized. It is used to
-    // wait for the sender side of the watch to be initialized before the receiver side can start
-    // receiving valid values.
+    // A watch channel that is always starts unset. Once set, the `is_init` token is cancelled
+    // and value in the channel will never be unset.
+    inner: Sender<Option<T>>,
+    // To signal subscribers that the event bus is initialized, i.e. that the value in `sender` was
+    // set.
     is_init: CancellationToken,
 }
 
@@ -70,7 +68,7 @@ impl<T> EventSender<T> {
     fn new() -> Self {
         let (sender, _) = tokio::sync::watch::channel(None);
         Self {
-            sender,
+            inner: sender,
             is_init: CancellationToken::new(),
         }
     }
@@ -79,14 +77,14 @@ impl<T> EventSender<T> {
     // used to receive the latest value of the event.
     fn subscribe(&self) -> EventReceiver<T> {
         EventReceiver {
-            receiver: self.sender.subscribe(),
+            inner: self.inner.subscribe(),
             is_init: self.is_init.clone(),
         }
     }
 
     // Sends the event to all the subscribers.
     fn send(&self, event: T) {
-        self.sender.send_replace(Some(event));
+        self.inner.send_replace(Some(event));
         // after sending the first value, we resolve the is_init token to signal that the sender
         // side of the watch is initialized. The receiver side can now start receiving valid
         // values.

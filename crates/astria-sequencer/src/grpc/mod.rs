@@ -5,14 +5,8 @@ pub(crate) mod storage;
 
 use std::time::Duration;
 
-use astria_core::generated::astria::sequencerblock::{
-    optimistic::v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer,
-    v1::sequencer_service_server::SequencerServiceServer,
-};
-use futures::{
-    future::Fuse,
-    FutureExt,
-};
+use astria_core::generated::astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
+use astria_eyre::eyre::WrapErr as _;
 pub(crate) use state_ext::{
     StateReadExt,
     StateWriteExt,
@@ -23,6 +17,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
+    error,
     info,
     info_span,
     warn,
@@ -62,17 +57,15 @@ pub(crate) fn start_server(
 
     let optimistic_streams_cancellation_token = CancellationToken::new();
 
-    let (optimistic_block_facade, mut optimistic_block_service_inner) = optimistic::new_service(
-        event_bus_subscription,
-        optimistic_streams_cancellation_token.child_token(),
-    );
+    let (optimistic_block_service, mut optimistic_block_task) = if no_optimistic_blocks {
+        (None, None)
+    } else {
+        let (optimistic_block_service, optimistic_block_task) = optimistic::new_service(
+            event_bus_subscription,
+            optimistic_streams_cancellation_token.child_token(),
+        );
 
-    let optimistic_block_service_server = {
-        if no_optimistic_blocks {
-            None
-        } else {
-            Some(OptimisticBlockServiceServer::new(optimistic_block_facade))
-        }
+        (Some(optimistic_block_service), Some(optimistic_block_task))
     };
 
     // TODO: setup HTTPS?
@@ -97,15 +90,7 @@ pub(crate) fn start_server(
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()))
         .add_service(SequencerServiceServer::new(sequencer_api))
-        .add_optional_service(optimistic_block_service_server);
-
-    let optimistic_block_inner_handle = {
-        if no_optimistic_blocks {
-            Fuse::terminated()
-        } else {
-            tokio::task::spawn(async move { optimistic_block_service_inner.run().await }).fuse()
-        }
-    };
+        .add_optional_service(optimistic_block_service);
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
 
@@ -115,14 +100,35 @@ pub(crate) fn start_server(
             _ = shutdown_rx => {
                 Ok("grpc server shutting down")
             },
-            _ = optimistic_block_inner_handle => {
-                Err("optimistic block inner handle task exited")
+            res = async { optimistic_block_task.as_mut().unwrap().await }, if optimistic_block_task.is_some() => {
+                match res {
+                    Ok(()) => {
+                        Ok("optimistic block inner handle task exited successfully")
+                    },
+                    Err(e) => {
+                        Err(e).wrap_err("optimistic block inner handle task exited with error")
+                    }
+                }
             }
         };
         optimistic_streams_cancellation_token.cancel();
 
-        // give time for the optimistic block service to shutdown all the streaming tasks.
-        tokio::time::sleep(SHUTDOWN_TIMEOUT).await;
+        if optimistic_block_task.is_some() {
+            // give time for the optimistic block service to shutdown all the streaming tasks.
+            let handle = optimistic_block_task.as_mut().unwrap();
+            match tokio::time::timeout(SHUTDOWN_TIMEOUT, &mut *handle).await {
+                Ok(Ok(())) => {
+                    info!("optimistic block service task shutdown gracefully");
+                },
+                Ok(Err(e)) => {
+                    warn!(%e, "optimistic block service has panicked")
+                }
+                Err(e) => {
+                    error!(%e, "optimistic block service task didn't shutdown in time");
+                    handle.abort();
+                }
+            }
+        }
 
         info_span!(SHUTDOWN_SPAN).in_scope(|| {
             match reason {
@@ -130,7 +136,7 @@ pub(crate) fn start_server(
                     info!(reason);
                 }
                 Err(reason) => {
-                    warn!(reason);
+                    warn!("{}", reason.to_string());
                 }
             };
         });

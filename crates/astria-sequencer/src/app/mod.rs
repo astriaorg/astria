@@ -282,7 +282,7 @@ impl App {
         })
     }
 
-    pub(crate) fn event_bus_subscription(&self) -> EventBusSubscription {
+    pub(crate) fn subscribe_to_events(&self) -> EventBusSubscription {
         self.event_bus.subscribe()
     }
 
@@ -450,6 +450,7 @@ impl App {
                     bail!("execution results must be present after executing transactions")
                 };
 
+                // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
                 let sequencer_block = self
                     .post_execute_transactions(
                         process_proposal.hash,
@@ -555,7 +556,7 @@ impl App {
 
         self.executed_proposal_hash = process_proposal.hash;
 
-        // TODO - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
+        // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
         let sequencer_block = self
             .post_execute_transactions(
                 process_proposal.hash,
@@ -826,6 +827,7 @@ impl App {
         finalize_block_tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
         finalize_block_tx_results.extend(tx_results);
 
+        // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
             block_hash,
             chain_id,
@@ -868,8 +870,6 @@ impl App {
         finalize_block: abci::request::FinalizeBlock,
         storage: Storage,
     ) -> Result<abci::response::FinalizeBlock> {
-        let finalize_block_arc = Arc::new(finalize_block.clone());
-
         // If we previously executed txs in a different proposal than is being processed,
         // reset cached state changes.
         if self.executed_proposal_hash != finalize_block.hash {
@@ -882,8 +882,8 @@ impl App {
              rollup IDs commitment"
         );
 
-        let height = finalize_block.height;
-        let block_hash = finalize_block.hash;
+        // FIXME: refactor to avoid cloning the finalize block
+        let finalize_block_arc = Arc::new(finalize_block.clone());
 
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
@@ -895,7 +895,7 @@ impl App {
             // we haven't executed anything yet, so set up the state for execution.
             let block_data = BlockData {
                 misbehavior: finalize_block.misbehavior,
-                height,
+                height: finalize_block.height,
                 time,
                 next_validators_hash: finalize_block.next_validators_hash,
                 proposer_address,
@@ -938,8 +938,8 @@ impl App {
             }
 
             self.post_execute_transactions(
-                block_hash,
-                height,
+                finalize_block.hash,
+                finalize_block.height,
                 time,
                 proposer_address,
                 finalize_block.txs,

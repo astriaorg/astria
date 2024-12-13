@@ -89,7 +89,7 @@ impl Sequencer {
             .await
             .wrap_err("failed to initialize app")?;
 
-        let event_bus_subscription = app.event_bus_subscription();
+        let event_bus_subscription = app.subscribe_to_events();
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
