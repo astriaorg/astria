@@ -1,17 +1,12 @@
 use astria_core::{
     connect::{
-        oracle::v2::{
-            CurrencyPairState,
-            QuotePrice,
-        },
+        oracle::v2::CurrencyPairState,
         types::v2::{
             CurrencyPairId,
             CurrencyPairNonce,
-            Price,
         },
     },
     protocol::transaction::v1::action::AddCurrencyPairs,
-    Timestamp,
 };
 use astria_eyre::eyre::{
     ensure,
@@ -25,12 +20,11 @@ use tracing::debug;
 
 use crate::{
     action_handler::ActionHandler,
-    app::StateReadExt as _,
     connect::{
         market_map::state_ext::StateReadExt as _,
         oracle::state_ext::{
             StateReadExt as _,
-            StateWriteExt,
+            StateWriteExt as _,
         },
     },
     transaction::StateReadExt as _,
@@ -66,11 +60,6 @@ impl ActionHandler for AddCurrencyPairs {
             .get_num_currency_pairs()
             .await
             .wrap_err("failed to get number of currency pairs")?;
-        let timestamp: tendermint_proto::google::protobuf::Timestamp = state
-            .get_block_timestamp()
-            .await
-            .wrap_err("failed to get block timestamp")?
-            .into();
 
         for pair in &self.pairs {
             if state

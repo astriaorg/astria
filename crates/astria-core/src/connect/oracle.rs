@@ -222,7 +222,11 @@ pub mod v2 {
                 .ok_or_else(|| CurrencyPairGenesisError::field_not_set("currency_pair"))?
                 .try_into()
                 .map_err(CurrencyPairGenesisError::currency_pair)?;
-            let currency_pair_price = raw.currency_pair_price.map(QuotePrice::try_from_raw).transpose().map_err(CurrencyPairGenesisError::currency_pair_price)?;
+            let currency_pair_price = raw
+                .currency_pair_price
+                .map(QuotePrice::try_from_raw)
+                .transpose()
+                .map_err(CurrencyPairGenesisError::currency_pair_price)?;
 
             let id = CurrencyPairId::new(raw.id);
             let nonce = CurrencyPairNonce::new(raw.nonce);

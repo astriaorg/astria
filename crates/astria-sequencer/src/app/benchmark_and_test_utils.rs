@@ -279,6 +279,7 @@ pub(crate) fn mock_state_put_account_nonce(
     state.put_account_nonce(address, nonce).unwrap();
 }
 
+#[expect(clippy::too_many_lines, reason = "this is needed for test set up")]
 pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
