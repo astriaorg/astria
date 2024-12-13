@@ -4,6 +4,7 @@ use astria_eyre::{
     eyre::{
         eyre,
         OptionExt as _,
+        Report,
         Result,
         WrapErr as _,
     },
@@ -32,6 +33,7 @@ use tracing::{
     info,
     instrument,
 };
+use url::Url;
 
 use crate::{
     app::App,
@@ -89,26 +91,7 @@ impl Sequencer {
             .await
             .wrap_err("failed to initialize app")?;
 
-        let consensus_service = tower::ServiceBuilder::new()
-            .layer(request_span::layer(|req: &ConsensusRequest| {
-                req.create_span()
-            }))
-            .service(tower_actor::Actor::new(10, |queue: _| {
-                let storage = storage.clone();
-                async move { service::Consensus::new(storage, app, queue).run().await }
-            }));
         let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
-        let info_service =
-            service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
-        let snapshot_service = service::Snapshot;
-
-        let server = Server::builder()
-            .consensus(consensus_service)
-            .info(info_service)
-            .mempool(mempool_service)
-            .snapshot(snapshot_service)
-            .finish()
-            .ok_or_eyre("server builder didn't return server; are all fields set?")?;
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
         let (server_exit_tx, server_exit_rx) = tokio::sync::oneshot::channel();
@@ -119,20 +102,15 @@ impl Sequencer {
             .wrap_err("failed to parse grpc_addr address")?;
         let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
 
-        info!(config.listen_addr, "starting sequencer");
-        let server_handle = tokio::spawn(async move {
-            match server.listen_tcp(&config.listen_addr).await {
-                Ok(()) => {
-                    // this shouldn't happen, as there isn't a way for the ABCI server to exit
-                    info!("ABCI server exited successfully");
-                }
-                Err(e) => {
-                    error!(err = e.as_ref(), "ABCI server exited with error");
-                }
-            }
-            let _ = server_exit_tx.send(());
-        });
-
+        info!(config.listen_addr, "starting abci server");
+        let abci_server_handle = start_abci_server(
+            &storage,
+            app,
+            mempool_service,
+            &config.listen_addr,
+            server_exit_tx,
+        )
+        .wrap_err("failed to start ABCI server")?;
         select! {
             _ = signals.stop_rx.changed() => {
                 info!("shutting down sequencer");
@@ -150,7 +128,7 @@ impl Sequencer {
             .await
             .wrap_err("grpc server task failed")?
             .wrap_err("grpc server failed")?;
-        server_handle.abort();
+        abci_server_handle.abort();
         Ok(())
     }
 }
@@ -201,6 +179,76 @@ fn start_grpc_server(
     tokio::task::spawn(
         grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
     )
+}
+
+fn start_abci_server(
+    storage: &cnidarium::Storage,
+    app: App,
+    mempool_service: service::Mempool,
+    listen_addr: &String,
+    server_exit_tx: oneshot::Sender<()>,
+) -> Result<JoinHandle<()>, Report> {
+    let consensus_service = tower::ServiceBuilder::new()
+        .layer(request_span::layer(|req: &ConsensusRequest| {
+            req.create_span()
+        }))
+        .service(tower_actor::Actor::new(10, |queue: _| {
+            let storage = storage.clone();
+            async move { service::Consensus::new(storage, app, queue).run().await }
+        }));
+    let info_service =
+        service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
+    let snapshot_service = service::Snapshot;
+
+    let server = Server::builder()
+        .consensus(consensus_service)
+        .info(info_service)
+        .mempool(mempool_service)
+        .snapshot(snapshot_service)
+        .finish()
+        .ok_or_eyre("server builder didn't return server; are all fields set?")?;
+    
+    let abci_url = Url::parse(listen_addr).wrap_err("failed to parse listen_addr")?;
+    let validated_listen_addr = match abci_url.scheme() {
+        "unix" => match abci_url.to_file_path() {
+            Ok(_) => Ok(abci_url.path().to_string()),
+            Err(e) => Err(eyre!(
+                "failed parsing unix listen_addr file path, error: {:?}",
+                e
+            )),
+        },
+        "tcp" => {
+            let host_str = abci_url
+                .host_str()
+                .ok_or_eyre("missing host in tcp listen_addr")?;
+            let port = abci_url
+                .port()
+                .ok_or_eyre("missing port in tcp listen_addr")?;
+            Ok(format!("{host_str}:{port}"))
+        }
+        _ => Err(eyre!(
+            "unsupported protocol in listen_addr, only unix and tcp are supported"
+        )),
+    }?;
+    let server_handle = tokio::spawn(async move {
+        let server_listen_result = if abci_url.scheme() == "unix" {
+            server.listen_unix(validated_listen_addr).await
+        } else {
+            server.listen_tcp(validated_listen_addr).await
+        };
+        match server_listen_result {
+            Ok(()) => {
+                // this shouldn't happen, as there isn't a way for the ABCI server to exit
+                info!("ABCI server exited successfully");
+            }
+            Err(e) => {
+                error!(err = e.as_ref(), "ABCI server exited with error");
+            }
+        }
+        let _ = server_exit_tx.send(());
+    });
+
+    Ok(server_handle)
 }
 
 struct SignalReceiver {
