@@ -123,10 +123,9 @@ impl Handler {
             return Ok(abci::response::VerifyVoteExtension::Accept);
         }
 
-        let max_num_currency_pairs =
-            DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, false)
-                .await
-                .wrap_err("failed to get max number of currency pairs")?;
+        let max_num_currency_pairs = DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state)
+            .await
+            .wrap_err("failed to get max number of currency pairs")?;
 
         let response = match verify_vote_extension(vote.vote_extension, max_num_currency_pairs) {
             Ok(_) => abci::response::VerifyVoteExtension::Accept,
@@ -225,10 +224,9 @@ impl ProposalHandler {
             ));
         }
 
-        let max_num_currency_pairs =
-            DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, true)
-                .await
-                .wrap_err("failed to get max number of currency pairs")?;
+        let max_num_currency_pairs = DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state)
+            .await
+            .wrap_err("failed to get max number of currency pairs")?;
 
         let mut all_currency_pair_ids = HashSet::new();
         for vote in &mut extended_commit_info.votes {
@@ -310,10 +308,9 @@ impl ProposalHandler {
             .await
             .wrap_err("failed to validate vote extensions in validate_extended_commit_info")?;
 
-        let max_num_currency_pairs =
-            DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state, true)
-                .await
-                .wrap_err("failed to get max number of currency pairs")?;
+        let max_num_currency_pairs = DefaultCurrencyPairStrategy::get_max_num_currency_pairs(state)
+            .await
+            .wrap_err("failed to get max number of currency pairs")?;
 
         let mut all_currency_pair_ids = HashSet::new();
         for vote in &extended_commit_info.votes {

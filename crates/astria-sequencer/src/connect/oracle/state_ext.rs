@@ -196,21 +196,6 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_num_removed_currency_pairs(&self) -> Result<u64> {
-        let Some(bytes) = self
-            .get_raw(keys::NUM_REMOVED_CURRENCY_PAIRS)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading number of removed currency pairs from state")?
-        else {
-            return Ok(0);
-        };
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::Count::try_from(value).map(u64::from))
-            .wrap_err("invalid number of removed currency pairs bytes")
-    }
-
-    #[instrument(skip_all)]
     async fn get_currency_pair_state(
         &self,
         currency_pair: &CurrencyPair,
@@ -230,6 +215,21 @@ pub(crate) trait StateReadExt: StateRead {
             })
             .wrap_err("invalid currency pair state bytes")
     }
+
+    #[instrument(skip_all)]
+    async fn get_next_currency_pair_id(&self) -> Result<CurrencyPairId> {
+        let Some(bytes) = self
+            .get_raw(keys::NEXT_CURRENCY_PAIR_ID)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading next currency pair id from state")?
+        else {
+            return Ok(CurrencyPairId::new(0));
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::CurrencyPairId::try_from(value).map(CurrencyPairId::from))
+            .wrap_err("invalid next currency pair id bytes")
+    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -242,15 +242,6 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .wrap_err("failed to serialize number of currency pairs")?;
         self.put_raw(keys::NUM_CURRENCY_PAIRS.to_string(), bytes);
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    fn put_num_removed_currency_pairs(&mut self, num_removed_currency_pairs: u64) -> Result<()> {
-        let bytes = StoredValue::from(storage::Count::from(num_removed_currency_pairs))
-            .serialize()
-            .wrap_err("failed to serialize number of removed currency pairs")?;
-        self.put_raw(keys::NUM_REMOVED_CURRENCY_PAIRS.to_string(), bytes);
         Ok(())
     }
 
@@ -299,7 +290,8 @@ pub(crate) trait StateWriteExt: StateWrite {
                 .ok_or_eyre("increment nonce overflowed")?;
             state
         } else {
-            let id = get_next_currency_pair_id(self)
+            let id = self
+                .get_next_currency_pair_id()
                 .await
                 .wrap_err("failed to read next currency pair ID")?;
             let next_id = id.increment().wrap_err("increment ID overflowed")?;
@@ -314,24 +306,24 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_currency_pair_state(currency_pair, state)
             .wrap_err("failed to put currency pair state")
     }
+
+    #[instrument(skip_all)]
+    async fn delete_currency_pair(&mut self, currency_pair: &CurrencyPair) -> Result<()> {
+        let Some(id) = self
+            .get_currency_pair_id(currency_pair)
+            .await
+            .wrap_err("failed to get currency pair ID")?
+        else {
+            return Ok(());
+        };
+        self.delete(keys::currency_pair_to_id(currency_pair));
+        self.delete(keys::id_to_currency_pair(id));
+        self.delete(keys::currency_pair_state(currency_pair));
+        Ok(())
+    }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
-
-#[instrument(skip_all)]
-async fn get_next_currency_pair_id<T: StateRead + ?Sized>(state: &T) -> Result<CurrencyPairId> {
-    let Some(bytes) = state
-        .get_raw(keys::NEXT_CURRENCY_PAIR_ID)
-        .await
-        .map_err(anyhow_to_eyre)
-        .wrap_err("failed reading next currency pair id from state")?
-    else {
-        return Ok(CurrencyPairId::new(0));
-    };
-    StoredValue::deserialize(&bytes)
-        .and_then(|value| storage::CurrencyPairId::try_from(value).map(CurrencyPairId::from))
-        .wrap_err("invalid next currency pair id bytes")
-}
 
 #[instrument(skip_all)]
 fn put_currency_pair_id<T: StateWrite + ?Sized>(
@@ -553,35 +545,6 @@ mod tests {
 
         let retrieved_count = state
             .get_num_currency_pairs()
-            .await
-            .expect("should not error");
-        assert_eq!(2, retrieved_count);
-    }
-
-    #[tokio::test]
-    async fn should_put_and_get_num_removed_currency_pairs() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // Getting should return `0` when no count is stored.
-        assert_eq!(state.get_num_removed_currency_pairs().await.unwrap(), 0);
-
-        // Putting a count should succeed.
-        state.put_num_removed_currency_pairs(1).unwrap();
-
-        // Getting the stored count should succeed.
-        let retrieved_count = state
-            .get_num_removed_currency_pairs()
-            .await
-            .expect("should not error");
-        assert_eq!(1, retrieved_count);
-
-        // Putting a new count should overwrite the first.
-        state.put_num_removed_currency_pairs(2).unwrap();
-
-        let retrieved_count = state
-            .get_num_removed_currency_pairs()
             .await
             .expect("should not error");
         assert_eq!(2, retrieved_count);
