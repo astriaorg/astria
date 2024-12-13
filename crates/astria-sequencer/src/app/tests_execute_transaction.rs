@@ -1374,6 +1374,7 @@ async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
             .into(),
         ])
         .chain_id("test")
+        .nonce(1)
         .try_build()
         .unwrap();
 
