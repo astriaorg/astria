@@ -30,7 +30,7 @@ genesis:
   forks:
     ## These values are used to configure the genesis block of the rollup chain
     ## no defaults as they are unique to each chain
-    genesis:
+    launch:
       # The block height to start the chain at, 0 for genesis
       height: "0"
       # Whether to halt the rollup chain at the given height. False for genesis
@@ -56,7 +56,8 @@ genesis:
       sequencerAddressPrefix: "astria"
       # Block height to start syncing rollup from, lowest possible is 2
       sequencerStartHeight: ""
-      # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork
+      # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork.
+      # A height of 0 indicates no stop height.
       sequencerStopHeight: ""
       # The chain id of the celestia chain
       celestiaChainId: ""
