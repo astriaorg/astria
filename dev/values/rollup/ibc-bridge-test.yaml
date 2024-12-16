@@ -23,7 +23,7 @@ evm-rollup:
         feeCollector: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
         sequencer:
           # The chain id of the sequencer chain
-          chainId: "{{ $.Values.global.sequencerChainId }}"
+          chainId: "sequencer-test-chain-0"
           # The hrp for bech32m addresses, unlikely to be changed
           addressPrefix: "astria"
           # Block height to start syncing rollup from, lowest possible is 2
@@ -32,7 +32,7 @@ evm-rollup:
           stopHeight: 0
         celestia:
           # The chain id of the celestia chain
-          chainId: "{{ $.Values.global.celestiaChainId }}"
+          chainId: "celestia-local-0"
           # The first Celestia height to utilize when looking for rollup data
           startHeight: 2
           # The variance in Celestia height to allow before halting the chain
