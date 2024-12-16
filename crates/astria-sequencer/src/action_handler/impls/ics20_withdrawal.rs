@@ -26,7 +26,6 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use ibc_proto::ibc::apps::transfer::v2::FungibleTokenPacketData;
 use ibc_types::core::channel::{
     ChannelId,
     PortId,
@@ -37,6 +36,7 @@ use penumbra_ibc::component::packet::{
     SendPacketWrite as _,
     Unchecked,
 };
+use penumbra_proto::core::component::ibc::v1::FungibleTokenPacketData;
 
 use crate::{
     accounts::{
