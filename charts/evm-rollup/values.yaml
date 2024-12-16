@@ -17,7 +17,7 @@ images:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
     tag: 1.0.1
-    devTag: latest
+    devTag: local
 
 
 genesis:
@@ -28,8 +28,6 @@ genesis:
   # and, if desired, restarting the chain at a given height. The necessary fields
   # for the genesis fork are provided, and additional forks can be added as needed.
   forks:
-    ## These values are used to configure the genesis block of the rollup chain
-    ## no defaults as they are unique to each chain
     launch:
       # The block height to start the chain at, 0 for genesis
       height: "0"
@@ -50,21 +48,23 @@ genesis:
         #   minBaseFee: 0
         #   elasticityMultiplier: 2
         #   baseFeeChangeDenominator: 8
-      # The chain id of the sequencer chain
-      sequencerChainId: ""
-      # The hrp for bech32m addresses, unlikely to be changed
-      sequencerAddressPrefix: "astria"
-      # Block height to start syncing rollup from, lowest possible is 2
-      sequencerStartHeight: ""
-      # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork.
-      # A height of 0 indicates no stop height.
-      sequencerStopHeight: ""
-      # The chain id of the celestia chain
-      celestiaChainId: ""
-      # The first Celestia height to utilize when looking for rollup data
-      celestiaStartHeight: ""
-      # The variance in Celestia height to allow before halting the chain
-      celestiaHeightVariance: ""
+      sequencer:
+        # The chain id of the sequencer chain
+        chainId: ""
+        # The hrp for bech32m addresses, unlikely to be changed
+        addressPrefix: "astria"
+        # Block height to start syncing rollup from, lowest possible is 2
+        startHeight: ""
+        # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork.
+        # A height of 0 indicates no stop height.
+        stopHeight: ""
+      celestia:
+        # The chain id of the celestia chain
+        chainId: ""
+        # The first Celestia height to utilize when looking for rollup data
+        startHeight: ""
+        # The variance in Celestia height to allow before halting the chain
+        heightVariance: ""
       # Configure the sequencer bridge addresses and allowed assets if using
       # the astria canonical bridge. Recommend removing alloc values if so.
       bridgeAddresses: []
@@ -73,10 +73,6 @@ genesis:
         #   assetDenom: "nria"
         #   senderAddress: "0x0000000000000000000000000000000000000000"
         #   assetPrecision: 9
-    # JSON object with any additional desired forks. Can be used with any or all
-    # of the above fields. Any fields left empty will be populated with the previous
-    # fork's values.
-    additionalForks: {}
 
   ## These are general configuration values with some recommended defaults
 

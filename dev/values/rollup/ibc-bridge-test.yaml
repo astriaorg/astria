@@ -21,20 +21,22 @@ evm-rollup:
         # Configure the fee collector for the evm tx fees, activated at block heights.
         # If not configured, all tx fees will be burned.
         feeCollector: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-        # The chain id of the sequencer chain
-        sequencerChainId: "{{ .Values.global.sequencerChainId }}"
-        # The hrp for bech32m addresses, unlikely to be changed
-        sequencerAddressPrefix: "astria"
-        # Block height to start syncing rollup from, lowest possible is 2
-        sequencerStartHeight: 2
-        # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork
-        sequencerStopHeight: 0
-        # The chain id of the celestia chain
-        celestiaChainId: "{{ .Values.global.celestiaChainId }}"
-        # The first Celestia height to utilize when looking for rollup data
-        celestiaStartHeight: 2
-        # The variance in Celestia height to allow before halting the chain
-        celestiaHeightVariance: 10
+        sequencer:
+          # The chain id of the sequencer chain
+          chainId: "{{ $.Values.global.sequencerChainId }}"
+          # The hrp for bech32m addresses, unlikely to be changed
+          addressPrefix: "astria"
+          # Block height to start syncing rollup from, lowest possible is 2
+          startHeight: 2
+          # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork
+          stopHeight: 0
+        celestia:
+          # The chain id of the celestia chain
+          chainId: "{{ $.Values.global.celestiaChainId }}"
+          # The first Celestia height to utilize when looking for rollup data
+          startHeight: 2
+          # The variance in Celestia height to allow before halting the chain
+          heightVariance: 10
         bridgeAddresses:
         - bridgeAddress: "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
           startHeight: 1

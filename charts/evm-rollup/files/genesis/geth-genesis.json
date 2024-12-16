@@ -30,42 +30,95 @@
         "astriaOverrideGenesisExtraData": {{ .Values.genesis.overrideGenesisExtraData }},
         "astriaRollupName": "{{ tpl .Values.genesis.rollupName . }}",
         "astriaForks": {
-            "genesis": {
-                "height": {{ toString .Values.genesis.forks.launch.height | replace "\"" "" }},
-                {{- if .Values.genesis.forks.launch.halt }}
-                "halt": {{ toString .Values.genesis.forks.launch.halt | replace "\"" "" }},
+            {{- $forks := .Values.genesis.forks }}
+            {{- $index := 0 }}
+            {{- $lastIndex := sub (len $forks) 1 }}
+            {{- range $key, $value := .Values.genesis.forks }}
+            "{{ $key }}": {
+                {{- $fields := list }}
+                {{- with $value }}
+
+                {{- if .height }}
+                {{- $fields = append $fields (printf "\"height\": %s" (toString .height | replace "\"" "")) }}
                 {{- end }}
-                {{- if .Values.genesis.forks.launch.snapshotChecksum }}
-                "snapshotChecksum": {{ toString .Values.genesis.forks.launch.snapshotChecksum }},
+
+                {{- if .halt }}
+                {{- $fields = append $fields (printf "\"halt\": %s" (toString .halt | replace "\"" "")) }}
                 {{- end }}
-                {{- if .Values.genesis.forks.launch.extraDataOverride }}
-                "extraDataOverride": {{ toString .Values.genesis.forks.launch.extraDataOverride }},
+
+                {{- if .snapshotChecksum }}
+                {{- $fields = append $fields (printf "\"snapshotChecksum\": %s" (toString .snapshotChecksum)) }}
                 {{- end }}
-                "feeCollector": "{{ .Values.genesis.forks.launch.feeCollector }}",
-                {{- if .Values.genesis.forks.launch.eip1559Params }}
-                "eip1559Params": {{ toPrettyJson .Values.genesis.forks.launch.eip1559Params | indent 8 | trim }},
+
+                {{- if .extraDataOverride }}
+                {{- $fields = append $fields (printf "\"extraDataOverride\": %s" (toString .extraDataOverride)) }}
                 {{- end }}
-                "sequencer": {
-                    "chainId": "{{ tpl .Values.genesis.forks.launch.sequencerChainId . }}",
-                    "addressPrefix": "{{ .Values.genesis.forks.launch.sequencerAddressPrefix }}",
-                    "startHeight": {{ toString .Values.genesis.forks.launch.sequencerStartHeight | replace "\"" "" }},
-                    "stopHeight": {{ toString .Values.genesis.forks.launch.sequencerStopHeight | replace "\"" "" }}
-                },
-                "celestia": {
-                    "chainId": "{{ tpl .Values.genesis.forks.launch.celestiaChainId . }}",
-                    "startHeight": {{ toString .Values.genesis.forks.launch.celestiaStartHeight | replace "\"" "" }},
-                    "heightVariance": {{ toString .Values.genesis.forks.launch.celestiaHeightVariance | replace "\"" "" }}
-                },
-                "bridgeAddresses": {{ toPrettyJson .Values.genesis.forks.launch.bridgeAddresses | indent 8 | trim }}
-            }
-            {{- if .Values.genesis.forks.additionalForks }}
-            , {{ toPrettyJson .Values.genesis.forks.additionalForks | indent 8 | trim }}
+
+                {{- if .feeCollector }}
+                {{- $fields = append $fields (printf "\"feeCollector\": \"%s\"" (toString .feeCollector)) }}
+                {{- end }}
+
+                {{- if .eip1559Params }}
+                {{- $fields = append $fields (printf "\"eip1559Params\": %s" (toPrettyJson .eip1559Params | indent 8 | trim)) }}
+                {{- end }}
+
+                {{- if .sequencer }}
+                    {{- $sequencerFields := list }}
+
+                    {{- if .sequencer.chainId }}
+                    {{- $sequencerFields = append $sequencerFields (printf "\"chainId\": \"%s\"" (tpl .sequencer.chainId .)) }}
+                    {{- end }}
+
+                    {{- if .sequencer.addressPrefix }}
+                    {{- $sequencerFields = append $sequencerFields (printf "\"addressPrefix\": \"%s\"" .sequencer.addressPrefix) }}
+                    {{- end }}
+
+                    {{- if .sequencer.startHeight }}
+                    {{- $sequencerFields = append $sequencerFields (printf "\"startHeight\": %s" (toString .sequencer.startHeight | replace "\"" "")) }}
+                    {{- end }}
+
+                    {{- if .sequencer.stopHeight }}
+                    {{- $sequencerFields = append $sequencerFields (printf "\"stopHeight\": %s" (toString .sequencer.stopHeight | replace "\"" "")) }}
+                {{- end }}
+
+                {{- $fields = append $fields (printf "\"sequencer\": {\n%s\n}" (join ",\n" $sequencerFields | indent 4)) }}
+                {{- end }}
+
+                {{- if .celestia }}
+                    {{- $celestiaFields := list }}
+
+                    {{- if .celestia.chainId }}
+                    {{- $celestiaFields = append $celestiaFields (printf "\"chainId\": \"%s\"" (tpl .celestia.chainId .)) }}
+                    {{- end }}
+
+                    {{- if .celestia.startHeight }}
+                    {{- $celestiaFields = append $celestiaFields (printf "\"startHeight\": %s" (toString .celestia.startHeight | replace "\"" "")) }}
+                    {{- end }}
+
+                    {{- if .celestia.heightVariance }}
+                    {{- $celestiaFields = append $celestiaFields (printf "\"heightVariance\": %s" (toString .celestia.heightVariance | replace "\"" "")) }}
+                    {{- end }}
+
+                    {{- if $celestiaFields | len }}
+                    {{- $fields = append $fields (printf "\"celestia\": {\n%s\n}" (join ",\n" $celestiaFields | indent 4)) }}
+                    {{- end }}
+                {{- end }}
+
+                {{- if .bridgeAddresses }}
+                {{- $fields = append $fields (printf "\"bridgeAddresses\": %s" (toPrettyJson .bridgeAddresses | indent 4 | trim)) }}
+                {{- end }}
+
+                {{- join ",\n" $fields | indent 16 }}
+                }
+                {{- if ne $index $lastIndex }},{{ end }}
+                {{- $index := add $index 1 }}
+                {{- end }}
             {{- end }}
-        }
-        {{- if not .Values.global.dev }}
-        {{- else }}
-        {{- end }}
+            }
     },
+    {{- if not .Values.global.dev }}
+    {{- else }}
+    {{- end }}
     "difficulty": "0",
     "gasLimit": "{{ toString .Values.genesis.gasLimit | replace "\"" "" }}",
     "alloc": {

@@ -21,26 +21,26 @@ evm-rollup:
       ## no defaults as they are unique to each chain
       launch:
         # The block height to start the chain at, 0 for genesis
-        height: 0
+        height: "0"
         # Configure the fee collector for the evm tx fees, activated at block heights.
         # If not configured, all tx fees will be burned.
         feeCollector: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-        # The chain id of the sequencer chain
-        sequencerChainId: "{{ .Values.global.sequencerChainId }}"
-        # The hrp for bech32m addresses, unlikely to be changed
-        sequencerAddressPrefix: "astria"
-        # Block height to start syncing rollup from, lowest possible is 2
-        sequencerStartHeight: 2
-        # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork
-        sequencerStopHeight: 0
-        # The chain id of the celestia chain
-        celestiaChainId: "{{ .Values.global.celestiaChainId }}"
-        # The first Celestia height to utilize when looking for rollup data
-        celestiaStartHeight: 2
-        # The variance in Celestia height to allow before halting the chain
-        celestiaHeightVariance: 10
-        # Configure the sequencer bridge addresses and allowed assets if using
-        # the astria canonical bridge. Recommend removing alloc values if so.
+        sequencer:
+          # The chain id of the sequencer chain
+          chainId: "sequencer-test-chain-0"
+          # The hrp for bech32m addresses, unlikely to be changed
+          addressPrefix: "astria"
+          # Block height to start syncing rollup from, lowest possible is 2
+          startHeight: 2
+        celestia:
+          # The chain id of the celestia chain
+          chainId: "celestia-local-0"
+          # The first Celestia height to utilize when looking for rollup data
+          startHeight: 2
+          # The variance in Celestia height to allow before halting the chain
+          heightVariance: 10
+          # Configure the sequencer bridge addresses and allowed assets if using
+          # the astria canonical bridge. Recommend removing alloc values if so.
         bridgeAddresses:
           - bridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
             startHeight: 1
