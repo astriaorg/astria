@@ -102,12 +102,12 @@ impl Sequencer {
             .wrap_err("failed to parse grpc_addr address")?;
         let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
 
-        info!(config.listen_addr, "starting abci server");
+        info!(config.abci_listener_url, "starting abci server");
         let abci_server_handle = start_abci_server(
             &storage,
             app,
             mempool_service,
-            &config.listen_addr,
+            &config.abci_listener_url,
             server_exit_tx,
         )
         .wrap_err("failed to start ABCI server")?;
@@ -185,7 +185,7 @@ fn start_abci_server(
     storage: &cnidarium::Storage,
     app: App,
     mempool_service: service::Mempool,
-    listen_addr: &String,
+    listen_url: &str,
     server_exit_tx: oneshot::Sender<()>,
 ) -> Result<JoinHandle<()>, Report> {
     let consensus_service = tower::ServiceBuilder::new()
@@ -208,7 +208,7 @@ fn start_abci_server(
         .finish()
         .ok_or_eyre("server builder didn't return server; are all fields set?")?;
     
-    let abci_url = Url::parse(listen_addr).wrap_err("failed to parse listen_addr")?;
+    let abci_url = Url::parse(listen_url).wrap_err("failed to parse listen_addr")?;
     let validated_listen_addr = match abci_url.scheme() {
         "unix" => match abci_url.to_file_path() {
             Ok(_) => Ok(abci_url.path().to_string()),
