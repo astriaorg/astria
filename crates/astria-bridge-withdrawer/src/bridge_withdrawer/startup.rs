@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1::sequencer_service_client::{
+    generated::astria::sequencerblock::v1::sequencer_service_client::{
         self,
         SequencerServiceClient,
     },
@@ -270,20 +270,21 @@ impl Startup {
              the sequencer logic."
         );
 
-        let proto_tx = astria_core::generated::protocol::transaction::v1::Transaction::decode(
-            &*last_transaction.tx,
-        )
-        .wrap_err_with(|| {
-            format!(
-                "failed to decode data in Sequencer CometBFT transaction as `{}`",
-                astria_core::generated::protocol::transaction::v1::Transaction::full_name(),
+        let proto_tx =
+            astria_core::generated::astria::protocol::transaction::v1::Transaction::decode(
+                &*last_transaction.tx,
             )
-        })?;
+            .wrap_err_with(|| {
+                format!(
+                "failed to decode data in Sequencer CometBFT transaction as `{}`",
+                astria_core::generated::astria::protocol::transaction::v1::Transaction::full_name(),
+            )
+            })?;
 
         let tx = Transaction::try_from_raw(proto_tx).wrap_err_with(|| {
             format!(
                 "failed to verify {}",
-                astria_core::generated::protocol::transaction::v1::Transaction::full_name()
+                astria_core::generated::astria::protocol::transaction::v1::Transaction::full_name()
             )
         })?;
 

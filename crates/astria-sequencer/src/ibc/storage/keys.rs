@@ -56,9 +56,12 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(IBC_SUDO);
-        insta::assert_snapshot!(channel_balance(&channel_id(), &asset()));
-        insta::assert_snapshot!(ibc_relayer(&address()));
+        insta::assert_snapshot!("ibc_sudo_key", IBC_SUDO);
+        insta::assert_snapshot!(
+            "channel_balance_key",
+            channel_balance(&channel_id(), &asset())
+        );
+        insta::assert_snapshot!("ibc_relayer_key", ibc_relayer(&address()));
     }
 
     #[test]

@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/keys.rs
+expression: rollup_ids_by_hash(&HASH)
+---
+grpc/rollup_ids/AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=

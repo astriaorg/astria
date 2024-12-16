@@ -1,4 +1,3 @@
-mod action_handler;
 #[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
@@ -24,7 +23,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::{
+    generated::astria::protocol::{
         connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
         transaction::v1 as raw,
     },
@@ -93,17 +92,18 @@ use tracing::{
     warn,
 };
 
-pub(crate) use self::{
-    action_handler::ActionHandler,
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+pub(crate) use self::state_ext::{
+    StateReadExt,
+    StateWriteExt,
 };
 use crate::{
     accounts::{
         component::AccountsComponent,
         StateWriteExt as _,
+    },
+    action_handler::{
+        impls::transaction::InvalidNonce,
+        ActionHandler as _,
     },
     address::StateWriteExt as _,
     app::vote_extension::ProposalHandler,
@@ -143,7 +143,6 @@ use crate::{
             GeneratedCommitments,
         },
     },
-    transaction::InvalidNonce,
 };
 
 // ephemeral store key for the cache of results of executing of transactions in `prepare_proposal`.
