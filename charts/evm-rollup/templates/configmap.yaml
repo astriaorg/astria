@@ -40,6 +40,16 @@ metadata:
   name: {{ include "rollup.name" . }}-geth-env
   namespace: {{ include "rollup.namespace" .  }}
 data:
+  GRPC_ADDR: "0.0.0.0:50051"
+  DB_FILEPATH: "./target/"
+  GRPC_ADDR: "127.0.0.1:50051"
+  COMPOSER_ADDR: "http://composer-service.astria-dev-cluster.svc.cluster.local:50052"
+  LOG: "debug"
+  NO_OTEL: "false"
+  NO_METRICS: "true"
+  FORCE_STDOUT: "true"
+  PRETTY_PRINT: "true"
+  METRICS_HTTP_LISTENER_ADDR: "http://127.0.0.1:50053"
   home_dir: '{{ include "rollup.gethHomeDir" .  }}'
   data_dir: '{{ include "rollup.gethDataDir" .  }}'
 ---

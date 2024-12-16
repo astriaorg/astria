@@ -17,7 +17,7 @@ images:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
     tag: 1.0.0
-    devTag: latest
+    devTag: sha-5ea7bb7
 
 
 genesis:
@@ -264,6 +264,24 @@ ingress:
         name: '{{ include "rollup.name" . }}-evm-service'
         port:
           name: ws-rpc-svc
+      annotations: {}
+        # kubernetes.io/ingress.class: nginx
+        # kubernetes.io/tls-acme: "true"
+      labels: {}
+      tls: {}
+      #  - secretName: chart-example-tls
+      #    hosts:
+      #      - chart-example.local
+    rest:
+      enabled: true
+      hosts:
+        - rest.{{ include "rollup.name" . }}.{{ .Values.ingress.hostname }}
+      path: /
+      pathType: Prefix
+      service:
+        name: '{{ include "rollup.name" . }}-evm-service'
+        port:
+          name: rollup-rest
       annotations: {}
         # kubernetes.io/ingress.class: nginx
         # kubernetes.io/tls-acme: "true"

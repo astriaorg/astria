@@ -50,9 +50,7 @@ composer:
     sequencerChainId: "{{ .Values.global.sequencerChainId }}"
     sequencerRpc: "{{ .Values.global.sequencerRpc }}"
     sequencerGrpc: "{{ .Values.global.sequencerGrpc }}"
-    rollups:
-      - name: "{{ .Values.global.rollupName }}"
-        wsRpc: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8546"
+    rollups: []
   otel:
     endpoint: "{{ .Values.global.otel.endpoint }}"
     tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
