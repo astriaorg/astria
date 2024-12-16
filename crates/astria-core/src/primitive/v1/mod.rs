@@ -104,14 +104,10 @@ impl Protobuf for merkle::Proof {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(transparent))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
+#[serde(transparent)]
 pub struct RollupId {
-    #[cfg_attr(
-        feature = "serde",
-        serde(serialize_with = "crate::serde::base64_serialize")
-    )]
+    #[serde(serialize_with = "crate::serde::base64_serialize")]
     inner: [u8; 32],
 }
 
@@ -292,12 +288,10 @@ where
     tree
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(try_from = "raw::TransactionId", into = "raw::TransactionId")
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
+#[serde(try_from = "raw::TransactionId", into = "raw::TransactionId")]
 pub struct TransactionId {
     inner: [u8; TRANSACTION_ID_LEN],
 }
@@ -400,7 +394,6 @@ mod tests {
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
     const ASTRIA_COMPAT_ADDRESS_PREFIX: &str = "astriacompat";
 
-    #[cfg(feature = "serde")]
     #[test]
     fn snapshots() {
         use crate::primitive::v1::Bech32;
