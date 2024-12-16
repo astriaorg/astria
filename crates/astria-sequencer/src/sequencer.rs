@@ -207,7 +207,7 @@ fn start_abci_server(
         .snapshot(snapshot_service)
         .finish()
         .ok_or_eyre("server builder didn't return server; are all fields set?")?;
-    
+
     let abci_url = Url::parse(listen_url).wrap_err("failed to parse listen_addr")?;
     let validated_listen_addr = match abci_url.scheme() {
         "unix" => match abci_url.to_file_path() {
