@@ -15,6 +15,7 @@ use astria_composer::{
     Metrics,
 };
 use astria_core::{
+    generated::astria::protocol::accounts::v1::NonceResponse,
     primitive::v1::{
         asset::{
             Denom,
@@ -31,6 +32,8 @@ use astria_core::{
 use astria_eyre::eyre;
 use ethers::prelude::Transaction as EthersTransaction;
 use mock_grpc_sequencer::MockGrpcSequencer;
+use prost::Message as _;
+use serde_json::json;
 use telemetry::metrics;
 use tempfile::NamedTempFile;
 use tendermint_rpc::{
@@ -43,6 +46,10 @@ use test_utils::mock::Geth;
 use tokio::task::JoinHandle;
 use tracing::debug;
 use wiremock::{
+    matchers::{
+        body_partial_json,
+        body_string_contains,
+    },
     Mock,
     MockGuard,
     MockServer,
@@ -52,6 +59,8 @@ use wiremock::{
 
 pub mod mock_abci_sequencer;
 pub mod mock_grpc_sequencer;
+
+pub const TEST_CHAIN_ID: &str = "test-chain-1";
 
 static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     // This config can be meaningless - it's only used inside `try_init` to init the metrics, but we
@@ -110,7 +119,11 @@ pub struct TestComposer {
 /// # Panics
 /// There is no explicit error handling in favour of panicking loudly
 /// and early.
-pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
+pub async fn spawn_composer(
+    rollup_ids: &[&str],
+    sequencer_chain_id: Option<&str>,
+    loop_until_ready: bool,
+) -> TestComposer {
     LazyLock::force(&TELEMETRY);
 
     let mut rollup_nodes = HashMap::new();
@@ -121,7 +134,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
     }
-    let sequencer = mock_abci_sequencer::start().await;
+    let sequencer = mock_abci_sequencer::start(sequencer_chain_id).await;
     let grpc_server = MockGrpcSequencer::spawn().await;
     let sequencer_url = sequencer.uri();
     let keyfile = NamedTempFile::new().unwrap();
@@ -131,7 +144,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     let config = Config {
         log: String::new(),
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
-        sequencer_chain_id: "test-chain-1".to_string(),
+        sequencer_chain_id: TEST_CHAIN_ID.to_string(),
         rollups,
         sequencer_abci_endpoint: sequencer_url.to_string(),
         sequencer_grpc_endpoint: format!("http://{}", grpc_server.local_addr),
@@ -155,9 +168,15 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         .unwrap();
     let metrics = Box::leak(Box::new(metrics));
 
+    let expected_get_nonce_requests = loop_until_ready.into();
+
     // prepare get nonce response
     grpc_server
-        .mount_pending_nonce_response(0, "startup::wait_for_mempool()")
+        .mount_pending_nonce_response(
+            0,
+            "startup::wait_for_mempool()",
+            expected_get_nonce_requests,
+        )
         .await;
 
     let (composer_addr, grpc_collector_addr, composer_handle) = {
@@ -168,7 +187,10 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         (composer_addr, grpc_collector_addr, task)
     };
 
-    loop_until_composer_is_ready(composer_addr).await;
+    if loop_until_ready {
+        loop_until_composer_is_ready(composer_addr).await;
+    }
+
     TestComposer {
         cfg: config,
         composer: composer_handle,
@@ -206,7 +228,13 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
     }
 }
 
-fn signed_tx_from_request(request: &Request) -> Transaction {
+/// Creates a signed transaction from a wiremock request.
+///
+/// # Panics
+///
+/// Panics if the request body can't be deserialiezed to a JSONRPC wrapped `tx_sync::Request`, or if
+/// the deserialization from the JSONRPC request to the raw transaction fails.
+pub fn signed_tx_from_request(request: &Request) -> Transaction {
     use astria_core::generated::astria::protocol::transaction::v1::Transaction as RawTransaction;
     use prost::Message as _;
 
@@ -364,6 +392,70 @@ pub async fn mount_broadcast_tx_sync_nonce_taken_mock(
     );
     Mock::given(matcher)
         .respond_with(ResponseTemplate::new(200).set_body_json(&jsonrpc_rsp))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount_as_scoped(server)
+        .await
+}
+
+/// Deserializes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction
+/// and verifies that the contained rollup data submission action is in the given
+/// `expected_rollup_ids` and `expected_nonces`.
+pub async fn mount_broadcast_tx_sync_rollup_data_submissions_mock(
+    server: &MockServer,
+) -> MockGuard {
+    let matcher = move |request: &Request| {
+        let signed_tx = signed_tx_from_request(request);
+        let actions = signed_tx.actions();
+
+        // verify all received actions are sequence actions
+        actions
+            .iter()
+            .all(|action| action.as_rollup_data_submission().is_some())
+    };
+    let jsonrpc_rsp = response::Wrapper::new_with_id(
+        Id::Num(1),
+        Some(tx_sync::Response {
+            code: 0.into(),
+            data: vec![].into(),
+            log: String::new(),
+            hash: tendermint::Hash::Sha256([0; 32]),
+        }),
+        None,
+    );
+
+    Mock::given(matcher)
+        .respond_with(ResponseTemplate::new(200).set_body_json(&jsonrpc_rsp))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount_as_scoped(server)
+        .await
+}
+
+/// Mount a mock for the `abci_query` endpoint.
+pub async fn mount_default_nonce_query_mock(server: &MockServer) -> MockGuard {
+    let query_path = "accounts/nonce";
+    let response = NonceResponse {
+        height: 0,
+        nonce: 0,
+    };
+    let expected_body = json!({
+        "method": "abci_query"
+    });
+    let response = tendermint_rpc::endpoint::abci_query::Response {
+        response: tendermint_rpc::endpoint::abci_query::AbciQuery {
+            value: response.encode_to_vec(),
+            ..Default::default()
+        },
+    };
+    let wrapper = response::Wrapper::new_with_id(Id::Num(1), Some(response), None);
+    Mock::given(body_partial_json(&expected_body))
+        .and(body_string_contains(query_path))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(&wrapper)
+                .append_header("Content-Type", "application/json"),
+        )
         .up_to_n_times(1)
         .expect(1)
         .mount_as_scoped(server)
