@@ -188,6 +188,7 @@ fn start_abci_server(
     listen_url: &str,
     server_exit_tx: oneshot::Sender<()>,
 ) -> Result<JoinHandle<()>, Report> {
+    // Setup services required for the ABCI server
     let consensus_service = tower::ServiceBuilder::new()
         .layer(request_span::layer(|req: &ConsensusRequest| {
             req.create_span()
@@ -199,7 +200,8 @@ fn start_abci_server(
     let info_service =
         service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
     let snapshot_service = service::Snapshot;
-
+    
+    // Builds the server but does not start listening.
     let server = Server::builder()
         .consensus(consensus_service)
         .info(info_service)
@@ -208,6 +210,7 @@ fn start_abci_server(
         .finish()
         .ok_or_eyre("server builder didn't return server; are all fields set?")?;
 
+    // Validate and parse the listen_url received from the config.
     let abci_url = Url::parse(listen_url).wrap_err("failed to parse listen_addr")?;
     let validated_listen_addr = match abci_url.scheme() {
         "unix" => match abci_url.to_file_path() {
@@ -226,10 +229,13 @@ fn start_abci_server(
                 .ok_or_eyre("missing port in tcp listen_addr")?;
             Ok(format!("{host_str}:{port}"))
         }
+        // If more options are added here will also need to update the server startup
+        // immediately below to support more than two protocols.
         _ => Err(eyre!(
-            "unsupported protocol in listen_addr, only unix and tcp are supported"
+            "unsupported protocol in `abci_listener_url`, only unix and tcp are supported"
         )),
     }?;
+    
     let server_handle = tokio::spawn(async move {
         let server_listen_result = if abci_url.scheme() == "unix" {
             server.listen_unix(validated_listen_addr).await
