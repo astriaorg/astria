@@ -43,10 +43,7 @@ use tendermint::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::{
-    instrument,
-    Instrument as _,
-};
+use tracing::{info, instrument, Instrument as _};
 
 use crate::{
     accounts::StateReadExt as _,
@@ -228,28 +225,33 @@ async fn handle_check_tx<S: StateRead>(
 ) -> response::CheckTx {
     use sha2::Digest as _;
 
+    info!("BHARATH: handle_check_tx");
     let request::CheckTx {
         tx, ..
     } = req;
 
     let tx_hash = sha2::Sha256::digest(&tx).into();
 
+    info!("BHARATH: check if tx is removed from appside mempool");
     // check if the transaction has been removed from the appside mempool
     if let Err(rsp) = check_removed_comet_bft(tx_hash, mempool, metrics).await {
         return rsp;
     }
 
+    info!("BHARATH: check if tx is already in the mempool");
     // check if the transaction is already in the mempool
     if is_tracked(tx_hash, mempool, metrics).await {
         return response::CheckTx::default();
     }
 
+    info!("BHARATH: perform stateless checks");
     // perform stateless checks
     let signed_tx = match stateless_checks(tx, &state, metrics).await {
         Ok(signed_tx) => signed_tx,
         Err(rsp) => return rsp,
     };
 
+    info!("BHARATH: attempt to insert the transaction into the mempool");
     // attempt to insert the transaction into the mempool
     if let Err(rsp) = insert_into_mempool(mempool, &state, signed_tx, metrics).await {
         return rsp;
@@ -258,6 +260,7 @@ async fn handle_check_tx<S: StateRead>(
     // insertion successful
     metrics.set_transactions_in_mempool_total(mempool.len().await);
 
+    info!("BHARATH: transaction successfully inserted into the mempool");
     response::CheckTx::default()
 }
 
