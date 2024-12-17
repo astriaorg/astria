@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ensure all deposit assets are trace prefixed [#1807](https://github.com/astriaorg/astria/pull/1807).
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 
+### Removed
+
+- Remove ASTRIA_SEQUENCER_LISTEN_ADDR config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
+
+### Added
+
+- Add ASTRIA_SEQUENCER_ABCI_LISTENER_URL config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
+
 ## [1.0.0] - 2024-10-25
 
 ### Changed

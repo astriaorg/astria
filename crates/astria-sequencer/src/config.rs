@@ -13,7 +13,7 @@ use serde::{
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     /// The endpoint on which Sequencer will listen for ABCI requests
-    pub listen_addr: String,
+    pub abci_listener_url: String,
     /// The path to penumbra storage db.
     pub db_filepath: PathBuf,
     /// Log level: debug, info, warn, or error
