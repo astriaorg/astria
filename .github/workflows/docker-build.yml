@@ -12,6 +12,7 @@ on:
         required: false
         type: choice
         options:
+          - auctioneer
           - composer
           - conductor
           - sequencer
