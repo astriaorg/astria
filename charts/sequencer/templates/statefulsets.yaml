@@ -18,9 +18,7 @@ spec:
     spec:
       securityContext:
         runAsUser: 1000
-        runAsGroup: 3000
         fsGroup: 2000
-        supplementalGroups: [4000]
       initContainers:
         - command: [ "/scripts/init-cometbft.sh" ]
           name: config-cometbft
