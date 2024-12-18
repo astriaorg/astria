@@ -114,6 +114,12 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             | Action::Ibc(_)
             | Action::IbcRelayerChange(_)
             | Action::FeeAssetChange(_)
+            | Action::UpdateParams(_)
+            | Action::UpsertMarkets(_)
+            | Action::CreateMarkets(_)
+            | Action::UpdateMarkets(_)
+            | Action::RemoveMarketAuthorities(_)
+            | Action::RemoveMarkets(_)
             | Action::FeeChange(_) => {
                 continue;
             }

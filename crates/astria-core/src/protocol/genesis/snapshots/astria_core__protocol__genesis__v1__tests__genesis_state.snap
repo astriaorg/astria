@@ -131,6 +131,30 @@ expression: genesis_state()
     "validatorUpdate": {
       "base": {},
       "multiplier": {}
+    },
+    "upsertMarkets": {
+      "base": {},
+      "multiplier": {}
+    },
+    "createMarkets": {
+      "base": {},
+      "multiplier": {}
+    },
+    "updateMarkets": {
+      "base": {},
+      "multiplier": {}
+    },
+    "updateParams": {
+      "base": {},
+      "multiplier": {}
+    },
+    "removeMarketAuthorities": {
+      "base": {},
+      "multiplier": {}
+    },
+    "removeMarkets": {
+      "base": {},
+      "multiplier": {}
     }
   },
   "connect": {

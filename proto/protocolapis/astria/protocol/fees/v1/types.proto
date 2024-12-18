@@ -79,6 +79,36 @@ message IbcSudoChangeFeeComponents {
   astria.primitive.v1.Uint128 multiplier = 2;
 }
 
+message UpsertMarketsFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message CreateMarketsFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message UpdateMarketsFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message UpdateParamsFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message RemoveMarketAuthoritiesFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message RemoveMarketsFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
 // Response to a transaction fee ABCI query.
 message TransactionFeeResponse {
   uint64 height = 2;

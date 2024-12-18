@@ -77,6 +77,24 @@ impl ActionHandler for FeeChange {
             Self::IbcSudoChange(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
+            Self::UpsertMarkets(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put upsert markets fees"),
+            Self::CreateMarkets(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put create markets fees"),
+            Self::UpdateMarkets(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put update markets fees"),
+            Self::UpdateParams(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put update params fees"),
+            Self::RemoveMarketAuthorities(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put remove market authorities fees"),
+            Self::RemoveMarkets(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put remove markets fees"),
         }
     }
 }
@@ -177,6 +195,31 @@ mod tests {
     #[tokio::test]
     async fn ibc_sudo_change_fee_change_action_executes_as_expected() {
         test_fee_change_action::<IbcSudoChange>().await;
+    }
+
+    #[tokio::test]
+    async fn upsert_markets_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<UpsertMarkets>().await;
+    }
+
+    #[tokio::test]
+    async fn create_markets_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<CreateMarkets>().await;
+    }
+
+    #[tokio::test]
+    async fn update_markets_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<UpdateMarkets>().await;
+    }
+
+    #[tokio::test]
+    async fn remove_market_authorities_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<RemoveMarketAuthorities>().await;
+    }
+
+    #[tokio::test]
+    async fn remove_markets_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<RemoveMarkets>().await;
     }
 
     async fn test_fee_change_action<'a, F>()

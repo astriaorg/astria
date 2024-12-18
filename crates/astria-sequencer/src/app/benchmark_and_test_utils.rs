@@ -21,15 +21,21 @@ use astria_core::{
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
+            CreateMarkets,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            RemoveMarketAuthorities,
+            RemoveMarkets,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
+            UpdateMarkets,
+            UpdateParams,
+            UpsertMarkets,
             ValidatorUpdate,
         },
     },
@@ -91,6 +97,12 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0)),
         sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
         ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
+        upsert_markets: Some(FeeComponents::<UpsertMarkets>::new(0, 0)),
+        create_markets: Some(FeeComponents::<CreateMarkets>::new(0, 0)),
+        update_markets: Some(FeeComponents::<UpdateMarkets>::new(0, 0)),
+        update_params: Some(FeeComponents::<UpdateParams>::new(0, 0)),
+        remove_market_authorities: Some(FeeComponents::<RemoveMarketAuthorities>::new(0, 0)),
+        remove_markets: Some(FeeComponents::<RemoveMarkets>::new(0, 0)),
     }
 }
 
@@ -126,7 +138,7 @@ pub(crate) fn proto_genesis_state()
                     },
                     last_updated: 0,
                     params: Params {
-                        market_authorities: vec![],
+                        market_authorities: vec![astria_address_from_hex_string(ALICE_ADDRESS)],
                         admin: astria_address_from_hex_string(ALICE_ADDRESS),
                     },
                 }

@@ -643,6 +643,24 @@ impl serde::Serialize for GenesisFees {
         if self.validator_update.is_some() {
             len += 1;
         }
+        if self.upsert_markets.is_some() {
+            len += 1;
+        }
+        if self.create_markets.is_some() {
+            len += 1;
+        }
+        if self.update_markets.is_some() {
+            len += 1;
+        }
+        if self.update_params.is_some() {
+            len += 1;
+        }
+        if self.remove_market_authorities.is_some() {
+            len += 1;
+        }
+        if self.remove_markets.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1.GenesisFees", len)?;
         if let Some(v) = self.bridge_lock.as_ref() {
             struct_ser.serialize_field("bridgeLock", v)?;
@@ -686,6 +704,24 @@ impl serde::Serialize for GenesisFees {
         if let Some(v) = self.validator_update.as_ref() {
             struct_ser.serialize_field("validatorUpdate", v)?;
         }
+        if let Some(v) = self.upsert_markets.as_ref() {
+            struct_ser.serialize_field("upsertMarkets", v)?;
+        }
+        if let Some(v) = self.create_markets.as_ref() {
+            struct_ser.serialize_field("createMarkets", v)?;
+        }
+        if let Some(v) = self.update_markets.as_ref() {
+            struct_ser.serialize_field("updateMarkets", v)?;
+        }
+        if let Some(v) = self.update_params.as_ref() {
+            struct_ser.serialize_field("updateParams", v)?;
+        }
+        if let Some(v) = self.remove_market_authorities.as_ref() {
+            struct_ser.serialize_field("removeMarketAuthorities", v)?;
+        }
+        if let Some(v) = self.remove_markets.as_ref() {
+            struct_ser.serialize_field("removeMarkets", v)?;
+        }
         struct_ser.end()
     }
 }
@@ -723,6 +759,18 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             "transfer",
             "validator_update",
             "validatorUpdate",
+            "upsert_markets",
+            "upsertMarkets",
+            "create_markets",
+            "createMarkets",
+            "update_markets",
+            "updateMarkets",
+            "update_params",
+            "updateParams",
+            "remove_market_authorities",
+            "removeMarketAuthorities",
+            "remove_markets",
+            "removeMarkets",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -741,6 +789,12 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
+            UpsertMarkets,
+            CreateMarkets,
+            UpdateMarkets,
+            UpdateParams,
+            RemoveMarketAuthorities,
+            RemoveMarkets,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -776,6 +830,12 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "transfer" => Ok(GeneratedField::Transfer),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
+                            "upsertMarkets" | "upsert_markets" => Ok(GeneratedField::UpsertMarkets),
+                            "createMarkets" | "create_markets" => Ok(GeneratedField::CreateMarkets),
+                            "updateMarkets" | "update_markets" => Ok(GeneratedField::UpdateMarkets),
+                            "updateParams" | "update_params" => Ok(GeneratedField::UpdateParams),
+                            "removeMarketAuthorities" | "remove_market_authorities" => Ok(GeneratedField::RemoveMarketAuthorities),
+                            "removeMarkets" | "remove_markets" => Ok(GeneratedField::RemoveMarkets),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -809,6 +869,12 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                 let mut sudo_address_change__ = None;
                 let mut transfer__ = None;
                 let mut validator_update__ = None;
+                let mut upsert_markets__ = None;
+                let mut create_markets__ = None;
+                let mut update_markets__ = None;
+                let mut update_params__ = None;
+                let mut remove_market_authorities__ = None;
+                let mut remove_markets__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::BridgeLock => {
@@ -895,6 +961,42 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             }
                             validator_update__ = map_.next_value()?;
                         }
+                        GeneratedField::UpsertMarkets => {
+                            if upsert_markets__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("upsertMarkets"));
+                            }
+                            upsert_markets__ = map_.next_value()?;
+                        }
+                        GeneratedField::CreateMarkets => {
+                            if create_markets__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("createMarkets"));
+                            }
+                            create_markets__ = map_.next_value()?;
+                        }
+                        GeneratedField::UpdateMarkets => {
+                            if update_markets__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("updateMarkets"));
+                            }
+                            update_markets__ = map_.next_value()?;
+                        }
+                        GeneratedField::UpdateParams => {
+                            if update_params__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("updateParams"));
+                            }
+                            update_params__ = map_.next_value()?;
+                        }
+                        GeneratedField::RemoveMarketAuthorities => {
+                            if remove_market_authorities__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("removeMarketAuthorities"));
+                            }
+                            remove_market_authorities__ = map_.next_value()?;
+                        }
+                        GeneratedField::RemoveMarkets => {
+                            if remove_markets__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("removeMarkets"));
+                            }
+                            remove_markets__ = map_.next_value()?;
+                        }
                     }
                 }
                 Ok(GenesisFees {
@@ -912,6 +1014,12 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                     sudo_address_change: sudo_address_change__,
                     transfer: transfer__,
                     validator_update: validator_update__,
+                    upsert_markets: upsert_markets__,
+                    create_markets: create_markets__,
+                    update_markets: update_markets__,
+                    update_params: update_params__,
+                    remove_market_authorities: remove_market_authorities__,
+                    remove_markets: remove_markets__,
                 })
             }
         }

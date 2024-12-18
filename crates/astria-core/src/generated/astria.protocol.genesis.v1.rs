@@ -147,6 +147,30 @@ pub struct GenesisFees {
     pub validator_update: ::core::option::Option<
         super::super::fees::v1::ValidatorUpdateFeeComponents,
     >,
+    #[prost(message, optional, tag = "15")]
+    pub upsert_markets: ::core::option::Option<
+        super::super::fees::v1::UpsertMarketsFeeComponents,
+    >,
+    #[prost(message, optional, tag = "16")]
+    pub create_markets: ::core::option::Option<
+        super::super::fees::v1::CreateMarketsFeeComponents,
+    >,
+    #[prost(message, optional, tag = "17")]
+    pub update_markets: ::core::option::Option<
+        super::super::fees::v1::UpdateMarketsFeeComponents,
+    >,
+    #[prost(message, optional, tag = "18")]
+    pub update_params: ::core::option::Option<
+        super::super::fees::v1::UpdateParamsFeeComponents,
+    >,
+    #[prost(message, optional, tag = "19")]
+    pub remove_market_authorities: ::core::option::Option<
+        super::super::fees::v1::RemoveMarketAuthoritiesFeeComponents,
+    >,
+    #[prost(message, optional, tag = "20")]
+    pub remove_markets: ::core::option::Option<
+        super::super::fees::v1::RemoveMarketsFeeComponents,
+    >,
 }
 impl ::prost::Name for GenesisFees {
     const NAME: &'static str = "GenesisFees";
