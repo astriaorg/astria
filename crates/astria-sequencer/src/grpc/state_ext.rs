@@ -1,6 +1,7 @@
 use astria_core::{
     primitive::v1::RollupId,
     sequencerblock::v1::block::{
+        self,
         RollupTransactions,
         SequencerBlock,
         SequencerBlockHeader,
@@ -10,9 +11,9 @@ use astria_core::{
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
         Result,
         WrapErr as _,
+        bail,
     },
 };
 use async_trait::async_trait;
@@ -21,8 +22,8 @@ use cnidarium::{
     StateWrite,
 };
 use tracing::{
-    instrument,
     Level,
+    instrument,
 };
 
 use super::storage::{
@@ -34,7 +35,7 @@ use crate::storage::StoredValue;
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all, fields(%height), err(level = Level::WARN))]
-    async fn get_block_hash_by_height(&self, height: u64) -> Result<[u8; 32]> {
+    async fn get_block_hash_by_height(&self, height: u64) -> Result<block::Hash> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::block_hash_by_height(height).as_bytes())
             .await
@@ -44,14 +45,14 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("block hash not found for given height");
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::BlockHash::try_from(value).map(<[u8; 32]>::from))
+            .and_then(|value| storage::BlockHash::try_from(value).map(block::Hash::from))
             .wrap_err("invalid block hash bytes")
     }
 
-    #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::WARN))]
+    #[instrument(skip_all, fields(%hash), err(level = Level::WARN))]
     async fn get_sequencer_block_header_by_hash(
         &self,
-        hash: &[u8; 32],
+        hash: &block::Hash,
     ) -> Result<SequencerBlockHeader> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::sequencer_block_header_by_hash(hash).as_bytes())
@@ -68,8 +69,8 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid sequencer block header bytes")
     }
 
-    #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::WARN))]
-    async fn get_rollup_ids_by_block_hash(&self, hash: &[u8; 32]) -> Result<Vec<RollupId>> {
+    #[instrument(skip_all, fields(%hash), err(level = Level::WARN))]
+    async fn get_rollup_ids_by_block_hash(&self, hash: &block::Hash) -> Result<Vec<RollupId>> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::rollup_ids_by_hash(hash).as_bytes())
             .await
@@ -186,7 +187,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::DEBUG))]
 async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
     state: &S,
-    hash: &[u8; 32],
+    hash: &block::Hash,
 ) -> Result<SequencerBlock> {
     let header = state
         .get_sequencer_block_header_by_hash(hash)
@@ -231,7 +232,7 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
 fn put_block_hash<S: StateWrite + ?Sized>(
     state: &mut S,
     block_height: tendermint::block::Height,
-    block_hash: [u8; 32],
+    block_hash: block::Hash,
 ) -> Result<()> {
     let bytes = StoredValue::from(storage::BlockHash::from(&block_hash))
         .serialize()
