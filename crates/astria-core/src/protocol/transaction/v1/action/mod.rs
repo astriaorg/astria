@@ -2315,6 +2315,36 @@ impl From<FeeComponents<IbcSudoChange>> for FeeChange {
     }
 }
 
+impl From<FeeComponents<UpsertMarkets>> for FeeChange {
+    fn from(fee: FeeComponents<UpsertMarkets>) -> Self {
+        FeeChange::UpsertMarkets(fee)
+    }
+}
+
+impl From<FeeComponents<CreateMarkets>> for FeeChange {
+    fn from(fee: FeeComponents<CreateMarkets>) -> Self {
+        FeeChange::CreateMarkets(fee)
+    }
+}
+
+impl From<FeeComponents<UpdateMarkets>> for FeeChange {
+    fn from(fee: FeeComponents<UpdateMarkets>) -> Self {
+        FeeChange::UpdateMarkets(fee)
+    }
+}
+
+impl From<FeeComponents<RemoveMarketAuthorities>> for FeeChange {
+    fn from(fee: FeeComponents<RemoveMarketAuthorities>) -> Self {
+        FeeChange::RemoveMarketAuthorities(fee)
+    }
+}
+
+impl From<FeeComponents<RemoveMarkets>> for FeeChange {
+    fn from(fee: FeeComponents<RemoveMarkets>) -> Self {
+        FeeChange::RemoveMarkets(fee)
+    }
+}
+
 /// Takes a list of markets and either updates them if they are already in the market map, or
 /// creates them if they are not. If no market map is found, one will be created. Must be signed by
 /// an address included in the market map [`Params`]' `market_authorities`.

@@ -197,6 +197,31 @@ mod tests {
         test_fee_change_action::<IbcSudoChange>().await;
     }
 
+    #[tokio::test]
+    async fn upsert_markets_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<UpsertMarkets>().await;
+    }
+
+    #[tokio::test]
+    async fn create_markets_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<CreateMarkets>().await;
+    }
+
+    #[tokio::test]
+    async fn update_markets_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<UpdateMarkets>().await;
+    }
+
+    #[tokio::test]
+    async fn remove_market_authorities_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<RemoveMarketAuthorities>().await;
+    }
+
+    #[tokio::test]
+    async fn remove_markets_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<RemoveMarkets>().await;
+    }
+
     async fn test_fee_change_action<'a, F>()
     where
         F: FeeHandler,
