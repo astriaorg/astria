@@ -15,6 +15,10 @@ use std::{
 };
 
 use astria_core::{
+    connect::market_map::v2::{
+        Market,
+        Params,
+    },
     primitive::v1::{
         Address,
         RollupId,
@@ -26,10 +30,16 @@ use astria_core::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
+                CreateMarkets,
                 IbcRelayerChange,
                 IbcSudoChange,
+                RemoveMarketAuthorities,
+                RemoveMarkets,
                 RollupDataSubmission,
                 Transfer,
+                UpdateMarkets,
+                UpdateParams,
+                UpsertMarkets,
                 ValidatorUpdate,
             },
             Action,
@@ -55,10 +65,12 @@ use crate::{
             default_genesis_accounts,
             initialize_app_with_storage,
             proto_genesis_state,
+            ALICE_ADDRESS,
             BOB_ADDRESS,
             CAROL_ADDRESS,
         },
         test_utils::{
+            example_ticker_from_currency_pair,
             get_alice_signing_key,
             get_bridge_signing_key,
             initialize_app,
@@ -238,6 +250,55 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
+            CreateMarkets {
+                create_markets: vec![Market {
+                    ticker: example_ticker_from_currency_pair(
+                        "testAssetOne",
+                        "testAssetTwo",
+                        String::new(),
+                    ),
+                    provider_configs: vec![],
+                }],
+            }
+            .into(),
+            UpsertMarkets {
+                markets: vec![Market {
+                    ticker: example_ticker_from_currency_pair(
+                        "testAssetThree",
+                        "testAssetFour",
+                        "upsert market".to_string(),
+                    ),
+                    provider_configs: vec![],
+                }],
+            }
+            .into(),
+            UpdateMarkets {
+                update_markets: vec![Market {
+                    ticker: example_ticker_from_currency_pair(
+                        "testAssetOne",
+                        "testAssetTwo",
+                        "updated market".to_string(),
+                    ),
+                    provider_configs: vec![],
+                }],
+            }
+            .into(),
+            RemoveMarkets {
+                markets: vec![
+                    example_ticker_from_currency_pair(
+                        "testAssetOne",
+                        "testAssetTwo",
+                        "remove market".to_string(),
+                    )
+                    .currency_pair
+                    .to_string(),
+                ],
+            }
+            .into(),
+            RemoveMarketAuthorities {
+                remove_addresses: vec![astria_address_from_hex_string(ALICE_ADDRESS)],
+            }
+            .into(),
         ])
         .chain_id("test")
         .try_build()
@@ -251,6 +312,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             FeeAssetChange::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChange::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChange::Removal("test-0".parse().unwrap()).into(),
+            UpdateParams {
+                params: Params {
+                    market_authorities: vec![bob_address, carol_address],
+                    admin: bob_address,
+                },
+            }
+            .into(),
         ])
         .nonce(1)
         .chain_id("test")

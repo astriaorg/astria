@@ -6,6 +6,8 @@ import "astria/primitive/v1/types.proto";
 import "astria/protocol/fees/v1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
 import "astria_vendored/tendermint/abci/types.proto";
+import "connect/marketmap/v2/market.proto";
+import "connect/marketmap/v2/params.proto";
 
 message Action {
   oneof value {
@@ -30,6 +32,14 @@ message Action {
     FeeAssetChange fee_asset_change = 53;
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
+
+    // MarketMap actions are defined on 71-80
+    UpsertMarkets upsert_markets = 71;
+    CreateMarkets create_markets = 72;
+    UpdateMarkets update_markets = 73;
+    UpdateParams update_params = 74;
+    RemoveMarketAuthorities remove_market_authorities = 75;
+    RemoveMarkets remove_markets = 76;
   }
 }
 
@@ -228,9 +238,51 @@ message FeeChange {
     astria.protocol.fees.v1.SudoAddressChangeFeeComponents sudo_address_change = 12;
     astria.protocol.fees.v1.TransferFeeComponents transfer = 13;
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
+    astria.protocol.fees.v1.UpsertMarketsFeeComponents upsert_markets = 15;
+    astria.protocol.fees.v1.CreateMarketsFeeComponents create_markets = 16;
+    astria.protocol.fees.v1.UpdateMarketsFeeComponents update_markets = 17;
+    astria.protocol.fees.v1.UpdateParamsFeeComponents update_params = 18;
+    astria.protocol.fees.v1.RemoveMarketAuthoritiesFeeComponents remove_market_authorities = 19;
+    astria.protocol.fees.v1.RemoveMarketsFeeComponents remove_markets = 20;
   }
 }
 
 message IbcSudoChange {
   astria.primitive.v1.Address new_address = 1;
+}
+
+// Updates or creates markets in the market map. If a market does not exist, it will be created.
+message UpsertMarkets {
+  // The list of all markets to be created or updated for the given transaction.
+  repeated connect.marketmap.v2.Market markets = 2;
+}
+
+// Creates new markets in the market map.
+message CreateMarkets {
+  // The list of all markets to be created.
+  repeated connect.marketmap.v2.Market create_markets = 2;
+}
+
+// Updates existing markets in the market map.
+message UpdateMarkets {
+  // The list of all markets to be updated.
+  repeated connect.marketmap.v2.Market update_markets = 2;
+}
+
+// Updates the market map parameters.
+message UpdateParams {
+  // Params defines the new parameters for the x/marketmap module.
+  connect.marketmap.v2.Params params = 1;
+}
+
+// Removes market map authorities.
+message RemoveMarketAuthorities {
+  // RemoveAddresses is the list of addresses to remove.
+  repeated string remove_addresses = 1;
+}
+
+// Removes markets from the market map.
+message RemoveMarkets {
+  // Markets is the list of markets to remove.
+  repeated string markets = 2;
 }

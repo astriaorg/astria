@@ -1,9 +1,18 @@
 use std::{
     collections::HashMap,
+    str::FromStr as _,
     sync::Arc,
 };
 
 use astria_core::{
+    connect::{
+        market_map::v2::Ticker,
+        types::v2::{
+            Base,
+            CurrencyPair,
+            Quote,
+        },
+    },
     crypto::SigningKey,
     primitive::v1::RollupId,
     protocol::{
@@ -200,4 +209,21 @@ pub(crate) fn transactions_with_extended_commit_info_and_commitments(
         .chain(txs.iter().map(|tx| tx.to_raw().encode_to_vec().into()))
         .collect();
     txs_with_commit_info
+}
+
+pub(crate) fn example_ticker_from_currency_pair(
+    base: &str,
+    quote: &str,
+    metadata: String,
+) -> Ticker {
+    Ticker {
+        currency_pair: CurrencyPair::from_parts(
+            Base::from_str(base).unwrap(),
+            Quote::from_str(quote).unwrap(),
+        ),
+        decimals: 2,
+        min_provider_count: 2,
+        enabled: true,
+        metadata_json: metadata,
+    }
 }

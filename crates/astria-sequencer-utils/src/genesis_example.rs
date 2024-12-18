@@ -12,15 +12,19 @@ use astria_core::{
             IbcParameters,
         },
         connect::{
-            marketmap,
-            marketmap::v2::{
-                Market,
-                MarketMap,
+            marketmap::{
+                self,
+                v2::{
+                    Market,
+                    MarketMap,
+                },
             },
-            oracle,
-            oracle::v2::{
-                CurrencyPairGenesis,
-                QuotePrice,
+            oracle::{
+                self,
+                v2::{
+                    CurrencyPairGenesis,
+                    QuotePrice,
+                },
             },
             types::v2::CurrencyPair,
         },
@@ -36,15 +40,21 @@ use astria_core::{
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
+            CreateMarkets,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            RemoveMarketAuthorities,
+            RemoveMarkets,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
+            UpdateMarkets,
+            UpdateParams,
+            UpsertMarkets,
             ValidatorUpdate,
         },
     },
@@ -243,6 +253,14 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
             ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
+            upsert_markets: Some(FeeComponents::<UpsertMarkets>::new(0, 0).to_raw()),
+            create_markets: Some(FeeComponents::<CreateMarkets>::new(0, 0).to_raw()),
+            update_markets: Some(FeeComponents::<UpdateMarkets>::new(0, 0).to_raw()),
+            update_params: Some(FeeComponents::<UpdateParams>::new(0, 0).to_raw()),
+            remove_market_authorities: Some(
+                FeeComponents::<RemoveMarketAuthorities>::new(0, 0).to_raw(),
+            ),
+            remove_markets: Some(FeeComponents::<RemoveMarkets>::new(0, 0).to_raw()),
         }),
     }
 }

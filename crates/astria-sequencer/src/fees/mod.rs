@@ -6,15 +6,21 @@ use astria_core::{
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
+            CreateMarkets,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            RemoveMarketAuthorities,
+            RemoveMarkets,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
+            UpdateMarkets,
+            UpdateParams,
+            UpsertMarkets,
             ValidatorUpdate,
         },
     },
@@ -447,6 +453,138 @@ impl FeeHandler for IbcRelay {
 
     fn snake_case_name() -> &'static str {
         "ibc_relay"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for UpsertMarkets {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "upsert_markets"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for CreateMarkets {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "create_markets"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for UpdateMarkets {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "update_markets"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for UpdateParams {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "update_params"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for RemoveMarketAuthorities {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "remove_market_authorities"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for RemoveMarkets {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "remove_markets"
     }
 
     fn variable_component(&self) -> u128 {

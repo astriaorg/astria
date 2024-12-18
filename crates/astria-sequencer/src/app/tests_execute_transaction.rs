@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
 use astria_core::{
+    connect::market_map::v2::{
+        Market,
+        MarketMap,
+        Params,
+    },
     crypto::SigningKey,
     primitive::v1::{
         asset,
@@ -14,11 +19,17 @@ use astria_core::{
             action::{
                 BridgeLock,
                 BridgeUnlock,
+                CreateMarkets,
                 IbcRelayerChange,
                 IbcSudoChange,
+                RemoveMarketAuthorities,
+                RemoveMarkets,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
+                UpdateMarkets,
+                UpdateParams,
+                UpsertMarkets,
                 ValidatorUpdate,
             },
             Action,
@@ -33,6 +44,7 @@ use cnidarium::{
     ArcStateDeltaExt as _,
     StateDelta,
 };
+use indexmap::IndexMap;
 
 use super::test_utils::get_alice_signing_key;
 use crate::{
@@ -43,16 +55,21 @@ use crate::{
     },
     app::{
         benchmark_and_test_utils::{
+            ALICE_ADDRESS,
             BOB_ADDRESS,
             CAROL_ADDRESS,
         },
         test_utils::{
+            example_ticker_from_currency_pair,
             get_bridge_signing_key,
             initialize_app,
         },
         InvalidNonce,
     },
-    authority::StateReadExt as _,
+    authority::{
+        StateReadExt as _,
+        StateWriteExt,
+    },
     benchmark_and_test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -64,12 +81,19 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    connect::market_map::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     fees::{
         StateReadExt as _,
         StateWriteExt as _,
     },
     ibc::StateReadExt as _,
-    test_utils::calculate_rollup_data_submission_fee_from_state,
+    test_utils::{
+        calculate_rollup_data_submission_fee_from_state,
+        example_ticker,
+    },
     utils::create_deposit_event,
 };
 
@@ -1324,4 +1348,314 @@ async fn ensure_all_event_attributes_are_indexed() {
                 attribute.key,
             );
         });
+}
+
+#[tokio::test]
+async fn upsert_markets_executes_as_expected() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+
+    let alice_signing_key = get_alice_signing_key();
+
+    let ticker_1 = example_ticker("create_market_1".to_string());
+    let market_1 = Market {
+        ticker: ticker_1.clone(),
+        provider_configs: vec![],
+    };
+    let mut market_map = MarketMap {
+        markets: IndexMap::new(),
+    };
+    market_map
+        .markets
+        .insert(ticker_1.currency_pair.to_string(), market_1);
+    state_tx.put_market_map(market_map).unwrap();
+
+    app.apply(state_tx);
+
+    // market_2 should replace market_1, since they share the same currency pair
+    let ticker_2 = example_ticker("update market 1 to market 2".to_string());
+    let market_2 = Market {
+        ticker: ticker_2.clone(),
+        provider_configs: vec![],
+    };
+
+    // market_3 should be added to the market map
+    let ticker_3 = example_ticker_from_currency_pair("USDC", "TIA", "create market 3".to_string());
+    let market_3 = Market {
+        ticker: ticker_3.clone(),
+        provider_configs: vec![],
+    };
+
+    let upsert_markets_action = UpsertMarkets {
+        markets: vec![market_2.clone(), market_3.clone()],
+    };
+
+    let tx = TransactionBody::builder()
+        .actions(vec![upsert_markets_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice_signing_key));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let market_map = app.state.get_market_map().await.unwrap().unwrap();
+    assert_eq!(market_map.markets.len(), 2);
+    assert_eq!(
+        market_map.markets.get(&ticker_1.currency_pair.to_string()),
+        Some(&market_2)
+    );
+    assert_eq!(
+        market_map.markets.get(&ticker_2.currency_pair.to_string()),
+        Some(&market_2)
+    );
+    assert_eq!(
+        market_map.markets.get(&ticker_3.currency_pair.to_string()),
+        Some(&market_3)
+    );
+}
+
+#[tokio::test]
+async fn create_markets_executes_as_expected() {
+    let mut app = initialize_app(None, vec![]).await;
+
+    let alice_signing_key = get_alice_signing_key();
+
+    let ticker_1 = example_ticker("create market 1".to_string());
+    let market_1 = Market {
+        ticker: ticker_1.clone(),
+        provider_configs: vec![],
+    };
+
+    let ticker_2 = example_ticker_from_currency_pair("USDC", "TIA", "create market 2".to_string());
+    let market_2 = Market {
+        ticker: ticker_2.clone(),
+        provider_configs: vec![],
+    };
+
+    let create_markets_action = CreateMarkets {
+        create_markets: vec![market_1.clone(), market_2.clone()],
+    };
+
+    let tx = TransactionBody::builder()
+        .actions(vec![create_markets_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice_signing_key));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let market_map = app.state.get_market_map().await.unwrap().unwrap();
+    assert_eq!(market_map.markets.len(), 2);
+    assert_eq!(
+        market_map.markets.get(&ticker_1.currency_pair.to_string()),
+        Some(&market_1)
+    );
+    assert_eq!(
+        market_map.markets.get(&ticker_2.currency_pair.to_string()),
+        Some(&market_2)
+    );
+}
+
+#[tokio::test]
+async fn update_markets_executes_as_expected() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+
+    let alice_signing_key = get_alice_signing_key();
+
+    let ticker_1 = example_ticker("create market 1".to_string());
+    let market_1 = Market {
+        ticker: ticker_1.clone(),
+        provider_configs: vec![],
+    };
+    let ticker_2 = example_ticker_from_currency_pair("USDC", "TIA", "create market 2".to_string());
+    let market_2 = Market {
+        ticker: ticker_2.clone(),
+        provider_configs: vec![],
+    };
+
+    let mut market_map = MarketMap {
+        markets: IndexMap::new(),
+    };
+
+    market_map
+        .markets
+        .insert(ticker_1.currency_pair.to_string(), market_1);
+    market_map
+        .markets
+        .insert(ticker_2.currency_pair.to_string(), market_2.clone());
+
+    state_tx.put_market_map(market_map).unwrap();
+    app.apply(state_tx);
+
+    // market_3 should replace market_1, since they share the same currency pair
+    let ticker_3 = example_ticker("update market 1 to market 2".to_string());
+    let market_3 = Market {
+        ticker: ticker_3.clone(),
+        provider_configs: vec![],
+    };
+
+    let update_markets_action = UpdateMarkets {
+        update_markets: vec![market_3.clone()],
+    };
+
+    let tx = TransactionBody::builder()
+        .actions(vec![update_markets_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice_signing_key));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let market_map = app.state.get_market_map().await.unwrap().unwrap();
+    assert_eq!(market_map.markets.len(), 2);
+    assert_eq!(
+        market_map.markets.get(&ticker_1.currency_pair.to_string()),
+        Some(&market_3)
+    );
+    assert_eq!(
+        market_map.markets.get(&ticker_2.currency_pair.to_string()),
+        Some(&market_2)
+    );
+    assert_eq!(
+        market_map.markets.get(&ticker_3.currency_pair.to_string()),
+        Some(&market_3)
+    );
+}
+
+#[tokio::test]
+async fn remove_markets_executes_as_expected() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+
+    let alice_signing_key = get_alice_signing_key();
+
+    let ticker_1 = example_ticker("create market 1".to_string());
+    let market_1 = Market {
+        ticker: ticker_1.clone(),
+        provider_configs: vec![],
+    };
+    let ticker_2 = example_ticker_from_currency_pair("USDC", "TIA", "create market 2".to_string());
+    let market_2 = Market {
+        ticker: ticker_2.clone(),
+        provider_configs: vec![],
+    };
+
+    let mut market_map = MarketMap {
+        markets: IndexMap::new(),
+    };
+
+    market_map
+        .markets
+        .insert(ticker_1.currency_pair.to_string(), market_1);
+    market_map
+        .markets
+        .insert(ticker_2.currency_pair.to_string(), market_2.clone());
+
+    state_tx.put_market_map(market_map).unwrap();
+    app.apply(state_tx);
+
+    let remove_markets_action = RemoveMarkets {
+        markets: vec![ticker_1.currency_pair.to_string()],
+    };
+
+    let tx = TransactionBody::builder()
+        .actions(vec![remove_markets_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice_signing_key));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let market_map = app.state.get_market_map().await.unwrap().unwrap();
+    assert_eq!(market_map.markets.len(), 1);
+    assert!(
+        market_map
+            .markets
+            .get(&ticker_1.currency_pair.to_string())
+            .is_none()
+    );
+    assert_eq!(
+        market_map.markets.get(&ticker_2.currency_pair.to_string()),
+        Some(&market_2)
+    );
+}
+
+#[tokio::test]
+async fn remove_market_authorities_executes_as_expected() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+
+    let alice_signing_key = get_alice_signing_key();
+    let alice_address = astria_address_from_hex_string(ALICE_ADDRESS);
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+    let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
+
+    let params = Params {
+        market_authorities: vec![alice_address, bob_address],
+        admin: alice_address,
+    };
+    state_tx.put_params(params).unwrap();
+    app.apply(state_tx);
+
+    let remove_market_authorities_action = RemoveMarketAuthorities {
+        remove_addresses: vec![bob_address, carol_address],
+    };
+
+    let tx = TransactionBody::builder()
+        .actions(vec![remove_market_authorities_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice_signing_key));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let params = app.state.get_params().await.unwrap().unwrap();
+    assert_eq!(params.market_authorities.len(), 1);
+    assert_eq!(params.market_authorities[0], alice_address);
+}
+
+#[tokio::test]
+async fn update_params_executes_as_expected() {
+    let mut app = initialize_app(None, vec![]).await;
+    let mut state_tx = StateDelta::new(app.state.clone());
+
+    let alice_signing_key = get_alice_signing_key();
+    let alice_address = astria_address_from_hex_string(ALICE_ADDRESS);
+    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
+    let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
+
+    let params_1 = Params {
+        market_authorities: vec![alice_address, bob_address],
+        admin: alice_address,
+    };
+    state_tx.put_params(params_1.clone()).unwrap();
+    state_tx.put_sudo_address(alice_address).unwrap();
+    app.apply(state_tx);
+
+    let params_2 = Params {
+        market_authorities: vec![bob_address, carol_address],
+        admin: alice_address,
+    };
+    let update_params_action = UpdateParams {
+        params: params_2.clone(),
+    };
+
+    let tx = TransactionBody::builder()
+        .actions(vec![update_params_action.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice_signing_key));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let params = app.state.get_params().await.unwrap().unwrap();
+    assert_ne!(params, params_1);
+    assert_eq!(params, params_2);
 }

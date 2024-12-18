@@ -77,6 +77,24 @@ impl ActionHandler for FeeChange {
             Self::IbcSudoChange(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
+            Self::UpsertMarkets(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put upsert markets fees"),
+            Self::CreateMarkets(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put create markets fees"),
+            Self::UpdateMarkets(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put update markets fees"),
+            Self::UpdateParams(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put update params fees"),
+            Self::RemoveMarketAuthorities(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put remove market authorities fees"),
+            Self::RemoveMarkets(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put remove markets fees"),
         }
     }
 }
