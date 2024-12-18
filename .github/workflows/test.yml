@@ -256,7 +256,7 @@ jobs:
         with:
           cache-provider: "buildjet"
       - name: install cargo-dylint and dylint-link
-        run: cargo install cargo-dylint@3.2.0 dylint-link@3.2.0 --locked
+        run: cargo install cargo-dylint@3.3.0 dylint-link@3.3.0 --locked
       - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"
