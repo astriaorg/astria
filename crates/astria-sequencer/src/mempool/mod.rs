@@ -485,7 +485,7 @@ impl Mempool {
     /// does not take into account gapped nonces in the parked queue. For example, if the
     /// pending queue for an account has nonces [0,1] and the parked queue has [3], [1] will be
     /// returned.
-    #[instrument(skip_all, fields(address = %hex::encode(address)))]
+    #[instrument(skip_all, fields(address = %telemetry::display::base64(address)))]
     pub(crate) async fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
         self.pending.read().await.pending_nonce(address)
     }

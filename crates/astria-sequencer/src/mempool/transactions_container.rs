@@ -573,7 +573,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     /// Recosts transactions for an account.
     ///
     /// Logs an error if fails to recost a transaction.
-    #[instrument(skip_all, fields(address = %hex::encode(address)))]
+    #[instrument(skip_all, fields(address = %telemetry::display::base64(address)))]
     async fn recost_transactions<S: accounts::StateReadExt>(
         &mut self,
         address: &[u8; 20],

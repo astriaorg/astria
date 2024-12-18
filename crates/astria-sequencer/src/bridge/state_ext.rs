@@ -41,7 +41,7 @@ use crate::{
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
-    #[instrument(skip_all, fields(address = %address.display_address()), err(level = Level::DEBUG))]
+    #[instrument(skip_all, fields(address = %address.display_address()))]
     async fn is_a_bridge_account<T: AddressBytes>(&self, address: &T) -> Result<bool> {
         let maybe_id = self.get_bridge_account_rollup_id(address).await?;
         Ok(maybe_id.is_some())
@@ -250,7 +250,12 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(block_hash = %address.display_address(), withdrawal_event_id, block_num), err(level = Level::DEBUG))]
+    #[instrument(
+        skip_all,
+        fields(address = %address.display_address(),
+        withdrawal_event_id, block_num),
+        err(level = Level::DEBUG)
+    )]
     async fn check_and_set_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
         &mut self,
         address: &T,

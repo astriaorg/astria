@@ -52,20 +52,21 @@ impl Sequencer {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
         register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
+        let span = info_span!("Sequencer::run_until_stopped");
 
         if config
             .db_filepath
             .try_exists()
             .context("failed checking for existence of db storage file")?
         {
-            info_span!("Sequencer::run_until_stopped").in_scope(|| {
+            span.in_scope(|| {
                 info!(
                     path = %config.db_filepath.display(),
                     "opening storage db"
                 );
             });
         } else {
-            info_span!("Sequencer::run_until_stopped").in_scope(|| {
+            span.in_scope(|| {
                 info!(
                     path = %config.db_filepath.display(),
                     "creating storage db"
@@ -124,8 +125,7 @@ impl Sequencer {
             .wrap_err("failed to parse grpc_addr address")?;
         let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
 
-        info_span!("Sequencer::run_until_stopped")
-            .in_scope(|| info!(config.listen_addr, "starting sequencer"));
+        span.in_scope(|| info!(config.listen_addr, "starting sequencer"));
         let server_handle = tokio::spawn(async move {
             match server.listen_tcp(&config.listen_addr).await {
                 Ok(()) => {
@@ -142,11 +142,11 @@ impl Sequencer {
 
         select! {
             _ = signals.stop_rx.changed() => {
-                info_span!("Sequencer::run_until_stopped").in_scope(|| info!("shutting down sequencer"));
+                span.in_scope(|| info!("shutting down sequencer"));
             }
 
             _ = server_exit_rx => {
-                error_span!("Sequencer::run_until_stopped").in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
+                span.in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
             }
         }
 
