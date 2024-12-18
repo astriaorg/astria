@@ -36,7 +36,7 @@ enum SizedBundleError {
 
 pub(super) struct SizedBundleReport<'a>(pub(super) &'a SizedBundle);
 
-impl<'a> Serialize for SizedBundleReport<'a> {
+impl Serialize for SizedBundleReport<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -277,7 +277,7 @@ pub(super) struct NextFinishedBundle<'a> {
     bundle_factory: &'a mut BundleFactory,
 }
 
-impl<'a> NextFinishedBundle<'a> {
+impl NextFinishedBundle<'_> {
     pub(super) fn pop(self) -> SizedBundle {
         self.bundle_factory
             .finished

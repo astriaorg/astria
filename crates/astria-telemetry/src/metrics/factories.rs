@@ -176,7 +176,7 @@ trait RegisterMetric<T> {
     fn metric_type() -> &'static str;
 }
 
-impl<'a> RegisterMetric<Counter> for Factory<'a, Counter> {
+impl RegisterMetric<Counter> for Factory<'_, Counter> {
     fn register_metric(&self, key: &Key) -> Counter {
         let ignored_metadata = Metadata::new("", metrics::Level::ERROR, None);
         Counter::new(self.recorder.register_counter(key, &ignored_metadata))
@@ -187,7 +187,7 @@ impl<'a> RegisterMetric<Counter> for Factory<'a, Counter> {
     }
 }
 
-impl<'a> RegisterMetric<Gauge> for Factory<'a, Gauge> {
+impl RegisterMetric<Gauge> for Factory<'_, Gauge> {
     fn register_metric(&self, key: &Key) -> Gauge {
         let ignored_metadata = Metadata::new("", metrics::Level::ERROR, None);
         Gauge::new(self.recorder.register_gauge(key, &ignored_metadata))
@@ -198,7 +198,7 @@ impl<'a> RegisterMetric<Gauge> for Factory<'a, Gauge> {
     }
 }
 
-impl<'a> RegisterMetric<Histogram> for Factory<'a, Histogram> {
+impl RegisterMetric<Histogram> for Factory<'_, Histogram> {
     fn register_metric(&self, key: &Key) -> Histogram {
         let ignored_metadata = Metadata::new("", metrics::Level::ERROR, None);
         Histogram::new(self.recorder.register_histogram(key, &ignored_metadata))
