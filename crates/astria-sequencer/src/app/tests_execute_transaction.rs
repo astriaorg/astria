@@ -60,7 +60,6 @@ use crate::{
             CAROL_ADDRESS,
         },
         test_utils::{
-            example_ticker_from_currency_pair,
             get_bridge_signing_key,
             initialize_app,
         },
@@ -93,6 +92,7 @@ use crate::{
     test_utils::{
         calculate_rollup_data_submission_fee_from_state,
         example_ticker,
+        example_ticker_from_currency_pair,
     },
     utils::create_deposit_event,
 };

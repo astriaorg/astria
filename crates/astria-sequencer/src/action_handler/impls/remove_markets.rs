@@ -95,7 +95,10 @@ mod tests {
             astria_address,
             ASTRIA_PREFIX,
         },
-        test_utils::example_ticker,
+        test_utils::{
+            example_ticker,
+            example_ticker_from_currency_pair,
+        },
         transaction::{
             StateWriteExt as _,
             TransactionContext,
@@ -203,5 +206,59 @@ mod tests {
             res.to_string()
                 .contains("market map params not found in state")
         );
+    }
+
+    #[tokio::test]
+    async fn remove_markets_skips_missing_markets() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let authority_address = astria_address(&[0; 20]);
+
+        state.put_block_height(1).unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *authority_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let params = Params {
+            market_authorities: vec![authority_address],
+            admin: authority_address,
+        };
+        state.put_params(params).unwrap();
+
+        let ticker = example_ticker(String::new());
+        let market = Market {
+            ticker: ticker.clone(),
+            provider_configs: vec![],
+        };
+
+        let mut markets = IndexMap::new();
+        markets.insert(ticker.currency_pair.to_string(), market.clone());
+
+        state
+            .put_market_map(MarketMap {
+                markets,
+            })
+            .unwrap();
+
+        let action = RemoveMarkets {
+            markets: vec![
+                example_ticker_from_currency_pair("DIFBASE", "DIFQUOTE", String::new())
+                    .currency_pair
+                    .to_string(),
+            ],
+        };
+        action.check_and_execute(&mut state).await.unwrap();
+        let market_map = state.get_market_map().await.unwrap().unwrap();
+        assert_eq!(market_map.markets.len(), 1);
+        assert_eq!(
+            market_map.markets.get(&ticker.currency_pair.to_string()),
+            Some(&market)
+        );
+        assert_eq!(state.get_market_map_last_updated_height().await.unwrap(), 1);
     }
 }

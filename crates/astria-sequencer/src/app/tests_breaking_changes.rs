@@ -70,7 +70,6 @@ use crate::{
             CAROL_ADDRESS,
         },
         test_utils::{
-            example_ticker_from_currency_pair,
             get_alice_signing_key,
             get_bridge_signing_key,
             initialize_app,
@@ -85,6 +84,7 @@ use crate::{
         ASTRIA_PREFIX,
     },
     bridge::StateWriteExt as _,
+    test_utils::example_ticker_from_currency_pair,
 };
 
 #[tokio::test]

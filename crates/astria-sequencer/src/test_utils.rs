@@ -70,3 +70,20 @@ pub(crate) fn example_ticker(metadata: String) -> Ticker {
         metadata_json: metadata,
     }
 }
+
+pub(crate) fn example_ticker_from_currency_pair(
+    base: &str,
+    quote: &str,
+    metadata: String,
+) -> Ticker {
+    Ticker {
+        currency_pair: CurrencyPair::from_parts(
+            Base::from_str(base).unwrap(),
+            Quote::from_str(quote).unwrap(),
+        ),
+        decimals: 2,
+        min_provider_count: 2,
+        enabled: true,
+        metadata_json: metadata,
+    }
+}

@@ -2315,7 +2315,9 @@ impl From<FeeComponents<IbcSudoChange>> for FeeChange {
     }
 }
 
-/// Updates markets or creates them if they do not exist in the market map.
+/// Takes a list of markets and either updates them if they are already in the market map, or
+/// creates them if they are not. If no market map is found, one will be created. Must be signed by
+/// an address included in the market map [`Params`]' `market_authorities`.
 #[derive(Debug, Clone)]
 pub struct UpsertMarkets {
     // The list of all markets to be upserted for the given
@@ -2367,7 +2369,9 @@ pub enum UpsertMarketsErrorKind {
     InvalidMarket(#[from] MarketError),
 }
 
-/// Creates new markets in the market map.
+/// Takes a list of markets and creates them in the market map. If any already exist, this will err.
+/// If no market map is found, one will be created. Must be signed by an address included in the
+/// market map [`Params`]' `market_authorities`.
 #[derive(Debug, Clone)]
 pub struct CreateMarkets {
     /// The list of all markets to be created for the given
@@ -2421,7 +2425,10 @@ pub enum CreateMarketsErrorKind {
     AuthorityParse(#[from] AddressError),
 }
 
-/// Updates existing markets in the market map.
+/// Takes a list of markets and updates them in the market map (matching based on its
+/// ticker's `currency_pair`). If no market map is found, or any market is missing a counterpart in
+/// the map, this will err. Must be signed by an address included in the market map [`Params`]'
+/// `market_authorities`.
 #[derive(Debug, Clone)]
 pub struct UpdateMarkets {
     /// The list of all markets to be updated for the given
@@ -2473,7 +2480,9 @@ pub enum UpdateMarketsErrorKind {
     InvalidMarket(#[from] MarketError),
 }
 
-/// Updates the market map params.
+/// Updates the market map Params, which contains the market authority addresses as well as an admin
+/// address. This will execute whether there are params in the state already or not. Must be signed
+/// by the sequencer network authority sudo address.
 #[derive(Debug, Clone)]
 pub struct UpdateParams {
     /// The new parameters for the `connect/marketmap` module.
@@ -2529,7 +2538,9 @@ pub enum UpdateParamsErrorKind {
     AuthorityParse(#[from] AddressError),
 }
 
-/// Removes addresses from the market map list of authorities.
+/// Takes a list of addresses and removes them from the market authorities. If an address does not
+/// exist in `market_authorities`, it will be ignored. Must be signed by the market map admin (as
+/// defined in the market map [`Params`]).
 #[derive(Debug, Clone)]
 pub struct RemoveMarketAuthorities {
     /// The list of addresses to remove.
@@ -2581,7 +2592,9 @@ pub enum RemoveMarketAuthoritiesErrorKind {
     RemoveAddressParse(#[source] AddressError),
 }
 
-/// Removes markets from the market map.
+/// Takes a list of markets and removes them from the market map. If a market is not found in the
+/// map, it will be ignored. Must be signed by an address included in the market map [`Params`]'
+/// `market_authorities`.
 #[derive(Debug, Clone)]
 pub struct RemoveMarkets {
     /// The list of all markets to be removed.
