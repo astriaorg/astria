@@ -47,9 +47,6 @@ impl Component for OracleComponent {
             state
                 .put_num_currency_pairs(connect.oracle().currency_pair_genesis.len() as u64)
                 .wrap_err("failed to put number of currency pairs")?;
-            state
-                .put_num_removed_currency_pairs(0)
-                .wrap_err("failed to put number of removed currency pairs")?;
         }
         Ok(())
     }

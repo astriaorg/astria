@@ -131,6 +131,14 @@ expression: genesis_state()
     "validatorUpdate": {
       "base": {},
       "multiplier": {}
+    },
+    "addCurrencyPairs": {
+      "base": {},
+      "multiplier": {}
+    },
+    "removeCurrencyPairs": {
+      "base": {},
+      "multiplier": {}
     }
   },
   "connect": {

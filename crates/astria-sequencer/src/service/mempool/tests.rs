@@ -13,7 +13,7 @@ use tendermint::{
 
 use crate::{
     app::{
-        benchmark_and_test_utils::genesis_state,
+        benchmark_and_test_utils::get_test_genesis_state,
         test_utils::MockTxBuilder,
         App,
     },
@@ -38,7 +38,7 @@ async fn future_nonces_are_accepted() {
 
     app.init_chain(
         storage.clone(),
-        genesis_state(),
+        get_test_genesis_state(),
         vec![],
         "test".to_string(),
         0,
@@ -76,7 +76,7 @@ async fn rechecks_pass() {
 
     app.init_chain(
         storage.clone(),
-        genesis_state(),
+        get_test_genesis_state(),
         vec![],
         "test".to_string(),
         0,
@@ -122,7 +122,7 @@ async fn can_reinsert_after_recheck_fail() {
 
     app.init_chain(
         storage.clone(),
-        genesis_state(),
+        get_test_genesis_state(),
         vec![],
         "test".to_string(),
         0,
@@ -178,7 +178,7 @@ async fn recheck_adds_non_tracked_tx() {
 
     app.init_chain(
         storage.clone(),
-        genesis_state(),
+        get_test_genesis_state(),
         vec![],
         "test".to_string(),
         0,

@@ -11,6 +11,7 @@ use penumbra_ibc::IbcRelay;
 use super::{
     Action,
     ActionName,
+    AddCurrencyPairs,
     BridgeLock,
     BridgeSudoChange,
     BridgeUnlock,
@@ -20,6 +21,7 @@ use super::{
     IbcSudoChange,
     Ics20Withdrawal,
     InitBridgeAccount,
+    RemoveCurrencyPairs,
     RollupDataSubmission,
     SudoAddressChange,
     Transfer,
@@ -55,6 +57,9 @@ impl_belong_to_group!(
     (FeeAssetChange, Group::BundleableSudo),
     (IbcRelay, Group::BundleableGeneral),
     (IbcSudoChange, Group::UnbundleableSudo),
+    // TODO: should these have a different group?
+    (AddCurrencyPairs, Group::BundleableGeneral),
+    (RemoveCurrencyPairs, Group::BundleableGeneral),
 );
 
 impl Action {
@@ -74,6 +79,8 @@ impl Action {
             Action::FeeAssetChange(_) => FeeAssetChange::GROUP,
             Action::Ibc(_) => IbcRelay::GROUP,
             Action::IbcSudoChange(_) => IbcSudoChange::GROUP,
+            Action::AddCurrencyPairs(_) => AddCurrencyPairs::GROUP,
+            Action::RemoveCurrencyPairs(_) => RemoveCurrencyPairs::GROUP,
         }
     }
 }
