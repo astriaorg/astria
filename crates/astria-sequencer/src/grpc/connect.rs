@@ -206,7 +206,9 @@ impl OracleService for SequencerServer {
         };
 
         Ok(Response::new(GetPriceResponse {
-            price: Some(state.price.into_raw()),
+            price: state
+                .price
+                .map(astria_core::connect::oracle::v2::QuotePrice::into_raw),
             nonce: state.nonce.get(),
             id: state.id.get(),
             decimals: market.ticker.decimals,
@@ -260,7 +262,9 @@ impl OracleService for SequencerServer {
             };
 
             prices.push(GetPriceResponse {
-                price: Some(state.price.into_raw()),
+                price: state
+                    .price
+                    .map(astria_core::connect::oracle::v2::QuotePrice::into_raw),
                 nonce: state.nonce.get(),
                 id: state.id.get(),
                 decimals: market.ticker.decimals,

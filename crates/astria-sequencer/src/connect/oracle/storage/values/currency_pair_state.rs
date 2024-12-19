@@ -77,7 +77,7 @@ impl From<QuotePrice> for DomainQuotePrice {
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::connect::oracle) struct CurrencyPairState {
-    price: QuotePrice,
+    price: Option<QuotePrice>,
     nonce: u64,
     id: CurrencyPairId,
 }
@@ -85,7 +85,7 @@ pub(in crate::connect::oracle) struct CurrencyPairState {
 impl From<DomainCurrencyPairState> for CurrencyPairState {
     fn from(state: DomainCurrencyPairState) -> Self {
         CurrencyPairState {
-            price: QuotePrice::from(state.price),
+            price: state.price.map(QuotePrice::from),
             nonce: state.nonce.get(),
             id: CurrencyPairId::from(state.id),
         }
@@ -95,7 +95,7 @@ impl From<DomainCurrencyPairState> for CurrencyPairState {
 impl From<CurrencyPairState> for DomainCurrencyPairState {
     fn from(state: CurrencyPairState) -> Self {
         Self {
-            price: DomainQuotePrice::from(state.price),
+            price: state.price.map(DomainQuotePrice::from),
             nonce: CurrencyPairNonce::new(state.nonce),
             id: DomainCurrencyPairId::from(state.id),
         }

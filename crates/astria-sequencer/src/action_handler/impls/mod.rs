@@ -1,3 +1,4 @@
+pub(crate) mod add_currency_pairs;
 pub(crate) mod bridge_lock;
 pub(crate) mod bridge_sudo_change;
 pub(crate) mod bridge_unlock;
@@ -7,6 +8,7 @@ pub(crate) mod ibc_relayer_change;
 pub(crate) mod ibc_sudo_change;
 pub(crate) mod ics20_withdrawal;
 pub(crate) mod init_bridge_account;
+pub(crate) mod remove_currency_pairs;
 pub(crate) mod rollup_data_submission;
 pub(crate) mod sudo_address_change;
 #[cfg(test)]

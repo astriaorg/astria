@@ -261,6 +261,14 @@ pub mod v2 {
                 quote: self.quote.0,
             }
         }
+
+        #[must_use]
+        pub fn to_raw(&self) -> raw::CurrencyPair {
+            raw::CurrencyPair {
+                base: self.base.0.clone(),
+                quote: self.quote.0.clone(),
+            }
+        }
     }
 
     impl TryFrom<raw::CurrencyPair> for CurrencyPair {

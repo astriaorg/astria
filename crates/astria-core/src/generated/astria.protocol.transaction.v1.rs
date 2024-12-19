@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 71, 72"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -31,7 +31,7 @@ pub mod action {
         Ibc(::penumbra_proto::core::component::ibc::v1::IbcRelay),
         #[prost(message, tag = "22")]
         Ics20Withdrawal(super::Ics20Withdrawal),
-        /// POA sudo actions are defined on 50-60
+        /// POA sudo actions are defined on 50-70
         #[prost(message, tag = "50")]
         SudoAddressChange(super::SudoAddressChange),
         #[prost(message, tag = "51")]
@@ -46,6 +46,11 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
+        /// Oracle actions are defined on 71-80
+        #[prost(message, tag = "71")]
+        AddCurrencyPairs(super::AddCurrencyPairs),
+        #[prost(message, tag = "72")]
+        RemoveCurrencyPairs(super::RemoveCurrencyPairs),
     }
 }
 impl ::prost::Name for Action {
@@ -402,7 +407,7 @@ pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -442,6 +447,12 @@ pub mod fee_change {
         Transfer(super::super::super::fees::v1::TransferFeeComponents),
         #[prost(message, tag = "14")]
         ValidatorUpdate(super::super::super::fees::v1::ValidatorUpdateFeeComponents),
+        #[prost(message, tag = "15")]
+        AddCurrencyPairs(super::super::super::fees::v1::AddCurrencyPairsFeeComponents),
+        #[prost(message, tag = "16")]
+        RemoveCurrencyPairs(
+            super::super::super::fees::v1::RemoveCurrencyPairsFeeComponents,
+        ),
     }
 }
 impl ::prost::Name for FeeChange {
@@ -459,6 +470,36 @@ pub struct IbcSudoChange {
 }
 impl ::prost::Name for IbcSudoChange {
     const NAME: &'static str = "IbcSudoChange";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AddCurrencyPairs {
+    #[prost(message, repeated, tag = "1")]
+    pub pairs: ::prost::alloc::vec::Vec<
+        super::super::super::super::connect::types::v2::CurrencyPair,
+    >,
+}
+impl ::prost::Name for AddCurrencyPairs {
+    const NAME: &'static str = "AddCurrencyPairs";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RemoveCurrencyPairs {
+    #[prost(message, repeated, tag = "1")]
+    pub pairs: ::prost::alloc::vec::Vec<
+        super::super::super::super::connect::types::v2::CurrencyPair,
+    >,
+}
+impl ::prost::Name for RemoveCurrencyPairs {
+    const NAME: &'static str = "RemoveCurrencyPairs";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
