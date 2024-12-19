@@ -42,10 +42,7 @@ use astria_eyre::eyre::{
     Report,
     WrapErr as _,
 };
-use cnidarium::{
-    StateRead,
-    Storage,
-};
+use cnidarium::StateRead;
 use futures::{
     FutureExt as _,
     StreamExt as _,
@@ -78,7 +75,10 @@ use crate::{
         FeeHandler,
         StateReadExt as _,
     },
-    storage::StoredValue,
+    storage::{
+        Storage,
+        StoredValue,
+    },
 };
 
 #[instrument(skip_all, fields(%asset))]

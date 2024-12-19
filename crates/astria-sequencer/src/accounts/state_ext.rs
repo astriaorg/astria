@@ -276,7 +276,6 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use cnidarium::StateDelta;
     use futures::TryStreamExt as _;
 
     use super::*;
@@ -289,6 +288,7 @@ mod tests {
             astria_address,
             nria,
         },
+        storage::Storage,
     };
 
     fn asset_0() -> asset::Denom {
@@ -305,9 +305,8 @@ mod tests {
 
     #[tokio::test]
     async fn get_account_nonce_uninitialized_returns_zero() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
@@ -315,7 +314,7 @@ mod tests {
 
         // uninitialized accounts return zero
         assert_eq!(
-            state
+            state_delta
                 .get_account_nonce(&address)
                 .await
                 .expect("getting a non-initialized account's nonce should not fail"),
@@ -326,20 +325,19 @@ mod tests {
 
     #[tokio::test]
     async fn get_account_nonce_get_nonce_simple() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
         let nonce_expected = 0u32;
 
         // can write new
-        state
+        state_delta
             .put_account_nonce(&address, nonce_expected)
             .expect("putting an account nonce should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_account_nonce(&address)
                 .await
                 .expect("a nonce was written and must exist inside the database"),
@@ -349,11 +347,11 @@ mod tests {
 
         // can rewrite with new value
         let nonce_expected = 1u32;
-        state
+        state_delta
             .put_account_nonce(&address, nonce_expected)
             .expect("putting an account nonce should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_account_nonce(&address)
                 .await
                 .expect("a new nonce was written and must exist inside the database"),
@@ -364,20 +362,19 @@ mod tests {
 
     #[tokio::test]
     async fn get_account_nonce_get_nonce_complex() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
         let nonce_expected = 2u32;
 
         // can write new
-        state
+        state_delta
             .put_account_nonce(&address, nonce_expected)
             .expect("putting an account nonce should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_account_nonce(&address)
                 .await
                 .expect("a nonce was written and must exist inside the database"),
@@ -389,11 +386,11 @@ mod tests {
         let address_1 = astria_address(&[41u8; 20]);
         let nonce_expected_1 = 3u32;
 
-        state
+        state_delta
             .put_account_nonce(&address_1, nonce_expected_1)
             .expect("putting an account nonce should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_account_nonce(&address_1)
                 .await
                 .expect("a new nonce was written and must exist inside the database"),
@@ -401,7 +398,7 @@ mod tests {
             "additional account's nonce was not what was expected"
         );
         assert_eq!(
-            state
+            state_delta
                 .get_account_nonce(&address)
                 .await
                 .expect("a new nonce was written and must exist inside the database"),
@@ -412,9 +409,8 @@ mod tests {
 
     #[tokio::test]
     async fn get_account_balance_uninitialized_returns_zero() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
@@ -423,7 +419,7 @@ mod tests {
 
         // non-initialized accounts return zero
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset)
                 .await
                 .expect("getting a non-initialized asset balance should not fail"),
@@ -434,22 +430,21 @@ mod tests {
 
     #[tokio::test]
     async fn get_account_balance_simple() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
         let asset = asset_0();
         let mut amount_expected = 1u128;
 
-        state
+        state_delta
             .put_account_balance(&address, &asset, amount_expected)
             .expect("putting an account balance should not fail");
 
         // can initialize
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -460,12 +455,12 @@ mod tests {
         // can update balance
         amount_expected = 2u128;
 
-        state
+        state_delta
             .put_account_balance(&address, &asset, amount_expected)
             .expect("putting an asset balance for an account should not fail");
 
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -476,22 +471,21 @@ mod tests {
 
     #[tokio::test]
     async fn get_account_balance_multiple_accounts() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
         let asset = asset_0();
         let amount_expected = 1u128;
 
-        state
+        state_delta
             .put_account_balance(&address, &asset, amount_expected)
             .expect("putting an account balance should not fail");
 
         // able to write to account's storage
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -504,11 +498,11 @@ mod tests {
         let address_1 = astria_address(&[41u8; 20]);
         let amount_expected_1 = 2u128;
 
-        state
+        state_delta
             .put_account_balance(&address_1, &asset, amount_expected_1)
             .expect("putting an account balance should not fail");
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address_1, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -517,7 +511,7 @@ mod tests {
              account update"
         );
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -529,9 +523,8 @@ mod tests {
 
     #[tokio::test]
     async fn get_account_balance_multiple_assets() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
@@ -540,16 +533,16 @@ mod tests {
         let amount_expected_0 = 1u128;
         let amount_expected_1 = 2u128;
 
-        state
+        state_delta
             .put_account_balance(&address, &asset_0, amount_expected_0)
             .expect("putting an account balance should not fail");
-        state
+        state_delta
             .put_account_balance(&address, &asset_1, amount_expected_1)
             .expect("putting an account balance should not fail");
 
         // wrote correct balances
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset_0)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -557,7 +550,7 @@ mod tests {
             "returned balance for an asset did not match expected"
         );
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset_1)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -568,15 +561,14 @@ mod tests {
 
     #[tokio::test]
     async fn account_asset_balances_uninitialized_ok() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
 
         // see that call was ok
-        let stream = state.account_asset_balances(&address);
+        let stream = state_delta.account_asset_balances(&address);
 
         // Collect the stream into a vector
         let balances: Vec<_> = stream
@@ -593,25 +585,24 @@ mod tests {
 
     #[tokio::test]
     async fn account_asset_balances() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // native account should work with ibc too
-        state.put_native_asset(nria()).unwrap();
+        state_delta.put_native_asset(nria()).unwrap();
 
-        let asset_0 = state.get_native_asset().await.unwrap().unwrap();
+        let asset_0 = state_delta.get_native_asset().await.unwrap().unwrap();
         let asset_1 = asset_1();
         let asset_2 = asset_2();
 
         // also need to add assets to the ibc state
-        state
+        state_delta
             .put_ibc_asset(asset_0.clone())
             .expect("should be able to call other trait method on state object");
-        state
+        state_delta
             .put_ibc_asset(asset_1.clone().unwrap_trace_prefixed())
             .expect("should be able to call other trait method on state object");
-        state
+        state_delta
             .put_ibc_asset(asset_2.clone().unwrap_trace_prefixed())
             .expect("should be able to call other trait method on state object");
 
@@ -622,17 +613,17 @@ mod tests {
         let amount_expected_2 = 3u128;
 
         // add balances to the account
-        state
+        state_delta
             .put_account_balance(&address, &asset_0, amount_expected_0)
             .expect("putting an account balance should not fail");
-        state
+        state_delta
             .put_account_balance(&address, &asset_1, amount_expected_1)
             .expect("putting an account balance should not fail");
-        state
+        state_delta
             .put_account_balance(&address, &asset_2, amount_expected_2)
             .expect("putting an account balance should not fail");
 
-        let mut balances = state
+        let mut balances = state_delta
             .account_asset_balances(&address)
             .try_collect::<Vec<_>>()
             .await
@@ -659,23 +650,22 @@ mod tests {
 
     #[tokio::test]
     async fn increase_balance_from_uninitialized() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
         let asset = asset_0();
         let amount_increase = 2u128;
 
-        state
+        state_delta
             .increase_balance(&address, &asset, amount_increase)
             .await
             .expect("increasing account balance for uninitialized account should be ok");
 
         // correct balance was set
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -683,13 +673,13 @@ mod tests {
             "returned balance for an asset balance did not match expected"
         );
 
-        state
+        state_delta
             .increase_balance(&address, &asset, amount_increase)
             .await
             .expect("increasing account balance for initialized account should be ok");
 
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -700,23 +690,22 @@ mod tests {
 
     #[tokio::test]
     async fn decrease_balance_enough_funds() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
         let asset = asset_0();
         let amount_increase = 2u128;
 
-        state
+        state_delta
             .increase_balance(&address, &asset, amount_increase)
             .await
             .expect("increasing account balance for uninitialized account should be ok");
 
         // correct balance was set
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -725,13 +714,13 @@ mod tests {
         );
 
         // decrease balance
-        state
+        state_delta
             .decrease_balance(&address, &asset, amount_increase)
             .await
             .expect("decreasing account balance for initialized account should be ok");
 
         assert_eq!(
-            state
+            state_delta
                 .get_account_balance(&address, &asset)
                 .await
                 .expect("getting an asset balance should not fail"),
@@ -742,9 +731,8 @@ mod tests {
 
     #[tokio::test]
     async fn decrease_balance_not_enough_funds() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // create needed variables
         let address = astria_address(&[42u8; 20]);
@@ -752,13 +740,13 @@ mod tests {
         let amount_increase = 2u128;
 
         // give initial balance
-        state
+        state_delta
             .increase_balance(&address, &asset, amount_increase)
             .await
             .expect("increasing account balance for uninitialized account should be ok");
 
         // decrease balance
-        let _ = state
+        let _ = state_delta
             .decrease_balance(&address, &asset, amount_increase + 1)
             .await
             .expect_err("should not be able to subtract larger balance than what existed");
