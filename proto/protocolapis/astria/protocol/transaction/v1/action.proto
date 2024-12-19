@@ -24,7 +24,7 @@ message Action {
     astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc = 21;
     Ics20Withdrawal ics20_withdrawal = 22;
 
-    // POA sudo actions are defined on 50-60
+    // POA sudo actions are defined on 50-70
     SudoAddressChange sudo_address_change = 50;
     astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51;
     IbcRelayerChange ibc_relayer_change = 52;
@@ -32,9 +32,9 @@ message Action {
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
 
-    // Oracle actions are defined on 61-70
-    AddCurrencyPairs add_currency_pairs = 61;
-    RemoveCurrencyPairs remove_currency_pairs = 62;
+    // Oracle actions are defined on 71-80
+    AddCurrencyPairs add_currency_pairs = 71;
+    RemoveCurrencyPairs remove_currency_pairs = 72;
   }
 }
 

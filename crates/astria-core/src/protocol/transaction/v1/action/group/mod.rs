@@ -57,7 +57,6 @@ impl_belong_to_group!(
     (FeeAssetChange, Group::BundleableSudo),
     (IbcRelay, Group::BundleableGeneral),
     (IbcSudoChange, Group::UnbundleableSudo),
-    // TODO: should these have a different group?
     (AddCurrencyPairs, Group::BundleableGeneral),
     (RemoveCurrencyPairs, Group::BundleableGeneral),
 );

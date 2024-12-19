@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 61, 62"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 71, 72"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -31,7 +31,7 @@ pub mod action {
         Ibc(::penumbra_proto::core::component::ibc::v1::IbcRelay),
         #[prost(message, tag = "22")]
         Ics20Withdrawal(super::Ics20Withdrawal),
-        /// POA sudo actions are defined on 50-60
+        /// POA sudo actions are defined on 50-70
         #[prost(message, tag = "50")]
         SudoAddressChange(super::SudoAddressChange),
         #[prost(message, tag = "51")]
@@ -46,10 +46,10 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
-        /// Oracle actions are defined on 61-70
-        #[prost(message, tag = "61")]
+        /// Oracle actions are defined on 71-80
+        #[prost(message, tag = "71")]
         AddCurrencyPairs(super::AddCurrencyPairs),
-        #[prost(message, tag = "62")]
+        #[prost(message, tag = "72")]
         RemoveCurrencyPairs(super::RemoveCurrencyPairs),
     }
 }
