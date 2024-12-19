@@ -1,6 +1,7 @@
 use astria_core::{
     primitive::v1::RollupId,
     sequencerblock::v1::block::{
+        BlockHash,
         RollupTransactions,
         SequencerBlock,
         SequencerBlockHeader,
@@ -31,7 +32,7 @@ use crate::storage::StoredValue;
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
-    async fn get_block_hash_by_height(&self, height: u64) -> Result<[u8; 32]> {
+    async fn get_block_hash_by_height(&self, height: u64) -> Result<BlockHash> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::block_hash_by_height(height).as_bytes())
             .await
@@ -41,14 +42,14 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("block hash not found for given height");
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::BlockHash::try_from(value).map(<[u8; 32]>::from))
+            .and_then(|value| storage::BlockHash::try_from(value).map(BlockHash::from))
             .wrap_err("invalid block hash bytes")
     }
 
     #[instrument(skip_all)]
     async fn get_sequencer_block_header_by_hash(
         &self,
-        hash: &[u8; 32],
+        hash: &BlockHash,
     ) -> Result<SequencerBlockHeader> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::sequencer_block_header_by_hash(hash).as_bytes())
@@ -66,7 +67,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_rollup_ids_by_block_hash(&self, hash: &[u8; 32]) -> Result<Vec<RollupId>> {
+    async fn get_rollup_ids_by_block_hash(&self, hash: &BlockHash) -> Result<Vec<RollupId>> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::rollup_ids_by_hash(hash).as_bytes())
             .await
@@ -183,7 +184,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 #[instrument(skip_all)]
 async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
     state: &S,
-    hash: &[u8; 32],
+    hash: &BlockHash,
 ) -> Result<SequencerBlock> {
     let header = state
         .get_sequencer_block_header_by_hash(hash)
@@ -228,7 +229,7 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
 fn put_block_hash<S: StateWrite + ?Sized>(
     state: &mut S,
     block_height: tendermint::block::Height,
-    block_hash: [u8; 32],
+    block_hash: BlockHash,
 ) -> Result<()> {
     let bytes = StoredValue::from(storage::BlockHash::from(&block_hash))
         .serialize()

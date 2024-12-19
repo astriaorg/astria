@@ -188,7 +188,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         });
         acc.into_iter().map(Protobuf::into_raw).collect()
     };
-    let genesis_state = astria_core::generated::protocol::genesis::v1::GenesisAppState {
+    let genesis_state = astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
         accounts,
         authority_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
         ibc_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),

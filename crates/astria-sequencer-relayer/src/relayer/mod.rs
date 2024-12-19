@@ -5,7 +5,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
+    generated::astria::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
     sequencerblock::v1::SequencerBlock,
 };
 use astria_eyre::eyre::{

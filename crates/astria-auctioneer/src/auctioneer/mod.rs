@@ -1,40 +1,37 @@
-use std::future::Future;
+use std::{
+    future::Future,
+    task::Poll,
+};
 
 use astria_eyre::eyre::{
     self,
 };
-use pin_project_lite::pin_project;
-use tokio::task::{
-    JoinError,
-    JoinHandle,
-};
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::{
+    flatten_join_result,
     Config,
     Metrics,
 };
 
 mod inner;
 
-pin_project! {
-    /// Handle to the [`Auctioneer`] service, returned by [`Auctioneer::spawn`].
-    pub struct Auctioneer {
-        shutdown_token: CancellationToken,
-        task: Option<JoinHandle<eyre::Result<()>>>,
-    }
+/// The [`Auctioneer`] service returned by [`Auctioneer::spawn`].
+pub struct Auctioneer {
+    shutdown_token: CancellationToken,
+    task: Option<JoinHandle<eyre::Result<()>>>,
 }
 
 impl Auctioneer {
-    /// Creates an [`Auctioneer`] service and runs it, returning a handle to the taks and shutdown
-    /// token.
+    /// Spawns the [`Auctioneer`] service.
     ///
     /// # Errors
     /// Returns an error if the Auctioneer cannot be initialized.
     pub fn spawn(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let shutdown_token = CancellationToken::new();
-        let inner = inner::Auctioneer::new(cfg, metrics, shutdown_token.child_token())?;
+        let inner = inner::Inner::new(cfg, metrics, shutdown_token.child_token())?;
         let task = tokio::spawn(inner.run());
 
         Ok(Self {
@@ -43,37 +40,38 @@ impl Auctioneer {
         })
     }
 
-    /// Initiates shutdown of the Auctioneer and returns its result.
+    /// Shuts down Auctioneer, in turn waiting for its components to shut down.
     ///
     /// # Errors
-    /// Returns an error if the Auctioneer exited with an error.
+    /// Returns an error if an error occured during shutdown.
     ///
     /// # Panics
-    /// Panics if shutdown is called twice.
+    /// Panics if called twice.
     #[instrument(skip_all, err)]
-    pub async fn shutdown(&mut self) -> Result<eyre::Result<()>, JoinError> {
+    pub async fn shutdown(&mut self) -> eyre::Result<()> {
         self.shutdown_token.cancel();
-        self.task
-            .take()
-            .expect("shutdown must not be called twice")
-            .await
+        flatten_join_result(
+            self.task
+                .take()
+                .expect("shutdown must not be called twice")
+                .await,
+        )
     }
 }
 
 impl Future for Auctioneer {
-    type Output = Result<eyre::Result<()>, tokio::task::JoinError>;
+    type Output = eyre::Result<()>;
 
     fn poll(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
+    ) -> Poll<Self::Output> {
         use futures::future::FutureExt as _;
 
-        let this = self.project();
-        let task = this
+        let task = self
             .task
             .as_mut()
-            .expect("the Auctioneer handle must not be polled after shutdown");
-        task.poll_unpin(cx)
+            .expect("auctioneer must not be polled after shutdown");
+        task.poll_unpin(cx).map(flatten_join_result)
     }
 }
