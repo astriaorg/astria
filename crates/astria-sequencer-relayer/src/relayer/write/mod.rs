@@ -86,7 +86,7 @@ struct StartedSubmissionAndFee {
 
 #[derive(Clone)]
 pub(super) struct BlobSubmitterHandle {
-    tx: mpsc::Sender<SequencerBlock>,
+    tx: mpsc::Sender<Box<SequencerBlock>>,
 }
 
 impl BlobSubmitterHandle {
@@ -95,8 +95,8 @@ impl BlobSubmitterHandle {
     /// This is a thin wrapper around [`mpsc::Sender::try_send`].
     pub(super) fn try_send(
         &self,
-        block: SequencerBlock,
-    ) -> Result<(), TrySendError<SequencerBlock>> {
+        block: Box<SequencerBlock>,
+    ) -> Result<(), TrySendError<Box<SequencerBlock>>> {
         self.tx.try_send(block)
     }
 
@@ -105,8 +105,8 @@ impl BlobSubmitterHandle {
     /// This is a thin wrapper around [`mpsc::Sender::send`].
     pub(super) async fn send(
         &self,
-        block: SequencerBlock,
-    ) -> Result<(), SendError<SequencerBlock>> {
+        block: Box<SequencerBlock>,
+    ) -> Result<(), SendError<Box<SequencerBlock>>> {
         self.tx.send(block).await
     }
 }
@@ -116,7 +116,7 @@ pub(super) struct BlobSubmitter {
     client_builder: CelestiaClientBuilder,
 
     /// The channel over which sequencer blocks are received.
-    blocks: mpsc::Receiver<SequencerBlock>,
+    blocks: mpsc::Receiver<Box<SequencerBlock>>,
 
     /// The accumulator of all data that will be submitted to Celestia on the next submission.
     next_submission: NextSubmission,
@@ -253,7 +253,7 @@ impl BlobSubmitter {
                             sequencer_height = %block.height(),
                             "skipping sequencer block as already included in previous submission"
                         ));
-                    } else if let Err(error) = self.add_sequencer_block_to_next_submission(block) {
+                    } else if let Err(error) = self.add_sequencer_block_to_next_submission(*block) {
                         break Err(error).wrap_err(
                             "critically failed adding Sequencer block to next submission"
                         );

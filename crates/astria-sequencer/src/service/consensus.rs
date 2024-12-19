@@ -15,9 +15,11 @@ use tokio::sync::mpsc;
 use tower_abci::BoxError;
 use tower_actor::Message;
 use tracing::{
+    debug,
     instrument,
     warn,
     Instrument,
+    Level,
 };
 
 use crate::app::App;
@@ -153,7 +155,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
@@ -163,7 +165,7 @@ impl Consensus {
             .await
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
@@ -171,11 +173,11 @@ impl Consensus {
         self.app
             .process_proposal(process_proposal, self.storage.clone())
             .await?;
-        tracing::debug!("proposal processed");
+        debug!("proposal processed");
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn finalize_block(
         &mut self,
         finalize_block: request::FinalizeBlock,
