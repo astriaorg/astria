@@ -15,21 +15,21 @@ use tokio_util::sync::CancellationToken;
 
 use super::{
     Auction,
-    PendingNonceSubscriber,
     SequencerKey,
     Worker,
 };
+use crate::sequencer_channel::SequencerChannel;
 
 pub(in crate::auctioneer::inner) struct Factory {
     #[allow(dead_code)]
     pub(in crate::auctioneer::inner) metrics: &'static crate::Metrics,
     pub(in crate::auctioneer::inner) sequencer_abci_client: sequencer_client::HttpClient,
+    pub(in crate::auctioneer::inner) sequencer_channel: SequencerChannel,
     pub(in crate::auctioneer::inner) latency_margin: std::time::Duration,
     pub(in crate::auctioneer::inner) sequencer_key: SequencerKey,
     pub(in crate::auctioneer::inner) fee_asset_denomination: asset::Denom,
     pub(in crate::auctioneer::inner) sequencer_chain_id: String,
     pub(in crate::auctioneer::inner) rollup_id: RollupId,
-    pub(in crate::auctioneer::inner) pending_nonce: PendingNonceSubscriber,
     pub(in crate::auctioneer::inner) cancellation_token: CancellationToken,
 }
 
@@ -50,6 +50,7 @@ impl Factory {
         let cancellation_token = self.cancellation_token.child_token();
         let auction = Worker {
             sequencer_abci_client: self.sequencer_abci_client.clone(),
+            sequencer_channel: self.sequencer_channel.clone(),
             start_bids: Some(start_bids_rx),
             start_timer: Some(start_timer_rx),
             bundles: bundles_rx,
@@ -59,7 +60,6 @@ impl Factory {
             fee_asset_denomination: self.fee_asset_denomination.clone(),
             sequencer_chain_id: self.sequencer_chain_id.clone(),
             rollup_id: self.rollup_id,
-            pending_nonce: self.pending_nonce.clone(),
             cancellation_token: cancellation_token.clone(),
         };
 

@@ -43,6 +43,7 @@ use std::{
 };
 
 use astria_core::primitive::v1::{
+    Address,
     RollupId,
     asset,
 };
@@ -51,31 +52,35 @@ use astria_eyre::eyre::{
     Context,
     bail,
 };
+use futures::FutureExt as _;
 use sequencer_client::SequencerClientExt;
 use tokio::{
     select,
     sync::oneshot,
+    task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
     Level,
+    error,
     info,
     instrument,
 };
 
 use super::{
-    PendingNonceSubscriber,
     Summary,
     allocation_rule::FirstPrice,
 };
 use crate::{
     bundle::Bundle,
+    sequencer_channel::SequencerChannel,
     sequencer_key::SequencerKey,
 };
 
 pub(super) struct Worker {
     /// The sequencer's ABCI client, used for submitting transactions
     pub(super) sequencer_abci_client: sequencer_client::HttpClient,
+    pub(super) sequencer_channel: SequencerChannel,
     pub(super) start_bids: Option<oneshot::Receiver<()>>,
     pub(super) start_timer: Option<oneshot::Receiver<()>>,
     /// Channel for receiving new bundles
@@ -92,7 +97,6 @@ pub(super) struct Worker {
     pub(super) sequencer_chain_id: String,
     /// Rollup ID to submit the auction result to
     pub(super) rollup_id: RollupId,
-    pub(super) pending_nonce: PendingNonceSubscriber,
     pub(super) cancellation_token: CancellationToken,
 }
 
@@ -114,14 +118,31 @@ impl Worker {
         else {
             return Ok(Summary::CancelledDuringAuction);
         };
-        let Some(winner) = auction_result.wrap_err("auction failed while waiting for bids")? else {
+        let AuctionItems {
+            winner,
+            nonce_fetch,
+        } = auction_result.wrap_err("auction failed while waiting for bids")?;
+        let Some(winner) = winner else {
             return Ok(Summary::NoBids);
+        };
+
+        let nonce_fetch = nonce_fetch.expect(
+            "if the auction loop produced a winner, then a nonce fetch must have been spawned",
+        );
+
+        let pending_nonce = match nonce_fetch.now_or_never() {
+            Some(Ok(nonce)) => nonce,
+            Some(Err(error)) => return Err(error).wrap_err("task to fetch nonce has panicked"),
+            None => bail!(
+                "task to fetch nonce did not return in time once auction winner was selected and \
+                 ready to be submitted"
+            ),
         };
 
         // TODO: report the pending nonce that we ended up using.
         let transaction = Arc::unwrap_or_clone(winner)
             .into_transaction_body(
-                self.pending_nonce.get(),
+                pending_nonce,
                 self.rollup_id,
                 &self.sequencer_key,
                 self.fee_asset_denomination.clone(),
@@ -150,7 +171,9 @@ impl Worker {
 
         loop {
             select!(
-                () = self.cancellation_token.clone().cancelled_owned(), if !self.cancellation_token.is_cancelled() => {
+                () = self.cancellation_token.clone().cancelled_owned(),
+                    if !self.cancellation_token.is_cancelled() =>
+                {
                     info!(
                         "received cancellation token while waiting for Sequencer to respond to \
                          transaction submission; still waiting for submission until timeout"
@@ -169,22 +192,30 @@ impl Worker {
         }
     }
 
-    async fn run_auction_loop(&mut self) -> eyre::Result<Option<Arc<Bundle>>> {
+    async fn run_auction_loop(&mut self) -> eyre::Result<AuctionItems> {
         let mut latency_margin_timer = None;
         // TODO: do we want to make this configurable to allow for more complex allocation rules?
         let mut allocation_rule = FirstPrice::new();
         let mut auction_is_open = false;
 
+        let mut nonce_fetch = None;
         loop {
             select! {
                 biased;
 
-                _ = async { latency_margin_timer.as_mut().unwrap() }, if latency_margin_timer.is_some() => {
+                _ = async { latency_margin_timer.as_mut().unwrap() },
+                    if latency_margin_timer.is_some() =>
+                {
                     info!("timer is up; bids left unprocessed: {}", self.bundles.len());
-                    break Ok(allocation_rule.winner());
+                    break Ok(AuctionItems {
+                        winner: allocation_rule.winner(),
+                        nonce_fetch,
+                    })
                 }
 
-                Ok(()) = async { self.start_bids.as_mut().unwrap().await }, if self.start_bids.is_some() => {
+                Ok(()) = async { self.start_bids.as_mut().unwrap().await },
+                    if self.start_bids.is_some() =>
+                {
                     let mut channel = self
                         .start_bids
                         .take()
@@ -194,7 +225,9 @@ impl Worker {
                     auction_is_open = true;
                 }
 
-                Ok(()) = async { self.start_timer.as_mut().unwrap().await }, if self.start_timer.is_some() => {
+                Ok(()) = async { self.start_timer.as_mut().unwrap().await },
+                    if self.start_timer.is_some() =>
+                {
                     let mut channel = self
                         .start_timer
                         .take()
@@ -210,6 +243,10 @@ impl Worker {
 
                     // TODO: Emit an event to report start and endpoint of the auction.
                     latency_margin_timer = Some(tokio::time::sleep(self.latency_margin));
+                    nonce_fetch = Some(tokio::spawn(get_pending_nonce(
+                        self.sequencer_channel.clone(),
+                        *self.sequencer_key.address(),
+                    )));
                 }
 
                 // TODO: this is an unbounded channel. Can we process multiple bids at a time?
@@ -220,6 +257,29 @@ impl Worker {
                 else => {
                     bail!("all channels are closed; the auction cannot continue")
                 }
+            }
+        }
+    }
+}
+
+struct AuctionItems {
+    winner: Option<Arc<Bundle>>,
+    nonce_fetch: Option<JoinHandle<u32>>,
+}
+
+/// Fetches the pending nonce for `address` with aggressive retries.
+///
+/// On failure this method will attempt to immediately refetch the nonce in an
+/// infinite loop. It is expected that this future is run in a tokio task, relatively
+/// short lived (no longer than the margin timer of the auction), and killed/aborted
+/// if not ready by the time an auction result is expected to be available.
+#[instrument(skip_all, fields(%address), ret)]
+async fn get_pending_nonce(sequencer_channel: SequencerChannel, address: Address) -> u32 {
+    loop {
+        match sequencer_channel.get_pending_nonce(address).await {
+            Ok(nonce) => return nonce,
+            Err(error) => {
+                error!(%error, "fetching nonce failed; immediately scheduling next fetch")
             }
         }
     }

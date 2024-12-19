@@ -4,27 +4,19 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::{
-        Address,
-        RollupId,
-    },
+    primitive::v1::RollupId,
     sequencerblock::v1::block::FilteredSequencerBlock,
 };
 use astria_eyre::eyre::{
     self,
     OptionExt as _,
     WrapErr as _,
-    bail,
 };
 use futures::{
-    Future,
     StreamExt as _,
     stream::FuturesUnordered,
 };
-use tokio::{
-    select,
-    task::JoinHandle,
-};
+use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{
     Level,
@@ -32,9 +24,7 @@ use tracing::{
     error,
     field,
     info,
-    info_span,
     instrument,
-    warn,
 };
 
 use crate::{
@@ -47,7 +37,6 @@ use crate::{
     sequencer_channel::{
         BlockCommitmentStream,
         OptimisticBlockStream,
-        SequencerChannel,
     },
     sequencer_key::SequencerKey,
 };
@@ -63,7 +52,6 @@ pub(super) struct Inner {
     executed_blocks: ExecuteOptimisticBlockStream,
     running_auction: Option<auction::Auction>,
     optimistic_blocks: OptimisticBlockStream,
-    pending_nonce: PendingNoncePublisher,
     rollup_id: RollupId,
     shutdown_token: CancellationToken,
 }
@@ -99,9 +87,6 @@ impl Inner {
             .wrap_err("failed to load sequencer private key")?;
         info!(address = %sequencer_key.address(), "loaded sequencer signer");
 
-        let pending_nonce =
-            PendingNoncePublisher::new(sequencer_channel.clone(), *sequencer_key.address());
-
         let sequencer_abci_client =
             sequencer_client::HttpClient::new(sequencer_abci_endpoint.as_str())
                 .wrap_err("failed constructing sequencer abci client")?;
@@ -110,12 +95,12 @@ impl Inner {
         let auction_factory = auction::Factory {
             metrics,
             sequencer_abci_client,
+            sequencer_channel: sequencer_channel.clone(),
             latency_margin: Duration::from_millis(latency_margin_ms),
             sequencer_key: sequencer_key.clone(),
             fee_asset_denomination,
             sequencer_chain_id,
             rollup_id,
-            pending_nonce: pending_nonce.subscribe(),
             cancellation_token: shutdown_token.child_token(),
         };
 
@@ -129,7 +114,6 @@ impl Inner {
             rollup_id,
             running_auction: None,
             shutdown_token,
-            pending_nonce,
         })
     }
 
@@ -182,13 +166,6 @@ impl Inner {
             Some(res) = self.bundles.next() => {
                 let _ = self.handle_bundle(res);
             }
-
-            res = &mut self.pending_nonce => {
-                match res {
-                    Ok(()) => bail!("endless pending nonce publisher task exicted unexpectedly"),
-                    Err(err) => return Err(err).wrap_err("pending nonce publisher task panicked"),
-                }
-             }
 
              Some((id, res)) = self.cancelled_auctions.next() => {
                  let _ = self.handle_cancelled_auction(id, res);
@@ -351,84 +328,5 @@ impl Inner {
             running_auction.abort();
         }
         reason.map(|_| ())
-    }
-}
-
-#[derive(Clone, Debug)]
-struct PendingNonceSubscriber {
-    inner: tokio::sync::watch::Receiver<u32>,
-}
-
-impl PendingNonceSubscriber {
-    fn get(&self) -> u32 {
-        *self.inner.borrow()
-    }
-}
-
-/// Fetches the latest pending nonce for a given address every 500ms.
-// TODO: should this provide some kind of feedback mechanism from the
-// auction submission? Automatic incrementing for example? Notificatoin
-// that the nonce was actually bad?
-struct PendingNoncePublisher {
-    sender: tokio::sync::watch::Sender<u32>,
-    task: JoinHandle<()>,
-}
-
-impl PendingNoncePublisher {
-    fn subscribe(&self) -> PendingNonceSubscriber {
-        PendingNonceSubscriber {
-            inner: self.sender.subscribe(),
-        }
-    }
-
-    fn new(channel: SequencerChannel, address: Address) -> Self {
-        use tokio::time::{
-            MissedTickBehavior,
-            timeout_at,
-        };
-        // TODO: make this configurable. Right now they assume a Sequencer block time of 2s,
-        // so this is fetching nonce up to 4 times a block.
-        const FETCH_INTERVAL: Duration = Duration::from_millis(500);
-        const FETCH_TIMEOUT: Duration = FETCH_INTERVAL.saturating_mul(2);
-        let (tx, _) = tokio::sync::watch::channel(0);
-        Self {
-            sender: tx.clone(),
-            task: tokio::task::spawn(async move {
-                let mut interval = tokio::time::interval(FETCH_INTERVAL);
-                interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
-                let mut fetch = None;
-                loop {
-                    select!(
-                        instant = interval.tick(), if fetch.is_none() => {
-                            fetch = Some(Box::pin(
-                                timeout_at(instant + FETCH_TIMEOUT, channel.get_pending_nonce(address))));
-                        }
-                        res = async { fetch.as_mut().unwrap().await }, if fetch.is_some() => {
-                            fetch.take();
-                            let span = info_span!("fetch pending nonce");
-                            match res.map_err(eyre::Report::new) {
-                                Ok(Ok(nonce)) => {
-                                    info!(nonce, %address, "received new pending from sequencer");
-                                    tx.send_replace(nonce);
-                                }
-                                Ok(Err(error)) | Err(error) => span.in_scope(|| warn!(%error, "failed fetching pending nonce")),
-                            }
-                        }
-                    );
-                }
-            }),
-        }
-    }
-}
-
-impl Future for PendingNoncePublisher {
-    type Output = Result<(), tokio::task::JoinError>;
-
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        use futures::FutureExt as _;
-        self.task.poll_unpin(cx)
     }
 }

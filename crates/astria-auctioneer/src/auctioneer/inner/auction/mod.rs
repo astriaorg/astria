@@ -69,7 +69,6 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use super::PendingNonceSubscriber;
 use crate::{
     block::Commitment,
     bundle::Bundle,
