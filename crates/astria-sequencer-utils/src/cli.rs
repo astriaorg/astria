@@ -7,6 +7,7 @@ use super::{
     blob_parser,
     genesis_example,
     genesis_parser,
+    transaction_parser,
 };
 
 /// Utilities for working with the Astria sequencer network
@@ -29,6 +30,9 @@ pub enum Command {
     /// Parse blob data from an arg, a file, or stdin
     #[command(arg_required_else_help = true)]
     ParseBlob(blob_parser::Args),
+
+    #[command(arg_required_else_help = true)]
+    ParseTransaction(transaction_parser::Args),
 }
 
 #[must_use]
